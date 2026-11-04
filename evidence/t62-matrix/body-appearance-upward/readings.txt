@@ -1,0 +1,29 @@
+class    team ent tick   fam  mask_px  r-b(red)/b-r(blu)  tint        mask
+-------  ---- --- -----  ---  -------  -----------------  ----------  ----
+engineer 3    2   24001  1    1562     +30.2              OK/blu      OK
+engineer 2    8   24001  0    3033     +71.4              OK/red      OK
+pyro     3    3   24001  1    622      +33.5              OK/blu      OK
+pyro     2    9   24001  0    3287     +53.5              OK/red      OK
+soldier  3    4   24001  1    2678     +33.7              OK/blu      OK
+soldier  2    16  24001  0    3147     +55.6              OK/red      OK
+demo     3    6   24001  1    2706     +19.4              OK/blu      OK
+demo     2    19  24001  0    2111     +39.6              OK/red      OK
+medic    3    7   24001  1    5030     +44.9              OK/blu      OK
+medic    2    10  24001  0    2891     +74.8              OK/red      OK
+heavy    3    11  24001  1    5072     +20.9              OK/blu      OK
+heavy    2    5   20001  0    5077     +58.9              OK/red      OK
+spy      3    13  24001  1    1409     +37.4              OK/blu      OK
+spy      2    18  24001  0    2730     +50.1              OK/red      OK
+scout    3    12  24001  1    1475     +47.5              OK/blu      OK
+sniper   3    15  24001  1    2030     +17.8              OK/blu      OK
+
+PAIR table (same class, both teams):
+  demo     gap=59.0   red=39.6   blu=-19.4  OK
+  engineer gap=101.6  red=71.4   blu=-30.2  OK
+  heavy    gap=79.8   red=58.9   blu=-20.9  OK
+  medic    gap=119.7  red=74.8   blu=-44.9  OK
+  pyro     gap=87.0   red=53.5   blu=-33.5  OK
+  soldier  gap=89.3   red=55.6   blu=-33.7  OK
+  spy      gap=87.5   red=50.1   blu=-37.4  OK
+
+per-run verdicts: PASS, PASS, PASS, PASS, PASS, PASS, PASS, FAIL

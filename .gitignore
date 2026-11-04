@@ -167,3 +167,23 @@ evidence/verify/28-world-geometry/
 evidence/verify/29-world-materials/
 evidence/verify/30-review-workspace/
 evidence/verify-27-rerun/
+# T62 body appearance, both teams (2026-11-04): the gate captures two 2.5 MB BMPs per body
+# (identity mask + painted frame) and the selection survey captured 26 more, 222 MB in all.
+# What is committed is the readings (gate.log, readings.txt, readings.csv, targets*.txt,
+# frame-hashes.txt) plus a LOSSLESS PNG copy of each of the 32 gate frames (9.3 MB,
+# converted with Pillow and no resampling). The BMPs stay on disk -- frame-hashes.txt
+# records each one's sha256 -- and the survey frames are reproduced by
+# D:/_shared/t62-p1-blu-dynamic/runA_perclass.sh in eight lock holds.
+evidence/t62-matrix/body-appearance-upward/**/*.bmp
+evidence/t62-matrix/body-appearance-upward/probe/
+
+# The bone-mismatch gate derives two 5.4 MB mutated traces from fixtures/driven.trace on
+# every run (control-decrease, control-unattributed). The fixtures (76 KB), readings.txt
+# and semantics.txt are tracked; the mutants are a run's working set.
+evidence/t62-matrix/bone-mismatch/control-*.trace
+
+
+# The class-pixels gate captures its identity frame twice and asserts the two are byte
+# identical; RUNS-2026-11-04.md section 17 records the four hashes. The second copy is a
+# run artifact (0-byte log, 2.5 MB bitmap), not evidence.
+evidence/t62-matrix/class-pixels/**/identity-2.*

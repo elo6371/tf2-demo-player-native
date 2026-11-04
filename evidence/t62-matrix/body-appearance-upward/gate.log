@@ -1,0 +1,274 @@
+=== CLASS-RUN engineer ===
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:21:29
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-engineer: engineer ent=2 tick=24001 origin=1452.1,-1487.1,128.0 eye=1202.1,-1487.1,186.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 56641.0 entity: id=81 ent=2 model=models/player/engineer.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1452.1,-1487.1,128.0 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1562 pixels (>= 200)
+  BODY id=81 pixels=1562 mean_r=22.6 mean_g=35.8 mean_b=52.9 r_minus_b=-30.2 b_minus_r=30.2
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 30.2 (>= 15)
+
+--- red-engineer: engineer ent=8 tick=24001 origin=1889.4,288.9,400.0 eye=1639.4,288.9,458.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 53310.0 entity: id=86 ent=8 model=models/player/engineer.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1889.4,288.9,400.0 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 3033 pixels (>= 200)
+  BODY id=86 pixels=3033 mean_r=80.5 mean_g=14.2 mean_b=9.0 r_minus_b=71.4 b_minus_r=-71.4
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 71.4 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR engineer is judged in both teams (3,2) with ids 81,86 and pixels 1562,3033
+  PAIR engineer red-minus-blu gap = 101.6 (red 71.4, blu -30.2)
+  OK   the two teams separate by 101.6 >= 40
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=vtx-mapper-p1-3
+=== CLASS-RUN engineer rc=0 ===
+=== CLASS-RUN pyro ===
+WAITING owner=vtx-mapper-p1-3 queue_head=1793798504705317500-t62-mapaxes-11955
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:26:26
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-pyro: pyro ent=3 tick=24001 origin=608.6,-1639.1,211.6 eye=358.6,-1639.1,269.6
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54864.6 entity: id=82 ent=3 model=models/player/pyro.mdl team=3 family=1 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=608.6,-1639.1,211.6 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 622 pixels (>= 200)
+  BODY id=82 pixels=622 mean_r=15.5 mean_g=29.9 mean_b=49.0 r_minus_b=-33.5 b_minus_r=33.5
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 33.5 (>= 15)
+
+--- red-pyro: pyro ent=9 tick=24001 origin=2008.8,-647.0,483.4 eye=1758.8,-647.0,541.4
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 53537.2 entity: id=87 ent=9 model=models/player/pyro.mdl team=2 family=0 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=2008.8,-647.0,483.4 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 3287 pixels (>= 200)
+  BODY id=87 pixels=3287 mean_r=62.2 mean_g=12.3 mean_b=8.7 r_minus_b=53.5 b_minus_r=-53.5
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 53.5 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR pyro is judged in both teams (3,2) with ids 82,87 and pixels 622,3287
+  PAIR pyro red-minus-blu gap = 87.0 (red 53.5, blu -33.5)
+  OK   the two teams separate by 87.0 >= 40
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=vtx-mapper-p1-3
+=== CLASS-RUN pyro rc=0 ===
+=== CLASS-RUN soldier ===
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:31:33
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-soldier: soldier ent=4 tick=24001 origin=-362.3,-1911.3,193.0 eye=-612.3,-1911.3,251.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54347.9 entity: id=83 ent=4 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=-362.3,-1911.3,193.0 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 2678 pixels (>= 200)
+  BODY id=83 pixels=2678 mean_r=14.4 mean_g=28.7 mean_b=48.0 r_minus_b=-33.7 b_minus_r=33.7
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 33.7 (>= 15)
+
+--- red-soldier: soldier ent=16 tick=24001 origin=1365.2,-854.4,342.9 eye=1115.2,-854.4,400.9
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 53341.2 entity: id=94 ent=16 model=models/player/soldier.mdl team=2 family=0 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=1365.2,-854.4,342.9 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 3147 pixels (>= 200)
+  BODY id=94 pixels=3147 mean_r=62.6 mean_g=10.1 mean_b=7.0 r_minus_b=55.6 b_minus_r=-55.6
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 55.6 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR soldier is judged in both teams (3,2) with ids 83,94 and pixels 2678,3147
+  PAIR soldier red-minus-blu gap = 89.3 (red 55.6, blu -33.7)
+  OK   the two teams separate by 89.3 >= 40
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=vtx-mapper-p1-3
+=== CLASS-RUN soldier rc=0 ===
+=== CLASS-RUN demo ===
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:36:09
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-demo: demo ent=6 tick=24001 origin=2154.1,-1319.1,533.7 eye=1904.1,-1319.1,591.7
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54287.8 entity: id=84 ent=6 model=models/player/demo.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=2154.1,-1319.1,533.7 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 2706 pixels (>= 200)
+  BODY id=84 pixels=2706 mean_r=15.0 mean_g=23.3 mean_b=34.4 r_minus_b=-19.4 b_minus_r=19.4
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 19.4 (>= 15)
+
+--- red-demo: demo ent=19 tick=24001 origin=1938.2,-758.7,444.1 eye=1688.2,-758.7,502.1
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 53356.7 entity: id=96 ent=19 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1938.2,-758.7,444.1 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 2111 pixels (>= 200)
+  BODY id=96 pixels=2111 mean_r=46.3 mean_g=9.7 mean_b=6.6 r_minus_b=39.6 b_minus_r=-39.6
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 39.6 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR demo is judged in both teams (3,2) with ids 84,96 and pixels 2706,2111
+  PAIR demo red-minus-blu gap = 59.0 (red 39.6, blu -19.4)
+  OK   the two teams separate by 59.0 >= 40
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=vtx-mapper-p1-3
+=== CLASS-RUN demo rc=0 ===
+=== CLASS-RUN medic ===
+WAITING owner=vtx-mapper-p1-3 queue_head=1793799373611781600-t62-bonemismatch-18269
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:40:59
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-medic: medic ent=7 tick=24001 origin=1817.8,-1340.8,296.2 eye=1567.8,-1340.8,354.2
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 53706.1 entity: id=85 ent=7 model=models/player/medic.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1817.8,-1340.8,296.2 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 5030 pixels (>= 200)
+  BODY id=85 pixels=5030 mean_r=14.2 mean_g=33.2 mean_b=59.1 r_minus_b=-44.9 b_minus_r=44.9
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 44.9 (>= 15)
+
+--- red-medic: medic ent=10 tick=24001 origin=1795.6,-438.0,490.0 eye=1545.6,-438.0,548.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54172.8 entity: id=88 ent=10 model=models/player/medic.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1795.6,-438.0,490.0 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 2891 pixels (>= 200)
+  BODY id=88 pixels=2891 mean_r=92.1 mean_g=23.6 mean_b=17.3 r_minus_b=74.8 b_minus_r=-74.8
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 74.8 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR medic is judged in both teams (3,2) with ids 85,88 and pixels 5030,2891
+  PAIR medic red-minus-blu gap = 119.7 (red 74.8, blu -44.9)
+  OK   the two teams separate by 119.7 >= 40
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=vtx-mapper-p1-3
+=== CLASS-RUN medic rc=0 ===
+=== CLASS-RUN heavy ===
+WAITING owner=vtx-mapper-p1-3 queue_head=1793799657859594800-t62-bonemismatch-20164
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:45:52
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-heavy: heavy ent=11 tick=24001 origin=1609.4,-1293.8,80.7 eye=1359.4,-1293.8,138.7
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 56813.2 entity: id=89 ent=11 model=models/player/heavy.mdl team=3 family=1 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=1609.4,-1293.8,80.7 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 5072 pixels (>= 200)
+  BODY id=89 pixels=5072 mean_r=20.4 mean_g=29.2 mean_b=41.3 r_minus_b=-20.9 b_minus_r=20.9
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 20.9 (>= 15)
+
+--- red-heavy: heavy ent=5 tick=20001 origin=1036.5,-1807.5,288.0 eye=786.5,-1807.5,346.0
+  captures identity=0/entity-id/20001/29957 painted=0/textured/20001/29957
+  LEDGER 53431.3 entity: id=84 ent=5 model=models/player/heavy.mdl team=2 family=0 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=1036.5,-1807.5,288.0 frame_tick=20001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 5077 pixels (>= 200)
+  BODY id=84 pixels=5077 mean_r=68.3 mean_g=14.7 mean_b=9.4 r_minus_b=58.9 b_minus_r=-58.9
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 58.9 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR heavy is judged in both teams (3,2) with ids 89,84 and pixels 5072,5077
+  PAIR heavy red-minus-blu gap = 79.8 (red 58.9, blu -20.9)
+  OK   the two teams separate by 79.8 >= 40
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=vtx-mapper-p1-3
+=== CLASS-RUN heavy rc=0 ===
+=== CLASS-RUN spy ===
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:49:45
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-spy: spy ent=13 tick=24001 origin=1449.9,284.1,461.4 eye=1199.9,284.1,519.4
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54294.7 entity: id=91 ent=13 model=models/player/spy.mdl team=3 family=1 state=idle seq=10 label=AttackStand_SECONDARY skinned=1 origin=1449.9,284.1,461.4 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1409 pixels (>= 200)
+  BODY id=91 pixels=1409 mean_r=10.1 mean_g=22.0 mean_b=47.5 r_minus_b=-37.4 b_minus_r=37.4
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 37.4 (>= 15)
+
+--- red-spy: spy ent=18 tick=24001 origin=955.4,-1255.4,349.5 eye=705.4,-1255.4,407.5
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54132.7 entity: id=95 ent=18 model=models/player/spy.mdl team=2 family=0 state=idle seq=10 label=AttackStand_SECONDARY skinned=1 origin=955.4,-1255.4,349.5 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 2730 pixels (>= 200)
+  BODY id=95 pixels=2730 mean_r=59.7 mean_g=13.4 mean_b=9.6 r_minus_b=50.1 b_minus_r=-50.1
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 50.1 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR spy is judged in both teams (3,2) with ids 91,95 and pixels 1409,2730
+  PAIR spy red-minus-blu gap = 87.5 (red 50.1, blu -37.4)
+  OK   the two teams separate by 87.5 >= 40
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=vtx-mapper-p1-3
+=== CLASS-RUN spy rc=0 ===
+=== CLASS-RUN singles ===
+ACQUIRED owner=vtx-mapper-p1-3 at 2026-11-04 21:53:36
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-scout: scout ent=12 tick=24001 origin=1681.4,-1252.5,60.6 eye=1431.4,-1252.5,118.6
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54612.2 entity: id=90 ent=12 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1681.4,-1252.5,60.6 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1475 pixels (>= 200)
+  BODY id=90 pixels=1475 mean_r=21.2 mean_g=40.1 mean_b=68.7 r_minus_b=-47.5 b_minus_r=47.5
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 47.5 (>= 15)
+
+--- blu-sniper: sniper ent=15 tick=24001 origin=2073.3,-1589.5,324.2 eye=1823.3,-1589.5,382.2
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 54749.4 entity: id=93 ent=15 model=models/player/sniper.mdl team=3 family=1 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=2073.3,-1589.5,324.2 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 2030 pixels (>= 200)
+  BODY id=93 pixels=2030 mean_r=16.4 mean_g=23.8 mean_b=34.2 r_minus_b=-17.8 b_minus_r=17.8
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 17.8 (>= 15)
+
+=== pair check: same model, both teams ===
+  FAIL no class was judged in both teams, so the frame does not separate family from lighting
+
+===========================================================================
+BODY-APPEARANCE=FAIL (see the FAIL lines above)
+LOCKED-COMMAND-EXIT rc=1 owner=vtx-mapper-p1-3
+=== CLASS-RUN singles rc=1 ===
+ALL-CLASS-RUNS DONE

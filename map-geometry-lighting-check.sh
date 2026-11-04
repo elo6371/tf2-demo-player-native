@@ -20,23 +20,46 @@
 #     G3  every lightmap sample an emitted vertex reads is written
 #         (unwrittenTexels == 0): a black pixel has to be map data, not a
 #         lightmap page with holes in it.
-#   geometry, read from the captured frame by world-geometry-hole-account.py:
-#     G4  the empty population is not empty, so G5 has something to judge.
-#     G5  where the map own sky brushes cover at least MIN_SKY_COVERAGE_SHARE
-#         of the empty population the mask can localise this pose, so the
-#         pixels it does not cover are at most MAX_UNEXPLAINED_SHARE of that
-#         population. Where they cover less the mask cannot name this map sky at
-#         all, and the count is recorded as a reading instead of judged: G1-G4
-#         carry the geometry verdict for that map.
-#         The applicability rule is measured, not assumed. The product draws its
-#         sky as a six-face cubemap (trace: world sky-upload faces=6) rather
-#         than through the BSP sky brushes, so a map whose sky is a cubemap
-#         behind a 3D skybox has sky brushes that are one small volume. The
-#         measured coverage, 2026-11-04: 100% odyssey, 98.2% snakewater, 62.9%
-#         bagel rc11, 11.3% bagel rc12, 0.4% sunshine. Judging the last three by
-#         a share would measure the instrument coverage, not the frame. A hole
-#         this gate can see is a population above the share on a map it can
-#         localise; no map gets a claim that a hole below it is ruled out.
+#   geometry, read from the captured frame, in two instruments.
+#
+#   The set algebra (world-empty-lattice.py) is what decides the axis:
+#     G4  the frame has empty pixels nobody drew (flat-novis-nocull), so the
+#         algebra below is not vacuous.
+#     G5  the four flat captures nest. base (both restrictors on) is a subset of
+#         each single-restrictor frame, and each of those is a subset of
+#         flat-novis-nocull. An empty pixel can only get emptier as a restrictor
+#         is removed; the reverse -- a pixel drawn with a restrictor on and not
+#         drawn with it off -- is a violation no rasteriser produces.
+#     G6  the removals are accounted for: union = cull_only + pvs_only - overlap
+#         and union <= both-off empty, i.e. every pixel either restrictor alone
+#         recovers is also recovered with both off.
+#     G7  the albedo/lit relation is one-directional and holds: a pixel whose
+#         albedo (--world-lightmap off) is dark must be dark in the lit frame.
+#         The reverse does not hold -- bright albedo times dark light is a dark
+#         lit pixel -- so only the direction that is an invariant is asserted.
+#
+#   The point oracle (--world-hole-trace) is the second instrument, and it is
+#   what lets this gate say what an empty pixel IS rather than only that it is
+#   classified. On sampled pixels from each class it reports the world triangle
+#   along the ray (material, face, tri), the depth, and the captured depth:
+#     an empty pixel with any=- has no world triangle along its ray at all (open
+#     sky, drawn by the cubemap); an empty pixel with drawn=- any=face=  has a
+#     triangle the cull or the PVS clip removed. The gate requires every class
+#     that has samples to be explained by one of those two shapes.
+#
+#   WHY THE SKY-BRUSH SHARE IS NO LONGER A VERDICT
+#     The first version judged a map by how much of its empty population the BSP
+#     sky brushes covered, and only where that coverage was high enough
+#     to be named sky. That measured the instrument, not the frame: the
+#     product draws its sky as a six-face cubemap (trace: world sky-upload
+#     faces=6), so on a map with a 3D skybox the BSP brushes cover 100% of the
+#     empties on odyssey, 98.2% on snakewater, 62.9% on bagel rc11, 11.3% on
+#     bagel rc12 and 0.4% on sunshine. The share is still printed as a reading;
+#     it decides nothing. The 3824 pixels it used to call unexplained on
+#     snakewater are, by the algebra and by the oracle, open sky: no triangle
+#     along the ray, nothing removed by either restrictor. No map gets a claim
+#     that a hole below a share is ruled out; a hole this gate can see is a
+#     violation of G5-G7, which are map independent.
 #   lighting, read from the same frames by dark-account.py:
 #     L1  the frame has dark pixels (otherwise L2/L3 are vacuous).
 #     L2  the dark buckets are a partition of the dark population (every dark
@@ -51,7 +74,7 @@
 #   And, for every map, the frames agree on the pose and the tick: all ten
 #   captures report the requested frame tick and the same scene camera eye.
 #
-# THE CAPTURES (one debug camera, one tick, ten product runs per map)
+# THE CAPTURES (one debug camera, one tick, eleven product runs per map)
 #   textured            the product frame the maps are looked at
 #   none                --world-geometry none            (clear colour only)
 #   sky-faces           --world-geometry sky --world-flat --no-world-cull
@@ -62,8 +85,12 @@
 #   ids                 --world-face-id
 #   ids-nocull          --world-face-id --no-world-cull
 #   lmoff               --world-lightmap off
+#   oracle              --world-flat --world-hole-trace <the sampled points>
 #   flat-base is copied to flat.bmp because dark-account.py names its frame
 #   `flat`; it is the same capture, not a second run.
+#   The oracle capture is the eleventh run and it repeats flat-base with the
+#   point oracle switched on: G8 asserts the two BMPs are byte identical, so a
+#   flag that changed the picture would fail before its reading was used.
 #
 # WHERE THE CAMERA COMES FROM
 #   evidence/t62-map-matrix/<map>/camera.txt, written by map-material-matrix.sh.
@@ -73,12 +100,16 @@
 #   drift. A map whose camera.txt is missing is an input error, not a pass.
 #
 # WHAT IT DOES NOT CLAIM
-#   A zero unexplained population says the map has no hole at this one pose; it
-#   is not a claim about every pose on the map. A low product-attributable
-#   population says the dark pixels this frame has are the map own lightmap
-#   data, not that every lightmap decode on every map is correct. Neither axis
-#   is a pixel pin: the frame hashes are recorded in captures.txt so a later
-#   run can see the picture moved, but nothing here asserts a frame hash.
+#   The algebra holds on one pose per map: it is not a claim about every pose.
+#   It also does not claim a pixel is meant to be sky -- only that the frame that
+#   draws everything it can leaves it empty, and that the product own oracle
+#   agrees there is nothing along that ray. A low product-attributable population
+#   says the dark pixels this frame has are the map own lightmap data, not that
+#   every lightmap decode on every map is correct. Neither axis is a pixel pin:
+#   the frame hashes are recorded in captures.txt so a later run can see the
+#   picture moved, but nothing here asserts a frame hash against the repository.
+#   The one byte-level assertion is internal to a run: the oracle capture, which
+#   repeats flat-base with --world-hole-trace added, must reproduce it exactly.
 #
 # Usage: bash map-geometry-lighting-check.sh [--only=<map[,map]>] [--reuse]
 #   --only    judge the named maps only (others are left alone).
@@ -91,8 +122,7 @@ cd "$(dirname "$0")"
 PYTHON=${PYTHON:-python}
 TICK=2000
 SPEED=8
-MAX_UNEXPLAINED_SHARE=5
-MIN_SKY_COVERAGE_SHARE=90
+LATTICE_SAMPLES=${LATTICE_SAMPLES:-6}
 MAX_ATTRIBUTABLE_FRAME_PCT=2
 PRODUCT=native/build-nmake/tf2_demo_native.exe
 PROBE=native/build-nmake/world_geometry_probe.exe
@@ -312,8 +342,13 @@ for MAP in "${MAPS[@]}"; do
   lmline=$(grep -a "geometry lightmap-uv " "$DIR/geometry.txt" | head -1)
   assert_eq "lightmap samples an emitted vertex reads but the page never wrote" "$(field "$lmline" unwrittenTexels)" 0
 
-  # G4/G5: the frame own account of what it left empty.
-  "$PYTHON" world-geometry-hole-account.py --dir "$CAP" --out "$CAP/analysis" > "$DIR/hole-account.txt" 2>&1
+  # G4-G6: the frame own account of what it left empty, as set algebra over the
+  # four flat captures. This, not the sky-brush share, is the geometry verdict:
+  # it names every empty pixel either as open sky (no world triangle along the
+  # ray, even with both restrictors off) or as a restrictor removal (a triangle
+  # was there and the backface cull or the PVS clip took it away), and it does so
+  # without needing a sky mask that only some maps can localise.
+  $PYTHON world-geometry-hole-account.py --dir $CAP --out $CAP/analysis > $DIR/hole-account.txt 2>&1
   hole_rc=$?
   if [[ $hole_rc -ne 0 ]]; then failure "$MAP: the hole account exited $hole_rc"; fi
   hstatus=$(grep -a "HOLE status=" "$DIR/hole-account.txt" | head -1)
@@ -324,29 +359,92 @@ for MAP in "${MAPS[@]}"; do
   missing=$(field "$totals" missing)
   unexplained=$(field "$totals" unexplained)
   skycovered=$(field "$totals" sky)
-  assert_positive "empty pixels the sky test judged" "${missing:-}" || true
-  if [[ -n $missing && -n $unexplained && $missing =~ ^[0-9]+$ && $unexplained =~ ^[0-9]+$ ]]; then
-    # G5 only judges a map the sky mask can localise (see the header). On the
-    # others the count is a reading: the empty population there is mostly the
-    # cubemap sky, which no BSP brush covers, so a share cap would be a pin to
-    # this one pose rather than an invariant.
-    [[ -n $skycovered ]] || skycovered=0
-    sky_share=$(awk -v s="$skycovered" -v m="$missing" 'BEGIN{printf "%.1f", 100.0 * s / m}')
-    if awk -v s="$skycovered" -v m="$missing" -v need="$MIN_SKY_COVERAGE_SHARE" 'BEGIN{exit !(m > 0 && s * 100 >= need * m)}'; then
-      if awk -v u="$unexplained" -v m="$missing" -v lim="$MAX_UNEXPLAINED_SHARE" "BEGIN{exit !(m > 0 && u * 100 <= lim * m)}"; then
-        share=$(awk -v u="$unexplained" -v m="$missing" 'BEGIN{printf "%.2f", 100.0 * u / m}')
-        echo "  OK empty pixels with no sky brush = $unexplained ($share% of $missing, <= $MAX_UNEXPLAINED_SHARE%; the mask covers $sky_share% so it localises this pose)"
-      else
-        failure "$MAP: empty pixels with no sky brush = $unexplained of $missing, over $MAX_UNEXPLAINED_SHARE% (the mask covers $sky_share%)"
-      fi
+  [[ -n $skycovered && $skycovered =~ ^[0-9]+$ ]] || skycovered=0
+  if [[ -n $missing && $missing =~ ^[0-9]+$ ]]; then
+    sky_share=$(awk -v s="$skycovered" -v m="$missing" 'BEGIN{printf "%.1f", (m > 0 ? 100.0 * s / m : 0)}')
+    echo "  reading: empty=$missing skyMaskCovered=$skycovered ($sky_share%) outsideSkyMask=$unexplained (a reading; the verdict is G4-G8)"
+  else
+    failure "$MAP: the hole account gave no empty population"
+  fi
+
+  $PYTHON world-empty-lattice.py --dir "$CAP" --samples "$LATTICE_SAMPLES" > "$DIR/lattice.txt" 2>&1
+  lattice_rc=$?
+  lframe=$(grep -a "LATTICE frame=" "$DIR/lattice.txt" | head -1)
+  lmono=$(grep -a "LATTICE monotone " "$DIR/lattice.txt" | head -1)
+  lrestrict=$(grep -a "LATTICE restrict " "$DIR/lattice.txt" | head -1)
+  llight=$(grep -a "LATTICE light " "$DIR/lattice.txt" | head -1)
+  if [[ $lattice_rc -ne 0 ]]; then
+    failure "$MAP: the empty-population algebra failed: $(grep -a "LATTICE violated" "$DIR/lattice.txt" | head -1 | cut -c1-140)"
+  fi
+  empty_alloff=$(field "$lframe" empty_alloff)
+  drawn_base=$(field "$lframe" drawn_base)
+  assert_positive "empty pixels left with both restrictors off (G4)" "${empty_alloff:-}" || true
+  assert_positive "drawn pixels with both restrictors on (G4)" "${drawn_base:-}" || true
+  assert_eq "pixels drawn with both restrictors on and not with the vis clip off (G5)" "$(field "$lmono" base_not_in_novis)" 0
+  assert_eq "pixels drawn with both restrictors on and not with the cull off (G5)" "$(field "$lmono" base_not_in_nocull)" 0
+  assert_eq "pixels the vis-off capture draws outside the both-off capture (G5)" "$(field "$lmono" novis_not_in_all)" 0
+  assert_eq "pixels the cull-off capture draws outside the both-off capture (G5)" "$(field "$lmono" nocull_not_in_all)" 0
+  cull_only=$(field "$lrestrict" cull_only)
+  pvs_only=$(field "$lrestrict" pvs_only)
+  overlap=$(field "$lrestrict" overlap)
+  runion=$(field "$lrestrict" union)
+  rboth=$(field "$lrestrict" both)
+  if [[ $cull_only =~ ^[0-9]+$ && $pvs_only =~ ^[0-9]+$ && $overlap =~ ^[0-9]+$ && $runion =~ ^[0-9]+$ && $rboth =~ ^[0-9]+$ ]]; then
+    assert_eq "the restrictor union against cull_only+pvs_only-overlap (G6)" "$runion" "$((cull_only + pvs_only - overlap))"
+    if [[ $runion -le $rboth ]]; then
+      echo "  OK the restrictor union = $runion pixels, within the $rboth the two of them remove together (G6)"
     else
-      echo "  SKY-INSTRUMENT=unavailable the sky brushes cover $sky_share% of the $missing empty pixels (< $MIN_SKY_COVERAGE_SHARE%); $unexplained uncovered pixels are a reading here and the geometry verdict rests on G1-G4"
+      failure "$MAP: the restrictor union = $runion, larger than the $rboth pixels both restrictors remove"
     fi
   else
-    failure "$MAP: the hole account gave no usable empty population: missing=$missing unexplained=$unexplained"
+    failure "$MAP: the restrictor account is incomplete: ${lrestrict:-no line}"
   fi
-  if [[ -n $skycovered && $skycovered =~ ^[0-9]+$ ]]; then
-    echo "  reading: missing=$missing skyCovered=$skycovered unexplained=$unexplained"
+  assert_eq "drawn pixels whose albedo is dark but the frame is not (G7)" "$(field "$llight" albedo_not_lit)" 0
+  assert_positive "pixels whose albedo is dark (G7 is not vacuous)" "$(field "$llight" albedo_dark)" || true
+
+  # G8: the point oracle explains what the two classes ARE, rather than only that
+  # the algebra classified them. It rides on the pose the base class was defined
+  # against (both restrictors on, --world-flat only and nothing else), so an
+  # open-sky ray must carry no world triangle at all and a removal ray must carry
+  # exactly the triangle that the cull or the PVS clip refuses to draw. Riding on
+  # flat-base also makes the frame pollutable in a way cmp can see: the oracle
+  # capture has to stay byte-identical to the flat-base capture it repeats.
+  # Only empty samples are worth a ray: a drawn sample would be asking the
+  # oracle to confirm a pixel the frame already painted. The base column is
+  # what the algebra classified, so it is the filter.
+  ORACLE_POINTS=$(grep -a "^SAMPLE " "$DIR/lattice.txt" | awk '$4 == "base=empty" {print $2","$3}' | paste -sd';' -)
+  if [[ -z $ORACLE_POINTS ]]; then
+    # No empty pixel means no unpainted pixel: the sky brush covers
+    # everything the world pass leaves. That is a stronger claim than an
+    # explained hole, so it is asserted rather than failed -- but only when
+    # the algebra really reports an empty population of zero, so a map
+    # cannot pass G8 by having nothing to ask about.
+    if [[ -n $empty_alloff && $empty_alloff == 0 ]]; then
+      echo "  OK no pixel is left unpainted in the both-off capture (G8): the sky brush covers what the world pass leaves"
+      echo "ORACLE skipped reason=no-empty-pixel empty_alloff=0" > "$DIR/oracle.txt"
+    else
+      failure "$MAP: no empty pixel was sampled although empty_alloff=$empty_alloff"
+    fi
+  else
+    oracle_cap=1
+    capture oracle --world-flat --world-hole-trace "$ORACLE_POINTS" || oracle_cap=0
+    if [[ $oracle_cap -eq 0 ]]; then
+      failure "$MAP: the oracle capture failed"
+    else
+      echo "frame oracle sha256=$(sha256sum "$CAP/oracle.bmp" | cut -d" " -f1) bytes=$(wc -c < "$CAP/oracle.bmp")" >> "$DIR/captures.txt"
+      if cmp -s "$CAP/flat-base.bmp" "$CAP/oracle.bmp"; then
+        echo "  OK the point oracle did not change the frame it rode on"
+      else
+        failure "$MAP: adding --world-hole-trace changed the captured frame"
+      fi
+      $PYTHON world-empty-oracle.py --lattice "$DIR/lattice.txt" --trace "$CAP/oracle.trace" > "$DIR/oracle.txt" 2>&1
+      oracle_rc=$?
+      if [[ $oracle_rc -ne 0 ]]; then
+        failure "$MAP: the oracle did not explain every sampled pixel: $(grep -a "ORACLE failed\|ORACLE verdict=" "$DIR/oracle.txt" | head -2 | paste -sd" " -)"
+      else
+        echo "  OK $(grep -a "ORACLE points=" "$DIR/oracle.txt" | head -1)"
+      fi
+    fi
   fi
   if [[ $failures -eq $geo_before ]]; then geometry_ok=$((geometry_ok + 1)); fi
 

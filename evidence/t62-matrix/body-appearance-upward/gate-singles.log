@@ -1,0 +1,31 @@
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=C:/Users/Administrator/Downloads/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-scout: scout ent=12 tick=24001 origin=1681.4,-1252.5,60.6 eye=1431.4,-1252.5,118.6
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 44568.5 entity: id=90 ent=12 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1681.4,-1252.5,60.6 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1475 pixels (>= 200)
+  BODY id=90 pixels=1475 mean_r=21.2 mean_g=40.1 mean_b=68.7 r_minus_b=-47.5 b_minus_r=47.5
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 47.5 (>= 15)
+
+--- blu-sniper: sniper ent=15 tick=24001 origin=2073.3,-1589.5,324.2 eye=1823.3,-1589.5,382.2
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 43331.1 entity: id=93 ent=15 model=models/player/sniper.mdl team=3 family=1 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=2073.3,-1589.5,324.2 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 2030 pixels (>= 200)
+  BODY id=93 pixels=2030 mean_r=16.4 mean_g=23.8 mean_b=34.2 r_minus_b=-17.8 b_minus_r=17.8
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 17.8 (>= 15)
+
+=== pair check: same model, both teams ===
+player-body-appearance-check.sh: line 217: b b: invalid variable name
+  OK   this batch requests one team per class, so it makes no pair claim (the pairs are made by the batches that target both)
+player-body-appearance-check.sh: line 235: 3, 3,: invalid variable name
+
+===========================================================================
+BODY-APPEARANCE=PASS
+rc=0

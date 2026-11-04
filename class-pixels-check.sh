@@ -29,6 +29,39 @@
 # another's: the Demoman and the Scout are still drawn at 64161, the Medic is
 # not, and forcing one tick would silently shrink the evidence to two classes.
 #
+# DETERMINISM: THE IDENTITY FRAME IS CAPTURED TWICE AND MUST BE BYTE-IDENTICAL
+# The reading this gate publishes is a PIXEL COUNT, and a count is only a
+# reading if the frame that was counted is the frame the gate asked for. Every
+# target therefore captures the identity frame TWICE, in two separate processes
+# with identical arguments, and the script fails unless the two BMPs hash the
+# same -- the construction T61 uses for its animated/animated2 pair.
+#
+# The point is not tidiness. On this tree the same request reproduced a
+# byte-identical frame from independent processes over nine hours: the Scout at
+# tick 64161 (ent=15, eye 2492.7,-1327.1,-54.0, pitch 4.1, yaw 0.0) hashed
+# 7317b7a28afedbb129d9e564ed4c0f7aa1bb3e6497cd80a98471f73205f0e423 six times
+# across four driver generations. What could NOT be reproduced across processes
+# was every CUMULATIVE counter in the same trace -- boneMismatch, cycle,
+# poseChanges: the replay advances by wall-clock time (src/main.cpp:454,
+# kTargetFrameSeconds = 1/120) so each process draws a different number of
+# frames before it reaches the capture tick (5607..7807 observed on this demo,
+# at SPEED=8), and a per-frame counter scales with that count (boneMismatch =
+# 4.860469 * frames - 89.862, R^2 = 0.999731 over ten runs). A gate that
+# published a pixel count without asserting the bytes would be one relink away
+# from reading frame pacing as a rendering difference.
+#
+# If this assertion ever fires, the captured frame is no longer a function of
+# (demo, tick, camera, flags) and NO pixel count from that run may be quoted
+# until the cause is named.
+#
+# PROVENANCE
+# The sha256 of all four frames and of the product executable are appended as
+# the LAST lines of that target's <tag>.summary and of entity-id.txt, so a
+# published count can always be traced to the exact bytes and the exact
+# executable behind it. They are appended AFTER the fixed block and carry none
+# of the markers t61-entityid.py parses ('entity: id=', 'anim: pick model=',
+# 'anim: ent='), so every existing reader keeps working unchanged.
+#
 # MUST RUN UNDER THE SHARED HOST LOCK (it launches captures):
 #   bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t62-class \
 #     bash -c 'cd /d/TF2_Native_Worktrees/t79-integration && bash class-pixels-check.sh'
@@ -53,10 +86,24 @@ MIN_BODY_PIXELS=200
 fail=0
 say_fail() { echo "  FAIL $*"; fail=1; }
 
+# sha_of <path> -- the whole reason this gate can claim a count is a reading.
+# Prints the file's sha256, or <none> when the file is absent, so a missing
+# capture shows up in the provenance lines instead of hashing an empty string.
+sha_of() {
+  local f="$1"
+  [ -f "$f" ] || { echo "<none>"; return 0; }
+  sha256sum "$f" 2>/dev/null | cut -d' ' -f1
+}
+
 for path in "$PRODUCT" "$TF" "$DEMO" "$PY" "$OUT/targets.txt"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 2; }
 done
 [ -x "$PRODUCT" ] || { echo "FATAL: not executable: $PRODUCT"; exit 2; }
+
+# The executable is part of the reading, not scenery: the pixel chain has been
+# reproduced across relinks on this tree, so a count is only comparable when the
+# binary behind it is named. Every target's provenance block carries this value.
+PRODUCT_SHA=$(sha_of "$PRODUCT")
 
 # run_frame <dir> <tag> <eye...> <flag...>
 # Every argument except the tag and the flag list is identical across the three
@@ -89,6 +136,14 @@ run_frame() {
     grep -a 'capture: armed' "$trace" 2>/dev/null | tail -1
     grep -a 'scene: anim ' "$trace" 2>/dev/null | tail -1
   } > "$dir/$tag.summary"
+  # Provenance, APPENDED after the fixed block (never inside it): the summary
+  # above is a stable format that other readers parse, and these lines carry
+  # none of the markers t61-entityid.py looks for, so nothing downstream moves.
+  {
+    echo "frame: bmp=$tag.bmp sha256=$(sha_of "$bmp")"
+    echo "frame: product sha256=$PRODUCT_SHA"
+    echo "frame: request demo=$DEMO tick=$TICK speed=$SPEED camera=$eyeX,$eyeY,$eyeZ,$CAMERA_PITCH,$CAMERA_YAW flags=${*:-<none>}"
+  } >> "$dir/$tag.summary"
   rm -f "$trace"
   printf '%s %s %s %s\n' "${rc:-1}" "${view:-<none>}" "${frameTick:-<none>}" "${sceneTick:-<none>}"
 }
@@ -114,8 +169,13 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
   read -r on_rc on_view on_ft on_st < <(run_frame "$dir" animated "$eyeX" "$eyeY" "$eyeZ" --player-animation)
   read -r off_rc off_view off_ft off_st < <(run_frame "$dir" off "$eyeX" "$eyeY" "$eyeZ")
   read -r id_rc id_view id_ft id_st < <(run_frame "$dir" identity "$eyeX" "$eyeY" "$eyeZ" --player-animation --world-entity-id)
+  # The SAME request a second time, in a second process: this pair is what turns
+  # the pixel count below from "a frame we got" into "the frame the request
+  # names". Identical arguments, identical lock, different process.
+  read -r id2_rc id2_view id2_ft id2_st < <(run_frame "$dir" identity-2 "$eyeX" "$eyeY" "$eyeZ" --player-animation --world-entity-id)
   echo "  captures animated=$on_rc/${on_view}/${on_ft}/${on_st} off=$off_rc/${off_view}/${off_ft}/${off_st}"\
-       " identity=$id_rc/${id_view}/${id_ft}/${id_st}"
+       " identity=$id_rc/${id_view}/${id_ft}/${id_st}"\
+       " identity-2=$id2_rc/${id2_view}/${id2_ft}/${id2_st}"
 
   [ "$on_rc" = "0" ] || say_fail "${CLASS}: animated capture exited $on_rc"
   [ "$off_rc" = "0" ] || say_fail "${CLASS}: off capture exited $off_rc"
@@ -124,8 +184,34 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
   [ "$id_ft" = "$TICK" ] || say_fail "${CLASS}: identity frame landed tick ${id_ft:-<none>}, not $TICK"
   [ -n "$on_ft" ] && [ "$on_ft" = "$off_ft" ] && [ "$on_ft" = "$TICK" ] \
     || say_fail "${CLASS}: animated/off frame ticks differ or miss $TICK (on=${on_ft:-<none>} off=${off_ft:-<none>})"
+  [ "$id2_rc" = "0" ] || say_fail "${CLASS}: the second identity capture exited $id2_rc"
+  [ "$id2_view" = "entity-id" ] || say_fail "${CLASS}: the second identity frame reports view=${id2_view:-<none>}, not entity-id"
+  [ "$id2_ft" = "$TICK" ] || say_fail "${CLASS}: the second identity frame landed tick ${id2_ft:-<none>}, not $TICK"
   [ -n "$on_st" ] && [ "$on_st" = "$off_st" ] && [ "$on_st" = "$id_st" ] \
     || say_fail "${CLASS}: the three passes resolved different scene ticks (on=${on_st:-<none>} off=${off_st:-<none>} id=${id_st:-<none>})"
+
+  # --- DETERMINISM: two processes, one request, one answer -----------------
+  # This is the assertion that makes every number after it quotable. Without
+  # it the gate publishes a count from "a frame we happened to get"; with it the
+  # count is a property of (demo, tick, camera, flags) and of nothing else. The
+  # wall-clock replay is why this is not free: src/main.cpp:454 advances the
+  # playback by wall-clock time, so the number of frames rendered before the
+  # capture tick differs per process -- harmless for the frame (it is pinned to
+  # the tick) and fatal for every cumulative counter in the same trace.
+  ID_SHA=$(sha_of "$dir/identity.bmp")
+  ID2_SHA=$(sha_of "$dir/identity-2.bmp")
+  ON_SHA=$(sha_of "$dir/animated.bmp")
+  OFF_SHA=$(sha_of "$dir/off.bmp")
+  echo "  sha256 identity=$ID_SHA"
+  echo "  sha256 identity-2=$ID2_SHA"
+  echo "  sha256 animated=$ON_SHA"
+  echo "  sha256 off=$OFF_SHA"
+  echo "  sha256 product=$PRODUCT_SHA"
+  if [ "$ID_SHA" != "<none>" ] && [ "$ID_SHA" = "$ID2_SHA" ]; then
+    echo "  OK   the identity capture twice is byte-identical ($ID_SHA)"
+  else
+    say_fail "${CLASS}: the same identity capture twice is not byte-identical, so a cross-run pixel count cannot be a reading (identity=$ID_SHA identity-2=$ID2_SHA)"
+  fi
 
   "$PY" t61-entityid.py "$dir/identity.bmp" "$dir/identity.summary" \
     "$dir/animated.bmp" "$dir/off.bmp" > "$dir/entity-id.txt" 2>&1
@@ -135,6 +221,24 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
     say_fail "${CLASS}: the T61 F5 chain did not pass on this frame:"
     sed 's/^/    /' "$dir/entity-id.txt" | tail -20
   fi
+  # Provenance is APPENDED to the report, never interleaved with it: the python
+  # owns entity-id.txt above and the shell only adds lines at the end. They all
+  # start with "frame: ", which no reader of this file matches (the gate itself
+  # greps ^SUBJECT / ^BODY, t61-entityid.py never re-reads the file), so the
+  # appended block cannot change a verdict.
+  {
+    echo "frame: class=$CLASS ent=$ENT tick=$TICK"
+    echo "frame: bmp animated sha256=$ON_SHA"
+    echo "frame: bmp identity sha256=$ID_SHA"
+    echo "frame: bmp identity-2 sha256=$ID2_SHA"
+    echo "frame: bmp off sha256=$OFF_SHA"
+    echo "frame: identity capture twice byte-identical=$([ -n "$ID_SHA" ] && [ "$ID_SHA" = "$ID2_SHA" ] && echo yes || echo no)"
+    echo "frame: product sha256=$PRODUCT_SHA"
+    echo "frame: request demo=$DEMO"
+    echo "frame: request tick=$TICK speed=$SPEED"
+    echo "frame: request camera=$eyeX,$eyeY,$eyeZ,$CAMERA_PITCH,$CAMERA_YAW"
+    echo "frame: request flags=--player-animation --world-entity-id"
+  } >> "$dir/entity-id.txt"
   subject=$(grep -a '^SUBJECT ' "$dir/entity-id.txt" | tail -1)
   if printf '%s' "$subject" | grep -q "model=$model "; then
     echo "  OK   the judged subject IS a $CLASS body: $subject"

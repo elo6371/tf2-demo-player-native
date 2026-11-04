@@ -1,0 +1,3 @@
+[REJECTED-AS-REQUIRED] bone-mismatch/control-decrease.trace
+        FAIL 1 negative deltas (a counter may not decrease)
+        FAIL capped residual not strictly positive: {-4: 1, 8: 1, 2: 470, 1: 318}

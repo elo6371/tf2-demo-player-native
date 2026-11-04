@@ -1,0 +1,205 @@
+22373.1 scene: begin tick=0 sceneTick=10320
+22373.1 scene: clock tick=0 entryTick=1 serverTick=10320 serverTickKnown=1
+22382.2 scene: snapshot status=1 stale=0 states=2048
+22382.2 scene: observer done
+22382.3 scene: hud fxDue=0 drawable=1
+22387.8 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+22695.1 scene: setInstances draws=96 markers=32 playerDraws=14 propDraws=82 playerBudget=14 propBudget=82
+22696.0 scene: entityRanges ranges=98 texturedRanges=98 texturedInstances=95 skinnedInstances=61 meshes=68 textures=269
+22696.0 scene: anim skinned=62 bindPose=34 matrices=123 gpuSkin=61/123 boneMismatch=0 poseChanges=0 targetInstances=3 targetPose=0 advances=0 targetAdv=0 cycle=5/0 tick=10320 status=missing reason=entity carried no m_nSequence
+22696.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+22696.0 scene: instances set
+22699.1 scene: done
+22699.2 scene: camera mode=free-look target=0 follows=0 holds=0 freeze=1 eye=2492.7,-1327.1,-54.0 pitch=4.10 yaw=0.00 src=debug
+22699.2 spectate: tick=10320 dead=1,12,14,16,17,18,19 corpses=0 target=2 src=stable tr=0 prog=0.000 focus=1359.6,-538.8,5.9 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1
+22699.8 title: TF2 Demo Player - TF2 D��ޥ: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=200174 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=4096x1156, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=0/64352 req=0 act=0 frame=pending fdelta=na speed=8.000000 rate=66.666669 anchorAbs=10252@8670565 forward playing HUD[tick=0 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=8.000000 entity=checkpoint stale=0 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=227 entityModelVerts=418326 entityMaterials=95/95 entityMaterialRanges=98/98 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=62/96 animBones=123 animSeq=0 animFrame=17/30 animSource=missing animBindings=96/96 animCache=61 animAdv=0 animWitness=- gpuSkin=61/123 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 weaponKnown=50 ...[TRUNCATED]
+22710.0 loop n=2 tick=0
+22714.7 audio: advance tick=133 cursor=133 seen=58 played=0 skippedVoice=5 missing=21 dup=0
+22714.7 scene: begin tick=133 sceneTick=10453
+22714.7 scene: clock tick=133 entryTick=134 serverTick=10453 serverTickKnown=1
+22717.4 scene: snapshot status=1 stale=133 states=2048
+22717.5 scene: observer done
+22717.5 scene: hud fxDue=13 drawable=1
+22720.8 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+22720.9 scene: corpseFilter removed=2 indices=16,17 candidates=466 submitted=468
+22752.3 scene: setInstances draws=96 markers=32 playerDraws=12 propDraws=84 playerBudget=12 propBudget=84
+22752.7 scene: entityRanges ranges=101 texturedRanges=101 texturedInstances=95 skinnedInstances=61 meshes=68 textures=269
+22752.7 scene: anim skinned=62 bindPose=34 matrices=123 gpuSkin=61/123 boneMismatch=0 poseChanges=0 targetInstances=3 targetPose=0 advances=0 targetAdv=0 cycle=10/0 tick=10320 status=missing reason=entity carried no m_nSequence
+22752.7 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+22752.7 scene: instances set
+22754.3 overlay: corpseFilter removed=7 samples=19 kept=12
+22754.4 scene: done
+22754.5 scene: camera mode=free-look target=0 follows=0 holds=0 freeze=2 eye=2492.7,-1327.1,-54.0 pitch=4.10 yaw=0.00 src=debug
+22755.0 title: TF2 Demo Player - TF2 D��ޥ: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=200174 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=4096x1156, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=133/64352 req=0 act=0 frame=pending fdelta=na speed=8.000000 rate=66.666669 anchorAbs=10385@8756024 forward playing HUD[tick=133 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=8.000000 entity=checkpoint stale=133 audio=0/21 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=13 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=217 entityModelVerts=453609 entityMaterials=95/95 entityMaterialRanges=101/101 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=62/96 animBones=123 animSeq=0 animFrame=17/30 animSource=missing animBindings=96/192 animCache=155 animAdv=0 animWitness=- gpuSkin=61/123 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 wea...[TRUNCATED]
+22755.0 draw: begin tick=133 frames=0
+22768.0 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+22768.1 gpu: world clip near=0.00033180 far=100.000000 nearMapUnits=4.00 farMapUnits=1205556 horizontalScale=0.00008295 state=published
+22768.1 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+22768.1 gpu: world vis cameraCluster=2121 visibleFromCamera=2362 clusters=2940 clusteredTriangles=34517 hiddenTriangles=5350 withoutCluster=165483 inputTriangles=200000 drawnTriangles=194650 clipApplied=1 state=active eyeMap=(1359.6,-538.8,5.9) reason=hid 5350 of 200000 triangles from cluster 2121 (1142 kept by a cluster past the first)
+22768.1 gpu: world cull backfaces=1 mode=cull-back
+22768.1 gpu: world debug view=textured
+22768.2 gpu: world atlas-plan batches=2 blendBatches=1 tiled=123 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=270536704 reason=123 of 123 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=129+64+64+0+0 MiB
+22775.9 gpu: world tile material=NATURE/BLENDGROUNDTOGRASS008 tris=6336 visible=6336 batch=0 tile=0 size=512x512 blend=1 modulate=1 reason=tiled
+22775.9 gpu: world tile material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL tris=3940 visible=3940 batch=0 tile=1 size=512x512 blend=1 modulate=1 reason=tiled
+22775.9 gpu: world tile material=COALMINES/BLENDGROUNDTOGRASS_COALMINES tris=1024 visible=1024 batch=0 tile=2 size=512x512 blend=1 modulate=0 reason=tiled
+22775.9 gpu: world tile material=MEDIEVAL/PLASTERWALL002A tris=80256 visible=80256 batch=0 tile=3 size=512x512 blend=0 modulate=0 reason=tiled
+22775.9 gpu: world tile material=TOOLS/TOOLSBLACK tris=14426 visible=14245 batch=0 tile=4 size=64x64 blend=0 modulate=0 reason=tiled
+22775.9 gpu: world tile material=METAL/CHICKEN_WIRE001 tris=14084 visible=14084 batch=0 tile=5 size=128x128 blend=0 modulate=0 reason=tiled
+22775.9 gpu: world tile material=WOOD/WOOD_BEAM02 tris=10288 visible=10021 batch=0 tile=6 size=512x512 blend=0 modulate=0 reason=tiled
+22775.9 gpu: world tile material=WOOD/WOOD_BRIDGE001 tris=8290 visible=7797 batch=0 tile=7 size=512x512 blend=0 modulate=0 reason=tiled
+22775.9 gpu: world tile material=METAL/WALL028 tris=5094 visible=5092 batch=0 tile=8 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL015 tris=5087 visible=5024 batch=0 tile=9 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WINTER/ROCKWALL014 tris=4378 visible=4378 batch=0 tile=10 size=256x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL011G tris=3868 visible=3782 batch=0 tile=11 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL027B tris=3772 visible=3772 batch=0 tile=12 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/IBEAM001B tris=2769 visible=2514 batch=0 tile=13 size=256x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WOOD_FLOOR002 tris=2362 visible=2180 batch=0 tile=14 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/METALGRATE013A2 tris=2056 visible=2056 batch=0 tile=15 size=256x256 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL027 tris=1614 visible=1598 batch=0 tile=16 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/METALTRIM02 tris=1523 visible=1523 batch=0 tile=17 size=512x32 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/CONCRETEFLOOR007 tris=1494 visible=1166 batch=0 tile=18 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL021 tris=1230 visible=1195 batch=0 tile=19 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=NATURE/GROUND_04 tris=1194 visible=911 batch=0 tile=20 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/CONCRETEWALL014B tris=1130 visible=962 batch=0 tile=21 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WALL007A tris=1097 visible=972 batch=0 tile=22 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL025 tris=1062 visible=1045 batch=0 tile=23 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WALL020B tris=1054 visible=929 batch=0 tile=24 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/CONCRETEFLOOR003 tris=1012 visible=800 batch=0 tile=25 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=BRICK/WALL028 tris=930 visible=783 batch=0 tile=26 size=256x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WOOD_WALL006 tris=788 visible=696 batch=0 tile=27 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/COMPUTERWALL_BLUE_STAINED tris=774 visible=581 batch=0 tile=28 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=PROPS/METALDOOR01_192_NOENTRY tris=768 visible=768 batch=0 tile=29 size=512x256 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=BRICK/BRICKWALL002 tris=758 visible=723 batch=0 tile=30 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WOOD_BEAM03 tris=695 visible=597 batch=0 tile=31 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/CONCRETEWALL009 tris=641 visible=513 batch=0 tile=32 size=512x128 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WOOD_WALL001 tris=608 visible=602 batch=0 tile=33 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/GRAIN_ELEVATOR_SILO_10A tris=605 visible=552 batch=0 tile=34 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/COMPUTERWALL_RED_STAINED tris=604 visible=593 batch=0 tile=35 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WOOD_WALL003 tris=595 visible=554 batch=0 tile=36 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/CONCRETEWALL012 tris=583 visible=512 batch=0 tile=37 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/METALTRIM01 tris=526 visible=511 batch=0 tile=38 size=512x32 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=CONCRETE/CONCRETEWALL014 tris=493 visible=440 batch=0 tile=39 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WOOD_BRIDGE002 tris=451 visible=451 batch=0 tile=40 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=WOOD/WOOD_WALL005A tris=449 visible=449 batch=0 tile=41 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL014 tris=424 visible=262 batch=0 tile=42 size=512x512 blend=0 modulate=0 reason=tiled
+22776.0 gpu: world tile material=METAL/WALL011F tris=423 visible=402 batch=0 tile=43 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=BRICK/COBBLEWALL001 tris=407 visible=401 batch=0 tile=44 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/METALDOOR001 tris=406 visible=312 batch=0 tile=45 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL007 tris=403 visible=399 batch=0 tile=46 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL013A tris=295 visible=169 batch=0 tile=47 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/WALL011D tris=294 visible=208 batch=0 tile=48 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=BRICK/BRICKWALL004E tris=287 visible=250 batch=0 tile=49 size=512x256 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL013B tris=284 visible=158 batch=0 tile=50 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL013 tris=260 visible=218 batch=0 tile=51 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/IBEAM001 tris=236 visible=198 batch=0 tile=52 size=128x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL014A tris=222 visible=204 batch=0 tile=53 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=BRICK/BRICKWALL002B tris=211 visible=195 batch=0 tile=54 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/IMETAL005 tris=210 visible=186 batch=0 tile=55 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=WOOD/WOOD_WALL007 tris=208 visible=166 batch=0 tile=56 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/WALL012 tris=175 visible=99 batch=0 tile=57 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=WOOD/GRAIN_ELEVATOR_FACADE_09 tris=174 visible=174 batch=0 tile=58 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=TILE/FLOOR_TILE_006A tris=172 visible=129 batch=0 tile=59 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL002 tris=169 visible=132 batch=0 tile=60 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=BRICK/BRICKWALL004C tris=153 visible=153 batch=0 tile=61 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/WALL016D tris=152 visible=77 batch=0 tile=62 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=WOOD/GRAIN_ELEVATOR_FACADE_12 tris=150 visible=142 batch=0 tile=63 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=BRICK/BRICKWALL004D tris=144 visible=137 batch=1 tile=0 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/WALL011E tris=144 visible=139 batch=1 tile=1 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=WOOD/WOOD_WALL007A tris=133 visible=94 batch=1 tile=2 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=MEDIEVAL/STONEWALL001A tris=128 visible=128 batch=1 tile=3 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=BRICK/BRICKWALL001D tris=121 visible=119 batch=1 tile=4 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/WALL014A tris=120 visible=114 batch=1 tile=5 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL011 tris=119 visible=108 batch=1 tile=6 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=maps/cp_snakewater_final1/nature/blendgroundtograss008_wvt_patch tris=117 visible=59 batch=1 tile=7 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL002E tris=115 visible=101 batch=1 tile=8 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL011B tris=114 visible=101 batch=1 tile=9 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=COALMINES/RED_BEAM1 tris=112 visible=56 batch=1 tile=10 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL001A tris=112 visible=76 batch=1 tile=11 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=WOOD/GRAIN_ELEVATOR_SILO_05 tris=101 visible=66 batch=1 tile=12 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=CONCRETE/CONCRETEWALL011C tris=94 visible=94 batch=1 tile=13 size=512x512 blend=0 modulate=0 reason=tiled
+22776.1 gpu: world tile material=METAL/WALL015E tris=91 visible=91 batch=1 tile=14 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_004a_5934_-1624_-24 tris=89 visible=85 batch=1 tile=15 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=WOOD/WOOD_FLOOR001 tris=85 visible=85 batch=1 tile=16 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=CONCRETE/CONCRETEWALL001E tris=80 visible=80 batch=1 tile=17 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=BRICK/BRICKWALL001C tris=72 visible=72 batch=1 tile=18 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/WALL011 tris=72 visible=34 batch=1 tile=19 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=PROPS/METALDOOR01_96_NOENTRY tris=64 visible=64 batch=1 tile=20 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=COALMINES/RED_WALL4_MIDDLE tris=63 visible=63 batch=1 tile=21 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=BRICK/BRICKWALL004 tris=59 visible=59 batch=1 tile=22 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=WOOD/WOOD_TRACK001 tris=52 visible=44 batch=1 tile=23 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_-5135_2022_-15 tris=52 visible=38 batch=1 tile=24 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=BRICK/BRICKWALL001 tris=49 visible=47 batch=1 tile=25 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/WALL014B tris=46 visible=46 batch=1 tile=26 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/FLOORPLATE01 tris=44 visible=44 batch=1 tile=27 size=32x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/WALL017 tris=44 visible=22 batch=1 tile=28 size=256x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/STEELDOOR001 tris=43 visible=34 batch=1 tile=29 size=256x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=CONCRETE/CONCRETEFLOOR005 tris=42 visible=36 batch=1 tile=30 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=CONCRETE/CONCRETEWALL015A tris=42 visible=42 batch=1 tile=31 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=WOOD/WALL007C tris=33 visible=33 batch=1 tile=32 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=CONCRETE/CONCRETEFLOOR002 tris=30 visible=0 batch=1 tile=33 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=WOOD/WALL020 tris=30 visible=30 batch=1 tile=34 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/IMETAL001B tris=28 visible=28 batch=1 tile=35 size=256x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=OVERLAYS/DUST_GRADIENT01 tris=26 visible=10 batch=1 tile=36 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/WALL016 tris=24 visible=24 batch=1 tile=37 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_-4771_2021_-15 tris=23 visible=23 batch=1 tile=38 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=CONCRETE/CONCRETEWALL015 tris=21 visible=21 batch=1 tile=39 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=PL_BARNBLITZ/WOODWALL_REDWORN001B tris=21 visible=21 batch=1 tile=40 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=BRICK/BRICKWALL002C tris=16 visible=16 batch=1 tile=41 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/OFFICEDOOR002 tris=16 visible=14 batch=1 tile=42 size=256x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/WALL019D tris=16 visible=16 batch=1 tile=43 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=WOOD/WOOD_WALL005D tris=12 visible=12 batch=1 tile=44 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=METAL/WALL019E tris=8 visible=8 batch=1 tile=45 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=maps/cp_snakewater_final1/concrete/concretefloor006_2573_-1928_-51 tris=8 visible=8 batch=1 tile=46 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=CONCRETE/CONCRETEWALL002C tris=7 visible=7 batch=1 tile=47 size=512x512 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_-3950_1281_-16 tris=6 visible=6 batch=1 tile=48 size=256x256 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_5000_-865_-16 tris=6 visible=6 batch=1 tile=49 size=256x256 blend=0 modulate=0 reason=tiled
+22776.2 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_-2444_2301_152 tris=6 visible=6 batch=1 tile=50 size=512x512 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_3494_-1886_152 tris=5 visible=5 batch=1 tile=51 size=512x512 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=OVERLAYS/DUST_GRADIENT02 tris=4 visible=0 batch=1 tile=52 size=512x512 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=maps/cp_snakewater_final1/concrete/concretefloor006_-1479_2397_-64 tris=4 visible=0 batch=1 tile=53 size=512x512 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=METAL/WALL015F tris=3 visible=3 batch=1 tile=54 size=512x512 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=METAL/IBEAM002 tris=2 visible=2 batch=1 tile=55 size=32x512 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=METAL/IMETAL001 tris=2 visible=2 batch=1 tile=56 size=512x512 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_-3223_2571_-16 tris=2 visible=0 batch=1 tile=57 size=256x256 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_4273_-2156_-16 tris=2 visible=2 batch=1 tile=58 size=256x256 blend=0 modulate=0 reason=tiled
+22776.3 gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=2 batchDraws=2 texturedBatchDraws=2
+22844.6 gpu: world features materials=144 bumpmap=57(visible 56, resolved 57, missing 0, distinct 31) bumpmap2=1(visible 1) ssbump=41(visible 41) detail=53(visible 51, resolved 0, types 1)
+22844.7 gpu: world feature feature=bumpmap declared=57 visible=56 resolved=57 missing=0 first=NATURE/BLENDGROUNDTOGRASS008 resource=materials/Nature/dirtground001_height-ssbump.vtf reason=the materials name 31 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 16 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 41 that do stay refused (see the $ssbump row)
+22844.7 gpu: world feature feature=bumpmap2 declared=1 visible=1 resolved=1 missing=0 first=COALMINES/BLENDGROUNDTOGRASS_COALMINES resource=materials/Nature/dirtground003_height-ssbump.vtf reason=$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's; 1/1 of those materials also declare $ssbump, so their second-layer texel is a bumpBasis weight and stays refused even with both switches on (--world-bump2-texture measures the layer with a diagnostic normal map instead)
+22844.7 gpu: world feature feature=ssbump declared=41 visible=41 resolved=41 missing=0 first=NATURE/BLENDGROUNDTOGRASS008 resource=Nature/dirtground001_height-ssbump reason=$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on
+22844.7 gpu: world feature feature=detail declared=53 visible=51 resolved=0 missing=53 first=WOOD/WOOD_BEAM02 resource=materials/overlays/detail006.vmt reason=detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused
+22844.7 gpu: world feature-detail distinctBumpPaths=31 detailTypesRead=1 firstDetailType=tf_forest_grass
+22901.9 gpu: world lighting dynamic=0 specular=0 bump=0 requestedDynamic=0 requestedSpecular=0 requestedBump=0 bumpOwner=WOOD/WOOD_BRIDGE002 bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+22901.9 gpu: world lighting-summary controls=6 applied=0 refused=4 disabled=2 notDeclared=0 phong=0(visible 0, exponents 0/0) bumpOwner=WOOD/WOOD_BRIDGE002
+22901.9 gpu: world feature-apply bump enabled=0 tiles=0 materials=0 vertices=0 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
+22901.9 gpu: world lighting-control control=dynamicLighting kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=137 triangles=194352 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant, not a material key: the pixel shader replaces the lightmap-only factor with 0.62+0.38*dot(normal, lightDirection) for 137 visible materials / 194352 visible triangles; no VMT declares it, so every surface is shaded by the same guessed direction and the baked lightmap's own direct light is counted twice; off
+22901.9 gpu: world lighting-control control=specular kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=137 triangles=194352 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant: one lobe (boost 0.12, exponent 32) for 137 visible materials / 194352 visible triangles; no visible material declares $phong, so the lobe is added to materials that never asked for one; off
+22901.9 gpu: world lighting-control control=bump kind=pass-switch state=refused declared=57 visible=56 resolved=57 missing=0 materials=56 triangles=35108 requested=0 effective=0 parsed=1 first=NATURE/BLENDGROUNDTOGRASS008 resource=materials/Nature/dirtground001_height-ssbump.vtf reason=off: the world pass has one bump sampler slot (--world-bump) and the per-material path is off too (--world-material-bump), so the 56 visible materials that name one of 31 distinct $bumpmap textures are drawn with no normal map at all
+22901.9 gpu: world lighting-control control=$bumpmap2 kind=material-key state=refused declared=1 visible=1 resolved=1 missing=0 materials=1 triangles=1024 requested=0 effective=0 parsed=1 first=COALMINES/BLENDGROUNDTOGRASS_COALMINES resource=materials/Nature/dirtground003_height-ssbump.vtf reason=$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's; 1/1 of those materials also declare $ssbump, so their second-layer texel is a bumpBasis weight and stays refused even with both switches on (--world-bump2-texture measures the layer with a diagnostic normal map instead)
+22901.9 gpu: world lighting-control control=%detailtype kind=material-key state=refused declared=53 visible=51 resolved=0 missing=53 materials=51 triangles=40942 requested=0 effective=0 parsed=1 first=WOOD/WOOD_BEAM02 resource=materials/overlays/detail006.vmt reason=detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused; 53 of 53 referenced detail VMTs are absent from this install, so the layer's own texture and blend mode cannot be resolved here; %detailtype is a key in the material that names the layer, not in the detail VMT, and is read above; 1 material names a %detailtype group (first=tf_forest_grass); %detailtype names a detail-prop group that VBSP consumes at map compile time (it emits prop_detail sprites and models there), so the key never reaches a runtime shader and has no consumer here
+22901.9 gpu: world lighting-control control=$ssbump kind=material-key state=refused declared=41 visible=41 resolved=41 missing=0 materials=41 triangles=33592 requested=0 effective=0 parsed=1 first=NATURE/BLENDGROUNDTOGRASS008 resource=Nature/dirtground001_height-ssbump reason=$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on
+22902.0 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=12 poseWorld=0 poseBind=0 poseJoinMissed=0 samples=12 sampledTicks=2 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+22902.0 draw: end frames=1 pending=0
+22902.0 loop n=3 tick=133
+22902.0 audio: advance tick=235 cursor=235 seen=60 played=0 skippedVoice=5 missing=23 dup=0
+22902.0 scene: begin tick=235 sceneTick=10555
+22902.0 scene: clock tick=235 entryTick=236 serverTick=10555 serverTickKnown=1
+22904.8 scene: snapshot status=1 stale=235 states=2048
+22904.8 scene: observer done
+22904.9 scene: hud fxDue=16 drawable=1
+22908.1 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+22914.4 scene: setInstances draws=96 markers=32 playerDraws=12 propDraws=84 playerBudget=12 propBudget=84
+22914.5 scene: entityRanges ranges=101 texturedRanges=101 texturedInstances=95 skinnedInstances=61 meshes=68 textures=269
+22914.5 scene: anim skinned=62 bindPose=34 matrices=123 gpuSkin=61/123 boneMismatch=0 poseChanges=0 targetInstances=3 targetPose=0 advances=0 targetAdv=0 cycle=15/0 tick=10320 status=missing reason=entity carried no m_nSequence
+22914.5 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+22914.5 scene: instances set
+22915.8 overlay: corpseFilter removed=7 samples=19 kept=12
+22915.9 scene: done
+22915.9 scene: camera mode=free-look target=0 follows=0 holds=0 freeze=3 eye=2492.7,-1327.1,-54.0 pitch=4.10 yaw=0.00 src=debug
+22916.6 title: TF2 Demo Player - TF2 D��ޥ: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=200174 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=4096x1156, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=235/64352 req=0 act=0 frame=pending fdelta=na speed=8.000000 rate=66.666669 anchorAbs=10487@8805028 forward playing HUD[tick=235 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=8.000000 entity=checkpoint stale=235 audio=0/23 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=16 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=217 entityModelVerts=453609 entityMaterials=95/95 entityMaterialRanges=101/101 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=62/96 animBones=123 animSeq=0 animFrame=17/30 animSource=missing animBindings=96/288 animCache=251 animAdv=0 animWitness=- gpuSkin=61/123 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 wea...[TRUNCATED]
+22916.6 draw: begin tick=235 frames=1
+22917.2 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=12 poseWorld=0 poseBind=0 poseJoinMissed=0 samples=12 sampledTicks=3 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+22917.2 draw: end frames=2 pending=0
+22917.2 loop n=4 tick=235
+22917.2 audio: advance tick=243 cursor=243 seen=60 played=0 skippedVoice=5 missing=23 dup=0
+142783.9 capture: armed requested=64161 frame_tick=64161 frames=6790

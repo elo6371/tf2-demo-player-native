@@ -20,4 +20,4 @@ HOLE region W2 x=0,y=560,w=420,h=121 drawn=41821 missing=0 sky=0 unexplained=0
 HOLE region W3 x=1100,y=100,w=164,h=200 drawn=32800 missing=0 sky=0 unexplained=0
 HOLE region W4 x=600,y=0,w=64,h=60 drawn=3050 missing=0 sky=0 unexplained=0
 HOLE dark drawn=657999 dark=72564 limit=16
-HOLE mask=.scratch/t62-map-axes/pl_odyssey/analysis\hole-mask.bmp
+HOLE mask=.scratch/t62-map-axes/pl_odyssey/analysis\hole-mask.bmp emptyMask=.scratch/t62-map-axes/pl_odyssey/analysis\empty-mask.bmp

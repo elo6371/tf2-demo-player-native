@@ -194,33 +194,86 @@ done < "$INPUT/targets.txt"
 # --- the pair claim: the same model must be painted by BOTH teams, and the two
 # readings must point in OPPOSITE directions. One body per team could pass by
 # accident (a red-ish map lighting a red body); a same-model pair cannot.
+#
+# WHICH PAIRS THIS BATCH OWES. A label is <team>-<class>, so targets.txt records
+# whether a pair was requested at all. Without that, "this batch only asked for
+# one team" and "this batch asked for both and one body was not drawn" would
+# print the same sentence, and only the second is a failure: the nine-class
+# sweep is run as eight small batches so one lock holder does not starve the
+# next, and the singles batch (BLU Scout, BLU Sniper) makes no pair claim by
+# construction.
+declare -A WANT_TEAMS
+while read -r LABEL CLASS ENT TICK OX OY OZ; do
+  case "$LABEL" in ''|'#'*) continue;; esac
+  case "$LABEL" in
+    red-*) WANT_TEAMS[$CLASS]="${WANT_TEAMS[$CLASS]:-}r" ;;
+    blu-*) WANT_TEAMS[$CLASS]="${WANT_TEAMS[$CLASS]:-}b" ;;
+  esac
+done < "$INPUT/targets.txt"
+
 echo "=== pair check: same model, both teams ==="
 pair_found=0
-for CLASS in "${!TINT_MODEL[@]}"; do
-  teams="${TINT_TEAM[$CLASS]}"
-  case "$teams" in
-    *2*3*|*3*2*)
-      pair_found=1
-      red_rmb=""; blu_rmb=""
-      for part in ${TINT_RMB[$CLASS]//,/ }; do
-        case "$part" in
-          2:*) red_rmb=${part#2:} ;;
-          3:*) blu_rmb=${part#3:} ;;
-        esac
-      done
-      gap=$(awk -v r="${red_rmb:-0}" -v b="${blu_rmb:-0}" 'BEGIN { printf "%.1f", r - b }')
-      echo "  PAIR $CLASS is judged in both teams (${teams%,}) with ids ${TINT_ID[$CLASS]%,} and pixels ${TINT_PIX[$CLASS]%,}"
-      echo "  PAIR $CLASS red-minus-blu gap = ${gap} (red ${red_rmb:-<none>}, blu ${blu_rmb:-<none>})"
-      if awk -v g="$gap" -v m="$PAIR_MIN_GAP" 'BEGIN { exit !(g >= m) }'; then
-        echo "  OK   the two teams separate by ${gap} >= $PAIR_MIN_GAP"
-      else
-        say_fail "$CLASS: the red body reads ${red_rmb:-<none>} and the blu body ${blu_rmb:-<none>}; the red-minus-blu gap ${gap} is below $PAIR_MIN_GAP"
-      fi
+want_pairs=0
+for CLASS in ${!WANT_TEAMS[@]+"${!WANT_TEAMS[@]}"}; do
+  case "${WANT_TEAMS[$CLASS]}" in
+    *r*b*|*b*r*)
+      want_pairs=$((want_pairs + 1))
+      teams="${TINT_TEAM[$CLASS]:-}"
+      case "$teams" in
+        *2*3*|*3*2*)
+          pair_found=$((pair_found + 1))
+          red_rmb=""; blu_rmb=""
+          for part in ${TINT_RMB[$CLASS]//,/ }; do
+            case "$part" in
+              2:*) red_rmb=${part#2:} ;;
+              3:*) blu_rmb=${part#3:} ;;
+            esac
+          done
+          gap=$(awk -v r="${red_rmb:-0}" -v b="${blu_rmb:-0}" 'BEGIN { printf "%.1f", r - b }')
+          echo "  PAIR $CLASS is judged in both teams (${teams%,}) with ids ${TINT_ID[$CLASS]%,} and pixels ${TINT_PIX[$CLASS]%,}"
+          echo "  PAIR $CLASS red-minus-blu gap = $gap (red ${red_rmb:-<none>}, blu ${blu_rmb:-<none>})"
+          if awk -v g="$gap" -v m="$PAIR_MIN_GAP" 'BEGIN { exit !(g >= m) }'; then
+            echo "  OK   the two teams separate by $gap >= $PAIR_MIN_GAP"
+          else
+            say_fail "$CLASS: the red body reads ${red_rmb:-<none>} and the blu body ${blu_rmb:-<none>}; the red-minus-blu gap $gap is below $PAIR_MIN_GAP"
+          fi
+          ;;
+        *)
+          say_fail "$CLASS was targeted in both teams but judged only in team(s) ${teams:-<none>}, so its pair claim cannot be made (occluded or mis-framed body?)"
+          ;;
+      esac
       ;;
   esac
 done
-[ "$pair_found" = "1" ] || say_fail "no class was judged in both teams, so the frame does not separate family from lighting"
-[ "$judged" -ge 2 ] || say_fail "only $judged bodies judged; a team claim needs at least one body per team"
+
+if [ "$want_pairs" = "0" ]; then
+  echo "  OK   this batch requests one team per class, so it makes no pair claim (the pairs are made by the batches that target both)"
+fi
+[ "$pair_found" = "$want_pairs" ] || say_fail "only $pair_found of the $want_pairs requested pairs were judged in both teams"
+# HOW MANY TEAMS THIS BATCH OWES A BODY IN. A batch that asks for one team only
+# (the singles batch) must not be failed for not covering the other team, but it
+# still has to judge at least one body: a batch that judged nothing proves nothing
+# whatever it asked for.
+want_teams=""
+while read -r LABEL CLASS ENT TICK OX OY OZ; do
+  case "$LABEL" in
+    red-*) case "$want_teams" in *2*) ;; *) want_teams="${want_teams}2" ;; esac ;;
+    blu-*) case "$want_teams" in *3*) ;; *) want_teams="${want_teams}3" ;; esac ;;
+  esac
+done < "$INPUT/targets.txt"
+judged_teams=""
+for CLASS in ${!TINT_TEAM[@]+"${!TINT_TEAM[@]}"}; do judged_teams="${judged_teams}${TINT_TEAM[$CLASS]}"; done
+case "$want_teams" in
+  *2*3*|*3*2*)
+    case "$judged_teams" in
+      *2*3*|*3*2*) echo "  OK   this batch asked for both teams and judged bodies in both" ;;
+      *) say_fail "a two-team batch judged bodies in team(s) ${judged_teams:-<none>} only; a team claim needs at least one body per team" ;;
+    esac
+    ;;
+  *)
+    [ "$judged" -ge 1 ] || say_fail "no body was judged at all, so this batch makes no claim"
+    ;;
+esac
 
 echo
 echo "==========================================================================="

@@ -1,0 +1,17 @@
+# label class ent tick ox oy oz  -- origin is the product ledger origin of the SAME tick
+blu-engineer engineer 2 24001 1452.1 -1487.1 128.0
+red-engineer engineer 8 24001 1889.4 288.9 400.0
+blu-pyro pyro 3 24001 608.6 -1639.1 211.6
+red-pyro pyro 9 24001 2008.8 -647.0 483.4
+blu-soldier soldier 4 24001 -362.3 -1911.3 193.0
+red-soldier soldier 16 24001 1365.2 -854.4 342.9
+blu-demo demo 6 24001 2154.1 -1319.1 533.7
+red-demo demo 19 24001 1938.2 -758.7 444.1
+blu-medic medic 7 24001 1817.8 -1340.8 296.2
+red-medic medic 10 24001 1795.6 -438.0 490.0
+blu-heavy heavy 11 24001 1609.4 -1293.8 80.7
+red-heavy heavy 5 20001 1036.5 -1807.5 288.0
+blu-spy spy 13 24001 1449.9 284.1 461.4
+red-spy spy 18 24001 955.4 -1255.4 349.5
+blu-scout scout 12 24001 1681.4 -1252.5 60.6
+blu-sniper sniper 15 24001 2073.3 -1589.5 324.2

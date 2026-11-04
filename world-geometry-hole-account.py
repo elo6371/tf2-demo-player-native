@@ -285,8 +285,15 @@ def main(argv):
     print("HOLE status=ok dir=%s size=%dx%d flat_colour=(%d,%d,%d)"
           % (directory, width, height, flat_colour[0], flat_colour[1], flat_colour[2]))
 
-    present_all_off = match_mask(frames["flat-novis-nocull"], flat_colour)
-    present_base = match_mask(frames["flat-base"], flat_colour)
+    # Present is "the world pass painted the pixel with the flat colour". Not
+    # "not the clear colour": the sky cubemap covers every pixel the world pass
+    # leaves, so the clear colour never appears and that test marks the whole
+    # frame drawn on all five maps.
+    def present(frame):
+        return match_mask(frame, flat_colour)
+
+    present_all_off = present(frames["flat-novis-nocull"])
+    present_base = present(frames["flat-base"])
     sky_mask = match_mask(frames["sky-faces"], flat_colour)
     total = width * height
 
@@ -554,7 +561,12 @@ def main(argv):
             if missing[index] and not sky_mask[index]:
                 image[index] = 4
     write_bmp(os.path.join(out_dir, "hole-mask.bmp"), width, height, image, palette)
-    print("HOLE mask=%s" % os.path.join(out_dir, "hole-mask.bmp"))
+    # A colour-independent input for the product-side point oracle. White means
+    # exactly the no-world/no-cull/no-PVS population, not the sky-brush proxy.
+    write_bmp(os.path.join(out_dir, "empty-mask.bmp"), width, height, missing,
+              [(0, 0, 0), (255, 255, 255)])
+    print("HOLE mask=%s emptyMask=%s"
+          % (os.path.join(out_dir, "hole-mask.bmp"), os.path.join(out_dir, "empty-mask.bmp")))
     return EXIT_OK
 
 

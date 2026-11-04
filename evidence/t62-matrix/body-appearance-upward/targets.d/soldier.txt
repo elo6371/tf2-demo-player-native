@@ -1,0 +1,2 @@
+blu-soldier soldier 4 24001 -362.3 -1911.3 193.0
+red-soldier soldier 16 24001 1365.2 -854.4 342.9

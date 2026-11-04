@@ -1,0 +1,18 @@
+LATTICE status=ok dir=.scratch/t62-map-axes/pl_odyssey
+LATTICE frame=1264x681 flat=89,158,97 drawn_base=657999 drawn_novis=853581 drawn_nocull=764811 drawn_alloff=858946 empty_base=202785 empty_alloff=1838
+LATTICE colours flat-base flat=657999 clear=0 other=202785
+LATTICE colours flat-novis flat=853581 clear=0 other=7203
+LATTICE colours flat-nocull flat=764811 clear=0 other=95973
+LATTICE colours flat-novis-nocull flat=858946 clear=0 other=1838
+LATTICE monotone base_not_in_novis=0 base_not_in_nocull=0 novis_not_in_all=0 nocull_not_in_all=0
+LATTICE restrict cull_only=5365 pvs_only=94135 overlap=97 union=99403 both=200947
+LATTICE light albedo_dark=311 lit_dark=70289 albedo_not_lit=0
+SAMPLE 523 542 base=empty alloff=drawn
+SAMPLE 107 160 base=empty alloff=drawn
+SAMPLE 96 425 base=empty alloff=drawn
+SAMPLE 234 343 base=empty alloff=drawn
+SAMPLE 616 149 base=empty alloff=drawn
+SAMPLE 339 24 base=empty alloff=drawn
+SAMPLE 720 337 base=drawn alloff=drawn
+LATTICE points=7 empty=6 drawn=1
+LATTICE verdict=ok

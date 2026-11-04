@@ -1,0 +1,8 @@
+ORACLE point=523,542 class=removed drawn=- any=face=15457 sky=- verdict=ok
+ORACLE point=107,160 class=removed drawn=- any=face=5469 sky=face=11883 verdict=ok
+ORACLE point=96,425 class=removed drawn=- any=face=15360 sky=face=11850 verdict=ok
+ORACLE point=234,343 class=removed drawn=- any=face=15363 sky=face=11884 verdict=ok
+ORACLE point=616,149 class=removed drawn=- any=face=17589 sky=face=16484 verdict=ok
+ORACLE point=339,24 class=removed drawn=- any=face=15458 sky=face=13285 verdict=ok
+ORACLE points=7 emptySamples=6 judged=6 failed=0
+ORACLE verdict=ok
