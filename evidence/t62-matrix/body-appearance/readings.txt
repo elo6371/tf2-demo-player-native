@@ -1,0 +1,51 @@
+# body appearance readings, regenerated from the committed frames
+# regenerated:
+#   2026-11-04 05:54:20 UTC
+# tool: player-body-appearance-pixels.py
+# frames: evidence/t62-matrix/body-appearance/<target>/{identity,painted}.bmp
+# the gate that produced the frames asserted the same numbers (see appearance.log and RUNS-2026-11-04.md 9a)
+
+## red-demo (id=88)
+ID id=22 pixels=67
+ID id=85 pixels=141
+ID id=87 pixels=541
+ID id=88 pixels=1538
+ID id=91 pixels=227
+ID id=95 pixels=136
+IDS ids=6 pixels=2650
+BODY id=88 pixels=1538 mean_r=56.1 mean_g=11.6 mean_b=8.0 r_minus_b=48.1 b_minus_r=-48.1
+SIZE 1264x681
+
+## blu-demo (id=89)
+ID id=60 pixels=96
+ID id=88 pixels=131
+ID id=89 pixels=1588
+ID id=90 pixels=674
+ID id=94 pixels=5247
+ID id=96 pixels=1088
+IDS ids=6 pixels=8824
+BODY id=89 pixels=1588 mean_r=13.4 mean_g=22.4 mean_b=35.1 r_minus_b=-21.6 b_minus_r=21.6
+SIZE 1264x681
+
+## red-scout (id=87)
+ID id=22 pixels=76
+ID id=76 pixels=2
+ID id=85 pixels=202
+ID id=87 pixels=1129
+ID id=88 pixels=6020
+ID id=91 pixels=316
+ID id=95 pixels=326
+IDS ids=7 pixels=8071
+BODY id=87 pixels=1129 mean_r=104.6 mean_g=21.7 mean_b=15.3 r_minus_b=89.3 b_minus_r=-89.3
+SIZE 1264x681
+
+## blu-scout (id=96)
+ID id=60 pixels=57
+ID id=89 pixels=1509
+ID id=90 pixels=530
+ID id=94 pixels=2448
+ID id=96 pixels=847
+IDS ids=5 pixels=5391
+BODY id=96 pixels=847 mean_r=27.9 mean_g=45.4 mean_b=71.7 r_minus_b=-43.8 b_minus_r=43.8
+SIZE 1264x681
+

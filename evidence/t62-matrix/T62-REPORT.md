@@ -1,7 +1,7 @@
 # T62 — focused visual matrix, evidence refresh
 
-Original assessment: 2026-10-25 at `047bcfb`. First evidence refresh: 2026-10-29 against candidate `task/repo-cleanup @ 2f14873` (not frozen). Second refresh: 2026-11-04 at `integration/t79-final @ 046f4cd52a6eae5eb952488bb0095bcce86500b1` (not frozen).
-Deliverables: `MAP-MATRIX.md`, `CHARACTER-MATRIX.md`, this report. **Six character gates were run at the 2026-11-04 commit and all six pass**; no map gate was run, so every map cell remains a historical reading. Commands, verdicts, tree identity and log/frame hashes: `RUNS-2026-11-04.md`.
+Original assessment: 2026-10-25 at `047bcfb`. First evidence refresh: 2026-10-29 against candidate `task/repo-cleanup @ 2f14873` (not frozen). Second refresh: 2026-11-04 at `integration/t79-final @ 046f4cd52a6eae5eb952488bb0095bcce86500b1`; third pass the same day at `65315d27b10d416a46680123c6719416c11d6541`, which adds the team-colour gate and turns the map matrix into a gate (not frozen).
+Deliverables: `MAP-MATRIX.md`, `CHARACTER-MATRIX.md`, this report. **Eight gates were run at `65315d2` and all eight pass** — the six character gates, the team-colour gate (`BODY-APPEARANCE`) and the five-map material matrix (`MAP-MATERIAL-MATRIX`). The map matrix now has a committed run at this tree; geometry and lighting cells remain historical or unmeasured, as `MAP-MATRIX.md` states cell by cell. Commands, verdicts, tree identity and log/frame hashes: `RUNS-2026-11-04.md`.
 
 ## 0. 任务定义（内联存档）
 
@@ -51,14 +51,14 @@ input the axis needs is absent, so no run can produce it.
 
 ## 3. The counts
 
-**Map matrix, 5 maps × 4 axes = 20 cells: 4 historical PASS (not re-tested at `046f4cd`), 12 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL.**
+**Map matrix, 5 maps × 4 axes = 20 cells: 9 PASS, 7 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL.** Eight of the nine PASS cells are backed by the `map-material-matrix.sh` run at `65315d2` (three already PASS and reproduced unchanged, five upgraded from NOT VERIFIED); the ninth is odyssey geometry, which that gate does not measure and which keeps its historical reading. `MAP-MATRIX.md` marks the re-read cells ‡‡ and states exactly what the mark asserts.
 
 | Map | materials | geometry | lighting | coverage table | 
 | --- | --- | --- | --- | --- |
-| cp_snakewater_final1 | PASS | NOT VERIFIED | NOT VERIFIED | PASS |
-| pl_odyssey | PASS | PASS | NOT VERIFIED | NOT VERIFIED |
-| cp_sunshine | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED |
-| koth_bagel_rc12 | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED |
+| cp_snakewater_final1 | PASS ‡‡ | NOT VERIFIED | NOT VERIFIED | PASS ‡‡ |
+| pl_odyssey | PASS ‡‡ | PASS | NOT VERIFIED | PASS ‡‡ |
+| cp_sunshine | PASS ‡‡ | NOT VERIFIED | NOT VERIFIED | PASS ‡‡ |
+| koth_bagel_rc12 | PASS ‡‡ | NOT VERIFIED | NOT VERIFIED | PASS ‡‡ |
 | koth_bagel_rc13 | UNSUPPORTED | UNSUPPORTED | UNSUPPORTED | UNSUPPORTED (no BSP in the install) |
 
 **Character matrix, 9 classes × 5 axes = 45 cells: 31 PASS, 5 NOT VERIFIED, 9 UNSUPPORTED, 0 FAIL.**
@@ -87,11 +87,13 @@ weapon / animation), the same evidence reads 36 cells: 22 measured, 5 NOT VERIFI
 3. **Only one gate pins stored world frame bytes**: `world-geometry-hole-check.sh:178-179`
    (`PIN_TEXTURED_SHA=1b0ab468...`, `PIN_REF_SHA=e9218c42...`), asserted at `:712-717`. Every other
    gate compares frames it just captured, so a picture that changed for the wrong reason stays green.
-4. **cp_sunshine is gated after all, but not for the matrix**: `world-render-reliability-check.sh:71`
-   runs `SUNSHINE.dem` and asserts reload errors plus six sky-face lines at tick 0 — which
-   contradicts `evidence/t56-map-audit/gate_matrix.md:152` ("covered by no gate").
-5. **koth_bagel_rc12 has no gate at all**, although its BSP is present (`tf/download/maps/`,
-   26,486,963 B) and 31 POV demos sit next to it.
+4. **cp_sunshine is gated twice now, and the map gate covers its material axes.** `world-render-reliability-check.sh:71`
+   runs `SUNSHINE.dem` and asserts reload errors plus six sky-face lines at tick 0 — which contradicts
+   `evidence/t56-map-audit/gate_matrix.md:152` ("covered by no gate"); since `65315d2` `map-material-matrix.sh`
+   also renders it at tick 2000 and asserts the material pipeline (`distinct=169 tiled=128 capped=0`, 128-row
+   tile table). Geometry and lighting still have no sunshine reading.
+5. **koth_bagel_rc12 is no longer ungated**: since `65315d2` the map gate names
+   `tf/download/maps/koth_bagel_rc12.bsp` (26,486,963 B) and asserts its material axes.
 6. **T56's own report quotes counters its files no longer contain**: `REPORT.md:41` says
    `tiled=112 ... vmtNoBase=31`, the live `evidence/material-coverage/product-readings.txt` says
    `tiled=123 ... vmtNoBase=4 ... patchDeclared=30 patchResolved=30 transformRefused=16`; `REPORT.md:40`
@@ -117,9 +119,9 @@ armed requested=2000 frame_tick=2000 frames=2056" and `evidence/world-material-f
 | snakewater geometry | `world-geometry-hole-check.sh` with this demo, `TICK=0`, 3 frames | ~3 min |
 | snakewater lighting | `lighting-dark-account-check.sh` with `MAP=maps/cp_snakewater_final1.bsp` | ~5 min |
 | odyssey lighting (stale pose) | re-run `lighting-dark-account-check.sh` unchanged, diff `account.txt` | 8–10 min |
-| odyssey coverage table | `material-coverage-check.sh` with `MAP=pl_odyssey`, tick 2000 | 6–8 min |
-| cp_sunshine (all four) | coverage → geometry (3 frames) → lighting, in that order | 4 + 3 + 6 min |
-| koth_bagel_rc12 | `world-material-face-check.sh` with its own POV demo (needs no `MAP`) | ~3 min |
+| cp_sunshine geometry | `world-geometry-hole-check.sh` with the same demo/BSP at tick 0, 3 frames | ~3 min |
+| cp_sunshine lighting | `lighting-dark-account-check.sh` with `MAP=maps/cp_sunshine.bsp` | ~6 min |
+| koth_bagel_rc12 geometry / lighting | the same two gates against its BSP; the demo/pose choice is open | 3 + 6 min |
 | koth_bagel_rc13 | nothing: no BSP; keep it as the negative control | — |
 | character D2 (5 cells remain) | Heavy needs a recording with a real Heavy player (the only Heavy body present is the class-fallback `ent=7`, whose model cycles); Sniper, Pyro, Spy and Engineer need a recording that draws them as played players. Once such a recording exists, `class-pixels-check.sh` gives three captures per class | ~1 min per class at `speed 32`, plus the recording |
 
@@ -133,17 +135,19 @@ armed requested=2000 frame_tick=2000 frames=2056" and `evidence/world-material-f
 | `lighting-dark-account-check.sh` | pl_odyssey (`:88`) | 2000 | 5 captures, re-derives its own eye |
 | `world-render-reliability-check.sh` | cp_sunshine (`:71`) | 0 | reload errors, six sky lines |
 | `visual-baseline-check.sh` | pl_odyssey | 2000 | stored reference trace |
+| `map-material-matrix.sh` | the five maps the matrix names | 0 and 2000 | fetch plan, tile table, atlas, two captured frames per map |
 
-No axis is measured on two maps. No axis is measured on two ticks of one map. Posture is split:
-snakewater gates run paused at tick 0, odyssey gates at tick 2000. That is the structural reason
-twelve of the twenty map cells cannot be filled from the record.
+No axis is measured on two maps: the hole and lighting gates still read one map each, and the pixel
+baselines read odyssey. The `65315d2` map gate is the exception — five maps at ticks 0 and 2000 — but it
+measures only the material axes, which is why seven of the twenty map cells remain open.
 
 ## 7. Disposition
 
-* The 4 map PASS cells are historical readings only; no map gate was re-run against candidate `046f4cd`.
-  Their source evidence and the Odyssey `99 + 3 + 2 + 4 = 108` arithmetic were re-read, but no fresh
-  map verdict is claimed. Odyssey's `tiled=99` still has no committed tile table.
-* The 12 map NOT VERIFIED cells are **queued, not excused**: §5 gives each a costed test. They stay NOT
+* The 9 map PASS cells: eight are backed by the `map-material-matrix.sh` run at `65315d2` (five of them
+  upgraded from NOT VERIFIED, three reproduced unchanged); one (odyssey geometry) is a historical
+  reading that the gate does not measure. The Odyssey `99 + 3 + 2 + 4 = 108` arithmetic is superseded:
+  the run commits `distinct=127 tiled=118 capped=0` and a 118-row tile table.
+* The 7 map NOT VERIFIED cells are **queued, not excused**: §5 gives each a costed test. They stay NOT
   VERIFIED in this report; filling them is follow-up work, not a matrix edit.
 * The map matrix's 4 UNSUPPORTED cells reflect the absent `koth_bagel_rc13` BSP. Separately, the
   character matrix's 9 C-axis cells are UNSUPPORTED because no gate renders a third-person weapon
@@ -161,8 +165,9 @@ The 2026-10-29 refresh read committed T61.1 evidence available at
 The 2026-11-04 refresh at `integration/t79-final @ 046f4cd52a6eae5eb952488bb0095bcce86500b1`
 re-ran the six character gates at that commit (`RUNS-2026-11-04.md` §3 and §3b) and added the
 per-class pixel chain that makes D2 measured for Demoman, Scout, Soldier and Medic
-(`CHARACTER-MATRIX.md` §2.6, `RUNS-2026-11-04.md` §5). The C axis remains UNSUPPORTED for all nine
-classes because weapon-world-model data is not a third-person player render. No map gate, T75
-install gate, or full `verify-all.sh` run was performed in either refresh; the map PASS cells remain
-historical and explicitly un-retested. T73's final frozen-tree run and the release verdict remain
-separate work.
+(`CHARACTER-MATRIX.md` §2.6, `RUNS-2026-11-04.md` §5). The same day's third pass at `65315d2` added
+the team-colour gate and the map gate and ran all eight gates green (`RUNS-2026-11-04.md` §9 and §9b);
+that pass is what filled five map cells. The C axis remains UNSUPPORTED for all nine classes because
+weapon-world-model data is not a third-person player render. No T75 install gate or full
+`verify-all.sh` run was performed in any refresh; T73's final frozen-tree run and the release verdict
+remain separate work.

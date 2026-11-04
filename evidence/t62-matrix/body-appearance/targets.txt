@@ -1,0 +1,7 @@
+# label class ent tick ox oy oz
+# tick 63000: both teams' bodies are in the ledger. origin = the ledger's origin for that ent.
+# The Demoman and the Scout each give a red/blu pair, i.e. the same model in both teams.
+red-demo   demo   4  63000  4336.8  -704.3   -39.9
+blu-demo   demo   5  63000  3759.9  -1163.8  8.0
+red-scout  scout  3  63000  4457.3  -791.8  -54.2
+blu-scout  scout  15 63000  3724.3  -1261.9  8.0

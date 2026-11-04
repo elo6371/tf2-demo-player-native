@@ -1,22 +1,49 @@
-# T62 map material matrix — spot check (2026-11-03)
+# T62 map material matrix — gate (2026-11-03; made a gate 2026-11-04)
 
 Five maps named by the T62 matrix, read with the same instruments
 `material-coverage-check.sh` uses, but for every map and at two ticks
-(0 and 2000). This is **not a gate**: no threshold is asserted, nothing in
-`map-material-matrix.sh` compares a reading against a bound, and the exit code
-only says whether a reading the matrix needs is present. `material-coverage-check.sh`
-was not modified; `evidence/material-coverage/` was not touched.
+(0 and 2000). Since `65315d2` (2026-11-04) **this is a gate**: every row is
+compared against the structural invariants of the world-material pipeline, and
+the merged `readings.tsv` is re-checked row by row at the end, so a stale row
+cannot survive an `--only` run. What it asserts:
+
+* `fetch capped=0` — a capped fetch means material fell past the budget
+  silently.
+* `fetch distinct >= fetch tiled`.
+* `plan malformed=0`, `plan duplicate=0`, `plan batches>=1`.
+* `tile rows = plan tiled + plan refused`.
+* every tile row names one material once, and its batch is inside
+  `[0, plan batches)`.
+* `atlas state=bound` with `atlas bytes>0`.
+* `capture requested == capture frame_tick`, and at least one frame drawn at
+  tick 2000 (a tick-0 run legitimately prints `frames=0`).
+* the demo's own `map=`/`server_map=` equals the map the row is filed under.
+
+What it does **not** assert: any pixel count. The two captures must be
+different frames (different sha256); how many pixels moved is recorded, not
+pinned — see Limitations 6 and 8. `material-coverage-check.sh` was not
+modified; `evidence/material-coverage/` was not touched.
 
 Reproduce:
 
-    bash map-material-matrix.sh                     # all five maps, ~50 min
+    bash map-material-matrix.sh                     # all five maps, ~35 min
     bash map-material-matrix.sh --only=pl_odyssey   # one map (keeps the other rows)
     bash map-material-matrix.sh --only=nope         # exit 2, unknown map
 
-Exit codes: 0 = every map has a probe plan, both capture runs, a tile table and
-a pixel diff; 1 = one of those is missing or a run failed (details in
-`failures.txt`); 2 = usage/environment error. A missing BSP is not a failure:
-the map is recorded as `UNSUPPORTED` and skipped, and no row is invented for it.
+Run it **without** an outer `hostlock.sh run` wrapper. The script takes its own
+host-lock ticket for every product run and every build; an outer lock it does
+not own deadlocks it (the gate's ticket queues behind the owner it cannot see).
+
+Exit codes: 0 = every invariant holds on every row, and the gate prints
+`MAP-MATERIAL-MATRIX=PASS maps=5 rows=10 unsupported=0 failed=0`; 1 = at least
+one row broke an invariant or a run failed — each failure is one line in
+`failures.txt`, and `matrix-check.txt` ends with
+`MATRIX maps=… rows=… unsupported=… failed=…`; 2 = usage/environment error. A
+missing BSP is not a failure: the map is recorded as `UNSUPPORTED` and skipped,
+and no row is invented for it.
+
+The run recorded here is the 2026-11-04 one at `65315d2`; its verdict, log
+hash and per-row table are in `evidence/t62-matrix/RUNS-2026-11-04.md` §9b.
 
 ## What the instruments can and cannot give
 
@@ -139,19 +166,22 @@ that these are the same instruments, not a new definition.
 
 | map | capture requested | frame_tick | frames | trace bytes | frame sha256 (tick0 / tick2000, first 16) | pixels any channel >8 | percent | max delta |
 |---|---:|---:|---:|---:|---|---:|---:|---:|
-| cp_snakewater_final1 | 0 / 2000 | 0 / 2000 | 0 / 1,313 | 86,311 / 5,209,923 | d72d9c300ab48a68 / 467b2490c342657f | 64,898 | 7.5394% | 224 |
-| pl_odyssey | 0 / 2000 | 0 / 2000 | 0 / 1,819 | 86,120 / 6,607,771 | b3acaa2998b0bc6b / 8f4b3911b8a02b1e | 475,423 | 55.2314% | 226 |
-| cp_sunshine | 0 / 2000 | 0 / 2000 | 0 / 1,645 | 88,660 / 6,676,308 | edd92e3b24fbac45 / bc86d1c167a921db | 547,656 | 63.6229% | 209 |
-| koth_bagel_rc12 | 0 / 2000 | 0 / 2000 | 0 / 1,614 | 78,352 / 6,504,239 | 24fcf23b1d0abb96 / 9644a1e6f0f65073 | 173,961 | 20.2096% | 255 |
-| koth_bagel_rc11 | 0 / 2000 | 0 / 2000 | 0 / 2,049 | 79,620 / 7,232,165 | 0d92f09975e9e85f / b2f4a3a18458b403 | 132,942 | 15.4443% | 200 |
+| cp_snakewater_final1 | 0 / 2000 | 0 / 2000 | 0 / 1,899 | 86,262 / 7,049,331 | 7bdaea2b16dca1bb / bdeecfd41a87451a | 64,688 | 7.5150% | 243 |
+| pl_odyssey | 0 / 2000 | 0 / 2000 | 0 / 1,699 | 86,075 / 6,541,153 | 5b1a03da8f1e1eca / 1f99d9395d560cfb | 474,397 | 55.1122% | 226 |
+| cp_sunshine | 0 / 2000 | 0 / 2000 | 0 / 1,543 | 88,611 / 6,630,209 | 2ec6041d8689fab4 / 246d9283d6392fac | 295,608 | 34.3417% | 207 |
+| koth_bagel_rc12 | 0 / 2000 | 0 / 2000 | 0 / 1,659 | 78,305 / 6,846,957 | 24fcf23b1d0abb96 / 9644a1e6f0f65073 | 173,961 | 20.2096% | 255 |
+| koth_bagel_rc11 | 0 / 2000 | 0 / 2000 | 0 / 2,092 | 79,573 / 6,950,623 | 2c57cfb753849d67 / 11811559dd1d2933 | 296,918 | 34.4939% | 200 |
 
 Every run's last `capture: armed` line has `frame_tick` equal to the requested
 tick (0 and 2000), so neither capture silently landed on the other tick, and no
-map produced two identical frames (identical_files=0, different sha256, and
-7.5%–63.6% of pixels moved by more than 8 levels). `frames=0` on the tick-0 runs
-is the reading the product printed (`capture: armed requested=0 frame_tick=0
-frames=0`), not a failed capture: those runs wrote their BMP, which the diff
-then read. Captures are 1264×681 BMP (860,784 pixels).
+map produced two identical frames (identical_files=0, different sha256). The gate
+asserts exactly that: two different captures of the same map at two ticks, from
+the same camera. How many pixels moved is a reading, not a bound — this run moved
+7.5% of pixels on cp_snakewater_final1 and 55.1% on pl_odyssey, and a rerun can
+move a different fraction (Limitations 8). `frames=0` on the tick-0 runs is the
+reading the product printed (`capture: armed requested=0 frame_tick=0 frames=0`),
+not a failed capture: those runs wrote their BMP, which the diff then read.
+Captures are 1264×681 BMP (860,784 pixels).
 
 The BMP frames are kept in `.scratch/t62-map-matrix` (not committed): ~73 MB of
 traces + frames for the five maps. Only the grep extracts, tile rows and the
@@ -208,6 +238,7 @@ the lock" is checkable rather than asserted.
 
     readings.tsv                  one row per map × tick (48 columns, long format)
     failures.txt                  empty on a successful matrix
+    matrix-check.txt              the gate re-check of the merged readings (last line: MATRIX maps=… rows=… unsupported=… failed=…)
     <map>/probe-plan.txt          probe stdout verbatim (with the lock banner)
     <map>/camera-probe.txt        demo_open_probe output verbatim
     <map>/camera.txt              fixed camera, its source, the orient-run line
@@ -235,15 +266,23 @@ the lock" is checkable rather than asserted.
    attribute the difference to a material change (players, HUD, effects and
    lightmaps all move between ticks 0 and 2000). It is a "these are not the
    same frame" check, not a material-change measurement.
-6. No threshold and no pass/fail on any number: 7.5% moved pixels on
-   cp_snakewater_final1 and 63.6% on cp_sunshine are both simply recorded.
+6. The gate pins no pixel count: 7.5% moved pixels on cp_snakewater_final1
+   and 55.1% on pl_odyssey are both simply recorded. The asserted part is that
+   the two captures differ, not by how much.
 7. Trace summaries are grep extracts. The raw traces (5–7 MB per tick-2000 run)
    live in `.scratch/t62-map-matrix` and are not part of this evidence.
 
-8. The two captures are not bit-reproducible run to run: the number of frames
-   drawn before the capture lands (frames=…) varies with wall-clock playback,
-   so a rerun of cp_sunshine moved 547,656 px instead of 547,760 and changed
-   both sha256s, while frame_tick stayed 2000 and the material/atlas/tile
-   readings were unchanged. Treat the diff numbers as order-of-magnitude
-   evidence ("these are different frames"), not as fixed constants.
+8. The diff count is not stable run to run, and four of these five maps moved a
+   different fraction in the 2026-11-04 run: cp_snakewater_final1 64,898 ->
+   64,688 px (7.5394% -> 7.5150%), pl_odyssey 475,423 -> 474,397 (55.2314% ->
+   55.1122%), cp_sunshine 547,656 -> 295,608 (63.6229% -> 34.3417%),
+   koth_bagel_rc11 132,942 -> 296,918 (15.4443% -> 34.4939%), while
+   koth_bagel_rc12 reproduced bit for bit (173,961 px, the same two sha256s).
+   frame_tick stayed 2000, the camera pose was identical, and every
+   material/atlas/tile reading was unchanged on all five. Treat the diff
+   numbers as evidence that the two ticks are different frames, not as
+   constants: the capture lands on a tick but is drawn from the snapshot the
+   run wall-clock playback last saw, and the number of frames drawn before it
+   (frames=…) differs per run. That is a property of the instrument, not of the
+   materials.
 
