@@ -1,0 +1,13 @@
+LEDGER lines=96 distinct-ids=96
+PICKS  models=8
+MASK   distinct-ids=6 pixels=2200
+SUBJECT id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY pixels=1161
+VISIBLE players=1 props=5
+JOIN   subject matches its own pick: models/player/scout.mdl moving seq=212 label=run_PRIMARY
+DRAWN  2 skinned player instance(s) report their own pick (0 not skinned, not judged)
+SAMPLE 31 per-entity sample line(s), each matching its own model pick
+MOTION subject=96 over-mask=1161 differ=500 share=43.07%
+BODIES drawn player bodies on screen:
+BODY id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY pixels=1161 differ=500 share=43.07%
+DECODED id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
+ENTITY-ID=PASS

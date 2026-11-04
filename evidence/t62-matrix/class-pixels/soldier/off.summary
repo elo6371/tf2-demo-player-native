@@ -1,0 +1,4 @@
+tag=off rc=0 view=textured frameTick=63000 sceneTick=72374
+23905.7 gpu: world debug view=textured
+53147.9 capture: armed requested=63000 frame_tick=63000 frames=1325
+53144.2 scene: anim skinned=54 bindPose=42 matrices=155 gpuSkin=53/155 boneMismatch=0 poseChanges=2675 targetInstances=2 targetPose=3 advances=2672 targetAdv=3 cycle=2747/0 tick=72374 status=missing reason=entity carried no m_nSequence

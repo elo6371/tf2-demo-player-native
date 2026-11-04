@@ -1,0 +1,25 @@
+# class ent tick origin_x origin_y origin_z
+#
+# One line per class the Snakewater recording actually draws as a player body.
+# The tick differs per class on purpose, because the live player set changes
+# with the tick and the origin has to be the one that same capture reports.
+#
+#   tick 64161  Demoman e5 (5613.8,-1102.1,-52.1) + Scout e15 (2742.7,-1327.1,-112.0)
+#   tick 63000  Soldier e2 (3640.0,-1764.5,-312.0); the nearest other player body
+#               is >400 units off the view axis, and the only body on the axis is
+#               ent=7 (models/player/heavy.mdl) 1656 units ahead -- a fallback model
+#               whose class index is missing, so it is not judged as a class here.
+#   tick 64000  Medic e13 (4779.4,-2001.4,-88.0); the Demoman e5 is 55 deg off axis
+#               and the Scout e15 is 605 units out, so the Medic is the largest body.
+#
+# The first attempt framed the Soldier at 62000 from e2 (3549.6,-1087.8,57.0) and the
+# Medic at 62000 from e13 (3417.9,-1077.6,8.0). Both frames put a second body between
+# the eye and the subject (Medic e13 118 units ahead of the Soldier eye, Demoman e4
+# 153 units ahead of the Medic eye), so the largest body on screen was the intruder and
+# the run correctly refused to grade the class (log: /d/_shared/t62-class-pixels3.log).
+# The subjects' own pixels were fine in those frames -- Soldier 1783 px / 84.52%,
+# Medic 1692 px / 75.41% -- only the framing was wrong, which is why the tick moved.
+demo 5 64161 5613.8 -1102.1 -52.1
+scout 15 64161 2742.7 -1327.1 -112.0
+soldier 2 63000 3640.0 -1764.5 -312.0
+medic 13 64000 4779.4 -2001.4 -88.0
