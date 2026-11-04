@@ -232,6 +232,17 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // which is the only way to tell "the wall is dark because the material is
   // dark" from "the wall is dark because it sampled the wrong tile".
   if (envFeatures.y > 0.5) return float4(albedo, 1.0);
+  // T62: the ambient here is the map's lightmap intensity, which is a per-map
+  // compensation for lightmapped world faces. A draw with NO lightmap uv (the
+  // entity vertex shader writes lightUv = (-1,-1)) never reaches the lightmap
+  // sample below, so it would keep this factor as its ambient: on
+  // koth_bagel_rc11, intensity=0.386 multiplied every player body by 0.386
+  // before the directional term and a BLU Pyro's suit landed at mean luma
+  // 8/255 -- a black silhouette that was not a texture, mesh or bone defect.
+  // The neutral ambient is chosen by the ENTITY PASS, which re-uploads the
+  // frame constants with lightmapFeatures.x = 1.0 for its own draws (see
+  // native_renderer_frame.cpp); the world pass still reads this factor, so
+  // this shader keeps one meaning for lightmapFeatures.x.
   float3 lightColour = float3(lightmapFactor, lightmapFactor, lightmapFactor);
   if (lightmapFeatures.w > 0.5 && lightUv.x >= 0.0) {
     // T17: RGBExp32 is LINEAR radiance, and the text writes what it sampled, so
@@ -407,7 +418,27 @@ struct Input {
   float4 colour : COLOR0;
   uint4 boneInfo : TEXCOORD7;
 };
-StructuredBuffer<float4x4> boneMatrices : register(t4);
+
+// Read one bone as four float4s. HLSL packs matrices column-major by default,
+// structured-buffer elements included, so `StructuredBuffer<float4x4>` read
+// the column-major upload as if it were row-major: the rotation inverted and
+// the translation was read from the wrong four floats. The viewmodel path was
+// fixed this way in T18; the entity/overlay paths kept the broken read and
+// collapsed every player into a blob at the model origin. Four float4s have one
+// packing and indexing them by hand cannot disagree with `toColumnMajor`.
+StructuredBuffer<float4> boneColumns : register(t4);
+float4 skinByBone(float3 vertexPosition, float weightW, uint boneSlot) {
+  uint first = boneSlot * 4;
+  float4 c0 = boneColumns[first + 0];
+  float4 c1 = boneColumns[first + 1];
+  float4 c2 = boneColumns[first + 2];
+  float4 c3 = boneColumns[first + 3];
+  return float4(
+    vertexPosition.x * c0.x + vertexPosition.y * c1.x + vertexPosition.z * c2.x + weightW * c3.x,
+    vertexPosition.x * c0.y + vertexPosition.y * c1.y + vertexPosition.z * c2.y + weightW * c3.y,
+    vertexPosition.x * c0.z + vertexPosition.y * c1.z + vertexPosition.z * c2.z + weightW * c3.z,
+    weightW);
+}
 struct Output {
   float4 position : SV_POSITION;
   float4 colour : COLOR0;
@@ -425,8 +456,17 @@ Output main(Input input) {
       for (uint i = 0; i < 3; ++i) {
         if (normalizedWeights[i] > 0.0 && input.boneIndices[i] < input.boneInfo.z) {
           uint bone = input.boneInfo.x + input.boneIndices[i];
-          skinnedPos += mul(local, boneMatrices[bone]).xyz * normalizedWeights[i];
-          skinnedNormal += mul(float4(input.normal, 0.0), boneMatrices[bone]).xyz * normalizedWeights[i];
+          // T62 root cause: every weight has to scale the WHOLE bone transform,
+          // not just the translation term. This used to pass the weight in as
+          // skinByBone's weightW, which multiplies only c3 (the translation) and
+          // leaves the rotation unscaled -- so a two-bone vertex got R0*p + R1*p
+          // + w0*t0 + w1*t1, roughly twice its correct position, and a three-bone
+          // vertex up to three times. Single-bone vertices were unaffected, which
+          // is why the body looked planted while the shoulders, hips and knees
+          // (the multi-bone ones) shot out into the spike fan. The viewmodel copy
+          // of this loop already had the weighted form; these two did not.
+          skinnedPos += skinByBone(input.position, 1.0, bone).xyz * normalizedWeights[i];
+          skinnedNormal += skinByBone(input.normal, 0.0, bone).xyz * normalizedWeights[i];
         }
       }
       local = float4(skinnedPos, 1.0);
@@ -493,7 +533,27 @@ struct Input {
 // Per-instance bone matrices, in a StructuredBuffer rather than the b1 constant
 // buffer the single-model shader uses: b1 holds one skeleton at a time, and
 // every entity instance needs its own.
-StructuredBuffer<float4x4> boneMatrices : register(t4);
+
+// Read one bone as four float4s. HLSL packs matrices column-major by default,
+// structured-buffer elements included, so `StructuredBuffer<float4x4>` read
+// the column-major upload as if it were row-major: the rotation inverted and
+// the translation was read from the wrong four floats. The viewmodel path was
+// fixed this way in T18; the entity/overlay paths kept the broken read and
+// collapsed every player into a blob at the model origin. Four float4s have one
+// packing and indexing them by hand cannot disagree with `toColumnMajor`.
+StructuredBuffer<float4> boneColumns : register(t4);
+float4 skinByBone(float3 vertexPosition, float weightW, uint boneSlot) {
+  uint first = boneSlot * 4;
+  float4 c0 = boneColumns[first + 0];
+  float4 c1 = boneColumns[first + 1];
+  float4 c2 = boneColumns[first + 2];
+  float4 c3 = boneColumns[first + 3];
+  return float4(
+    vertexPosition.x * c0.x + vertexPosition.y * c1.x + vertexPosition.z * c2.x + weightW * c3.x,
+    vertexPosition.x * c0.y + vertexPosition.y * c1.y + vertexPosition.z * c2.y + weightW * c3.y,
+    vertexPosition.x * c0.z + vertexPosition.y * c1.z + vertexPosition.z * c2.z + weightW * c3.z,
+    weightW);
+}
 struct Output {
   float4 position : SV_POSITION;
   float4 colour : COLOR0;
@@ -539,8 +599,17 @@ Output main(Input input) {
       for (uint i = 0; i < 3; ++i) {
         if (normalizedWeights[i] > 0.0 && input.boneIndices[i] < input.boneInfo.z) {
           uint bone = input.boneInfo.x + input.boneIndices[i];
-          skinnedPos += mul(local, boneMatrices[bone]).xyz * normalizedWeights[i];
-          skinnedNormal += mul(float4(input.normal, 0.0), boneMatrices[bone]).xyz * normalizedWeights[i];
+          // T62 root cause: every weight has to scale the WHOLE bone transform,
+          // not just the translation term. This used to pass the weight in as
+          // skinByBone's weightW, which multiplies only c3 (the translation) and
+          // leaves the rotation unscaled -- so a two-bone vertex got R0*p + R1*p
+          // + w0*t0 + w1*t1, roughly twice its correct position, and a three-bone
+          // vertex up to three times. Single-bone vertices were unaffected, which
+          // is why the body looked planted while the shoulders, hips and knees
+          // (the multi-bone ones) shot out into the spike fan. The viewmodel copy
+          // of this loop already had the weighted form; these two did not.
+          skinnedPos += skinByBone(input.position, 1.0, bone).xyz * normalizedWeights[i];
+          skinnedNormal += skinByBone(input.normal, 0.0, bone).xyz * normalizedWeights[i];
         }
       }
       local = float4(skinnedPos, 1.0);

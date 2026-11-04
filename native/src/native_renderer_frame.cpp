@@ -533,27 +533,46 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     auto* boneView = entityBoneView_.Get();
     context_->VSSetShaderResources(4, 1, &boneView);
     auto* instanceBuffer = entityModelInstanceBuffer_.Get();
-    // T61 diagnostic: the same flat/albedo/face-id views the world pass has,
-    // applied to the entity pass. Without this the entity pixels can only be
-    // read as the product's own shading, so a black body cannot be told apart
-    // from a body whose albedo sample is black. Written for THIS pass only and
-    // restored below, for the reason the world block records: the constants
-    // buffer is shared, and a debug frame that also flattens the world would
-    // be a picture of the wrong pass.
-    if (worldDebugView_ != 0 && frameConstantsValid) {
-      WorldConstantsData entityDebugConstants = frameConstants;
-      entityDebugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
-        : worldDebugView_ == 3 ? 0.0f
-        : worldDebugView_ == 4 ? 6.0f
-        : worldDebugView_ == 5 ? 1.0f
-        : worldDebugView_ == 6 ? 8.0f
-        : worldDebugView_ == 7 ? 9.0f
-        // T61.1: mode 9 (per-entity id) is 11.0, one step above the
-        // coverage sentinel, because its arm tests x > 10.5.
-        : worldDebugView_ == 8 ? 10.0f
-        : worldDebugView_ == 9 ? 11.0f : 4.0f;
-      entityDebugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
-      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &entityDebugConstants, 0, 0);
+    // T62: this pass re-uploads the frame constants for ITS OWN draws, for two
+    // reasons, and both live here so the pass has one upload site.
+    //
+    // (1) AMBIENT. `lightmapFeatures.x` is the map's lightmap intensity, a
+    // per-map compensation for lightmapped WORLD faces. An entity vertex
+    // writes lightUv = (-1,-1), so its pixels never reach the lightmap sample
+    // and would keep that intensity as their ambient colour. On
+    // koth_bagel_rc11 (intensity 0.386) every player body was multiplied by
+    // 0.386 before the directional term and a BLU Pyro's suit landed at mean
+    // luma 8/255 -- a black silhouette that was not a texture, mesh or bone
+    // defect. 1.0 is the neutral ambient the directional term then shapes,
+    // and it is written HERE rather than in the shader so the world pass keeps
+    // reading `lightmapFeatures.x` as the factor it is.
+    //
+    // (2) T61 DIAGNOSTICS. The same flat/albedo/face-id views the world pass
+    // has, applied to the entity pass. Without them the entity pixels can only
+    // be read as the product's own shading, so a black body cannot be told
+    // apart from a body whose albedo sample is black. Written for THIS pass
+    // only and restored below, for the reason the world block records: the
+    // constants buffer is shared, and a debug frame that also flattens the
+    // world would be a picture of the wrong pass.
+    const bool entityConstantsDiffer = frameConstantsValid
+      && (worldDebugView_ != 0 || frameConstants.lightmapFeatures.x != 1.0f);
+    if (entityConstantsDiffer) {
+      WorldConstantsData entityConstants = frameConstants;
+      entityConstants.lightmapFeatures.x = 1.0f;
+      if (worldDebugView_ != 0) {
+        entityConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
+          : worldDebugView_ == 3 ? 0.0f
+          : worldDebugView_ == 4 ? 6.0f
+          : worldDebugView_ == 5 ? 1.0f
+          : worldDebugView_ == 6 ? 8.0f
+          : worldDebugView_ == 7 ? 9.0f
+          // T61.1: mode 9 (per-entity id) is 11.0, one step above the
+          // coverage sentinel, because its arm tests x > 10.5.
+          : worldDebugView_ == 8 ? 10.0f
+          : worldDebugView_ == 9 ? 11.0f : 4.0f;
+        entityConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
+      }
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &entityConstants, 0, 0);
     }
     for (const auto& range : entityModelDrawRanges_) {
       if (!range.vertexBuffer || range.vertexCount < 3 || range.instanceCount == 0) continue;
@@ -571,7 +590,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->IASetVertexBuffers(0, 2, buffers, strides, rangeOffsets);
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
     }
-    if (worldDebugView_ != 0 && frameConstantsValid) {
+    if (entityConstantsDiffer) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
   }

@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -444,13 +445,23 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
     description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     description.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    description.StructureByteStride = sizeof(std::array<float, 16>);
+    // One float4 per element, four elements per bone matrix -- strides the
+    // `StructuredBuffer<float4>` declaration in the entity and overlay shaders.
+    description.StructureByteStride = sizeof(float) * 4;
     if (FAILED(device_->CreateBuffer(&description, nullptr, entityBoneBuffer_.ReleaseAndGetAddressOf()))) return;
     D3D11_SHADER_RESOURCE_VIEW_DESC view{};
     view.Format = DXGI_FORMAT_UNKNOWN;
     view.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
     view.Buffer.FirstElement = 0;
-    view.Buffer.NumElements = static_cast<UINT>(capacity);
+    // T62: the entity shader reads this table as `StructuredBuffer<float4>`,
+    // four elements per bone, so the structure stride has to be one float4 and
+    // the view has to span four elements per matrix. The buffer was created with
+    // a 64-byte stride and a matrix-count view while the shader indexed it as
+    // float4: every bone read 64 bytes away from the one it asked for, which
+    // sampled other bones' matrices and turned every skinned player into a
+    // spiked tent. The viewmodel upload (native_renderer_viewmodel.cpp, T18)
+    // already had this right; the entity upload did not.
+    view.Buffer.NumElements = static_cast<UINT>(capacity * 4);
     if (FAILED(device_->CreateShaderResourceView(entityBoneBuffer_.Get(), &view,
         entityBoneView_.ReleaseAndGetAddressOf()))) {
       entityBoneBuffer_.Reset();
