@@ -214,7 +214,13 @@ done < "$INPUT/targets.txt"
 echo "=== pair check: same model, both teams ==="
 pair_found=0
 want_pairs=0
-for CLASS in ${!WANT_TEAMS[@]+"${!WANT_TEAMS[@]}"}; do
+# NOTE: do NOT write for CLASS in ${!ARR[@]+"${!ARR[@]}"} here. On an
+# associative array that form is re-read as an indirect expansion and bash
+# aborts the loop body with "invalid variable name" (measured 2026-11-05,
+# bash 5.3.15), which silently leaves the judged-team bookkeeping empty.
+# A plain "${!ARR[@]}" is safe: bash >= 4.4 does not trip set -u on an empty
+# associative array, verified on the same shell.
+for CLASS in "${!WANT_TEAMS[@]}"; do
   case "${WANT_TEAMS[$CLASS]}" in
     *r*b*|*b*r*)
       want_pairs=$((want_pairs + 1))
@@ -262,7 +268,7 @@ while read -r LABEL CLASS ENT TICK OX OY OZ; do
   esac
 done < "$INPUT/targets.txt"
 judged_teams=""
-for CLASS in ${!TINT_TEAM[@]+"${!TINT_TEAM[@]}"}; do judged_teams="${judged_teams}${TINT_TEAM[$CLASS]}"; done
+for CLASS in "${!TINT_TEAM[@]}"; do judged_teams="${judged_teams}${TINT_TEAM[$CLASS]}"; done
 case "$want_teams" in
   *2*3*|*3*2*)
     case "$judged_teams" in
