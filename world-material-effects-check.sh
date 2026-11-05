@@ -127,8 +127,17 @@ assert_eq "water fixture checks" "$(count "$WFIX" checks)" "42"
 assert_eq "water fixture failures" "$(count "$WFIX" bad)" "0"
 # The capability fixtures must still pass: this round added a fixture runner, it
 # did not replace the one T1 and T3 depend on.
+#
+# The count is 10, not the 9 this gate was written with. f4c6549 ("capability
+# layer for the six world material claims") added the tenth fixture,
+# vis-camera-cluster, and did not move this assertion with it. The list is
+# unchanged since: lightmap-per-face, lightmap-atlas-capacity,
+# lightmap-triangle-limit, cubemap-six-face, skybox-six-vmt, skybox-six-distinct,
+# displacement-flat-grid, water-capability, vis-cluster-clip, vis-camera-cluster.
+# The count is here to notice a fixture disappearing, so it is the count that
+# follows the commit, not the other way round.
 FIX=$("$EXE" --fixture 2>&1)
-assert_eq "capability fixtures" "$(count "$FIX" fixtures)" "9"
+assert_eq "capability fixtures" "$(count "$FIX" fixtures)" "10"
 assert_eq "capability fixture failures" "$(count "$FIX" bad)" "0"
 # The map's own water, pinned. 18 faces and 36 triangles are the same numbers
 # world-material-check.sh pins, and the point of repeating them here is that the
@@ -187,11 +196,23 @@ echo "=== 4/6 the water surface: off != on, on == repeat ==="
 # The water is drawn by its own pass over its own buffer, so the switch must move
 # the picture and nothing else. `--start-paused` pins the world at tick 0, so the
 # only input that differs between the three runs is the water switch.
-run_product water-off "$DEMO" --start-paused --world-sky --world-water off
+#
+# The camera is pinned on top of that, because the demo's own camera at tick 0
+# does not see the lake. Measured on 35288a9 with these three runs otherwise
+# unchanged: the off and on frames came out byte-identical (0 bytes), so the
+# pixel claim below was asserting nothing. The water is one plane at z=-188
+# spanning x -637..1721, y -4220..4024 (the trace's waterMap field), and the
+# demo's first frame puts the eye at (1359.6,-538.8,73.9) inside a spawn room
+# looking at a wall. This camera stands over that plane looking down at it, and
+# the on-vs-off mask it produces covers 13812 pixels, so a switch that stopped
+# painting the surface could not pass unnoticed. warp and textureBound are read
+# from the same runs, so all three assertions stay about one pair of frames.
+WATER_CAMERA=(--debug-camera -600 3800 150 50 0)
+run_product water-off "$DEMO" --start-paused --world-sky --world-water off "${WATER_CAMERA[@]}"
 WOFF_RC=$PRODUCT_RC; WOFF_TRACE=$PRODUCT_TRACE; WOFF_BMP=$PRODUCT_BMP
-run_product water-on "$DEMO" --start-paused --world-sky --world-water on
+run_product water-on "$DEMO" --start-paused --world-sky --world-water on "${WATER_CAMERA[@]}"
 WON_RC=$PRODUCT_RC; WON_TRACE=$PRODUCT_TRACE; WON_BMP=$PRODUCT_BMP
-run_product water-repeat "$DEMO" --start-paused --world-sky --world-water on
+run_product water-repeat "$DEMO" --start-paused --world-sky --world-water on "${WATER_CAMERA[@]}"
 WREP_RC=$PRODUCT_RC; WREP_TRACE=$PRODUCT_TRACE; WREP_BMP=$PRODUCT_BMP
 assert_eq "water off run rc" "$WOFF_RC" "0"
 assert_eq "water on run rc" "$WON_RC" "0"
@@ -272,7 +293,14 @@ assert_eq "phong declared" "$(rval "$EFFECTS" phongDeclared)" "1"
 assert_eq "phong parsed" "$(rval "$EFFECTS" phongParsed)" "1"
 assert_eq "phong uploaded" "$(rval "$EFFECTS" phongUploaded)" "1"
 assert_eq "phong applied" "$(rval "$EFFECTS" phongApplied)" "1"
-assert_eq "phong applied ranges" "$(rval "$EFFECTS" phongAppliedRanges)" "1"
+# Three, not one. 952ddf2 ("complete model materials and archive validation",
+# 2026-10-17) started drawing one range per valid LOD0 VTX descriptor instead of
+# collapsing the model onto a single range, and v_sapper_spy has three drawn
+# ranges whose slots all declare $phong: materialSlots=4, drawRanges=3,
+# phongSlots=4, phongAppliedRanges=3 on the same reading. The count still means
+# what it did -- ranges that drew with a texture bound and the effect on -- it
+# just has three of them to count now.
+assert_eq "phong applied ranges" "$(rval "$EFFECTS" phongAppliedRanges)" "3"
 assert_eq "phong fallback" "$(rval "$ETEX" phongFallback)" "0"
 # The switches are read from the reasons line: the counters line ran past
 # traceFmt's 512-byte buffer with them on it and dropped them silently.
@@ -286,7 +314,9 @@ assert_eq "bump declared" "$(rval "$EFFECTS" bumpDeclared)" "1"
 assert_eq "bump parsed" "$(rval "$EFFECTS" bumpParsed)" "1"
 assert_eq "bump uploaded" "$(rval "$EFFECTS" bumpUploaded)" "1"
 assert_eq "bump applied" "$(rval "$EFFECTS" bumpApplied)" "1"
-assert_eq "bump applied ranges" "$(rval "$EFFECTS" bumpAppliedRanges)" "1"
+# Same three ranges as phong, for the same reason (952ddf2): every drawn range's
+# slot carries the material's $bumpmap.
+assert_eq "bump applied ranges" "$(rval "$EFFECTS" bumpAppliedRanges)" "3"
 assert_eq "bump fallback" "$(rval "$ETEX" bumpFallback)" "0"
 assert_eq "bump texture resolved" "$(rval "$ETEX" bumpTextureResolved)" "1"
 assert_eq "bump texture uploaded" "$(rval "$ETEX" bumpTextureUploaded)" "1"
@@ -304,7 +334,10 @@ SELF_OFF=$(grep -ao "gpu: viewmodel effects .*" "$SCRATCH/vm-selfillum-off.$RUN_
 assert_eq "selfillum state (forced)" "$(rval "$SELF_ON" selfillumState)" "active"
 assert_eq "selfillum declared (forced)" "$(rval "$SELF_ON" selfillumDeclared)" "1"
 assert_eq "selfillum applied (forced)" "$(rval "$SELF_ON" selfillumApplied)" "1"
-assert_eq "selfillum applied ranges (forced)" "$(rval "$SELF_ON" selfillumAppliedRanges)" "1"
+# And three again for the forced selfillum: the force reaches the same three
+# drawn ranges. A value of 1 here would mean the force stopped at one range, not
+# that the model draws one.
+assert_eq "selfillum applied ranges (forced)" "$(rval "$SELF_ON" selfillumAppliedRanges)" "3"
 assert_eq "selfillum force named (forced run)" \
   "$(rval "$(grep -ao 'gpu: viewmodel effects-switch .*' "$SCRATCH/vm-selfillum-on.$RUN_TAG.trace" 2>/dev/null | head -1)" selfillumForce)" "1"
 assert_eq "selfillum switch forced off" \
@@ -361,8 +394,17 @@ assert_eq "sky faces" "$(rval "$T1_SKY" faces)" "6"
 assert_eq "sky draws" "$(rval "$T1_SKY" draws)" "1"
 assert_eq "vis clip applied" "$(rval "$T1_VIS" clipApplied)" "1"
 assert_eq "vis input triangles" "$(rval "$T1_VIS" inputTriangles)" "200000"
-assert_eq "vis drawn triangles" "$(rval "$T1_VIS" drawnTriangles)" "170244"
-assert_eq "vis hidden triangles" "$(rval "$T1_VIS" hiddenTriangles)" "29756"
+# 184961/15039, not 170244/29756. db652e9 ("test every cluster a face carries,
+# not just the first one") changed the clip: the old code kept one cluster per
+# face and hid the whole face when that cluster was behind the camera, the new
+# code draws the face when any leaf carrying it is visible. Its own message says
+# the three gates that pin hidden counts would read lower "until they are
+# re-pinned with evidence", and this is that re-pin. The two numbers still sum to
+# inputTriangles=200000 above, and the 14717 that left hidden is exactly the
+# 14717 that joined drawn, so nothing left the frame's accounting -- only the
+# verdict on those triangles changed.
+assert_eq "vis drawn triangles" "$(rval "$T1_VIS" drawnTriangles)" "184961"
+assert_eq "vis hidden triangles" "$(rval "$T1_VIS" hiddenTriangles)" "15039"
 # The identity T1 pinned, restated here because the water pass is the first
 # thing since T1 to add a draw to the same function: a water pass that split the
 # world buffer or reused its index buffer would break this and nothing else.

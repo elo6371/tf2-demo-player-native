@@ -429,7 +429,22 @@ struct WorldWaterParams {
   // reported with both rather than one silently winning.
   std::string bumpMap;
   std::string normalMap;
+  // The surface colour texture the material names through `$basetexture`. TF2's
+  // Water shader usually names none -- in Source the surface colour IS the
+  // refracted scene, which this renderer has no render target for -- so exposing
+  // the key is what lets a caller tell "the material names a colour" from "it
+  // names none" instead of painting a bump texture as colour and calling the
+  // result water.
+  std::string baseTexture;
 };
+
+// The water colour texture for a surface whose material names no
+// `$basetexture`. `water_hydro_base` is the texture that water's own cheap
+// materials (`water_hydro_cheap`, `water_hydro_cheap_dx80`) name as their
+// base, so it is the install's answer to "what colour is water" rather than a
+// colour this renderer invented. Spelled the way a VMT spells it, so it goes
+// through VmtParser::resourcePath like every other material texture reference.
+inline constexpr char kSharedWaterColourTexture[] = "water/water_hydro_base";
 
 // Reads the parameters out of a water VMT's text. Pure: the caller supplies the
 // bytes so the probe and the product read the same file.

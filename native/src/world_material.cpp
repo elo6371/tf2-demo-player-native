@@ -998,6 +998,10 @@ WorldWaterParams measureWaterParams(const std::string& materialText,
     || waterField(material, "$cheap") == "true";
   params.bumpMap = material.bumpMap;
   params.normalMap = waterField(material, "$normalmap");
+  // The colour the material names, if any. Kept separate from the bump pair
+  // rather than folded into a single "texture" field: a surface that draws a
+  // normal map as colour is the defect this key exists to make visible.
+  params.baseTexture = material.baseTexture;
   // The two Fresnel coefficients are optional in every shipped water material
   // and both are three-component vectors. A present-but-malformed one is
   // reported through `reason` and left at its default rather than silently
@@ -1022,6 +1026,7 @@ WorldWaterParams measureWaterParams(const std::string& materialText,
       + "\" is not a number or a vector";
   }
   params.reason = "water material parsed"
+    + (params.baseTexture.empty() ? std::string() : "; $basetexture=" + params.baseTexture)
     + (params.bottomMaterial.empty() ? std::string() : "; $bottommaterial=" + params.bottomMaterial)
     + (params.normalMap.empty() ? std::string() : "; $normalmap=" + params.normalMap)
     + (params.bumpMap.empty() ? std::string() : "; $bumpmap=" + params.bumpMap)

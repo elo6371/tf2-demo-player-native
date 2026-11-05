@@ -244,6 +244,26 @@ bool Renderer::uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UI
   return worldWaterTextureBound_;
 }
 
+bool Renderer::uploadWorldWaterBumpTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+  worldWaterBumpTexture_.reset();
+  worldWaterBumpBound_ = false;
+  // Same rule as the colour map: an empty buffer means "the material named no
+  // normal map", which is a fallback the pass reports rather than a failure.
+  if (rgba.empty() || width == 0 || height == 0) return true;
+  const std::size_t expected = static_cast<std::size_t>(width) * height * 4u;
+  if (rgba.size() < expected) {
+    OutputDebugStringA("TF2 Demo Player: water normal map is smaller than its dimensions claim.\n");
+    return false;
+  }
+  std::string error;
+  if (!worldWaterBumpTexture_.create(device_.Get(), rgba, width, height, &error)) {
+    OutputDebugStringA(("Water normal map upload failed: " + error + "\n").c_str());
+    return false;
+  }
+  worldWaterBumpBound_ = worldWaterBumpTexture_.view() != nullptr;
+  return worldWaterBumpBound_;
+}
+
 void Renderer::setWorldWaterReading(WorldWaterSurfaceState state,
     WorldWaterSurfaceState reflection, WorldWaterSurfaceState refraction,
     const std::string& reason) {

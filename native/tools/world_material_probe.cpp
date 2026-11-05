@@ -227,29 +227,43 @@ WaterMaterialResolution resolveWaterMaterial(const tf2::native::BspMap& map,
     resolution.reason = "water vmt declares no water shader: " + resolution.vmtPath;
     return resolution;
   }
-  // A Water shader has no $basetexture by design: its surface is the normal map
-  // it refracts through. Checking $basetexture first and reporting the water as
-  // untextured would be a reading about the wrong key.
-  const char* keys[] = {"$basetexture", "$normalmap", "$bumpmap"};
-  std::string textureName;
-  std::string textureKey;
-  for (const char* key : keys) {
+  // main.cpp's chain, in its own order: the material's colour, then the
+  // install's water colour texture, then the bump pair as a last resort.
+  // A Water shader usually names no $basetexture -- in Source the surface colour
+  // is the refracted scene -- so "declares no surface texture" would be a
+  // reading about a key the shader deliberately leaves out, and "via $normalmap"
+  // would be a reading about a texture the product does not paint the surface
+  // with. Both are avoided by resolving the same list the product resolves and
+  // naming which answer was taken.
+  struct WaterTextureCandidate {
+    std::string name;
+    std::string source;
+  };
+  const auto fieldAt = [&material](const char* key) {
     const auto at = material.fields.find(key);
-    if (at != material.fields.end() && !at->second.empty()) {
-      textureName = at->second;
-      textureKey = key;
-      break;
+    return at == material.fields.end() ? std::string() : at->second;
+  };
+  std::vector<WaterTextureCandidate> candidates;
+  const std::string baseTexture = fieldAt("$basetexture");
+  if (!baseTexture.empty()) candidates.push_back({baseTexture, "material $basetexture"});
+  candidates.push_back({tf2::native::kSharedWaterColourTexture, "shipped water colour"});
+  const std::string normalMap = fieldAt("$normalmap");
+  if (!normalMap.empty()) candidates.push_back({normalMap, "material $normalmap"});
+  const std::string bumpMap = fieldAt("$bumpmap");
+  if (!bumpMap.empty()) candidates.push_back({bumpMap, "material $bumpmap"});
+  std::string attempted;
+  for (const auto& candidate : candidates) {
+    const auto texturePath = tf2::native::VmtParser::resourcePath(candidate.name, ".vtf");
+    if (readBytes(texturePath).empty()) {
+      if (!attempted.empty()) attempted += "; ";
+      attempted += candidate.source + " " + texturePath;
+      continue;
     }
-  }
-  if (textureName.empty()) {
-    resolution.reason = "water vmt declares no surface texture: " + resolution.vmtPath;
+    resolution.textureReachable = true;
+    resolution.reason = "water surface texture resolves via " + candidate.source + ": " + texturePath;
     return resolution;
   }
-  const auto texturePath = tf2::native::VmtParser::resourcePath(textureName, ".vtf");
-  resolution.textureReachable = !readBytes(texturePath).empty();
-  resolution.reason = resolution.textureReachable
-    ? "water surface texture resolves via " + textureKey + ": " + texturePath
-    : "water surface texture unreadable via " + textureKey + ": " + texturePath;
+  resolution.reason = "no water surface texture resolved; tried " + attempted;
   return resolution;
 }
 
@@ -1650,11 +1664,26 @@ bool waterSelfTest() {
     "  \"$reflectivity\" \"[0.6 0.6 0.6]\"\n"
     "}\n";
   const auto waterParams = tf2::native::measureWaterParams(waterVmt, "water/test_water.vmt");
+  // The two shapes the install actually carries: a Water material that names no
+  // $basetexture at all (the common case -- the product then paints from the
+  // shipped water colour texture) and the cheap hydro material that names one.
+  // Reading both back is what keeps "names no colour" from being reported as
+  // "names a colour called <empty>".
+  const std::string colourWaterVmt =
+    "Water\n{\n"
+    "  \"$basetexture\" \"water/water_hydro_base\"\n"
+    "  \"$abovewater\" \"1\"\n"
+    "}\n";
+  const auto colourParams =
+    tf2::native::measureWaterParams(colourWaterVmt, "water/water_hydro_cheap.vmt");
   const bool paramsOk = waterParams.declared
+    && waterParams.baseTexture.empty()
     && waterParams.bumpMap == "water/test_water_normal"
     && waterParams.bottomMaterial == "water/test_beneath"
     && std::fabs(waterParams.reflectivity - 0.6f) < 1e-4f
-    && waterParams.reason.find("parsed") != std::string::npos;
+    && waterParams.reason.find("parsed") != std::string::npos
+    && colourParams.declared
+    && colourParams.baseTexture == tf2::native::kSharedWaterColourTexture;
   const auto badParams = tf2::native::measureWaterParams("Water\n{\n", "broken.vmt");
   const bool badParamsOk = !badParams.declared
     && badParams.reason.find("did not parse") != std::string::npos;

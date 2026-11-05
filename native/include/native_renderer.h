@@ -929,6 +929,14 @@ public:
   // The water material's own texture. An empty buffer is a fallback, not a
   // failure: the pass then draws the flat shade and says so.
   bool uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // T78: the water material's own normal map, bound at t1 so the world pixel
+  // shader's legacy bump arm can tilt the surface normal and the directional
+  // term can show the ripples. Without it the surface's only texture is a
+  // colour, and cp_snakewater_final1's water colour map is very nearly one flat
+  // blue -- a textured surface that is indistinguishable from the flat shade.
+  // An empty buffer is a fallback, not a failure: the pass then binds nothing
+  // and clears the shader's bump flag, which is exactly the pre-T78 picture.
+  bool uploadWorldWaterBumpTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   void setWorldWaterEnabled(bool enabled) { worldWaterEnabled_ = enabled; }
   // ---- T12 (2026-10-18): the terrain blend's two diagnostic switches ------
   // `setWorldBlendEnabled(false)` keeps the world geometry and the first layer
@@ -1879,10 +1887,12 @@ private:
   // cannot move the world's readings.
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldWaterVertexBuffer_;
   Texture2D worldWaterTexture_;
+  Texture2D worldWaterBumpTexture_;
   UINT worldWaterVertexCount_ = 0;
   UINT worldWaterTextureSide_ = 0;
   bool worldWaterEnabled_ = true;
   bool worldWaterTextureBound_ = false;
+  bool worldWaterBumpBound_ = false;
   bool worldWaterDrewThisFrame_ = false;
   // ---- T12 (2026-10-18): the terrain blend ---------------------------------
   // `worldBlendEnabled_` gates the second layer only; `worldTerrainOnly_`

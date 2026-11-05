@@ -6254,26 +6254,147 @@ bool outlineVertexExtent = false;
       } else {
         waterParams.reason = "the map's water triangles name no material";
       }
-      // The texture, if the material named one that resolved. `$bumpmap` and
-      // `$normalmap` are the two keys TF2's water shaders use; a plain water
-      // material with neither is a real material and falls back to the flat
-      // shade rather than being reported as a failure.
+      // The surface colour. A Water material normally names no `$basetexture`,
+      // and that is not an omission to repair by reaching for whatever texture it
+      // does name: in Source the surface colour IS the refracted scene, and this
+      // renderer has no refraction target, so the fallback has to be a colour
+      // texture. Painting `$normalmap`/`$bumpmap` as albedo -- which is what this
+      // pass used to do -- draws a reflection-perturbation texture as the surface
+      // itself, and the surface reads as one flat blue slab however right the
+      // geometry is.
+      //
+      // So the candidates are ordered by what they are, not by what resolves
+      // first: the material's own colour, then the install's water colour
+      // texture, then the bump pair as a last resort for a material that names
+      // nothing else. Each candidate carries where it came from, because
+      // "resolved" has to say WHICH answer it resolved -- a surface painted from
+      // a bump texture is a different fact from one painted from a colour.
+      struct WaterTextureChoice {
+        std::string name;
+        const char* source = "none";
+      };
+      std::vector<WaterTextureChoice> waterTextureChoices;
+      if (!waterParams.baseTexture.empty()) {
+        waterTextureChoices.push_back({waterParams.baseTexture, "material-basetexture"});
+      }
+      waterTextureChoices.push_back(
+        {tf2::native::kSharedWaterColourTexture, "shipped-water-colour"});
+      if (!waterParams.normalMap.empty()) {
+        waterTextureChoices.push_back({waterParams.normalMap, "material-normalmap"});
+      }
+      if (!waterParams.bumpMap.empty()) {
+        waterTextureChoices.push_back({waterParams.bumpMap, "material-bumpmap"});
+      }
       std::vector<std::uint8_t> waterRgba;
       UINT waterWidth = 0, waterHeight = 0;
-      const std::string& waterTextureName = !waterParams.normalMap.empty()
-        ? waterParams.normalMap : waterParams.bumpMap;
-      if (!waterTextureName.empty()) {
-        const std::string waterVtfPath = tf2::native::VmtParser::resourcePath(waterTextureName, ".vtf");
+      std::string waterTextureName;
+      std::string waterTextureSource = "none";
+      for (const auto& waterChoice : waterTextureChoices) {
+        const std::string waterVtfPath =
+          tf2::native::VmtParser::resourcePath(waterChoice.name, ".vtf");
         const auto& waterVtf = readMaterialVtf(waterVtfPath);
+        if (waterVtf.empty()) continue;
         tf2::native::VtfTexture waterTexture;
-        if (!waterVtf.empty() && waterTexture.parse(waterVtf)) {
-          waterRgba = waterTexture.decodeRgba(waterVtf);
-          if (!waterRgba.empty()) {
-            waterWidth = waterTexture.header().width;
-            waterHeight = waterTexture.header().height;
+        if (!waterTexture.parse(waterVtf)) continue;
+        std::vector<std::uint8_t> waterDecoded = waterTexture.decodeRgba(waterVtf);
+        if (waterDecoded.empty()) continue;
+        waterRgba = std::move(waterDecoded);
+        waterWidth = waterTexture.header().width;
+        waterHeight = waterTexture.header().height;
+        waterTextureName = waterChoice.name;
+        waterTextureSource = waterChoice.source;
+        break;
+      }
+      // T78: the material's normal map, kept apart from the colour choice above.
+      // It is bound at t1 as a NORMAL, not as albedo: the world pixel shader's
+      // legacy bump arm tilts the surface normal by it, and the directional term
+      // turns that into the ripple shading a water surface is supposed to have.
+      // The colour map alone cannot do it -- the shipped water colour texture is
+      // very nearly one flat blue, so a surface painted from it is indistinguishable
+      // from the flat shade it replaced. Reflection and refraction stay
+      // unimplemented; this is a texture on the surface, which is what a normal map
+      // is for.
+      std::string waterBumpName;
+      std::vector<std::uint8_t> waterBumpRgba;
+      UINT waterBumpWidth = 0, waterBumpHeight = 0;
+      if (waterEnabled) {
+        const std::string& requestedBump =
+          !waterParams.normalMap.empty() ? waterParams.normalMap : waterParams.bumpMap;
+        if (!requestedBump.empty()) {
+          const std::string waterBumpVtfPath =
+            tf2::native::VmtParser::resourcePath(requestedBump, ".vtf");
+          const auto& waterBumpVtf = readMaterialVtf(waterBumpVtfPath);
+          if (!waterBumpVtf.empty()) {
+            tf2::native::VtfTexture waterBumpTexture;
+            if (waterBumpTexture.parse(waterBumpVtf)) {
+              std::vector<std::uint8_t> decodedBump = waterBumpTexture.decodeRgba(waterBumpVtf);
+              if (!decodedBump.empty()) {
+                waterBumpRgba = std::move(decodedBump);
+                waterBumpWidth = waterBumpTexture.header().width;
+                waterBumpHeight = waterBumpTexture.header().height;
+                waterBumpName = requestedBump;
+              }
+            }
           }
         }
       }
+      // T78: compose the ripple into the colour, because that is where this
+      // renderer can show it. A normal map bound at t1 perturbs the surface
+      // normal, but the world pixel shader only turns a normal into shading in
+      // its dynamic-lighting arm (lightDirectionAndMode.w), which the demo pass
+      // leaves off -- measured, not assumed: after binding the water material's
+      // normal map at t1 and setting the shader's bump flag, the frame was
+      // byte-identical to the frame without it, because an unlit surface does not
+      // shade by its normal. Turning dynamic lighting on for the whole world to
+      // light one surface would repaint the map.
+      //
+      // So the same arithmetic the shader would do is applied once here, at load
+      // time, to the colour texture: each texel's normal is lit by the renderer's
+      // own default light direction, and the colour is scaled by how far that
+      // response differs from the flat normal's -- a difference, not an absolute,
+      // so the surface keeps the overall brightness the colour map gave it. The
+      // result is a water texture with ripples in it, which is what "a texture on
+      // the surface" means and what one flat blue map could not provide.
+      int waterRippleBaked = 0;
+      if (!waterBumpRgba.empty() && waterBumpWidth > 0 && waterBumpHeight > 0
+          && !waterRgba.empty() && waterWidth > 0 && waterHeight > 0) {
+        const float rippleLight[3] = {0.35f, -0.45f, 0.82f};
+        const float rippleFlatResponse = std::clamp(rippleLight[2], 0.0f, 1.0f);
+        const float rippleGain = 1.8f;
+        for (UINT rippleRow = 0; rippleRow < waterHeight; ++rippleRow) {
+          for (UINT rippleColumn = 0; rippleColumn < waterWidth; ++rippleColumn) {
+            const auto bumpX = std::min(waterBumpWidth - 1, static_cast<UINT>(
+              (static_cast<double>(rippleColumn) + 0.5) / waterWidth * waterBumpWidth));
+            const auto bumpY = std::min(waterBumpHeight - 1, static_cast<UINT>(
+              (static_cast<double>(rippleRow) + 0.5) / waterHeight * waterBumpHeight));
+            const std::size_t bumpIndex =
+              (static_cast<std::size_t>(bumpY) * waterBumpWidth + bumpX) * 4u;
+            float normal[3] = {
+              static_cast<float>(waterBumpRgba[bumpIndex]) / 255.0f * 2.0f - 1.0f,
+              static_cast<float>(waterBumpRgba[bumpIndex + 1]) / 255.0f * 2.0f - 1.0f,
+              static_cast<float>(waterBumpRgba[bumpIndex + 2]) / 255.0f * 2.0f - 1.0f};
+            const float normalLength = std::sqrt(normal[0] * normal[0]
+              + normal[1] * normal[1] + normal[2] * normal[2]);
+            const float response = normalLength > 1e-5f
+              ? std::clamp((normal[0] * rippleLight[0] + normal[1] * rippleLight[1]
+                  + normal[2] * rippleLight[2]) / normalLength, 0.0f, 1.0f)
+              : rippleFlatResponse;
+            const float rippleShade = std::clamp(
+              1.0f + rippleGain * (response - rippleFlatResponse), 0.55f, 1.45f);
+            const std::size_t colourIndex =
+              (static_cast<std::size_t>(rippleRow) * waterWidth + rippleColumn) * 4u;
+            for (std::size_t channel = 0; channel < 3u; ++channel) {
+              const auto scaled = static_cast<UINT>(std::clamp(
+                static_cast<float>(waterRgba[colourIndex + channel]) * rippleShade,
+                0.0f, 255.0f));
+              waterRgba[colourIndex + channel] = static_cast<std::uint8_t>(scaled);
+            }
+          }
+        }
+        waterRippleBaked = 1;
+      }
+      // A water material with no texture of any kind is a real material and falls
+      // back to the flat shade rather than being reported as a failure.
       const bool waterTextureResolved = !waterRgba.empty() && waterWidth > 0 && waterHeight > 0;
       // The vertices, in the same converted space uploadWorldGeometry produces,
       // with the same per-triangle shade so the fallback is visibly water-shaped.
@@ -6286,7 +6407,14 @@ bool outlineVertexExtent = false;
       // the exact defect this guard exists to make unreachable.
       std::vector<tf2::native::WorldWaterVertex> waterVertices;
       if (waterEnabled && renderer.worldBoundsValid()) {
-        const float waterShade = 0.55f;
+        // The vertex colour is the flat fallback's entire appearance: a water
+        // shape that stays readable when no texture resolved. When one DID
+        // resolve, the bound texture is the surface colour, and multiplying the
+        // synthetic shade into it would darken the map's own water by 31% and
+        // call that a tint. So the tint is neutral exactly when the texture is
+        // carrying the colour.
+        const float waterShade = waterTextureResolved ? 1.0f : 0.55f;
+        const float waterBlue = waterTextureResolved ? 1.0f : 0.72f;
         for (const auto& triangle : displayMap.triangles) {
           if (!triangle.water) continue;
           // The same centring and scaling the world pass applies, read back from
@@ -6298,7 +6426,7 @@ bool outlineVertexExtent = false;
             vertex.x = (point.x - renderer.worldCenterX()) * renderer.worldHorizontalScale();
             vertex.y = (point.y - renderer.worldCenterY()) * renderer.worldHorizontalScale();
             vertex.z = (point.z - renderer.worldMinZ()) / renderer.worldSpanZ() * 0.8f + 0.1f;
-            vertex.r = waterShade; vertex.g = waterShade; vertex.b = 0.72f; vertex.a = 1.0f;
+            vertex.r = waterShade; vertex.g = waterShade; vertex.b = waterBlue; vertex.a = 1.0f;
             return vertex;
           };
           const auto ab = tf2::native::BspVertex{triangle.b.x - triangle.a.x, triangle.b.y - triangle.a.y, triangle.b.z - triangle.a.z};
@@ -6338,8 +6466,55 @@ bool outlineVertexExtent = false;
       std::vector<tf2::native::WorldWaterVertex> warpedVertices;
       const auto waterReading = tf2::native::evaluateWaterDrawRequest(waterRequest, warpedVertices);
       const bool waterGeometryUploaded = renderer.uploadWorldWaterGeometry(warpedVertices);
+      // T78: where the water is, in map units. An evidence frame that claims to
+      // show the surface's texture has to be aimed at the surface, and aiming one
+      // by eye from an unrelated camera is guessing. This is a reading about the
+      // map's water faces (the coordinates the parser produced), not about the
+      // draw, so it is printed even when the draw is disabled.
+      float waterMapMinX = 0.0f, waterMapMinY = 0.0f, waterMapMinZ = 0.0f;
+      float waterMapMaxX = 0.0f, waterMapMaxY = 0.0f, waterMapMaxZ = 0.0f;
+      bool waterMapBoundsValid = false;
+      for (const auto& waterFace : displayMap.triangles) {
+        if (!waterFace.water) continue;
+        for (const tf2::native::BspVertex* waterCorner : {&waterFace.a, &waterFace.b, &waterFace.c}) {
+          if (!waterMapBoundsValid) {
+            waterMapMinX = waterMapMaxX = waterCorner->x;
+            waterMapMinY = waterMapMaxY = waterCorner->y;
+            waterMapMinZ = waterMapMaxZ = waterCorner->z;
+            waterMapBoundsValid = true;
+            continue;
+          }
+          waterMapMinX = std::min(waterMapMinX, waterCorner->x);
+          waterMapMinY = std::min(waterMapMinY, waterCorner->y);
+          waterMapMinZ = std::min(waterMapMinZ, waterCorner->z);
+          waterMapMaxX = std::max(waterMapMaxX, waterCorner->x);
+          waterMapMaxY = std::max(waterMapMaxY, waterCorner->y);
+          waterMapMaxZ = std::max(waterMapMaxZ, waterCorner->z);
+        }
+      }
+      // T78: the uv SPAN this surface will actually sample. A water band that
+      // draws as one flat colour with a texture bound has two very different
+      // explanations -- "the texture is nearly constant" and "the vertices all
+      // read the same texel" -- and only the second one is a defect here. The
+      // span is printed as a field so the difference is a reading, not an
+      // opinion: a span near zero says the surface samples one texel and no
+      // choice of texture can ever put detail on it.
+      float waterUvMinU = 0.0f, waterUvMaxU = 0.0f, waterUvMinV = 0.0f, waterUvMaxV = 0.0f;
+      for (std::size_t uvIndex = 0; uvIndex < warpedVertices.size(); ++uvIndex) {
+        const auto& uvVertex = warpedVertices[uvIndex];
+        if (uvIndex == 0) {
+          waterUvMinU = waterUvMaxU = uvVertex.u;
+          waterUvMinV = waterUvMaxV = uvVertex.v;
+          continue;
+        }
+        waterUvMinU = std::min(waterUvMinU, uvVertex.u);
+        waterUvMaxU = std::max(waterUvMaxU, uvVertex.u);
+        waterUvMinV = std::min(waterUvMinV, uvVertex.v);
+        waterUvMaxV = std::max(waterUvMaxV, uvVertex.v);
+      }
     traceFmt("gpu: reload-stage stage=water lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
       const bool waterTextureUploaded = renderer.uploadWorldWaterTexture(waterRgba, waterWidth, waterHeight);
+      const bool waterBumpUploaded = renderer.uploadWorldWaterBumpTexture(waterBumpRgba, waterBumpWidth, waterBumpHeight);
       renderer.setWorldWaterWarp(waterRequest.warpPhase, waterRequest.warpAmplitude);
       renderer.setWorldWaterEnabled(waterEnabled && waterGeometryUploaded);
       // The judge's verdict, handed to the renderer rather than recomputed
@@ -6355,16 +6530,34 @@ bool outlineVertexExtent = false;
       // UPLOAD FACTS ONLY, and the name says so. `draws` is deliberately
       // absent: this line is emitted before the first frame, so a draw count
       // here would be the number the request WOULD produce -- a reading that
-      // describes its own copy of the guard rather than the pass. Measured:/n      // the first version of this line carried `draws=` from the request and a
+      // describes its own copy of the guard rather than the pass. Measured:
+      // the first version of this line carried `draws=` from the request and a
       // mutation that deleted the Draw call still read draws=1, so the gate
       // could not have caught it. The reading the gate asserts is the one
       // traceWorldDraw emits after the frame it describes.
+      //
+      // `textureSource`/`texture` are here because "bound" alone hides which answer
+      // the pass took: a surface painted from the material's own colour and one
+      // painted from a bump texture both read textureBound=1, and the second is
+      // the defect the colour fallback exists to remove. The source is one token
+      // (no spaces) so it still reads as a field, and the path is printed beside
+      // it so the claim can be checked against the install.
       traceFmt("gpu: world water-upload state=%s faces=%zu triangles=%zu"
-        " warpPlanned=%d textureBound=%d fallback=%d reflection=%s refraction=%s reason=%s",
+        " warpPlanned=%d textureBound=%d textureSource=%s texture=%s"
+        " uvSpan=%.4f,%.4f uvOrigin=%.4f,%.4f"
+        " bumpBound=%d bumpTexture=%s rippleBaked=%d"
+        " waterMap=%.1f,%.1f,%.1f..%.1f,%.1f,%.1f"
+        " fallback=%d reflection=%s refraction=%s reason=%s",
         tf2::native::worldWaterSurfaceStateName(waterReading.state),
         waterReading.waterFaces, waterReading.waterTriangles,
         waterReading.waterWarpApplied ? 1 : 0,
-        waterTextureUploaded ? 1 : 0, waterReading.waterFallback ? 1 : 0,
+        waterTextureUploaded ? 1 : 0, waterTextureSource.c_str(),
+        waterTextureResolved ? waterTextureName.c_str() : "-",
+        waterUvMaxU - waterUvMinU, waterUvMaxV - waterUvMinV, waterUvMinU, waterUvMinV,
+        waterBumpUploaded ? 1 : 0, waterBumpName.empty() ? "-" : waterBumpName.c_str(),
+        waterRippleBaked,
+        waterMapMinX, waterMapMinY, waterMapMinZ, waterMapMaxX, waterMapMaxY, waterMapMaxZ,
+        waterReading.waterFallback ? 1 : 0,
         tf2::native::worldWaterSurfaceStateName(waterReading.waterReflectionState),
         tf2::native::worldWaterSurfaceStateName(waterReading.waterRefractionState),
         waterSurfaceReason.empty() ? "-" : waterSurfaceReason.c_str());

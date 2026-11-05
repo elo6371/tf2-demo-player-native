@@ -1,2 +1,2 @@
 gpu: world sky state=active vertices=36 triangles=12 faces=6 draws=1 side=512 resampled=1 reason=six sides, 36 vertices
-gpu: world vis cameraCluster=2287 visibleFromCamera=585 clusters=2940 clusteredTriangles=34517 hiddenTriangles=29756 withoutCluster=165483 inputTriangles=200000 drawnTriangles=170244 clipApplied=1 state=active reason=hid 29756 of 200000 triangles from cluster 2287
+gpu: world vis cameraCluster=2108 visibleFromCamera=1481 clusters=2940 clusteredTriangles=34517 hiddenTriangles=15039 withoutCluster=165483 inputTriangles=200000 drawnTriangles=184961 clipApplied=1 state=active eyeMap=(1359.6,-538.8,73.9) reason=hid 15039 of 200000 triangles from cluster 2108 (2276 kept by a cluster past the first)

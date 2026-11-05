@@ -1,4 +1,5 @@
-{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":11527,"lightmapPackedFaces":11527,"lightmapLuxelFits":11513,"lightmapTriangles":199922,"atlas":"4096x1156","sky":"sky_well_01","skyFaces":690,"displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":11527,"lightmapPackedFaces":11527,"lightmapLuxelFits":11513,"lightmapTriangles":200174,"atlas":"4096x1156","sky":"sky_well_01","skyFaces":690,"displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":1462}
+cp_snakewater_final1.bsp failed: lightmapped triangle count
 {"reading":"cubemap.facesBeyondSix","value":"33"}
 {"reading":"cubemap.facesDecoded","value":"198"}
 {"reading":"cubemap.firstDeclaredFaces","value":"6"}
@@ -32,6 +33,42 @@
 {"reading":"lightmap.trianglesWithLightUv","value":"199922"}
 {"reading":"lightmap.uvAllInRange","value":"true"}
 {"reading":"sky.decodedBytes","value":"3145732"}
+{"reading":"sky.face0.decoded","value":"true"}
+{"reading":"sky.face0.dir","value":"+X"}
+{"reading":"sky.face0.rgba","value":"107,95,121,255"}
+{"reading":"sky.face0.suffix","value":"rt"}
+{"reading":"sky.face0.vmt","value":"materials/skybox/sky_well_01rt.vmt"}
+{"reading":"sky.face0.vtf","value":"materials/skybox/sky_well_01rt.vtf"}
+{"reading":"sky.face1.decoded","value":"true"}
+{"reading":"sky.face1.dir","value":"-X"}
+{"reading":"sky.face1.rgba","value":"104,100,135,255"}
+{"reading":"sky.face1.suffix","value":"lf"}
+{"reading":"sky.face1.vmt","value":"materials/skybox/sky_well_01lf.vmt"}
+{"reading":"sky.face1.vtf","value":"materials/skybox/sky_well_01lf.vtf"}
+{"reading":"sky.face2.decoded","value":"true"}
+{"reading":"sky.face2.dir","value":"+Y"}
+{"reading":"sky.face2.rgba","value":"104,100,135,255"}
+{"reading":"sky.face2.suffix","value":"bk"}
+{"reading":"sky.face2.vmt","value":"materials/skybox/sky_well_01bk.vmt"}
+{"reading":"sky.face2.vtf","value":"materials/skybox/sky_well_01bk.vtf"}
+{"reading":"sky.face3.decoded","value":"true"}
+{"reading":"sky.face3.dir","value":"-Y"}
+{"reading":"sky.face3.rgba","value":"104,100,135,255"}
+{"reading":"sky.face3.suffix","value":"ft"}
+{"reading":"sky.face3.vmt","value":"materials/skybox/sky_well_01ft.vmt"}
+{"reading":"sky.face3.vtf","value":"materials/skybox/sky_well_01ft.vtf"}
+{"reading":"sky.face4.decoded","value":"true"}
+{"reading":"sky.face4.dir","value":"+Z"}
+{"reading":"sky.face4.rgba","value":"89,91,137,255"}
+{"reading":"sky.face4.suffix","value":"up"}
+{"reading":"sky.face4.vmt","value":"materials/skybox/sky_well_01up.vmt"}
+{"reading":"sky.face4.vtf","value":"materials/skybox/sky_well_01up.vtf"}
+{"reading":"sky.face5.decoded","value":"true"}
+{"reading":"sky.face5.dir","value":"-Z"}
+{"reading":"sky.face5.rgba","value":"29,57,90,255"}
+{"reading":"sky.face5.suffix","value":"dn"}
+{"reading":"sky.face5.vmt","value":"materials/skybox/sky_well_01dn.vmt"}
+{"reading":"sky.face5.vtf","value":"materials/skybox/sky_well_01dn.vtf"}
 {"reading":"sky.faces","value":"690"}
 {"reading":"sky.firstSize","value":"512x256"}
 {"reading":"sky.name","value":"sky_well_01"}
@@ -43,12 +80,12 @@
 {"reading":"sky.vmtFound","value":"6"}
 {"reading":"vis.clusters","value":"2940"}
 {"reading":"vis.mode","value":"cluster-pvs"}
-{"reading":"vis.reason","value":"pvs hides 2556 of 2940 clusters; 34517 of 200000 triangles carry a cluster"}
+{"reading":"vis.reason","value":"pvs hides 1478 of 2940 clusters; 34517 of 200000 triangles carry a cluster"}
 {"reading":"vis.state","value":"active"}
 {"reading":"vis.trianglesWithCluster","value":"34517"}
-{"reading":"vis.visibleFromCluster0","value":"384"}
+{"reading":"vis.visibleFromCluster0","value":"1462"}
 {"reading":"water.faces","value":"18"}
 {"reading":"water.reason","value":"18 water faces resolve to a texture; reflection=off refraction=off, neither render target is implemented so the surface draws unlit"}
 {"reading":"water.state","value":"fallback"}
 {"reading":"water.trianglesTagged","value":"36"}
-{"reading":"water.materialResolution","value":"water surface texture resolves via $normalmap: materials/water/tfwater001_normal.vtf"}
+{"reading":"water.materialResolution","value":"water surface texture resolves via shipped water colour: materials/water/water_hydro_base.vtf"}

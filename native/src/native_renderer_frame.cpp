@@ -429,6 +429,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // those, and leaving the world's bound would sample the map's textures with
     // the water's uv and call the result water.
     ID3D11ShaderResourceView* waterTexture = worldWaterTexture_.view();
+    // T78: the material's normal map, or nothing. t1 stays at nullptr when the
+    // material named none (see the neutral-constants block below, which also
+    // clears the shader's bump flag so a null slot is never sampled as if it
+    // were a normal).
+    ID3D11ShaderResourceView* waterBump = worldWaterBumpBound_ ? worldWaterBumpTexture_.view() : nullptr;
     ID3D11ShaderResourceView* noBump = nullptr;
     ID3D11ShaderResourceView* noEnv = nullptr;
     ID3D11ShaderResourceView* noCube = nullptr;
@@ -441,7 +446,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
     context_->PSSetConstantBuffers(0, 1, &waterConstants);
     context_->PSSetShaderResources(0, 1, &waterTexture);
-    context_->PSSetShaderResources(1, 1, &noBump);
+    context_->PSSetShaderResources(1, 1, &waterBump);
     context_->PSSetShaderResources(2, 1, &noEnv);
     context_->PSSetShaderResources(3, 1, &noLightmap);
     context_->PSSetShaderResources(5, 1, &noCube);
@@ -454,6 +459,50 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(9, 1, &noBump);
     context_->PSSetShaderResources(10, 1, &noBump);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    // T78: the water pass draws with the world's constant buffer, and two of its
+    // fields state something about a LIGHTMAPPED WORLD FACE that a water surface
+    // is not. Both are neutralised here, not in the shader, for the reason the
+    // T62 entity block below records: the world pass has to keep reading these
+    // fields as what they are.
+    //
+    // (1) AMBIENT. `lightmapFeatures.x` is the map's lightmap intensity, a
+    // per-map compensation for faces whose pixels sample the atlas. A water
+    // vertex carries lightUv = (-1,-1) -- WorldWaterVertex's own comment says
+    // why -- so its pixels never reach that sample and would keep the intensity
+    // as their ambient colour. On cp_snakewater_final1 (intensity 0.439) the
+    // whole surface was multiplied by 0.439 before the directional term, which
+    // turns any water colour into a dark band. 1.0 is the neutral ambient the
+    // directional term then shapes.
+    // (2) ENV. `envFeatures.x` is the world's env mode (0 none, 1 the 2D
+    // approximation, 2 a real cube). This pass binds t2 and t5 to nullptr -- it
+    // has no env map of its own -- so on a map that has one the water would
+    // sample an unbound slot and lerp 22% of nothing into its colour. Zero is
+    // the mode this pass is actually in.
+    //
+    // Written for THIS pass only and restored below: the buffer is shared with
+    // the world pass that just drew, and a world frame that inherited a neutral
+    // ambient would be a picture of a map with no lightmap on it.
+    //
+    // (3) BUMP. `lightmapFeatures.y` is the shader's "this surface has a normal
+    // map at t1" flag. It is inherited from whichever world draw ran last, and
+    // neither answer is this pass's: 0 would throw away the water material's own
+    // normal map (the ripples the surface is supposed to have) and 1 with no
+    // texture bound would tilt every normal by a null sample. The flag is
+    // therefore written from what this pass actually bound, and the bind above
+    // reads the same flag, so the shader cannot be told to sample a slot this
+    // pass left empty.
+    const float waterBumpFlag = worldWaterBumpBound_ ? 1.0f : 0.0f;
+    const bool waterConstantsDiffer = frameConstantsValid
+      && (frameConstants.lightmapFeatures.x != 1.0f
+          || frameConstants.lightmapFeatures.y != waterBumpFlag
+          || frameConstants.envFeatures.x != 0.0f);
+    if (waterConstantsDiffer) {
+      WorldConstantsData waterOnlyConstants = frameConstants;
+      waterOnlyConstants.lightmapFeatures.x = 1.0f;
+      waterOnlyConstants.lightmapFeatures.y = waterBumpFlag;
+      waterOnlyConstants.envFeatures.x = 0.0f;
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &waterOnlyConstants, 0, 0);
+    }
     context_->Draw(worldWaterVertexCount_, 0);
     worldWaterDrewThisFrame_ = true;
     // The passes below must not inherit the water's bias or its texture. Same
@@ -466,6 +515,9 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(2, 1, &noEnv);
     context_->PSSetShaderResources(3, 1, &noLightmap);
     context_->PSSetShaderResources(5, 1, &noCube);
+    if (waterConstantsDiffer) {
+      context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
+    }
   }
   // The water surface is ordinal 2 and the entity markers 3, so that the
   // overlay slot number below is the contract ordinal (6) rather than
