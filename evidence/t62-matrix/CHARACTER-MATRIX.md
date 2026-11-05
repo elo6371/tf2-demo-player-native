@@ -1,8 +1,8 @@
 # CHARACTER-MATRIX — focused visual matrix over the existing scope (T50–T61)
 
-**Evidence snapshot for this refresh:** commit `integration/t79-final @ 65315d27b10d416a46680123c6719416c11d6541` on 2026-11-04 (not frozen); the first pass of this refresh was read at `046f4cd52a6eae5eb952488bb0095bcce86500b1` and is unchanged by the second. The gates behind this refresh were run at that commit and are recorded in [RUNS-2026-11-04.md](RUNS-2026-11-04.md): tree and binary identity, per-gate command and verdict, log and frame hashes. The original 2026-10-25 matrix was written against `047bcfbdb89225c1c054535dc3e51bc44b9cf3b1`; T62's task definition is retained in `T62-REPORT.md` §0.
+**Evidence snapshot for this refresh:** commit `integration/t79-final @ 65315d27b10d416a46680123c6719416c11d6541` on 2026-11-04 (not frozen); the first pass of this refresh was read at `046f4cd52a6eae5eb952488bb0095bcce86500b1` and is unchanged by the second. One later addition postdates it: the four C cells come from `third-person-weapon-check.sh` at product sha256 `2747e9090a9d7fb381299bc75cd9a7881038c9103ddab05ad4359d8d3d94f153` (§2.4, `RUNS-2026-11-04.md` §24.8). The gates behind this refresh were run at that commit and are recorded in [RUNS-2026-11-04.md](RUNS-2026-11-04.md): tree and binary identity, per-gate command and verdict, log and frame hashes. The original 2026-10-25 matrix was written against `047bcfbdb89225c1c054535dc3e51bc44b9cf3b1`; T62's task definition is retained in `T62-REPORT.md` §0.
 
-**Every gate this refresh added now passes.** The eight of the `65315d2` sweep: — `PLAYER-ANIMATION-CHECK`, `player-model-check`, `ANIMATION-AVAILABILITY`, `ENTITY-MATERIAL`, `ENTITY-PROPERTY-LOOKUP`, and `PLAYER-ANIMATION-PIXELS` / `PIXEL-CHECK` / `ENTITY-ID` (readings: `RUNS-2026-11-04.md` §3, §3b, §4), plus the two gates `65315d2` added: `player-body-appearance-check.sh` (`BODY-APPEARANCE`, §2.3 and `RUNS` §9a) and `map-material-matrix.sh` (`MAP-MATERIAL-MATRIX`, `MAP-MATRIX.md`). The per-class pixel chain in §2.6 is new in this refresh and is recorded there in §5. What those runs do **not** establish is listed in `RUNS-2026-11-04.md` §6. A ninth, the T66 relay gate (`spectate-check.sh`, `SPECTATE-CHECK`), was run at `74e946b41f8720f14578d4124aa296c4de47983e` and passes; it is what backs the death clause now recorded in §5 item 9 (`RUNS` §9c).
+**Every gate this refresh added now passes.** The eight of the `65315d2` sweep: — `PLAYER-ANIMATION-CHECK`, `player-model-check`, `ANIMATION-AVAILABILITY`, `ENTITY-MATERIAL`, `ENTITY-PROPERTY-LOOKUP`, and `PLAYER-ANIMATION-PIXELS` / `PIXEL-CHECK` / `ENTITY-ID` (readings: `RUNS-2026-11-04.md` §3, §3b, §4), plus the two gates `65315d2` added: `player-body-appearance-check.sh` (`BODY-APPEARANCE`, §2.3 and `RUNS` §9a) and `map-material-matrix.sh` (`MAP-MATERIAL-MATRIX`, `MAP-MATRIX.md`). The per-class pixel chain in §2.6 is new in this refresh and is recorded there in §5. What those runs do **not** establish is listed in `RUNS-2026-11-04.md` §6. A ninth later gate, `third-person-weapon-check.sh` (`THIRD-PERSON-WEAPON`), closes four C cells (§2.4). A tenth, the T66 relay gate (`spectate-check.sh`, `SPECTATE-CHECK`), was run at `74e946b41f8720f14578d4124aa296c4de47983e` and passes; it is what backs the death clause now recorded in §5 item 9 (`RUNS` §9c).
 
 **Working tree at reading time:** the gates in §3/§4 were run at `046f4cd`; `65315d2` then added two gates and put `team`, `family` and `origin` on the entity-ledger line (trace only — no draw, decode or material path changed), and the eight gates were re-run at that commit (`RUNS` §9). Neither commit changes product renderer/decoder behaviour. The commits and what each touches are listed in `RUNS-2026-11-04.md` §1 and §8.
 
@@ -74,17 +74,17 @@ Axes, deliberately split because "animation" has two very different evidence lev
 
 | Class | A model load | B materials | C weapon body | D1 anim data/clock | D2 demo tick + pixels |
 |---|---|---|---|---|---|
-| Scout | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
+| Scout | PASS | PASS | **PASS** | PASS | **PASS** |
 | Sniper | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
-| Soldier | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
-| Demoman | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
-| Medic | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
+| Soldier | PASS | PASS | **PASS** | PASS | **PASS** |
+| Demoman | PASS | PASS | **PASS** | PASS | **PASS** |
+| Medic | PASS | PASS | **PASS** | PASS | **PASS** |
 | Heavy | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
 | Pyro | PASS | PASS (thinnest: 1 slot) | UNSUPPORTED | PASS | **PASS** |
 | Spy | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
 | Engineer | PASS | PASS | UNSUPPORTED | PASS | **PASS** |
 
-All nine D2 cells are per-class rendered frame readings, each on its own playback tick; the remaining PASS cells are static or probe-level evidence (§4.2). Two recordings supply them: snakewater for Demoman, Scout, Soldier and Medic, and the Highlander STV `pl_upward_f12` for Pyro, Heavy, Spy, Engineer and Sniper (§2.6).
+All nine D2 cells are per-class rendered frame readings, each on its own playback tick, and the four C cells for Demoman, Scout, Soldier and Medic are rendered third-person weapon readings from `third-person-weapon-check.sh` (§2.4). The remaining PASS cells are static or probe-level evidence (§4.2). Two recordings supply them: snakewater for Demoman, Scout, Soldier and Medic, and the Highlander STV `pl_upward_f12` for Pyro, Heavy, Spy, Engineer and Sniper (§2.6).
 
 ### 2.2 A — model load (static). 9/9 PASS, one gate, one sweep
 
@@ -193,16 +193,33 @@ unoccluded red body of those two classes was found on any recorded frame, and th
 measurement reads paint, never a BLU stem name.
 
 
-### 2.4 C — weapon body in third person. 9/9 UNSUPPORTED
+### 2.4 C — weapon body in third person. 4/9 PASS, 5/9 UNSUPPORTED
 
-The render gates exercise POV/viewmodel weapons; none renders a weapon attached to a third-person player body:
+Gate `third-person-weapon-check.sh` (T83). With `--player-weapon-attach` the renderer composes the weapon's hold bone through the player's bone chain and draws that weapon's world model at the hold point. Per class the gate captures the same tick twice attached and once with the flag off, and asserts: the two attached frames are byte-identical; attached differs from off; the off run prints no attach line and stays byte-identical to the historical baseline frame; no weapon entity is drawn both attached and standalone; and the attached instance's own pixels sit on the weapon at that body. Committed reading `THIRD-PERSON-WEAPON=PASS`, `evidence/t83-weapon/weapon-attach/`, product sha256 `2747e9090a9d7fb381299bc75cd9a7881038c9103ddab05ad4359d8d3d94f153`:
+
+> `cases=4 attached-deterministic=4 off-is-baseline=4 attach-row=4 refused-row=0 weapon-pixels=4`
+
+Per class, same run (hold point in the body's model space; drift = hold point minus its own bone):
+
+| Class | body, own pixels | tick | hold source | hold point | drift | weapon px |
+|---|---|---|---|---|---|---|
+| Demoman | ent 5 `demo.mdl`, 1733 | 64161 | bone 21 | `-11.5,55.1,8.2` | 0.00 | 204 |
+| Scout | ent 15 `scout.mdl`, 1178 | 64161 | attachment 23 | `-3.1,49.9,4.1` | 0.00 | 69 |
+| Soldier | ent 2 `soldier.mdl`, 1499 | 63000 | attachment 24 | `25.0,51.0,2.9` | 0.00 | 214 |
+| Medic | ent 13 `medic.mdl`, 1791 | 64000 | bone 19 | `-6.5,41.5,2.2` | 0.00 | 182 |
+
+What those four cells claim, and what they do not: each of the four classes has a third-person frame in which a weapon entity the run names is drawn at a hold point that coincides with its bone, with the weapon's own pixel mask measured. They do **not** claim that the hold point is the hand for every weapon in every pose, nor that the weapon's own reload or draw animation plays (`m_nSequence` is not in the recorded protocol). The five remaining classes are unmeasured only because the gate's target table has four rows, so their C cells stay UNSUPPORTED.
+
+What was true before T83, and why those cells were empty:
+
+The render gates then in the tree exercised POV/viewmodel weapons only — none rendered a weapon attached to a third-person player body:
 
 - `weapon-body-check.sh:102,108,112` — `POV_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"`, `VM_MODEL="models/weapons/v_models/v_scattergun_scout.mdl"`, `ARM_MODEL="models/weapons/c_models/c_sniper_arms.mdl"`, `CHAIN_TICK=16306`.
 - `weapon-material-check.sh:76,82,85,86` — same demo, `NATURAL_BODY="models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl"`, `OVERRIDE_BODY="models/weapons/c_models/c_tfc_sniperrifle/c_tfc_sniperrifle.mdl"`.
 - Committed reading `evidence/weapon-material/natural-on.readings.txt:5`: `gpu: viewmodel weaponBody model=…/c_pro_rifle.mdl class=CTFSniperRifle entity=1008 worldModelIndex=533 … sequences=1 bones=1 vertices=12681 materials=2/2/2/2 …` and `:6` `armDrawCalls=26 weaponDrawCalls=26 … weaponVisible=1 weaponReason=drawn`.
 - `weapon-world-model-check.sh` reads `m_iWorldModelIndex` and resolves model-precache paths from POV/bagel demos; it does not capture a third-person player render. This adds weapon identity evidence, not a C-axis render.
 
-That is one Sniper rifle, two materials, in the viewmodel pass, on one POV demo at `capture_tick=2000`. Nothing draws a weapon **attached to a third-person player body**, and no gate asserts a per-class weapon. The only weapon strings in the class audit are material families living inside the player `.mdl` itself (`hvyweapon_red_sheen`). Hence UNSUPPORTED for all nine — absence of scope, not failure.
+That is one Sniper rifle, two materials, in the viewmodel pass, on one POV demo at `capture_tick=2000`. At that point nothing drew a weapon **attached to a third-person player body**, and no gate asserted a per-class weapon. The only weapon strings in the class audit are material families living inside the player `.mdl` itself (`hvyweapon_red_sheen`). Hence UNSUPPORTED for all nine before T83 — absence of scope, not failure — and still UNSUPPORTED for the five classes the gate does not target.
 
 ### 2.5 D1 — animation data, pose and clock (counter level). 9/9 PASS
 
@@ -326,22 +343,22 @@ fidelity or prove every action on screen.
 
 ### 4.1 Counts, computed from §2.1
 
-**9 classes × 5 axes = 45 cells: 36 PASS, 0 NOT VERIFIED, 9 UNSUPPORTED, 0 FAIL.**
+**9 classes × 5 axes = 45 cells: 40 PASS, 0 NOT VERIFIED, 5 UNSUPPORTED, 0 FAIL.**
 
 | Axis | PASS | NOT VERIFIED | UNSUPPORTED |
 |---|---|---|---|
 | A model load | 9 | 0 | 0 |
 | B materials/bodies | 9 | 0 | 0 |
-| C weapon body (3rd person) | 0 | 0 | 9 |
+| C weapon body (3rd person) | 4 | 0 | 5 |
 | D1 anim data/clock | 9 | 0 | 0 |
 | D2 demo tick + pixels | 9 | 0 | 0 |
-| **Total** | **36** | **0** | **9** |
+| **Total** | **40** | **0** | **5** |
 
-Against the four-axis shape the brief illustrated (model load / materials / weapon body / animations) the same evidence reads **36 cells: 27 measured, 0 NOT VERIFIED, 9 UNSUPPORTED**. D2 now has one sample per class.
+Against the four-axis shape the brief illustrated (model load / materials / weapon body / animations) the same evidence reads **36 cells: 31 measured, 0 NOT VERIFIED, 5 UNSUPPORTED**. D2 now has one sample per class.
 
-### 4.2 Nine of 36 PASS cells are backed by a named rendered entity
+### 4.2 Thirteen of 40 PASS cells are backed by a named rendered entity
 
-Twenty-seven PASS cells are table/probe readings. The nine rendered D2 cells are Demoman `id=95` and Scout `id=96` at snakewater frame 64161, Soldier `id=86` at 63000, Medic `id=95` at 64000, Pyro `id=85` at upward 30001, Heavy `id=89`, Spy `id=95` and Engineer `id=86` at 24001, and Sniper `id=93` at 20001, each joined to its model, its own pick, its samples and a per-entity pixel mask (§2.6). This is not a third-person player camera; T57's planned third-person capture (`evidence/t57-player-model/REPORT.md:388`) remains unrun, so C is still unsupported.
+Twenty-seven PASS cells are table/probe readings; four more are the C cells, which are rendered weapon-on-body frames for Demoman, Scout, Soldier and Medic (§2.4). The nine rendered D2 cells are Demoman `id=95` and Scout `id=96` at snakewater frame 64161, Soldier `id=86` at 63000, Medic `id=95` at 64000, Pyro `id=85` at upward 30001, Heavy `id=89`, Spy `id=95` and Engineer `id=86` at 24001, and Sniper `id=93` at 20001, each joined to its model, its own pick, its samples and a per-entity pixel mask (§2.6). This is not a third-person player camera; T57's planned third-person capture (`evidence/t57-player-model/REPORT.md:388`) remains unrun, but C no longer depends on it: the weapon gate renders the attached weapon in the same frame as the body, so C is supported for the four classes it targets and unsupported for the other five.
 
 A second, non-cell reading joins four more bodies to pixels: the appearance gate measures the Demoman and the Scout in both teams (§2.3), which is a team-dimension criterion rather than a per-class cell, so the 45-cell count below is unchanged by it.
 
