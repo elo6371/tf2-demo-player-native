@@ -72,6 +72,10 @@ struct AnimationBinding {
   // the helper bones the animation file does not have.
   std::vector<std::array<float, 12>> poseToBone;
   std::vector<std::uint8_t> poseToBoneValid;
+  // The render skeleton's parent index per bone (-1 for a root). Kept next to
+  // poseToBone so a bone the animation file does not drive can be placed on its
+  // nearest animated ancestor instead of on the model origin.
+  std::vector<std::int32_t> boneParent;
   std::size_t renderBones = 0;
   std::size_t validBindBones = 0;
 };
@@ -143,7 +147,22 @@ struct AnimationSampleResult {
   // Column-major 4x4, the layout the skinning constant buffer and the
   // StructuredBuffer both want. Empty when bindPose is true.
   std::vector<std::array<float, 16>> skinMatrices;
+  // Row-major 3x4 per render bone: that bone's local -> model transform at this
+  // sample, i.e. the matrix `skinMatrices[i]` was built from (skin = boneModel *
+  // poseToBone). This is the quantity source-side `pBoneToWorld` names, which is
+  // why an attachment rides on it: an entity on a bone is placed at
+  // `boneModel * attachment->local`. Identity -- not zero -- for a bone no
+  // channel reached, so "the helper bone did not move" stays distinguishable
+  // from "collapse this thing onto the origin". Empty when bindPose is true.
+  std::vector<std::array<float, 12>> boneModelMatrices;
 };
+
+// Composes two row-major 3x4 transforms in the convention the skinning path
+// uses: out(v) = a(b(v)), i.e. the engine's ConcatTransforms. Exposed because
+// placing a child model on a bone attachment is exactly one such composition,
+// and a multiply re-derived at the call site is how a transposed copy ships.
+std::array<float, 12> multiplyTransforms(
+  const std::array<float, 12>& a, const std::array<float, 12>& b);
 
 // Composes the sampled local transforms along the parent chain into full
 // model-space 3x4 matrices (rotation AND translation). The position-only

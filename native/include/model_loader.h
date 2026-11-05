@@ -100,6 +100,12 @@ struct ModelAttachment {
   std::array<float, 3> axisX{};
   std::array<float, 3> axisY{};
   std::array<float, 3> axisZ{};
+  // The matrix the three reads above decompose, kept whole and row-major:
+  // local[r*4+c] is mstudioattachment_t::local[r][c], so the transform is
+  // "v' = local * v" and composing it with a bone frame is one 3x4 multiply.
+  // Kept alongside origin/axis rather than replacing them because the
+  // first-person path already consumes the decomposed axes.
+  std::array<float, 12> local{};
 };
 
 struct ModelSequence {

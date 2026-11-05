@@ -586,6 +586,116 @@ ViewModelWeaponBodyLookup findViewModelWeaponBodyInput(
   return lookup;
 }
 
+const char* playerWeaponRefusalName(PlayerWeaponRefusal refusal) {
+  switch (refusal) {
+    case PlayerWeaponRefusal::None: return "none";
+    case PlayerWeaponRefusal::NoPlayerEntity: return "noPlayerEntity";
+    case PlayerWeaponRefusal::PlayerEntityAbsent: return "playerEntityAbsent";
+    case PlayerWeaponRefusal::NoActiveWeaponSlot: return "noActiveWeaponSlot";
+    case PlayerWeaponRefusal::EmptyWeaponHandle: return "emptyWeaponHandle";
+    case PlayerWeaponRefusal::WeaponPastSnapshot: return "weaponPastSnapshot";
+    case PlayerWeaponRefusal::WeaponAbsent: return "weaponAbsent";
+    case PlayerWeaponRefusal::NoWorldModelSlot: return "noWorldModelSlot";
+    case PlayerWeaponRefusal::WorldModelIndexZero: return "worldModelIndexZero";
+    case PlayerWeaponRefusal::WorldModelIndexOutOfRange: return "worldModelIndexOutOfRange";
+    case PlayerWeaponRefusal::WorldModelNotDeclared: return "worldModelNotDeclared";
+  }
+  return "unknown";
+}
+
+PlayerWeaponLookup findPlayerWeaponInput(
+    const std::vector<EntityState>& statesByIndex,
+    const std::vector<ServerClassSchema>& classSchemas,
+    int playerEntityIndex,
+    const std::unordered_map<std::uint16_t, std::string>& modelPrecache) {
+  PlayerWeaponLookup lookup;
+  if (playerEntityIndex < 0
+      || static_cast<std::size_t>(playerEntityIndex) >= statesByIndex.size()) {
+    lookup.refusal = PlayerWeaponRefusal::NoPlayerEntity;
+    lookup.reason = "no player entity index was supplied";
+    return lookup;
+  }
+  const auto& playerState = statesByIndex[static_cast<std::size_t>(playerEntityIndex)];
+  if (playerState.classId < 0) {
+    lookup.refusal = PlayerWeaponRefusal::PlayerEntityAbsent;
+    lookup.reason = "player entity " + std::to_string(playerEntityIndex)
+      + " is not present in this snapshot";
+    return lookup;
+  }
+  lookup.hasPlayerEntity = true;
+  lookup.playerEntityIndex = playerEntityIndex;
+  bool hasWeapon = false;
+  const std::int64_t weaponHandle = readIntSlot(playerState, "m_hActiveWeapon", hasWeapon);
+  lookup.hasWeaponHandle = hasWeapon;
+  if (!hasWeapon) {
+    lookup.refusal = PlayerWeaponRefusal::NoActiveWeaponSlot;
+    lookup.reason = "player entity " + std::to_string(playerEntityIndex)
+      + " carries no m_hActiveWeapon slot";
+    return lookup;
+  }
+  lookup.weaponHandle = weaponHandle;
+  const std::uint32_t handle = static_cast<std::uint32_t>(weaponHandle);
+  const std::uint32_t targetIndex = handle & kEntityHandleIndexMask;
+  if (handle == kInvalidEntityHandle || targetIndex == kInvalidEntityIndex) {
+    lookup.refusal = PlayerWeaponRefusal::EmptyWeaponHandle;
+    lookup.reason = "the player's m_hActiveWeapon is the empty handle sentinel";
+    return lookup;
+  }
+  const int weaponIndex = static_cast<int>(targetIndex);
+  lookup.weaponEntityIndex = weaponIndex;
+  if (static_cast<std::size_t>(weaponIndex) >= statesByIndex.size()) {
+    lookup.refusal = PlayerWeaponRefusal::WeaponPastSnapshot;
+    lookup.reason = "weapon entity " + std::to_string(weaponIndex) + " is past the snapshot";
+    return lookup;
+  }
+  const auto& weaponState = statesByIndex[static_cast<std::size_t>(weaponIndex)];
+  if (weaponState.classId < 0) {
+    lookup.refusal = PlayerWeaponRefusal::WeaponAbsent;
+    lookup.reason = "weapon entity " + std::to_string(weaponIndex) + " is not in this snapshot";
+    return lookup;
+  }
+  lookup.weaponEntityPresent = true;
+  lookup.weaponClassId = weaponState.classId;
+  for (const auto& schema : classSchemas) {
+    if (schema.id == static_cast<std::uint32_t>(weaponState.classId)) {
+      lookup.weaponClassName = schema.name;
+      break;
+    }
+  }
+  bool hasWorldModelIndex = false;
+  const std::int64_t worldModelIndex =
+    readIntSlot(weaponState, "m_iWorldModelIndex", hasWorldModelIndex);
+  lookup.hasWorldModelIndex = hasWorldModelIndex;
+  if (!hasWorldModelIndex) {
+    lookup.refusal = PlayerWeaponRefusal::NoWorldModelSlot;
+    lookup.reason = "weapon entity " + std::to_string(weaponIndex)
+      + " carries no m_iWorldModelIndex slot";
+    return lookup;
+  }
+  lookup.worldModelIndex = worldModelIndex;
+  if (worldModelIndex == 0) {
+    lookup.refusal = PlayerWeaponRefusal::WorldModelIndexZero;
+    lookup.reason = "the weapon's m_iWorldModelIndex is 0";
+    return lookup;
+  }
+  if (worldModelIndex < 1 || worldModelIndex > 0xffff) {
+    lookup.refusal = PlayerWeaponRefusal::WorldModelIndexOutOfRange;
+    lookup.reason = "the weapon's m_iWorldModelIndex is out of range";
+    return lookup;
+  }
+  const auto found = modelPrecache.find(static_cast<std::uint16_t>(worldModelIndex));
+  if (found == modelPrecache.end() || found->second.empty()) {
+    lookup.refusal = PlayerWeaponRefusal::WorldModelNotDeclared;
+    lookup.reason = "m_iWorldModelIndex " + std::to_string(worldModelIndex)
+      + " is not declared in modelprecache";
+    return lookup;
+  }
+  lookup.worldModelPath = found->second;
+  lookup.refusal = PlayerWeaponRefusal::None;
+  lookup.reason = "the player's m_hActiveWeapon resolves through m_iWorldModelIndex to its body";
+  return lookup;
+}
+
 std::string EntityModelResolver::defaultPlayerModelPath(std::int64_t tfClass) {
   switch (tfClass) {
     case 1: return "models/player/scout.mdl";

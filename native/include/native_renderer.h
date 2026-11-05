@@ -255,6 +255,15 @@ struct EntityModelDrawInstance {
   // bucketed by family so a red and a blue instance of the same model do not
   // share a paint. Defaults to 0, the family every model has.
   std::uint32_t skinFamily = 0;
+  // A model-space placement for an instance that rides on another model's bone
+  // -- a held weapon on a hand attachment. Row-major 3x4 in the same "v' = rows
+  // * v" convention as buildEntityModelInstanceRows. The instance still carries
+  // the PARENT's origin/angles in the fields above, and the renderer composes
+  // parent x local before uploading; false keeps the pre-existing instance path
+  // bit-for-bit, which is what makes the flag an A/B control rather than a new
+  // code path for every prop.
+  bool hasLocalMatrix = false;
+  float localPositionRows[12] = {};
 };
 
 // Everything the first-person pass needs, in one value. It is deliberately a
