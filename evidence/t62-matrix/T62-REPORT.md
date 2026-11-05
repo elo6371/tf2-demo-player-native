@@ -53,7 +53,7 @@ input the axis needs is absent, so no run can produce it.
 
 ## 3. The counts
 
-**Map matrix, 5 maps × 4 axes = 20 cells: 16 PASS, 0 NOT VERIFIED, 4 UNSUPPORTED, 0 FAIL.** Nine of the sixteen were backed by the `map-material-matrix.sh` run at `65315d2` (three already PASS and reproduced unchanged, five upgraded from NOT VERIFIED, plus the odyssey geometry cell which keeps its historical reading). The other seven — the lighting cells of snakewater, sunshine and bagel_rc12, and the geometry cells of those same three maps — were measured at `931588b` by `map-geometry-lighting-check.sh`. `MAP-MATRIX.md` marks the material re-reads ‡‡ and the geometry/lighting measurements §§, and states exactly what each mark asserts.
+**Map matrix, 5 maps × 4 axes = 20 cells: 20 PASS, 0 NOT VERIFIED, 0 UNSUPPORTED, 0 FAIL.** The fifth row changed map on 2026-11-05: `koth_bagel_rc13` (absent BSP, four UNSUPPORTED cells) was replaced by `koth_bagel_rc11`, which both map gates had already rendered — materials and coverage at `65315d2`, geometry and lighting at `931588b`, all committed in `RUNS-2026-11-04.md` §9-§10; no gate was re-run for the swap. Ten of the twenty cells are the materials and coverage cells of the five rows, asserted by `map-material-matrix.sh` at `65315d2`; nine are the five lighting cells and the geometry cells of snakewater, sunshine, bagel_rc12 and bagel_rc11, measured at `931588b` by `map-geometry-lighting-check.sh`; the twentieth is odyssey's geometry cell, which keeps its T26/T58 reading. `MAP-MATRIX.md` marks the material re-reads ‡‡ and the geometry/lighting measurements §§, and states exactly what each mark asserts.
 
 | Map | materials | geometry | lighting | coverage table | 
 | --- | --- | --- | --- | --- |
@@ -61,7 +61,7 @@ input the axis needs is absent, so no run can produce it.
 | pl_odyssey | PASS ‡‡ | PASS | PASS §§ | PASS ‡‡ |
 | cp_sunshine | PASS ‡‡ | PASS §§ | PASS §§ | PASS ‡‡ |
 | koth_bagel_rc12 | PASS ‡‡ | PASS §§ | PASS §§ | PASS ‡‡ |
-| koth_bagel_rc13 | UNSUPPORTED | UNSUPPORTED | UNSUPPORTED | UNSUPPORTED (no BSP in the install) |
+| koth_bagel_rc11 | PASS ‡‡ | PASS §§ | PASS §§ | PASS ‡‡ |
 
 **Character matrix, 9 classes × 5 axes = 45 cells: 36 PASS, 0 NOT VERIFIED, 9 UNSUPPORTED, 0 FAIL.** The 36 PASS are model load (9), body materials (9), animation data/clock (9), and nine rendered D2 samples — one body per class, four on snakewater frames 63000/64161 and five on the Highlander STV of `pl_upward_f12` at ticks 20001/24001/30001 (`CHARACTER-MATRIX.md` §2.6). The 9 UNSUPPORTED are the third-person weapon body. Against the brief's four axes (model / materials / weapon / animation), the same evidence reads 36 cells: 27 measured, 0 NOT VERIFIED, 9 UNSUPPORTED.
 
@@ -117,9 +117,9 @@ Geometry and lighting are now measured on five maps each, materials and coverage
 
 ## 7. Disposition
 
-* The 16 map PASS cells: nine backed by `map-material-matrix.sh` at `65315d2` (five upgraded from NOT VERIFIED, three reproduced unchanged, one historical odyssey geometry) and seven measured at `931588b` by `map-geometry-lighting-check.sh`. The Odyssey `99 + 3 + 2 + 4 = 108` arithmetic is superseded: the run commits `distinct=127 tiled=118 capped=0` and a 118-row tile table.
-* No map cell is NOT VERIFIED. What remains open is not a cell: cull control on four maps, a second posture per map, a lighting pixel pin, and bagel rc11's place in the table (§5). The map matrix's 4 UNSUPPORTED cells reflect the absent `koth_bagel_rc13` BSP; separately, the character matrix's 9 C-axis cells are UNSUPPORTED because no gate renders a third-person weapon attached to a player body.
-* The map matrix's 4 UNSUPPORTED cells reflect the absent `koth_bagel_rc13` BSP; separately, the character matrix's 9 C-axis cells are UNSUPPORTED because no gate renders a third-person weapon attached to a player body.
+* The 20 map PASS cells: ten are the materials and coverage cells of the five rows, backed by `map-material-matrix.sh` at `65315d2`; nine are the five lighting cells plus the geometry cells of snakewater, sunshine, bagel_rc12 and bagel_rc11, measured at `931588b` by `map-geometry-lighting-check.sh`; the twentieth is odyssey's geometry cell, kept from T26/T58. The Odyssey `99 + 3 + 2 + 4 = 108` arithmetic is superseded: the run commits `distinct=127 tiled=118 capped=0` and a 118-row tile table.
+* No map cell is NOT VERIFIED and none is UNSUPPORTED. What remains open is not a cell: cull control on four maps, a second posture per map, and a lighting pixel pin. Separately, the character matrix's 9 C-axis cells are UNSUPPORTED because no gate renders a third-person weapon attached to a player body.
+* The map matrix has no UNSUPPORTED cell: `koth_bagel_rc13`, whose absent BSP produced them, is not a row any more — `koth_bagel_rc11` took the fifth row on 2026-11-05 with readings both map gates had already committed. Separately, the character matrix's 9 C-axis cells are UNSUPPORTED because no gate renders a third-person weapon attached to a player body.
 * The historical `ReloadAirwalk_PRIMARY` false match is closed by T61.1's token-boundary matcher. The Pyro defect the Highlander chain exposed — an empty `ReloadStand` bone chain, plus an idle pick that chose that reload clip over the 1-frame aimmatrix pose — is fixed at `931588b` (a 0xFF chain terminator in `native/src/animation_decoder.cpp`, a one-shot rule in `native/include/animation_sequence_match.h`), and the animation gate reads 233 assertions / 0 failures at that tree.
 * Crouch and flinch stay NOT VERIFIED *at runtime*: the clips decode (40 sampled crouch/flinch clips, 14 flinch sequences, every one finite) but the driver chooses only idle and moving, so no frame this product draws can show them. That is a recorded product gap, not a matrix hole.
 * Every PASS in this report rests on a committed run listed in `RUNS-2026-11-04.md` §3–§13; T73's frozen-tree sweep and the release verdict stay separate work.
