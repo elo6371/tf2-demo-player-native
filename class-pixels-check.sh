@@ -210,7 +210,23 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
   if [ "$ID_SHA" != "<none>" ] && [ "$ID_SHA" = "$ID2_SHA" ]; then
     echo "  OK   the identity capture twice is byte-identical ($ID_SHA)"
   else
-    say_fail "${CLASS}: the same identity capture twice is not byte-identical, so a cross-run pixel count cannot be a reading (identity=$ID_SHA identity-2=$ID2_SHA)"
+    # A differing pair is a failure either way, but the two causes are different
+    # findings and the failure text has to say which one happened. The summary
+    # keeps this frame's entity census ("entity: id=" lines), so the two plants
+    # can be compared directly. Measured on 2026-11-05 (freeze4 step
+    # class-snakewater): the pair differed by 474 px and the census differed by
+    # ONE body -- a medic that had an origin in one run and not in the other --
+    # which renumbered every body after it (demo id 95 vs 94). That is not a
+    # pixel difference, it is a different scene, and a reader who is told "the
+    # picture moved" would go looking in the renderer for it.
+    census_diff=$(diff <(grep -a 'entity: id=' "$dir/identity.summary" | cut -d' ' -f2-) \
+                       <(grep -a 'entity: id=' "$dir/identity-2.summary" | cut -d' ' -f2-) | head -6)
+    if [ -n "$census_diff" ]; then
+      say_fail "${CLASS}: the two identity captures do not show the same SCENE (identity=$ID_SHA identity-2=$ID2_SHA); the entity census differs, so this is not a rendering difference:"
+      printf '%s\n' "$census_diff" | sed 's/^/    /'
+    else
+      say_fail "${CLASS}: the same identity capture twice is not byte-identical, so a cross-run pixel count cannot be a reading (identity=$ID_SHA identity-2=$ID2_SHA); the entity census is identical, so the difference is in the rendering of one scene"
+    fi
   fi
 
   "$PY" t61-entityid.py "$dir/identity.bmp" "$dir/identity.summary" \

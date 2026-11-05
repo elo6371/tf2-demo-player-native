@@ -389,17 +389,36 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
 done < "$TARGETS"
 
 # N3, once: the flag rejects a value it cannot honour.
+#
+# The refusal is an exit code plus the absence of an artefact, not a line of
+# stdout: every refused argument in native/src/main.cpp announces itself on the
+# debugger channel (OutputDebugStringW, see the --outline, --model-*,
+# --viewmodel-*, --logstf-* and this flag's own rejection block) and this
+# program writes nothing to stdout or stderr at all. An earlier form of this
+# control grepped the log for 'invalid --player-weapon-attach' and therefore
+# could never pass -- it was asserting a channel the product has never used
+# (first full run, 2026-11-05 19:49, log 0 bytes, rc 13). What is observable,
+# and what actually protects the A/B pair, is that the refusal happens before
+# anything is drawn: exit 13 and no frame written.
 echo "--- N3 invalid --player-weapon-attach value"
 N3_LOG="$OUT/negative-flag.log"
+N3_BMP="$OUT/n3-refused.bmp"
+rm -f "$N3_BMP"
 "$PRODUCT" --tf-root "$TF" --hidden-window --audio-disabled \
   --settings-file "$BASELINE/settings.json" --ui-settings-file "$BASELINE/ui.json" \
   --demo "$DEMO" --capture-tick 0 --playback-speed "$SPEED" \
+  --capture-frame "$N3_BMP" \
   --player-weapon-attach bogus > "$N3_LOG" 2>&1
 n3_rc=$?
-if [ "$n3_rc" = "13" ] && grep -qa 'invalid --player-weapon-attach' "$N3_LOG"; then
-  echo "  OK   N3 --player-weapon-attach bogus exits 13 with the refusal line"
+if [ "$n3_rc" = "13" ]; then
+  echo "  OK   N3 --player-weapon-attach bogus exits 13 (the documented rejection code)"
 else
-  say_fail "N3 --player-weapon-attach bogus exited $n3_rc (want 13) and/or printed no refusal: a typo may be silently accepted"
+  say_fail "N3 --player-weapon-attach bogus exited $n3_rc (want 13): a typo may be silently accepted"
+fi
+if [ ! -e "$N3_BMP" ]; then
+  echo "  OK   the refused run wrote no frame: the typo never reached the render loop"
+else
+  say_fail "N3 the refused run still wrote $N3_BMP: the bad value was honoured somewhere"
 fi
 
 echo "==========================================================================="

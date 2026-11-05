@@ -1,0 +1,28 @@
+frame 1264x681  dark(lum<16) = 397817 of 860784 (46.22%)
+  A_no_face_id                              9069 (  2.28%)
+  B_cull_only_nocull                         239 (  0.06%)
+  rect_all_zero_front_albedoBright        342705 ( 86.15%)
+  rect_bright_back_albedoBright                4 (  0.00%)
+  rect_bright_front_albedoBright            2283 (  0.57%)
+  rect_bright_front_albedoDark               458 (  0.12%)
+  rect_lt_32_back_albedoBright               287 (  0.07%)
+  rect_lt_32_front_albedoBright            26622 (  6.69%)
+  rect_lt_8_back_albedoBright               7996 (  2.01%)
+  rect_lt_8_front_albedoBright              5611 (  1.41%)
+  rect_lt_96_front_albedoBright             2543 (  0.64%)
+
+masks (1 = in the population):
+  A_no_face_id                              9069 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\A_no_face_id.mask
+  B_cull_only_nocull                         239 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\B_cull_only_nocull.mask
+  rect_all_zero_front_albedoBright        342705 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright                4 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_bright_back_albedoBright.mask
+  rect_bright_front_albedoBright            2283 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark               458 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_bright_front_albedoDark.mask
+  rect_lt_32_back_albedoBright               287 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_lt_32_back_albedoBright.mask
+  rect_lt_32_front_albedoBright            26622 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_lt_32_front_albedoBright.mask
+  rect_lt_8_back_albedoBright               7996 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_lt_8_back_albedoBright.mask
+  rect_lt_8_front_albedoBright              5611 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_lt_8_front_albedoBright.mask
+  rect_lt_96_front_albedoBright             2543 px -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account\rect_lt_96_front_albedoBright.mask
+
+ledger -> .scratch/t62-map-axes/koth_bagel_rc12/p2/account/account.json
+product-attributable (albedo bright AND rectangle bright): 2287 px (0.5749% of dark)

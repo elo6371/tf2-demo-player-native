@@ -1,0 +1,19 @@
+pinned=2026-11-05T06:20:20Z head=14c0f1c reason=T62 P1-1/P1-2a/P1-2b first reference on head 14c0f1c (clean five-map run; pl_odyssey pose 2 is the pose-1 eye turned 90 degrees per lead rule m01509)
+# product_sha256=2caafdbf7280694d9fafd88bb05dbac3e95cd522973b673fc5b5b45f3e39c783
+map=koth_bagel_rc12
+pose=p1
+tick=2000
+speed=8
+camera=--debug-camera 533.246 -803.326 320.031 11.0551 3.79553
+eye=533.2,-803.3,320.0
+demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-14_21-28-01.dem
+frame textured sha256=9644a1e6f0f65073285593299cfc179ff8c31d49a71b1e0f3c5edb8b6745b6f6 bytes=2582406
+frame none sha256=c04021f716da86dc61d30c8115703ce97ad037f762c3e8f7b291b9b056cfecfc bytes=2582406
+frame sky-faces sha256=01b52821f7502e855d19c0dd76a3e7348c74c8785b749668a4da857b622c3ad9 bytes=2582406
+frame flat-base sha256=e38b99469fdf09606964ff9ad05aae8d5ab8e854aa928c18f5ada2e9a44b4c4a bytes=2582406
+frame flat-novis sha256=f35bdf02ee6b7cf8549e2ba623889e410cd9b84b3b71fac28c8f347a67bd00be bytes=2582406
+frame flat-nocull sha256=1347a68b0c3c0ccc457d37219e47d3c7b4c31ff28a36ae269a805c519e8f0a44 bytes=2582406
+frame flat-novis-nocull sha256=7abe3216166555417e6004624e53abe0bca91e688b40c2dc1c65063160a784f6 bytes=2582406
+frame ids sha256=92b6a644a4255fd0bce60d89319cd02ffcf08fd621eae3990995e4b64467b8b6 bytes=2582406
+frame ids-nocull sha256=b54298ee903b6ae2867a2c43f4e0751d8e4d63c3a24cfc5f5132e9fe538cf450 bytes=2582406
+frame lmoff sha256=ff3543070b688bda962606834c3049aab38ba99430dcf047dd969500496907ef bytes=2582406

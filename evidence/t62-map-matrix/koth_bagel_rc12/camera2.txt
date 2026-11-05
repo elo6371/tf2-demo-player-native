@@ -1,0 +1,12 @@
+map=koth_bagel_rc12
+pose=p2
+source=demo-camera-tick12000
+demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-14_21-28-01.dem
+tick=12000
+debug_camera_args=--debug-camera -561.704 -888.828 259.931 35.9373 -157.578
+p2_tick=12000
+p2_eye=-561.704,-888.828,259.931
+p2_yaw=-157.578
+p2_rule=recording-tick
+why=demo camera at tick 12000 differs in place and heading from pose 1 at tick 2000, so it looks at the map from another side
+probe_line=camera_tick=12000 camera_found=1 camera_sample_tick=12000 camera_angles_valid=1 camera_origin_valid=1 camera_origin=-561.704,-888.828,259.931 camera_pitch=35.9373 camera_yaw=-157.578

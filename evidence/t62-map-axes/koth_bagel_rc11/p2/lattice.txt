@@ -1,0 +1,12 @@
+LATTICE status=ok dir=.scratch/t62-map-axes/koth_bagel_rc11/p2
+LATTICE frame=1264x681 flat=89,158,97 drawn_base=860209 drawn_novis=860784 drawn_nocull=860209 drawn_alloff=860784 empty_base=575 empty_alloff=0
+LATTICE colours flat-base flat=860209 clear=0 other=575
+LATTICE colours flat-novis flat=860784 clear=0 other=0
+LATTICE colours flat-nocull flat=860209 clear=0 other=575
+LATTICE colours flat-novis-nocull flat=860784 clear=0 other=0
+LATTICE monotone base_not_in_novis=0 base_not_in_nocull=0 novis_not_in_all=0 nocull_not_in_all=0
+LATTICE restrict cull_only=0 pvs_only=575 overlap=0 union=575 both=575
+LATTICE light albedo_dark=22397 lit_dark=35570 albedo_not_lit=0
+SAMPLE 632 340 base=drawn alloff=drawn
+LATTICE points=1 empty=0 drawn=1
+LATTICE verdict=ok

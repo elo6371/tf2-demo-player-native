@@ -1,0 +1,20 @@
+pinned=2026-11-05T05:49:20Z head=14c0f1c reason=T62 P1-1/P1-2a/P1-2b first reference on head 14c0f1c (clean five-map run; pl_odyssey pose 2 is the pose-1 eye turned 90 degrees per lead rule m01509)
+# previous pin: pinned=2026-11-05T04:58:25Z head=14c0f1c reason=T62 P1-1/P1-2a/P1-2b first reference on head 14c0f1c (clean five-map run)
+# product_sha256=2caafdbf7280694d9fafd88bb05dbac3e95cd522973b673fc5b5b45f3e39c783
+map=cp_snakewater_final1
+pose=p2
+tick=12000
+speed=8
+camera=--debug-camera -1819.7 1189.4 180.0 22.24 336.07
+eye=-1819.7,1189.4,180.0
+demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+frame textured sha256=4ffd4c3165cb305053f04ce67eaa69514a9818c3fbc3cfbdd0b1321d64e6617b bytes=2582406
+frame none sha256=c04021f716da86dc61d30c8115703ce97ad037f762c3e8f7b291b9b056cfecfc bytes=2582406
+frame sky-faces sha256=5d7ab805f839f1096f87383e7536d8f45466a99075a7aee3ba30af3a46099410 bytes=2582406
+frame flat-base sha256=b00e1d9a80ad29f6600e40da470d5cfd6593a0e924b452659d5b3ca18645071a bytes=2582406
+frame flat-novis sha256=098e8d0c0c054c6646ba366985da406e890a1c0cceea670afc27aa46e74379dd bytes=2582406
+frame flat-nocull sha256=aae497d62f8f3b6f74053975cfb6a8bb9ca680d0b97b750b4cbfb7a575fe2d10 bytes=2582406
+frame flat-novis-nocull sha256=b16980fa033a861438244f68b6754845368f523b0c0e4f1f6f0707139921eb0f bytes=2582406
+frame ids sha256=55bcdd85055e972c7f3edfe8e939b20fdb0495b1e305859576e23f4b428fa360 bytes=2582406
+frame ids-nocull sha256=123e707683ae1f1290d5651d5323e42f96aa5647a4b66f588e522b2e07726a70 bytes=2582406
+frame lmoff sha256=fba641d56629c7c5a122a5bcf049668afdf5acd5cd2a587d7355445077fdd53e bytes=2582406

@@ -1,0 +1,30 @@
+frame 1264x681  dark(lum<16) = 49274 of 860784 (5.72%)
+  A_no_face_id                              7316 ( 14.85%)
+  B_cull_only_nocull                        9240 ( 18.75%)
+  rect_all_zero_front_albedoBright           246 (  0.50%)
+  rect_bright_back_albedoBright              255 (  0.52%)
+  rect_bright_front_albedoBright            2091 (  4.24%)
+  rect_bright_front_albedoDark               718 (  1.46%)
+  rect_lt_32_front_albedoBright            24495 ( 49.71%)
+  rect_lt_32_front_albedoDark                229 (  0.46%)
+  rect_lt_8_front_albedoBright              1617 (  3.28%)
+  rect_lt_96_back_albedoBright                58 (  0.12%)
+  rect_lt_96_front_albedoBright             2671 (  5.42%)
+  rect_lt_96_front_albedoDark                338 (  0.69%)
+
+masks (1 = in the population):
+  A_no_face_id                              7316 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\A_no_face_id.mask
+  B_cull_only_nocull                        9240 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\B_cull_only_nocull.mask
+  rect_all_zero_front_albedoBright           246 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright              255 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_bright_back_albedoBright.mask
+  rect_bright_front_albedoBright            2091 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark               718 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_bright_front_albedoDark.mask
+  rect_lt_32_front_albedoBright            24495 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_lt_32_front_albedoBright.mask
+  rect_lt_32_front_albedoDark                229 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_lt_32_front_albedoDark.mask
+  rect_lt_8_front_albedoBright              1617 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_lt_8_front_albedoBright.mask
+  rect_lt_96_back_albedoBright                58 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_lt_96_back_albedoBright.mask
+  rect_lt_96_front_albedoBright             2671 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_lt_96_front_albedoBright.mask
+  rect_lt_96_front_albedoDark                338 px -> .scratch/t62-map-axes/pl_odyssey/p2/account\rect_lt_96_front_albedoDark.mask
+
+ledger -> .scratch/t62-map-axes/pl_odyssey/p2/account/account.json
+product-attributable (albedo bright AND rectangle bright): 2346 px (4.7611% of dark)

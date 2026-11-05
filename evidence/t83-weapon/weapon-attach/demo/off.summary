@@ -1,0 +1,4 @@
+tag=off rc=0 frameTick=64161 sceneTick=74481
+frame: bmp=off.bmp sha256=27f7fa04768869d7037ab8764d4a743adfd1ee94209d59a16f50abf5d5717106
+frame: product sha256=2747e9090a9d7fb381299bc75cd9a7881038c9103ddab05ad4359d8d3d94f153
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=64161 speed=8 camera=5363.8,-1102.1,5.9,4.1,0.0 flags=--player-animation

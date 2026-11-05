@@ -1,0 +1,13 @@
+map=pl_odyssey
+pose=p2
+source=pose1-eye-yaw+90
+demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-26_23-14-06.dem
+tick=2000
+debug_camera_args=--debug-camera -1221.21 462.209 650.252 14.3087 261.148
+p2_tick=2000
+p2_eye=-1221.21,462.209,650.252
+p2_yaw=261.148
+p2_rule=yaw+90-fallback
+why=every recorded camera tried on this demo is either inside the world or sees no open depth to measure; the pose 1 eye turned 90 degrees is a second view frustum without inventing a position (lead rule 2026-11-05, m01509)
+rejected_line=camera_tick=12000 camera_origin=-1511.47,479.219,479.684 camera_pitch=8.44799 camera_yaw=151.455 flat_frame_colours=1 reason=camera_inside_the_world;also_screened=24000,30000,42000,48000,5000,7000,rot90_at_12000,rot180_at_12000,rot270_at_12000 all_empty_pixels=0_or_1
+probe_line=camera_tick=12000 camera_found=1 camera_sample_tick=12000 camera_angles_valid=1 camera_origin_valid=1 camera_origin=-1511.47,479.219,479.684 camera_pitch=8.44799 camera_yaw=151.455

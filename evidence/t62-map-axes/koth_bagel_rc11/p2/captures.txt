@@ -1,0 +1,21 @@
+map=koth_bagel_rc11
+bsp=download/maps/koth_bagel_rc11.bsp
+demo=D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem
+tick=12000
+speed=8
+camera=--debug-camera 421.3 -776.2 408.5 15.18 78.48
+pose_eye=421.3,-776.2,408.5
+product_sha256=2747e9090a9d7fb381299bc75cd9a7881038c9103ddab05ad4359d8d3d94f153
+probe_sha256=0cb0b53cc2b5f15bf242d09539869481d836f05071fec157a2fe75e522fa6a80
+head=4b34f1e2656db85bdc99310e5f383a67158dae1f
+frame textured sha256=ed575af01ced4afb69785ed567da2947fe9ca008bc2bd1614e744b4ab7397ba5 bytes=2582406
+frame none sha256=c04021f716da86dc61d30c8115703ce97ad037f762c3e8f7b291b9b056cfecfc bytes=2582406
+frame sky-faces sha256=6eff88e38aa37a274ccae944b47e458dfc557cfbc64795ed19c3b53507e2ebbc bytes=2582406
+frame flat-base sha256=8dd355bcc53e6d8ddca081f72450e9fb1ff41cb2a07d3eb214382ea1c7303504 bytes=2582406
+frame flat-novis sha256=2de76071771bba492b97685feb756cd14b64a725c720d43e5175a9bce04def1c bytes=2582406
+frame flat-nocull sha256=8dd355bcc53e6d8ddca081f72450e9fb1ff41cb2a07d3eb214382ea1c7303504 bytes=2582406
+frame flat-novis-nocull sha256=2de76071771bba492b97685feb756cd14b64a725c720d43e5175a9bce04def1c bytes=2582406
+frame ids sha256=db8bea2a5e5e882b132c027a5f7b9a6461e079123b6d5aca6809f24b5218f19c bytes=2582406
+frame ids-nocull sha256=49953f8069a8222f4c35f79353ca62cc6bcfc552eee00e6f0149a585dc34684e bytes=2582406
+frame lmoff sha256=0ea3fa46927087d5ab107119114b8b057b6eea2bc3ec0d4f8e968b584bb55472 bytes=2582406
+frame_flat=copy of flat-base.bmp

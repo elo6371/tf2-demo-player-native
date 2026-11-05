@@ -1,0 +1,12 @@
+map=koth_bagel_rc11
+pose=p2
+source=product-orient-run-tick12000
+demo=D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem
+tick=12000
+debug_camera_args=--debug-camera 421.3 -776.2 408.5 15.18 78.48
+p2_tick=12000
+p2_eye=421.3,-776.2,408.5
+p2_yaw=78.48
+p2_rule=recording-tick
+why=SourceTV demo has no POV camera samples, so the camera is the product own scene camera at tick 12000 from an orient run; it differs in place and heading from pose 1
+orient_line=57804.6 capture: armed requested=12000 frame_tick=12000 frames=1080 eye=421.3,-776.2,408.5 pitch=15.18 yaw=78.48

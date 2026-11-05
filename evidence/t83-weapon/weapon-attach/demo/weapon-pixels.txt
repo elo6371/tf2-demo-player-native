@@ -1,0 +1,13 @@
+BODY id=93 ent=5 model=models/player/demo.mdl pixels=1733 bbox=596,310,685,367
+WEAPON ids=[94] pixels=204 bbox=659,341,690,354 centre=674.5,347.5 size=32x14
+HAND distance=1 shareInsideBody=0.000 centreShareFromTop=0.647 bodyHeight=58 weaponHeightShare=0.241
+HOLDPOINT source=bone bone=21 boneAt=-11.5,55.1,8.2 holdAt=-11.5,55.1,8.2 radius=56.9
+HOLDPOINT driftFromBone=0.00
+WEAPON-PIXELS=PASS
+frame: class=demo ent=5 tick=64161
+frame: bmp off sha256=27f7fa04768869d7037ab8764d4a743adfd1ee94209d59a16f50abf5d5717106 baseline=27f7fa04768869d7037ab8764d4a743adfd1ee94209d59a16f50abf5d5717106
+frame: bmp attached sha256=5309953789203da353af0b37e22100f79faa351fac85d6b56e408d65da837bb2 attached-2 sha256=5309953789203da353af0b37e22100f79faa351fac85d6b56e408d65da837bb2
+frame: bmp identity sha256=e346a72369ad9a8a5455fb2020e7386e4489cde9d8c16561b116880fcf306ccb baseline=e346a72369ad9a8a5455fb2020e7386e4489cde9d8c16561b116880fcf306ccb
+frame: bmp identity-attached sha256=b5d745203dfe4765cdfff0ae9f30181605a32909de9b93133dd181b54126bdf7
+frame: attach held=2 drawn=2 skipped=2 pixels_rc=0 n1_rc=1 n2_rc=1
+frame: product sha256=2747e9090a9d7fb381299bc75cd9a7881038c9103ddab05ad4359d8d3d94f153

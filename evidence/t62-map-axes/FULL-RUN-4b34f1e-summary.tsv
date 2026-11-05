@@ -1,0 +1,12 @@
+# merged-binary full run (head 4b34f1e, product sha256 2747e9090a9d7fb381299bc75cd9a7881038c9103ddab05ad4359d8d3d94f153)
+pose	captures	OK	FAIL	pins	neg_control	drawn_base	empty_base	empty_alloff	drawn_alloff	cull_kept	cull_removed	cull_faces	dark_px	attributable_pct	oracle_points	fail_lines
+cp_snakewater_final1/p1	11	25	0	OK	OK	618381	242403	214560	646224	617852	22520	27	179168	0.9992	7	
+cp_snakewater_final1/p2	10	27	2	OK	OK	669140	191644	133082	727702	417402	9958	19	84612	0.3103	-	FAIL capture oracle rc=124 | FAIL cp_snakewater_final1: the oracle capture failed
+pl_odyssey/p1	11	26	0	OK	OK	657999	202785	1838	858946	657199	106998	88	70289	0.6635	7	
+pl_odyssey/p2	11	28	0	OK	OK	754512	106272	26413	834371	753698	43959	32	49274	0.2725	9	
+cp_sunshine/p1	11	25	0	OK	OK	444373	416411	388218	472566	394774	10621	69	57746	0.0113	8	
+cp_sunshine/p2	11	29	0	OK	OK	178378	682406	0	860784	178378	128865	59	27424	0.5964	7	
+koth_bagel_rc12/p1	11	26	0	OK	OK	582093	278691	250143	610641	582093	15434	44	115384	0.1320	7	
+koth_bagel_rc12/p2	11	29	0	OK	OK	522390	338394	0	860784	522390	35327	16	397817	0.2657	10	
+koth_bagel_rc11/p1	11	26	0	OK	OK	841107	19677	15855	844929	642880	2594	9	79716	0.3780	7	
+koth_bagel_rc11/p2	10	28	0	OK	OK	860209	575	0	860784	337654	0	0	35570	0.0948	-	

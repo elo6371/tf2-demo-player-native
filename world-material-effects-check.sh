@@ -275,10 +275,21 @@ VM_SELOFF_BMP=$PRODUCT_BMP
 vm_run vm-natural-repeat
 VM_REP_BMP=$PRODUCT_BMP
 assert_eq "viewmodel natural run rc" "$VM_NAT_RC" "0"
-EFFECTS=$(grep -ao "gpu: viewmodel effects .*" "$VM_NAT_TRACE" 2>/dev/null | head -1)
-ETEX=$(grep -ao "gpu: viewmodel effects-texture .*" "$VM_NAT_TRACE" 2>/dev/null | head -1)
-SWITCHES=$(grep -ao "gpu: viewmodel effects-switch .*" "$VM_NAT_TRACE" 2>/dev/null | head -1)
-REASONS=$(grep -ao "gpu: viewmodel effects-reason .*" "$VM_NAT_TRACE" 2>/dev/null | head -1)
+# The reading is the LAST emission, not the first. The product prints these four
+# lines once per change of viewmodel material state, and the first emission of a
+# process can land BEFORE the first viewmodel draw: on 2026-11-05 20:33 the same
+# binary printed "phongState=fallback phongApplied=0 phongAppliedRanges=0" at
+# 41380.9 and then "phongState=active phongApplied=1 phongAppliedRanges=3" twice
+# more (the drawn reading), while the 19:49 run of the same binary printed the
+# drawn reading first and only once. Reading the first line therefore made this
+# gate a coin toss: it failed a run whose later lines were identical to the ones
+# it asserts. The counters are cumulative over the process, so the last line is
+# the settled reading; every -off variant was checked to report its off state on
+# the last line too.
+EFFECTS=$(grep -ao "gpu: viewmodel effects .*" "$VM_NAT_TRACE" 2>/dev/null | tail -1)
+ETEX=$(grep -ao "gpu: viewmodel effects-texture .*" "$VM_NAT_TRACE" 2>/dev/null | tail -1)
+SWITCHES=$(grep -ao "gpu: viewmodel effects-switch .*" "$VM_NAT_TRACE" 2>/dev/null | tail -1)
+REASONS=$(grep -ao "gpu: viewmodel effects-reason .*" "$VM_NAT_TRACE" 2>/dev/null | tail -1)
 if [ -n "$EFFECTS" ]; then
   printf '%s\n%s\n%s\n%s\n' "$EFFECTS" "$ETEX" "$SWITCHES" "$REASONS" > "$OUT/viewmodel-effects.txt"
 else
@@ -329,8 +340,8 @@ assert_eq "bump texture uploads" "$(rval "$ETEX" bumpUploads)" "1"
 assert_eq "selfillum state (natural)" "$(rval "$EFFECTS" selfillumState)" "unavailable"
 assert_eq "selfillum declared (natural)" "$(rval "$EFFECTS" selfillumDeclared)" "0"
 assert_eq "selfillum applied (natural)" "$(rval "$EFFECTS" selfillumApplied)" "0"
-SELF_ON=$(grep -ao "gpu: viewmodel effects .*" "$SCRATCH/vm-selfillum-on.$RUN_TAG.trace" 2>/dev/null | head -1)
-SELF_OFF=$(grep -ao "gpu: viewmodel effects .*" "$SCRATCH/vm-selfillum-off.$RUN_TAG.trace" 2>/dev/null | head -1)
+SELF_ON=$(grep -ao "gpu: viewmodel effects .*" "$SCRATCH/vm-selfillum-on.$RUN_TAG.trace" 2>/dev/null | tail -1)
+SELF_OFF=$(grep -ao "gpu: viewmodel effects .*" "$SCRATCH/vm-selfillum-off.$RUN_TAG.trace" 2>/dev/null | tail -1)
 assert_eq "selfillum state (forced)" "$(rval "$SELF_ON" selfillumState)" "active"
 assert_eq "selfillum declared (forced)" "$(rval "$SELF_ON" selfillumDeclared)" "1"
 assert_eq "selfillum applied (forced)" "$(rval "$SELF_ON" selfillumApplied)" "1"
@@ -339,9 +350,9 @@ assert_eq "selfillum applied (forced)" "$(rval "$SELF_ON" selfillumApplied)" "1"
 # that the model draws one.
 assert_eq "selfillum applied ranges (forced)" "$(rval "$SELF_ON" selfillumAppliedRanges)" "3"
 assert_eq "selfillum force named (forced run)" \
-  "$(rval "$(grep -ao 'gpu: viewmodel effects-switch .*' "$SCRATCH/vm-selfillum-on.$RUN_TAG.trace" 2>/dev/null | head -1)" selfillumForce)" "1"
+  "$(rval "$(grep -ao 'gpu: viewmodel effects-switch .*' "$SCRATCH/vm-selfillum-on.$RUN_TAG.trace" 2>/dev/null | tail -1)" selfillumForce)" "1"
 assert_eq "selfillum switch forced off" \
-  "$(rval "$(grep -ao 'gpu: viewmodel effects-switch .*' "$SCRATCH/vm-selfillum-off.$RUN_TAG.trace" 2>/dev/null | head -1)" selfillumSwitch)" "off"
+  "$(rval "$(grep -ao 'gpu: viewmodel effects-switch .*' "$SCRATCH/vm-selfillum-off.$RUN_TAG.trace" 2>/dev/null | tail -1)" selfillumSwitch)" "off"
 assert_eq "selfillum state (forced then off)" "$(rval "$SELF_OFF" selfillumState)" "declared"
 assert_eq "selfillum applied (forced then off)" "$(rval "$SELF_OFF" selfillumApplied)" "0"
 # The four pixel claims. Each effect off must move the frame; the repeat must
@@ -573,7 +584,7 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$PHONG_BACKUP" native/src/native_renderer_viewmodel.cpp phong || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
-  MUT_PHONG=$(grep -ao "gpu: viewmodel effects .*" "$MUT_TRACE" 2>/dev/null | head -1)
+  MUT_PHONG=$(grep -ao "gpu: viewmodel effects .*" "$MUT_TRACE" 2>/dev/null | tail -1)
   MUT_PHONG_DECL=$(rval "$MUT_PHONG" phongDeclared)
   MUT_PHONG_APPLIED=$(rval "$MUT_PHONG" phongApplied)
   if [ "$MUT_PHONG_DECL" = "1" ] && [ "$MUT_PHONG_APPLIED" = "0" ]; then
@@ -612,8 +623,8 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$BUMP_BACKUP" native/src/native_renderer_viewmodel.cpp bump || true
     echo "WORLD-MATERIAL-EFFECTS-MUTATION=FAIL"; exit 1
   fi
-  MUT_BUMP=$(grep -ao "gpu: viewmodel effects .*" "$MUT_TRACE" 2>/dev/null | head -1)
-  MUT_BUMP_UPLOADED=$(rval "$(grep -ao 'gpu: viewmodel effects-texture .*' "$MUT_TRACE" 2>/dev/null | head -1)" bumpTextureUploaded)
+  MUT_BUMP=$(grep -ao "gpu: viewmodel effects .*" "$MUT_TRACE" 2>/dev/null | tail -1)
+  MUT_BUMP_UPLOADED=$(rval "$(grep -ao 'gpu: viewmodel effects-texture .*' "$MUT_TRACE" 2>/dev/null | tail -1)" bumpTextureUploaded)
   MUT_BUMP_APPLIED=$(rval "$MUT_BUMP" bumpApplied)
   if [ "$MUT_BUMP_UPLOADED" = "1" ] && [ "$MUT_BUMP_APPLIED" = "0" ]; then
     echo "  MUTATION-CAUGHT=PASS (bump_bind_deleted: textureUploaded=1 applied=0)"

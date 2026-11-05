@@ -1,0 +1,18 @@
+LATTICE status=ok dir=.scratch/t62-map-axes/cp_snakewater_final1/p2
+LATTICE frame=1264x681 flat=89,158,97 drawn_base=669140 drawn_novis=725054 drawn_nocull=679098 drawn_alloff=727702 empty_base=191644 empty_alloff=133082
+LATTICE colours flat-base flat=669140 clear=0 other=191644
+LATTICE colours flat-novis flat=725054 clear=0 other=135730
+LATTICE colours flat-nocull flat=679098 clear=0 other=181686
+LATTICE colours flat-novis-nocull flat=727702 clear=0 other=133082
+LATTICE monotone base_not_in_novis=0 base_not_in_nocull=0 novis_not_in_all=0 nocull_not_in_all=0
+LATTICE restrict cull_only=2648 pvs_only=48604 overlap=75 union=51177 both=58562
+LATTICE light albedo_dark=53889 lit_dark=84612 albedo_not_lit=0
+SAMPLE 782 68 base=empty alloff=empty
+SAMPLE 1132 596 base=empty alloff=drawn
+SAMPLE 1185 211 base=empty alloff=empty
+SAMPLE 834 514 base=empty alloff=drawn
+SAMPLE 1164 296 base=empty alloff=drawn
+SAMPLE 463 438 base=empty alloff=drawn
+SAMPLE 554 375 base=drawn alloff=drawn
+LATTICE points=7 empty=6 drawn=1
+LATTICE verdict=ok

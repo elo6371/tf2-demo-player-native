@@ -1,0 +1,63 @@
+geometry status=ok map=download/maps/koth_bagel_rc11.bsp version=20 triangles=97537 faces=18231 displaced=46048 water=118 lightmapped=97127 degenerate=5828 maxEdge=1448.2 over256=14107 over1024=90 over4096=0 bounds=(-4256,-2816,-576)..(4256,4992,1173)
+geometry faces total=18231 rendered=17137 sky=677 skippedNoDraw=0 skippedInvalid=0 skippedBrushModel=417 worldFaces=11157 brushFaces=7074
+geometry sky faces=677 triangles=1860 bufferTriangles=97537
+geometry lightmap-uv atlas=2048x2045 vertices=291381 unwrittenTexels=0 unwrittenShare=0.0000 sampledMeanLum=58.7
+geometry lightmap-tone histogram=53061,14985,7737,5495,3038,2380,2617,7814 darkTriangles=47188 darkShare=0.4838
+geometry lightmap-face-tone histogram=11248,2648,894,590,547,266,220,579 darkFaces=10113 zeroFaces=2494
+geometry lightmap-hdr-tone histogram=11254,2651,887,590,545,266,220,579 darkFaces=10128 zeroFaces=2568 intensity=0.386 samples=1135173
+geometry lightmap-tone darkest: 0[METAL/WALL014 n=17] 2[maps/koth_bagel_rc11/glass/glasswindow001a_1088_128_322 n=8] 2[maps/koth_bagel_rc11/glass/glasswindow001a_-1088_-128_320 n=8] 4[PROPS/SCREEN002A n=32] 5[WOOD/WOOD_WALL006B n=240] 10[METAL/IBEAM001 n=42] 10[PL_BARNBLITZ/WOODWALL_REDWORN002C n=504] 12[METAL/METALTRACK001 n=680]
+geometry lightmap-tone darkMaterials: 14367[WOOD/WOOD_FLOOR002 n=19399] 10059[WOOD/WOOD_BRIDGE001 n=14086] 2204[WOOD/WOOD_WALL001 n=3529] 2202[BRICK/WALL028 n=8247] 2106[CONCRETE/CONCRETEFLOOR003 n=9768] 1268[METAL/METALDOOR001 n=3129] 1115[EXTOL/EXTOL_METAL_001 n=2242] 1045[METAL/IBEAM001B n=1166]
+geometry edge-groups staticMaxEdge=1448.2 staticOver1024=90 staticMaterialOver1024=0 displacedMaxEdge=452.0 displacedOver1024=0
+geometry displacement faces=1418 triangles=46048 cornerMatches=1418
+geometry displacement coverage candidates=1427 emitted=1418 fallback=9 (lump=0 polygon=0 index=0 power=0 range=0 corner=0 nonFinite=0 cell=9 limit=0 other=0)
+geometry displacement fallback-face index=10151 material=METAL/BRIDGEBEAM001
+geometry displacement fallback-face index=10988 material=PL_BARNBLITZ/METALROOF_PANELS001
+geometry displacement fallback-face index=11000 material=METAL/BRIDGEBEAM001
+geometry displacement fallback-face index=11004 material=METAL/BRIDGEBEAM001
+geometry displacement fallback-face index=11008 material=METAL/BRIDGEBEAM001
+geometry displacement fallback-face index=11069 material=METAL/WALL027
+geometry displacement fallback-face index=11092 material=METAL/BRIDGEBEAM001
+geometry displacement fallback-face index=11095 material=METAL/BRIDGEBEAM001
+geometry displacement fallback-face index=11115 material=METAL/BRIDGEBEAM001
+geometry displacement fallback-quads triangles=18
+geometry winding agree=6447 of 16087 faces (40.1% agree with the bsp plane normals)
+geometry winding flippedTriangles=10198 of 97537
+geometry winding sideAware misfaced=16713 displacedMisfaced=0 sideOneFaces=6442 of 16087
+geometry stored-winding class=brush alongPlane=21 againstPlane=14639
+geometry stored-winding class=displacement alongPlane=0 againstPlane=1427
+geometry grid-vs-polygon keeps=77 reverses=1350 of 1418 displacement faces
+geometry pre-rule class=brush alongPlane=39949 againstPlane=110 alongOutward=23346 againstOutward=16713
+geometry pre-rule class=displacement alongPlane=44988 againstPlane=1320 alongOutward=36110 againstOutward=10198
+geometry materials distinct=99 atlasCap=64 trianglesCoveredByCap=97195 of 97537 (99.6%)
+geometry material rank=0 triangles=19399 name=WOOD/WOOD_FLOOR002
+geometry material rank=1 triangles=14086 name=WOOD/WOOD_BRIDGE001
+geometry material rank=2 triangles=9768 name=CONCRETE/CONCRETEFLOOR003
+geometry material rank=3 triangles=8251 name=BRICK/WALL028
+geometry material rank=4 triangles=4224 name=METAL/WALL027B
+geometry material rank=5 triangles=3529 name=WOOD/WOOD_WALL001
+geometry material rank=6 triangles=3137 name=METAL/BRIDGEBEAM001
+geometry material rank=7 triangles=3129 name=METAL/METALDOOR001
+geometry offender index=20648 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=2
+      a=(1024.0, 2048.0, 288.0)      b=(2048.0, 3072.0, 288.0)      c=(2048.0, 2048.0, 288.0)
+geometry offender index=27829 longest=1448.2 area=262144.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=1030
+      a=(-3072.0, 2048.0, 288.0)      b=(-4096.0, 2560.0, 288.0)      c=(-4096.0, 3072.0, 288.0)
+geometry offender index=20652 longest=1448.2 area=524288.0 displacement=0 water=0 material=TOOLS/TOOLSBLACK cluster=2
+      a=(1024.0, 3072.0, 128.0)      b=(2048.0, 2048.0, 128.0)      c=(2048.0, 3072.0, 128.0)
+geometry offender index=20651 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/koth_bagel_rc11/water/water_bagel_0_4352_304 cluster=1
+      a=(1024.0, 3072.0, 288.0)      b=(1024.0, 2048.0, 288.0)      c=(2048.0, 2048.0, 288.0)
+geometry offender index=27828 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=1030
+      a=(-3072.0, 2048.0, 288.0)      b=(-4096.0, 3072.0, 288.0)      c=(-3072.0, 3072.0, 288.0)
+geometry offender index=20650 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/koth_bagel_rc11/water/water_bagel_0_4352_304 cluster=1
+      a=(1024.0, 3072.0, 288.0)      b=(2048.0, 2048.0, 288.0)      c=(2048.0, 3072.0, 288.0)
+geometry offender index=20649 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=2
+      a=(1024.0, 2048.0, 288.0)      b=(1024.0, 3072.0, 288.0)      c=(2048.0, 3072.0, 288.0)
+geometry offender index=27825 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=1027
+      a=(-2048.0, 2048.0, 288.0)      b=(-3072.0, 2048.0, 288.0)      c=(-3072.0, 3072.0, 288.0)
+geometry offender index=27824 longest=1448.2 area=524288.0 displacement=0 water=1 material=water/water_2fort_beneath.vmt cluster=1027
+      a=(-2048.0, 2048.0, 288.0)      b=(-3072.0, 3072.0, 288.0)      c=(-2048.0, 3072.0, 288.0)
+geometry offender index=27827 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/koth_bagel_rc11/water/water_bagel_0_4352_304 cluster=1026
+      a=(-3072.0, 2048.0, 288.0)      b=(-2048.0, 2048.0, 288.0)      c=(-2048.0, 3072.0, 288.0)
+geometry offender index=20653 longest=1448.2 area=466944.0 displacement=0 water=0 material=TOOLS/TOOLSBLACK cluster=2
+      a=(1024.0, 3072.0, 128.0)      b=(1136.0, 2048.0, 128.0)      c=(2048.0, 2048.0, 128.0)
+geometry offender index=27826 longest=1448.2 area=524288.0 displacement=0 water=1 material=maps/koth_bagel_rc11/water/water_bagel_0_4352_304 cluster=1026
+      a=(-3072.0, 2048.0, 288.0)      b=(-2048.0, 3072.0, 288.0)      c=(-3072.0, 3072.0, 288.0)

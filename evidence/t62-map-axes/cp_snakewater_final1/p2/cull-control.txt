@@ -1,0 +1,9 @@
+face-id pixels the cull KEPT   : 417402
+face-id pixels the cull REMOVED: 9958 (from 19 distinct faces)
+  removed faces by BSP side    : {'back': 9915, 'front': 43}
+  pixels with a face only in the culled frame: 0
+  top removed faces            : [(10891, 6403), (10885, 1559), (11041, 664), (5191, 609), (5522, 227), (11044, 226), (3597, 57), (10963, 47)]
+CONTROL=OK the cull removed 9958 px (43 BSP-front / 9915 BSP-back); the culled frame is a subset of the unculled one
+NOTE the front/back split of the removed population is the T11
+     winding disagreement, not a cull defect: the cull follows the
+     buffer winding, the side test follows the plane lump.

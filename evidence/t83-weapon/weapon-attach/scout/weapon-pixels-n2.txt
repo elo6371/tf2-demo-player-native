@@ -1,0 +1,7 @@
+BODY id=95 ent=15 model=models/player/scout.mdl pixels=1178 bbox=612,310,660,373
+WEAPON ids=[95] pixels=1178 bbox=612,310,660,373 centre=636.0,341.5 size=49x64
+HAND distance=0 shareInsideBody=1.000 centreShareFromTop=0.492 bodyHeight=64 weaponHeightShare=1.000
+FAIL the weapon blob is 64 px tall against a 64 px body (> 0.90x): that is a second body, not a held weapon
+HOLDPOINT source=attachment bone=23 boneAt=-3.1,49.9,4.1 holdAt=-3.1,49.9,4.1 radius=50.2
+HOLDPOINT driftFromBone=0.00
+WEAPON-PIXELS=FAIL

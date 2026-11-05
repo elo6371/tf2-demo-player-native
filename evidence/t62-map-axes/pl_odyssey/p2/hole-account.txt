@@ -1,0 +1,33 @@
+HOLE status=ok dir=.scratch/t62-map-axes/pl_odyssey/p2 size=1264x681 flat_colour=(97,158,89)
+HOLE background clear_colour=(22,18,14) overlay=0
+HOLE masks pixels=860784 missing=26413 skyFaceCoverage=760994
+HOLE totals missing=26413 sky=26047 unexplained=366 skyOnDrawn=675650 skyOnDrawnUnmeasured=675650
+HOLE maskReach coverage=760994 share=0.88407 degenerate=0
+HOLE depthControl drawnCovered=675650 skyBehind=0 skyInFront=0 tie=0 measured=0 saturated=0
+HOLE component rank=0 area=19452 sky=19452 unexplained=0 bbox=(x=280..549,y=0..167) edge=1 fill=0.429
+HOLE component rank=1 area=4558 sky=4558 unexplained=0 bbox=(x=617..687,y=101..193) edge=0 fill=0.690
+HOLE component rank=2 area=1138 sky=1138 unexplained=0 bbox=(x=627..675,y=217..256) edge=0 fill=0.581
+HOLE component rank=3 area=898 sky=898 unexplained=0 bbox=(x=872..908,y=61..151) edge=0 fill=0.267
+HOLE component rank=4 area=366 sky=0 unexplained=366 bbox=(x=591..651,y=462..477) edge=0 fill=0.375
+HOLE split open=19452 enclosed=6961 enclosedUnexplained=366 components=6
+HOLE point=435,18 component=0 area=19452
+HOLE point=517,16 component=0 area=19452
+HOLE point=515,90 component=0 area=19452
+HOLE point=629,135 component=1 area=4558
+HOLE point=626,155 component=1 area=4558
+HOLE point=658,176 component=1 area=4558
+HOLE point=638,231 component=2 area=1138
+HOLE point=639,243 component=2 area=1138
+HOLE point=662,231 component=2 area=1138
+HOLE point=894,82 component=3 area=898
+HOLE point=892,108 component=3 area=898
+HOLE point=885,130 component=3 area=898
+HOLE points=435,18;517,16;515,90;629,135;626,155;658,176;638,231;639,243;662,231;894,82;892,108;885,130
+HOLE seamFaces count=0 ids=
+HOLE seamCulled directions=0
+HOLE region W1 x=0,y=0,w=420,h=200 drawn=75706 missing=4479 sky=4479 unexplained=0
+HOLE region W2 x=0,y=560,w=420,h=121 drawn=50820 missing=0 sky=0 unexplained=0
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=24129 missing=0 sky=0 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=3840 missing=0 sky=0 unexplained=0
+HOLE dark drawn=754512 dark=50567 limit=16
+HOLE mask=.scratch/t62-map-axes/pl_odyssey/p2/analysis\hole-mask.bmp emptyMask=.scratch/t62-map-axes/pl_odyssey/p2/analysis\empty-mask.bmp

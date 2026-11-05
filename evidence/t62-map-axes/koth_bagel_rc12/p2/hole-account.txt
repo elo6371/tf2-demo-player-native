@@ -1,0 +1,16 @@
+HOLE status=ok dir=.scratch/t62-map-axes/koth_bagel_rc12/p2 size=1264x681 flat_colour=(97,158,89)
+HOLE background clear_colour=(22,18,14) overlay=0
+HOLE masks pixels=860784 missing=0 skyFaceCoverage=492
+HOLE totals missing=0 sky=0 unexplained=0 skyOnDrawn=0 skyOnDrawnUnmeasured=0
+HOLE maskReach coverage=492 share=0.00057 degenerate=0
+HOLE depthControl drawnCovered=0 skyBehind=0 skyInFront=0 tie=0 measured=0 saturated=0
+HOLE split open=0 enclosed=0 enclosedUnexplained=0 components=0
+HOLE points=
+HOLE seamFaces count=0 ids=
+HOLE seamCulled directions=0
+HOLE region W1 x=0,y=0,w=420,h=200 drawn=71697 missing=0 sky=0 unexplained=0
+HOLE region W2 x=0,y=560,w=420,h=121 drawn=14577 missing=0 sky=0 unexplained=0
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=346 missing=0 sky=0 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=3840 missing=0 sky=0 unexplained=0
+HOLE dark drawn=522390 dark=401480 limit=16
+HOLE mask=.scratch/t62-map-axes/koth_bagel_rc12/p2/analysis\hole-mask.bmp emptyMask=.scratch/t62-map-axes/koth_bagel_rc12/p2/analysis\empty-mask.bmp

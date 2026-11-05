@@ -1,0 +1,7 @@
+BODY id=93 ent=13 model=models/player/medic.mdl pixels=1791 bbox=613,320,700,382
+WEAPON ids=[93] pixels=1791 bbox=613,320,700,382 centre=656.5,351.0 size=88x63
+HAND distance=0 shareInsideBody=1.000 centreShareFromTop=0.492 bodyHeight=63 weaponHeightShare=1.000
+FAIL the weapon blob is 63 px tall against a 63 px body (> 0.90x): that is a second body, not a held weapon
+HOLDPOINT source=bone bone=19 boneAt=-6.5,41.5,2.2 holdAt=-6.5,41.5,2.2 radius=42.1
+HOLDPOINT driftFromBone=0.00
+WEAPON-PIXELS=FAIL

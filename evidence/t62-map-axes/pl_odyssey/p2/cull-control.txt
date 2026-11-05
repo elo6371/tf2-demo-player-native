@@ -1,0 +1,6 @@
+face-id pixels the cull KEPT   : 753698
+face-id pixels the cull REMOVED: 43959 (from 32 distinct faces)
+  removed faces by BSP side    : {'front': 28330, 'back': 15629}
+  pixels with a face only in the culled frame: 2
+  top removed faces            : [(14261, 13089), (14283, 10062), (15398, 9394), (14749, 1943), (16170, 1734), (14742, 1084), (14701, 987), (16169, 892)]
+CONTROL=FAIL 2 pixels have a face only in the CULLED frame

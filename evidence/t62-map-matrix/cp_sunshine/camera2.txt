@@ -1,0 +1,13 @@
+map=cp_sunshine
+pose=p2
+source=demo-camera-tick8000
+demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-14_23-09-16.dem
+tick=8000
+debug_camera_args=--debug-camera -6808.04 7779.13 -15.0436 20.0336 -11.0083
+p2_tick=8000
+p2_eye=-6808.04,7779.13,-15.0436
+p2_yaw=-11.0083
+p2_rule=recording-tick
+why=at tick 12000 this recording is back within 80 units of its pose-1 camera and faces the same way (yaw 90), so the second viewpoint would not be a second viewpoint; tick 8000 is -6808,7779,-15 facing yaw -11, thousands of units away across the map
+probe_line=camera_tick=8000 camera_found=1 camera_sample_tick=8000 camera_angles_valid=1 camera_origin_valid=1 camera_origin=-6808.04,7779.13,-15.0436 camera_pitch=20.0336 camera_yaw=-11.0083
+rejected_line=camera_tick=12000 camera_found=1 camera_sample_tick=11999 camera_origin=-3680,376,-111.969 camera_pitch=0 camera_yaw=90 distance_from_pose1_units=80.0 heading_difference_deg=0

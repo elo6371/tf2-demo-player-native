@@ -1,0 +1,12 @@
+map=cp_snakewater_final1
+pose=p2
+source=product-orient-run-tick12000
+demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+tick=12000
+debug_camera_args=--debug-camera -1819.7 1189.4 180.0 22.24 336.07
+p2_tick=12000
+p2_eye=-1819.7,1189.4,180.0
+p2_yaw=336.07
+p2_rule=recording-tick
+why=SourceTV demo has no POV camera samples, so the camera is the product own scene camera at tick 12000 from an orient run; it differs in place and heading from pose 1
+orient_line=47183.4 capture: armed requested=12000 frame_tick=12000 frames=940 eye=-1819.7,1189.4,180.0 pitch=22.24 yaw=336.07

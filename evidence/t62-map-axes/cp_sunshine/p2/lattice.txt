@@ -1,0 +1,18 @@
+LATTICE status=ok dir=.scratch/t62-map-axes/cp_sunshine/p2
+LATTICE frame=1264x681 flat=89,158,97 drawn_base=178378 drawn_novis=860784 drawn_nocull=307243 drawn_alloff=860784 empty_base=682406 empty_alloff=0
+LATTICE colours flat-base flat=178378 clear=0 other=682406
+LATTICE colours flat-novis flat=860784 clear=0 other=0
+LATTICE colours flat-nocull flat=307243 clear=0 other=553541
+LATTICE colours flat-novis-nocull flat=860784 clear=0 other=0
+LATTICE monotone base_not_in_novis=0 base_not_in_nocull=0 novis_not_in_all=0 nocull_not_in_all=0
+LATTICE restrict cull_only=0 pvs_only=553541 overlap=0 union=553541 both=682406
+LATTICE light albedo_dark=8 lit_dark=27424 albedo_not_lit=0
+SAMPLE 696 442 base=empty alloff=drawn
+SAMPLE 317 69 base=empty alloff=drawn
+SAMPLE 337 230 base=empty alloff=drawn
+SAMPLE 48 224 base=empty alloff=drawn
+SAMPLE 24 269 base=empty alloff=drawn
+SAMPLE 605 156 base=drawn alloff=drawn
+SAMPLE 30 436 base=drawn alloff=drawn
+LATTICE points=7 empty=5 drawn=2
+LATTICE verdict=ok

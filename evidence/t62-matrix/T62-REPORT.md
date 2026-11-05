@@ -156,3 +156,16 @@ this sweep. The pixel gate reproduced the §4 frame set byte for byte after the 
 map axis gate reproduced every §10 reading. The full table, the twelve log hashes and the
 build hashes are `RUNS-2026-11-04.md` §14. This pass does not furnish a release verdict, does
 not run T75 or `verify-all.sh`, and does not close the open cells listed in §5.
+A sixth pass — the nine-item closeout — merged the third-person weapon attach and the animation
+drive into `integration/t79-final` (`4b34f1e`, `7c5c761`), re-ran the map matrix and its 100
+frame pins on the merged binary (all 100 unchanged), and swept 19 steps at `4b34f1e` +
+`2747e909…` (`RUNS-2026-11-04.md` §24). Twelve steps passed; the five reds were four gate bugs and
+one assertion the gates could not read, all repaired in the gates (`spectate`, `class-pixels`,
+`animation-drive-states`, `third-person-weapon`, `world-material-effects`), and the repaired water
+and weapon gates re-ran green on the unchanged product. The one red that stayed red is
+`class-snakewater`'s demo identity: the same capture command draws the medic's body on some runs
+and hides it on others, because the corpse filter at `native/src/main.cpp:9123` asks a dead set
+filled by the per-frame director update at `native/src/main.cpp:10866` — i.e. from the previous
+frame's snapshot — and the previous resolved tick differs per process. That is diagnosed but not
+fixed, so this pass changes no cell of the character or map matrix and furnishes no release
+verdict. The repaired `animation-drive-states` gate has not been re-run yet (§24.7).

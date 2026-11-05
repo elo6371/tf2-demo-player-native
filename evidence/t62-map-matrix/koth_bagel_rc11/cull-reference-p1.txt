@@ -1,0 +1,16 @@
+reference=2026-11-05T06:45:43Z head=4b34f1e reason=T62 P1-1/P1-2a/P1-2b first reference on head 14c0f1c (clean five-map run; pl_odyssey pose 2 is the pose-1 eye turned 90 degrees per lead rule m01509)
+cull kept=642880
+cull removed=2594
+cull onlyInCull=0
+cull removedFront=595
+cull removedBack=1999
+cull removedAmbiguous=0
+cull distinctRemovedFaces=9
+cull face 10542 pixels=1423
+cull face 6946 pixels=518
+cull face 5996 pixels=453
+cull face 6882 pixels=100
+cull face 388 pixels=37
+cull face 1415 pixels=24
+cull face 7752 pixels=18
+cull face 9734 pixels=14

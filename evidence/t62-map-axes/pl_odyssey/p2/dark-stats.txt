@@ -1,0 +1,11 @@
+DARK status=ok
+DARK dark=49274
+DARK noWorldTriangle=0
+DARK back=313
+DARK front=32405
+DARK countsTotal=49274
+DARK ambiguous=0
+DARK productAttributable=2346
+DARK framePixels=860784
+DARK attributablePct=4.7611
+DARK attributableFramePct=0.2725

@@ -1,0 +1,16 @@
+HOLE status=ok dir=.scratch/t62-map-axes/cp_sunshine/p2 size=1264x681 flat_colour=(97,158,89)
+HOLE background clear_colour=(22,18,14) overlay=0
+HOLE masks pixels=860784 missing=0 skyFaceCoverage=306196
+HOLE totals missing=0 sky=0 unexplained=0 skyOnDrawn=153418 skyOnDrawnUnmeasured=153418
+HOLE maskReach coverage=306196 share=0.35572 degenerate=0
+HOLE depthControl drawnCovered=153418 skyBehind=0 skyInFront=0 tie=0 measured=0 saturated=0
+HOLE split open=0 enclosed=0 enclosedUnexplained=0 components=0
+HOLE points=
+HOLE seamFaces count=0 ids=
+HOLE seamCulled directions=0
+HOLE region W1 x=0,y=0,w=420,h=200 drawn=20249 missing=0 sky=0 unexplained=0
+HOLE region W2 x=0,y=560,w=420,h=121 drawn=0 missing=0 sky=0 unexplained=0
+HOLE region W3 x=1100,y=100,w=164,h=200 drawn=6072 missing=0 sky=0 unexplained=0
+HOLE region W4 x=600,y=0,w=64,h=60 drawn=0 missing=0 sky=0 unexplained=0
+HOLE dark drawn=178378 dark=29019 limit=16
+HOLE mask=.scratch/t62-map-axes/cp_sunshine/p2/analysis\hole-mask.bmp emptyMask=.scratch/t62-map-axes/cp_sunshine/p2/analysis\empty-mask.bmp

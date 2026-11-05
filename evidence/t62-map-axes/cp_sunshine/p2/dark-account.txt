@@ -1,0 +1,32 @@
+frame 1264x681  dark(lum<16) = 27424 of 860784 (3.19%)
+  B_cull_only_nocull                           1 (  0.00%)
+  rect_all_zero_back_albedoBright           3565 ( 13.00%)
+  rect_all_zero_front_albedoBright           132 (  0.48%)
+  rect_bright_back_albedoBright              734 (  2.68%)
+  rect_bright_front_albedoBright            4400 ( 16.04%)
+  rect_bright_front_albedoDark                 1 (  0.00%)
+  rect_lt_32_back_albedoBright              1370 (  5.00%)
+  rect_lt_32_front_albedoBright              689 (  2.51%)
+  rect_lt_8_back_albedoBright               2390 (  8.71%)
+  rect_lt_8_back_albedoDark                    7 (  0.03%)
+  rect_lt_8_front_albedoBright              1494 (  5.45%)
+  rect_lt_96_back_albedoBright              2276 (  8.30%)
+  rect_lt_96_front_albedoBright            10365 ( 37.80%)
+
+masks (1 = in the population):
+  B_cull_only_nocull                           1 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\B_cull_only_nocull.mask
+  rect_all_zero_back_albedoBright           3565 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_all_zero_back_albedoBright.mask
+  rect_all_zero_front_albedoBright           132 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_all_zero_front_albedoBright.mask
+  rect_bright_back_albedoBright              734 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_bright_back_albedoBright.mask
+  rect_bright_front_albedoBright            4400 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_bright_front_albedoBright.mask
+  rect_bright_front_albedoDark                 1 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_bright_front_albedoDark.mask
+  rect_lt_32_back_albedoBright              1370 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_lt_32_back_albedoBright.mask
+  rect_lt_32_front_albedoBright              689 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_lt_32_front_albedoBright.mask
+  rect_lt_8_back_albedoBright               2390 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_lt_8_back_albedoBright.mask
+  rect_lt_8_back_albedoDark                    7 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_lt_8_back_albedoDark.mask
+  rect_lt_8_front_albedoBright              1494 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_lt_8_front_albedoBright.mask
+  rect_lt_96_back_albedoBright              2276 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_lt_96_back_albedoBright.mask
+  rect_lt_96_front_albedoBright            10365 px -> .scratch/t62-map-axes/cp_sunshine/p2/account\rect_lt_96_front_albedoBright.mask
+
+ledger -> .scratch/t62-map-axes/cp_sunshine/p2/account/account.json
+product-attributable (albedo bright AND rectangle bright): 5134 px (18.7208% of dark)
