@@ -1,0 +1,20 @@
+== T84 animation-drive-states gate
+DEMO D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+TICKS flinch=16780 crouch=14765 sameStateB=14800 cover=20000 early=12000
+== dry run (no product invocation)
+  EXE   native/build-nmake/tf2_demo_native.exe
+  DEMO  D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+  TF    D:/SteamLibrary/steamapps/common/Team Fortress 2/tf
+  OUT   evidence/t84-animdrive/animation-drive-states
+  plan:
+    1 default        tick 16780  (no --animation-drive)
+    2 legacy         tick 16780  --animation-drive legacy
+    3 states-flinch  tick 16780  --animation-drive states
+    4 states-flinch-repeat tick 16780 --animation-drive states
+    5 states-crouch  tick 14765  --animation-drive states
+    6 states-crouch-b tick 14800 --animation-drive states
+    7 states-cover   tick 20000   --animation-drive states   demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+    8 early          tick 12000   --animation-drive states
+  readings: A legacy==default bytes + no animdsum + T61 lines; B states!=legacy, repeat identical, same-state-two-ticks differ; C per-state needle+reason lines and cover counters
+  negative controls: 1 flinch-renamed, 2 legacy-as-states, 3 early-window
+  inputs OK
