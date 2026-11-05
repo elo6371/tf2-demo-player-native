@@ -2051,6 +2051,18 @@ bool outlineVertexExtent = false;
   //                             alone and exists so the two frames can be
   //                             subtracted, which is what makes "the body
   //                             changed the picture" a measurement.
+  //   --player-weapon-attach <on|off>  third-person weapon attach: draw each
+  //                             player's own held weapon (m_hActiveWeapon ->
+  //                             weapon entity -> m_iWorldModelIndex) on that
+  //                             player model's weapon_bone attachment, using
+  //                             the pose bone frames the animation pass already
+  //                             produced. `off` is the product default and the
+  //                             A/B baseline: the world pass keeps drawing each
+  //                             weapon entity where the demo says it sits, which
+  //                             is the frame every existing gate was captured on.
+  //                             `on` replaces that standalone instance with the
+  //                             held one -- never both, which is why the two
+  //                             frames differ by a weapon that moved into a hand.
   //   --viewmodel-weapon-flat-color  draws the weapon body's ranges with no
   //                             texture. It is the body's own control, separate
   //                             from `--viewmodel-flat-color`: the material claim
@@ -2120,6 +2132,14 @@ bool outlineVertexExtent = false;
   // same, which is what makes the byte-identical claim testable.
   bool animationDriveStates = false;
   bool animationDriveArgumentRejected = false;
+  // T83: third-person weapon attach, OFF by default. Two reasons, and the
+  // second decides it. (1) A held weapon REPLACES the standalone instance of the
+  // same weapon entity, so switching this on changes the picture of every armed
+  // player -- not something a default should do silently. (2) The flag is the
+  // A/B control: `off` has to be the frame the existing gates were captured on,
+  // or "the two frames differ" measures a default change instead of the attach.
+  bool playerWeaponAttachEnabled = false;
+  bool playerWeaponAttachArgumentRejected = false;
   std::size_t viewModelBoneLimit = 0;   // 0 = upload the whole table
   // Which model the first-person pass draws.
   //
@@ -2772,6 +2792,18 @@ bool outlineVertexExtent = false;
         viewModelArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--viewmodel-apply-animation") == 0) {
         viewModelApplyAnimation = true;
+      } else if (wcscmp(arguments[i], L"--player-weapon-attach") == 0 && i + 1 < argumentCount) {
+        // on|off, not a bare switch: `off` is a real mode (the A/B baseline), and a
+        // value that silently fell back to `on` would make two frames that were meant
+        // to differ identical -- a gate would then measure "no difference" and call
+        // it a pass.
+        if (wcscmp(arguments[++i], L"on") == 0) playerWeaponAttachEnabled = true;
+        else if (wcscmp(arguments[i], L"off") == 0) playerWeaponAttachEnabled = false;
+        else playerWeaponAttachArgumentRejected = true;
+      } else if (wcscmp(arguments[i], L"--player-weapon-attach") == 0) {
+        // A bare switch with no value is not `on`: guessing would silently change
+        // the frame the caller wanted to keep as a baseline.
+        playerWeaponAttachArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--player-animation") == 0) {
         playerAnimationEnabled = true;
       } else if (wcscmp(arguments[i], L"--animation-drive") == 0 && i + 1 < argumentCount) {
@@ -3062,6 +3094,12 @@ bool outlineVertexExtent = false;
     // would make two frames that were meant to differ identical, and the gate
     // would report "no difference" as a pass.
     OutputDebugStringW(L"TF2 Demo Player: invalid --outline/--outline-depth; --outline takes on|off, --outline-depth takes xray|tested.\n");
+    return 13;
+  }
+  if (playerWeaponAttachArgumentRejected) {
+    // Same rule as --outline: a value that fell back to a mode the caller did not
+    // ask for would make an on/off A/B pair identical.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --player-weapon-attach; it takes on|off.\n");
     return 13;
   }
 
@@ -3612,6 +3650,23 @@ bool outlineVertexExtent = false;
   // model drawn for BLU asked for family 1, resolved nothing, and its instances
   // fell back to the world atlas.
   std::unordered_map<std::string, std::uint32_t> entitySkinFamilyCountByKey;
+  // T83: the two tables the third-person weapon attach needs after the loader's
+  // metadata is gone, keyed the same way the meshes are. The hold point is an
+  // ATTACHMENT when the model ships one and a BONE otherwise, so both are kept:
+  // measured on eight of the nine player models, attachments named weapon_bone
+  // exist on scout(16->bone 23), soldier(->24), pyro(5->25) and spy(->22), while
+  // a BONE named weapon_bone exists on all of them, parented to bip_hand_R. The
+  // name is what makes this a rule rather than a table: the ninth (demo) is only
+  // reachable through the VPK, so it is covered by the bone half of the same rule.
+  std::unordered_map<std::string, std::vector<tf2::native::ModelAttachment>> entityAttachmentsByCacheKey;
+  std::unordered_map<std::string, std::vector<std::string>> entityBoneNamesByCacheKey;
+  const auto rememberEntityRig = [&](const std::string& cacheKey, const tf2::native::ModelMetadata& metadata) {
+    std::vector<std::string> boneNames;
+    boneNames.reserve(metadata.bones.size());
+    for (const auto& bone : metadata.bones) boneNames.push_back(bone.name);
+    entityBoneNamesByCacheKey[cacheKey] = std::move(boneNames);
+    entityAttachmentsByCacheKey[cacheKey] = metadata.attachments;
+  };
   // Paint accounting for the window title: how many prepared models reached a
   // readable VTF, and how many of those became a GPU texture.
   std::size_t entityMaterialResolvedModels = 0;
@@ -3670,6 +3725,7 @@ bool outlineVertexExtent = false;
       entityMeshKeyByPath[request.modelPath] = request.cacheKey;
       entitySkinFamilyCountByKey[request.cacheKey] =
         static_cast<std::uint32_t>(prepared.skinFamilies.families.size());
+      rememberEntityRig(request.cacheKey, request.inspection.metadata);
       preparedEntityMeshes.push_back(std::move(prepared));
       if (preparedEntityMeshes.size() >= 64) break;
     }
@@ -3737,6 +3793,9 @@ bool outlineVertexExtent = false;
       if (!prepared.materialCandidates.empty()) {
         prepared.materialName = prepared.materialCandidates.front();
       }
+      // Before the vertex move: the rig tables are copies, but the metadata is the
+      // only place they exist.
+      rememberEntityRig(prepared.cacheKey, request.inspection.metadata);
       prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
       prepared.textureSlots = request.inspection.metadata.textureCount;
       prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
@@ -9322,9 +9381,117 @@ bool outlineVertexExtent = false;
           if (body) ++playerBudget;
         }
         if (playerBudget > kDrawBudget) playerBudget = kDrawBudget;
-        const std::size_t propBudget = kDrawBudget - playerBudget;
+        std::size_t propBudget = kDrawBudget - playerBudget;
         std::size_t playerDraws = 0;
         std::size_t propDraws = 0;
+        // T83: who is holding what, resolved BEFORE the draw loop, for one
+        // reason: a weapon that is about to appear in a hand must not also be
+        // drawn standing where the demo left it. Both instances are in the
+        // candidate set -- the world pass prepares the c_ model and the demo
+        // carries a weapon entity per armed player -- so the standalone one has
+        // to be dropped here, before its slot in the prop budget is spent.
+        // Doing it mid-loop would draw the weapon twice on any frame where the
+        // body is budget-dropped after the weapon was already accepted.
+        //
+        // The hold point is read from the BODY's own rig tables. Two readings of
+        // the same name, in this order: an ATTACHMENT called weapon_bone (scout
+        // 16->bone 23, soldier->24, pyro 5->25, spy->22 ship one), else the BONE
+        // called weapon_bone with an identity local (all player models have it,
+        // parented to bip_hand_R). Both live in model space, so both compose the
+        // same way with the bone frame; the attachment's local is the grip offset
+        // the rig already authored. A model with neither is not attached -- no
+        // guessed bone, no weapon at the origin.
+        const auto findHoldPoint = [&](const std::string& bodyKey, std::int32_t& boneOut,
+                                       std::array<float, 12>& localOut, std::string& sourceOut) {
+          const auto attachments = entityAttachmentsByCacheKey.find(bodyKey);
+          if (attachments != entityAttachmentsByCacheKey.end()) {
+            for (const auto& attachment : attachments->second) {
+              if (attachment.name != "weapon_bone" || attachment.bone < 0) continue;
+              boneOut = attachment.bone;
+              localOut = attachment.local;
+              sourceOut = "attachment";
+              return true;
+            }
+          }
+          const auto bones = entityBoneNamesByCacheKey.find(bodyKey);
+          if (bones != entityBoneNamesByCacheKey.end()) {
+            for (std::size_t boneIndex = 0; boneIndex < bones->second.size(); ++boneIndex) {
+              if (bones->second[boneIndex] != "weapon_bone") continue;
+              boneOut = static_cast<std::int32_t>(boneIndex);
+              localOut = {1.0f, 0.0f, 0.0f, 0.0f,
+                          0.0f, 1.0f, 0.0f, 0.0f,
+                          0.0f, 0.0f, 1.0f, 0.0f};
+              sourceOut = "bone";
+              return true;
+            }
+          }
+          return false;
+        };
+        struct HeldWeapon {
+          tf2::native::PlayerWeaponLookup lookup;
+          std::int32_t holdBone = -1;
+          std::array<float, 12> holdLocal{};
+          std::string holdSource;
+          std::string weaponCacheKey;
+        };
+        std::unordered_map<std::int32_t, HeldWeapon> heldByPlayer;
+        std::unordered_set<std::int32_t> heldWeaponEntities;
+        std::size_t attachRefused = 0;
+        std::size_t attachNoHoldPoint = 0;
+        std::size_t attachNoWorldMesh = 0;
+        std::string attachRefusalFirst = "-";
+        if (playerWeaponAttachEnabled) {
+          for (const auto& holder : drawCandidates) {
+            if (!holder.transform.hasOrigin || holder.viewModelSkipped) continue;
+            const bool holderIsPlayer = holder.className.find("Player") != std::string::npos
+              || holder.className.find("TFPlayer") != std::string::npos
+              || holder.playerClassFallback;
+            if (!holderIsPlayer) continue;
+            std::string bodyKey = holder.cacheKey;
+            if (bodyKey.empty() || entityMeshKeyByPath.count(holder.modelPath)) {
+              const auto found = entityMeshKeyByPath.find(holder.modelPath);
+              if (found != entityMeshKeyByPath.end()) bodyKey = found->second;
+            }
+            HeldWeapon held;
+            if (bodyKey.empty()
+                || !findHoldPoint(bodyKey, held.holdBone, held.holdLocal, held.holdSource)) {
+              ++attachNoHoldPoint;
+              continue;
+            }
+            held.lookup = tf2::native::findPlayerWeaponInput(currentEntityStates,
+              demoNetworkSummary.serverClassSchemas,
+              static_cast<int>(holder.entityIndex), demoNetworkSummary.modelPrecache);
+            if (held.lookup.refusal != tf2::native::PlayerWeaponRefusal::None) {
+              ++attachRefused;
+              if (attachRefusalFirst == "-") {
+                attachRefusalFirst = std::string("ent=") + std::to_string(holder.entityIndex)
+                  + ":" + tf2::native::playerWeaponRefusalName(held.lookup.refusal);
+              }
+              continue;
+            }
+            const auto weaponKey = entityMeshKeyByPath.find(held.lookup.worldModelPath);
+            if (weaponKey == entityMeshKeyByPath.end()) {
+              // The weapon has a world model path but that model is not one of the
+              // prepared meshes: nothing to draw, and drawing the wrong mesh in the
+              // hand is worse than an empty hand.
+              ++attachNoWorldMesh;
+              continue;
+            }
+            held.weaponCacheKey = weaponKey->second;
+            heldWeaponEntities.insert(held.lookup.weaponEntityIndex);
+            heldByPlayer[static_cast<std::int32_t>(holder.entityIndex)] = std::move(held);
+          }
+        }
+        // One reserved instance per attach, taken out of the PROP budget: the
+        // bodies keep the slots they already had, so enabling the attach cannot
+        // push a player body out of the frame it is the subject of.
+        const std::size_t attachBudget = std::min(heldByPlayer.size(), propBudget);
+        propBudget -= attachBudget;
+        std::size_t attachDrawn = 0;
+        std::size_t attachPoseMissing = 0;
+        std::size_t attachOverBudget = 0;
+        std::size_t attachSkippedStandalone = 0;
+        std::unordered_set<std::string> attachSignatures;
         for (const auto& instance : drawCandidates) {
           if (!instance.transform.hasOrigin) continue;
           // T66 rule 1: a dead player left the candidate set above, at the tick
@@ -9337,6 +9504,15 @@ bool outlineVertexExtent = false;
             focused = tryFocusOrigin(instance.transform.origin[0], instance.transform.origin[1], instance.transform.origin[2]);
           }
           if (instance.viewModelSkipped) continue;
+          if (playerWeaponAttachEnabled
+              && heldWeaponEntities.count(static_cast<std::int32_t>(instance.entityIndex))) {
+            // This weapon entity is in someone's hand this frame. Drawing it here
+            // as well is the "two of the same gun in one frame" defect the attach
+            // exists to avoid -- and the reason the skip is decided in the pre-pass
+            // rather than after the fact.
+            ++attachSkippedStandalone;
+            continue;
+          }
           std::string cacheKey = instance.cacheKey;
           if (cacheKey.empty() || entityMeshKeyByPath.count(instance.modelPath)) {
             const auto found = entityMeshKeyByPath.find(instance.modelPath);
@@ -9689,6 +9865,14 @@ bool outlineVertexExtent = false;
               }
               animationStats.lastCycleByEntity[instance.entityIndex] = request.cycle;
             }
+            // T83: the held weapon this body would carry. The hand's frame only
+            // exists after sampling, so the instance is prepared inside the pose
+            // block and pushed AFTER the body: the body keeps the draw index (and
+            // the debug entity id) it had before the attach existed.
+            const bool attachWanted = playerWeaponAttachEnabled
+              && heldByPlayer.count(static_cast<std::int32_t>(instance.entityIndex)) != 0;
+            bool attachReady = false;
+            tf2::native::EntityModelDrawInstance attachDraw;
             if (binding != nullptr) {
               const auto sampled = tf2::native::buildAnimationSkinMatrices(binding, request);
               if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
@@ -9788,6 +9972,81 @@ bool outlineVertexExtent = false;
                   ++animationStats.targetWitnessObservations;
                 }
                 animationStats.lastFrameByEntity[instance.entityIndex] = sampled.frame;
+                // T83: L = boneFrame(holdBone) * holdLocal, in model space. The
+                // bone frame is the model-space matrix the pose pass just produced
+                // (bone-local -> model at THIS tick), so composing it with the rig's
+                // own attachment local is Source's ConcatTransforms(pBoneToWorld[bone],
+                // att->local) with the same operand order. The renderer then puts the
+                // body's own origin/angles (rows) around that local, which is exactly
+                // how every other instance in the frame is placed.
+                if (attachWanted) {
+                  const auto held = heldByPlayer.find(static_cast<std::int32_t>(instance.entityIndex));
+                  if (held != heldByPlayer.end()
+                      && held->second.holdBone >= 0
+                      && static_cast<std::size_t>(held->second.holdBone) < sampled.boneModelMatrices.size()) {
+                    const auto holdMatrix = tf2::native::multiplyTransforms(
+                      sampled.boneModelMatrices[static_cast<std::size_t>(held->second.holdBone)],
+                      held->second.holdLocal);
+                    attachDraw.cacheKey = held->second.weaponCacheKey;
+                    attachDraw.entityIndex =
+                      static_cast<std::int32_t>(held->second.lookup.weaponEntityIndex);
+                    attachDraw.origin[0] = instance.transform.origin[0];
+                    attachDraw.origin[1] = instance.transform.origin[1];
+                    attachDraw.origin[2] = instance.transform.origin[2];
+                    attachDraw.hasAngles = instance.transform.hasAngles;
+                    attachDraw.angles[0] = instance.transform.angles[0];
+                    attachDraw.angles[1] = instance.transform.angles[1];
+                    attachDraw.angles[2] = instance.transform.angles[2];
+                    attachDraw.color[0] = draw.color[0];
+                    attachDraw.color[1] = draw.color[1];
+                    attachDraw.color[2] = draw.color[2];
+                    attachDraw.color[3] = draw.color[3];
+                    // The weapon keeps its OWN paint table (its team skin family),
+                    // clamped by the same rule the standalone draw used.
+                    std::uint32_t weaponFamilyCount = 0;
+                    const auto weaponFamily = entitySkinFamilyCountByKey.find(held->second.weaponCacheKey);
+                    if (weaponFamily != entitySkinFamilyCountByKey.end()) weaponFamilyCount = weaponFamily->second;
+                    attachDraw.skinFamily =
+                      tf2::native::effectiveSkinFamily(weaponFamilyCount, requestedSkinFamily);
+                    // No skinning: a held weapon is rigid in the hand. Its own
+                    // sequences (idle sway) would need a second binding and are not
+                    // part of this feature; the bind pose IS the grip frame.
+                    attachDraw.hasLocalMatrix = true;
+                    std::copy(holdMatrix.begin(), holdMatrix.end(), attachDraw.localPositionRows);
+                    attachReady = true;
+                    char attachLine[384];
+                    const auto& boneFrame =
+                      sampled.boneModelMatrices[static_cast<std::size_t>(held->second.holdBone)];
+                    std::snprintf(attachLine, sizeof(attachLine),
+                      "%s|%s|bone=%d|weapon=%s|boneAt=%.1f,%.1f,%.1f|holdAt=%.1f,%.1f,%.1f",
+                      instance.className.c_str(),
+                      held->second.holdSource.c_str(), static_cast<int>(held->second.holdBone),
+                      held->second.lookup.worldModelPath.c_str(),
+                      static_cast<double>(boneFrame[3]), static_cast<double>(boneFrame[7]),
+                      static_cast<double>(boneFrame[11]),
+                      static_cast<double>(holdMatrix[3]), static_cast<double>(holdMatrix[7]),
+                      static_cast<double>(holdMatrix[11]));
+                    if (attachSignatures.insert(attachLine).second) {
+                      // One line per (class, hold source, bone, weapon) actually
+                      // placed: the reading a reviewer uses to check that each class
+                      // got a WEAPON and not an arbitrary bone.
+                      traceFmt("weaponAttach: class=%s ent=%d source=%s bone=%d body=%s "
+                        "weaponEnt=%d weaponClass=%s weapon=%s worldIndex=%d family=%u "
+                        "boneAt=%.1f,%.1f,%.1f holdAt=%.1f,%.1f,%.1f",
+                        instance.className.c_str(), static_cast<int>(instance.entityIndex),
+                        held->second.holdSource.c_str(), static_cast<int>(held->second.holdBone),
+                        instance.modelPath.c_str(), attachDraw.entityIndex,
+                        held->second.lookup.weaponClassName.c_str(),
+                        held->second.lookup.worldModelPath.c_str(),
+                        static_cast<int>(held->second.lookup.worldModelIndex),
+                        static_cast<unsigned>(attachDraw.skinFamily),
+                        static_cast<double>(boneFrame[3]), static_cast<double>(boneFrame[7]),
+                        static_cast<double>(boneFrame[11]),
+                        static_cast<double>(holdMatrix[3]), static_cast<double>(holdMatrix[7]),
+                        static_cast<double>(holdMatrix[11]));
+                    }
+                  }
+                }
               } else {
                 ++animationStats.instancesBindPose;
                 animationStats.lastStatus = tf2::native::animationInputStatusName(sampled.status);
@@ -9843,6 +10102,43 @@ bool outlineVertexExtent = false;
               }
             }
             draws.push_back(draw);
+            // T83: the weapon rides after its body. Counted, never silent: a held
+            // weapon that could not be placed this frame is a number in the trace,
+            // not an empty hand the reviewer has to guess about.
+            if (attachReady) {
+              if (attachDrawn < attachBudget) {
+                // T83: the held weapon needs its OWN colour in the identity view,
+                // or it paints itself the body's colour and a pixel test cannot
+                // tell "the gun is in the hand" from "the body got wider". The id
+                // is taken the same way the ledger takes a body's (draws.size()+1
+                // at the moment of the push), and the line carries attach=1 plus
+                // the body's entity so a reader can join it to that body.
+                if (worldDebugView == 9 && captureArmed && captureTick > 0
+                    && g_playback.tick >= captureTick) {
+                  const int attachId = static_cast<int>(draws.size()) + 1;
+                  if (tf2::native::encodeEntityId(attachId, attachDraw.color)) {
+                    traceFmt("entity: id=%d ent=%d model=%s team=%d family=%d state=attached "
+                      "seq=-1 label=weaponAttach skinned=0 origin=%.1f,%.1f,%.1f "
+                      "attach=1 heldEnt=%d source=%s bone=%d frame_tick=%d",
+                      attachId, attachDraw.entityIndex, attachDraw.cacheKey.c_str(),
+                      instance.transform.hasTeam ? static_cast<int>(instance.transform.team) : -1,
+                      static_cast<int>(attachDraw.skinFamily),
+                      instance.transform.origin[0], instance.transform.origin[1],
+                      instance.transform.origin[2],
+                      static_cast<int>(instance.entityIndex),
+                      heldByPlayer[static_cast<std::int32_t>(instance.entityIndex)].holdSource.c_str(),
+                      static_cast<int>(heldByPlayer[static_cast<std::int32_t>(instance.entityIndex)].holdBone),
+                      static_cast<int>(g_playback.tick));
+                  }
+                }
+                draws.push_back(attachDraw);
+                ++attachDrawn;
+              } else {
+                ++attachOverBudget;
+              }
+            } else if (attachWanted) {
+              ++attachPoseMissing;
+            }
           } else if (fallbackMarkers.size() < 32) {
             tf2::native::EntityMarker marker;
             marker.position[0] = instance.transform.origin[0];
@@ -9866,6 +10162,18 @@ bool outlineVertexExtent = false;
         }
         traceFmt("scene: setInstances draws=%zu markers=%zu playerDraws=%zu propDraws=%zu playerBudget=%zu propBudget=%zu",
           draws.size(), fallbackMarkers.size(), playerDraws, propDraws, playerBudget, propBudget);
+        if (playerWeaponAttachEnabled) {
+          // One reading per frame, every count additive: held = players whose body
+          // carries a hold point AND whose m_hActiveWeapon resolved to a prepared
+          // world model; drawn = instances appended; the rest say exactly which
+          // step dropped a weapon, so "some players have empty hands" is never a
+          // mystery in the picture.
+          traceFmt("scene: weaponAttach on=1 held=%zu drawn=%zu poseMissing=%zu overBudget=%zu "
+            "refused=%zu noHoldPoint=%zu noWorldMesh=%zu skippedStandalone=%zu firstRefusal=%s",
+            heldByPlayer.size(), attachDrawn, attachPoseMissing, attachOverBudget,
+            attachRefused, attachNoHoldPoint, attachNoWorldMesh, attachSkippedStandalone,
+            attachRefusalFirst.c_str());
+        }
         renderer.setEntityBoneMatrices(entityBoneMatrices);
         renderer.setEntityModelInstances(draws);
         renderer.setEntityMarkers(fallbackMarkers);

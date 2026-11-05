@@ -315,6 +315,38 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
         || mesh->second.vertexCount < 3 || (mesh->second.vertexCount % 3) != 0) continue;
     EntityModelInstanceRows rows;
     if (!buildEntityModelInstanceRows(instance.origin, instance.angles, instance.hasAngles, world, rows)) continue;
+    // An instance placed by a local matrix rides on another model's bone: the
+    // rows just built carry the PARENT's frame to world, so the local goes
+    // inside the composition -- C = P * L in this file's row-major "v' = M v"
+    // convention. On the outside it would swing the held model around the
+    // parent's origin instead of around the hand.
+    if (instance.hasLocalMatrix) {
+      float local[12];
+      bool finite = true;
+      for (int k = 0; k < 12; ++k) {
+        local[k] = instance.localPositionRows[k];
+        if (!std::isfinite(local[k])) finite = false;
+      }
+      // One non-finite row would poison every vertex of the instance, and a
+      // silently vanished weapon is the failure mode this whole path exists to
+      // remove; refuse the instance instead and let the caller count it.
+      if (!finite) continue;
+      EntityModelInstanceRows composed;
+      for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 3; ++column) {
+          float sum = 0.0f;
+          for (int k = 0; k < 3; ++k) sum += rows.positionRows[row * 4 + k] * local[k * 4 + column];
+          composed.positionRows[row * 4 + column] = sum;
+          float normal = 0.0f;
+          for (int k = 0; k < 3; ++k) normal += rows.normalRows[row * 3 + k] * local[k * 4 + column];
+          composed.normalRows[row * 3 + column] = normal;
+        }
+        float translation = rows.positionRows[row * 4 + 3];
+        for (int k = 0; k < 3; ++k) translation += rows.positionRows[row * 4 + k] * local[k * 4 + 3];
+        composed.positionRows[row * 4 + 3] = translation;
+      }
+      rows = composed;
+    }
     const std::string bucketKey = instance.cacheKey + "#" + std::to_string(instance.skinFamily);
     const auto inserted = bucketOf.emplace(bucketKey, buckets.size());
     if (inserted.second) {

@@ -329,9 +329,11 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
   entry.binding.renderBones = inspection.metadata.bones.size();
   entry.binding.poseToBone.resize(inspection.metadata.bones.size());
   entry.binding.poseToBoneValid.assign(inspection.metadata.bones.size(), 0);
+  entry.binding.boneParent.assign(inspection.metadata.bones.size(), -1);
   for (std::size_t i = 0; i < inspection.metadata.bones.size(); ++i) {
     entry.binding.poseToBone[i] = inspection.metadata.bones[i].poseToBone;
     entry.binding.poseToBoneValid[i] = inspection.metadata.bones[i].poseToBoneValid ? 1 : 0;
+    entry.binding.boneParent[i] = inspection.metadata.bones[i].parent;
     if (inspection.metadata.bones[i].poseToBoneValid) ++entry.binding.validBindBones;
   }
   if (inspection.metadata.bones.size() > kMaxSkinningBones) {
@@ -505,15 +507,67 @@ AnimationSampleResult buildAnimationSkinMatrices(
   // identity matrix -- i.e. "do not move this vertex", not "move it somewhere
   // the animation never asked for".
   static const std::array<float, 16> identity = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+  static const std::array<float, 12> identity12 = {1,0,0, 0, 0,1,0, 0, 0,0,1, 0};
   result.skinMatrices.assign(binding->poseToBone.size(), identity);
+  result.boneModelMatrices.assign(binding->poseToBone.size(), identity12);
   std::size_t written = 0;
   for (std::size_t i = 0; i < binding->poseToBone.size(); ++i) {
-    if (!binding->poseToBoneValid[i]) continue;
     const std::array<float, 12>* animated = nullptr;
     for (std::size_t a = 0; a < binding->animToModel.size(); ++a) {
       if (binding->animToModel[a] == static_cast<std::int32_t>(i)) { animated = &animWorld[a]; break; }
     }
-    if (animated == nullptr) continue;  // helper bone: keep the identity above
+    if (animated == nullptr) {
+      // No channel: the bone did not move relative to its parent, so its
+      // CURRENT model-space frame is the parent's current frame times the
+      // bind-relative transform of this bone inside that parent.
+      //
+      // Read `poseToBone` the way Source does: it maps MODEL space into BONE
+      // space (it is the inverse bind), so the bone's bind frame is its
+      // inverse. Measured on demo.mdl: bip_hand_R lands at (-20.35, 46.30,
+      // 3.35) and its child weapon_bone at (-19.34, 40.17, 6.43) -- 6.9 units
+      // from the hand, i.e. the grip. Reading the same numbers as if they were
+      // bone->model puts the weapon bone at y = -6.4, under the floor, which is
+      // the "gun at the feet" the first attempt produced.
+      //
+      //   B[i]     = inverse(poseToBone[i])                (bone -> model, bind)
+      //   local    = inverse(B[parent]) * B[i] = poseToBone[parent] * B[i]
+      //   current  = current[parent] * local
+      //
+      // Neither the identity (a child of this bone lands on the MODEL origin)
+      // nor the raw inverse bind (a weapon behind the back) is that answer.
+      const std::int32_t parent =
+        i < binding->boneParent.size() ? binding->boneParent[i] : -1;
+      const auto inverseBind = [](const std::array<float, 12>& p2b, std::array<float, 12>& out) {
+        for (int r = 0; r < 3; ++r) {
+          for (int c = 0; c < 3; ++c) out[r * 4 + c] = p2b[c * 4 + r];
+          out[r * 4 + 3] = -(out[r * 4 + 0] * p2b[3]
+            + out[r * 4 + 1] * p2b[7]
+            + out[r * 4 + 2] * p2b[11]);
+        }
+      };
+      if (parent >= 0 && static_cast<std::size_t>(parent) < i
+          && binding->poseToBoneValid[i] && binding->poseToBoneValid[parent]) {
+        std::array<float, 12> childBind{};
+        inverseBind(binding->poseToBone[i], childBind);
+        const auto localBind = concatTransforms(binding->poseToBone[parent], childBind);
+        const auto model = concatTransforms(result.boneModelMatrices[parent], localBind);
+        bool finite = true;
+        for (int k = 0; k < 12; ++k) {
+          if (!std::isfinite(model[k])) finite = false;
+        }
+        result.boneModelMatrices[i] = finite ? model : childBind;
+      } else if (binding->poseToBoneValid[i]) {
+        // No usable ancestor: this bone's own bind frame is the honest answer.
+        std::array<float, 12> childBind{};
+        inverseBind(binding->poseToBone[i], childBind);
+        result.boneModelMatrices[i] = childBind;
+      }
+      continue;  // helper bone: keep the identity in skinMatrices
+    }
+    // Published even when the inverse bind is unusable: an attachment only needs
+    // the bone's frame, not the skinned-vertex matrix derived from it.
+    result.boneModelMatrices[i] = *animated;
+    if (!binding->poseToBoneValid[i]) continue;
     const auto skin = concatTransforms(*animated, binding->poseToBone[i]);
     for (int k = 0; k < 12; ++k) {
       if (!std::isfinite(skin[k])) {
@@ -531,6 +585,10 @@ AnimationSampleResult buildAnimationSkinMatrices(
   result.bindPose = false;
   result.reason.clear();
   return result;
+}
+
+std::array<float, 12> multiplyTransforms(const std::array<float, 12>& a, const std::array<float, 12>& b) {
+  return concatTransforms(a, b);
 }
 
 } // namespace tf2::native

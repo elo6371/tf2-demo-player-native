@@ -533,6 +533,14 @@ void parseMdl(const Bytes& b, ModelMetadata& out) {
           || !readMatrixColumn(2, attachment.axisZ)) {
         out.diagnostics.push_back("attachment transform outside table");
       }
+      for (std::size_t i = 0; i < attachment.local.size(); ++i) {
+        if (!readAt(b, off + 12 + i * sizeof(float), attachment.local[i])
+            || !std::isfinite(attachment.local[i])) {
+          attachment.local = {};
+          out.diagnostics.push_back("attachment local matrix outside table or non-finite");
+          break;
+        }
+      }
       out.attachments.push_back(std::move(attachment));
     }
   }

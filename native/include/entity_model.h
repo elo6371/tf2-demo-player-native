@@ -252,6 +252,57 @@ ViewModelWeaponBodyLookup findViewModelWeaponBodyInput(
   const std::string& armModelPath,
   const std::unordered_map<std::uint16_t, std::string>& modelPrecache);
 
+// Why a player's held weapon could not be named. A separate partition from
+// ViewModelWeaponBodyRefusal on purpose: that one starts from a ViewModel
+// entity and treats the arms composite as a failure to refuse, while this one
+// starts from a PLAYER and has neither a ViewModel nor an arms case. Sharing
+// the enum would have made "noPlayerEntity" read as "noViewModelEntity" in
+// every trace, and the two fail for different reasons on different ticks.
+enum class PlayerWeaponRefusal {
+  None = 0,                  // the lookup succeeded
+  NoPlayerEntity,            // the index names no player in this snapshot
+  PlayerEntityAbsent,        // the index exists but holds no entity
+  NoActiveWeaponSlot,        // the player carries no m_hActiveWeapon slot
+  EmptyWeaponHandle,         // m_hActiveWeapon is the empty/sentinel handle
+  WeaponPastSnapshot,        // the named index is past the snapshot
+  WeaponAbsent,              // the named slot holds no entity in this snapshot
+  NoWorldModelSlot,          // the weapon carries no m_iWorldModelIndex slot
+  WorldModelIndexZero,       // m_iWorldModelIndex is 0 (Source's "no model")
+  WorldModelIndexOutOfRange, // the index is outside 1..0xffff
+  WorldModelNotDeclared,     // in range, but modelprecache never declared it
+};
+
+const char* playerWeaponRefusalName(PlayerWeaponRefusal refusal);
+
+struct PlayerWeaponLookup {
+  bool hasPlayerEntity = false;
+  int playerEntityIndex = -1;
+  bool hasWeaponHandle = false;
+  std::int64_t weaponHandle = 0;
+  int weaponEntityIndex = -1;
+  bool weaponEntityPresent = false;
+  int weaponClassId = -1;
+  std::string weaponClassName;
+  bool hasWorldModelIndex = false;
+  std::int64_t worldModelIndex = 0;
+  // Non-empty exactly when the lookup succeeded, which is the same invariant
+  // ViewModelWeaponBodyLookup holds and for the same reason: a refusal must not
+  // be able to pass for a success by leaving a path behind.
+  std::string worldModelPath;
+  PlayerWeaponRefusal refusal = PlayerWeaponRefusal::NoPlayerEntity;
+  std::string reason;
+};
+
+// The player's own held weapon: m_hActiveWeapon -> weapon entity -> that
+// entity's m_iWorldModelIndex -> modelprecache path. This is the third-person
+// join the world pass never had (the first-person join starts from a ViewModel
+// entity, which a world-space player does not own).
+PlayerWeaponLookup findPlayerWeaponInput(
+  const std::vector<EntityState>& statesByIndex,
+  const std::vector<ServerClassSchema>& classSchemas,
+  int playerEntityIndex,
+  const std::unordered_map<std::uint16_t, std::string>& modelPrecache);
+
 // One property that matches a suffix, with the tick it was last written at.
 struct PropertyCandidate {
   std::string name;
