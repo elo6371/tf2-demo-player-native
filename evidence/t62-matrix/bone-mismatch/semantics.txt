@@ -1,6 +1,6 @@
 [PASS] bone-mismatch/driven.trace
-        updates=1459 boneMismatch=7093 first=5 frames=1457 ratio=4.8615 driven=True last-skinned=89/7/364
-        uncapped=314 census-fit=314/314 residual={1: 465, 2: 679}
+        updates=1192 blocks=1192/1192 boneMismatch=5820 first=5 frames=1190 ratio=4.8826 driven=True last-skinned=89/7/364
+        uncapped=256 census-fit=256/256 residual={1: 365, 2: 570}
 [PASS] bone-mismatch/undriven.trace
-        updates=1643 boneMismatch=0 first=0 frames=1641 ratio=0.0000 driven=False last-skinned=87/9/202
-        uncapped=333 census-fit=333/333 residual={0: 1309}
+        updates=1237 blocks=1237/1237 boneMismatch=0 first=0 frames=1235 ratio=0.0000 driven=False last-skinned=87/9/202
+        uncapped=274 census-fit=274/274 residual={0: 962}

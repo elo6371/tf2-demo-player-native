@@ -23,12 +23,21 @@
 #     a driven run (--player-animation) ends with boneMismatch > 0 and status=ok;
 #     an undriven run ends with boneMismatch == 0 and status=missing.
 #   Tier C, a WARN only: bm/updates inside the recorded corpus band 4.5-5.0.
+#   Completeness, checked before any of the above is trusted (bash side):
+#     the trace carries a capture: armed line, so the run reached --capture-tick,
+#     and it closes as many scene: begin blocks as it opens, so no update was cut
+#     mid-write. A run killed early still leaves a readable prefix, and a prefix
+#     can satisfy every structural rule while saying nothing about the frame this
+#     gate exists to judge -- a 4642-update partial run that never reached the
+#     capture tick passes all of them.
 #
 # WHY A GREEN RUN CANNOT BE VACUOUS
-#   Two negative controls are built from the driven trace itself: one decrements
-#   the counter, one hides the census line that explains an increment. The
-#   checker must reject both (--expect-fail), so a pass cannot come from checks
-#   that never fire.
+#   Three negative controls are derived from the driven trace itself: one
+#   decrements the counter and one hides the census line that explains an
+#   increment (both through the python checker and --expect-fail), and one drops
+#   the capture: armed line so it looks like a run that stopped short of the
+#   capture tick (through the completeness guard). All three must be rejected, so
+#   a pass cannot come from checks that never fire.
 #
 # WHAT IT DOES NOT CLAIM
 #   It does not claim the counter is small, stable or comparable across trees;
@@ -116,6 +125,35 @@ if [[ ! -s "$CAP/driven.trace" || ! -s "$CAP/undriven.trace" ]]; then
   exit 1
 fi
 
+# Is this a whole run, or a prefix of one? Nothing below can tell: a trace cut
+# at update 4000 looks exactly like a shorter run. Two cheap structural facts do
+# separate them -- the capture: armed line only appears when the run reached
+# --capture-tick, and every scene: begin must be closed by its scene: done.
+complete_trace() {
+  local trace=$1 begun done_
+  begun=$(grep -ac "scene: begin" "$trace" 2>/dev/null)
+  done_=$(grep -ac "scene: done" "$trace" 2>/dev/null)
+  if [[ ${begun:-0} -eq 0 ]]; then echo "no scene: begin blocks"; return 1; fi
+  if [[ ${done_:-0} -ne ${begun:-0} ]]; then
+    echo "begin=$begun done=${done_:-0} (an update was cut mid-write)"
+    return 1
+  fi
+  if ! grep -aq "capture: armed" "$trace"; then
+    echo "no capture: armed line (the run stopped before --capture-tick)"
+    return 1
+  fi
+  echo "$begun blocks, capture reached"
+  return 0
+}
+
+for tag in driven undriven; do
+  if why=$(complete_trace "$CAP/$tag.trace"); then
+    echo "  OK $tag is a whole run ($why)"
+  else
+    say_fail "$tag is not a whole run: $why"
+  fi
+done
+
 "$PY" bone-mismatch-semantics.py "$CAP/driven.trace" "$CAP/undriven.trace" \
   > "$OUT/semantics.txt" 2>&1
 rc=$?
@@ -150,6 +188,29 @@ for kind in decrease unattributed; do
     say_fail "the $kind control was accepted: a green run would be vacuous"
   fi
 done
+
+# The third control exercises completeness rather than the counters: the real
+# driven trace with its capture: armed line removed is what a run that stopped
+# short of the capture tick leaves behind. Both layers must reject it, the bash
+# guard and the checker's own whole-run rule.
+grep -av "capture: armed" "$CAP/driven.trace" > "$OUT/control-truncated.trace" 2>/dev/null
+{
+  echo "[REJECTED-AS-REQUIRED] bone-mismatch/control-truncated.trace"
+  if why=$(complete_trace "$OUT/control-truncated.trace"); then
+    echo "        ACCEPTED ($why) -- the completeness guard did not fire"
+  else
+    echo "        FAIL $why"
+  fi
+  "$PY" bone-mismatch-semantics.py --expect-fail "$OUT/control-truncated.trace" \
+    2>&1 | sed "s/^/        /"
+} > "$OUT/control-truncated.txt" 2>&1
+if grep -q "ACCEPTED" "$OUT/control-truncated.txt"; then
+  say_fail "the truncated control was accepted: a partial run would pass"
+elif ! grep -q "REJECTED-AS-REQUIRED" "$OUT/control-truncated.txt"; then
+  say_fail "the truncated control was not rejected by the checker"
+else
+  echo "  OK the truncated control was rejected (a partial run cannot pass the gate)"
+fi
 
 {
   echo "bone-mismatch check, tree $(git rev-parse --short HEAD 2>/dev/null || echo NA)"

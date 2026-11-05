@@ -38,6 +38,12 @@ WHAT IT ASSERTS
     A5  where the census is truncated, delta - census > 0 (truncation can only
         under-count the witness lines, never over-count the increments).
     A6  skinned + bindPose == draws, and gpuSkin uploaded == matrices.
+    A7  the run is whole: the trace carries a capture: armed line (it reached
+        --capture-tick) and closes as many scene: begin blocks as it opens. Every
+        rule above is satisfied by a prefix of a run, and a prefix says nothing
+        about the frame the gate exists to judge -- the known-invalid
+        round1/animated.trace (4642 updates, stopped at scene tick 52543 of
+        64161, no frame written) passes A1-A6 and is rejected only here.
   Tier B -- driver-path existence, binary across corpora:
     B1  a driven run (the trace carries anim: ent= lines) ends with boneMismatch>0
         and status=ok.
@@ -78,6 +84,7 @@ ANIM = re.compile(
     r"^[0-9.]+ scene: anim skinned=(\d+) bindPose=(\d+) matrices=(\d+) "
     r"gpuSkin=(\d+)/(\d+) boneMismatch=(\d+)")
 CAP = re.compile(r"capture: armed .*?frames=(\d+)")
+DONE = re.compile(r"^[0-9.]+ scene: done\s*$")
 
 GAP_MODELS = ("models/player/demo.mdl", "models/player/heavy.mdl",
               "models/player/scout.mdl")
@@ -87,10 +94,15 @@ TRACE_CAP = 8  # main.cpp caps the anim: ent= witness lines at 8 per update
 def analyse(path):
     """The per-update rows of a trace, plus the capture frame count."""
     updates, current, frames = [], None, None
+    began = ended = 0
     with open(path, encoding="utf-8", errors="replace") as handle:
         for line in handle:
             if BEGIN.match(line):
+                began += 1
                 current = {"playerDraws": 0, "ent": []}
+                continue
+            if DONE.match(line):
+                ended += 1
                 continue
             if current is None:
                 continue
@@ -117,11 +129,11 @@ def analyse(path):
             match = CAP.search(line)
             if match:
                 frames = int(match.group(1))
-    return updates, frames
+    return updates, frames, began, ended
 
 
 def check(path):
-    updates, frames = analyse(path)
+    updates, frames, began, ended = analyse(path)
     parts = path.replace("\\", "/").split("/")
     name = parts[-2] + "/" + parts[-1]
     fails, warns = [], []
@@ -130,6 +142,7 @@ def check(path):
     previous = None
     count = 0
     negative = over_skinned = over_players = 0
+    bad_sum = bad_upload = 0
     uncapped = fitted = 0
     residual = {}
     for update in updates:
@@ -151,6 +164,13 @@ def check(path):
                     residual["uncapped-miss"] = residual.get("uncapped-miss", 0) + 1
             else:
                 residual[delta - census] = residual.get(delta - census, 0) + 1
+        # A6: the two counts around the counter must stay reconciled, or the
+        # counter is being read from a trace whose bookkeeping is already broken.
+        if update.get("draws") is not None and \
+                update["skinned"] + update["bindPose"] != update["draws"]:
+            bad_sum += 1
+        if update["uploaded"] != update["matrices"]:
+            bad_upload += 1
         previous = update["bm"]
     driven = any(update["ent"] for update in updates)
     last = updates[-1]
@@ -171,6 +191,17 @@ def check(path):
         fails.append("driven run reports boneMismatch=0")
     if not driven and last["bm"] != 0:
         fails.append("undriven run reports boneMismatch!=0")
+    if bad_sum:
+        fails.append("%d updates where skinned + bindPose != draws" % bad_sum)
+    if bad_upload:
+        fails.append("%d updates where gpuSkin uploaded != matrices" % bad_upload)
+    if began == 0:
+        fails.append("no scene: begin blocks (not a scene trace)")
+    elif began != ended:
+        fails.append("begin=%d done=%d (an update was cut mid-write)"
+                     % (began, ended))
+    if frames is None:
+        fails.append("no capture: armed line (the run stopped before the capture tick)")
     if driven and last["status"] != "ok":
         fails.append("driven run status=%s" % last["status"])
     if not driven and last["status"] != "missing":
@@ -179,8 +210,9 @@ def check(path):
     if driven and not (4.5 <= ratio <= 5.0):
         warns.append("ratio %.4f outside the recorded corpus band 4.5-5.0 "
                      "(measurement, not an invariant)" % ratio)
-    stats = dict(updates=count, bm=update["bm"] if False else last["bm"],
+    stats = dict(updates=count, bm=last["bm"],
                  first=updates[0]["bm"], frames=frames, ratio=ratio,
+                 blocks=began, closed=ended,
                  uncapped=uncapped, fit=fitted,
                  residual=dict(sorted(residual.items(), key=lambda item: str(item[0]))),
                  driven=driven, skinned=last["skinned"], bindPose=last["bindPose"],
@@ -282,9 +314,10 @@ def main(argv):
             continue
         print("[%s] %s" % ("PASS" if not fails else "FAIL", name))
         if stats:
-            print("        updates=%d boneMismatch=%d first=%d frames=%s ratio=%.4f "
-                  "driven=%s last-skinned=%d/%d/%d"
-                  % (stats["updates"], stats["bm"], stats["first"], stats["frames"],
+            print("        updates=%d blocks=%d/%d boneMismatch=%d first=%d "
+                  "frames=%s ratio=%.4f driven=%s last-skinned=%d/%d/%d"
+                  % (stats["updates"], stats["blocks"], stats["closed"],
+                     stats["bm"], stats["first"], stats["frames"],
                      stats["ratio"], stats["driven"], stats["skinned"],
                      stats["bindPose"], stats["matrices"]))
             print("        uncapped=%d census-fit=%d/%d residual=%s"

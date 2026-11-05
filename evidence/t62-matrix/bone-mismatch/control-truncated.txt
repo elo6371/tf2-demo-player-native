@@ -1,0 +1,4 @@
+[REJECTED-AS-REQUIRED] bone-mismatch/control-truncated.trace
+        FAIL no capture: armed line (the run stopped before --capture-tick)
+        [REJECTED-AS-REQUIRED] bone-mismatch/control-truncated.trace
+                FAIL no capture: armed line (the run stopped before the capture tick)
