@@ -323,4 +323,132 @@ std::vector<std::size_t> rankSequenceCandidates(std::size_t sequenceCount,
   return ranked;
 }
 
+// ---------------------------------------------------------------------------
+// T84: crouch / crouch-walk / flinch selectors for --animation-drive states.
+//
+// WHY THESE ARE PREDICATES AND NOT NEEDLE LISTS. "crouch" is a whole token in
+// both crouch_PRIMARY (the 61-frame crouch-walk cycle) and AttackCrouch_PRIMARY
+// (a 9-61 frame crouch ATTACK), so no needle list can separate them: the tables
+// were measured (model_pose_probe --dump-sequences over the nine class models)
+// and only pyro/heavy/medic carry the crouch locomotion family
+// crouch_PRIMARY / crouch_SECONDARY / crouch_MELEE. Every other class carries
+// only AttackCrouch_* plus a one-frame PRIMARY_aimmatrix_crouch_idle pose. A
+// crouch mode that took the first 'crouch' match would play an attack in six
+// classes out of nine -- the same class of defect (a needle matching where it
+// should not) that T61.1 exists to prevent.
+// ---------------------------------------------------------------------------
+
+// Crouch LOCOMOTION: the label's leading token is exactly "crouch". The
+// "crouch_" prefix is what TF2 uses for the cycle family, and no other family in
+// these tables starts that way (AttackCrouch_* starts with "attack",
+// Melee_Crouch_* with "melee", armslayer_ITEM1_Crouch_fire with "armslayer").
+inline bool sequenceLabelIsCrouchLocomotion(const std::string& label) {
+  return sequenceLabelPrimaryTokenMatches(label, "crouch");
+}
+
+// Crouch POSE: any other label that names a crouch. On the six classes without a
+// crouch locomotion cycle this resolves to PRIMARY_aimmatrix_crouch_idle (one
+// frame), which is a real crouched pose: the body is at least crouched instead
+// of running while the server says ducked.
+inline bool sequenceLabelIsCrouchPose(const std::string& label) {
+  return sequenceLabelHasToken(label, "crouch") && !sequenceLabelIsCrouchLocomotion(label);
+}
+
+// Flinch: a_flinch01 is the only hurt family in these tables (13 frames) and
+// only scout / soldier / pyro / demo carry it.
+//
+// SUBSTRING, not whole token, and the offline self-test is why: the label is
+// "a_flinch01", whose tokens are "a" and "flinch01" -- the digits are part of
+// the token, so sequenceLabelHasToken(label, "flinch") is FALSE on the only
+// family this predicate exists for. A whole-token test here would silently
+// never pick a flinch, which is the failure mode this state is meant to avoid.
+// The literal "flinch" occurs in no other family in the nine class tables
+// (model_pose_probe --dump-sequences), and one-shots are still excluded.
+inline bool sequenceLabelIsFlinch(const std::string& label) {
+  if (sequenceLabelIsOneShot(label)) return false;
+  return sequenceLabelHasSubstring(label, "flinch");
+}
+
+// A crouch pose is a pose, not an attack and not a reload: AttackCrouch_* and
+// ReloadCrouch_* also carry the token, and both are wrong for "the server says
+// ducked and this body is standing still".
+inline bool sequenceLabelIsCrouchPoseCandidate(const std::string& label) {
+  if (!sequenceLabelIsCrouchPose(label)) return false;
+  if (sequenceLabelIsOneShot(label)) return false;
+  if (sequenceLabelHasToken(label, "attack")) return false;
+  if (sequenceLabelHasToken(label, "swing")) return false;
+  if (sequenceLabelHasToken(label, "fire")) return false;
+  if (sequenceLabelHasToken(label, "stun")) return false;
+  return true;
+}
+
+// Pick the crouch locomotion cycle. Returns -1 when the model has no such cycle
+// (scout / soldier / demo / engineer / sniper / spy); the caller then falls back
+// to the crouch POSE rather than to the idle pick, because a standing run while
+// the server says ducked is the defect this state exists to remove.
+template <typename LabelAt, typename FrameCountAt>
+std::int32_t chooseCrouchLocomotionSequence(std::size_t sequenceCount,
+    const LabelAt& labelAt, const FrameCountAt& frameCountAt, std::string* label) {
+  std::int32_t posed = -1;
+  std::string posedLabel;
+  for (std::size_t index = 0; index < sequenceCount; ++index) {
+    const std::string& candidate = labelAt(index);
+    if (!sequenceLabelIsCrouchLocomotion(candidate)) continue;
+    if (sequenceLabelIsOneShot(candidate)) continue;
+    if (frameCountAt(index) > 1) {
+      if (label != nullptr) *label = candidate;
+      return static_cast<std::int32_t>(index);
+    }
+    if (posed < 0) {
+      posed = static_cast<std::int32_t>(index);
+      posedLabel = candidate;
+    }
+  }
+  if (posed >= 0 && label != nullptr) *label = posedLabel;
+  return posed;
+}
+
+// Pick the static crouch pose, preferring a one-frame posed clip (frameCount
+// <= 2) and rejecting the attack / reload / swing / fire families.
+template <typename LabelAt, typename FrameCountAt>
+std::int32_t chooseCrouchPoseSequence(std::size_t sequenceCount,
+    const LabelAt& labelAt, const FrameCountAt& frameCountAt, std::string* label) {
+  std::int32_t any = -1;
+  std::string anyLabel;
+  for (std::size_t index = 0; index < sequenceCount; ++index) {
+    const std::string& candidate = labelAt(index);
+    if (!sequenceLabelIsCrouchPoseCandidate(candidate)) continue;
+    const std::int32_t frames = frameCountAt(index);
+    if (frames <= 0) continue;
+    if (frames <= 2) {
+      if (label != nullptr) *label = candidate;
+      return static_cast<std::int32_t>(index);
+    }
+    if (any < 0) {
+      any = static_cast<std::int32_t>(index);
+      anyLabel = candidate;
+    }
+  }
+  if (any >= 0 && label != nullptr) *label = anyLabel;
+  return any;
+}
+
+// Pick the flinch clip. The frame count is returned through frameCountOut so the
+// caller can size the one-shot window in ticks instead of encoding 13 twice.
+template <typename LabelAt, typename FrameCountAt>
+std::int32_t chooseFlinchSequence(std::size_t sequenceCount,
+    const LabelAt& labelAt, const FrameCountAt& frameCountAt,
+    std::string* label, std::int32_t* frameCountOut) {
+  for (std::size_t index = 0; index < sequenceCount; ++index) {
+    const std::string& candidate = labelAt(index);
+    if (!sequenceLabelIsFlinch(candidate)) continue;
+    const std::int32_t frames = frameCountAt(index);
+    if (frames <= 1) continue;
+    if (label != nullptr) *label = candidate;
+    if (frameCountOut != nullptr) *frameCountOut = frames;
+    return static_cast<std::int32_t>(index);
+  }
+  return -1;
+}
+
 }  // namespace tf2::native

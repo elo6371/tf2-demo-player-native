@@ -2111,6 +2111,15 @@ bool outlineVertexExtent = false;
   // so a gate can prove the sampling chain end to end; a natural run keeps
   // rendering the bind pose exactly as before.
   bool playerAnimationEnabled = false;
+  // T84: the server-data-driven LAYER on top of T61's idle/moving drive.
+  // legacy (the default) keeps the T61 pick and therefore the pre-T84 picture
+  // byte for byte; states reads the player entity's own crouch and health
+  // properties and layers crouch / crouch-walk / flinch over the movement pick.
+  // Kept separate from playerAnimationEnabled so a legacy run can still be
+  // traced, and so "the flag is absent" and "the flag says legacy" read the
+  // same, which is what makes the byte-identical claim testable.
+  bool animationDriveStates = false;
+  bool animationDriveArgumentRejected = false;
   std::size_t viewModelBoneLimit = 0;   // 0 = upload the whole table
   // Which model the first-person pass draws.
   //
@@ -2765,6 +2774,26 @@ bool outlineVertexExtent = false;
         viewModelApplyAnimation = true;
       } else if (wcscmp(arguments[i], L"--player-animation") == 0) {
         playerAnimationEnabled = true;
+      } else if (wcscmp(arguments[i], L"--animation-drive") == 0 && i + 1 < argumentCount) {
+        // Refused rather than defaulted, for the same reason --capture-tick is:
+        // "the gate asked for states" and "the gate asked for nothing" must not
+        // read the same in the trace, and a typo must not silently fall back to
+        // the legacy pick and pass a gate that meant to prove the new layer.
+        const wchar_t* mode = arguments[++i];
+        if (wcscmp(mode, L"states") == 0) {
+          animationDriveStates = true;
+          // The state layer rides on the T61 clock (speed, moving/idle), so
+          // asking for it without --player-animation would silently do nothing.
+          // Implied here rather than refused, because "states" already names the
+          // drive this flag selects.
+          playerAnimationEnabled = true;
+        } else if (wcscmp(mode, L"legacy") == 0) {
+          animationDriveStates = false;
+        } else {
+          animationDriveArgumentRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--animation-drive") == 0) {
+        animationDriveArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--spectate-target") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const long parsed = std::wcstol(arguments[++i], &end, 10);
@@ -2993,6 +3022,10 @@ bool outlineVertexExtent = false;
   }
   if (captureTickRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-tick; refusing to guess a tick.\n");
+    return 13;
+  }
+  if (animationDriveArgumentRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --animation-drive; expected 'states' or 'legacy'.\n");
     return 13;
   }
   if (!captureDepthPath.empty() && captureFramePath.empty()) {
@@ -3386,6 +3419,22 @@ bool outlineVertexExtent = false;
     std::string sequenceLabel;
     float speed = 0.0f;
     bool moving = false;
+    // T84 state layer. The health pair is the flinch trigger: the server sends
+    // m_iHealth on the player every time it changes, so "this body lost health
+    // since the previous scene tick" is measurable without the animation-event
+    // enum that these demos do not carry a usable mapping for. Both fields are
+    // written only when a NEW tick is observed, because the scene update runs
+    // several frames per demo tick and a per-frame comparison would fire the
+    // one-shot again on every frame of the same damage tick.
+    bool hasLastHealth = false;
+    std::int32_t lastHealth = 0;
+    std::int32_t lastHealthTick = 0;
+    // The one-shot window, in demo ticks: start tick and tick count. Zero
+    // count means no one-shot is running.
+    bool oneShotActive = false;
+    std::int32_t oneShotStartTick = 0;
+    std::int32_t oneShotTicks = 0;
+    std::string oneShotLabel;
   };
   std::unordered_map<std::int32_t, PlayerAnimationRuntime> playerAnimationRuntimes;
   struct PlayerSequenceChoice {
@@ -3394,6 +3443,17 @@ bool outlineVertexExtent = false;
     std::int32_t moving = -1;
     std::string idleLabel;
     std::string movingLabel;
+    // T84: the state layers for this model. -1 is a real answer here and the
+    // trace says so ("no crouch label" / "no flinch label"); the caller must not
+    // substitute the idle pick for a crouch it could not find, because that is
+    // the "wrong clip for the state" defect this layer exists to remove.
+    std::int32_t crouchIdle = -1;
+    std::int32_t crouchMoving = -1;
+    std::int32_t flinch = -1;
+    std::int32_t flinchTicks = 0;
+    std::string crouchIdleLabel;
+    std::string crouchMovingLabel;
+    std::string flinchLabel;
   };
   std::unordered_map<std::string, PlayerSequenceChoice> playerSequenceChoices;
   const tf2::native::AnimationClockConfig playerAnimationConfig;
@@ -9048,6 +9108,70 @@ bool outlineVertexExtent = false;
         // carry is reported as missing rather than defaulted to sequence 0 --
         // "no sequence" and "sequence 0" are different states and only one of
         // them means the model should move.
+        // T84: the player's own SERVER state, read through the same suffix rule
+        // as the playback reader above. Everything here was measured on the wire
+        // first (P2-1 census, evidence/t62-p2-server-anim/report.tsv): CTFPlayer
+        // really does carry m_fFlags, m_bDucked, m_bDucking, m_flDucktime,
+        // m_iHealth and m_lifeState, while m_nSequence / m_flCycle do not come
+        // from the server at all. "Carries" is why this layer can be driven by
+        // data; "missing" stays a distinct answer so the trace can name the
+        // signal instead of guessing one.
+        struct PlayerDriveSignals {
+          bool hasFlags = false;
+          std::int32_t flags = 0;
+          bool hasDucked = false;
+          bool ducked = false;
+          bool hasDucking = false;
+          bool ducking = false;
+          bool hasDucktime = false;
+          float ducktime = 0.0f;
+          bool hasHealth = false;
+          std::int32_t health = 0;
+          bool hasLifeState = false;
+          std::int32_t lifeState = 0;
+        };
+        const auto readPlayerDriveSignals = [&](std::uint16_t entityIndex, PlayerDriveSignals& signals) {
+          if (entityIndex >= currentEntityStates.size()) return;
+          const auto& state = currentEntityStates[entityIndex];
+          const auto asInt = [](const tf2::native::EntityPropertyValue& value) {
+            return value.type == tf2::native::SendPropType::Float
+              ? static_cast<std::int32_t>(value.x)
+              : static_cast<std::int32_t>(value.intValue);
+          };
+          const auto asFloat = [](const tf2::native::EntityPropertyValue& value) {
+            return value.type == tf2::native::SendPropType::Float
+              ? value.x
+              : static_cast<float>(value.intValue);
+          };
+          for (const auto& entry : state.properties) {
+            const auto& name = entry.first;
+            const auto matches = [&](const char* suffix) {
+              const std::size_t length = std::strlen(suffix);
+              if (name.size() < length) return false;
+              if (name.compare(name.size() - length, length, suffix) != 0) return false;
+              return name.size() == length || name[name.size() - length - 1] == '.';
+            };
+            if (matches("m_fFlags")) {
+              signals.hasFlags = true;
+              signals.flags = asInt(entry.second);
+            } else if (matches("m_bDucked")) {
+              signals.hasDucked = true;
+              signals.ducked = asInt(entry.second) != 0;
+            } else if (matches("m_bDucking")) {
+              signals.hasDucking = true;
+              signals.ducking = asInt(entry.second) != 0;
+            } else if (matches("m_flDucktime")) {
+              signals.hasDucktime = true;
+              signals.ducktime = asFloat(entry.second);
+            } else if (matches("m_iHealth")) {
+              signals.hasHealth = true;
+              signals.health = asInt(entry.second);
+            } else if (matches("m_lifeState")) {
+              signals.hasLifeState = true;
+              signals.lifeState = asInt(entry.second);
+            }
+          }
+        };
         const auto readPlaybackState = [&](std::uint16_t entityIndex,
             tf2::native::AnimationSampleRequest& request, std::string& missingReason) {
           request.sequence = -1;
@@ -9173,6 +9297,15 @@ bool outlineVertexExtent = false;
         std::size_t playerAnimAdvanced = 0;
         std::size_t playerAnimSkipped = 0;
         float playerAnimMaxDelta = 0.0f;
+        // T84 state-layer readings. Instance counts, not bodies: one body can be
+        // counted on several frames of the same tick, which is what the byte
+        // assertion in the gate wants to see ("it kept moving"), not a headcount.
+        std::size_t playerAnimCrouch = 0;
+        std::size_t playerAnimCrouchWalk = 0;
+        std::size_t playerAnimFlinch = 0;
+        std::size_t playerAnimFlinchStarts = 0;
+        std::size_t playerAnimFallback = 0;
+        std::size_t stateTraceLines = 0;
         // T61: the draw budget. The renderer accepts 96 instances per update
         // and the resolver appends the player-class bodies AFTER every world
         // prop, so a first-come-first-served ceiling spends the whole budget on
@@ -9306,6 +9439,38 @@ bool outlineVertexExtent = false;
                 choice.resolved = true;
                 choice.idle = choosePlayerAnimationSequence(*binding, false, &choice.idleLabel);
                 choice.moving = choosePlayerAnimationSequence(*binding, true, &choice.movingLabel);
+                // T84: the state layers come from the SAME table and the same
+                // matcher header; the predicates there are what keep
+                // AttackCrouch_* out of the crouch pick. Frame counts travel
+                // with the pick because the one-shot window is sized from them.
+                const auto frameCountAt = [&binding](std::size_t index) -> std::int32_t {
+                  const auto& sequence = binding->anims.sequences[index];
+                  if (sequence.animDesc < 0
+                      || static_cast<std::size_t>(sequence.animDesc) >= binding->anims.animations.size()) {
+                    return 0;
+                  }
+                  return binding->anims.animations[static_cast<std::size_t>(sequence.animDesc)].frameCount;
+                };
+                const auto labelAt = [&binding](std::size_t index) -> const std::string& {
+                  return binding->anims.sequences[index].label;
+                };
+                std::int32_t crouchLocomotion = -1;
+                std::string crouchLocomotionLabel;
+                crouchLocomotion = tf2::native::chooseCrouchLocomotionSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt, &crouchLocomotionLabel);
+                choice.crouchMoving = crouchLocomotion;
+                choice.crouchMovingLabel = crouchLocomotionLabel;
+                const std::int32_t crouchPose = tf2::native::chooseCrouchPoseSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt, &choice.crouchIdleLabel);
+                // Standing still: the pose wins when there is one, because a
+                // locomotion cycle frozen at cycle 0 reads as a crouched run.
+                choice.crouchIdle = crouchPose >= 0 ? crouchPose : crouchLocomotion;
+                if (crouchPose < 0 && crouchLocomotion >= 0) {
+                  choice.crouchIdleLabel = crouchLocomotionLabel;
+                }
+                choice.flinch = tf2::native::chooseFlinchSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt,
+                  &choice.flinchLabel, &choice.flinchTicks);
                 // T61.1: one line per model, whatever the per-entity trace cap
                 // is. The pick is per modelPath and resolved once, so the
                 // capped "anim: ent=" lines can only ever show the first eight
@@ -9314,18 +9479,179 @@ bool outlineVertexExtent = false;
                 traceFmt("anim: pick model=%s idleSeq=%d idleLabel=%s movingSeq=%d movingLabel=%s",
                   instance.modelPath.c_str(), choice.idle, choice.idleLabel.c_str(),
                   choice.moving, choice.movingLabel.c_str());
+                if (animationDriveStates) {
+                  // One line per model for the state picks, so a gate can name
+                  // the clip each layer would play WITHOUT relying on a body
+                  // being on screen at that tick.
+                  traceFmt("anim: staterefs model=%s crouchPoseSeq=%d crouchPoseLabel=%s crouchMoveSeq=%d crouchMoveLabel=%s flinchSeq=%d flinchLabel=%s flinchTicks=%d",
+                    instance.modelPath.c_str(), choice.crouchIdle, choice.crouchIdleLabel.c_str(),
+                    choice.crouchMoving, choice.crouchMovingLabel.c_str(),
+                    choice.flinch, choice.flinchLabel.c_str(), choice.flinchTicks);
+                }
               }
-              const std::int32_t chosen = runtime.moving ? choice.moving : choice.idle;
+              std::int32_t chosen = runtime.moving ? choice.moving : choice.idle;
+              std::string chosenLabel = runtime.moving ? choice.movingLabel : choice.idleLabel;
+              float chosenCycle = step.cycle;
+              // T84: the server-data-driven layer. legacy never enters this
+              // block, so the pre-T84 pick -- and the picture it produced -- is
+              // untouched by the flag being absent.
+              //
+              // WHAT DRIVES WHAT. Crouch comes from the player entity's own
+              // properties: m_fFlags bit 1 (FL_DUCKING) OR the duck fields the
+              // server actually animates (m_bDucked / m_bDucking /
+              // m_flDucktime). The OR is not belt-and-braces: the P2-1 census
+              // measured a mid-duck body at m_fFlags=131329 (bit 1 CLEAR) with
+              // m_bDucking=1 and m_flDucktime=940, so a flags-only trigger would
+              // have missed the state it exists for.
+              //
+              // Flinch comes from m_iHealth DECREASING between two observed
+              // scene ticks on a living body. CTEPlayerAnimEvent is deliberately
+              // NOT used: the census over these recordings found no value that
+              // maps to die / hurt / attack (109 player_death events against 545
+              // occurrences of the only die-sized candidate, and the event's
+              // player field never equals the game event's userid), so reading
+              // an enum out of it would be a guess wearing a number.
+              if (animationDriveStates) {
+                PlayerDriveSignals signals;
+                readPlayerDriveSignals(instance.entityIndex, signals);
+                const bool newTick = !runtime.hasLastHealth || runtime.lastHealthTick != resolvedSceneTick;
+                // A body with no m_lifeState is treated as alive: the field is on
+                // the wire in every sample the census took, so its absence means
+                // "this entity did not send it", not "this body is a corpse".
+                bool alive = true;
+                if (signals.hasLifeState) alive = signals.lifeState == 0;
+                if (signals.hasHealth && newTick) {
+                  if (runtime.hasLastHealth && signals.health < runtime.lastHealth
+                      && alive && choice.flinch >= 0 && !runtime.oneShotActive) {
+                    runtime.oneShotActive = true;
+                    runtime.oneShotStartTick = resolvedSceneTick;
+                    runtime.oneShotTicks = choice.flinchTicks > 0 ? choice.flinchTicks : 13;
+                    runtime.oneShotLabel = choice.flinchLabel;
+                    ++playerAnimFlinchStarts;
+                  }
+                  runtime.hasLastHealth = true;
+                  runtime.lastHealth = signals.health;
+                  runtime.lastHealthTick = resolvedSceneTick;
+                }
+                const bool duckFlags = signals.hasFlags && (signals.flags & 0x2) != 0;
+                const bool duckFields = (signals.hasDucked && signals.ducked)
+                  || (signals.hasDucking && signals.ducking)
+                  || (signals.hasDucktime && signals.ducktime > 0.0f);
+                const bool crouched = duckFlags || duckFields;
+                bool layered = false;
+                const char* layerName = nullptr;
+                const char* layerReason = nullptr;
+                if (runtime.oneShotActive) {
+                  const std::int32_t elapsed = resolvedSceneTick - runtime.oneShotStartTick;
+                  if (elapsed >= 0 && elapsed < runtime.oneShotTicks && choice.flinch >= 0) {
+                    layered = true;
+                    layerName = "flinch";
+                    layerReason = "health-drop";
+                    chosen = choice.flinch;
+                    chosenLabel = choice.flinchLabel;
+                    chosenCycle = runtime.oneShotTicks > 0
+                      ? static_cast<float>(elapsed) / static_cast<float>(runtime.oneShotTicks) : 0.0f;
+                    ++playerAnimFlinch;
+                  } else {
+                    // The clip ended (or the body stopped being drawn): the
+                    // movement layer takes over on the next frame, which is the
+                    // "returns to the movement layer" requirement.
+                    runtime.oneShotActive = false;
+                  }
+                }
+                if (!layered && crouched && alive) {
+                  // The state names the SERVER state, not the clip: a crouched
+                  // body that is moving is crouch-walking whether or not its
+                  // class table carries a crouch locomotion cycle. The clip that
+                  // was actually chosen is in the label= of the trace line, and
+                  // when the class has no such cycle the reason says
+                  // no-crouch-locomotion, so the state name can never be read as
+                  // a claim about a clip that is not there.
+                  if (runtime.moving) {
+                    if (choice.crouchMoving >= 0) {
+                      layered = true;
+                      layerName = "crouchwalk";
+                      layerReason = duckFlags ? "flags-duck" : "duck-fields";
+                      chosen = choice.crouchMoving;
+                      chosenLabel = choice.crouchMovingLabel;
+                    } else if (choice.crouchIdle >= 0) {
+                      // Six of the nine classes have no crouch-walk cycle: the
+                      // crouch pose is the fallback and the reason names it.
+                      layered = true;
+                      layerName = "crouchwalk";
+                      layerReason = "no-crouch-locomotion";
+                      chosen = choice.crouchIdle;
+                      chosenLabel = choice.crouchIdleLabel;
+                    }
+                    if (layered) {
+                      chosenCycle = step.cycle;
+                      ++playerAnimCrouchWalk;
+                    }
+                  } else if (choice.crouchIdle >= 0) {
+                    layered = true;
+                    layerName = "crouch";
+                    layerReason = duckFlags ? "flags-duck" : "duck-fields";
+                    chosen = choice.crouchIdle;
+                    chosenLabel = choice.crouchIdleLabel;
+                    chosenCycle = step.cycle;
+                    ++playerAnimCrouch;
+                  }
+                }
+                if (!layered) ++playerAnimFallback;
+                // T84: trace state TRANSITIONS per entity, not every frame. A
+                // full-playback cover run draws bodies on thousands of frames; a
+                // line per frame would be a huge trace that hides the one thing a
+                // gate can assert. Fallback frames are counted, never traced.
+                if (layerName != nullptr) {
+                  // static on purpose (function scope): it survives frames and
+                  // answers "did this entity's layered state change since it was
+                  // last reported".
+                  static std::unordered_map<std::uint16_t, std::string> lastTracedDriveState;
+                  const std::uint16_t traceEntity = instance.entityIndex;
+                  const auto traced = lastTracedDriveState.find(traceEntity);
+                  if (traced == lastTracedDriveState.end() || traced->second != layerName) {
+                    lastTracedDriveState[traceEntity] = layerName;
+                    if (stateTraceLines < 24) {
+                      ++stateTraceLines;
+                      // The needle is the literal the gate asserts against: the
+                      // chosen label must CONTAIN it, which is what makes the line
+                      // evidence of the clip rather than a claim about it.
+                      const char* needle = "idle|moving";
+                      if (std::strcmp(layerName, "crouchwalk") == 0) needle = "crouch";
+                      else if (std::strcmp(layerName, "crouch") == 0) needle = "crouch";
+                      else if (std::strcmp(layerName, "flinch") == 0) needle = "flinch";
+                      // speed is the number that decided crouch vs crouchwalk, so
+                      // the line carries it instead of asking the reader to trust
+                      // the state name.
+                      traceFmt("anim: state ent=%d tick=%d state=%s reason=%s crouchSig=%d flags=%d ducked=%d ducking=%d ducktime=%.1f health=%d alive=%d speed=%.2f seq=%d label=%s cycle=%.6f needle=%s",
+                        static_cast<int>(instance.entityIndex), static_cast<int>(resolvedSceneTick),
+                        layerName,
+                        layerReason != nullptr ? layerReason : "no-state",
+                        crouched ? 1 : 0,
+                        signals.hasFlags ? static_cast<int>(signals.flags) : -1,
+                        signals.hasDucked ? (signals.ducked ? 1 : 0) : -1,
+                        signals.hasDucking ? (signals.ducking ? 1 : 0) : -1,
+                        signals.hasDucktime ? static_cast<double>(signals.ducktime) : -1.0,
+                        signals.hasHealth ? static_cast<int>(signals.health) : -1,
+                        alive ? 1 : 0,
+                        static_cast<double>(runtime.speed),
+                        static_cast<int>(chosen),
+                        chosenLabel.empty() ? "-" : chosenLabel.c_str(),
+                        static_cast<double>(chosenCycle), needle);
+                    }
+                  }
+                }
+              }
               if (chosen >= 0) {
                 runtime.sequence = chosen;
-                runtime.sequenceLabel = runtime.moving ? choice.movingLabel : choice.idleLabel;
+                runtime.sequenceLabel = chosenLabel;
                 // Feed the clock's cycle through the existing sampling path:
                 // the sequence and cycle the demo would have supplied are
                 // replaced, everything downstream (binding, sampling, upload)
                 // is the code the weapon entities already use.
                 request.sequence = chosen;
                 request.hasCycle = true;
-                request.cycle = step.cycle;
+                request.cycle = chosenCycle;
                 request.hasPlaybackRate = false;
               } else {
                 ++playerAnimSkipped;
@@ -9530,6 +9856,13 @@ bool outlineVertexExtent = false;
           traceFmt("animsum: tick=%d players=%zu moving=%zu idle=%zu advanced=%zu skipped=%zu maxDeltaCycle=%.6f",
             static_cast<int>(resolvedSceneTick), playerAnimEntities, playerAnimMoving,
             playerAnimIdle, playerAnimAdvanced, playerAnimSkipped, playerAnimMaxDelta);
+        }
+        if (animationDriveStates) {
+          // A separate line, not extra fields on animsum: the legacy gate reads
+          // animsum as a fixed record, and this switch must not change it.
+          traceFmt("animdsum: tick=%d crouch=%zu crouchwalk=%zu flinch=%zu flinchStarts=%zu fallback=%zu",
+            static_cast<int>(resolvedSceneTick), playerAnimCrouch, playerAnimCrouchWalk,
+            playerAnimFlinch, playerAnimFlinchStarts, playerAnimFallback);
         }
         traceFmt("scene: setInstances draws=%zu markers=%zu playerDraws=%zu propDraws=%zu playerBudget=%zu propBudget=%zu",
           draws.size(), fallbackMarkers.size(), playerDraws, propDraws, playerBudget, propBudget);
