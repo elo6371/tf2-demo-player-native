@@ -1,0 +1,55 @@
+ACQUIRED owner=t62-appr-fix at 2026-11-05 09:30:43
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- red-demo: demo ent=4 tick=63000 origin=4336.8,-704.3,-39.9 eye=4086.8,-704.3,18.1
+  captures identity=0/entity-id/63000/72374 painted=0/textured/63000/72374
+  LEDGER 59262.6 entity: id=88 ent=4 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4336.8,-704.3,-39.9 frame_tick=63000
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 1538 pixels (>= 200)
+  BODY id=88 pixels=1538 mean_r=56.1 mean_g=11.6 mean_b=8.0 r_minus_b=48.1 b_minus_r=-48.1
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 48.1 (>= 15)
+
+--- blu-demo: demo ent=5 tick=63000 origin=3759.9,-1163.8,8.0 eye=3509.9,-1163.8,66.0
+  captures identity=0/entity-id/63000/72374 painted=0/textured/63000/72374
+  LEDGER 59893.2 entity: id=89 ent=5 model=models/player/demo.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3759.9,-1163.8,8.0 frame_tick=63000
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1588 pixels (>= 200)
+  BODY id=89 pixels=1588 mean_r=13.4 mean_g=22.4 mean_b=35.1 r_minus_b=-21.6 b_minus_r=21.6
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 21.6 (>= 15)
+
+--- red-scout: scout ent=3 tick=63000 origin=4457.3,-791.8,-54.2 eye=4207.3,-791.8,3.8
+  captures identity=0/entity-id/63000/72374 painted=0/textured/63000/72374
+  LEDGER 61703.7 entity: id=87 ent=3 model=models/player/scout.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4457.3,-791.8,-54.2 frame_tick=63000
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 1129 pixels (>= 200)
+  BODY id=87 pixels=1129 mean_r=104.6 mean_g=21.7 mean_b=15.3 r_minus_b=89.3 b_minus_r=-89.3
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 89.3 (>= 15)
+
+--- blu-scout: scout ent=15 tick=63000 origin=3724.3,-1261.9,8.0 eye=3474.3,-1261.9,66.0
+  captures identity=0/entity-id/63000/72374 painted=0/textured/63000/72374
+  LEDGER 56709.4 entity: id=96 ent=15 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3724.3,-1261.9,8.0 frame_tick=63000
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 847 pixels (>= 200)
+  BODY id=96 pixels=847 mean_r=27.9 mean_g=45.4 mean_b=71.7 r_minus_b=-43.8 b_minus_r=43.8
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 43.8 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR scout is judged in both teams (2,3) with ids 87,96 and pixels 1129,847
+  PAIR scout red-minus-blu gap = 133.1 (red 89.3, blu -43.8)
+  OK   the two teams separate by 133.1 >= 40
+  PAIR demo is judged in both teams (2,3) with ids 88,89 and pixels 1538,1588
+  PAIR demo red-minus-blu gap = 69.7 (red 48.1, blu -21.6)
+  OK   the two teams separate by 69.7 >= 40
+  OK   this batch asked for both teams and judged bodies in both
+
+===========================================================================
+BODY-APPEARANCE=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=t62-appr-fix
+rc=0
