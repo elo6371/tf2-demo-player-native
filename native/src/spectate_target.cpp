@@ -100,21 +100,7 @@ void SpectateDirector::update(double nowSeconds,
   if (serverTick >= 0) lastServerTick_ = serverTick;
 
   // ---- 2. who is dead ----------------------------------------------------
-  deadIndices_.clear();
-  for (const SpectateSlot& slot : slots) {
-    if (slot.entityIndex < 0 || !slot.isPlayer) continue;
-    // Hiding a body is a statement about the picture, so it needs POSITIVE
-    // evidence: m_lifeState not 0, or a health reading at or below zero. A row
-    // with neither is not a corpse, it is a row this snapshot never resolved --
-    // such a row is still refused as a camera target (slotAlive is false), but
-    // what gets drawn stays the draw path's decision, not this one.
-    const bool certainDeath = (slot.hasLifeState && slot.lifeState != 0)
-      || (slot.hasHealth && slot.health <= 0);
-    if (!certainDeath) continue;
-    deadIndices_.push_back(slot.entityIndex);
-  }
-  std::sort(deadIndices_.begin(), deadIndices_.end());
-  hiddenDead_ = static_cast<std::uint32_t>(deadIndices_.size());
+  refreshDead(slots);
 
   // ---- 3. what the demo's own director says ------------------------------
   // The handle's entry index is a WORLD slot, while `slots` is only the rows this
@@ -288,6 +274,26 @@ void SpectateDirector::update(double nowSeconds,
   }
 }
 
+void SpectateDirector::refreshDead(const std::vector<SpectateSlot>& slots) {
+  // Exactly the corpse rule update() step 2 applies, exposed so a draw path can
+  // ask for THIS snapshot's dead set instead of inheriting the previous frame's.
+  // The rule is repeated nowhere else: update() calls this method.
+  deadIndices_.clear();
+  for (const SpectateSlot& slot : slots) {
+    if (slot.entityIndex < 0 || !slot.isPlayer) continue;
+    // Hiding a body is a statement about the picture, so it needs POSITIVE
+    // evidence: m_lifeState not 0, or a health reading at or below zero. A row
+    // with neither is not a corpse, it is a row this snapshot never resolved --
+    // such a row is still refused as a camera target (slotAlive is false), but
+    // what gets drawn stays the draw path's decision, not this one.
+    const bool certainDeath = (slot.hasLifeState && slot.lifeState != 0)
+      || (slot.hasHealth && slot.health <= 0);
+    if (!certainDeath) continue;
+    deadIndices_.push_back(slot.entityIndex);
+  }
+  std::sort(deadIndices_.begin(), deadIndices_.end());
+  hiddenDead_ = static_cast<std::uint32_t>(deadIndices_.size());
+}
 void SpectateDirector::pickManual(std::int32_t entityIndex) {
   manualPending_ = true;
   manualTarget_ = entityIndex;

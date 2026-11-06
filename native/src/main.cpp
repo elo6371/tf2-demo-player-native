@@ -9093,57 +9093,6 @@ bool outlineVertexExtent = false;
         traceFmt("scene: buildInstances=%zu requests=%zu states=%zu scanned=%zu classLookups=%zu cap=256",
           modelInstances.size(), resolverStats.instanceRequests, currentEntityStates.size(),
           resolverStats.fallbackEntitiesScanned, resolverStats.classLookups);
-        // T66 rule 1 removes a dead player from the SUBMITTED set here, before the
-        // budget and focus passes see it, instead of skipping it inside the draw
-        // loop. A skip and a removal leave the same picture, but only a removal can
-        // be counted, and the count is the evidence: corpses=0 with the camera
-        // pointed somewhere else entirely still has to say "this player's model is
-        // not in this frame". Skipping inside the loop could only prove that the
-        // instances we skipped were the ones we skipped.
-        std::vector<tf2::native::ModelInstance> drawCandidates;
-        std::string corpseSignature;
-        std::string cameraSignature;
-        drawCandidates.reserve(modelInstances.size());
-        for (const auto& candidate : modelInstances) {
-          // T81: the relay camera stands in one player's eye; that player's body
-          // is hidden whether they are alive or not (see g_spectateCameraHiddenEntity).
-          const bool hiddenForCamera =
-            g_spectateCameraHiddenEntity >= 0
-            && static_cast<std::int32_t>(candidate.entityIndex) == g_spectateCameraHiddenEntity;
-          if (hiddenForCamera) {
-            // Counted separately from the corpse rule: the corpse counters are a
-            // T66 contract with fixed meanings, and "the camera is inside this
-            // player" is a different statement from "this player is dead".
-            ++g_spectateCameraHiddenInstances;
-            if (!cameraSignature.empty()) cameraSignature += ',';
-            cameraSignature += std::to_string(candidate.entityIndex);
-            continue;
-          }
-          if (!g_spectateShowCorpses
-              && g_spectateDirector.hidesModel(static_cast<std::int32_t>(candidate.entityIndex))) {
-            ++g_spectateHiddenInstances;
-            if (!corpseSignature.empty()) corpseSignature += ',';
-            corpseSignature += std::to_string(candidate.entityIndex);
-            continue;
-          }
-          drawCandidates.push_back(candidate);
-        }
-        static std::string lastCameraSignature;
-        if (cameraSignature != lastCameraSignature) {
-          lastCameraSignature = cameraSignature;
-          traceFmt("scene: cameraFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
-            cameraSignature.empty() ? 0 : std::count(cameraSignature.begin(), cameraSignature.end(), ',') + 1,
-            cameraSignature.empty() ? "-" : cameraSignature.c_str(),
-            drawCandidates.size(), modelInstances.size());
-        }
-        static std::string lastCorpseSignature;
-        if (corpseSignature != lastCorpseSignature) {
-          lastCorpseSignature = corpseSignature;
-          traceFmt("scene: corpseFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
-            corpseSignature.empty() ? 0 : std::count(corpseSignature.begin(), corpseSignature.end(), ',') + 1,
-            corpseSignature.empty() ? "-" : corpseSignature.c_str(),
-            drawCandidates.size(), modelInstances.size());
-        }
         std::vector<tf2::native::EntityModelDrawInstance> draws;
         std::vector<tf2::native::EntityMarker> fallbackMarkers;
         // Every skinned instance's matrices, concatenated. One upload per scene
@@ -9329,6 +9278,67 @@ bool outlineVertexExtent = false;
         // user pauses -- which is the situation the requirement calls out.
         spectateSceneTick = sceneTick;
         spectateSnapshotDrawable = snapshotDrawable;
+        // T66/T62: the corpse filter must read THIS snapshot, not the previous
+        // frame's verdict. update() below runs after the draw and on the wall
+        // clock (so a paused demo still hands over); using its dead set here meant
+        // a body that died on this tick was drawn on the frame that first saw the
+        // death and hidden on the next. That one frame of difference followed how
+        // far the wall clock had let playback run, not the recording, and the same
+        // command could produce either frame. Asking the director to recompute the
+        // set from the slots just built makes the picture a function of the tick.
+        g_spectateDirector.refreshDead(spectateSlots);
+        // T66 rule 1 removes a dead player from the SUBMITTED set here, before the
+        // budget and focus passes see it, instead of skipping it inside the draw
+        // loop. A skip and a removal leave the same picture, but only a removal can
+        // be counted, and the count is the evidence: corpses=0 with the camera
+        // pointed somewhere else entirely still has to say "this player's model is
+        // not in this frame". Skipping inside the loop could only prove that the
+        // instances we skipped were the ones we skipped.
+        std::vector<tf2::native::ModelInstance> drawCandidates;
+        std::string corpseSignature;
+        std::string cameraSignature;
+        drawCandidates.reserve(modelInstances.size());
+        for (const auto& candidate : modelInstances) {
+          // T81: the relay camera stands in one player's eye; that player's body
+          // is hidden whether they are alive or not (see g_spectateCameraHiddenEntity).
+          const bool hiddenForCamera =
+            g_spectateCameraHiddenEntity >= 0
+            && static_cast<std::int32_t>(candidate.entityIndex) == g_spectateCameraHiddenEntity;
+          if (hiddenForCamera) {
+            // Counted separately from the corpse rule: the corpse counters are a
+            // T66 contract with fixed meanings, and "the camera is inside this
+            // player" is a different statement from "this player is dead".
+            ++g_spectateCameraHiddenInstances;
+            if (!cameraSignature.empty()) cameraSignature += ',';
+            cameraSignature += std::to_string(candidate.entityIndex);
+            continue;
+          }
+          if (!g_spectateShowCorpses
+              && g_spectateDirector.hidesModel(static_cast<std::int32_t>(candidate.entityIndex))) {
+            ++g_spectateHiddenInstances;
+            if (!corpseSignature.empty()) corpseSignature += ',';
+            corpseSignature += std::to_string(candidate.entityIndex);
+            continue;
+          }
+          drawCandidates.push_back(candidate);
+        }
+        static std::string lastCameraSignature;
+        if (cameraSignature != lastCameraSignature) {
+          lastCameraSignature = cameraSignature;
+          traceFmt("scene: cameraFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
+            cameraSignature.empty() ? 0 : std::count(cameraSignature.begin(), cameraSignature.end(), ',') + 1,
+            cameraSignature.empty() ? "-" : cameraSignature.c_str(),
+            drawCandidates.size(), modelInstances.size());
+        }
+        static std::string lastCorpseSignature;
+        if (corpseSignature != lastCorpseSignature) {
+          lastCorpseSignature = corpseSignature;
+          traceFmt("scene: corpseFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
+            corpseSignature.empty() ? 0 : std::count(corpseSignature.begin(), corpseSignature.end(), ',') + 1,
+            corpseSignature.empty() ? "-" : corpseSignature.c_str(),
+            drawCandidates.size(), modelInstances.size());
+        }
+
         // A valid relay focus is already applied above; the fallbacks below only
         // run when the director has no answer (pre-snapshot or unresolved world).
         bool focused = g_spectateDirector.focusValid();

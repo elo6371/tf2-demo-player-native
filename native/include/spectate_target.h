@@ -105,6 +105,13 @@ public:
               std::int32_t serverTick,
               double playbackSpeed);
 
+  // Recompute the dead set from a snapshot WITHOUT taking the camera decision.
+  // The draw path runs before the frame's own update(): it must be able to ask
+  // which bodies THIS snapshot calls corpses, or a death row is drawn on the
+  // frame that sees it and hidden on the frame after. Readings the gates assert
+  // (target, source, counters) are untouched.
+  void refreshDead(const std::vector<SpectateSlot>& slots);
+
   // The player the user clicked. It takes effect on the next update, immediately
   // and without a transition; the source reads Manual so a gate can tell the two
   // paths apart.
