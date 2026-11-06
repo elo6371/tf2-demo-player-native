@@ -1,4 +1,4 @@
-handover n=1 tick0=13615 tick1=13776 samples=14 total=4495.3 largest=715.2 maxstep=0.159 monotone=1 startgap=0.0 endgap=0.0
-handover n=2 tick0=15907 tick1=16073 samples=11 total=983.1 largest=132.5 maxstep=0.135 monotone=1 startgap=0.0 endgap=0.0
-handover n=3 tick0=19500 tick1=19669 samples=11 total=776.8 largest=99.9 maxstep=0.129 monotone=1 startgap=0.0 endgap=0.0
+handover n=1 tick0=13619 tick1=13789 samples=13 total=4495.3 largest=609.5 maxstep=0.136 monotone=1 startgap=0.0 endgap=0.0
+handover n=2 tick0=15917 tick1=16082 samples=12 total=983.1 largest=128.8 maxstep=0.131 monotone=1 startgap=0.0 endgap=0.0
+handover n=3 tick0=19498 tick1=19667 samples=13 total=776.8 largest=131.8 maxstep=0.170 monotone=1 startgap=0.0 endgap=0.0
 HANDOVERS=3

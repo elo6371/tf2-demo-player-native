@@ -11,3 +11,14 @@ BODIES drawn player bodies on screen:
 BODY id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY pixels=1161 differ=500 share=43.07%
 DECODED id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
 ENTITY-ID=PASS
+frame: class=scout ent=15 tick=64161
+frame: bmp animated sha256=be6842bc5dbae811f386fca4b644751ee4559bb239b7d17573c9012e34d97036
+frame: bmp identity sha256=7317b7a28afedbb129d9e564ed4c0f7aa1bb3e6497cd80a98471f73205f0e423
+frame: bmp identity-2 sha256=7317b7a28afedbb129d9e564ed4c0f7aa1bb3e6497cd80a98471f73205f0e423
+frame: bmp off sha256=616891ac1b79e63fac3b845a123ecd65b31a10db4c33f642b3fdf5548b692873
+frame: identity capture twice byte-identical=yes
+frame: product sha256=891bfd7a0e7cc412fe3912c6f4deb4ca57e36618bfa31d59d06f5a5370b4f11c
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+frame: request tick=64161 speed=32
+frame: request camera=2492.7,-1327.1,-54.0,4.1,0.0
+frame: request flags=--player-animation --world-entity-id

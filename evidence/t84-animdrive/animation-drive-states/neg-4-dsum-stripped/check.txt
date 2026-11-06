@@ -1,0 +1,14 @@
+  OK   A default frame == --animation-drive legacy frame (md5 d42e2e734bc0757d8a39224b102addb0)
+  OK   A legacy trace carries no animdsum line
+  OK   A legacy trace still carries the T61 lines (anim: pick x7, animsum x13092)
+  OK   B the states trace names state=flinch (x24) and plays a_flinch frames (x27065)
+  OK   B the legacy trace names no state and plays no flinch (legacy is still the T61 path)
+  LINE B flinch tick 16780 md5 d42e2e734bc0757d8a39224b102addb0 (states) vs d42e2e734bc0757d8a39224b102addb0 (legacy) -- identical is EXPECTED here, that body draws no pixels
+  OK   B repeated states run at tick 16780 is byte-identical
+  OK   B both crouch ticks name the same state (state=crouch)
+  OK   B crouch layer reached the frame: states f814baec0f0b9054878cb0b85c38fd95 != legacy b9439a65b1b57ff8a4dc3181bc1d05d9 at tick 14765
+  LINE B crouch tick 14765 md5 f814baec0f0b9054878cb0b85c38fd95, tick 14800 md5 f814baec0f0b9054878cb0b85c38fd95 (state=crouch both)
+  OK   C state=crouch needle=crouch reason=flags-duck
+  OK   C state=crouchwalk needle=crouch reason=flags-duck
+  OK   C state=flinch needle=flinch reason=health-drop
+  FAIL C no animdsum line in the cover run trace

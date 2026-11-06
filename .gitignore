@@ -187,3 +187,20 @@ evidence/t62-matrix/bone-mismatch/control-*.trace
 # identical; RUNS-2026-11-04.md section 17 records the four hashes. The second copy is a
 # run artifact (0-byte log, 2.5 MB bitmap), not evidence.
 evidence/t62-matrix/class-pixels/**/identity-2.*
+
+# The animation-drive gate captures nine frames per run, each with a 40-80 MB trace, and then
+# copies frames and traces into four negative-control directories, one copy per control: the
+# output directory held 2.9 GB after the 2026-11-06 run. What is tracked is the verdict
+# (gate.txt), the three frames the pixel assertions name (default.bmp, states-crouch.bmp,
+# legacy-crouch.bmp) with their csv/log/rc, each control's check.txt, and README.md. Frames and
+# traces regenerate from the same binary at the same ticks; the ticks are named in gate.txt.
+evidence/t84-animdrive/animation-drive-states/*.trace
+evidence/t84-animdrive/animation-drive-states/*.bmp
+evidence/t84-animdrive/animation-drive-states/*.csv
+evidence/t84-animdrive/animation-drive-states/*.log
+evidence/t84-animdrive/animation-drive-states/*.rc
+evidence/t84-animdrive/animation-drive-states/neg-*/*.trace
+evidence/t84-animdrive/animation-drive-states/neg-*/*.bmp
+evidence/t84-animdrive/animation-drive-states/neg-*/*.csv
+evidence/t84-animdrive/animation-drive-states/neg-*/*.log
+evidence/t84-animdrive/animation-drive-states/neg-*/*.rc

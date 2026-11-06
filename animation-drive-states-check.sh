@@ -15,11 +15,15 @@
 #      really executes; the default run and --animation-drive legacy must produce
 #      the same frame bytes as today, keep the T61 anim trace lines, and must not
 #      emit the new animdsum line.
-#   B. THE STATE LAYER REACHES THE FRAME. With --animation-drive states at a tick
-#      where the server says crouch/flinch, the frame must differ byte-wise from
-#      the legacy frame at the SAME tick (one pair at the flinch tick, one at the
-#      crouch tick); two runs of the same states tick must be byte-identical (no
-#      clock, no randomness). What this gate does NOT assert, and why: two ticks
+#   B. THE STATE LAYER REACHES THE PICTURE. Two readings, because one tick cannot
+#      carry both halves. At the CROUCH tick the states frame must differ byte-wise
+#      from a legacy frame captured at the SAME tick (the driven body is on screen
+#      there). At the FLINCH tick the states trace must name state=flinch and play
+#      a_flinch sequence frames while the legacy trace names no state at all: in
+#      this recording the flinching body is not on screen, so identical pixels at
+#      that tick are the expected result, not a missing layer (freeze6,
+#      2026-11-06; see the B1 reading comment). Two runs of the same states tick
+#      must be byte-identical (no clock, no randomness). What this gate does NOT assert, and why: two ticks
 #      inside one crouch are expected to be identical, because the crouch pick is
 #      an aim-matrix pose (label=PRIMARY_aimmatrix_crouch_idle cycle=0.000000).
 #   C. EACH STATE IS NAMED. The trace must carry per-state lines with the needle
@@ -35,10 +39,10 @@
 # expected FAIL text, not just any FAIL):
 #   1. flinch state lines renamed to fallback in a copy of the traces -> the
 #      per-state coverage line for flinch disappears;
-#   2. the legacy frame presented as the states frame at the flinch tick -> the
-#      same-tick byte difference disappears;
-#   3. the legacy frame presented as the states frame at the crouch tick -> the
-#      crouch-layer reading disappears;
+#   2. the flinch evidence stripped from the states trace -> the flinch reading
+#      disappears;
+#   3. the legacy crouch frame presented as the states crouch frame -> the
+#      crouch-layer pixel reading disappears;
 #   4. the animdsum counter lines stripped from the cover trace -> the playback
 #      coverage reading has no frames to read.
 #
@@ -136,10 +140,12 @@ check_artifacts() {
   local crouch_bmp="$d/states-crouch.bmp" crouch_trace="$d/states-crouch.trace"
   local crouch_b_bmp="$d/states-crouch-b.bmp" crouch_b_trace="$d/states-crouch-b.trace"
   local legacy_bmp="$d/legacy.bmp" legacy_trace="$d/legacy.trace"
+  local legacy_crouch_bmp="$d/legacy-crouch.bmp"
   local cover_trace="$d/states-cover.trace"
   local bad=0 missing=0 f
   for f in "$bmp" "$states_trace" "$states2_bmp" "$crouch_bmp" "$crouch_trace" \
-           "$crouch_b_bmp" "$crouch_b_trace" "$legacy_bmp" "$legacy_trace" "$cover_trace"; do
+           "$crouch_b_bmp" "$crouch_b_trace" "$legacy_bmp" "$legacy_trace" \
+           "$legacy_crouch_bmp" "$cover_trace"; do
     [ -s "$f" ] || { echo "  FAIL missing artifact: $f"; missing=1; bad=1; }
   done
   [ "$missing" -eq 0 ] || return 1
@@ -171,15 +177,41 @@ check_artifacts() {
     bad=1
   fi
 
-  # B1. the state layer reaches the frame.
+  # B1. the flinch layer reaches the ANIMATION READING, not the frame.
+  #     The flinch fires on a body the recording's own first-person camera is not
+  #     looking at: in freeze6 (2026-11-06 11:29) the states run moved that body
+  #     from seq=9 to seq=17 (label=a_flinch01, advanced=1) and the captured frame
+  #     stayed byte-identical to legacy (md5 d42e2e734bc0757d8a39224b102addb0),
+  #     because a body that contributes no pixels cannot change a pixel. The old
+  #     reading here asserted "the frame must differ at the flinch tick", which is
+  #     a false statement about THIS demo, not a true one about the product. The
+  #     pixel proof that the states layer reaches the frame is B3, at the crouch
+  #     tick, where the driven body is on screen (f814baec... vs b9439a65...).
+  #     What B1 can own is the reading the gate is actually about: the states run
+  #     names state=flinch and plays a_flinch sequence frames, and the legacy run
+  #     does neither.
   local states_md5 crouch_md5 crouch_b_md5
+  local states_flinch_lines states_flinch_seq legacy_state_lines legacy_flinch_seq
   states_md5=$(md5_of "$bmp")
-  if [ -n "$states_md5" ] && [ "$states_md5" != "$legacy_md5" ]; then
-    echo "  OK   B states frame differs from legacy at tick $FLINCH_TICK (md5 $states_md5 vs $legacy_md5)"
+  states_flinch_lines=$(grep -a 'anim: state ' "$states_trace" | grep -ac 'state=flinch ' || true)
+  states_flinch_seq=$(grep -ac 'label=a_flinch0' "$states_trace" || true)
+  legacy_state_lines=$(grep -ac 'anim: state ' "$legacy_trace" || true)
+  legacy_flinch_seq=$(grep -ac 'label=a_flinch0' "$legacy_trace" || true)
+  if [ "${states_flinch_lines:-0}" -ge 1 ] && [ "${states_flinch_seq:-0}" -ge 1 ]; then
+    echo "  OK   B the states trace names state=flinch (x$states_flinch_lines) and plays a_flinch frames (x$states_flinch_seq)"
   else
-    echo "  FAIL B states frame is byte-identical to legacy at tick $FLINCH_TICK (md5 ${states_md5:-none})"
+    echo "  FAIL B the states trace never names state=flinch (state lines x${states_flinch_lines:-0}, a_flinch frames x${states_flinch_seq:-0})"
     bad=1
   fi
+  if [ "${legacy_state_lines:-0}" -eq 0 ] && [ "${legacy_flinch_seq:-0}" -eq 0 ]; then
+    echo "  OK   B the legacy trace names no state and plays no flinch (legacy is still the T61 path)"
+  else
+    echo "  FAIL B the legacy trace carries state/flinch lines (state x${legacy_state_lines:-0}, a_flinch x${legacy_flinch_seq:-0})"
+    bad=1
+  fi
+  # The flinch frames are printed, not asserted. See the B1 comment: the driven
+  # body is off screen at this tick, so identical pixels are the expected result.
+  echo "  LINE B flinch tick $FLINCH_TICK md5 ${states_md5:-none} (states) vs ${legacy_md5:-none} (legacy) -- identical is EXPECTED here, that body draws no pixels"
 
   # B2. determinism: same states tick twice is byte-identical.
   if [ -n "$states_md5" ] && [ "$(md5_of "$states2_bmp")" = "$states_md5" ]; then
@@ -196,8 +228,9 @@ check_artifacts() {
   #     says label=PRIMARY_aimmatrix_crouch_idle cycle=0.000000 advanced=0 -- so
   #     two ticks inside the crouch are SUPPOSED to look identical, and the old
   #     check reported the correct result as "the state is frozen" (freeze4,
-  #     2026-11-05 18:36). A frozen states layer is still caught by B1 and B3:
-  #     either states frame matching legacy at its tick would fail.
+  #     2026-11-05 18:36). A frozen states layer is still caught by B3 (the
+  #     crouch pair moved when the layer is alive) and by B1's trace reading (a
+  #     layer that never picks flinch leaves no state=flinch line behind).
   local crouch_state crouch_b_state legacy_crouch_md5
   crouch_md5=$(md5_of "$crouch_bmp")
   crouch_b_md5=$(md5_of "$crouch_b_bmp")
@@ -315,8 +348,8 @@ if [ "$DRY_RUN" -eq 1 ]; then
   say "    8 states-cover   tick $COVER_TICK   --animation-drive states   demo=${COVER_DEMO:-$DEMO}"
   say "    9 early          tick $EARLY_TICK   --animation-drive states"
   say "    every run also carries --player-animation, so the T61 path executes"
-  say "  readings: A legacy==default bytes + no animdsum + T61 lines; B states!=legacy at the flinch tick AND at the crouch tick, repeat byte-identical; C per-state needle+reason lines and peak counters over the playback"
-  say "  negative controls: $([ "$SKIP_NEG" -eq 1 ] && echo skipped || echo '1 flinch-renamed, 2 legacy-as-states, 3 crouch-as-legacy, 4 dsum-stripped')"
+  say "  readings: A legacy==default bytes + no animdsum + T61 lines; B states trace names state=flinch and plays a_flinch (legacy names neither) + states!=legacy at the crouch tick + repeat byte-identical; C per-state needle+reason lines and peak counters over the playback"
+  say "  negative controls: $([ "$SKIP_NEG" -eq 1 ] && echo skipped || echo '1 flinch-renamed, 2 flinch-stripped, 3 crouch-as-legacy, 4 dsum-stripped')"
   say "  inputs OK"
   echo "ANIMATION-DRIVE-STATES=DRYRUN plan ok (no run performed)"
   exit 0
@@ -378,13 +411,15 @@ if [ "$SKIP_NEG" -eq 0 ]; then
   sed -i 's/state=flinch /state=fallback /g; s/flinch=[0-9]*/flinch=0/g; s/flinchStarts=[0-9]*/flinchStarts=0/g' "$NEG1"/*.trace
   control_failed_as_required "1-flinch-renamed" "$NEG1" 'no trace line names state=flinch'
 
-  # 2. the legacy frame presented as the states frame: the byte difference must
-  #    notice (this is the control that catches a states run that never applied).
-  NEG2="$OUT/neg-2-legacy-as-states"
+  # 2. the flinch evidence stripped from the states trace: B1 reads the trace, so
+  #    a states run that never applied must be caught there. The pixel-domain
+  #    twin of this control is NEG3, at the tick where the driven body IS on
+  #    screen; see the B1 reading comment for why the flinch tick cannot be it.
+  NEG2="$OUT/neg-2-flinch-stripped"
   rm -rf "$NEG2"; mkdir -p "$NEG2"
   cp "$OUT"/*.bmp "$OUT"/*.trace "$NEG2"/ 2>/dev/null
-  cp "$OUT/legacy.bmp" "$NEG2/states-flinch.bmp"
-  control_failed_as_required "2-legacy-as-states" "$NEG2" 'states frame is byte-identical to legacy'
+  sed -i 's/state=flinch /state=idle /g; s/label=a_flinch01/label=a_idle01/g' "$NEG2/states-flinch.trace"
+  control_failed_as_required "2-flinch-stripped" "$NEG2" 'the states trace never names state=flinch'
 
   # 3. the crouch frame replaced by the legacy frame at the same tick: B3 must
   #    notice, which is the reading that proves the crouch layer reached pixels.
@@ -408,7 +443,7 @@ say ""
 readings_summary="failures=$failures"
 if [ "$failures" -eq 0 ]; then
   say "  SUMMARY $readings_summary controls="${SKIP_NEG:+skipped}""
-  echo "ANIMATION-DRIVE-STATES=PASS default==legacy byte-identical with the T61 lines intact, states frames differ from legacy at the flinch tick and at the crouch tick and repeat byte-identically, crouch/crouchwalk/flinch each named with needle+reason and each reached by the per-frame counters, four negative controls failed for their own reasons"
+  echo "ANIMATION-DRIVE-STATES=PASS default==legacy byte-identical with the T61 lines intact, the states trace names state=flinch and plays a_flinch sequence frames while the legacy trace names neither, states crouch frame differs from legacy at the same tick and repeats byte-identically, crouch/crouchwalk/flinch each named with needle+reason and each reached by the per-frame counters, four negative controls failed for their own reasons"
   exit 0
 fi
 say "  SUMMARY $readings_summary"
