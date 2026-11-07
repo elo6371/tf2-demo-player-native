@@ -38,6 +38,9 @@
 - **为什么不是迁就实现**：加了 `mark-tick` 之后，真正要证明的东西才被证明——`mark` 记下的 tick 与 `expect-same-tick` 时刻的 tick 相同（`match=1`）。
   如果产品在暂停中偷偷推进 tick，这条会红。它比原来那条**更严**，不是更松。
 
+> 顺带一条实测更正：B 组的 `B-pixels`（两张 BMP 不同）在**修前那轮也是绿的**——pre 与 green 的 before/after 两张 BMP 逐字节相同（aeb0b5f0…dffe8 / 3a848650…3a3393a2）。
+> 也就是说这条断言**不区分修前/修后**，它只证明抓帧链路在工作；B 的判别力在 `B-applied` / `B-paused` / `B-clock`（+`modeApplies`）上。这一点写进 docs/T93-PLAYBACK-FIXES.md §2/§7。
+
 ### 2.2 `B-paused` + `B-clock`（tick 写死 400）
 
 - **原写法**：`has "camera: mode applied=free-look tick=400 paused=1"`；`snapshots at tick=$TB/$TA (want 400/400)`。

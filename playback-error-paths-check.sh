@@ -163,6 +163,10 @@ if want B; then
   if [ "$PA" = 1 ]; then green; else red B-paused "camera: mode applied=free-look paused=$PA (want 1: the mode change is applied on a frame drawn while paused)"; fi
   MA=$(fnum $T "camera: summary" "modeApplies=")
   if [ "$MA" != "-" ] && [ "$MA" != "0" ]; then green; else red B-summary "camera: summary modeApplies=$MA (want >=1)"; fi
+  # NOT a discriminator, measured 2026-11-07: the PRE-FIX run produced the very same
+  # two BMPs, byte for byte (before aeb0b5f0..dffe8, after 3a848650..3a3393a2), so this
+  # passes on a mutant too. Kept as a "the capture path is alive" check; the mode-change
+  # claim rests on B-applied / B-paused / B-clock above.
   B1=$(sha $OUT/$TAG-b-before.bmp); B2=$(sha $OUT/$TAG-b-after.bmp)
   if [ -n "$B1" ] && [ -n "$B2" ] && [ "$B1" != "$B2" ]; then green; else red B-pixels "frames before/after the mode change are identical or missing ($B1 / $B2)"; fi
   FB=$(fnum $T "camera: accept steps=" "failures=")
