@@ -1,0 +1,12 @@
+gate  exe=/d/TF2_Native_Worktrees/t93-playback/native/build-nmake/tf2_demo_native.exe
+gate  tf=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf
+gate  out=/d/TF2_Native_Worktrees/t93-playback/evidence/t93-playback tag=green only=all
+RED   B-exit  -- rc=1 want 0
+RED   B-paused  -- the mode change was not applied on a frame drawn while paused
+RED   B-script  -- camera: accept failures=1 (want 0)
+RED   B-clock  -- snapshots at tick=413/413 (want 400/400: the mode change must not need a tick to arrive)
+RED   C-burst  -- one audio: advance saw=750 events (want <=60: the skipped span must not be dumped into one frame)
+RED   D-tick0  -- the resumed tick 0 saw=- events (want >=700: the 746 events at tick 0 are dropped)
+RED   D-dup  -- the resumed tick 0 was a duplicate (dup=-): a resume must not consume the tick it re-enters at
+GATE tag=green cases=6 pass=25 red=7 seconds=225
+GATE-RESULT=FAIL

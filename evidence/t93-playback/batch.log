@@ -1,0 +1,7 @@
+=== phase pre-green start 16:41:53 ===
+--- pre-fix red gate (frozen t79 exe)
+--- build t93
+build ok phase=green 24 lines
+--- post-fix green gate
+PRODUCT-PROCESSES-AT-END=0
+=== phase pre-green done 16:57:52 ===

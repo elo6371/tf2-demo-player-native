@@ -1,0 +1,6 @@
+resume
+tick 5
+seek 3000
+frames 25
+playback-state
+quit

@@ -154,6 +154,12 @@ struct PlaybackReadings {
   std::uint64_t clampedAtStart = 0;
   std::uint64_t clampedAtEnd = 0;
   std::uint64_t interruptedSeeks = 0;
+  // Cursor moves made by a seek REQUEST (StepTicks/JumpTicks/JumpSeconds/Scrub),
+  // as opposed to the wall clock. T93-C: the audio scheduler treats a seek as a
+  // discontinuity in either direction, and a counter here is the only way to say
+  // "this tick jump was a seek" instead of guessing from its size -- a fast
+  // playback advance is also a multi-tick frame.
+  std::uint64_t seeks = 0;
   std::uint64_t superseded = 0;
   std::uint64_t staleLandings = 0;
   std::uint64_t sameTick = 0;

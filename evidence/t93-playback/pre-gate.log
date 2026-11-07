@@ -1,0 +1,24 @@
+gate  exe=/d/TF2_Native_Worktrees/t79-integration/native/build-nmake/tf2_demo_native.exe
+gate  tf=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf
+gate  out=/d/TF2_Native_Worktrees/t93-playback/evidence/t93-playback tag=pre only=all
+RED   A1-exit  -- rc=124 want 2
+RED   A1-stderr  -- stderr has no demo open failed
+RED   A1-trace  -- trace has no demo: open failed
+RED   A1-window  -- a window was created for a demo that does not exist
+RED   A1-map  -- map resolution ran for a demo that does not exist
+RED   A1-time  -- refusal took 300s (want <=15, i.e. before resource startup)
+RED   B-exit  -- rc=1 want 0
+RED   B-step  -- the freefly step does not report the mode it left the product in (want detail=on mode=free-look)
+RED   B-applied  -- no frame-level reading of the free-look mode change
+RED   B-paused  -- the mode change was not applied on a frame drawn while paused
+RED   B-summary  -- camera: summary modeApplies=- (want >=1)
+RED   B-script  -- camera: accept failures=1 (want 0)
+RED   B-clock  -- snapshots at tick=403/403 (want 400/400: the mode change must not need a tick to arrive)
+RED   C-trace  -- no audio: seek reset line for a forward seek
+RED   C-target  -- the seek reset does not name tick 3000
+RED   C-burst  -- one audio: advance saw=1494 events (want <=60: the skipped span must not be dumped into one frame)
+RED   D-tick0  -- the resumed tick 0 saw=- events (want >=700: the 746 events at tick 0 are dropped)
+RED   D-dup  -- the resumed tick 0 was a duplicate (dup=-): a resume must not consume the tick it re-enters at
+RED   E-modeapplies  -- camera: summary modeApplies=- (want 0 on a run that never changes mode)
+GATE tag=pre cases=6 pass=13 red=19 seconds=556
+GATE-RESULT=FAIL

@@ -274,6 +274,9 @@ PlaybackResult PlaybackControl::request(const PlaybackRequest& request) {
     ++readings_.interruptedSeeks;
     result.supersededRequestId = pendingId_;
   }
+  // T93-C: counted at the one place a seek request moves the cursor, so the
+  // reading is a fact about this ledger rather than a client-side inference.
+  ++readings_.seeks;
   cursorTick_ = requestedTick;
   accumulator_ = 0.0;
   pending_ = true;

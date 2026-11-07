@@ -310,6 +310,15 @@ std::uint32_t g_hotkeySuppressedByFocus = 0;
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
 std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
 std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
+// Frames on which a pending camera MODE change reached the renderer. T93-B: the
+// scene block below runs only when the demo clock moves, so a mode set while
+// paused used to reach no frame at all and had no reading anywhere.
+std::uint32_t g_cameraModeApplies = 0;
+// The mode the FRAME loop last applied. Deliberately not g_lastAppliedCameraMode:
+// the action handler writes that one on the keystroke (main.cpp:635, :646), so
+// comparing against it would make a mode set while paused look already applied --
+// the exact false green T85 defect B is about.
+tf2::native::CameraMode g_frameAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
 // T80: did the scene tick that is being drawn give the camera a real eye? False
 // means the demo's own view was missing or implausible (SourceTV reports
 // eye=0,0,0), so the spectate relay's focus is the only thing that can place the
@@ -950,7 +959,14 @@ bool runCameraScriptStep() {
       // The action toggles; a script that asks for a state gets that state.
       handleCameraAction(action, reason);
     }
-    return ok(g_cameraDirector.freeFly() ? "on" : "off");
+    // T93-B: the step reports the state it LEFT the product in, not the state it
+    // asked for. T85 read `result=ok detail=on` on a run whose freeFlySteps was
+    // 0 and whose every drawn frame said mode=first-person: "on" was a promise
+    // about a toggle and nothing checked it. The detail now carries the mode the
+    // product is actually in, and a state the step cannot reach fails the step.
+    if (on != g_cameraDirector.freeFly()) return fail("unreachable");
+    return ok(std::string(g_cameraDirector.freeFly() ? "on" : "off")
+      + " mode=" + tf2::native::cameraModeName(g_cameraMode.mode()));
   }
   if (step.command == "snapshot") {
     cameraSnapshot(step.args.empty() ? "unnamed" : step.args[0]);
@@ -3238,9 +3254,26 @@ bool outlineVertexExtent = false;
   }
   if (arguments) LocalFree(arguments);
   if (!commandDemo.empty()) {
-    nativeUi.openDemo(commandDemo);
-    if (nativeUi.snapshot().screen == tf2::native::UiScreen::ImportReview) {
+    // T93-A (T85 defect A): this call's result used to be discarded. A --demo
+    // that could not be opened then produced a normal-looking run -- the default
+    // map loaded, the window opened, no error was printed, exit 0 (measured on
+    // `no-such.dem`, whose name never even appeared in the trace). A named demo
+    // that cannot be opened is a hard refusal, decided HERE: before the window,
+    // before the VPK pass, before the 17-20 s of resource startup the T85 audit
+    // timed. Reported twice, because two callers need different things -- stderr
+    // for a script that only reads exit status and stderr, the trace for the gate.
+    const bool demoOpened = nativeUi.openDemo(commandDemo);
+    if (demoOpened && nativeUi.snapshot().screen == tf2::native::UiScreen::ImportReview) {
       nativeUi.confirmImport();
+    }
+    if (!demoOpened) {
+      const std::string demoError = nativeUi.snapshot().error;
+      traceFmt("demo: open failed path=%s reason=%s",
+        commandDemo.u8string().c_str(), demoError.c_str());
+      std::fprintf(stderr, "demo open failed: %s: %s\n",
+        commandDemo.u8string().c_str(), demoError.c_str());
+      std::fflush(stderr);
+      return 2;
     }
   }
   const auto assets = tf2::native::AssetRoot::findInstalled(candidates);
@@ -8918,6 +8951,7 @@ bool outlineVertexExtent = false;
   bool running = true;
   double tickAccumulator = 0.0;
   std::int32_t lastAudioTick = -1;
+  std::uint64_t lastAudioSeeks = 0;
   std::int32_t lastSceneTick = -1;
   bool lastReverse = false;
   bool lastPaused = false;
@@ -9019,7 +9053,28 @@ bool outlineVertexExtent = false;
         }
       }
       if (!g_playback.reverse) {
-        if (g_playback.tick < lastAudioTick) soundScheduler.reset(g_playback.tick);
+        // T93-C (T85 defect C): a seek is a discontinuity in EITHER direction.
+        // The backward half already reset (below); the forward half did not, so a
+        // jump from t1 to t2 > t1 handed forEachRange(t1+1, t2) to ONE advance()
+        // call and every event of the skipped span resolved and "played" in a
+        // single frame -- measured at 0.24-0.53 events per skipped tick dumped at
+        // once, i.e. 702 and 2290 events on two real runs, against ~2 events per
+        // drawn frame on the normal path. reset() lands the seek where the
+        // backward path already lands: at the target tick, with the range it
+        // already consumed unreplayable. The ledger's seek counter is the
+        // trigger, so a fast playback advance is not mistaken for a seek.
+        const std::uint64_t seekRequests = g_playbackControl.readings().seeks;
+        if (seekRequests != lastAudioSeeks) {
+          lastAudioSeeks = seekRequests;
+          if (g_playback.tick != soundScheduler.lastTick()) {
+            traceFmt("audio: seek reset from=%d to=%d",
+              static_cast<int>(soundScheduler.lastTick()),
+              static_cast<int>(g_playback.tick));
+            soundScheduler.reset(g_playback.tick);
+          }
+        } else if (g_playback.tick < lastAudioTick) {
+          soundScheduler.reset(g_playback.tick);
+        }
         float listenerX = 0.0f, listenerY = 0.0f, listenerZ = 0.25f;
         if (renderer.observerFocusWorld(listenerX, listenerY, listenerZ)) {
           soundScheduler.setListenerPosition(listenerX, listenerY, listenerZ);
@@ -9068,6 +9123,32 @@ bool outlineVertexExtent = false;
     float cameraTracePitch = 0.0f;
     float cameraTraceYaw = 0.0f;
     const char* cameraTraceSource = "held";
+    // T93-B (T85 defect B): a camera MODE is a frame-level fact, not a tick-level
+    // one. The scene block below is gated on the demo clock, so `freefly on` while
+    // paused set the mode variable and drew nothing: the step reported
+    // result=ok detail=on, every drawn frame stayed first-person and
+    // freeFlySteps never left 0 -- a green reading on a no-op. Applying a pending
+    // mode change HERE, every frame and outside the tick guard, is what makes the
+    // mode reach the renderer on the frame it is requested; the line is the
+    // reading that says so. Guarded on a real change, so a steady mode costs
+    // nothing and a normal run never prints it (modeApplies=0 in the summary).
+    if (g_renderer) {
+      const tf2::native::CameraMode pendingCameraMode = g_debugCamera
+        ? tf2::native::CameraMode::FreeLook : g_cameraMode.mode();
+      if (pendingCameraMode != g_frameAppliedCameraMode) {
+        // Same transition rule as the tick-side block: entering any mode other
+        // than first-person drops the demo view, which is the only thing that
+        // makes the orbit pose the drawn lens.
+        if (pendingCameraMode != tf2::native::CameraMode::FirstPerson && !g_debugCamera) {
+          g_renderer->clearObserverDemoView();
+        }
+        g_frameAppliedCameraMode = pendingCameraMode;
+        ++g_cameraModeApplies;
+        traceFmt("camera: mode applied=%s tick=%d paused=%d",
+          tf2::native::cameraModeName(pendingCameraMode),
+          static_cast<int>(g_playback.tick), g_playback.paused ? 1 : 0);
+      }
+    }
     if (!g_renderer && g_playbackControl.needsSceneResolve()) {
       // No renderer means no scene query will ever run; the landing must say so
       // instead of leaving the pending request to block advance() forever.
@@ -11498,13 +11579,13 @@ bool outlineVertexExtent = false;
     // read follows>=1 and a run must never read holds as a clear.
     traceFmt("camera: summary mode=%s modeChanges=%u spacePresses=%u spaceSingles=%u"
       " spaceDoubles=%u doubleWindowMs=%u pauseToggles=%u follows=%u holdsNoTarget=%u"
-      " freezeFrames=%u",
+      " freezeFrames=%u modeApplies=%u",
       tf2::native::cameraModeName(g_cameraMode.mode()),
       g_cameraMode.modeChangeCount(), g_cameraMode.spacePressCount(),
       g_cameraMode.spaceSingleCount(), g_cameraMode.spaceDoubleCount(),
       tf2::native::CameraModeController::doubleClickWindowMs(),
       g_pauseKey.toggles, g_cameraFollows, g_cameraHoldsNoTarget,
-      g_cameraFreezeFrames);
+      g_cameraFreezeFrames, g_cameraModeApplies);
     // T66: the relay contract on its own line, so the readings above stay
     // untouched. A run over a demo with real deaths must read deaths>=1 and
     // handovers>=1, must never read notarget>0 while players are alive, and must
