@@ -826,9 +826,30 @@ int playerAnimationEventCensus(int argc, char** argv) {
     serverOrigin, firstRecorded, haveFirstRecorded ? 1 : 0, serverOrigin >= 0 ? 1 : 0,
     serverMinusPlayback);
 
+  // D1b: the constant offset (firstDataNetTick - firstRecordedPacketTick) is a
+  // reading, not a law. Where packets are dropped or the server tick is held the
+  // playback tick of a packet is NOT serverTick - offset. The summary already
+  // keeps the authoritative table packetServerTicks[row] = server tick in force
+  // at playback row, and own[row] marks a row that really carried a packet, so
+  // invert that table. The inverse is unique when no two recorded packets share
+  // a server tick (serverTickStalls == 0).
+  std::map<std::int32_t, std::int32_t> playbackByServerTick;
+  std::size_t tickTableRows = 0, tickTableOwn = 0, tickTableAmbiguous = 0;
+  for (std::size_t row = 0; row < summary.packetServerTicks.size(); ++row) {
+    ++tickTableRows;
+    if (row >= summary.packetServerTickOwn.size() || summary.packetServerTickOwn[row] == 0) continue;
+    ++tickTableOwn;
+    const std::int32_t serverTick = summary.packetServerTicks[row];
+    if (serverTick < 0) continue;
+    const auto inserted = playbackByServerTick.emplace(serverTick, static_cast<std::int32_t>(row));
+    if (!inserted.second) ++tickTableAmbiguous;
+  }
+
   struct AnimSample {
     std::int32_t serverTick;
     std::int32_t playbackTick;
+    std::int32_t exactPlaybackTick;
+    bool exactTickMapped;
     std::int64_t player;
     std::uint32_t entity;
     std::uint32_t handleIndex;
@@ -836,6 +857,9 @@ int playerAnimationEventCensus(int argc, char** argv) {
   };
   std::map<std::int64_t, std::vector<AnimSample>> samplesByValue;
   std::size_t printed = 0;
+  std::size_t exactMapped = 0, exactUnmapped = 0, derivedMismatch = 0;
+  std::int64_t derivedDiffSum = 0;
+  std::int32_t derivedDiffMax = 0;
   std::size_t handleNonNegative = 0, idxInRange = 0, idxZero = 0;
   std::size_t serialConflicts = 0;
   std::map<std::uint32_t, std::uint32_t> serialByEntity;
@@ -849,6 +873,26 @@ int playerAnimationEventCensus(int argc, char** argv) {
     const std::uint32_t handleIndex = static_cast<std::uint32_t>(raw % 2048u);
     const std::uint32_t serial = static_cast<std::uint32_t>(raw / 2048u);
     const std::int32_t playbackTick = event.tick - serverMinusPlayback;
+    const auto exactIt = playbackByServerTick.find(event.tick);
+    const bool exactTickMapped = exactIt != playbackByServerTick.end();
+    // packetServerTicks[i] is the server tick of the packet recorded at entry
+    // tick firstDataEntryTick + i (native/include/demo_header.h:553-554). The row
+    // is NOT the entry tick: on these demos firstDataEntryTick is 1, so the row is
+    // one behind, and returning the row shifted every sample by exactly one tick
+    // (recon4: derivedDiffMean=1.00 on snakewater/upward, exactHurt 4.6%). The
+    // game event stream is in entry-tick space, so convert back explicitly.
+    const std::int32_t exactPlaybackTick = exactTickMapped
+      ? exactIt->second + summary.firstDataEntryTick : -1;
+    if (exactTickMapped) {
+      ++exactMapped;
+      const std::int32_t diff = exactPlaybackTick - playbackTick;
+      if (diff != 0) ++derivedMismatch;
+      const std::int32_t magnitude = diff < 0 ? -diff : diff;
+      derivedDiffSum += magnitude;
+      if (magnitude > derivedDiffMax) derivedDiffMax = magnitude;
+    } else {
+      ++exactUnmapped;
+    }
     if (event.player >= 0) {
       ++handleNonNegative;
       const auto inserted = serialByEntity.emplace(entity, serial);
@@ -857,19 +901,29 @@ int playerAnimationEventCensus(int argc, char** argv) {
     if (entity >= 1 && entity <= 2047) ++idxInRange;
     if (entity == 0) ++idxZero;
     ++entityTotals[entity];
-    samplesByValue[event.event].push_back({event.tick, playbackTick, event.player, entity,
-      handleIndex, serial});
+    samplesByValue[event.event].push_back({event.tick, playbackTick, exactPlaybackTick,
+      exactTickMapped, event.player, entity, handleIndex, serial});
     if (printed < static_cast<std::size_t>(sampleLimit)) {
-      std::printf("animEventSample event=%lld serverTick=%d playbackTick=%d player=%lld "
+      std::printf("animEventSample event=%lld serverTick=%d playbackTick=%d "
+        "exactPlaybackTick=%d exactMapped=%d player=%lld "
         "entity=%llu handleIndex=%llu serial=%llu\n",
-        static_cast<long long>(event.event), event.tick, playbackTick,
-        static_cast<long long>(event.player),
+        static_cast<long long>(event.event), event.tick, playbackTick, exactPlaybackTick,
+        exactTickMapped ? 1 : 0, static_cast<long long>(event.player),
         static_cast<unsigned long long>(entity),
         static_cast<unsigned long long>(handleIndex),
         static_cast<unsigned long long>(serial));
       ++printed;
     }
   }
+  std::printf("animEventTickMap samples=%zu mapped=%zu unmapped=%zu tableRows=%zu tableOwn=%zu "
+    "tableAmbiguous=%zu derivedMismatch=%zu derivedDiffMean=%.2f derivedDiffMax=%d "
+    "serverTickHeld=%zu serverTickGaps=%zu serverTickStalls=%zu firstOwnNetTick=%d firstDataEntryTick=%d\n",
+    exactMapped + exactUnmapped, exactMapped, exactUnmapped, tickTableRows, tickTableOwn,
+    tickTableAmbiguous, derivedMismatch,
+    exactMapped > 0 ? static_cast<double>(derivedDiffSum) / static_cast<double>(exactMapped) : 0.0,
+    derivedDiffMax, summary.serverTickHeldCount, summary.serverTickGaps,
+    summary.serverTickStalls, summary.firstDataPacketOwnNetTick, summary.firstDataEntryTick);
+
   std::size_t total = 0;
   for (const auto& [event, count] : samplesByValue) {
     total += count.size();
@@ -1043,6 +1097,43 @@ int playerAnimationEventCensus(int argc, char** argv) {
         }
       }
     }
+    // Same comparison again, but on exactPlaybackTick (D1b). This is the only
+    // version whose tick is the packet's own playback row instead of a constant
+    // offset; on demos where the offset table slides, derived and exact disagree
+    // and only this one can be read as a same-instant comparison.
+    std::size_t valueExactMapped = 0, valueExactHurt = 0, valueExactDeath = 0;
+    std::size_t valueExactVictim = 0, valueExactAttacker = 0;
+    for (const auto& sample : samples) {
+      if (!sample.exactTickMapped) continue;
+      ++valueExactMapped;
+      const std::int32_t tick = sample.exactPlaybackTick;
+      if (deathAtPlaybackTick.count(tick) != 0) ++valueExactDeath;
+      if (hurtAtPlaybackTick.count(tick) != 0) ++valueExactHurt;
+      for (std::int32_t follow = tick; follow <= tick + static_cast<std::int32_t>(followWindow);
+           ++follow) {
+        const auto found = eventsByTick.find(follow);
+        if (found == eventsByTick.end()) continue;
+        for (const std::size_t eventIndex : found->second) {
+          const auto& event = summary.gameEvents[eventIndex];
+          if (event.name != "player_hurt") continue;
+          std::string victim, attacker;
+          const auto victimIt = fieldOf(event, "userid", victim)
+            ? entindexByUserid.find(victim) : entindexByUserid.end();
+          const auto attackerIt = fieldOf(event, "attacker", attacker)
+            ? entindexByUserid.find(attacker) : entindexByUserid.end();
+          if (victimIt != entindexByUserid.end() && victimIt->second == sample.entity) {
+            ++valueExactVictim;
+          }
+          if (attackerIt != entindexByUserid.end() && attackerIt->second == sample.entity) {
+            ++valueExactAttacker;
+          }
+        }
+      }
+    }
+    std::printf("animEventExactFollow event=%lld n=%zu mapped=%zu exactHurt=%zu exactDeath=%zu "
+      "hurtVictimHit=%zu hurtAttackerHit=%zu\n",
+      static_cast<long long>(value), samples.size(), valueExactMapped, valueExactHurt,
+      valueExactDeath, valueExactVictim, valueExactAttacker);
     std::printf("animEventCorr event=%lld n=%zu distinctEntities=%zu idxInRange=%zu "
       "exactDeath=%zu nearDeath=%zu exactHurt=%zu nearHurt=%zu crossDomainExactDeath=%zu "
       "crossDomainExactHurt=%zu\n",
