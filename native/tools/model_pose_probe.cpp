@@ -11,12 +11,15 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -760,6 +763,348 @@ int printDemoTicks(const PlayerAnimationOptions& options) {
   return 0;
 }
 
+// Measurement, not an event-number assumption: this mode prints every cached
+// CTEPlayerAnimEvent value before the runtime maps one to attack or flinch.
+// The demo parser retains at most 16384 events; the summary says how many were
+// observed, so a reader cannot mistake this window for the whole recording.
+//
+// Tick domains (D1): a temp entity inherits the svc_TickMsg network tick, i.e.
+// absolute server space; a game event carries the entry tick of the cmd=2 packet
+// that delivered it, i.e. playback space. The playback origin of a recording is
+// its first cmd=2 entry tick and the server tick beside it is firstDataNetTick,
+// so the offset is read per demo (never hard-coded). Both spaces are printed on
+// every sample. Comparisons that do not convert are kept only as crossDomain*
+// counters so the earlier cross-space coincidence stays visible instead of
+// being deleted.
+//
+// The identity counters are derived, not protocol: player_death carries both the
+// victim's userid and the victim's entindex, so that pair is the only
+// userid->entindex map this tree can build without a userinfo decoder. Any
+// hit/miss below therefore leans on that derivation.
+int playerAnimationEventCensus(int argc, char** argv) {
+  using namespace tf2::native;
+  std::string demoPath;
+  long followWindow = 5;
+  long sampleLimit = 32;
+  for (int i = 1; i < argc; ++i) {
+    const std::string argument = argv[i];
+    if (argument == "--player-animation-event-census") continue;
+    if (argument == "--demo" && i + 1 < argc) demoPath = argv[++i];
+    else if (argument == "--follow-window" && i + 1 < argc) {
+      followWindow = std::strtol(argv[++i], nullptr, 10);
+    } else if (argument == "--sample-limit" && i + 1 < argc) {
+      sampleLimit = std::strtol(argv[++i], nullptr, 10);
+    } else return failPlayerAnimation("event-census-argument", argument);
+  }
+  if (demoPath.empty()) return failPlayerAnimation("demo-missing-argument", "");
+  if (followWindow < 0 || followWindow > 200) {
+    return failPlayerAnimation("event-census-window", std::to_string(followWindow));
+  }
+  if (sampleLimit < 0 || sampleLimit > 200000) {
+    return failPlayerAnimation("event-census-sample-limit", std::to_string(sampleLimit));
+  }
+  DemoHeader header;
+  if (!parseDemoHeaderFile(std::filesystem::path(demoPath), header)) {
+    return failPlayerAnimation("demo-unreadable", demoPath);
+  }
+  DemoIndex index;
+  if (!indexDemoFile(std::filesystem::path(demoPath), header, index)) {
+    return failPlayerAnimation("demo-index-failed", demoPath);
+  }
+  DemoNetworkSummary summary;
+  summary.networkProtocol = header.networkProtocol;
+  if (!scanKnownDemoMessages(std::filesystem::path(demoPath), index, summary)) {
+    return failPlayerAnimation("demo-scan-failed", demoPath);
+  }
+  bool haveFirstRecorded = false;
+  const std::int32_t firstRecorded = firstRecordedPacketTick(index, haveFirstRecorded);
+  const std::int32_t serverOrigin = summary.firstDataNetTick;
+  const bool haveTickDomain = haveFirstRecorded && serverOrigin >= 0;
+  const std::int32_t serverMinusPlayback = haveTickDomain ? serverOrigin - firstRecorded : 0;
+  std::printf("animEventTickDomain firstDataNetTick=%d firstRecordedPacketTick=%d "
+    "hasFirstRecorded=%d hasFirstDataNetTick=%d serverMinusPlayback=%d\n",
+    serverOrigin, firstRecorded, haveFirstRecorded ? 1 : 0, serverOrigin >= 0 ? 1 : 0,
+    serverMinusPlayback);
+
+  struct AnimSample {
+    std::int32_t serverTick;
+    std::int32_t playbackTick;
+    std::int64_t player;
+    std::uint32_t entity;
+    std::uint32_t handleIndex;
+    std::uint32_t serial;
+  };
+  std::map<std::int64_t, std::vector<AnimSample>> samplesByValue;
+  std::size_t printed = 0;
+  std::size_t handleNonNegative = 0, idxInRange = 0, idxZero = 0;
+  std::size_t serialConflicts = 0;
+  std::map<std::uint32_t, std::uint32_t> serialByEntity;
+  std::map<std::uint32_t, std::size_t> entityTotals;
+  for (const auto& event : summary.tempEntityEvents) {
+    if (event.className != "CTEPlayerAnimEvent" || !event.hasPlayer || !event.hasEvent) continue;
+    const std::uint32_t entity = static_cast<std::uint32_t>(
+      static_cast<std::uint32_t>(event.player) & 0x7ffu);
+    const std::uint64_t raw = event.player >= 0
+      ? static_cast<std::uint64_t>(event.player) : 0;
+    const std::uint32_t handleIndex = static_cast<std::uint32_t>(raw % 2048u);
+    const std::uint32_t serial = static_cast<std::uint32_t>(raw / 2048u);
+    const std::int32_t playbackTick = event.tick - serverMinusPlayback;
+    if (event.player >= 0) {
+      ++handleNonNegative;
+      const auto inserted = serialByEntity.emplace(entity, serial);
+      if (!inserted.second && inserted.first->second != serial) ++serialConflicts;
+    }
+    if (entity >= 1 && entity <= 2047) ++idxInRange;
+    if (entity == 0) ++idxZero;
+    ++entityTotals[entity];
+    samplesByValue[event.event].push_back({event.tick, playbackTick, event.player, entity,
+      handleIndex, serial});
+    if (printed < static_cast<std::size_t>(sampleLimit)) {
+      std::printf("animEventSample event=%lld serverTick=%d playbackTick=%d player=%lld "
+        "entity=%llu handleIndex=%llu serial=%llu\n",
+        static_cast<long long>(event.event), event.tick, playbackTick,
+        static_cast<long long>(event.player),
+        static_cast<unsigned long long>(entity),
+        static_cast<unsigned long long>(handleIndex),
+        static_cast<unsigned long long>(serial));
+      ++printed;
+    }
+  }
+  std::size_t total = 0;
+  for (const auto& [event, count] : samplesByValue) {
+    total += count.size();
+    std::printf("animEvent event=%lld count=%zu\n", static_cast<long long>(event), count.size());
+  }
+
+  // Correlation, not an enum guess. Every value above is still just a number;
+  // the game event stream is the server's own record of what happened, so a
+  // value can be tied to that record instead of to a header this tree does not
+  // carry. The comparison uses the converted ticks only (see D1 note above).
+  std::map<std::string, std::size_t> gameCounts;
+  std::map<std::int32_t, std::size_t> deathAtPlaybackTick;
+  std::map<std::int32_t, std::size_t> hurtAtPlaybackTick;
+  std::map<std::int32_t, std::size_t> deathAtServerTick;
+  std::map<std::int32_t, std::size_t> hurtAtServerTick;
+  std::map<std::int32_t, std::vector<std::size_t>> eventsByTick;
+  std::map<std::string, std::size_t> deathUserids;
+  std::map<std::string, std::uint32_t> entindexByUserid;
+  std::size_t identityPairs = 0, identityConflicts = 0;
+  const auto fieldOf = [](const DemoGameEvent& event, const char* key, std::string& value) -> bool {
+    for (const auto& field : event.fields) {
+      if (field.first == key) { value = field.second; return true; }
+    }
+    return false;
+  };
+  const auto fieldUint = [&fieldOf](const DemoGameEvent& event, const char* key,
+                                    std::uint32_t& value) -> bool {
+    std::string text;
+    if (!fieldOf(event, key, text) || text.empty()) return false;
+    char* end = nullptr;
+    const unsigned long parsed = std::strtoul(text.c_str(), &end, 10);
+    if (end == nullptr || *end != '\0') return false;
+    value = static_cast<std::uint32_t>(parsed);
+    return true;
+  };
+  std::int32_t minGameTick = 0, maxGameTick = 0;
+  bool haveGameTick = false;
+  std::size_t deathSamples = 0, hurtSamples = 0;
+  for (std::size_t i = 0; i < summary.gameEvents.size(); ++i) {
+    const auto& event = summary.gameEvents[i];
+    ++gameCounts[event.name];
+    eventsByTick[event.tick].push_back(i);
+    if (!haveGameTick || event.tick < minGameTick) minGameTick = event.tick;
+    if (!haveGameTick || event.tick > maxGameTick) maxGameTick = event.tick;
+    haveGameTick = true;
+    if (event.name == "player_death") {
+      ++deathAtPlaybackTick[event.tick];
+      ++deathAtServerTick[event.tick + serverMinusPlayback];
+      std::string victim, victimEntindex;
+      if (fieldOf(event, "userid", victim)) ++deathUserids[victim];
+      if (fieldOf(event, "userid", victim) && fieldOf(event, "victim_entindex", victimEntindex)) {
+        char* end = nullptr;
+        const unsigned long parsed = std::strtoul(victimEntindex.c_str(), &end, 10);
+        if (end != nullptr && *end == '\0') {
+          const auto inserted = entindexByUserid.emplace(victim, static_cast<std::uint32_t>(parsed));
+          if (!inserted.second && inserted.first->second != static_cast<std::uint32_t>(parsed)) {
+            ++identityConflicts;
+          } else if (inserted.second) {
+            ++identityPairs;
+          }
+        }
+      }
+      if (deathSamples < 6) {
+        ++deathSamples;
+        std::printf("gameSample name=player_death tick=%d", event.tick);
+        for (const auto& field : event.fields) {
+          std::printf(" %s=%s", field.first.c_str(), field.second.c_str());
+        }
+        std::printf("\n");
+      }
+    } else if (event.name == "player_hurt") {
+      ++hurtAtPlaybackTick[event.tick];
+      ++hurtAtServerTick[event.tick + serverMinusPlayback];
+      if (hurtSamples < 6) {
+        ++hurtSamples;
+        std::printf("gameSample name=player_hurt tick=%d", event.tick);
+        for (const auto& field : event.fields) {
+          std::printf(" %s=%s", field.first.c_str(), field.second.c_str());
+        }
+        std::printf("\n");
+      }
+    }
+  }
+  for (const auto& [name, count] : gameCounts) {
+    std::printf("gameEvent name=%s count=%zu\n", name.c_str(), count);
+  }
+  std::printf("gameEventDeathUserids distinct=%zu\n", deathUserids.size());
+  for (const auto& [userid, count] : deathUserids) {
+    std::printf("gameEventDeathUserid userid=%s count=%zu\n", userid.c_str(), count);
+  }
+  const std::int32_t gameTickSpan = haveGameTick ? (maxGameTick - minGameTick + 1) : 1;
+  for (const auto& [name, count] : gameCounts) {
+    const double perTick = gameTickSpan > 0
+      ? static_cast<double>(count) / static_cast<double>(gameTickSpan) : 0.0;
+    std::printf("gameEventBaseline name=%s count=%zu tickMin=%d tickMax=%d perTick=%.5f\n",
+      name.c_str(), count, minGameTick, maxGameTick, perTick);
+  }
+
+  std::size_t hurtTotal = 0, deathTotal = 0, hurtVictimHit = 0, hurtAttackerHit = 0;
+  std::size_t hurtUnmapped = 0, deathEntindexHit = 0, deathEntindexMiss = 0;
+  const double baselineHurt = gameTickSpan > 0
+    ? static_cast<double>(gameCounts["player_hurt"]) / static_cast<double>(gameTickSpan) : 0.0;
+  const double baselineDeath = gameTickSpan > 0
+    ? static_cast<double>(gameCounts["player_death"]) / static_cast<double>(gameTickSpan) : 0.0;
+  for (const auto& [value, samples] : samplesByValue) {
+    std::size_t exactDeath = 0, nearDeath = 0, exactHurt = 0, nearHurt = 0;
+    std::size_t crossDeath = 0, crossHurt = 0, valueIdxInRange = 0;
+    std::size_t valueHurt = 0, valueDeath = 0, valueHurtVictim = 0, valueHurtAttacker = 0;
+    std::size_t valueHurtUnmapped = 0, valueDeathHit = 0, valueDeathMiss = 0;
+    std::map<std::uint32_t, std::size_t> entities;
+    std::map<std::string, std::size_t> followNames;
+    std::map<std::string, std::size_t> hurtWeapons;
+    std::map<std::string, std::size_t> deathWeapons;
+    for (const auto& sample : samples) {
+      const std::int32_t tick = sample.playbackTick;
+      const bool deathExact = deathAtPlaybackTick.count(tick) != 0;
+      const bool hurtExact = hurtAtPlaybackTick.count(tick) != 0;
+      if (deathExact) ++exactDeath;
+      if (hurtExact) ++exactHurt;
+      if (deathAtPlaybackTick.count(tick - 1) || deathAtPlaybackTick.count(tick + 1)) ++nearDeath;
+      if (hurtAtPlaybackTick.count(tick - 1) || hurtAtPlaybackTick.count(tick + 1)) ++nearHurt;
+      if (deathAtServerTick.count(sample.serverTick)) ++crossDeath;
+      if (hurtAtServerTick.count(sample.serverTick)) ++crossHurt;
+      if (sample.entity >= 1 && sample.entity <= 2047) ++valueIdxInRange;
+      ++entities[sample.entity];
+      for (std::int32_t follow = tick; follow <= tick + static_cast<std::int32_t>(followWindow);
+           ++follow) {
+        const auto found = eventsByTick.find(follow);
+        if (found == eventsByTick.end()) continue;
+        for (const std::size_t eventIndex : found->second) {
+          const auto& event = summary.gameEvents[eventIndex];
+          ++followNames[event.name];
+          if (event.name == "player_hurt") {
+            ++valueHurt;
+            ++hurtTotal;
+            std::string victim, attacker;
+            const bool hasVictim = fieldOf(event, "userid", victim);
+            const bool hasAttacker = fieldOf(event, "attacker", attacker);
+            const auto victimIt = hasVictim ? entindexByUserid.find(victim) : entindexByUserid.end();
+            const auto attackerIt = entindexByUserid.find(attacker);
+            if (victimIt != entindexByUserid.end() && victimIt->second == sample.entity) {
+              ++valueHurtVictim;
+              ++hurtVictimHit;
+            }
+            if (attackerIt != entindexByUserid.end() && attackerIt->second == sample.entity) {
+              ++valueHurtAttacker;
+              ++hurtAttackerHit;
+            }
+            if (victimIt == entindexByUserid.end() && attackerIt == entindexByUserid.end()) {
+              ++valueHurtUnmapped;
+              ++hurtUnmapped;
+            }
+            std::string weapon;
+            if (fieldOf(event, "weaponid", weapon)) ++hurtWeapons[weapon];
+          } else if (event.name == "player_death") {
+            ++valueDeath;
+            ++deathTotal;
+            std::uint32_t victimEntindex = 0;
+            if (fieldUint(event, "victim_entindex", victimEntindex)) {
+              if (victimEntindex == sample.entity) {
+                ++valueDeathHit;
+                ++deathEntindexHit;
+              } else {
+                ++valueDeathMiss;
+                ++deathEntindexMiss;
+              }
+            }
+            std::string weapon;
+            if (fieldOf(event, "weapon", weapon)) ++deathWeapons[weapon];
+          }
+        }
+      }
+    }
+    std::printf("animEventCorr event=%lld n=%zu distinctEntities=%zu idxInRange=%zu "
+      "exactDeath=%zu nearDeath=%zu exactHurt=%zu nearHurt=%zu crossDomainExactDeath=%zu "
+      "crossDomainExactHurt=%zu\n",
+      static_cast<long long>(value), samples.size(), entities.size(), valueIdxInRange,
+      exactDeath, nearDeath, exactHurt, nearHurt, crossDeath, crossHurt);
+    std::printf("animEventFollow event=%lld window=%ld hurt=%zu death=%zu hurtVictimHit=%zu "
+      "hurtAttackerHit=%zu hurtUnmapped=%zu deathEntindexHit=%zu deathEntindexMiss=%zu\n",
+      static_cast<long long>(value), followWindow, valueHurt, valueDeath, valueHurtVictim,
+      valueHurtAttacker, valueHurtUnmapped, valueDeathHit, valueDeathMiss);
+    const double windowTicks = static_cast<double>(samples.size())
+      * static_cast<double>(followWindow + 1);
+    const double hurtPerTick = windowTicks > 0
+      ? static_cast<double>(valueHurt) / windowTicks : 0.0;
+    const double deathPerTick = windowTicks > 0
+      ? static_cast<double>(valueDeath) / windowTicks : 0.0;
+    std::printf("animEventFollowRate event=%lld windowTicks=%.0f hurtPerTick=%.5f "
+      "baselineHurtPerTick=%.5f deathPerTick=%.5f baselineDeathPerTick=%.5f\n",
+      static_cast<long long>(value), windowTicks, hurtPerTick, baselineHurt,
+      deathPerTick, baselineDeath);
+    std::vector<std::pair<std::size_t, std::string>> orderedNames;
+    for (const auto& [name, count] : followNames) orderedNames.push_back({count, name});
+    std::sort(orderedNames.begin(), orderedNames.end(),
+      [](const auto& left, const auto& right) { return left.first > right.first; });
+    std::size_t printedNames = 0;
+    for (const auto& [count, name] : orderedNames) {
+      if (name != "player_hurt" && name != "player_death" && printedNames >= 8) continue;
+      std::printf("animEventFollowName event=%lld name=%s count=%zu\n",
+        static_cast<long long>(value), name.c_str(), count);
+      ++printedNames;
+    }
+    std::vector<std::pair<std::size_t, std::string>> orderedHurtWeapons;
+    for (const auto& [weapon, count] : hurtWeapons) orderedHurtWeapons.push_back({count, weapon});
+    std::sort(orderedHurtWeapons.begin(), orderedHurtWeapons.end(),
+      [](const auto& left, const auto& right) { return left.first > right.first; });
+    for (std::size_t i = 0; i < orderedHurtWeapons.size() && i < 8; ++i) {
+      std::printf("animEventFollowHurtWeapon event=%lld weaponid=%s count=%zu\n",
+        static_cast<long long>(value), orderedHurtWeapons[i].second.c_str(),
+        orderedHurtWeapons[i].first);
+    }
+    std::vector<std::pair<std::size_t, std::string>> orderedDeathWeapons;
+    for (const auto& [weapon, count] : deathWeapons) orderedDeathWeapons.push_back({count, weapon});
+    std::sort(orderedDeathWeapons.begin(), orderedDeathWeapons.end(),
+      [](const auto& left, const auto& right) { return left.first > right.first; });
+    for (std::size_t i = 0; i < orderedDeathWeapons.size() && i < 6; ++i) {
+      std::printf("animEventFollowDeathWeapon event=%lld weapon=%s count=%zu\n",
+        static_cast<long long>(value), orderedDeathWeapons[i].second.c_str(),
+        orderedDeathWeapons[i].first);
+    }
+  }
+  std::printf("animEventIdentity n=%zu handleNonNegative=%zu idxInRange=%zu idxZero=%zu "
+    "serialConflicts=%zu distinctEntities=%zu deathEntindexHit=%zu deathEntindexMiss=%zu\n",
+    total, handleNonNegative, idxInRange, idxZero, serialConflicts, entityTotals.size(),
+    deathEntindexHit, deathEntindexMiss);
+  std::printf("animEventCensus decoded=%zu cached=%zu cap=16384 parsedEvents=%lld fieldHits=%lld "
+    "serverMinusPlayback=%d followWindow=%ld identityUserids=%zu identityConflicts=%zu\n",
+    total, summary.tempEntityEvents.size(),
+    static_cast<long long>(summary.tempPlayerAnimEventCount),
+    static_cast<long long>(summary.tempPlayerAnimEventFieldHits),
+    serverMinusPlayback, followWindow, identityPairs, identityConflicts);
+  return 0;
+}
+
 int playerAnimationTest(int argc, char** argv) {
   using namespace tf2::native;
   PlayerAnimationOptions options;
@@ -1047,6 +1392,7 @@ int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--entity-id-selftest") return entityIdSelfTest();
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--player-animation-test") return playerAnimationTest(argc, argv);
+    if (std::string(argv[i]) == "--player-animation-event-census") return playerAnimationEventCensus(argc, argv);
   }
   if (argc != 2) {
     std::cerr << "usage: model_pose_probe <model.mdl> | --self-test"
