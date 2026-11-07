@@ -401,7 +401,10 @@ build_product() {
   locked "bash build-target.sh tf2_demo_native world_geometry_probe" > "$SCRATCH/mut/build.log" 2>&1
 }
 run_gate() { # run_gate <extra args...> -> gate output on stdout, exit code kept
-  bash "$0" "$@"
+  # WRITE_PINS=0: a mutant run must judge against the committed pins, never
+  # rewrite them from its own reading (with --only it would also truncate the
+  # file to one row).
+  env WRITE_PINS=0 bash "$0" "$@"
 }
 mutation() { # mutation <name> <file> <old> <new> <expected-failure-text> <only-map>
   local name=$1 file=$2 old=$3 new=$4 expect=$5 only=$6 log out rc sha_before sha_after
@@ -492,10 +495,15 @@ REAL_BEFORE=$(real_state)
 
 if [[ $MUTATION -eq 1 ]]; then
   mkdir -p "$OUT"
+  # The red lands on B2's capacity pin, not on its dropped reading: with the
+  # capacity shrunk to 200000 the first assertion that fires is "capacity=200000,
+  # expected 400000", and that IS the assertion whose job is to notice the shrink.
+  # (An earlier draft expected "dropped=" and would have called a correct red the
+  # wrong red -- see docs/GATE-DESIGN-TRAPS.md trap 12.)
   mutation capacity-shrink native/src/main.cpp \
     "constexpr std::size_t kWorldTriangleCapacity = 400000;" \
     "constexpr std::size_t kWorldTriangleCapacity = 200000;" \
-    "B2 cp_snakewater_final1: dropped=" cp_snakewater_final1
+    "B2 cp_snakewater_final1: capacity=200000" cp_snakewater_final1
   mutation illusionary-whitelist native/src/bsp_map.cpp \
     'return name == "func_brush" || name == "func_wall" || name == "func_lod"
         || name == "func_illusionary";' \
@@ -693,7 +701,7 @@ for MAP in $READING_MAPS; do
   fi
 done
 
-if [[ $REPIN -eq 1 ]]; then
+if [[ $REPIN -eq 1 && ${WRITE_PINS:-1} -eq 1 ]]; then
   {
     echo "# T88 world triangle budget pins. Written by"
     echo "#   bash world-geometry-budget-check.sh --re-pin=$REPIN_WHY"

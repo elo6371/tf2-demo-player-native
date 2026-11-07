@@ -1,0 +1,13 @@
+# T88 world triangle budget pins.
+# Measured from the four forward traces committed next to this file
+# (evidence/t88-maps/trace-<map>-forward.trace), captured 2026-11-07 16:16 on the
+# fixed build: capacity=400000, requested = the map's demand, dropped=0.
+# facesDrawn/facesSkipped/worldFaces/brushFaces come from the same traces'
+# "gpu: world brush models" line. These are map and whitelist properties, not
+# product build properties: a comment-only rebuild keeps them identical.
+# Rewrite only with: bash world-geometry-budget-check.sh --re-pin=<why>
+# map capacity requested dropped facesDrawn facesSkipped worldFaces brushFaces
+cp_snakewater_final1 400000 242361 0 3246 386 12471 3632
+cp_sunshine 400000 82859 0 3129 533 16787 3662
+koth_bagel_rc12 400000 98066 0 6761 317 11157 7078
+koth_bagel_rc11 400000 98029 0 6757 317 11157 7074
