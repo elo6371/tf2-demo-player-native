@@ -77,6 +77,28 @@ BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-
 SNAKE="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
 OUT="${FRAME_CAPTURE_OUT:-evidence/frame-capture}"
 mkdir -p "$OUT"
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists its settings and UI layout under %LOCALAPPDATA%/TF
+# Demo Player. A gate that reads or writes there shares state with the desktop
+# player and with every other gate on the host, so a previous run (or a human)
+# can change what this gate measures. Each run gets a throwaway directory
+# instead, and it is removed on exit.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+# Chain any EXIT trap already installed instead of replacing it: an overwritten
+# trap would skip a mutation restore and leave a mutated build behind, which is
+# the "failure looks like success" shape this suite forbids.
+ISO_PREV_TRAP=$(trap -p EXIT)
+if [ -n "$ISO_PREV_TRAP" ]; then
+  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
+  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
+  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
+else
+  trap 'rm -rf "$ISO_DIR"' EXIT
+fi
+
 
 MUTATION=0
 [ "${1:-}" = "--mutation" ] && MUTATION=1
@@ -119,7 +141,9 @@ AUDIO_DEVICE=6
 run_capture() { # run_capture <out.bmp> <timeout> [extra args...]
   local out="$1" limit="$2"; shift 2
   rm -f "$out" "$out.csv"
-  timeout "$limit" "$EXE" --tf-root "$TF" --audio-device "$AUDIO_DEVICE" "$@" \
+  timeout "$limit" "$EXE" --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
+    "$@" \
     --capture-frame "$out" --metrics-file "$out.csv" > "$out.log" 2>&1
   echo "$?"
 }
@@ -349,7 +373,9 @@ echo "=== 4/4 a bad tick is refused instead of guessed ==="
 # than silently capture tick 0, because a gate that asks for tick N and gets the
 # first frame instead would pass while capturing the wrong moment.
 BAD_RC=0
-timeout "$PAUSED_TIMEOUT" "$EXE" --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --start-paused \
+timeout "$PAUSED_TIMEOUT" "$EXE" --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
+  --start-paused \
   --capture-frame "$OUT/bad.bmp" --capture-tick not-a-number > "$OUT/bad.log" 2>&1 || BAD_RC=$?
 echo "invalid --capture-tick rc=$BAD_RC"
 assert_eq "invalid --capture-tick exit code" "$BAD_RC" "13"

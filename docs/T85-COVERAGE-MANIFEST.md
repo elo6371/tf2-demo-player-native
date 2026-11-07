@@ -105,9 +105,9 @@
 | N23 | 世界通路 `$translucent`/`$alphatest` 生效 | **解析但不生效、无计数**：`native/src/vmt_material.cpp:266-267` 解析；世界 PS（`native/src/native_renderer_shaders.cpp:110-262`）无 discard、无 alpha test 分支；`main.cpp` 世界段 0 个计数器 → 这些面被当不透明画且无 trace 记录 | 同上 N22（顺延为 N23）；`T85-STATUS.md` §3 第 3 条 |
 | N24 | 光照 HDR 削顶有数值 pin（N07 的子项） | **无 pin**：解码真值在 `native/src/bsp_map.cpp:97-110`（`writeLuxel`）；实测每个 luxel 进 8bit atlas 被钉 255 的占比 snakewater 9.34%、sunshine 16.90%、bagel 8.22%/8.23% | 同上 N23（顺延为 N24）；`probe-runs/hdr-stats.txt` |
 | N25 | 地图侧 `func_lod` 距离剔除（N04 的子项） | **无**：`func_lod` 在静态白名单里（`bsp_map.cpp:319-321`）→ 当常驻 brush 画；四图 0/4/53/53 个 | 同上 N24（顺延为 N25） |
-| N26 | 门禁/整链不改写用户真实配置（`settings.ini` / `ui.ini`） | **静态棘轮已接管“不许变坏”，“确实没改写”仍只有整链守卫**：`gate-launch-hygiene-check.sh`（task-18）枚举命令位启动点，断言违规集合 == `evidence/gate-launch-hygiene/baseline.txt`；权威读数 launchers=51、sites=78、violations=**85 行 / 47 脚本**（32 缺 `--settings-file` + 42 缺 `--ui-settings-file` + 6 shared settings + 5 shared ui；42 脚本有“完全没传”、6 脚本有“传了但落在 tracked/AppData”，`viewmodel-animation-check.sh` 两者兼有）、warnings=23、lifecycle 豁免 1；产品退出必写 `settings.ini`（`native/src/main.cpp:11613-11616`、`:11627-11629`），每个 `--demo` 启动必写 `ui.ini`（`native_ui.cpp:196-197` → `:128-143`）。`verify-release.sh` 的 machine guard 在整链层判 `MACHINE-MUTATED=FAIL`，**没有任何单门禁**断言自己没改用户配置（棘轮只冻结集合，不证明没写） | task-16/task-18；`docs/T85-DEBT-LIST.md` D-22；`gate-launch-hygiene-check.sh`；`verify-release.sh` machine guard |
+| N26 | 门禁/整链不改写用户真实配置（`settings.ini` / `ui.ini`） | **静态棘轮已接管“不许变坏”，“确实没改写”仍只有整链守卫**：`gate-launch-hygiene-check.sh`（task-18）枚举命令位启动点，断言违规集合 == `evidence/gate-launch-hygiene/baseline.txt`；权威读数 launchers=51、sites=78、violations=**85 行 / 47 脚本**（32 缺 `--settings-file` + 42 缺 `--ui-settings-file` + 6 shared settings + 5 shared ui；42 脚本有“完全没传”、6 脚本有“传了但落在 tracked/AppData”，`viewmodel-animation-check.sh` 两者兼有）、warnings=23、lifecycle 豁免 1；产品退出必写 `settings.ini`（`native/src/main.cpp:11613-11616`、`:11627-11629`），每个 `--demo` 启动必写 `ui.ini`（`native_ui.cpp:196-197` → `:128-143`）。`verify-release.sh` 的 machine guard 在整链层判 `MACHINE-MUTATED=FAIL`，**没有任何单门禁**断言自己没改用户配置（棘轮只冻结集合，不证明没写）。**task-24（2026-11-07）实测更新**：`verify-all.sh` 调用链里的 9 个违规脚本已全部真传 `--settings-file`/`--ui-settings-file`（每脚本一个 ISO 块 + 追加而非覆盖原 EXIT trap，共 19 个启动点），基线重算为 **67 行 / 38 脚本**（85 − 9×2），`GATE-LAUNCH-HYGIENE=PASS violations=67 baseline=67 warnings=23 lifecycle=1`；另对 6 条门禁做了真实启动抽验（AppData 两文件 sha256+size:mtime 前后不变，见 task-24 报告）。 | task-16/task-18；`docs/T85-DEBT-LIST.md` D-22；`gate-launch-hygiene-check.sh`；`verify-release.sh` machine guard |
 | N27 | 启动卫生棘轮的**覆盖盲区** | 棘轮只认静态可见的“命令位产品调用”（direct / array-exec / array-def）。以下**都不可见、无任何断言**：python heredoc 内 `subprocess` 启动、PowerShell `.ps1` 启动、函数包装器（如 `run_exe`）转发、"$@" 转发、.cmd/.bat 启动器、以及 `bash -c` 字符串里的启动。本次 101 脚本扫描里 wrapped 站点全部落在 lifecycle 脚本、非 lifecycle 侧未见——但**这是抽样结论，不是棘轮保证**：新增包装器写法可绕过棘轮而不变红 | task-18；`gate-launch-hygiene-check.sh` 头注“模型边界”段；`evidence/gate-launch-hygiene/baseline.txt` |
-| N28 | 债表「能判红」声明本身没有门禁（task-20） | 债表每行末列改为机器声明，由 `debt-claim-check.sh` 解析：`CAN-RED gate:<脚本>#<字面 token>` 要求脚本存在且字节级命中；无锚点、脚本不存在、token 打错三种都 `FAIL: <id> ...` 且 rc=1。`CANNOT-RED <理由>` / `CAN-RED-UNANCHORED <理由>` 必须带理由，后者计入「待补门禁」；全表 anchored=0 时门禁自身也红。当前 50 行（39 条 8.x + 11 条 D 表）：anchored=24、cannot=21、unanchored=5（8.2-7 / 8.3-2 / 8.5-5 / D-17 / D-20）。负控 4 红 + 2 正控见 `.scratch/debt-claim-nc.sh`；整链第 2 步 | task-20；`debt-claim-check.sh`；`docs/T85-DEBT-LIST.md` §8 末列；`verify-release.sh` 第 2 步 |
+| N28 | 债表「能判红」声明本身没有门禁（task-20） | 债表每行末列改为机器声明，由 `debt-claim-check.sh` 解析：`CAN-RED gate:<脚本>#<字面 token>` 要求脚本存在且字节级命中；无锚点、脚本不存在、token 打错三种都 `FAIL: <id> ...` 且 rc=1。`CANNOT-RED <理由>` / `CAN-RED-UNANCHORED <理由>` 必须带理由，后者计入「待补门禁」；全表 anchored=0 时门禁自身也红。当前 51 行（39 条 8.x + 12 条 D 表）：anchored=24、cannot=21、unanchored=6（8.2-7 / 8.3-2 / 8.5-5 / D-17 / D-20 / D-27）。负控 4 红 + 2 正控见 `.scratch/debt-claim-nc.sh`；整链第 2 步 | task-20；`debt-claim-check.sh`；`docs/T85-DEBT-LIST.md` §8 末列；`verify-release.sh` 第 2 步 |
 
 > 编号口径：map-auditor 原稿把雾/illusionary/props/世界 alpha/HDR/func_lod 编为 N19–N24；主账本 N19 已被"官方四图角色轴外推"占用，故整体 **+1 → N20–N25**，顺序不变。HDR 与 func_lod 审计建议分别并入 N07/N04，主账本**保留独立编号**以免丢掉量化数字（削顶占比、0/4/53/53）。
 
@@ -128,14 +128,15 @@ sha256sum native/build-nmake/tf2_demo_native.exe
 # a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9  2,763,264 B
 
 # 门禁（task-18 / task-20）
-   # 行尾口径：docs/*.md 在仓库里以 LF 存储、工作树被 core.autocrlf 转成 CRLF，
-   # 所以 .md 的哈希要对得上必须取仓库字节：git show HEAD:docs/T85-DEBT-LIST.md | sha256sum
-   # *.sh 的工作树与仓库同为 LF，直接 sha256sum 即可。
-sha256sum gate-launch-hygiene-check.sh   # 4fa73f6ae22312bf935dd37d7163d031695df6379b68f47143c4cadf5ab02508
-sha256sum evidence/gate-launch-hygiene/baseline.txt # 2b417a767313b14add52b51f3e0fd85343b8a47c02a754249febfcab4136bfbf
-sha256sum debt-claim-check.sh            # 2500c56fb7cf11ff1bcc113e7e6a2982987bf2bab8b9b260d9dfc42ed498d752
-sha256sum verify-release.sh              # 7ac88ae47eb5330ae6c2befd440b0f0f3786e37ae358cc380afcbae1c767ae48
-sha256sum docs/T85-DEBT-LIST.md          # 3baaf3edbcee93a9a0a7d1af87f185e0934cfccb7082d1c705b1b6a407137e8b
+   # 行尾口径（task-24 重写）：本仓库以 LF 存 blob，checkout（core.autocrlf=true）把
+   # *.sh 与 docs/*.md 变成 CRLF，t86-phase0 树上碰巧是 LF。所以跨环境复核一律取
+   # 仓库字节：git show <commit>:<path> | sha256sum；工作树 sha256sum 只代表当前 checkout。
+   # 例外：evidence/gate-launch-hygiene/baseline.txt 已由 .gitattributes 钉成 LF（hunk 可读）。
+git show HEAD:gate-launch-hygiene-check.sh | sha256sum   # 06dee8f14d1fb94c7e51d255ec5663ac948b37898f5dc9fd12c1e06362d5d88b  (task-24)
+git show HEAD:evidence/gate-launch-hygiene/baseline.txt | sha256sum # 2f5b79cf19e5eb953e33d207b0a7171074865042dfb481a5109fdf78264c092f  (67 行 = 38 脚本)
+git show HEAD:debt-claim-check.sh | sha256sum           # 2500c56fb7cf11ff1bcc113e7e6a2982987bf2bab8b9b260d9dfc42ed498d752  (task-20)
+git show HEAD:verify-release.sh | sha256sum             # 7ac88ae47eb5330ae6c2befd440b0f0f3786e37ae358cc380afcbae1c767ae48  (task-20，9 步)
+git show HEAD:docs/T85-DEBT-LIST.md | sha256sum         # df23395805fef9c4fe917a237e3c9a035425487f7b9d4e1584d5678215b8eb52  (143 行，含 D-27)
 
 # 文档（本仓库内的权威读数）
 sha256sum evidence/t62-matrix/CHARACTER-MATRIX.md   # 81028863238a7bb5c1f000f1939694c73e719837c612b96648c730bbd3ac9ecc
@@ -181,12 +182,15 @@ d8a1c7e43534ca68daf8ce2ebc4fa7b80d21c4b1e43d08334b61aef913342b66  world-geometry
 180be8a64542432715655ad74d62bc78ba25c5cefefbfef3f07c963709805fc8  verify-fast.sh
 7e28c987738a15fb32564311ed71ae0c675c0cd4d689e05e86b92f2945082d20  verify-all.sh
 4a3dd2556ae0b04d9b96194349540867d186020e5c2cab5964cbf280d2b6d033  verify-release.sh   # e15577b/7 步版（历史）
-bc5b7c9b4127a1d08fc094c08e28e862c93e38d04bb726232447e30a03c47309  verify-release.sh   # task-18 8 步版（现行）
-4fa73f6ae22312bf935dd37d7163d031695df6379b68f47143c4cadf5ab02508  gate-launch-hygiene-check.sh   # task-18 新增，385 行
-2b417a767313b14add52b51f3e0fd85343b8a47c02a754249febfcab4136bfbf  evidence/gate-launch-hygiene/baseline.txt   # 85 行 = 47 脚本
+bc5b7c9b4127a1d08fc094c08e28e862c93e38d04bb726232447e30a03c47309  verify-release.sh   # task-18 8 步版（历史，已被 task-20 取代）
+7ac88ae47eb5330ae6c2befd440b0f0f3786e37ae358cc380afcbae1c767ae48  verify-release.sh   # task-20 9 步版（现行）
+4fa73f6ae22312bf935dd37d7163d031695df6379b68f47143c4cadf5ab02508  gate-launch-hygiene-check.sh   # task-18 版 385 行（历史）
+2b417a767313b14add52b51f3e0fd85343b8a47c02a754249febfcab4136bfbf  evidence/gate-launch-hygiene/baseline.txt   # task-18 版 85 行 = 47 脚本（历史）
+06dee8f14d1fb94c7e51d255ec5663ac948b37898f5dc9fd12c1e06362d5d88b  gate-launch-hygiene-check.sh   # task-24 现行，394 行
+2f5b79cf19e5eb953e33d207b0a7171074865042dfb481a5109fdf78264c092f  evidence/gate-launch-hygiene/baseline.txt   # task-24 现行，67 行 = 38 脚本
 ```
 
-> `verify-release.sh` 是 **task-15 新增、task-16 扩到 7 步、task-18 扩到 8 步的整链入口**（分支 `task/t86-phase0`，不在 `e15577b` 的 99 个脚本里）。步骤顺序与超时：**`gate-launch-hygiene-check.sh`（120s，第 1 个执行；task-18 新增的启动卫生棘轮）** → `verify-all.sh`（3600s）→ `outline-check.sh`（1800s）→ `third-person-weapon-check.sh`（1200s）→ `player-body-appearance-check.sh`（1200s）→ `class-pixels-check.sh`（1200s）→ `build-identity-check.sh`（1200s）→ `world-geometry-budget-check.sh`（1200s）；后两个脚本尚不存在 → 各自记 `STUB-ABSENT=FAIL`，不跳过。每步独立 timeout（可用 `VERIFY_RELEASE_TIMEOUT_*` 覆盖）、逐步落 `evidence/release/<utc>-<step>.log`，最后一行 `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=8`。**machine guard（D-22，task-16）**：第一步前与末步后快照 `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` 与 `ui.ini`（exists/bytes/mtime/sha256）到 `<utc>-machine-before.txt` / `-machine-after.txt`，任何变化默认 `MACHINE-MUTATED=FAIL` 并令整链 FAIL；`VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1` 只降级为 `MACHINE-MUTATION-ALLOWED=1` 且该次运行不能签发布。只在 `hostlock.sh run` 内、且 `VERIFY_RELEASE_OWNER` 与锁主一致时启动，否则 exit 9 拒绝。task-15/16 都只做 `bash -n` 与 `VERIFY_RELEASE_DRY_RUN=1`，**未真跑**（未占锁、未构建、未启动产品）。策略条文见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条。
+> `verify-release.sh` 是 **task-15 新增、task-16 扩到 7 步、task-18 扩到 8 步、task-20 扩到 9 步的整链入口**（分支 `task/t86-phase0`，不在 `e15577b` 的 99 个脚本里）。步骤顺序与超时：**`gate-launch-hygiene-check.sh`（120s，第 1 个执行；task-18 新增的启动卫生棘轮）** → **`debt-claim-check.sh`（120s，第 2 步；task-20 新增的债表声明门禁）** → `verify-all.sh`（3600s）→ `outline-check.sh`（1800s）→ `third-person-weapon-check.sh`（1200s）→ `player-body-appearance-check.sh`（1200s）→ `class-pixels-check.sh`（1200s）→ `build-identity-check.sh`（1200s）→ `world-geometry-budget-check.sh`（1200s）；后两个脚本尚不存在 → 各自记 `STUB-ABSENT=FAIL`，不跳过。每步独立 timeout（可用 `VERIFY_RELEASE_TIMEOUT_*` 覆盖）、逐步落 `evidence/release/<utc>-<step>.log`，最后一行 `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=9`。**machine guard（D-22，task-16）**：第一步前与末步后快照 `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` 与 `ui.ini`（exists/bytes/mtime/sha256）到 `<utc>-machine-before.txt` / `-machine-after.txt`，任何变化默认 `MACHINE-MUTATED=FAIL` 并令整链 FAIL；`VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1` 只降级为 `MACHINE-MUTATION-ALLOWED=1` 且该次运行不能签发布。只在 `hostlock.sh run` 内、且 `VERIFY_RELEASE_OWNER` 与锁主一致时启动，否则 exit 9 拒绝。task-15/16 都只做 `bash -n` 与 `VERIFY_RELEASE_DRY_RUN=1`，**未真跑**（未占锁、未构建、未启动产品）。策略条文见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条。
 
 > **行尾口径修正（task-18，commit `f384fa1`）**：本文档与 `T85-DEBT-LIST.md`、`verify-release.sh`、`gate-launch-hygiene-check.sh`、`baseline.txt` 经 task-18 重写后为 **LF**（CR=0）；`RELEASE-POLICY.md` 仍为 CRLF（80 行 / 80 CR），`CHARACTER-MATRIX.md` 等未改文档仍 CRLF。因此上表数值是“该文件当前工作树字节”的 sha256，checkout 归一化后可能变；要跨环境复核请用 `git show <commit>:<path> | sha256sum`（LF blob 口径）。
 

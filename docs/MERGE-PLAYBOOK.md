@@ -53,7 +53,7 @@ done
 
 ## §1 合并顺序（推荐）与依据
 
-**推荐顺序**：t87-anim → t88-maps → t90-identity → t92-install → t93-playback → t85-budget → **t86-phase0（最后）**。
+**推荐顺序**：t87-anim → t88-maps → t90-identity → t92-install → t93-playback → t85-budget → **t86-phase0（最后）** → **t94-hygiene（从 t86 tip 起的卫生收尾，必须紧跟 t86）**。
 
 | # | 分支 | 为什么在这个位置 |
 |---|---|---|
@@ -64,6 +64,7 @@ done
 | 5 | **t93-playback** | `main.cpp` 9 个 hunk（312/953/3241/3244/8920/9022/9070/11501/11507），与其他四线零重叠；但它改的是**播放/错误路径**，t85 的录制窗口读取这些 trace，所以排在 t85 前。 |
 | 6 | **t85-budget** | 改动最大：`main.cpp` 28 个 hunk + 新增 `entity_mesh_budget.h` + 重写 `outline-check.sh`（4590 行 diff，2516 行新文件）+ 三个门禁的 hygiene 修正。它的门禁要吸收 t88（世界预算）与 t93（播放 trace）的读数，**必须最后于产品线**。合并后 `gate-launch-hygiene` 的基线预计变小（它修了 3 个脚本的 `--settings-file`/`--ui-settings-file` 传参）。 |
 | 7 | **t86-phase0** | **本文建议把 Lead 原方案里的"t86 最先"改成"t86 最后"**，依据三条硬理由：① `gate-launch-hygiene-check.sh` 的 `evidence/gate-launch-hygiene/baseline.txt` 是**棘轮基线**，必须在最终树上重跑/重冻，它记录的是"当前树有哪些未隔离启动"——先合它、后合别线，基线立刻 stale；② `verify-release.sh` 的 STEPS 显式包含 `build-identity` 与 `world-geometry-budget`，先合 t86 会让这两个步骤在合并中期稳定地 `STUB-ABSENT=FAIL`（见 `verify-release.sh:42-44` 自述），谁看到都会误判；③ `docs/T85-COVERAGE-MANIFEST.md` 的哈希/行数表引用的是"合并后的最终 .md/.sh"，先合就要改两遍。 |
+| 8 | **t94-hygiene** | 从 `task/t86-phase0` tip（`d889376`）切出、只做 D-22 卫生收尾：修 9 个 `verify-all.sh` 脚本的隔离启动、把 `baseline.txt` 85→67 行、给棘轮补 CRLF 归一化（`.gitattributes` 钉 baseline 为 LF、gate 读基线时 `tr -d '\r'`）。它改的正是 t86 的门禁与基线，**必须紧跟 t86**；它还给债表加 D-27（CAN-RED-UNANCHORED），不影响 t86 的判红计数。 |
 
 **如果你选择维持"t86 最先"**：可以接受，但必须显式记录"合并中期整链必红、且 t86 的文件在合并末尾还要再改一次（基线重冻 + MANIFEST 哈希 + STEPS 实测）"。**不许**在中期把 `STUB-ABSENT=FAIL` 当成"还没轮到"而忽略，也不许把 `verify-release.sh` 的步骤临时注释掉。
 
@@ -113,6 +114,8 @@ native/docs/camera-ui-contract.md          |  25 +-
 native/docs/hud-supported-formats.md       |   2 +-
 verify-release.sh                          | 433 (mod)
 ```
+
+> **task-24 之后（t94-hygiene 分支）**：`evidence/gate-launch-hygiene/baseline.txt` 85 → **67 行 / 38 脚本**，`gate-launch-hygiene-check.sh` 385 → **394 行**（CRLF 归一化 + 注释），`debt-claim-check.sh` 未变（167 行，`claims=51 anchored=24 cannot=21 unanchored=6`），新增 D-27 行。上表是 **t86-phase0 相对 e15577b** 的旧读数，t94 合并后这些行数以 t94 为准。
 
 **t87-anim**（1 commit + 2 dirty，合计 3 files +816）
 
@@ -285,6 +288,7 @@ bash gate-launch-hygiene-check.sh            # 再跑必须 PASS
 - 旧基线：85 行 = 32 缺 `--settings-file` + 42 缺 `--ui-settings-file` + 6 shared settings + 5 shared ui，涉及 **47 个不同脚本**（`evidence/gate-launch-hygiene/baseline.txt`）。
 - 期望：新基线行数 **≤ 85**（t85 修了 3 个脚本，应减少）。**若 > 85，停：这是新违规，修源码/脚本，不是重冻。**
 - 记录：旧行数/新行数、增删行、`GATE-LAUNCH-HYGIENE=PASS violations=N baseline=M` 一行。
+- **task-24 之后**：9 个 `verify-all.sh` 脚本已实际修复（D-22），基线在 `t94-hygiene` 分支重算为 **67 行 / 38 脚本**（85 − 9×2）。合并 t86 时若还没合 t94，期望 85 行；合完 t94 后应在最终树重跑到 **≤67 行**再 `--update-baseline`——不许把 67 行当“已经绿”而不复跑。
 
 ### R06 `debt-claim` 重跑与锚点更新
 
@@ -363,15 +367,16 @@ bash debt-claim-check.sh   # 期望 DEBT-CLAIM=PASS claims=50 anchored=24 cannot
 [ ] 6  merge t93-playback（期望：main.cpp 9 hunk 自动合；.t93patches 决定去留）
 [ ] 7  merge t85-budget  （期望：outline/third-person/body 脚本整体替换；main.cpp 28 hunk 自动合）
 [ ] 8  merge t86-phase0  （期望：README 最终解；verify-release/MANIFEST/DEBT-LIST 进来）
+       然后 merge t94-hygiene（基于 t86 tip；baseline 85→67、gate 394 行；不改 README/main.cpp）
 [ ] 9  冲突清单落盘：git diff --name-only --diff-filter=U 必须为空 → evidence/t91-merge/CONFLICTS.md
 [ ] 10 构建：hostlock run … bash build-cmake.sh → rc=0；sha256sum exe → BUILD.md
-[ ] 11 静态门禁：gate-launch-hygiene（首跑看差集）→ debt-claim（期望 PASS claims=50 anchored≥24）
+[ ] 11 静态门禁：gate-launch-hygiene（首跑看差集）→ debt-claim（期望 PASS claims=51 anchored≥24；t93-timeline 合入后 D-27 变 anchored=25）
 [ ] 12 四 P0：outline / third-person / body / class-pixels → 4 个 PASS token 全出
 [ ] 13 新门禁：build-identity / world-geometry-budget / install-cli-contract / playback-error-paths
         → BUILD-IDENTITY=PASS / WORLD-GEOMETRY-BUDGET=PASS / INSTALL-CLI-CONTRACT=PASS / GATE-RESULT=PASS
 [ ] 14 像素与 pin：先不 re-pin 跑 map-geometry / class-pixels / third-person / outline / world-render
         → 任何不匹配先写 PIXEL-DELTA.md 归因；只有可归因项才 --re-pin="…"
-[ ] 15 基线重冻：gate-launch-hygiene --update-baseline（行数 ≤85）；再跑必须 PASS
+[ ] 15 基线重冻：gate-launch-hygiene --update-baseline（行数 ≤67，t94 已修 9 脚本；未合 t94 时 ≤85）；再跑必须 PASS
 [ ] 16 债表更新：D-20 锚点 → anchored+1；若采纳 8.5-5 → anchored+2（见 §6）
 [ ] 17 verify-release 注册新步骤 + steps_total 改写；VERIFY_RELEASE_DRY_RUN=1 → steps_total 实测
 [ ] 18 整链：hostlock run … env VERIFY_RELEASE_OWNER=… bash verify-release.sh
@@ -384,9 +389,9 @@ bash debt-claim-check.sh   # 期望 DEBT-CLAIM=PASS claims=50 anchored=24 cannot
 
 ---
 
-## §6 5 条 UNANCHORED 债的分工表（Lead 派活用）
+## §6 6 条 UNANCHORED 债的分工表（Lead 派活用）
 
-现状：`DEBT-CLAIM=PASS claims=50 anchored=24 cannot=21 unanchored=5`。这 5 条是"声称能判红但没有可执行锚点"，在补锚点之前**不能**被 `debt-claim-check.sh` 判定，只能人工读证据。
+现状：`DEBT-CLAIM=PASS claims=51 anchored=24 cannot=21 unanchored=6`。这 6 条是"声称能判红但没有可执行锚点"，在补锚点之前**不能**被 `debt-claim-check.sh` 判定，只能人工读证据。
 
 | id | 声明（缺什么断言） | 最该补的分支/owner | 门禁类型 | 建议的具体锚点（脚本 + token） | 依赖 / 备注 |
 |---|---|---|---|---|---|
@@ -395,8 +400,9 @@ bash debt-claim-check.sh   # 期望 DEBT-CLAIM=PASS claims=50 anchored=24 cannot
 | **8.5-5** | 预算拒绝优先级：`T62-REPORT.md:10` 有 supply=23 refused=3 / `0x8007000E` 具名拒绝，但**没有"非目标预载不得挤占可见目标"的断言**；三把 OOM 武器是 task-1 的 P0（未修） | **t85-budget** | 静态 / trace 断言（已有脚本，缺 token） | 给现有 `attach-weapon-budget-check.sh` 加末行 token `ATTACH-WEAPON-BUDGET=PASS|FAIL`，并把"优先级"写成显式断言（当前是 resident/refusals=0 的读数，不是优先级证明）；锚点 `gate:attach-weapon-budget-check.sh#ATTACH-WEAPON-BUDGET=PASS` | 该脚本 143 行、rc 判定，**无 machine token**，所以现在连"能判红"都无法被 debt-claim 表达；补 token 是最便宜的一步 |
 | **D-17** | 官方地图夹具覆盖不均：角色轴门禁默认跑 snakewater（`class-pixels-check.sh:102`、`player-body-appearance-check.sh:42`、`third-person-weapon-check.sh:85`），队伍对夹具在 upward；sunshine demos.tf 最好 8/9、rc12 本地 0 条 | **无人认领 → 建议新开 t94-fixtures**（或并入 t87-anim） | 静态（矩阵断言） | `fixture-coverage-check.sh`：读 `D:/_shared/t85-assets/{demo-candidates.csv,local-demo-index.csv}`，断言"四官方图每图 ≥N 条九职业 demo"或显式 `UNSUPPORTED`；token `FIXTURE-COVERAGE=PASS maps=4 full=N partial=M`；锚点 `gate:fixture-coverage-check.sh#FIXTURE-COVERAGE=PASS` | 这是**资产问题**不是代码问题：rc12 本地 0 条 demo 只能靠下载/录制；补门禁会立刻红，所以要先决定"允许 partial 到什么程度"（写进 SUPPORT-SCOPE） |
 | **D-20** | 构建身份错误：`--version` 的 sourceTree/buildUtc 不属于该 exe（`native/cmake/tf2-version.cmake:25` configure 期求值） | **t90-identity（已实现）** | lifecycle / CLI 静态 + 产品 | 直接把债表行改成 `CAN-RED gate:build-identity-check.sh#BUILD-IDENTITY=PASS`（token 实测在 `build-identity-check.sh:55/:492`，另有 `BUILD-IDENTITY-MUTATION=PASS`） | **只要 t90 合并即可清零**；合并顺序里 t90 在 t86 之前，所以 t86 的 debt-claim 不会因为"脚本不存在"而红 |
+| **D-27** | `--capture-tick` 不是 seek：只把越过 N 的游标按回 N（`native/src/main.cpp:9005-9019`），真 seek 走 `main.cpp:1156-1165` → `playback_state.cpp:13-31`；拿它当"seek 到 N"会写出假的跨 seek 证据 | **workflow-auditor / t93-timeline 分支**（`timeline-check.sh` 只在 `D:/TF2_Native_Worktrees/t93-timeline/`） | 产品 trace 断言 | 合入后把债表行改成 `CAN-RED gate:timeline-check.sh#captured frame drawn at the requested tick`（该字面串实测在 `timeline-check.sh:262`） | 分支合入前 `debt-claim-check.sh` 会报 missing-script，故现记 `CAN-RED-UNANCHORED`；合入即 anchored+1 |
 
-**派活顺序建议**：D-20（合并即解）→ 8.5-5（补 token，半天）→ D-17（先定政策再写门禁）→ 8.3-2（要产品 trace）→ 8.2-7（最大，独立 task）。
+**派活顺序建议**：D-20（合并即解）→ D-27（合并 t93-timeline 即解）→ 8.5-5（补 token，半天）→ D-17（先定政策再写门禁）→ 8.3-2（要产品 trace）→ 8.2-7（最大，独立 task）。
 每条补完都要：改 `DEBT-LIST` 的机器判红列、跑 `debt-claim-check.sh` 看 `anchored` 增、`unanchored` 减，并在交付里贴 `DEBT-CLAIM=PASS …` 原文。
 
 ---

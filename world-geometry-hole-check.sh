@@ -57,6 +57,28 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
 TICK=2000
 mkdir -p "$SCRATCH" "$ANA"
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists its settings and UI layout under %LOCALAPPDATA%/TF
+# Demo Player. A gate that reads or writes there shares state with the desktop
+# player and with every other gate on the host, so a previous run (or a human)
+# can change what this gate measures. Each run gets a throwaway directory
+# instead, and it is removed on exit.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+# Chain any EXIT trap already installed instead of replacing it: an overwritten
+# trap would skip a mutation restore and leave a mutated build behind, which is
+# the "failure looks like success" shape this suite forbids.
+ISO_PREV_TRAP=$(trap -p EXIT)
+if [ -n "$ISO_PREV_TRAP" ]; then
+  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
+  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
+  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
+else
+  trap 'rm -rf "$ISO_DIR"' EXIT
+fi
+
 
 # ---- pins ----------------------------------------------------------------
 # Measured on 36d68b0 with the T26 instrumentation built from the same commit.
@@ -277,6 +299,7 @@ run_capture_trace() { # run_capture_trace <bmp> <trace> [extra flags...]
     TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 180 "$PRODUCT" \
       --tf-root "$TF" --demo "$DEMO" --capture-tick "$TICK" \
       --capture-frame "$(cygpath -m "$PWD/$bmp")" \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
       --audio-disabled --hidden-window --world-water off "$@" > "$SCRATCH/run.log" 2>&1
     rc=$?
     LAST_PRODUCT_RC=$rc
@@ -1490,6 +1513,7 @@ if build_mutated RESTORE; then
   TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$SCRATCH/restored.trace")" timeout 180 "$PRODUCT" \
     --tf-root "$TF" --demo "$DEMO" --capture-tick "$TICK" \
     --capture-frame "$(cygpath -m "$PWD/$RESTORED_CAPTURE")" \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --audio-disabled --hidden-window --world-water off > "$SCRATCH/restored.log" 2>&1
   if [ $? -ne 0 ]; then
     echo "  FAIL the restored build could not capture"; mfail=1

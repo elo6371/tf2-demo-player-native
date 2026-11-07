@@ -317,6 +317,28 @@ if ! take_lock; then
   fi
 fi
 trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists its settings and UI layout under %LOCALAPPDATA%/TF
+# Demo Player. A gate that reads or writes there shares state with the desktop
+# player and with every other gate on the host, so a previous run (or a human)
+# can change what this gate measures. Each run gets a throwaway directory
+# instead, and it is removed on exit.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+# Chain any EXIT trap already installed instead of replacing it: an overwritten
+# trap would skip a mutation restore and leave a mutated build behind, which is
+# the "failure looks like success" shape this suite forbids.
+ISO_PREV_TRAP=$(trap -p EXIT)
+if [ -n "$ISO_PREV_TRAP" ]; then
+  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
+  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
+  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
+else
+  trap 'rm -rf "$ISO_DIR"' EXIT
+fi
+
 
 # A mutation run writes into its own directory. It produces the same filenames
 # as the normal run, so sharing one directory would overwrite the committed
@@ -662,6 +684,7 @@ for tick in "${TICKS[@]}"; do
   # frame hashes recorded in T39-WEAPON-ANIMATION-2026-10-21.md).
   TF2_NATIVE_TRACE="$ROOT/$TRACE" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \\
     --demo "$DEMO" \
     --capture-frame "$BMP" --capture-tick "$tick" --metrics-file "$CSV" \
     $CAM_POSE_ARGS \
@@ -857,6 +880,7 @@ run_model() { # run_model <name> <model> <args...>
   rm -f "$bmp"
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/model-$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \\
     --model "$model" \
     --capture-frame "$bmp" "$@" > "$TRACE_DIR/model-$name.log" 2>&1
   echo "$bmp"

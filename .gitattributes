@@ -20,3 +20,9 @@ evidence/t30/** -text
 # this host rewrites LF to CRLF on checkout, which moved that hash to 18f506ff...
 # and made the gate fail against its own fixture. Checked out byte for byte.
 evidence/t68-events/** -text
+
+# T85/task-24: the launch-hygiene baseline is a set of script|flag keys compared
+# byte-wise by the gate. It is committed LF and read LF so that the file git
+# checks out, the file --update-baseline rewrites, and the file the ratchet
+# compares all agree on a fresh clone.
+evidence/gate-launch-hygiene/baseline.txt text eol=lf

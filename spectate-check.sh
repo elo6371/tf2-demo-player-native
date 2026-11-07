@@ -81,6 +81,28 @@ case "$OUT" in
     exit 2 ;;
 esac
 mkdir -p "$OUT"
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists its settings and UI layout under %LOCALAPPDATA%/TF
+# Demo Player. A gate that reads or writes there shares state with the desktop
+# player and with every other gate on the host, so a previous run (or a human)
+# can change what this gate measures. Each run gets a throwaway directory
+# instead, and it is removed on exit.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+# Chain any EXIT trap already installed instead of replacing it: an overwritten
+# trap would skip a mutation restore and leave a mutated build behind, which is
+# the "failure looks like success" shape this suite forbids.
+ISO_PREV_TRAP=$(trap -p EXIT)
+if [ -n "$ISO_PREV_TRAP" ]; then
+  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
+  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
+  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
+else
+  trap 'rm -rf "$ISO_DIR"' EXIT
+fi
+
 
 RUN_NEGATIVE=1
 [ "${1:-}" = "--skip-negative-controls" ] && RUN_NEGATIVE=0
@@ -257,6 +279,7 @@ if section_wanted 4; then
 echo "=== 4/11 the product: the same three deaths at ${SPEED}x, a handover in progress, corpses removed ==="
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/product.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed "$SPEED" --capture-tick "$CAPTURE_TICK" \
   --capture-frame "$(cygpath -m "$PWD/$OUT/product.bmp")" > "$OUT/product.txt" 2>&1
 PRODUCT_RC=$?
@@ -311,6 +334,7 @@ if section_wanted 6; then
 echo "=== 6/11 the manual pick: same frame, no handover, not taken back ==="
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/manual.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed "$SPEED" --capture-tick "$ALIVE_TICK" \
   --capture-frame "$(cygpath -m "$PWD/$OUT/manual.bmp")" --spectate-target 6 > "$OUT/manual.txt" 2>&1
 MANUAL_RC=$?
@@ -350,6 +374,7 @@ assert_ge "product frames printed by the manual run" "${MANUAL_FRAMES:-0}" "3"
 # player the user did not choose.
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/rejected.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed "$SPEED" --capture-tick "$ALIVE_TICK" \
   --capture-frame "$(cygpath -m "$PWD/$OUT/rejected.bmp")" --spectate-target 5000 > "$OUT/rejected.txt" 2>&1
 REJECTED_SUMMARY=$(grep 'spectate: summary' "$OUT/rejected.trace" | tail -1)
@@ -362,11 +387,13 @@ if section_wanted 7; then
 echo "=== 7/11 the picture: the corpse rule does not touch a frame with nobody dead ==="
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/alive-normal.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed "$SPEED" --capture-tick "$ALIVE_TICK" \
   --capture-frame "$(cygpath -m "$PWD/$OUT/alive-normal.bmp")" > "$OUT/alive-normal.txt" 2>&1
 ALIVE1_RC=$?
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/alive-corpses.trace")" timeout -k 5 280 "$EXE" \
-  --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --spectate-show-corpses \
+  --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --spectate-show-corpses \
   --playback-speed "$SPEED" --capture-tick "$ALIVE_TICK" \
   --capture-frame "$(cygpath -m "$PWD/$OUT/alive-corpses.bmp")" > "$OUT/alive-corpses.txt" 2>&1
 ALIVE2_RC=$?
@@ -397,6 +424,7 @@ PAUSE_TICK="${SPECTATE_PAUSE_TICK:-3310}"
 PAUSE_SECONDS="${SPECTATE_PAUSE_SECONDS:-2.0}"
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/pause.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed "$SPEED" --spectate-pause-at "$PAUSE_TICK" --spectate-pause-seconds "$PAUSE_SECONDS" \
   --capture-tick "$CAPTURE_TICK" \
   --capture-frame "$(cygpath -m "$PWD/$OUT/pause.bmp")" > "$OUT/pause.txt" 2>&1
@@ -469,6 +497,7 @@ PICK_PAUSE_TICK="${SPECTATE_PICK_PAUSE_TICK:-2500}"
 PICK_PAUSE_SECONDS="${SPECTATE_PICK_PAUSE_SECONDS:-2.0}"
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/pause-manual.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed "$SPEED" --spectate-target 6 \
   --spectate-pause-at "$PICK_PAUSE_TICK" --spectate-pause-seconds "$PICK_PAUSE_SECONDS" \
   --capture-tick "$CAPTURE_TICK" \
@@ -548,6 +577,7 @@ quit
 SEEKEOF
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/seek.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed "$SPEED" --camera-script "$(cygpath -m "$PWD/$OUT/seek-script.txt")" \
   > "$OUT/seek.txt" 2>&1
 SEEK_RC=$?
@@ -599,6 +629,7 @@ echo "=== 11/11 the speed: a 16x replay is playback, not a seek on every frame =
 # reading has to be taken at 16x, because at 8x the old rule looked correct.
 TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$OUT/fast16.trace")" timeout -k 5 280 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled \
+  --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
   --playback-speed 16 --capture-tick "$CAPTURE_TICK" \
   --capture-frame "$(cygpath -m "$PWD/$OUT/fast16.bmp")" > "$OUT/fast16.txt" 2>&1
 FAST16_RC=$?

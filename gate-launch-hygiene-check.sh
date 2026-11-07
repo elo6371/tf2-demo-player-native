@@ -22,6 +22,9 @@
 #     - a baseline row that no longer violates  -> FAIL "baseline stale"
 #   This is a ratchet: fixing a gate without updating the baseline is also a failure,
 #   so the baseline always describes reality instead of drifting into decoration.
+#   The baseline is read with CR stripped: core.autocrlf=true means a fresh checkout
+#   delivers it with CRLF while the scan always emits LF, and a byte-wise compare
+#   then calls every row new AND stale at once.
 #
 # WHAT IT DOES NOT SEE (model boundaries, not bugs -- do not report a false PASS)
 #   - Launches made indirectly: python heredocs spawning the exe
@@ -355,7 +358,13 @@ if [ ! -f "$BASELINE" ]; then
   echo "GATE-LAUNCH-HYGIENE=FAIL tool-error: baseline missing: $BASELINE (run --update-baseline after review)"
   exit 90
 fi
-sort "$BASELINE" > "$TMP/base.txt"
+# The baseline is a committed text file and this host runs core.autocrlf=true,
+# so a fresh checkout materialises it with CRLF while the scan below always
+# writes LF. Comparing the two byte-wise made every row look both new and stale
+# at once on any checkout but the one that authored the file -- a false red that
+# says nothing about the tree. CR is stripped, not rewritten: the file on disk
+# stays as git delivered it.
+tr -d '\r' < "$BASELINE" | sort > "$TMP/base.txt"
 FB=0
 NEW=$(comm -23 "$TMP/now.txt" "$TMP/base.txt")
 if [ -n "$NEW" ]; then
