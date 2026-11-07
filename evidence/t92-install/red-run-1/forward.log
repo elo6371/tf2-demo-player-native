@@ -1,0 +1,76 @@
+
+=== 0/4 the build the gate is about to drive ===
+  OK   the product was built = yes
+  OK   the install probe was built = yes
+  product exe sha256=25018de73ea3a3bf2a2366f91d75edc04b451f33ee8ef8a297c2279f15a9f2b6
+  probe   exe sha256=a0548a81d58099888d041af3dcefee0755dee82de9b208510a499b387dc9a7cf
+
+=== 1/4 A1 --install-dry-run alone: a dry run, not a product launch ===
+  FAIL A1 the staged package carries a payload = no, expected yes
+  A1 exit=2 elapsed_ms=451
+    install=FAIL reason=no_payload payload=D:/_shared/t85-install/t92-gate/cases/a1/.uninstall/payload
+  FAIL A1 exit code = 2, expected 0
+  FAIL A1 the answer is a dry run = no, expected contains install=DRYRUN
+  FAIL A1 the plan lists the payload count = no, expected contains files=4
+  OK   A1 the directory did not change = same
+  OK   A1 no manifest was written = absent
+  OK   A1 it answered inside 5 s = 451
+
+=== 2/4 A3 an install into a Chinese path records it as UTF-8 ===
+  A3 exit=2
+    install=FAIL reason=no_payload payload=D:/_shared/t85-install/t92-gate/cases/验收 路径 空格/安装 目录/.uninstall/payload
+  FAIL A3 install exit code = 2, expected 0
+  FAIL A3 the install succeeded = no, expected contains install=PASS
+  FAIL A3 the payload was laid down = no, expected contains files=5
+  FAIL A3 the manifest was written = no, expected yes
+    Traceback (most recent call last):
+      File "D:\_shared\t85-install\t92-gate\logs\install-dir-bytes.py", line 21, in <module>
+        value = value_bytes(path)
+      File "D:\_shared\t85-install\t92-gate\logs\install-dir-bytes.py", line 6, in value_bytes
+        data = open(path, 'rb').read()
+    FileNotFoundError: [Errno 2] No such file or directory: 'D:/_shared/t85-install/t92-gate/cases/验收 路径 空格/安装 目录/.uninstall/install-manifest.txt'
+  FAIL A3 the recorded value is valid UTF-8 = no, expected contains valid_utf8=yes
+  FAIL A3 the recorded value is the installed path = no, expected contains equals_utf8=yes
+  OK   A3 it is not ANSI bytes that only look like the path = absent
+
+=== 3/4 A2 a dry run beside another mode is refused and touches nothing ===
+  A2 --uninstall --install-dry-run exit=2
+    install=FAIL reason=dry-run-conflict mode=uninstall detail=--install-dry-run only modifies --install
+  OK   A2 exit code = 2
+  OK   A2 the refusal names the reason = yes
+  OK   A2 the refusal names the mode it was given = yes
+  OK   A2 nothing was uninstalled = same
+  A2b --install-status --install-dry-run exit=2
+    install=FAIL reason=dry-run-conflict mode=install-status detail=--install-dry-run only modifies --install
+  OK   A2b exit code = 2
+  OK   A2b the refusal names the mode it was given = yes
+  OK   A2b no status answer was produced = absent
+
+=== 4/4 A4 a manifest written in the ANSI code page still reads back ===
+  A4 control exit=0
+    status=ABSENT reason=cannot open the manifest
+  OK   A4 control: status exit code = 0
+  FAIL A4 control: status is VERIFIED = no, expected contains status=VERIFIED
+  OK   A4 control: a UTF-8 manifest is not announced as legacy = absent
+  Traceback (most recent call last):
+  File "D:\_shared\t85-install\t92-gate\logs\install-dir-bytes.py", line 21, in <module>
+    value = value_bytes(path)
+  File "D:\_shared\t85-install\t92-gate\logs\install-dir-bytes.py", line 6, in value_bytes
+    data = open(path, 'rb').read()
+FileNotFoundError: [Errno 2] No such file or directory: 'D:/_shared/t85-install/t92-gate/cases/验收 路径 空格/安装 目录/.uninstall/install-manifest.txt'
+  FAIL A4 the fixture was rewritten to ANSI bytes = no, expected contains rewritten_to_cp936=yes
+    Traceback (most recent call last):
+      File "D:\_shared\t85-install\t92-gate\logs\install-dir-bytes.py", line 21, in <module>
+        value = value_bytes(path)
+      File "D:\_shared\t85-install\t92-gate\logs\install-dir-bytes.py", line 6, in value_bytes
+        data = open(path, 'rb').read()
+    FileNotFoundError: [Errno 2] No such file or directory: 'D:/_shared/t85-install/t92-gate/cases/验收 路径 空格/安装 目录/.uninstall/install-manifest.txt'
+  OK   A4 the fixture really is not valid UTF-8 = absent
+  A4 legacy manifest exit=0
+    status=ABSENT reason=cannot open the manifest
+  OK   A4 legacy status exit code = 0
+  FAIL A4 legacy status is still VERIFIED = no, expected contains status=VERIFIED
+  FAIL A4 the ANSI fallback is announced = no, expected contains manifest: legacy-acp installDirectory
+
+  cases=4 checks=31 fail=14 exe_sha256=25018de73ea3a3bf2a2366f91d75edc04b451f33ee8ef8a297c2279f15a9f2b6
+  INSTALL-CLI-CONTRACT=FAIL

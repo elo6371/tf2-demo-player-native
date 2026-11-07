@@ -45,6 +45,8 @@ native/build-nmake/tf2_demo_native.exe --tf-root "X:\SteamLibrary\steamapps\comm
 
 `--demo` opens a recorded demo instead of the normal startup path; `--help` lists the other flags.
 
+The installer lifecycle answers without starting the product: `--install`, `--uninstall`, `--install-status` and `--version`. `--install-dry-run` -- alone or beside `--install` -- is the same install stopped after the plan it prints as `install=DRYRUN`; given beside any other mode it is refused with exit 2 rather than answering one of the two questions. The install manifest records its install directory as UTF-8, and a manifest written before 2026-11-07 in the machine's ANSI code page is still read, and reported, as `manifest: legacy-acp installDirectory`.
+
 ## Verification
 
 Focused checks live beside the repository root as `*-check.sh` scripts and build into `native/build-nmake/`. The native PowerShell gates default to `native/build/Release`, so pass `-InstallDir native/build-nmake` explicitly. Build and verification runs share machine resources and should be serialized. `bash verify-all.sh --quick` runs the shortened oracle sample; `bash verify-all.sh` runs the full chain on a frozen tree; see [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md) before running it.

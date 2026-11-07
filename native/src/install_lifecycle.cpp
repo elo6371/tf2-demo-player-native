@@ -337,7 +337,16 @@ Result installInto(const Options& options, const PackageInfo& info) {
   manifest.sourceDateEpoch = info.sourceDateEpoch;
   manifest.sourceTree = info.sourceTree;
   manifest.installedUtc = utcNow();
-  manifest.installDirectory = installDir.generic_string();
+  // UTF-8, NOT generic_string().
+  //   On MSVC generic_string() returns ACTIVE CODE PAGE bytes -- cp936 on this
+  //   machine -- so an install path holding Chinese characters was written as
+  //   cp936 while every external reader decoded it as UTF-8. Measured
+  //   2026-11-07: the product worked (nothing in it reads the field
+  //   back) and a byte-level check found the value was valid cp936 and invalid
+  //   UTF-8. C++17 u8string() is a std::string of UTF-8 bytes, which is what
+  //   this field means from now on; install_manifest.cpp parse accepts both, so
+  //   directories installed before today still read back.
+  manifest.installDirectory = installDir.u8string();
   manifest.files = files;
 
   // preserved: everything that was already in the directory and is not ours.

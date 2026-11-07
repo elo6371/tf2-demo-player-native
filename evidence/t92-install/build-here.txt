@@ -1,0 +1,4 @@
+built here 2026-11-07 15:24-15:25 (modified sources):
+25018de73ea3a3bf2a2366f91d75edc04b451f33ee8ef8a297c2279f15a9f2b6 *native/build-nmake/tf2_demo_native.exe
+a0548a81d58099888d041af3dcefee0755dee82de9b208510a499b387dc9a7cf *native/build-nmake/install_cli_probe.exe
+cmake_install payload target needs native_install_smoke_probe.exe, absent in a fresh worktree

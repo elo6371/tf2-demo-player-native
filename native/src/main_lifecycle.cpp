@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cwchar>
 #include <filesystem>
+#include <string>
 
 #include "install_lifecycle.h"
 #include "main_internal.h"
@@ -29,6 +30,25 @@ bool parseLifecycleRequest(int argumentCount, wchar_t** arguments, LifecycleRequ
       request->options.installDir = std::filesystem::absolute(std::filesystem::path(arguments[++i]));
       request->directoryGiven = true;
     }
+  }
+  // A DRY RUN IS A MODE, NOT AN OPTION THAT FLOATS ON ITS OWN.
+  //   `--install-dry-run` used to set options.dryRun and nothing else. A
+  //   command line that named only that flag therefore left mode == None, this
+  //   function returned false, and the process fell through to the normal GUI
+  //   start. Measured 2026-11-07: a real window opened, no install=DRYRUN
+  //   line was ever printed, and the run ended by itself ~68 s later with code 1.
+  //   The decision is made AFTER the whole argument list is read, so the flag's
+  //   position cannot decide whether it is honoured.
+  if (request->options.dryRun && request->mode == LifecycleMode::None) {
+    request->mode = LifecycleMode::Install;
+  }
+  // `--uninstall --install-dry-run` (or --version, or --install-status) asks for
+  // two different answers. Guessing one of them would make a script that passes
+  // the wrong pair look like it worked; it is refused with exit 2 instead.
+  if (request->options.dryRun && request->mode != LifecycleMode::None
+      && request->mode != LifecycleMode::Install) {
+    request->dryRunConflict = true;
+    return true;
   }
   return request->mode != LifecycleMode::None;
 }
@@ -55,14 +75,23 @@ std::filesystem::path defaultInstallDirectory() {
 //   a GUI subsystem process an invalid handle), and only then is it attached,
 //   used and freed.
 int runLifecycle(LifecycleRequest& request) {
-  if (!request.directoryGiven) request.options.installDir = defaultInstallDirectory();
   tf2::native::installer::Result result;
-  switch (request.mode) {
-    case LifecycleMode::Version: result = tf2::native::installer::version(request.options); break;
-    case LifecycleMode::Install: result = tf2::native::installer::install(request.options); break;
-    case LifecycleMode::Uninstall: result = tf2::native::installer::uninstall(request.options); break;
-    case LifecycleMode::Status:
-    default: result = tf2::native::installer::status(request.options); break;
+  if (request.dryRunConflict) {
+    const char* mode = request.mode == LifecycleMode::Uninstall ? "uninstall"
+      : request.mode == LifecycleMode::Status ? "install-status"
+      : request.mode == LifecycleMode::Version ? "version" : "unknown";
+    result.lines.push_back(std::string("install=FAIL reason=dry-run-conflict mode=") + mode
+      + " detail=--install-dry-run only modifies --install");
+    result.exitCode = 2;
+  } else {
+    if (!request.directoryGiven) request.options.installDir = defaultInstallDirectory();
+    switch (request.mode) {
+      case LifecycleMode::Version: result = tf2::native::installer::version(request.options); break;
+      case LifecycleMode::Install: result = tf2::native::installer::install(request.options); break;
+      case LifecycleMode::Uninstall: result = tf2::native::installer::uninstall(request.options); break;
+      case LifecycleMode::Status:
+      default: result = tf2::native::installer::status(request.options); break;
+    }
   }
   const HANDLE given = GetStdHandle(STD_OUTPUT_HANDLE);
   const bool noStdout = given == nullptr || given == INVALID_HANDLE_VALUE;

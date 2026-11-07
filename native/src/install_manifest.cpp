@@ -4,6 +4,7 @@
 #include <bcrypt.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <fstream>
 #include <sstream>
 
@@ -32,6 +33,58 @@ std::string trim(const std::string& value) {
 bool asciiOnly(const std::string& value) {
   for (const unsigned char c : value) { if (c < 0x20 || c > 0x7e) return false; }
   return true;
+}
+
+// installDirectory IS THE ONE FIELD THAT MAY HOLD NON-ASCII BYTES.
+//   The install path is whatever the file system accepted, so a Chinese
+//   directory name reaches this field. It is UTF-8 in the format since
+//   2026-11-07 (install_lifecycle.cpp writes u8string()), but manifests written
+//   before that hold MSVC's generic_string() bytes, which are ACTIVE CODE PAGE
+//   -- cp936 on a Chinese machine. Reading those bytes as UTF-8 yields
+//   replacement characters, so anything that is not valid UTF-8 is re-read as
+//   ACP, and the fallback is printed: a conversion that silently changes the
+//   meaning of a path is the kind of magic that costs a day later.
+bool validUtf8(const std::string& value) {
+  std::size_t i = 0;
+  while (i < value.size()) {
+    const unsigned char lead = static_cast<unsigned char>(value[i]);
+    std::size_t extra = 0;
+    if (lead < 0x80) { ++i; continue; }
+    else if ((lead & 0xe0) == 0xc0) { if (lead < 0xc2) return false; extra = 1; }
+    else if ((lead & 0xf0) == 0xe0) { extra = 2; }
+    else if ((lead & 0xf8) == 0xf0) { if (lead > 0xf4) return false; extra = 3; }
+    else return false;
+    if (i + extra >= value.size()) return false;
+    for (std::size_t k = 1; k <= extra; ++k) {
+      if ((static_cast<unsigned char>(value[i + k]) & 0xc0) != 0x80) return false;
+    }
+    i += extra + 1;
+  }
+  return true;
+}
+
+std::string acpToUtf8(const std::string& value) {
+  if (value.empty()) return value;
+  const int length = static_cast<int>(value.size());
+  const int wide = MultiByteToWideChar(CP_ACP, 0, value.data(), length, nullptr, 0);
+  if (wide <= 0) return value;
+  std::wstring buffer(static_cast<std::size_t>(wide), L'\0');
+  if (MultiByteToWideChar(CP_ACP, 0, value.data(), length, buffer.data(), wide) <= 0) return value;
+  const int bytes = WideCharToMultiByte(CP_UTF8, 0, buffer.data(), wide, nullptr, 0, nullptr, nullptr);
+  if (bytes <= 0) return value;
+  std::string out(static_cast<std::size_t>(bytes), '\0');
+  if (WideCharToMultiByte(CP_UTF8, 0, buffer.data(), wide, out.data(), bytes, nullptr, nullptr) <= 0) {
+    return value;
+  }
+  return out;
+}
+
+std::string installDirectoryAsUtf8(const std::string& value) {
+  if (validUtf8(value)) return value;
+  std::printf("manifest: legacy-acp installDirectory\n");
+  std::fflush(stdout);
+  const std::string converted = acpToUtf8(value);
+  return converted.empty() ? value : converted;
 }
 
 void hexEncode(const unsigned char* bytes, std::size_t count, std::string& out) {
@@ -252,7 +305,7 @@ bool parse(const std::string& text, Manifest* manifest, std::string* error) {
     else if (key == "sourceDateEpoch") { manifest->sourceDateEpoch = value; }
     else if (key == "sourceTree") { manifest->sourceTree = value; }
     else if (key == "installedUtc") { manifest->installedUtc = value; }
-    else if (key == "installDirectory") { manifest->installDirectory = value; }
+    else if (key == "installDirectory") { manifest->installDirectory = installDirectoryAsUtf8(value); }
     else if (key == "files") { /* counted from the records, not trusted */ }
     else return bad("unknown manifest key");
   }

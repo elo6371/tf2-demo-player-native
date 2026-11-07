@@ -58,6 +58,10 @@ struct LifecycleRequest {
   LifecycleMode mode = LifecycleMode::None;
   tf2::native::installer::Options options;
   bool directoryGiven = false;
+  // Set when `--install-dry-run` was given without `--install` and with another
+  // explicit mode beside it: the combination has no meaning, and answering it
+  // with a product launch or with a silent "the other mode wins" hides it.
+  bool dryRunConflict = false;
 };
 
 bool parseLifecycleRequest(int argumentCount, wchar_t** arguments, LifecycleRequest* request);
