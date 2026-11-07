@@ -40,6 +40,28 @@ export LC_ALL=C
 PROBE=native/build-nmake/review_workspace_probe.exe
 OUT="${REVIEW_WORKSPACE_OUT:-.scratch/review-workspace}"
 mkdir -p "$OUT"
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists its settings and UI layout under %LOCALAPPDATA%/TF
+# Demo Player. A gate that reads or writes there shares state with the desktop
+# player and with every other gate on the host, so a previous run (or a human)
+# can change what this gate measures. Each run gets a throwaway directory
+# instead, and it is removed on exit.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+# Chain any EXIT trap already installed instead of replacing it: an overwritten
+# trap would skip a mutation restore and leave a mutated build behind, which is
+# the "failure looks like success" shape this suite forbids.
+ISO_PREV_TRAP=$(trap -p EXIT)
+if [ -n "$ISO_PREV_TRAP" ]; then
+  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
+  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
+  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
+else
+  trap 'rm -rf "$ISO_DIR"' EXIT
+fi
+
 
 ok_count=0
 bad_count=0
@@ -426,7 +448,9 @@ else
 
   run_product() { # run_product <tag> <workspace> <script>
     TF2_NATIVE_TRACE="$PROD_OUT/$1.trace" timeout 240 "$PRODUCT" --tf-root "$TF_ROOT" \
-      --audio-device 6 --audio-disabled --hidden-window --demo "$DEMO" \
+      --audio-device 6 --audio-disabled --hidden-window \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
+      --demo "$DEMO" \
       --workspace "$2" --camera-script "$3" > "$PROD_OUT/$1.log" 2>&1
   }
 

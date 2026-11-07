@@ -4,12 +4,8 @@ camera-ui-check.sh|--settings-file
 camera-ui-check.sh|--ui-settings-file
 class-pixels-check.sh|shared --settings-file
 class-pixels-check.sh|shared --ui-settings-file
-frame-capture-check.sh|--settings-file
-frame-capture-check.sh|--ui-settings-file
 fullscreen-quiet-check.sh|--settings-file
 fullscreen-quiet-check.sh|--ui-settings-file
-idle-spin-check.sh|--settings-file
-idle-spin-check.sh|--ui-settings-file
 install-readiness-check.sh|--settings-file
 install-readiness-check.sh|--ui-settings-file
 lighting-dark-account-check.sh|--settings-file
@@ -20,12 +16,8 @@ map-geometry-lighting-check.sh|--settings-file
 map-geometry-lighting-check.sh|--ui-settings-file
 map-material-matrix.sh|--settings-file
 map-material-matrix.sh|--ui-settings-file
-material-coverage-check.sh|--settings-file
-material-coverage-check.sh|--ui-settings-file
 outline-check.sh|--settings-file
 outline-check.sh|--ui-settings-file
-player-animation-pixels.sh|shared --settings-file
-player-animation-pixels.sh|shared --ui-settings-file
 player-body-appearance-check.sh|shared --settings-file
 player-body-appearance-check.sh|shared --ui-settings-file
 probe_attach.sh|shared --settings-file
@@ -34,10 +26,6 @@ quality-audit-check.sh|--settings-file
 quality-audit-check.sh|--ui-settings-file
 quiet-capture-check.sh|--settings-file
 quiet-capture-check.sh|--ui-settings-file
-review-workspace-check.sh|--settings-file
-review-workspace-check.sh|--ui-settings-file
-spectate-check.sh|--settings-file
-spectate-check.sh|--ui-settings-file
 t2-visual-matrix.sh|--settings-file
 t2-visual-matrix.sh|--ui-settings-file
 t21-capture.sh|--settings-file
@@ -50,8 +38,6 @@ verify-audio-content.sh|--settings-file
 verify-audio-content.sh|--ui-settings-file
 verify-audio.sh|--settings-file
 verify-audio.sh|--ui-settings-file
-viewmodel-animation-check.sh|--ui-settings-file
-viewmodel-animation-check.sh|shared --settings-file
 viewmodel-apply-check.sh|--ui-settings-file
 viewmodel-contract-check.sh|--settings-file
 viewmodel-contract-check.sh|--ui-settings-file
@@ -62,16 +48,12 @@ viewmodel-range-check.sh|--ui-settings-file
 viewmodel-robustness-check.sh|--ui-settings-file
 visual-baseline-check.sh|--settings-file
 visual-baseline-check.sh|--ui-settings-file
-weapon-animation-check.sh|--settings-file
-weapon-animation-check.sh|--ui-settings-file
 weapon-body-check.sh|--ui-settings-file
 weapon-material-check.sh|--ui-settings-file
 world-geometry-completeness-capture.sh|--settings-file
 world-geometry-completeness-capture.sh|--ui-settings-file
 world-geometry-hole-capture.sh|--settings-file
 world-geometry-hole-capture.sh|--ui-settings-file
-world-geometry-hole-check.sh|--settings-file
-world-geometry-hole-check.sh|--ui-settings-file
 world-material-check.sh|--settings-file
 world-material-check.sh|--ui-settings-file
 world-material-effects-check.sh|--settings-file

@@ -53,6 +53,28 @@ SPEED=${T61_PIXEL_SPEED:-8}
 CAMERA=(--debug-camera 5363.8 -1102.1 5.9 4.1 0.0)
 
 fail=0
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists its settings and UI layout under %LOCALAPPDATA%/TF
+# Demo Player. A gate that reads or writes there shares state with the desktop
+# player and with every other gate on the host, so a previous run (or a human)
+# can change what this gate measures. Each run gets a throwaway directory
+# instead, and it is removed on exit.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+# Chain any EXIT trap already installed instead of replacing it: an overwritten
+# trap would skip a mutation restore and leave a mutated build behind, which is
+# the "failure looks like success" shape this suite forbids.
+ISO_PREV_TRAP=$(trap -p EXIT)
+if [ -n "$ISO_PREV_TRAP" ]; then
+  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
+  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
+  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
+else
+  trap 'rm -rf "$ISO_DIR"' EXIT
+fi
+
 say_fail() { echo "  FAIL $*"; fail=1; }
 
 for path in "$PRODUCT" "$TF" "$DEMO" "$PY"; do
@@ -87,7 +109,7 @@ run_frame() {
   rm -f "$bmp" "$trace"
   TF2_NATIVE_TRACE="$trace" timeout 1200 "$PRODUCT" \
     --tf-root "$TF" --hidden-window --audio-disabled \
-    --settings-file "$OUT/settings.json" --ui-settings-file "$OUT/ui.json" \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --demo "$DEMO" --capture-tick "$TICK" --playback-speed "$SPEED" \
     --capture-frame "$bmp" "${CAMERA[@]}" "$@" > "$OUT/$tag.log" 2>&1
   local rc=$?

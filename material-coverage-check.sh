@@ -121,6 +121,28 @@ TICK=0
 SCRATCH="${MATERIAL_COVERAGE_SCRATCH:-.scratch/material-coverage}"
 OUT="${MATERIAL_COVERAGE_OUT:-evidence/material-coverage}"
 mkdir -p "$OUT" "$SCRATCH"
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists its settings and UI layout under %LOCALAPPDATA%/TF
+# Demo Player. A gate that reads or writes there shares state with the desktop
+# player and with every other gate on the host, so a previous run (or a human)
+# can change what this gate measures. Each run gets a throwaway directory
+# instead, and it is removed on exit.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+# Chain any EXIT trap already installed instead of replacing it: an overwritten
+# trap would skip a mutation restore and leave a mutated build behind, which is
+# the "failure looks like success" shape this suite forbids.
+ISO_PREV_TRAP=$(trap -p EXIT)
+if [ -n "$ISO_PREV_TRAP" ]; then
+  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
+  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
+  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
+else
+  trap 'rm -rf "$ISO_DIR"' EXIT
+fi
+
 
 RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 MUTATION=0
@@ -273,6 +295,7 @@ run_product() { # run_product <name> <demo> <tick> [extra args...]
   [ "$PAUSE" -eq 1 ] && pause_args=(--start-paused)
   TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 400 "$PRODUCT" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --demo "$demo" "${pause_args[@]}" --capture-tick "$tick" \
     --capture-frame "$(cygpath -m "$PWD/$bmp")" "$@" \
     --metrics-file "$(cygpath -m "$PWD/$SCRATCH/$name.$RUN_TAG.csv")" \
