@@ -105,9 +105,14 @@ step_timeout() {
     verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-14400}" ;;
     rebuild)               echo "${VERIFY_RELEASE_TIMEOUT_REBUILD:-3600}" ;;
     outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-5400}" ;;
-    third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-3600}" ;;
-    body-appearance)       echo "${VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE:-3600}" ;;
-    class-pixels)          echo "${VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS:-3600}" ;;
+    # 20 captures (5 per class x 4 classes), each replaying to tick 64161 at
+    # speed 8: round 2 spent 1200 s and finished ONE class, so 15 minutes was a
+    # bound on the wall clock, not on the gate. Measured rate ~2.2 min/capture.
+    third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-5400}" ;;
+    # Same shape as third-person (two captures per body, one body per team).
+    body-appearance)       echo "${VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE:-5400}" ;;
+    # Four frames per class: the preflight run took ~26 min for four classes.
+    class-pixels)          echo "${VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS:-4200}" ;;
     build-identity)        echo "${VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY:-2400}" ;;
     world-geometry-budget) echo "${VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET:-3600}" ;;
     install-cli-contract)  echo "${VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT:-2400}" ;;
@@ -335,12 +340,27 @@ for step in "${STEPS[@]}"; do
     # instead; everything else ignores both.
     step_env=()
     case "$step" in
-      world-geometry-budget) step_env=(env HOLD_LOCK=1 LOCK_OWNER="$OWNER") ;;
+      # world-geometry-budget writes its traces next to its committed evidence
+      # (evidence/t88-maps/trace-*.trace) unless BUDGET_OUT is set; the chain must
+      # not rewrite tracked evidence, so each run gets its own directory.
+      world-geometry-budget) step_env=(env HOLD_LOCK=1 LOCK_OWNER="$OWNER" BUDGET_OUT="$OUT/$STAMP-world-geometry") ;;
+      # playback writes captures into evidence/t93-playback by default; same rule.
+      playback-error-paths) step_env=(env PLAYBACK_OUT="$OUT/$STAMP-playback") ;;
       # outline-check globs "$OUT"/*.trace to build its lease-wide readings. Its
       # default OUT is evidence/outline, which survives from run to run, so a
       # second chain would compare its captures against the first chain's traces.
       # Every chain run gets its own directory (t85's merge-window runbook).
       outline) step_env=(env OUTLINE_OUT="$OUT/$STAMP-outline") ;;
+      # The three pixel gates write their captures into whatever OUT names, and
+      # class-pixels' default OUT IS the pinned baseline directory that
+      # third-person compares against (class-pixels-check.sh:98, :188 rm -f).
+      # In one chain that made third-person compare the product with the frame
+      # the SAME chain had just captured through it -- a self-comparison that
+      # cannot fail. Each step now gets its own directory, and the pin stays the
+      # committed one (t91 merge window, PIXEL-DELTA.md).
+      third-person-weapon) step_env=(env T83_WEAPON_OUT="$OUT/$STAMP-third-person") ;;
+      body-appearance) step_env=(env T62_BODY_OUT="$OUT/$STAMP-body-appearance") ;;
+      class-pixels) step_env=(env T62_CLASS_OUT="$OUT/$STAMP-class-pixels") ;;
     esac
     if command -v timeout >/dev/null 2>&1; then
       "${step_env[@]}" timeout --kill-after=30s "${timeout_s}s" bash "$ROOT/$script" >> "$log" 2>&1

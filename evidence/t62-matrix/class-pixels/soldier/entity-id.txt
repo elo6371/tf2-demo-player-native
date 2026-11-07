@@ -12,13 +12,14 @@ BODY id=86 ent=2 model=models/player/soldier.mdl state=idle seq=10 label=AttackS
 DECODED id=86 ent=2 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
 ENTITY-ID=PASS
 frame: class=soldier ent=2 tick=63000
-frame: bmp animated sha256=f3aab78fbde16131a82efcfa0075e4ecb6a7eeae6540636a98f8371bf4d13ddb
-frame: bmp identity sha256=b6497fe698aef280ee7233e3415710266be1e1657434fc61376fcf0c91106ce7
-frame: bmp identity-2 sha256=b6497fe698aef280ee7233e3415710266be1e1657434fc61376fcf0c91106ce7
-frame: bmp off sha256=3590ecd84ea5489be5b0cac8f019ff550e840c849ff7643fa960c0823b2b0e20
+frame: bmp animated sha256=8b0910adbb528a57a70e0ff39413b71c5e6093d90b2e863db558dca37fb48ae0
+frame: bmp identity sha256=fc9df91d17028325364dfa744317636e5fe9d63075ff2700d5bf317797f9eece
+frame: bmp identity-2 sha256=fc9df91d17028325364dfa744317636e5fe9d63075ff2700d5bf317797f9eece
+frame: bmp off sha256=52fff44aeecaf5f8165c3ec8ff93464eb79be2cdf5e8d81de576371f021cc171
 frame: identity capture twice byte-identical=yes
-frame: product sha256=891bfd7a0e7cc412fe3912c6f4deb4ca57e36618bfa31d59d06f5a5370b4f11c
+frame: phase identity=maxDeltaCycle=0.000000 identity-2=maxDeltaCycle=0.000000 animated=maxDeltaCycle=0.000000 off=n/a
+frame: product sha256=25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
-frame: request tick=63000 speed=32
+frame: request tick=63000 speed=8
 frame: request camera=3390.0,-1764.5,-254.0,4.1,0.0
 frame: request flags=--player-animation --world-entity-id

@@ -17,13 +17,15 @@
 set -u
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-EXE=$TF2_EXE
+# set -u is on, so an unset override must not be an unbound-variable error: the
+# chain calls this gate with no environment at all.
+EXE=${TF2_EXE:-}
 if [ -z "$EXE" ]; then EXE=$REPO/native/build-nmake/tf2_demo_native.exe; fi
-TF=$TF2_ROOT
+TF=${TF2_ROOT:-}
 if [ -z "$TF" ]; then TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"; fi
 AUDIO_DEMO="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
 CAM_DEMO="D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem"
-OUT=$REPO/evidence/t93-playback
+OUT=${PLAYBACK_OUT:-$REPO/evidence/t93-playback}
 TAG=green
 ONLY=
 

@@ -1,7 +1,7 @@
 tag=off rc=0 view=textured frameTick=63000 sceneTick=72374
-21219.7 gpu: world debug view=textured
-50484.6 capture: armed requested=63000 frame_tick=63000 frames=1782
-50482.9 scene: anim skinned=79 bindPose=17 matrices=180 gpuSkin=78/180 boneMismatch=0 poseChanges=2650 targetInstances=2 targetPose=3 advances=2647 targetAdv=3 cycle=3668/0 tick=72374 status=missing reason=entity carried no m_nSequence
-frame: bmp=off.bmp sha256=3590ecd84ea5489be5b0cac8f019ff550e840c849ff7643fa960c0823b2b0e20
-frame: product sha256=891bfd7a0e7cc412fe3912c6f4deb4ca57e36618bfa31d59d06f5a5370b4f11c
-frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=63000 speed=32 camera=3390.0,-1764.5,-254.0,4.1,0.0 flags=<none>
+21602.1 gpu: world debug view=textured
+139462.9 capture: armed requested=63000 frame_tick=63000 frames=6655
+139460.8 scene: anim skinned=79 bindPose=17 matrices=180 gpuSkin=78/180 boneMismatch=0 poseChanges=2650 targetInstances=2 targetPose=3 advances=2647 targetAdv=3 cycle=13845/0 tick=72374 status=missing reason=entity carried no m_nSequence
+frame: bmp=off.bmp sha256=52fff44aeecaf5f8165c3ec8ff93464eb79be2cdf5e8d81de576371f021cc171
+frame: product sha256=25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=63000 speed=8 camera=3390.0,-1764.5,-254.0,4.1,0.0 flags=<none>
