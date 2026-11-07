@@ -168,6 +168,15 @@ for path in "$PRODUCT" "$TF" "$DEMO" "$PY" "$TARGETS" \
 done
 [ -x "$PRODUCT" ] || { echo "FATAL: not executable: $PRODUCT"; exit 2; }
 mkdir -p "$OUT"
+
+# HYGIENE (lead m01207): the product rewrites the settings/UI files it is handed
+# on exit, so hand it COPIES inside the output directory, never the tracked
+# baseline files. Byte-identical copies, so every reading is unchanged.
+mkdir -p "$OUT/inputs"
+cp "$BASELINE/settings.json" "$OUT/inputs/third-person-settings.ini" 2>/dev/null || true
+cp "$BASELINE/ui.json" "$OUT/inputs/third-person-ui.ini" 2>/dev/null || true
+TP_SETTINGS="$OUT/inputs/third-person-settings.ini"
+TP_UI="$OUT/inputs/third-person-ui.ini"
 PRODUCT_SHA=$(sha_of "$PRODUCT")
 
 # --dry-run: prove the plan and the inputs without launching anything (no
@@ -216,7 +225,7 @@ run_frame() {
   rm -f "$bmp" "$trace"
   TF2_NATIVE_TRACE="$trace" timeout 1200 "$PRODUCT" \
     --tf-root "$TF" --hidden-window --audio-disabled \
-    --settings-file "$BASELINE/settings.json" --ui-settings-file "$BASELINE/ui.json" \
+    --settings-file "$TP_SETTINGS" --ui-settings-file "$TP_UI" \
     --demo "$DEMO" --capture-tick "$tick" --playback-speed "$SPEED" \
     --capture-frame "$bmp" \
     --debug-camera "$eyeX" "$eyeY" "$eyeZ" "$pitch" "$yaw" \
@@ -556,7 +565,7 @@ N3_LOG="$OUT/negative-flag.log"
 N3_BMP="$OUT/n3-refused.bmp"
 rm -f "$N3_BMP"
 "$PRODUCT" --tf-root "$TF" --hidden-window --audio-disabled \
-  --settings-file "$BASELINE/settings.json" --ui-settings-file "$BASELINE/ui.json" \
+  --settings-file "$TP_SETTINGS" --ui-settings-file "$TP_UI" \
   --demo "$DEMO" --capture-tick 0 --playback-speed "$SPEED" \
   --capture-frame "$N3_BMP" \
   --player-weapon-attach bogus > "$N3_LOG" 2>&1

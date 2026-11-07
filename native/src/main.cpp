@@ -1394,6 +1394,11 @@ bool isTextFieldFocused() {
 // hudPublishTrace, uiSettingsFilePath and the hud* window/renderer helpers
 // moved to src/main_hud.cpp.
 
+// --window-size pins the OUTER window rect for the whole run. The flag is
+// pre-scanned in wWinMain before the window exists, so the DPI handler below can
+// refuse the system-suggested rect instead of resizing a frame a gate hashes.
+static bool g_windowSizePinned = false;
+
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
   switch (message) {
   case WM_SIZE:
@@ -1408,7 +1413,11 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // Per-monitor v2: the system suggests a new window rect scaled for the
     // new dpi; taking it and re-laying the controls keeps both the render
     // surface and the text rows proportional on a mixed-dpi desktop.
-    if (lParam) {
+    // ...unless the size was pinned with --window-size: then the suggested rect is
+    // exactly what has to be refused, because every frame a gate hashes was
+    // promised at the pinned size. The reading below says which of the two
+    // happened, so "the frame changed shape" is never a silent event.
+    if (lParam && !g_windowSizePinned) {
       const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
       SetWindowPos(window, nullptr, suggested->left, suggested->top,
         suggested->right - suggested->left, suggested->bottom - suggested->top,
@@ -1416,6 +1425,13 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     }
     applyUiLayout(window);
     tf2::native::logsPanelLayout(window);
+    {
+      RECT dpiClient{};
+      GetClientRect(window, &dpiClient);
+      traceFmt("window: dpi-changed dpi=%u pinned=%d client=%ldx%ld",
+        GetDpiForWindow(window), g_windowSizePinned ? 1 : 0,
+        dpiClient.right, dpiClient.bottom);
+    }
     return 0;
   }
   case WM_LBUTTONDOWN:
@@ -1870,11 +1886,47 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
   if (!RegisterClassW(&windowClass) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return 10;
 
+  // --window-size W x H pins the OUTER window rect -- what CreateWindowExW
+  // receives, so the client rect and every captured pixel stay a constant of the
+  // run. It has to be known before the window exists, so it is pre-scanned here,
+  // the same reason --settings-file is pre-scanned just below: parsed later, it
+  // would arrive after the thing it configures had already happened.
+  int windowWidth = 1280;
+  int windowHeight = 720;
+  {
+    int preCount = 0;
+    LPWSTR* preArguments = CommandLineToArgvW(GetCommandLineW(), &preCount);
+    for (int i = 1; preArguments && i + 1 < preCount; ++i) {
+      if (wcscmp(preArguments[i], L"--window-size") != 0) continue;
+      unsigned widthValue = 0;
+      unsigned heightValue = 0;
+      if (swscanf_s(preArguments[i + 1], L"%ux%u", &widthValue, &heightValue) != 2 ||
+          widthValue < 320u || heightValue < 240u ||
+          widthValue > 8192u || heightValue > 8192u) {
+        // Refuse, do not guess: a run that asked for a size and silently got
+        // another one would make its captures incomparable without saying so.
+        LocalFree(preArguments);
+        OutputDebugStringW(L"TF2 Demo Player: --window-size wants WxH (e.g. 1280x720); refusing to guess.\n");
+        return 13;
+      }
+      windowWidth = static_cast<int>(widthValue);
+      windowHeight = static_cast<int>(heightValue);
+      g_windowSizePinned = true;
+    }
+    if (preArguments) LocalFree(preArguments);
+  }
   HWND window = CreateWindowExW(
     0, className, L"TF2 Demo Player - Native D3D11",
-    WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720,
+    WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight,
     nullptr, nullptr, instance, nullptr);
   if (!window) return 11;
+  {
+    RECT createdClient{};
+    GetClientRect(window, &createdClient);
+    traceFmt("window: created outer=%dx%d client=%ldx%ld dpi=%u pinned=%d",
+      windowWidth, windowHeight, createdClient.right, createdClient.bottom,
+      GetDpiForWindow(window), g_windowSizePinned ? 1 : 0);
+  }
 
   tf2::native::Renderer renderer;
   g_renderer = &renderer;
@@ -3639,6 +3691,11 @@ bool outlineVertexExtent = false;
       std::string vtfPath;
     };
     std::vector<PaintedSlot> paintedSlots;
+    // T85 P0: which budget layer this model belongs to (entity_mesh_budget.h).
+    // Carried on the prepared model so the three upload sites can hand the
+    // renderer the delivery priority without classifying the path again -- and so
+    // the ledger can say WHICH kind of model the budget spent a slot on.
+    tf2::native::EntityMeshPriority priority = tf2::native::EntityMeshPriority::WorldProp;
   };
   std::vector<PreparedEntityMesh> preparedEntityMeshes;
   // The overlay's own bind-pose player meshes. Separate list so the world pass's
@@ -3680,6 +3737,27 @@ bool outlineVertexExtent = false;
   std::unordered_set<std::string> attachMeshTried;
   std::size_t attachMeshSupplied = 0;
   std::size_t attachMeshRefused = 0;
+  // T85 P0 (lead m01475): the mesh source's COVERAGE books, next to its churn
+  // books. `supplied` fell 23 -> 13 between the frozen exe and this one; a raw
+  // count cannot say whether the difference is "the world pass already had it"
+  // (free) or "this frame has no mesh" (a regression). Every request now leaves
+  // through exactly one named exit, so
+  //   requested == resolvedFromWorld + uploaded + refused + retrySkipped + unresolvedPath
+  // and uploaded + resolvedFromWorld is the frame's real "how many weapon world
+  // models the picture has" number. resolvedFromWorld > 0 is the prepare-stage
+  // priority budget doing its job, not a missing mesh.
+  std::size_t attachMeshRequests = 0;
+  std::size_t attachMeshResolvedFromWorld = 0;
+  std::size_t attachMeshRetrySkipped = 0;
+  std::size_t attachMeshUnresolvedPath = 0;
+  // T85 P0 review B4: evicted meshes whose path this stage had already marked
+  // "tried" are re-supplied on a later frame, and this counts that churn. Without
+  // the unpublish below, an eviction is permanent loss: the mapping in
+  // entityMeshKeyByPath resolves a dead key, and attachMeshTried refuses to ask
+  // again, so the hand stays empty for the rest of the run even though the table
+  // has room. Non-zero here means the policy spent a mesh and the attach bought
+  // it back -- visible work, not a silent hole.
+  std::size_t attachMeshResupply = 0;
   // How many skin families each prepared mesh actually has. The draw stage needs
   // it to ask for a family that exists (material_slot_resolution.h): a one-family
   // model drawn for BLU asked for family 1, resolved nothing, and its instances
@@ -3702,6 +3780,42 @@ bool outlineVertexExtent = false;
     entityBoneNamesByCacheKey[cacheKey] = std::move(boneNames);
     entityAttachmentsByCacheKey[cacheKey] = metadata.attachments;
   };
+  // Drops every path->key mapping whose VALUE is an evicted key, and forgets the
+  // attach's trial mark for that path, so the next frame re-resolves, re-builds
+  // and re-uploads the model (counted, never silent). Also drops the cached rig
+  // tables for the dead key. Called right after every upload site: an eviction is
+  // only ever created by an upload, so the books are settled in the same step.
+  const auto reconcileEvictedEntityMeshes = [&]() {
+    std::vector<std::string> evicted = renderer.takeEvictedEntityModelMeshKeys();
+    for (const std::string& victim : evicted) {
+      for (auto it = entityMeshKeyByPath.begin(); it != entityMeshKeyByPath.end();) {
+        if (it->second != victim) { ++it; continue; }
+        const std::string normalizedVictim = tf2::native::normalizeModelPath(it->first);
+        if (!normalizedVictim.empty()) attachMeshTried.erase(normalizedVictim);
+        it = entityMeshKeyByPath.erase(it);
+      }
+      for (auto it = entityMeshKeyByNormalizedPath.begin(); it != entityMeshKeyByNormalizedPath.end();) {
+        if (it->second != victim) { ++it; continue; }
+        attachMeshTried.erase(it->first);
+        it = entityMeshKeyByNormalizedPath.erase(it);
+      }
+      for (auto it = attachEntityMeshes.begin(); it != attachEntityMeshes.end();) {
+        if (it->cacheKey != victim) { ++it; continue; }
+        it = attachEntityMeshes.erase(it);
+      }
+      entitySkinFamilyCountByKey.erase(victim);
+      entityAttachmentsByCacheKey.erase(victim);
+      entityBoneNamesByCacheKey.erase(victim);
+      ++attachMeshResupply;
+      traceFmt("budget: eviction key=%s action=unpublish,resupply", victim.c_str());
+    }
+  };
+
+  // T85 P0 (lead review, point 2): NORMALISED paths of models layer A deferred
+  // (not admitted by the 64-slot budget, or admitted but unbuildable). The draw
+  // loop consults this so a short frame can say which of its two causes it had:
+  // the budget's own published deferral, or a key with no mesh at all.
+  std::unordered_set<std::string> prepareDeferredPaths;
   // Paint accounting for the window title: how many prepared models reached a
   // readable VTF, and how many of those became a GPU texture.
   std::size_t entityMaterialResolvedModels = 0;
@@ -3726,17 +3840,98 @@ bool outlineVertexExtent = false;
       assets, classFallbacks, itemSchema.get(), nullptr);
     std::vector<tf2::native::ModelRenderRequest> meshSource = modelRenderRequests;
     meshSource.insert(meshSource.end(), classRequests.begin(), classRequests.end());
+    // T85 P0: LAYER A IS A BUDGET, NOT A FIRST-COME-FIRST-SERVED CUT.
+    //
+    // Until this change the loop below walked the demo's asset list in entity
+    // order and stopped at 64. A model that sorted past that cut had no mesh at
+    // all, and the world pass spent its slots on whatever the demo happened to
+    // list first -- on the reference recording that was world props and
+    // first-person rigs, while c_flamethrower, c_sapper_xmas and
+    // c_shogun_warhorn (all models/weapons/**) had nothing.
+    //
+    // The capacity stays 64: raising it is the fix the handoff rejects, because
+    // it only moves the cut. What changes is who gets the slots and what happens
+    // to the rest:
+    //   * the candidates are ADMITTED by delivery priority (entity_mesh_budget.h):
+    //     player bodies, then held-weapon world models, then everything else,
+    //     then first-person-only geometry that can never draw third person;
+    //   * a candidate that does not fit is DEFERRED, not refused -- it keeps its
+    //     place in the ledger and the attach's on-demand supply can still build
+    //     it, and the renderer's cache now admits it by the same priority;
+    //   * the ledger is printed ("budget: prepare"), so "the hand is empty"
+    //     stops being an unexplained count.
+    constexpr std::size_t kPrepareCapacity = 64;
+    struct PrepareCandidate {
+      std::size_t requestIndex = 0;
+      tf2::native::EntityMeshPriority priority = tf2::native::EntityMeshPriority::WorldProp;
+    };
+    std::vector<PrepareCandidate> prepareCandidates;
+    {
+      std::unordered_set<std::string> seenKeys;
+      prepareCandidates.reserve(meshSource.size());
+      for (std::size_t requestIndex = 0; requestIndex < meshSource.size(); ++requestIndex) {
+        const auto& request = meshSource[requestIndex];
+        if (!request.renderable || request.inspection.viewModelPathDetected) continue;
+        if (!seenKeys.insert(request.cacheKey).second) continue;
+        prepareCandidates.push_back(PrepareCandidate{
+          requestIndex, tf2::native::classifyEntityMeshPath(request.modelPath)});
+      }
+    }
+    std::size_t prepareAdmittedByPriority[tf2::native::kEntityMeshPriorityCount] = {0, 0, 0, 0, 0};
+    std::size_t prepareDeferredByPriority[tf2::native::kEntityMeshPriorityCount] = {0, 0, 0, 0, 0};
+    std::size_t prepareDeferred = 0;
+    std::size_t prepareAdmitted = 0;
+    std::vector<char> prepareIsAdmitted(prepareCandidates.size(), 0);
+    {
+      std::vector<std::size_t> admissionOrder(prepareCandidates.size());
+      for (std::size_t i = 0; i < admissionOrder.size(); ++i) admissionOrder[i] = i;
+      std::stable_sort(admissionOrder.begin(), admissionOrder.end(),
+        [&prepareCandidates](std::size_t left, std::size_t right) {
+          const auto leftRank = static_cast<std::size_t>(prepareCandidates[left].priority);
+          const auto rightRank = static_cast<std::size_t>(prepareCandidates[right].priority);
+          if (leftRank != rightRank) return leftRank < rightRank;
+          return left < right;  // same priority: the demo's own order decides
+        });
+      for (const std::size_t candidate : admissionOrder) {
+        const auto rank = tf2::native::entityMeshPriorityIndex(prepareCandidates[candidate].priority);
+        if (prepareAdmitted < kPrepareCapacity) {
+          prepareIsAdmitted[candidate] = 1;
+          ++prepareAdmitted;
+          ++prepareAdmittedByPriority[rank];
+        } else {
+          ++prepareDeferred;
+          ++prepareDeferredByPriority[rank];
+          const std::string normalizedDeferred = tf2::native::normalizeModelPath(
+            meshSource[prepareCandidates[candidate].requestIndex].modelPath);
+          if (!normalizedDeferred.empty()) prepareDeferredPaths.insert(normalizedDeferred);
+        }
+      }
+    }
     std::unordered_set<std::string> preparedKeys;
-    preparedEntityMeshes.reserve(64);
-    for (auto& request : meshSource) {
-      if (!request.renderable || request.inspection.viewModelPathDetected) continue;
+    preparedEntityMeshes.reserve(kPrepareCapacity);
+    std::size_t prepareBuildFailed = 0;
+    for (std::size_t candidateIndex = 0; candidateIndex < prepareCandidates.size(); ++candidateIndex) {
+      if (!prepareIsAdmitted[candidateIndex]) continue;
+      auto& request = meshSource[prepareCandidates[candidateIndex].requestIndex];
       if (preparedKeys.count(request.cacheKey)) continue;
       std::string meshError;
       if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)
-          || request.inspection.metadata.bindPoseVertices.size() < 3) continue;
+          || request.inspection.metadata.bindPoseVertices.size() < 3) {
+        // A candidate that cannot be built does NOT spend a slot (the admission
+        // above only decides who is allowed to try): counted, so a budget with
+        // fewer built than admitted is a reading rather than an arithmetic
+        // surprise.
+        ++prepareBuildFailed;
+        {
+          const std::string normalizedFailed = tf2::native::normalizeModelPath(request.modelPath);
+          if (!normalizedFailed.empty()) prepareDeferredPaths.insert(normalizedFailed);
+        }
+        continue;
+      }
       PreparedEntityMesh prepared;
       prepared.path = request.modelPath;
       prepared.cacheKey = request.cacheKey;
+      prepared.priority = prepareCandidates[candidateIndex].priority;
       prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
       prepared.textureSlots = request.inspection.metadata.textureCount;
       prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
@@ -3745,6 +3940,14 @@ bool outlineVertexExtent = false;
       // the defect this round removes.
       std::string runsError;
       if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs, runsError)) {
+        // Review minor 3: a material-run failure is a build failure like any
+        // other. Without this line built+failed < admitted and the ledger does
+        // not balance, which is exactly what a budget account must never do.
+        ++prepareBuildFailed;
+        {
+          const std::string normalizedSkipped = tf2::native::normalizeModelPath(request.modelPath);
+          if (!normalizedSkipped.empty()) prepareDeferredPaths.insert(normalizedSkipped);
+        }
         traceFmt("gpu: entity mesh skipped path=%s reason=%s", request.modelPath.c_str(), runsError.c_str());
         continue;
       }
@@ -3774,8 +3977,24 @@ bool outlineVertexExtent = false;
         static_cast<std::uint32_t>(prepared.skinFamilies.families.size());
       rememberEntityRig(request.cacheKey, request.inspection.metadata);
       preparedEntityMeshes.push_back(std::move(prepared));
-      if (preparedEntityMeshes.size() >= 64) break;
     }
+    // THE PREPARE LEDGER. One line, every number additive:
+    //   candidates = every renderable model the demo named (both sources);
+    //   admitted   = the ones the 64-slot budget let through, by priority;
+    //   built      = the ones that produced a mesh (a build failure spends a
+    //                slot's *permission*, not a slot);
+    //   deferred   = admitted nowhere, still drawable on demand, with priorities;
+    //   failed     = admitted but unbuildable, with the reason on its own line.
+    // Before this line the only reading about layer A was a break statement.
+    traceFmt("budget: prepare capacity=%zu candidates=%zu admitted=%zu built=%zu deferred=%zu failed=%zu"
+      " admittedByPriority=player:%zu,weapon:%zu,overlay:%zu,prop:%zu,firstPersonOnly:%zu"
+      " deferredByPriority=player:%zu,weapon:%zu,overlay:%zu,prop:%zu,firstPersonOnly:%zu",
+      kPrepareCapacity, prepareCandidates.size(), prepareAdmitted, preparedEntityMeshes.size(),
+      prepareDeferred, prepareBuildFailed,
+      prepareAdmittedByPriority[0], prepareAdmittedByPriority[1], prepareAdmittedByPriority[2],
+      prepareAdmittedByPriority[3], prepareAdmittedByPriority[4],
+      prepareDeferredByPriority[0], prepareDeferredByPriority[1], prepareDeferredByPriority[2],
+      prepareDeferredByPriority[3], prepareDeferredByPriority[4]);
     // THE OVERLAY'S OWN MESHES, kept in their OWN list.
     //
     // Not appended to preparedEntityMeshes, on purpose: that vector is the world
@@ -3816,6 +4035,9 @@ bool outlineVertexExtent = false;
       PreparedEntityMesh prepared;
       prepared.path = request.modelPath;
       prepared.cacheKey = request.modelPath + "#class-fallback";
+      // The overlay's nine class models are a REQUIRED overlay: they rank above
+      // every world prop in the cache's eviction policy.
+      prepared.priority = tf2::native::EntityMeshPriority::Overlay;
       // T61: the body meshes need the same two things the world meshes get:
       // the model's OWN material runs (so the entity pass binds one range per
       // material slot instead of one guessed slot 0 over the whole buffer) and
@@ -4005,9 +4227,15 @@ bool outlineVertexExtent = false;
   //     cannot see (main.cpp:3939-5119), and lifting it would move a world-pass
   //     counter. The resolver is the same one, so the pixels cannot disagree.
   const auto uploadAttachMesh = [&](PreparedEntityMesh& prepared) -> bool {
-    if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs)) {
-      traceFmt("attach: mesh result=refused stage=upload key=%s lastError=0x%08lX",
-        prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
+    // T85 P0: a held weapon is the second most important model in the product,
+    // so the cache admits it ahead of world props and evicts one of those to make
+    // room. The refusal below now only means "the table was full of models that
+    // outrank this weapon", which is a budget boundary and not a coin flip.
+    if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs,
+          tf2::native::EntityMeshPriority::HeldWeapon)) {
+      traceFmt("attach: mesh result=refused stage=upload key=%s lastError=0x%08lX evictions=%zu capacityRefusals=%zu",
+        prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()),
+        renderer.entityModelMeshEvictions(), renderer.entityModelMeshCapacityRefusals());
       return false;
     }
     std::size_t painted = 0;
@@ -4043,14 +4271,29 @@ bool outlineVertexExtent = false;
   // Returns the cache key to draw with, or empty when the model cannot be drawn.
   // Paths the world pass already prepared resolve immediately and cost nothing.
   const auto supplyAttachMesh = [&](const std::string& modelPath) -> std::string {
+    // Every counted exit below is one term of the coverage balance; see the
+    // counter block above for why supplied alone is not an answer.
     if (modelPath.empty()) return std::string();
+    ++attachMeshRequests;
     const auto preparedAlready = entityMeshKeyByPath.find(modelPath);
-    if (preparedAlready != entityMeshKeyByPath.end()) return preparedAlready->second;
+    if (preparedAlready != entityMeshKeyByPath.end()) {
+      ++attachMeshResolvedFromWorld;
+      return preparedAlready->second;
+    }
     const std::string normalized = tf2::native::normalizeModelPath(modelPath);
-    if (normalized.empty()) return std::string();
+    if (normalized.empty()) {
+      ++attachMeshUnresolvedPath;
+      return std::string();
+    }
     const auto preparedNormalized = entityMeshKeyByNormalizedPath.find(normalized);
-    if (preparedNormalized != entityMeshKeyByNormalizedPath.end()) return preparedNormalized->second;
-    if (!attachMeshTried.insert(normalized).second) return std::string();
+    if (preparedNormalized != entityMeshKeyByNormalizedPath.end()) {
+      ++attachMeshResolvedFromWorld;
+      return preparedNormalized->second;
+    }
+    if (!attachMeshTried.insert(normalized).second) {
+      ++attachMeshRetrySkipped;
+      return std::string();
+    }
     tf2::native::AssetReference reference;
     reference.hasModelPath = true;
     reference.modelPath = modelPath;
@@ -4120,6 +4363,11 @@ bool outlineVertexExtent = false;
       ++attachMeshRefused;
       return std::string();
     }
+    // The upload may have evicted a resident to make room. Settle the path tables
+    // in the SAME step (review B4): a stale mapping or trial mark would make the
+    // eviction permanent, and the trace would keep saying "supplied" for a key
+    // that no longer exists.
+    reconcileEvictedEntityMeshes();
     // Only a mesh that actually reached the GPU is published: a key that resolves
     // and draws nothing is the failure mode this stage was added to end. The
     // exact spelling goes in the draw stage's table (a weapon entity may be drawn
@@ -4168,6 +4416,10 @@ bool outlineVertexExtent = false;
     attachMeshTried.clear();
     attachMeshSupplied = 0;
     attachMeshRefused = 0;
+    attachMeshRequests = 0;
+    attachMeshResolvedFromWorld = 0;
+    attachMeshRetrySkipped = 0;
+    attachMeshUnresolvedPath = 0;
   };
   if (assets.valid()) {
     // ---- T9 (2026-10-16): where the map came from -------------------------
@@ -7011,7 +7263,8 @@ bool outlineVertexExtent = false;
     for (std::size_t preparedIndex = 0; preparedIndex < preparedEntityMeshes.size(); ++preparedIndex) {
       const double modelBeginMs = traceNowMs();
       const auto& prepared = preparedEntityMeshes[preparedIndex];
-      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs)) {
+      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs,
+            prepared.priority)) {
         traceFmt("gpu: model %zu/%zu mesh-refused key=%s lastError=0x%08lX", preparedIndex,
           preparedEntityMeshes.size(), prepared.cacheKey.c_str(),
           static_cast<unsigned long>(renderer.lastError()));
@@ -7058,7 +7311,8 @@ bool outlineVertexExtent = false;
     std::size_t overlayMeshesUploaded = 0;
     std::size_t overlayMeshesRejected = 0;
     for (const auto& prepared : overlayBindMeshes) {
-      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs)) {
+      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs,
+            prepared.priority)) {
         ++overlayMeshesRejected;
         traceFmt("gpu: overlay mesh refused key=%s lastError=0x%08lX",
           prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
@@ -7217,6 +7471,22 @@ bool outlineVertexExtent = false;
       overlayBindMeshes.size(), overlayMeshesUploaded, overlayMeshesRejected,
       g_overlayPaintedModels, g_overlayPaintedSlots,
       overlayMeshesUploaded == 0 ? " (NONE -- the outline has no mesh source and will submit nothing)" : "");
+    // T85 P0: LAYER B'S LEDGER. The mesh table is a bounded cache shared by the
+    // world pass, the overlay and the attach; this line is the whole story of
+    // what it holds and what keeping it bounded cost. residentByPriority names
+    // WHO owns the 96 slots, which is the reading that makes "the table was full
+    // of things nobody needed" impossible to hide: before this change the three
+    // held weapons were refused by a table whose contents were never published.
+    traceFmt("budget: meshTable capacity=%zu resident=%zu evictions=%zu capacityRefusals=%zu reuploads=%zu"
+      " residentByPriority=player:%zu,weapon:%zu,overlay:%zu,prop:%zu,firstPersonOnly:%zu",
+      renderer.entityModelMeshCapacity(), renderer.entityModelMeshCount(),
+      renderer.entityModelMeshEvictions(), renderer.entityModelMeshCapacityRefusals(),
+      renderer.entityModelMeshReuploads(),
+      renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::PlayerBody),
+      renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::HeldWeapon),
+      renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::Overlay),
+      renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::WorldProp),
+      renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::Deferred));
     traceFmt("gpu: reload-stage stage=models lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedBones = true;
     modelSkinSource = "none";
@@ -9627,6 +9897,12 @@ bool outlineVertexExtent = false;
         std::size_t propBudget = kDrawBudget - playerBudget;
         std::size_t playerDraws = 0;
         std::size_t propDraws = 0;
+        // T85 P0: layer D's refusals. "has a mesh, gets no slot" used to be the
+        // end of the story for that entity -- a hole in the frame with no
+        // counter behind it. The two counters are what let a gate say which kind
+        // of draw the budget spent itself on.
+        std::size_t playerDroppedByBudget = 0;
+        std::size_t propDroppedByBudget = 0;
         // T83: who is holding what, resolved BEFORE the draw loop, for one
         // reason: a weapon that is about to appear in a hand must not also be
         // drawn standing where the demo left it. Both instances are in the
@@ -9769,10 +10045,23 @@ bool outlineVertexExtent = false;
           }
           const bool hasMesh = !cacheKey.empty() && !instance.viewModelSkipped
             && (instance.renderable || instance.playerClassFallback);
-          if (hasMesh && (player ? playerDraws < playerBudget : propDraws < propBudget)) {
+          // Was THIS model left out by layer A's budget? The check is by the
+          // model's own path, not by the demo's cache-key spelling, because the
+          // deferred decision was made on the path and the draw's key came from
+          // the precache table. Only consulted when the instance is actually
+          // being submitted, so a model that the attach supplied on demand (and
+          // is therefore resident) never reaches this classification at all.
+          const bool budgetDeferred = hasMesh
+            && prepareDeferredPaths.count(tf2::native::normalizeModelPath(instance.modelPath)) != 0;
+          const bool hasDrawSlot = player ? playerDraws < playerBudget : propDraws < propBudget;
+          if (hasMesh && !hasDrawSlot) {
+            if (player) { ++playerDroppedByBudget; } else { ++propDroppedByBudget; }
+          }
+          if (hasMesh && hasDrawSlot) {
             if (player) { ++playerDraws; } else { ++propDraws; }
             tf2::native::EntityModelDrawInstance draw;
             draw.cacheKey = cacheKey;
+            draw.budgetDeferred = budgetDeferred;
             draw.entityIndex = static_cast<std::int32_t>(instance.entityIndex);
             draw.origin[0] = instance.transform.origin[0];
             draw.origin[1] = instance.transform.origin[1];
@@ -10411,6 +10700,16 @@ bool outlineVertexExtent = false;
         }
         traceFmt("scene: setInstances draws=%zu markers=%zu playerDraws=%zu propDraws=%zu playerBudget=%zu propBudget=%zu",
           draws.size(), fallbackMarkers.size(), playerDraws, propDraws, playerBudget, propBudget);
+        // T85 P0: LAYER D'S LEDGER. The draw budget is the THIRD capacity in the
+        // chain (prepare 64, cache 96, instances 96, draw 96) and the one a
+        // viewer sees: what the frame spent its slots on. playerBudget and
+        // propBudget are the split the loop above actually ran with;
+        // propBudgetAfterAttach is what was left once the held-weapon instances
+        // took their reserved slots. dropped* are entities that HAD a mesh and
+        // got no slot -- the frame's visible holes, counted by kind.
+        traceFmt("budget: draw capacity=%zu playerBudget=%zu propBudgetAfterAttach=%zu playerDrawn=%zu propDrawn=%zu attachReserved=%zu attachDrawn=%zu droppedPlayers=%zu droppedProps=%zu",
+          kDrawBudget, playerBudget, propBudget, playerDraws, propDraws, attachBudget, attachDrawn,
+          playerDroppedByBudget, propDroppedByBudget);
         if (playerWeaponAttachEnabled) {
           // One reading per frame, every count additive: held = players whose body
           // carries a hold point AND whose m_hActiveWeapon resolved to a prepared
@@ -10427,11 +10726,74 @@ bool outlineVertexExtent = false;
           // how many it could not build. Counters, so they read the same on
           // every frame; the per-model reasons are printed once, when they
           // happen.
-          traceFmt("attach: meshSource supplied=%zu refused=%zu meshes=%zu",
-            attachMeshSupplied, attachMeshRefused, attachEntityMeshes.size());
+          traceFmt("attach: meshSource supplied=%zu refused=%zu meshes=%zu resupply=%zu",
+            attachMeshSupplied, attachMeshRefused, attachEntityMeshes.size(), attachMeshResupply);
+          // T85 P0 (lead m01475): coverage beside churn. "supplied" counts meshes
+          // this stage had to BUILD; a mesh the world pass already prepared is
+          // resolvedFromWorld and just as present in the hand. The pair
+          // (uploaded + resolvedFromWorld) is the frame's weapon-world-model
+          // coverage and must never fall below the frozen exe's supplied count,
+          // which is what the retired "supplied=23" reading really measured.
+          traceFmt("attach: coverage requested=%zu resolvedFromWorld=%zu uploaded=%zu refused=%zu retrySkipped=%zu unresolvedPath=%zu meshes=%zu",
+            attachMeshRequests, attachMeshResolvedFromWorld, attachMeshSupplied, attachMeshRefused,
+            attachMeshRetrySkipped, attachMeshUnresolvedPath, attachEntityMeshes.size());
+          // (The layer-B ledger is printed once per frame at the settle point below,
+          // after every upload site and after the instance list -- not here, where it
+          // would duplicate the same account from a half-built frame.)
         }
         renderer.setEntityBoneMatrices(entityBoneMatrices);
         renderer.setEntityModelInstances(draws);
+        // T85 P0: LAYER C'S LEDGER. The instance update is the last place an
+        // entity can disappear between the draw list and the GPU, and until this
+        // change every reason it could disappear was a bare `continue`. The
+        // four rejection counters are the difference between "the frame is
+        // short" and "the frame is short because a key was missing / a buffer
+        // was bad / a matrix was non-finite / the 96-instance budget ran out".
+        // missingMesh is the one this task is judged on: it must stay 0 on the
+        // reference recording, including after any eviction.
+        // T85 P0 (lead review, point 2): deferredNotResident is layer A's own
+        // published deferral seen at the instance stage, kept apart from
+        // missingMesh so the m8 detector ("submitted a key, drew nothing") stays
+        // sharp: a deferred model is a bounded decision, a missing mesh is a hole.
+        // T85 P0 (lead review: "instance refuses must be a closed account"): `submitted`
+        // is how many draw instances the stage handed over; accepted + the four refusal
+        // counters must add up to it exactly. `slots` is NOT that number -- it counts one
+        // instance row per material run (packed.size()), so accepted==slots is false for
+        // every multi-run model and a sum-against-slots assertion is a tautology trap.
+        traceFmt("budget: instances capacity=%zu submitted=%zu accepted=%zu slots=%zu rejected=missingMesh:%zu,deferredNotResident:%zu,badMesh:%zu,nonFinite:%zu,budget:%zu",
+          renderer.entityModelInstanceCapacityLimit, draws.size(), renderer.entityModelInstanceCount(),
+          renderer.entityModelInstanceSlotCount(),
+          renderer.entityModelInstanceRejectedMissingMesh(),
+          renderer.entityModelInstanceRejectedDeferredNotResident(),
+          renderer.entityModelInstanceRejectedBadMesh(),
+          renderer.entityModelInstanceRejectedNonFinite(),
+          renderer.entityModelInstanceRejectedBudget());
+        // T85 P0 review B3/B4: settle the eviction books BEFORE the ledger, so an
+        // eviction created by this frame's uploads (world, overlay or attach) has
+        // already unpublished its path->key mapping and printed its NAMED line
+        // ("budget: eviction key=... action=unpublish,resupply") by the time the
+        // account below is printed. Doing it here and not only in the attach path
+        // matters for builds where the attach does not run: a narrowed table still
+        // has to report WHY a key left, not only that the counter moved.
+        reconcileEvictedEntityMeshes();
+        // T85 P0 review B3: layer B's settled reading for THIS frame, printed
+        // after the instance upload and therefore after every upload site that
+        // can change the table (world pass, overlay, attach). The startup print
+        // ("gpu: reload-stage") is a snapshot of a table that is still filling, so
+        // evictions/refusals there are structurally zero; a gate that read only
+        // that print would assert on a constant. This is the LAST
+        // "budget: meshTable" line of every frame, and it carries the refusal and
+        // eviction counters as well as who owns the resident slots.
+        traceFmt("budget: meshTable capacity=%zu resident=%zu evictions=%zu capacityRefusals=%zu reuploads=%zu resupply=%zu"
+          " residentByPriority=player:%zu,weapon:%zu,overlay:%zu,prop:%zu,firstPersonOnly:%zu",
+          renderer.entityModelMeshCapacity(), renderer.entityModelMeshCount(),
+          renderer.entityModelMeshEvictions(), renderer.entityModelMeshCapacityRefusals(),
+          renderer.entityModelMeshReuploads(), attachMeshResupply,
+          renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::PlayerBody),
+          renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::HeldWeapon),
+          renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::Overlay),
+          renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::WorldProp),
+          renderer.entityModelMeshResident(tf2::native::EntityMeshPriority::Deferred));
         renderer.setEntityMarkers(fallbackMarkers);
         animationStats.boneMatricesUploaded = entityBoneMatrices.size();
         // What the renderer actually accepted, not what the caller offered: an
@@ -11339,6 +11701,17 @@ bool outlineVertexExtent = false;
       // Taken here, after the draw and only on the captured frame, so the reading
       // and the bitmap describe the same frame -- the same rule the two lines
       // below follow for the world and the ViewModel.
+      // The size of the frame that was just written, as a reading and not an
+      // assumption: the pixel gates compare bitmaps across runs and across
+      // playback speeds, and a window that resized itself mid-run (a DPI event, a
+      // display change) moves every pixel index while the content stays the same.
+      // With --window-size pinned this is a constant; this line proves the capture
+      // came out at that size instead of trusting that it did.
+      if (captureRequested && g_renderer) {
+        traceFmt("capture: frame width=%d height=%d dpi=%u",
+          g_renderer->frameWidth(), g_renderer->frameHeight(),
+          window ? GetDpiForWindow(window) : 0u);
+      }
       if (captureRequested && g_renderer) {
         // The RESOLVER's union is printed on the same line as the RENDERER's
         // region, and that is not decoration: the startup publish happens before

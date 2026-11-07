@@ -59,6 +59,15 @@ mkdir -p "$OUT"
 for f in settings.json ui.json; do
   [ -e "$INPUT/$f" ] || cp "evidence/t62-matrix/class-pixels/$f" "$INPUT/$f"
 done
+
+# HYGIENE (lead m01207): the product rewrites the settings/UI files it is handed on
+# exit, so hand it COPIES under $OUT and never the tracked fixture. This runs AFTER the
+# fallback above, so a missing fixture is seeded first and the copy is always real.
+mkdir -p "$OUT/inputs"
+cp "$INPUT/settings.json" "$OUT/inputs/body-settings.ini" 2>/dev/null || true
+cp "$INPUT/ui.json" "$OUT/inputs/body-ui.ini" 2>/dev/null || true
+BODY_SETTINGS="$OUT/inputs/body-settings.ini"
+BODY_UI="$OUT/inputs/body-ui.ini"
 for path in "$PRODUCT" "$TF" "$DEMO" "$PY" "$INPUT/targets.txt" "$INPUT/settings.json" "$INPUT/ui.json"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 2; }
 done
@@ -70,7 +79,7 @@ run_frame() {
   rm -f "$bmp" "$trace"
   TF2_NATIVE_TRACE="$trace" timeout 1200 "$PRODUCT" \
     --tf-root "$TF" --hidden-window --audio-disabled \
-    --settings-file "$INPUT/settings.json" --ui-settings-file "$INPUT/ui.json" \
+    --settings-file "$BODY_SETTINGS" --ui-settings-file "$BODY_UI" \
     --demo "$DEMO" --capture-tick "$TICK" --playback-speed "$SPEED" \
     --capture-frame "$bmp" \
     --debug-camera "$eyeX" "$eyeY" "$eyeZ" "$CAMERA_PITCH" "$CAMERA_YAW" \

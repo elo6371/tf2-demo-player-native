@@ -1,0 +1,19 @@
+ACQUIRED owner=t85-budget at 2026-11-07 13:31:01
+class=pyro ent=3 tick=30001 origin=1957.0,-125.1,94.8 eye=1707.0,-125.1,152.8 speed=32
+demo sha256=7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3
+before exe sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+after  exe sha256=1d1ecca511c6ad2a7c744332a27f4c6a7c735c434cad5578b4fa7256d6351cb8
+after rc=0 bmp=yes trace=8267305
+---- after ----
+  attach refusals        = 0
+0
+  E_OUTOFMEMORY 0x8007000E = 0
+0
+  attach refused paths:
+  43526.1 attach: meshSource supplied=13 refused=0 meshes=13
+  43526.1 scene: weaponAttach on=1 held=13 drawn=13 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=11 firstRefusal=-
+  last meshTable : 29106.7 budget: meshTable capacity=96 resident=73 evictions=0 capacityRefusals=0 reuploads=0 residentByPriority=player:9,weapon:43,overlay:9,prop:12,firstPersonOnly:0
+  last instances : 43526.2 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+  last draw      : 43526.1 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+  ledger: evidence/t85/upward-pyro/after.ledger.txt (40 lines)
+LOCKED-COMMAND-EXIT rc=0 owner=t85-budget

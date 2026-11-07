@@ -1,0 +1,25 @@
+WAITING owner=t85-budget queue_head=1794030232614918500-t87-anim-4264
+WAITING owner=t85-budget queue_head=1794030232614918500-t87-anim-4264
+WAITING owner=t85-budget queue_head=1794030232614918500-t87-anim-4264
+WAITING owner=t85-budget queue_head=1794030232614918500-t87-anim-4264
+WAITING owner=t85-budget queue_head=1794030232614918500-t87-anim-4264
+WAITING owner=t85-budget queue_head=1794030233763247900-t85-lead-4284
+ACQUIRED owner=t85-budget at 2026-11-07 14:01:01
+=== -1/6 the harness itself: every assert_* it calls is defined and can go red ===
+  OK   the harness defines assert_contains
+  OK   the harness defines assert_eq
+  OK   the harness defines assert_ge
+  OK   the harness defines assert_le
+  OK   the harness defines assert_lt
+  OK   the harness defines assert_world_fixture
+  OK   assert_contains goes red when the sentence is absent
+  OK   assert_contains goes green when the sentence is present
+  OK   an undefined command leaves the trace that reddens the verdict
+  OK   a source newer than the binary is reported as stale
+  OK   a binary at least as new as its sources passes the same guard
+  OK   the dependency list is scoped to its target: entity_overlay_probe does not compile projectile_track_probe.cpp
+  OK   the same list names demo_header.cpp, a source that target does compile
+  OK   native/build-nmake/tf2_demo_native.exe is not older than the sources its target compiles
+  OK   native/build-nmake/entity_overlay_probe.exe is not older than the sources its target compiles
+FATAL: this gate has 2 product launch sites; every launch must go through run_frame() so --audio-disabled cannot be dropped
+LOCKED-COMMAND-EXIT rc=1 owner=t85-budget

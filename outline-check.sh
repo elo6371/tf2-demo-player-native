@@ -104,6 +104,28 @@ absolute_out() { # absolute_out <shell path under OUT> -- native Windows path
 }
 mkdir -p "$OUT"
 
+# ---------------------------------------------------------------------------
+# SETTINGS ISOLATION (lead m01207, 2026-11-07). The product writes its settings
+# file and its UI file on EVERY exit whether or not the run changed anything
+# (main.cpp:11877-11893 saves bookmarks/key binds and saveSettings(persistent);
+# native_ui.cpp:137-139 rewrites recentDemo0..7). With no --settings-file /
+# --ui-settings-file it writes the REAL profile under
+# %LOCALAPPDATA%/TF2 Demo Player. So every launch in this gate is handed its own
+# copy under $OUT/inputs, seeded byte-for-byte from the host profile so the
+# pinned pixel fixtures keep exactly the renderer settings they were measured on,
+# and the product writes the copies instead of the user's files.
+SETTINGS_SEED_DIR="$OUT/inputs"
+mkdir -p "$SETTINGS_SEED_DIR"
+HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
+[ -f "$HOST_PROFILE_DIR/settings.ini" ] && cp "$HOST_PROFILE_DIR/settings.ini" "$SETTINGS_SEED_DIR/host-settings.ini" 2>/dev/null
+[ -f "$HOST_PROFILE_DIR/ui.ini" ] && cp "$HOST_PROFILE_DIR/ui.ini" "$SETTINGS_SEED_DIR/host-ui.ini" 2>/dev/null
+seed_run_files() { # seed_run_files <prefix>: per-run copies, so two runs never share an MRU
+  RUN_SETTINGS="$SETTINGS_SEED_DIR/${1##*/}.settings.ini"
+  RUN_UI="$SETTINGS_SEED_DIR/${1##*/}.ui.ini"
+  if [ -f "$SETTINGS_SEED_DIR/host-settings.ini" ]; then cp "$SETTINGS_SEED_DIR/host-settings.ini" "$RUN_SETTINGS"; else : > "$RUN_SETTINGS"; fi
+  if [ -f "$SETTINGS_SEED_DIR/host-ui.ini" ]; then cp "$SETTINGS_SEED_DIR/host-ui.ini" "$RUN_UI"; else : > "$RUN_UI"; fi
+}
+
 MUTATION=0
 SKIP_LIVE=0
 for arg in "$@"; do
@@ -151,6 +173,233 @@ assert_contains() { # assert_contains <label> <haystack> <needle>
     *) echo "  FAIL $1 (wanted: ${3:-<none>})"; fail=1 ;;
   esac
 }
+
+# ---------------------------------------------------------------------------
+# T85 P0 (lead m00816, option a): THE THREE NAMED WEAPON WORLD MODELS.
+#
+# WHY THIS RUN EXISTS. The defect this task is about is not "the budget is
+# small": it is that three SPECIFIC weapon world models were refused with
+# E_OUTOFMEMORY on a recording where nineteen player bodies are on screen --
+#   models/weapons/c_models/c_flamethrower/c_flamethrower.mdl
+#   models/weapons/c_models/c_sapper/c_sapper_xmas.mdl
+#   models/workshop_partner/weapons/c_models/c_shogun_warhorn/c_shogun_warhorn.mdl
+# (evidence/mutation/weaponworldmodel-m10/*-dump.txt, and reproduced in
+#  evidence/t85/upward-pyro/before.trace). A ledger that says refused=0 is not
+#  the same claim as "those three were supplied": the first can be true on a
+#  frame where none of them was ever requested. So this gate names them.
+#
+# WHY IT IS A SECOND RECORDING. The outline fixture above (cp_snakewater, two
+# players at two depths) never holds nineteen bodies and cannot exhaust the
+# table by construction; the failure needs the Highlander STV pl_upward_f12
+# recording in testdata that every t62-matrix measurement used. An extra
+# product launch is the price of asserting the actual defect instead of a
+# proxy for it.
+#
+# THE TICK DOMAIN (lead m00789): --capture-tick plays past the target and
+# clamps the cursor back, so a trace line's leading seconds are PLAYBACK time,
+# not "what a user sees at that tick". Everything asserted below is a MESH
+# UPLOAD reading (supplied / refused / table capacity), which is a property of
+# the run, not of the captured frame. No pixel claim is made from this run.
+#
+# WHAT REPLACED WHAT. Before this task outline-check.sh pinned the world pass
+# at "gpu: models done 59 uploaded=59" (old lines 857-859) and asserted the
+# cap-64/cap-96 pair (old 1842-1860). Those readings stood for "the fixed
+# budget happened to be enough on the outline fixture" -- they could not see
+# a refusal at all. The assertions below are the same concern expressed as an
+# account: the named models are SUPPLIED, no refusal names them, the OOM code
+# does not appear, and every candidate is admitted or deferred by priority.
+# The pinned path is the repo convention (D:/TF2_Demo_Player/testdata/demos/),
+# the same directory third-person-weapon-check.sh:85, player-body-appearance-check.sh:42,
+# class-pixels-check.sh:102 and player-animation-check.sh:48 read. The copy under
+# Downloads is byte-identical (sha256 7e047aff...dc4a3, 75,663,754 B) but a gate may
+# not depend on a user Downloads folder; the sha256 below is what makes the fixture
+# an identity rather than a path.
+T85_WORLD_DEMO="${T85_WORLD_DEMO:-D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem}"
+T85_WORLD_TICK="${T85_WORLD_TICK:-30001}"
+T85_WORLD_SETTINGS=evidence/t85/inputs/upward-settings.json
+T85_WORLD_UI=evidence/t85/inputs/upward-ui.json
+# The pyro fixture as pinned by evidence/t62-matrix/class-pixels-upward/targets.txt
+# (ent 3 at tick 30001, origin 1957.0,-125.1,94.8; the camera sits 250 units
+# back on -x and 58 up, yaw 0, pitch 4.1).
+T85_WORLD_EYE="1707.0 -125.1 152.8 4.1 0.0"
+# THE ONLY PLACE IN THIS GATE THAT CAN START THE PRODUCT. Both fixtures build
+# their own argv and hand it to this one function, so --hidden-window and
+# --audio-disabled are checked on the FINAL argv of every run: a caller cannot
+# forget them, and a second launch site cannot appear without the LAUNCH_SITES
+# guard below going red (the audio incident: the flag was in the file, just not
+# at every call site, so coverage was not per-site correctness).
+launch_product() { # launch_product <prefix> <final argv...>
+  local prefix="$1"; shift
+  case " $* " in
+    *" --audio-disabled "*) : ;;
+    *) echo "REFUSED: launch_product was handed an argv without --audio-disabled" >&2
+       echo "99"
+       return 0 ;;
+  esac
+  TF2_NATIVE_TRACE="$(absolute_out "$prefix.trace")" \
+    timeout "${PRODUCT_TIMEOUT:-600}" "$EXE" "$@" > "$prefix.log" 2>&1
+  echo "$?"
+}
+run_world_fixture() { # run_world_fixture <prefix>
+  local prefix="$1"
+  rm -f "$prefix.bmp" "$prefix.pgm" "$prefix.trace" "$prefix.log"
+  local -a args=(
+    --tf-root "$TF" --hidden-window --audio-disabled
+    --settings-file "$T85_WORLD_SETTINGS" --ui-settings-file "$T85_WORLD_UI"
+    --demo "$T85_WORLD_DEMO" --capture-tick "$T85_WORLD_TICK" --playback-speed 32
+    --capture-frame "$prefix.bmp"
+    --window-size 1280x720
+    --debug-camera $T85_WORLD_EYE
+    --player-animation --player-weapon-attach on
+  )
+  # The world fixture keeps its FULL trace (no trim): the named-model readings are
+  # upload lines spread over playback time, and a trimmer tuned for the outline
+  # fixture's summary lines is a filter this section does not need.
+  PRODUCT_TIMEOUT="${T85_WORLD_TIMEOUT:-900}" launch_product "$prefix" "${args[@]}"
+}
+assert_world_fixture() { # assert_world_fixture <prefix> -- the named-model account
+  local prefix="$1"
+  # THE FIXTURE PROVES ITS OWN IDENTITY (lead m00911). A gate that reads a demo by
+  # path and skips when the path is empty is the "SKIP-everything additive check"
+  # this repo has shipped before (GATE-DESIGN-TRAPS.md). So: the demo must hash to
+  # the pinned file and the map must be installed at the size measured on this host.
+  # Missing inputs make these RED, they do not make the section absent.
+  local demo_sha bsp_path bsp_bytes
+  demo_sha=$(sha256sum "$T85_WORLD_DEMO" 2>/dev/null | cut -d" " -f1)
+  bsp_path="$TF/maps/pl_upward_f12.bsp"
+  bsp_bytes=$(stat -c%s "$bsp_path" 2>/dev/null || echo 0)
+  echo "  world fixture: demo=$T85_WORLD_DEMO sha256=${demo_sha:-<missing>}"
+  echo "  world fixture: map=$bsp_path bytes=${bsp_bytes:-0}"
+  assert_eq "named world models: the upward fixture demo is the pinned file" "${demo_sha:-<missing>}" "7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3"
+  assert_eq "named world models: the upward map is the installed pl_upward_f12 BSP" "${bsp_bytes:-0}" "25252306"
+  # Local copy of trace_field: this section also runs from --world-only, which
+  # exits long before the file's own reader is defined.
+  wfield() { # wfield <trace> <line-match> <field>
+    grep -a "$2" "$1" 2>/dev/null | grep -a "$3=" | tail -1 | tr " " "\n" | grep -a "^$3=" | cut -d= -f2
+  }
+if [ "$SKIP_LIVE" -eq 1 ]; then
+  echo "  named world models: SKIPPED (--skip-live; no product launch)"
+else
+  WORLD_RC=$(run_world_fixture "$prefix")
+  WTRACE="$prefix.trace"
+  echo "  world rc=$WORLD_RC bmp=$(stat -c%s "$prefix.bmp" 2>/dev/null || echo 0) trace=$(stat -c%s "$WTRACE" 2>/dev/null || echo 0) bytes"
+  assert_eq "named world models: the upward multiply-held-weapons run rc" "$WORLD_RC" "0"
+  assert_ge "named world models: the run captured a frame" "$(stat -c%s "$prefix.bmp" 2>/dev/null || echo 0)" "1"
+  # THE NAMED DELIVERABLES. Each of the three is a separate reading: a build
+  # that supplies two of them is a build that still drops one.
+  W_FLAME=$(grep -a -c 'attach: mesh result=supplied path=models/weapons/c_models/c_flamethrower/c_flamethrower.mdl' "$WTRACE" 2>/dev/null || true)
+  W_WARHORN=$(grep -a -c 'attach: mesh result=supplied path=models/workshop_partner/weapons/c_models/c_shogun_warhorn/c_shogun_warhorn.mdl' "$WTRACE" 2>/dev/null || true)
+  W_SAPPER=$(grep -a -c 'attach: mesh result=supplied path=models/weapons/c_models/c_sapper/c_sapper_xmas.mdl' "$WTRACE" 2>/dev/null || true)
+  W_R3=$(grep -a -c 'attach: mesh result=refused.*c_flamethrower\.mdl\|attach: mesh result=refused.*c_shogun_warhorn\.mdl\|attach: mesh result=refused.*c_sapper_xmas\.mdl' "$WTRACE" 2>/dev/null || true)
+  W_OOM=$(grep -a -c '0x8007000E' "$WTRACE" 2>/dev/null || true)
+  echo "  named world models supplied: flamethrower=${W_FLAME:-0} warhorn=${W_WARHORN:-0} sapper=${W_SAPPER:-0}; refused-naming-any=${W_R3:-0}; OOM-lines=${W_OOM:-0}"
+  assert_ge "named world models: c_flamethrower's world mesh was supplied (it used to OOM)" "${W_FLAME:-0}" "1"
+  assert_ge "named world models: c_shogun_warhorn's world mesh was supplied (it used to OOM)" "${W_WARHORN:-0}" "1"
+  assert_eq "named world models: no refusal line names any of the three" "${W_R3:-<none>}" "0"
+  assert_eq "named world models: E_OUTOFMEMORY 0x8007000E never appears in the trace" "${W_OOM:-<none>}" "0"
+  # THE ACCOUNT BEHIND IT. The three are delivered because the prepare pass
+  # spends its 64 slots by PRIORITY, not first-come: on this recording the
+  # candidate set is larger than the budget (so the budget binds) and the
+  # weapons it keeps are the ones nineteen bodies are holding.
+  W_CAND=$(wfield "$WTRACE" "budget: prepare" candidates)
+  W_ADMIT=$(wfield "$WTRACE" "budget: prepare" admitted)
+  W_DEFER=$(wfield "$WTRACE" "budget: prepare" deferred)
+  W_FAILED=$(wfield "$WTRACE" "budget: prepare" failed)
+  W_CAP=$(wfield "$WTRACE" "budget: prepare" capacity)
+  W_RESIDENT=$(wfield "$WTRACE" "budget: meshTable" resident)
+  W_MCAP=$(wfield "$WTRACE" "budget: meshTable" capacity)
+  W_REFUSALS=$(wfield "$WTRACE" "budget: meshTable" capacityRefusals)
+  W_EVICT=$(wfield "$WTRACE" "budget: meshTable" evictions)
+  W_INST_ACCEPT=$(wfield "$WTRACE" "budget: instances" accepted)
+  W_INST_SLOTS=$(wfield "$WTRACE" "budget: instances" slots)
+  echo "  world layer A: capacity=${W_CAP:-<none>} candidates=${W_CAND:-<none>} admitted=${W_ADMIT:-<none>} deferred=${W_DEFER:-<none>} failed=${W_FAILED:-<none>}"
+  echo "  world layer B: capacity=${W_MCAP:-<none>} resident=${W_RESIDENT:-<none>} evictions=${W_EVICT:-<none>} capacityRefusals=${W_REFUSALS:-<none>}"
+  assert_ge "named world models: the run saw a candidate set" "${W_CAND:-0}" "1"
+  assert_eq "named world models: every candidate is admitted or deferred" "$(( ${W_ADMIT:-0} + ${W_DEFER:-0} ))" "${W_CAND:-<none>}"
+  assert_eq "named world models: the prepare budget is 64 (not raised)" "${W_CAP:-<none>}" "64"
+  # deferred >= 1 is the evidence that the budget BINDS on this recording: a
+  # build that fits everything into 64 would pass every other assertion here
+  # for the uninteresting reason, and could not have failed before the fix.
+  assert_ge "named world models: the budget actually binds (some candidates are deferred)" "${W_DEFER:-0}" "1"
+  assert_eq "named world models: no admitted model failed to build" "${W_FAILED:-<none>}" "0"
+  assert_le "named world models: the table never exceeds its bound" "${W_RESIDENT:-<none>}" "${W_MCAP:-0}"
+  assert_eq "named world models: the table refused nothing at the shipped bound" "${W_REFUSALS:-<none>}" "0"
+  assert_eq "named world models: no resident mesh was evicted at the shipped bound" "${W_EVICT:-<none>}" "0"
+  # COVERAGE BESIDE CHURN (lead m01475). "attach: meshSource supplied" counts only
+  # the meshes the attach had to BUILD; a weapon the world pass already prepared is
+  # resolved from that cache and just as present in the hand. A regression that
+  # quietly stopped drawing ten weapons while the attach refused nothing would look
+  # exactly like a cheaper prepare pass, and "refused==0" would wave it through. So
+  # the request books are read too: every request leaves through one named exit
+  # (balance below), and uploaded+resolvedFromWorld is how many weapon world models
+  # the frame actually had.
+  W_COV_LINES=$(grep -a -c "attach: coverage requested=" "$WTRACE" 2>/dev/null || true)
+  W_COV_REQ=$(wfield "$WTRACE" "attach: coverage" requested)
+  W_COV_RESOLVED=$(wfield "$WTRACE" "attach: coverage" resolvedFromWorld)
+  W_COV_UPLOADED=$(wfield "$WTRACE" "attach: coverage" uploaded)
+  W_COV_REFUSED=$(wfield "$WTRACE" "attach: coverage" refused)
+  W_COV_RETRY=$(wfield "$WTRACE" "attach: coverage" retrySkipped)
+  W_COV_UNRES=$(wfield "$WTRACE" "attach: coverage" unresolvedPath)
+  # Balance check over EVERY line, not only the last: awk fields once split on [= ]
+  # are 4=requested 6=resolvedFromWorld 8=uploaded 10=refused 12=retrySkipped
+  # 14=unresolvedPath.
+  W_COV_BAD=$(grep -a -o "attach: coverage requested=[0-9]* resolvedFromWorld=[0-9]* uploaded=[0-9]* refused=[0-9]* retrySkipped=[0-9]* unresolvedPath=[0-9]*" "$WTRACE" 2>/dev/null | awk -F'[= ]' '{ if ($4 != $6+$8+$10+$12+$14) bad++ } END { print bad+0 }')
+  echo "  world attach coverage: lines=${W_COV_LINES:-<none>} requested=${W_COV_REQ:-<none>} resolvedFromWorld=${W_COV_RESOLVED:-<none>} uploaded=${W_COV_UPLOADED:-<none>} refused=${W_COV_REFUSED:-<none>} retrySkipped=${W_COV_RETRY:-<none>} unresolvedPath=${W_COV_UNRES:-<none>} balance-violations=${W_COV_BAD:-<none>}"
+  assert_ge "named world models: the attach reports its request accounting" "${W_COV_LINES:-0}" "1"
+  assert_eq "named world models: every attach request left through a named exit (coverage balances)" "${W_COV_BAD:-<none>}" "0"
+  assert_ge "named world models: the hand's weapon world models are covered (uploaded + resolved from prepare)" "$(( ${W_COV_UPLOADED:-0} + ${W_COV_RESOLVED:-0} ))" "1"
+  # The mesh-source ledger and the coverage ledger must agree on the upload count;
+  # if they ever disagree, one of the two lines is stale.
+  assert_eq "named world models: the coverage ledger agrees with the mesh-source ledger on uploads" "${W_COV_UPLOADED:-<none>}" "$(wfield "$WTRACE" "attach: meshSource" supplied)"
+  echo "  world layer C: accepted=${W_INST_ACCEPT:-<none>} slots=${W_INST_SLOTS:-<none>}"
+  assert_ge "named world models: the instance list has slots" "${W_INST_SLOTS:-0}" "1"
+  assert_le "named world models: the accepted instances fit the instance list" "${W_INST_ACCEPT:-<none>}" "${W_INST_SLOTS:-0}"
+  # WHY THE INSTANCE REJECTS ARE NOT A DEFECT (lead m01484). "rejected=" used to be a
+  # single missingMesh bucket, so the after-fix reading (37) looked like 37 broken
+  # instances. The buckets are separated at the source: an instance whose model the
+  # budget deliberately deferred is deferredNotResident; only an instance that SHOULD
+  # exist and does not is missingMesh (m8-class defect). Both are asserted, so a
+  # regression that turns deferrals into holes cannot hide in the bigger number.
+  # These two live inside the rejected= list ("missingMesh:0,deferredNotResident:37"),
+  # i.e. key:value, so wfield (which reads key=value) cannot see them.
+  W_INST_MISSING=$(grep -a "budget: instances" "$WTRACE" 2>/dev/null | tail -1 | grep -a -o "missingMesh:[0-9]*" | cut -d: -f2)
+  W_INST_DEFERRED=$(grep -a "budget: instances" "$WTRACE" 2>/dev/null | tail -1 | grep -a -o "deferredNotResident:[0-9]*" | cut -d: -f2)
+  W_ATTACH_HELD=$(wfield "$WTRACE" "scene: weaponAttach" held)
+  W_ATTACH_DRAWN=$(wfield "$WTRACE" "scene: weaponAttach" drawn)
+  echo "  world layer C split: missingMesh=${W_INST_MISSING:-<none>} deferredNotResident=${W_INST_DEFERRED:-<none>}; hand held=${W_ATTACH_HELD:-<none>} drawn=${W_ATTACH_DRAWN:-<none>}"
+  assert_eq "named world models: nothing that should exist is missing its mesh (missingMesh)" "${W_INST_MISSING:-<none>}" "0"
+  assert_ge "named world models: deferred instances are counted as deferred, not dropped (deferredNotResident)" "${W_INST_DEFERRED:-0}" "1"
+  assert_ge "named world models: the frame has weapon-holding bodies" "${W_ATTACH_HELD:-0}" "1"
+  assert_eq "named world models: every weapon-holding body got its world mesh (held == drawn)" "${W_ATTACH_DRAWN:-<none>}" "${W_ATTACH_HELD:-<none>}"
+fi
+}
+
+# T85 P0 (lead m00816): --world-only runs ONLY the named world-model section, one
+# product launch. It exists so the behavioural mutation (prepare priority sort
+# reverted to first-come-first-served) can be recorded green -> red -> green
+# against THIS gate's own assertions without paying for the six other launches
+# the full suite needs. It is a debugging/evidence mode, not the gate's verdict.
+#
+# The two flags contradict each other: under --skip-live the section echoes
+# "SKIPPED" and asserts nothing, so a combined run would print a PASS token with
+# no reading behind it. That is the same class of trap as the equal-to-equal
+# assertions this section replaces, so the combination is REFUSED (exit 2) and
+# its token says SKIPPED-LIVE rather than PASS.
+if [ "${WORLD_ONLY:-0}" = "1" ] && [ "$SKIP_LIVE" = "1" ]; then
+  echo "  --world-only and --skip-live contradict: --world-only exists to RUN the live section"
+  echo "OUTLINE-CHECK=SKIPPED-LIVE (--world-only refused: nothing to run)"
+  exit 2
+fi
+if [ "${WORLD_ONLY:-0}" = "1" ]; then
+  assert_world_fixture "$OUT/world-only"
+  echo
+  if [ "$fail" = "1" ]; then
+    echo "OUTLINE-CHECK=FAIL (--world-only: the named world-model section)"
+    exit 1
+  fi
+  echo "OUTLINE-CHECK=PASS (--world-only: the named world-model section only)"
+  exit 0
+fi
 
 # An unknown command is a failed reading. Until 2026-10-29 this gate called
 # assert_contains at line 270 without ever defining it: bash printed "command
@@ -240,6 +489,22 @@ for _fn in $(grep -oE '\bassert_[a-z_]+' "$0" | sort -u); do
     fail=1; harness_broken=1
   fi
 done
+# THE LAUNCH GUARD IS ITSELF TESTED. launch_product is the only place that can
+# start the product, and its whole job is refusing an argv that lost
+# --audio-disabled. The refusal path returns BEFORE the launch, so this test
+# starts nothing: it is the negative control for the guard that used to be a
+# comment (2026-10-22 audio incident).
+_lp_refuse=$( launch_product "$OUT/launch-guard-selftest" --tf-root "$TF" --hidden-window 2>"$OUT/launch-guard-selftest.stderr" )
+case "$_lp_refuse" in
+  99) echo "  OK   launch_product refuses an argv without --audio-disabled (returns 99)" ;;
+  *) echo "  FAIL launch_product accepted an argv without --audio-disabled (returned ${_lp_refuse:-<none>})"
+     fail=1; harness_broken=1 ;;
+esac
+if grep -q 'REFUSED: launch_product' "$OUT/launch-guard-selftest.stderr" 2>/dev/null; then
+  echo "  OK   launch_product prints why it refused (not a silent drop)"
+else
+  echo "  FAIL launch_product refused without printing a reason"; fail=1; harness_broken=1
+fi
 _self_red=$( ( fail=0; assert_contains "self-test, absent sentence" "alpha beta" "gamma"; echo "fail=$fail" ) )
 case "$_self_red" in
   *"fail=1") echo "  OK   assert_contains goes red when the sentence is absent" ;;
@@ -354,12 +619,15 @@ for path in "$PROBE" "$TF"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; missing=1; }
 done
 # HOW MANY PLACES IN THIS FILE CAN START THE PRODUCT. One, and it is the guarded
-# helper. A second launch site added later would not inherit the guard, which is
-# precisely the failure mode of the audio incident: the flag was present in the
-# file, just not at every call site. Coverage is not per-site correctness.
+# helper launch_product(). A second launch site added later would not inherit the
+# guard, which is precisely the failure mode of the audio incident: the flag was
+# present in the file, just not at every call site. Coverage is not per-site
+# correctness. (T85 P0 added a SECOND FIXTURE, not a second launch site: the
+# upward world-model run goes through launch_product like every other run, which
+# is why this count is still 1.)
 LAUNCH_SITES=$(grep -c 'timeout.*"\$EXE"' "$0")
 if [ "$LAUNCH_SITES" != "1" ]; then
-  echo "FATAL: this gate has $LAUNCH_SITES product launch sites; every launch must go through run_frame() so --audio-disabled cannot be dropped"
+  echo "FATAL: this gate has $LAUNCH_SITES product launch sites; every launch must go through launch_product() so --audio-disabled cannot be dropped"
   exit 1
 fi
 if [ "$SKIP_LIVE" = "0" ]; then
@@ -605,7 +873,15 @@ echo "  capture camera=$CAM_EYE (pinned free-look eye; T52_CAM pins it)"
 # evidence/t52-a3/A3-REPORT.md, at this same camera and tick, and passing the flag
 # here keeps the gate's statement and the evidence's statement from being read as
 # one another.
-ANIM_ARGS=(--no-player-animation)
+# ANIMATION IS OFF BY OMISSION, NOT BY A FLAG (T85 P0, 2026-11-07).
+# The product has no --no-player-animation switch: its parser knows only
+# --player-animation (main.cpp:2807) and playerAnimationEnabled defaults to false
+# (main.cpp:2125). The old "ANIM_ARGS=(--no-player-animation)" was therefore
+# silently ignored by the product -- the frame was the bind mesh for the right
+# reason, but a flag that does not exist cannot carry that reason, and the next
+# reader has no way to tell a spelling mistake from a measurement. The array stays
+# EMPTY: nothing below turns animation on, which is the honest spelling.
+ANIM_ARGS=()
 echo "  capture animation=off (bind mesh; the animated silhouette is A3 evidence)"
 # CORPSES ON, and this is a fixture decision about what THIS FRAME CAN MEASURE.
 #
@@ -665,6 +941,13 @@ trim_trace() { # trim_trace <prefix>
   # every helper reads.
   { grep -a "outline: draw" "$raw" | tail -n 50 || true; } > "$kept"
   { grep -aE "gpu:|window:|hud: |logstf: " "$raw" || true; } >> "$kept"
+  # T85 P0: the budget ledgers are the account the four-layer assertions read, and
+  # they print ONCE (layer A, at startup) or on the captured frame (layers C and D,
+  # and the attach) -- both outside the tail window. Measured on the first full run:
+  # "budget: prepare" = 0 occurrences after trimming, so seven layer-A assertions
+  # read <none> and failed against a product that was working. Same for the frame's
+  # own size reading, which the speed block compares.
+  { grep -aE "budget:|capture:|attach: |scene: weaponAttach" "$raw" || true; } >> "$kept"
   { grep -a "scene: begin tick=" "$raw" | tail -n 5 || true; } >> "$kept"
   { grep -a "outline: item" "$raw" | tail -n 200 || true; } >> "$kept"
   { grep -a "title: " "$raw" | tail -n 5 || true; } >> "$kept"
@@ -684,6 +967,7 @@ run_frame() { # run_frame <prefix> [args...]
   rm -f "$prefix.bmp" "$prefix.pgm" "$prefix.trace" "$prefix.log"
   local trace
   trace="$(absolute_out "$prefix.trace")"
+  seed_run_files "$prefix"
   # The speed=1 capture below is the slow one by construction (a tick near the end
   # of the recording costs its playback position in wall clock), so the timeout is
   # a knob per call rather than a number that has to fit the slowest run.
@@ -699,6 +983,14 @@ run_frame() { # run_frame <prefix> [args...]
   local -a productArgs=(
     --tf-root "$TF" --hidden-window --audio-disabled --demo "$DEMO"
     --capture-tick "$TICK" --playback-speed "$SPEED" --capture-frame "$prefix.bmp"
+    # T85 P0: the OUTER window rect is pinned, so the capture geometry is a constant
+    # of the run instead of something a DPI event can move mid-flight. Measured on
+    # 2026-11-07: a speed=1 capture came out 2560x1417 while its neighbours were
+    # 1264x681, which turns a byte comparison of two frames into a comparison of two
+    # window sizes. Part of the launch this helper builds, so a caller cannot forget
+    # it, and the size is asserted below rather than assumed.
+    --window-size 1280x720
+    --settings-file "$RUN_SETTINGS" --ui-settings-file "$RUN_UI"
     # T52 (2026-10-23): the region assertions compare pixels against regions, so the
     # region has to bound what the pass DREW. Without this the product publishes the
     # entity AABB and the drawn triangles stick out of it by a 1-6 px fringe, so the
@@ -719,14 +1011,33 @@ run_frame() { # run_frame <prefix> [args...]
        echo "99"
        return 0 ;;
   esac
-  TF2_NATIVE_TRACE="$trace" timeout "${RUN_TIMEOUT:-600}" "$EXE" "${productArgs[@]}" > "$prefix.log" 2>&1
-  local rc=$?
+  # The launch itself is launch_product -- the gate's single product launch site --
+  # so this helper cannot bypass the --audio-disabled check even if its own argv
+  # assembly changes later.
+  local rc
+  rc=$(PRODUCT_TIMEOUT="${RUN_TIMEOUT:-600}" launch_product "$prefix" "${productArgs[@]}")
   trim_trace "$prefix"
   echo "$rc"
 }
 OFF_RC=$(run_frame "$OUT/off" --outline off)
 ON_RC=$(run_frame "$OUT/on" --outline on)
 TESTED_RC=$(run_frame "$OUT/tested" --outline on --outline-depth tested)
+# T85 P0 review B2: the third-person attach's ledger ("attach: meshSource") is
+# printed ONLY when the attach is on, and none of the runs above sets that flag --
+# so reading it out of on.trace was a reading of a line that cannot exist, and the
+# assertion would have been red on every build. This run carries the flag. Outline
+# is OFF on purpose: the reading is about the entity-mesh budget, not about
+# silhouettes, and off keeps this run from touching the overlay's pixel fixtures.
+# The FLAGS matter here, and one of them was wrong twice:
+#   * a BARE --player-weapon-attach is refused by the product on purpose
+#     (main.cpp: "A bare switch with no value is not 'on'"), so the first version of
+#     this line turned the attach OFF and read a ledger that could not exist;
+#   * --player-animation is what gives the held weapon a hold point (default is
+#     off; --no-player-animation in ANIM_ARGS is not even a recognised switch), and
+#     without a pose there is nothing to attach.
+ATTACH_RC=$(run_frame "$OUT/attach" --outline off --player-weapon-attach on --player-animation)
+echo "  att rc=$ATTACH_RC bmp=$(stat -c%s "$OUT/attach.bmp" 2>/dev/null || echo 0)"
+assert_eq "attach: the third-person attach run rc" "$ATTACH_RC" "0"
 echo "  off rc=$OFF_RC bmp=$(stat -c%s "$OUT/off.bmp" 2>/dev/null || echo 0)"
 echo "  on  rc=$ON_RC bmp=$(stat -c%s "$OUT/on.bmp" 2>/dev/null || echo 0)"
 echo "  tst rc=$TESTED_RC bmp=$(stat -c%s "$OUT/tested.bmp" 2>/dev/null || echo 0)"
@@ -755,6 +1066,24 @@ SPEED1_RC=$(RUN_TIMEOUT="${T52_SLOW_TIMEOUT:-2400}" SPEED=1 run_frame "$OUT/spee
 SPEED1_TOOK=$(( $(date +%s) - SPEED1_START ))
 echo "  speed=1 rc=$SPEED1_RC bmp=$(stat -c%s "$OUT/speed1.bmp" 2>/dev/null || echo 0) took=${SPEED1_TOOK}s"
 assert_eq "speed=1 capture rc" "$SPEED1_RC" "0"
+# THE COMPARISON IS ONLY ABOUT SPEED IF BOTH FRAMES HAVE THE SAME SHAPE. The speed=1
+# run is the long one (a tick near the end of the recording costs its playback
+# position in wall clock), which is exactly the window in which a display or DPI
+# event can resize the window under it. Measured 2026-11-07 on this fixture: the
+# speed=1 capture was 2560x1417 against 1264x681 for every other run of the same
+# lease, and the byte comparison above reported it as "--playback-speed CHANGES THE
+# FRAME". The product now pins the outer rect with --window-size and prints the size
+# it actually captured at, so a difference here is a NAMED geometry failure instead
+# of being mis-filed as a rendering one.
+capture_size_of() { # capture_size_of <trace> -- the frame's "WxH", or nothing
+  grep -a "capture: frame " "$1" 2>/dev/null | tail -1 |
+    sed -n 's/.*width=\([0-9]*\) height=\([0-9]*\).*/\1x\2/p'
+}
+SPEED1_SIZE=$(capture_size_of "$OUT/speed1.trace")
+ON_SIZE=$(capture_size_of "$OUT/on.trace")
+echo "  frame size: speed=1 ${SPEED1_SIZE:-<none>} speed=$SPEED ${ON_SIZE:-<none>}"
+assert_eq "the speed=1 capture and the speed=$SPEED capture have the SAME frame size" \
+  "${SPEED1_SIZE:-<none>}" "${ON_SIZE:-<none>}"
 if cmp -s "$OUT/speed1.bmp" "$OUT/on.bmp"; then
   echo "  OK   the frame is byte-identical at speed=1 and speed=${SPEED} (cmp)"
 else
@@ -845,19 +1174,156 @@ assert_eq "every submitted silhouette declares a pose source" \
 # poseJoinMissed counts items that matched no draw; zero is the contract.
 assert_eq "silhouettes with no body behind them (overlay on)" \
   "$(outline_value "$OUT/on.trace" poseJoinMissed)" "0"
-# THE WORLD PASS'S MODEL COUNT, AS AN ASSERTION AND NOT AS A SENTENCE.
-# The report used to say "the overlay must not disturb the world pass's 59 models"
-# while main.cpp:2159-2161 merges nine class requests into the same meshSource the
-# world pass fills. That merge does NOT constructively guarantee the invariant: it
-# holds only because those requests are skipped later, so "59" was a coincidence of
-# this run rather than a property of the code. A reading that can silently change
-# is not an invariant; this one is asserted against the pre-change baseline, so the
-# day the outline's meshes DO displace a world model the gate goes red instead of
-# the report quietly losing a sentence.
+# THE WORLD PASS'S MODEL SET, AS A BUDGET READING AND NOT AS A PINNED NUMBER.
+#
+# Until T85 P0 (2026-11-07) this block asserted uploaded == 59, "measured before the
+# outline uploaded anything". That 59 was a coincidence of the reference recording,
+# and the defect this task fixes is exactly that the set was whatever sorted first:
+# main.cpp now admits candidates into a bounded 64-slot prepare budget BY DELIVERY
+# PRIORITY and prints the account on one line ("budget: prepare"). Pinning 59 again
+# would pin the old first-come-first-served cut -- the defect itself -- and would go
+# red the day a held weapon's world model is admitted ahead of a prop, which is the
+# improvement. What IS a contract, and is asserted below:
+#   * layer A's capacity is 64 and was NOT raised (the handoff rejects "raise the
+#     constant" as a fix: that moves the cut instead of bounding it);
+#   * every candidate is admitted or deferred -- none vanishes, so the line is an
+#     account and not a sample;
+#   * admitted never exceeds capacity;
+#   * built equals the count the world pass itself publishes, and every built mesh
+#     is uploaded (no silent drop between layer A and layer B).
+# The absolute count is PRINTED and not asserted: a recording with a different
+# entity set is allowed to prepare a different number of models.
+PREP_CAP=$(trace_field "$OUT/on.trace" "budget: prepare" capacity)
+PREP_CANDIDATES=$(trace_field "$OUT/on.trace" "budget: prepare" candidates)
+PREP_ADMITTED=$(trace_field "$OUT/on.trace" "budget: prepare" admitted)
+PREP_BUILT=$(trace_field "$OUT/on.trace" "budget: prepare" built)
+PREP_DEFERRED=$(trace_field "$OUT/on.trace" "budget: prepare" deferred)
+PREP_FAILED=$(trace_field "$OUT/on.trace" "budget: prepare" failed)
 WORLD_MODELS_PREPARED=$(sed -n "s/.*gpu: models done \([0-9][0-9]*\) uploaded=.*/\1/p" "$OUT/on.trace" | head -1)
 WORLD_MODELS_UPLOADED=$(trace_field "$OUT/on.trace" "gpu: models done" uploaded)
-echo "  world models: prepared=${WORLD_MODELS_PREPARED:-<none>} uploaded=${WORLD_MODELS_UPLOADED:-<none>} (baseline 59/59, measured before the outline uploaded anything)"
-assert_eq "world pass model uploads unchanged by the overlay" "${WORLD_MODELS_UPLOADED:-<none>}" "59"
+echo "  layer A: capacity=${PREP_CAP:-<none>} candidates=${PREP_CANDIDATES:-<none>} admitted=${PREP_ADMITTED:-<none>} built=${PREP_BUILT:-<none>} deferred=${PREP_DEFERRED:-<none>} failed=${PREP_FAILED:-<none>}"
+echo "  world models: prepared=${WORLD_MODELS_PREPARED:-<none>} uploaded=${WORLD_MODELS_UPLOADED:-<none>}"
+# PRESENCE BEFORE EQUALITY. assert_eq passes when BOTH sides are unreadable (both
+# fall back to <none>), so an equal-to-equal assertion on two readings that come
+# from the same missing trace line is a green light with no reading behind it.
+# Every ledger this block reads gets its own "the line exists and carries a value"
+# assertion first; the equalities below are only meaningful after it.
+assert_ge "layer A: the prepare ledger line is present in the trace" "$(grep -a -c 'budget: prepare' "$OUT/on.trace" || true)" "1"
+assert_ge "layer A: the prepare ledger read a candidate set (a number, not <none>)" "${PREP_CANDIDATES:-0}" "1"
+assert_ge "world pass published a model count (gpu: models done)" "${WORLD_MODELS_PREPARED:-0}" "1"
+assert_eq "layer A: the prepare budget is 64 (not raised -- a bound, not a moved cut)" "${PREP_CAP:-<none>}" "64"
+assert_eq "layer A: every candidate is admitted or deferred (the ledger accounts for all of them)" "$(( ${PREP_ADMITTED:-0} + ${PREP_DEFERRED:-0} ))" "${PREP_CANDIDATES:-<none>}"
+assert_le "layer A: admitted never exceeds the budget" "${PREP_ADMITTED:-<none>}" "${PREP_CAP:-0}"
+# The world pass publishes its own built count ("gpu: models done N") and the
+# prepare ledger publishes built/failed. Comparing the two BUILT numbers was the
+# same expression read twice (both are preparedEntityMeshes.size()), so it is
+# replaced by the account that can actually fail: every admitted model is either
+# built or its build failure is counted, and nothing is admitted and then lost.
+assert_eq "layer A: every admitted model is built or its failure is counted (no admission vanishes)" "$(( ${PREP_BUILT:-0} + ${PREP_FAILED:-0} ))" "${PREP_ADMITTED:-<none>}"
+assert_eq "layer A: no admitted world model failed to build" "${PREP_FAILED:-<none>}" "0"
+assert_eq "layer A -> B: every prepared world model is uploaded (nothing silently dropped)" "${WORLD_MODELS_UPLOADED:-<none>}" "${WORLD_MODELS_PREPARED:-<none>}"
+# LAYERS B, C AND D EACH GET THEIR OWN BOUND AND THEIR OWN LINE.
+# Before this task the chain read as one number (96) in three different places and
+# none of them published what it held. Now: the cache has a capacity and a resident
+# count, this frame's instance list has a capacity and an accepted count, and the
+# draw loop has a budget and a drawn count. Each is asserted against its OWN line,
+# so "the frame is short" can be attributed to a layer instead of to a constant.
+MESH_CAP=$(trace_field "$OUT/on.trace" "budget: meshTable" capacity)
+MESH_RESIDENT=$(trace_field "$OUT/on.trace" "budget: meshTable" resident)
+MESH_EVICTIONS=$(trace_field "$OUT/on.trace" "budget: meshTable" evictions)
+MESH_REFUSALS=$(trace_field "$OUT/on.trace" "budget: meshTable" capacityRefusals)
+MESH_REUPLOADS=$(trace_field "$OUT/on.trace" "budget: meshTable" reuploads)
+INST_CAP=$(trace_field "$OUT/on.trace" "budget: instances" capacity)
+INST_ACCEPTED=$(trace_field "$OUT/on.trace" "budget: instances" accepted)
+INST_SLOTS=$(trace_field "$OUT/on.trace" "budget: instances" slots)
+INST_SUBMITTED=$(trace_field "$OUT/on.trace" "budget: instances" submitted)
+INST_MISSING=$(grep -a "budget: instances" "$OUT/on.trace" | grep -ao "missingMesh:[0-9]*" | tail -1 | cut -d: -f2)
+DRAW_CAP=$(trace_field "$OUT/on.trace" "budget: draw" capacity)
+DRAW_PLAYERS=$(trace_field "$OUT/on.trace" "budget: draw" playerDrawn)
+DRAW_PROPS=$(trace_field "$OUT/on.trace" "budget: draw" propDrawn)
+DRAW_ATTACH=$(trace_field "$OUT/on.trace" "budget: draw" attachDrawn)
+DRAW_DROPPED_PLAYERS=$(trace_field "$OUT/on.trace" "budget: draw" droppedPlayers)
+DRAW_DROPPED_PROPS=$(trace_field "$OUT/on.trace" "budget: draw" droppedProps)
+# The attach ledger comes from the DEDICATED attach run, not from on.trace.
+# Review B2: "attach: meshSource" is only printed when --player-weapon-attach is
+# on, and on.trace never passes it; reading it there was an assertion with no
+# possible reading behind it (both sides <none> every time).
+INST_DEFERRED=$(grep -a "budget: instances" "$OUT/on.trace" | grep -ao "deferredNotResident:[0-9]*" | tail -1 | cut -d: -f2)
+INST_BAD=$(grep -a "budget: instances" "$OUT/on.trace" | grep -ao "badMesh:[0-9]*" | tail -1 | cut -d: -f2)
+INST_NONFINITE=$(grep -a "budget: instances" "$OUT/on.trace" | grep -ao "nonFinite:[0-9]*" | tail -1 | cut -d: -f2)
+INST_BUDGET=$(grep -a "budget: instances" "$OUT/on.trace" | grep -ao "budget:[0-9]*" | tail -1 | cut -d: -f2)
+DRAW_PLAYER_BUDGET=$(trace_field "$OUT/on.trace" "budget: draw" playerBudget)
+DRAW_PROP_BUDGET=$(trace_field "$OUT/on.trace" "budget: draw" propBudgetAfterAttach)
+DRAW_ATTACH_RESERVED=$(trace_field "$OUT/on.trace" "budget: draw" attachReserved)
+ATTACH_SUPPLIED=$(trace_field "$OUT/attach.trace" "attach: meshSource" supplied)
+ATTACH_REFUSED=$(trace_field "$OUT/attach.trace" "attach: meshSource" refused)
+echo "  layer B: capacity=${MESH_CAP:-<none>} resident=${MESH_RESIDENT:-<none>} evictions=${MESH_EVICTIONS:-<none>} capacityRefusals=${MESH_REFUSALS:-<none>} reuploads=${MESH_REUPLOADS:-<none>}"
+echo "  layer C: capacity=${INST_CAP:-<none>} submitted=${INST_SUBMITTED:-<none>} accepted=${INST_ACCEPTED:-<none>} slots=${INST_SLOTS:-<none>} rejectedMissingMesh=${INST_MISSING:-<none>} deferredNotResident=${INST_DEFERRED:-<none>} badMesh=${INST_BAD:-<none>} nonFinite=${INST_NONFINITE:-<none>} budget=${INST_BUDGET:-<none>}"
+echo "  layer D: capacity=${DRAW_CAP:-<none>} players=${DRAW_PLAYERS:-<none>} props=${DRAW_PROPS:-<none>} attach=${DRAW_ATTACH:-<none>} droppedPlayers=${DRAW_DROPPED_PLAYERS:-<none>} droppedProps=${DRAW_DROPPED_PROPS:-<none>}"
+echo "  attach mesh source: supplied=${ATTACH_SUPPLIED:-<none>} refused=${ATTACH_REFUSED:-<none>}"
+# Same rule as layer A: presence first, so "resident <= capacity" cannot be 0 <= 0
+# on two absent readings (the :-0 fallbacks below make that comparison pass).
+assert_ge "layer B: the meshTable ledger line is present in the trace" "$(grep -a -c 'budget: meshTable' "$OUT/on.trace" || true)" "1"
+assert_ge "layer B: the meshTable ledger names a capacity" "${MESH_CAP:-0}" "1"
+assert_ge "layer C: the instances ledger line is present in the trace" "$(grep -a -c 'budget: instances' "$OUT/on.trace" || true)" "1"
+assert_ge "layer C: the instances ledger names a capacity" "${INST_CAP:-0}" "1"
+assert_ge "layer C: the instances ledger names how many instances were submitted" "${INST_SUBMITTED:-0}" "1"
+assert_ge "layer D: the draw ledger line is present in the trace" "$(grep -a -c 'budget: draw' "$OUT/on.trace" || true)" "1"
+assert_ge "layer D: the draw ledger names a capacity" "${DRAW_CAP:-0}" "1"
+assert_ge "attach: the meshSource ledger line is present in the attach run's trace" "$(grep -a -c 'attach: meshSource' "$OUT/attach.trace" || true)" "1"
+# Review B2 follow-up: presence is not enough. The attach run must have SUPPLIED
+# something -- a ledger that only ever reports refused=0 supplied=0 is the old
+# "silently empty hands" with better spelling.
+assert_ge "attach: the mesh source actually supplied a held-weapon world model" "${ATTACH_SUPPLIED:-0}" "1"
+assert_eq "layer B: the cache bound is 96 (kept -- raising it is the rejected fix)" "${MESH_CAP:-<none>}" "96"
+assert_le "layer B: resident never exceeds the bound" "${MESH_RESIDENT:-<none>}" "${MESH_CAP:-0}"
+assert_eq "layer B: no capacity refusal at the shipped bound (the held weapons fit)" "${MESH_REFUSALS:-<none>}" "0"
+assert_eq "layer B: no key was re-uploaded (an attach mesh is uploaded once)" "${MESH_REUPLOADS:-<none>}" "0"
+assert_eq "layer C: the instance bound is published as its own number" "${INST_CAP:-<none>}" "96"
+assert_eq "layer C: every draw's mesh exists (an evicted key never reaches the instance list)" "${INST_MISSING:-<none>}" "0"
+# A CLOSED ACCOUNT OVER SUBMITTED INSTANCES, not over slots.
+#
+# The first version of this block compared the accepted+refused sum against
+# slots, and the first full run measured 96 against 236. Both numbers are real;
+# they count different things. `slots` is packed.size() -- one instance ROW per
+# material run -- while a model with three runs is ONE submitted instance. So the
+# ledger now publishes `submitted` (draws.size()) and the account closes there:
+# every instance handed to layer C is either drawn or refused for one of the four
+# NAMED reasons. A submitted instance that is neither is a silent drop.
+assert_eq "layer C: every submitted instance is accepted or refused for a named reason" \
+  "$(( ${INST_ACCEPTED:-0} + ${INST_MISSING:-0} + ${INST_DEFERRED:-0} + ${INST_BAD:-0} + ${INST_NONFINITE:-0} + ${INST_BUDGET:-0} ))" \
+  "${INST_SUBMITTED:-<none>}"
+# ...and the rows written must cover the accepted instances: a bucket writes at
+# least one row, so slots >= accepted is a one-way bound that fails only if a
+# drawn instance produced no geometry.
+assert_ge "layer C: every accepted instance wrote at least one instance row" "${INST_SLOTS:-0}" "${INST_ACCEPTED:-0}"
+assert_eq "layer C: no submitted instance was dropped for a budget reason at the shipped bound" "${INST_BUDGET:-<none>}" "0"
+assert_eq "layer D: no player body was dropped by the draw budget" "${DRAW_DROPPED_PLAYERS:-<none>}" "0"
+# drawn <= capacity was a code identity (the loop's own condition). The account
+# that can fail: the three SUB-budgets the loop actually ran with add up to the
+# one capacity, and the attach's reservation is taken out of the prop budget
+# without touching the player budget (that is how a player body keeps its slot).
+assert_eq "layer D: player + prop + attach sub-budgets add up to the one draw capacity" \
+  "$(( ${DRAW_PLAYER_BUDGET:-0} + ${DRAW_PROP_BUDGET:-0} + ${DRAW_ATTACH_RESERVED:-0} ))" "${DRAW_CAP:-0}"
+assert_le "layer D: no player draw exceeds its reserved budget" "${DRAW_PLAYERS:-<none>}" "${DRAW_PLAYER_BUDGET:-0}"
+assert_le "layer D: no attach draw exceeds its reserved budget" "${DRAW_ATTACH:-<none>}" "${DRAW_ATTACH_RESERVED:-0}"
+assert_eq "attach: no held-weapon world mesh was refused (the three non-target weapon models no longer OOM)" "${ATTACH_REFUSED:-<none>}" "0"
+assert_world_fixture "$OUT/world"
+# ONE LEASE, ONE FRAME SIZE (T85 P0, lead m01857). Every capture in this run was
+# taken by a process that pinned its outer window rect, so every bitmap on disk must
+# have the same geometry -- otherwise a byte comparison between two of them is
+# measuring a resize. The second half is the cross-check that makes the first half
+# mean something: the size a capture reports is the client rect the window was
+# CREATED at, read from the product's own "window: created" line. Two readings that
+# describe the same bitmap, compared; not a constant this host happens to have.
+LEASE_SIZES=$(for trace in "$OUT"/*.trace; do capture_size_of "$trace"; done | sort -u)
+LEASE_SIZE_COUNT=$(printf '%s\n' "$LEASE_SIZES" | grep -c . || true)
+WINDOW_CLIENT=$(trace_field "$OUT/on.trace" "window: created" client)
+echo "  lease frame sizes: n=${LEASE_SIZE_COUNT:-0} distinct=$(echo "$LEASE_SIZES" | tr '\n' ' ') window-client=${WINDOW_CLIENT:-<none>}"
+assert_ge "frame size: every capture of this lease printed its frame size" "$LEASE_SIZE_COUNT" "1"
+assert_eq "frame size: every capture in this lease came out at ONE size" "$LEASE_SIZE_COUNT" "1"
+assert_eq "frame size: the captured frame is the size of the window it was created at" \
+  "$LEASE_SIZES" "${WINDOW_CLIENT:-<none>}"
 # The ordinal readings. ABSOLUTE NUMBERS ARE NOT THE CONTRACT.
 #
 # 6/7 was the pass-registry snapshot until 2026-10-23, when T53's projectile pass was
@@ -1826,38 +2292,73 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   fi
   restore_all || true
 
-  # ---- cap A/B: the upload limit as a PAIRED reading (not a mutation) -----
+  # ---- budget boundary: move layer B's capacity and watch the policy fire --
   echo
-  echo "  -- cap A/B: the renderer's mesh limit, 64 (old) vs 96 (now) --"
-  # NOT a mutation: nothing here is supposed to be red. It is the price of a
-  # decision made observable. The overlay uploads nine class models into the same
-  # table the world pass fills, and on the reference recording the world pass has
-  # already taken 59 of the 64 slots -- so at the OLD limit five of the nine were
-  # refused with E_OUTOFMEMORY, and a refused key is submitted, counted and drawn
-  # from nothing (precisely the shape m8 injects on purpose). Without this pair
-  # "raise the cap" would be an assumption, not a reading.
+  echo "  -- budget boundary: layer B's capacity as a mutation (96 -> 24) --"
+  # This block replaces the old "cap A/B" pair, which read the SAME decision from
+  # two hard-coded limits (64 and 96) and asserted that the smaller one refuses.
+  # That pair was not a mutation and was not supposed to be red -- it was the price
+  # of a decision made observable, and the observability is KEPT here: capacity,
+  # resident, evictions, capacityRefusals and reuploads are printed on
+  # "budget: meshTable", the per-instance rejection reasons on "budget: instances",
+  # and the draw budget on "budget: draw". What this block ADDS is the boundary as a
+  # mutation: the table is rebuilt 72 slots narrower than the shipped bound and a
+  # NAMED assertion must move. On the reference recording the world pass prepares
+  # in the high fifties and the overlay adds nine, so 24 slots cannot hold the set:
+  # the policy must EVICT, and once nothing is evictable it must REFUSE with a
+  # counter -- never overfill, never silently drop.
   patch_in "$MUT_ENTITY" \
-"  constexpr std::size_t kEntityModelMeshLimit = 96;" \
-"  constexpr std::size_t kEntityModelMeshLimit = 64;  /* cap A: the old limit */" || mut_fail=1
-  if rebuild_product cap64; then
-    CAP64_RC=$(run_frame "$OUT/cap64" --outline on)
-    CAP64_PREPARED=$(trace_field "$OUT/cap64.trace" "gpu: overlay meshes prepared=" prepared)
-    CAP64_UPLOADED=$(trace_field "$OUT/cap64.trace" "gpu: overlay meshes prepared=" uploaded)
-    CAP64_REJECTED=$(trace_field "$OUT/cap64.trace" "gpu: overlay meshes prepared=" rejected)
-    CAP64_KEYS=$(grep -a -c "gpu: overlay mesh refused" "$OUT/cap64.trace" 2>/dev/null || true)
-    echo "    at 64: prepared=${CAP64_PREPARED:-<none>} uploaded=${CAP64_UPLOADED:-<none>} rejected=${CAP64_REJECTED:-<none>} refused-keys-logged=${CAP64_KEYS:-0}"
-    grep -a "gpu: overlay mesh refused" "$OUT/cap64.trace" 2>/dev/null | head -3 | sed "s/^/      /" || true
-    assert_ge "cap 64: the old limit REFUSES class meshes (this is what 96 buys)" \
-      "${CAP64_REJECTED:-0}" "1"
+"constexpr std::size_t kEntityModelMeshCapacity = 96;" \
+"constexpr std::size_t kEntityModelMeshCapacity = 24;  /* mutation: the budget boundary, moved */" || mut_fail=1
+  if rebuild_product budget24; then
+    B24_RC=$(run_frame "$OUT/budget24" --outline on)
+    B24_CAP=$(trace_field "$OUT/budget24.trace" "budget: meshTable" capacity)
+    B24_RESIDENT=$(trace_field "$OUT/budget24.trace" "budget: meshTable" resident)
+    B24_EVICTIONS=$(trace_field "$OUT/budget24.trace" "budget: meshTable" evictions)
+    B24_REFUSALS=$(trace_field "$OUT/budget24.trace" "budget: meshTable" capacityRefusals)
+    B24_MISSING=$(grep -a "budget: instances" "$OUT/budget24.trace" | grep -ao "missingMesh:[0-9]*" | tail -1 | cut -d: -f2)
+    B24_DROPPED=$(trace_field "$OUT/budget24.trace" "budget: draw" droppedPlayers)
+    B24_OVERLAY_REJECTED=$(trace_field "$OUT/budget24.trace" "gpu: overlay meshes prepared=" rejected)
+    # Review (e): a count alone says "something moved". The shrink control has to
+    # NAME the reason, so these are read from the policy's own per-victim line.
+    B24_NAMED_EVICTIONS=$(grep -a -c 'budget: eviction key=' "$OUT/budget24.trace" || true)
+    B24_FIRST_EVICTION=$(grep -a 'budget: eviction key=' "$OUT/budget24.trace" | head -1)
+    echo "    at capacity 24: rc=$B24_RC resident=${B24_RESIDENT:-<none>} evictions=${B24_EVICTIONS:-<none>} capacityRefusals=${B24_REFUSALS:-<none>} instances-missingMesh=${B24_MISSING:-<none>} draw-droppedPlayers=${B24_DROPPED:-<none>} overlay-rejected=${B24_OVERLAY_REJECTED:-<none>}"
+    echo "    named eviction reason: ${B24_FIRST_EVICTION:-<none>}"
+    assert_eq "budget boundary: the product reports the capacity it was built with" "${B24_CAP:-<none>}" "24"
+    assert_le "budget boundary: the cache never exceeds its capacity" "${B24_RESIDENT:-<none>}" "24"
+    assert_ge "budget boundary: the policy EVICTS instead of overfilling" "${B24_EVICTIONS:-0}" "1"
+    # A counter is not a reason. The policy publishes one line per victim with the
+    # key it took and what it did to that key, so the boundary reading can name
+    # WHAT left the table and why the path tables were invalidated.
+    assert_ge "budget boundary: every eviction names the model key it took (no anonymous drop)" "${B24_NAMED_EVICTIONS:-0}" "1"
+    assert_eq "budget boundary: the named eviction is a model path, not an index" \
+      "$(printf '%s' "${B24_FIRST_EVICTION:-}" | grep -c 'key=models/' || true)" "1"
+    assert_eq "budget boundary: the named eviction says it unpublished and will re-supply the path" \
+      "$(printf '%s' "${B24_FIRST_EVICTION:-}" | grep -c 'action=unpublish,resupply' || true)" "1"
+    must_move "budget24" "instances refused for a missing mesh when the table is 24 wide" \
+      "${INST_MISSING:-0}" "${B24_MISSING:-0}"
   fi
-  restore_all; rebuild_product "restore after cap A" || true
-  CAP96_RC=$(run_frame "$OUT/cap96" --outline on)
-  CAP96_PREPARED=$(trace_field "$OUT/cap96.trace" "gpu: overlay meshes prepared=" prepared)
-  CAP96_UPLOADED=$(trace_field "$OUT/cap96.trace" "gpu: overlay meshes prepared=" uploaded)
-  CAP96_REJECTED=$(trace_field "$OUT/cap96.trace" "gpu: overlay meshes prepared=" rejected)
-  echo "    at 96: prepared=${CAP96_PREPARED:-<none>} uploaded=${CAP96_UPLOADED:-<none>} rejected=${CAP96_REJECTED:-<none>}"
-  assert_eq "cap 96: every prepared class mesh is uploaded" "${CAP96_REJECTED:-<none>}" "0"
-  assert_eq "cap 96: uploaded count matches prepared" "${CAP96_UPLOADED:-<none>}" "${CAP96_PREPARED:-<none>}"
+  restore_all || true
+  if rebuild_product "restore after the budget boundary"; then
+    B96_RC=$(run_frame "$OUT/budget96" --outline on)
+    B96_CAP=$(trace_field "$OUT/budget96.trace" "budget: meshTable" capacity)
+    B96_RESIDENT=$(trace_field "$OUT/budget96.trace" "budget: meshTable" resident)
+    B96_EVICTIONS=$(trace_field "$OUT/budget96.trace" "budget: meshTable" evictions)
+    B96_REFUSALS=$(trace_field "$OUT/budget96.trace" "budget: meshTable" capacityRefusals)
+    B96_MISSING=$(grep -a "budget: instances" "$OUT/budget96.trace" | grep -ao "missingMesh:[0-9]*" | tail -1 | cut -d: -f2)
+    B96_PREPARED=$(trace_field "$OUT/budget96.trace" "gpu: overlay meshes prepared=" prepared)
+    B96_UPLOADED=$(trace_field "$OUT/budget96.trace" "gpu: overlay meshes prepared=" uploaded)
+    B96_REJECTED=$(trace_field "$OUT/budget96.trace" "gpu: overlay meshes prepared=" rejected)
+    echo "    restored: rc=$B96_RC capacity=${B96_CAP:-<none>} resident=${B96_RESIDENT:-<none>} evictions=${B96_EVICTIONS:-<none>} capacityRefusals=${B96_REFUSALS:-<none>} instances-missingMesh=${B96_MISSING:-<none>}"
+    echo "    restored overlay: prepared=${B96_PREPARED:-<none>} uploaded=${B96_UPLOADED:-<none>} rejected=${B96_REJECTED:-<none>}"
+    assert_eq "shipped budget: capacity is the number the source declares" "${B96_CAP:-<none>}" "96"
+    assert_eq "shipped budget: nothing was evicted at the shipped capacity" "${B96_EVICTIONS:-<none>}" "0"
+    assert_eq "shipped budget: no capacity refusal at the shipped capacity" "${B96_REFUSALS:-<none>}" "0"
+    assert_eq "shipped budget: no instance lost a missing mesh" "${B96_MISSING:-<none>}" "0"
+    assert_eq "shipped budget: every prepared class mesh is uploaded" "${B96_REJECTED:-<none>}" "0"
+    assert_eq "shipped budget: uploaded count matches prepared" "${B96_UPLOADED:-<none>}" "${B96_PREPARED:-<none>}"
+  fi
 
   # ---- m4: draw the overlay AFTER the ViewModel pass ---------------------
   echo

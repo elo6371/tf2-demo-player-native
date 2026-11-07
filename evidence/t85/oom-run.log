@@ -1,0 +1,9 @@
+WAITING owner=t85-budget queue_head=1794028203892088500-t87-anim-11347
+WAITING owner=t85-budget queue_head=1794028203892088500-t87-anim-11347
+WAITING owner=t85-budget queue_head=1794028203892088500-t87-anim-11347
+WAITING owner=t85-budget queue_head=1794028203892088500-t87-anim-11347
+WAITING owner=t85-budget queue_head=1794028203892088500-t87-anim-11347
+ACQUIRED owner=t85-budget at 2026-11-07 13:19:37
+demo sha256=c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e
+before exe=D:/TF2_Native_Worktrees/t79-integration/native/build-nmake/tf2_demo_native.exe sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+after  exe=native/build-nmake/tf2_demo_native.exe sha256=1d1ecca511c6ad2a7c744332a27f4c6a7c735c434cad5578b4fa7256d6351cb8

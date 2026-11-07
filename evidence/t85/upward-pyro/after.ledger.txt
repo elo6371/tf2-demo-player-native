@@ -1,0 +1,40 @@
+43301.0 budget: instances capacity=96 accepted=60 slots=181 rejected=missingMesh:36,badMesh:0,nonFinite:0,budget:0
+43317.6 budget: draw capacity=96 playerBudget=14 propBudgetAfterAttach=68 playerDrawn=14 propDrawn=68 attachReserved=14 attachDrawn=14 droppedPlayers=0 droppedProps=83
+43317.6 attach: meshSource supplied=13 refused=0 meshes=13
+43317.7 budget: instances capacity=96 accepted=60 slots=181 rejected=missingMesh:36,badMesh:0,nonFinite:0,budget:0
+43334.5 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43334.5 attach: meshSource supplied=13 refused=0 meshes=13
+43334.6 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43352.8 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43352.8 attach: meshSource supplied=13 refused=0 meshes=13
+43352.9 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43370.0 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43370.0 attach: meshSource supplied=13 refused=0 meshes=13
+43370.1 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43388.1 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43388.1 attach: meshSource supplied=13 refused=0 meshes=13
+43388.2 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43406.2 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43406.3 attach: meshSource supplied=13 refused=0 meshes=13
+43406.3 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43423.3 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43423.3 attach: meshSource supplied=13 refused=0 meshes=13
+43423.4 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43441.9 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43441.9 attach: meshSource supplied=13 refused=0 meshes=13
+43442.0 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43457.6 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43457.6 attach: meshSource supplied=13 refused=0 meshes=13
+43457.7 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43476.2 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43476.2 attach: meshSource supplied=13 refused=0 meshes=13
+43476.3 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43492.9 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43492.9 attach: meshSource supplied=13 refused=0 meshes=13
+43493.0 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43509.6 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43509.6 attach: meshSource supplied=13 refused=0 meshes=13
+43509.7 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0
+43526.1 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+43526.1 attach: meshSource supplied=13 refused=0 meshes=13
+43526.2 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:37,badMesh:0,nonFinite:0,budget:0

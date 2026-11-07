@@ -1,0 +1,8 @@
+ACQUIRED owner=t85-budget at 2026-11-07 13:29:21
+class=pyro ent=3 tick=30001 origin=1957.0,-125.1,94.8 eye=1707.0,-125.1,152.8 speed=32
+demo sha256=7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3
+before exe sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+after  exe sha256=1d1ecca511c6ad2a7c744332a27f4c6a7c735c434cad5578b4fa7256d6351cb8
+before rc=0 bmp=yes trace=7629535
+evidence/t85/run-upward-attach.sh: line 62: tag: unbound variable
+LOCKED-COMMAND-EXIT rc=1 owner=t85-budget
