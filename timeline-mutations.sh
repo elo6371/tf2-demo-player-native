@@ -37,7 +37,12 @@
 #     evidence that the gate noticed;
 #   * every mutant is reverted byte-for-byte (timeline-patchlib.py verify prints
 #     applied=0) and the tree rebuilt before the next case; the run ends with a
-#     clean tree and a green baseline.
+#     clean tree and a green baseline;
+#   * "git status is clean" is not proof enough that the sources came back (t85
+#     once had an editor write nothing but still report a differ). So the run
+#     also hashes native/src/main.cpp before the first mutant, after every
+#     revert and at the end, prints all of them, and fails RESTORE if any hash
+#     differs from the baseline one.
 #
 # Exit: 0 = every case behaved as designed and the tree is clean; 1 = otherwise.
 
@@ -89,6 +94,19 @@ product_processes() {
     | grep -o 'product_processes=[0-9]*' | head -1
 }
 
+src_sha() { sha256sum native/src/main.cpp | cut -d' ' -f1; }
+
+src_state() { # src_state <label> -- the source file must be byte-identical to the frozen one
+  local now
+  now=$(src_sha)
+  if [ "$now" = "${BASE_SRC_SHA:-<unset>}" ]; then
+    say "source: $1 sha256=$now (matches baseline)"
+    return 0
+  fi
+  say "source: $1 sha256=$now MISMATCH baseline=${BASE_SRC_SHA:-<unset>}"
+  return 1
+}
+
 restore_if_needed() {
   local case="$1"
   local state
@@ -121,6 +139,9 @@ if [ -n "$porcelain" ]; then
   exit 1
 fi
 
+BASE_SRC_SHA=$(src_sha)
+say "source: native/src/main.cpp sha256=$BASE_SRC_SHA (baseline, tree clean)"
+
 say "--- build the untouched tree"
 if ! build_target baseline; then
   say "MUTATION-INVALID baseline-build (the tree did not compile before any mutant)"
@@ -144,6 +165,7 @@ fi
 if want m1; then
   say "--- m1: remove the T27 capture hold (main.cpp:9005-9019)"
   if "$PY" "$PATCH" apply m1 >> "$OUT/mutation.log" 2>&1; then
+    say "source: m1 applied sha256=$(src_sha) baseline=$BASE_SRC_SHA"
     if build_target m1; then
       if gate_run m1-seek 1; then
         say "MUTATION m1 = GREEN (the gate stayed green after the hold was removed: the seek assertion is too weak)"
@@ -164,6 +186,7 @@ if want m1; then
       verdict=1
     fi
     "$PY" "$PATCH" restore m1 >> "$OUT/mutation.log" 2>&1
+    src_state "after m1 restore" || verdict=1
   else
     say "MUTATION m1 = INVALID (the patch did not apply; see $OUT/mutation.log)"
     record m1 PATCH-FAILED
@@ -174,6 +197,7 @@ fi
 if want m2; then
   say "--- m2: --playback-speed 8 is played at 4 (main.cpp:2429)"
   if "$PY" "$PATCH" apply m2 >> "$OUT/mutation.log" 2>&1; then
+    say "source: m2 applied sha256=$(src_sha) baseline=$BASE_SRC_SHA"
     if build_target m2; then
       if gate_run m2-speed 2; then
         say "MUTATION m2 = GREEN (the gate stayed green after the speed mapping was broken: nothing reads the speed)"
@@ -196,6 +220,7 @@ if want m2; then
       verdict=1
     fi
     "$PY" "$PATCH" restore m2 >> "$OUT/mutation.log" 2>&1
+    src_state "after m2 restore" || verdict=1
   else
     say "MUTATION m2 = INVALID (the patch did not apply; see $OUT/mutation.log)"
     record m2 PATCH-FAILED
@@ -207,6 +232,11 @@ say "--- restore: the tree must be byte-identical to the frozen sources"
 for case in m1 m2; do
   "$PY" "$PATCH" verify "$case" | tee -a "$OUT/mutation.log"
 done
+if ! src_state "after all restores"; then
+  say "RESTORE=FAIL (native/src/main.cpp is not byte-identical to the frozen source; git status alone cannot prove this)"
+  record restore FAIL-SHA
+  verdict=1
+fi
 if [ -n "$(git status --porcelain)" ]; then
   say "RESTORE=FAIL (the tree is still dirty)"
   git status --porcelain | sed 's/^/  /' | tee -a "$OUT/mutation.log"
