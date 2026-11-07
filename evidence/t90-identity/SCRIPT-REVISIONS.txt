@@ -1,0 +1,18 @@
+The gate script was printed with two different token formats during this task.
+sha256 defe6fc62b1b1410f3c96a3414bbca368d5a34c6a2e1e6e019ca6948c7e29965  (forward + mutation + reproducible window)
+sha256 3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0  (committed script; --forward re-run in full after the change)
+
+The two files differ ONLY in two print statements. Proof: taking the committed file and
+substituting the two old echo lines back reproduces defe6fc6... byte for byte
+(python .scratch/t90/prove_token_diff.py, output recorded below). No assertion, build,
+mutation or measurement was added or removed. The mutation and reproducible verdicts were
+produced by the earlier revision and are not re-derived here; the forward suite was re-run
+in full under the committed revision and passed 115/115 with the new literal PASS line.
+
+--- prove_token_diff.py output
+current_sha 3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0
+reversed_sha defe6fc62b1b1410f3c96a3414bbca368d5a34c6a2e1e6e019ca6948c7e29965
+matches_old True
+
+--- literal PASS lines
+BUILD-IDENTITY=PASS assertions=115 identity=exe-sha+HEAD+native-tree-sha head=e15577b4f055

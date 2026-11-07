@@ -238,6 +238,12 @@ std::string serialize(const Manifest& manifest) {
   out << "packageVersionCode=" << manifest.packageVersionCode << "\n";
   out << "sourceDateEpoch=" << manifest.sourceDateEpoch << "\n";
   out << "sourceTree=" << manifest.sourceTree << "\n";
+  // T90: appended after sourceTree so every pre-T90 key keeps its position. A
+  // manifest written by an older build has neither key and still parses; one
+  // written here is readable by this build because parse() has a branch for
+  // each (a missing branch would make every install unreadable).
+  out << "sourceDirty=" << manifest.sourceDirty << "\n";
+  out << "sourceDirtyFiles=" << manifest.sourceDirtyFiles << "\n";
   out << "installedUtc=" << manifest.installedUtc << "\n";
   out << "installDirectory=" << manifest.installDirectory << "\n";
   out << "files=" << manifest.files.size() << "\n";
@@ -304,6 +310,8 @@ bool parse(const std::string& text, Manifest* manifest, std::string* error) {
     }
     else if (key == "sourceDateEpoch") { manifest->sourceDateEpoch = value; }
     else if (key == "sourceTree") { manifest->sourceTree = value; }
+    else if (key == "sourceDirty") { manifest->sourceDirty = value; }
+    else if (key == "sourceDirtyFiles") { manifest->sourceDirtyFiles = value; }
     else if (key == "installedUtc") { manifest->installedUtc = value; }
     else if (key == "installDirectory") { manifest->installDirectory = installDirectoryAsUtf8(value); }
     else if (key == "files") { /* counted from the records, not trusted */ }

@@ -160,6 +160,11 @@ add_executable(tf2_demo_native WIN32
   # claims. Both files link bcrypt (already in the link line) for SHA-256.
   src/install_manifest.cpp
   src/install_lifecycle.cpp
+  # T90: the build-identity stamp. A translation unit generated at BUILD time
+  # by the tf2_build_stamp target (native/cmake/gen-build-stamp.cmake), so
+  # --version answers with the commit and dirty state of the tree this link was
+  # actually made from rather than of the last configure; see tf2-version.cmake.
+  ${TF2_BUILD_STAMP_SOURCE}
   # T66: the SourceTV spectate director -- the death relay, the wall-clock
   # handover and the 'keep the last camera when nobody is alive' rule. Product
   # code, not probe code: the frame loop drives update() and the draw loop asks
@@ -175,6 +180,9 @@ add_executable(tf2_demo_native WIN32
   src/review_bookmarks.cpp
   src/review_session.cpp
 )
+
+# T90: regenerate the build-identity stamp before this target compiles it.
+add_dependencies(tf2_demo_native tf2_build_stamp)
 
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
 # T54: the WebView2 SDK headers, vendored under third_party/webview2/include

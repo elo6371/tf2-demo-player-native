@@ -1,0 +1,10 @@
+exe=native/build-nmake/tf2_demo_native.exe
+exe_sha256=232dc1defc9b125986d05c66bee34b4a63b4996adafff1623be199a39289b17c
+exe_size_bytes=2772480
+git_head=e15577b4f0550870bb11672a04497c038c9d88b2
+git_head_short=e15577b4f055
+native_tree_sha256=74a0836cfc16527a44c2270901951d8f6d1d2db157be573dec4c19de3e28969e
+dirty_files=15
+version_line2=buildUtc=2026-11-07T09:05:43Z sourceDateEpoch=1794023209 sourceTree=e15577b4f055
+version_line3=dirty=1 dirtyFiles=15 dirtyTracked=11 dirtyUntracked=4
+gate_script_sha256=defe6fc62b1b1410f3c96a3414bbca368d5a34c6a2e1e6e019ca6948c7e29965

@@ -11,6 +11,24 @@
 #include <set>
 #include <sstream>
 
+// T90: the build identity, compiled in from native/generated/tf2_build_stamp.cpp.
+// That translation unit is generated at BUILD time by the tf2_build_stamp target
+// (native/cmake/gen-build-stamp.cmake) and is a translation unit rather than a
+// generated header because NMAKE has no header dependencies in this tree -- a
+// rewritten header would leave this object stale and the binary would keep the
+// previous identity, which is the defect T90 removed in its other form. The
+// values used to be TF2_BUILD_UTC / TF2_SOURCE_DATE_EPOCH / TF2_SOURCE_TREE
+// compile definitions, evaluated once per configure.
+namespace tf2_build_identity {
+extern const char kSourceTree[];
+extern const char kSourceDateEpoch[];
+extern const char kBuildUtc[];
+extern const char kDirty[];
+extern const char kDirtyFiles[];
+extern const char kDirtyTracked[];
+extern const char kDirtyUntracked[];
+}  // namespace tf2_build_identity
+
 namespace tf2::native::installer {
 
 namespace {
@@ -341,6 +359,8 @@ Result installInto(const Options& options, const PackageInfo& info) {
   manifest.packageVersionCode = info.versionCode;
   manifest.sourceDateEpoch = info.sourceDateEpoch;
   manifest.sourceTree = info.sourceTree;
+  manifest.sourceDirty = info.dirty;
+  manifest.sourceDirtyFiles = info.dirtyFiles;
   manifest.installedUtc = utcNow();
   // UTF-8, NOT generic_string().
   //   On MSVC generic_string() returns ACTIVE CODE PAGE bytes -- cp936 on this
@@ -405,6 +425,11 @@ Result installInto(const Options& options, const PackageInfo& info) {
     text << "buildUtc=" << info.buildUtc << "\n";
     text << "sourceDateEpoch=" << info.sourceDateEpoch << "\n";
     text << "sourceTree=" << info.sourceTree << "\n";
+    // T90: the manifest and this file describe a build, and a build from a dirty
+    // tree is not the same artefact as a build from the commit it names. Written
+    // after sourceTree so the pre-T90 key order above is unchanged.
+    text << "sourceDirty=" << info.dirty << "\n";
+    text << "sourceDirtyFiles=" << info.dirtyFiles << "\n";
     text << "installedUtc=" << utcNow() << "\n";
     const auto contents = text.str();
     std::ofstream stream(installDir / kVersionFileName, std::ios::binary | std::ios::trunc);
@@ -601,9 +626,13 @@ PackageInfo packageInfo() {
   PackageInfo info;
   info.version = TF2_PACKAGE_VERSION;
   info.versionCode = TF2_PACKAGE_VERSION_CODE;
-  info.buildUtc = TF2_BUILD_UTC;
-  info.sourceDateEpoch = TF2_SOURCE_DATE_EPOCH;
-  info.sourceTree = TF2_SOURCE_TREE;
+  info.buildUtc = tf2_build_identity::kBuildUtc;
+  info.sourceDateEpoch = tf2_build_identity::kSourceDateEpoch;
+  info.sourceTree = tf2_build_identity::kSourceTree;
+  info.dirty = tf2_build_identity::kDirty;
+  info.dirtyFiles = tf2_build_identity::kDirtyFiles;
+  info.dirtyTracked = tf2_build_identity::kDirtyTracked;
+  info.dirtyUntracked = tf2_build_identity::kDirtyUntracked;
   // A VERSION.txt beside the executable, or in the state directory, wins over the
   // compiled default so a packaged release can be re-stamped without a rebuild.
   wchar_t self[MAX_PATH]{};
@@ -626,8 +655,15 @@ Result version(const Options&) {
   const auto info = packageInfo();
   emit(result, "package=tf2_demo_native version=" + info.version + " versionCode="
     + std::to_string(info.versionCode));
+  // Line 2 keeps its exact shape: install-lifecycle-check.sh:262-281 greps
+  // sourceTree= out of it and compares line 1 against install_cli_probe.
   emit(result, "buildUtc=" + info.buildUtc + " sourceDateEpoch=" + info.sourceDateEpoch
     + " sourceTree=" + info.sourceTree);
+  // Line 3 (T90): whether the source tree this binary was built from was clean,
+  // and how dirty it was. A binary built from uncommitted changes used to be
+  // indistinguishable from one built from the commit it named.
+  emit(result, "dirty=" + info.dirty + " dirtyFiles=" + info.dirtyFiles
+    + " dirtyTracked=" + info.dirtyTracked + " dirtyUntracked=" + info.dirtyUntracked);
   return result;
 }
 

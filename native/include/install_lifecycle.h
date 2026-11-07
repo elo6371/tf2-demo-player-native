@@ -48,9 +48,23 @@ inline constexpr const char* kVersionFileName = "VERSION.txt";
 struct PackageInfo {
   std::string version;         // e.g. "0.1.0"
   int versionCode = 0;         // monotonic, for an upgrade comparison to use
-  std::string buildUtc;        // when this executable was configured
+  // T90: measured at BUILD time (native/cmake/gen-build-stamp.cmake), not at
+  // configure time -- an incremental build never re-runs configure, so the
+  // configure-time values described the last configure rather than the sources
+  // this executable was compiled from. buildUtc is when that identity was
+  // captured; sourceTree/sourceDateEpoch are HEAD at the same moment.
+  std::string buildUtc;
   std::string sourceDateEpoch;
   std::string sourceTree;
+  // T90: the worktree's state at build time, from
+  // `git status --porcelain -uall`: "1" dirty, "0" clean, "-1" git could not
+  // answer (unmeasurable is never reported as clean). The three counts are the
+  // porcelain record total and its tracked/untracked split, so the claim can be
+  // checked against the tree instead of just believed.
+  std::string dirty;
+  std::string dirtyFiles;
+  std::string dirtyTracked;
+  std::string dirtyUntracked;
 };
 
 PackageInfo packageInfo();

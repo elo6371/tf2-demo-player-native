@@ -1,0 +1,28 @@
+task=t90-identity (task-14 build identity, task-17 argument surface)
+branch=task/t90-identity
+git_head=e15577b4f0550870bb11672a04497c038c9d88b2
+git_head_short=e15577b4f055
+native_tree_sha256=74a0836cfc16527a44c2270901951d8f6d1d2db157be573dec4c19de3e28969e
+dirty_records_now=62 (the window's own reading was 15; this counts the evidence files too)
+exe=native/build-nmake/tf2_demo_native.exe
+exe_sha256_now=f2f2fd89b90ae9c4f32c96ad4431f8954a373d5e729f0d60fbeb88675bc4e38e
+exe_size_bytes=2772480
+gate=build-identity-check.sh
+gate_sha256=3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0
+hostlock_owner=t90-identity
+window_main_utc=2026-11-07T09:01:56Z..09:39:59Z
+window_token_utc=2026-11-07T09:40:32Z..09:42:24Z
+commands=hostlock.sh run t90-identity bash .scratch/t90/driver_final.sh ; hostlock.sh run t90-identity bash .scratch/t90/driver_token.sh
+base_commit=12042361ffd1
+commits_since_base=41
+result_forward=BUILD-IDENTITY=PASS assertions=115 (ran twice: once under script sha defe6fc62b1b... and again -- after the print-only token change -- under 3b9194b0a0c4...)
+result_mutation=BUILD-IDENTITY-MUTATION=PASS (3 mutations caught, sources restored, 146 assertions)
+result_reproducible=BUILD-REPRODUCIBLE=PASS builds=2 sha=040eb11caf30232ae8d5d3da27dbfc4cfadaff0bbb3c1e5b924345ae2b17d533
+frozen_candidate_exe_sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frozen_candidate_version=buildUtc=2026-11-02T16:22:30Z sourceDateEpoch=0 sourceTree=12042361ffd1
+this_tree_version=buildUtc=2026-11-07T09:06:42Z sourceDateEpoch=1794023209 sourceTree=e15577b4f055 dirty=1 dirtyFiles=15 dirtyTracked=11 dirtyUntracked=4
+log_window=logs/window-final.log
+log_token=logs/window-token.log
+log_forward=forward/gate-forward-final.log
+log_mutation=mutation/gate-mutation-final.log
+log_reproducible=reproducible/gate-repro-final.log

@@ -43,7 +43,7 @@ The application uses resources from a local Team Fortress 2 installation. Game a
 native/build-nmake/tf2_demo_native.exe --tf-root "X:\SteamLibrary\steamapps\common\Team Fortress 2\tf" --demo "X:\SteamLibrary\steamapps\common\Team Fortress 2\tf\demos\sample.dem"
 ```
 
-`--demo` opens a recorded demo instead of the normal startup path. There is **no `--help`**: the argument loop (`native/src/main.cpp:2523-3034`) has no catch-all, so an unrecognised argument is ignored silently instead of being reported. The only meta flags that exist are `--version` and `--install-status`, handled before the window is created (`native/src/main_lifecycle.cpp:23` and `:26`).
+`--demo` opens a recorded demo instead of the normal startup path. There is **no `--help`**: the argument loop (`native/src/main.cpp:2523-3034`) has no help table, so flags the player does not recognise are counted in the trace (`args: unrecognized=N ...`) and otherwise ignored; `--strict-args` refuses them instead, naming them on stderr and exiting 2 before a window appears — see [native/docs/cli-arguments.md](native/docs/cli-arguments.md). The only meta flags that exist are `--version` and `--install-status`, handled before the window is created (`native/src/main_lifecycle.cpp:23` and `:26`).
 
 One limitation worth knowing before scripting a run: `--audio-device` is validated against the device count (`native/src/main.cpp:3003-3009`), and a malformed or out-of-range value exits with status 13 while the reason goes only to `OutputDebugStringW` (`native/src/main.cpp:3051-3054`). Nothing is printed on stdout and no dialog appears, so a headless script sees a bare exit 13.
 

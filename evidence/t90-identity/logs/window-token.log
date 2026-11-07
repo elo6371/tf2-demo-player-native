@@ -1,0 +1,14 @@
+ACQUIRED owner=t90-identity at 2026-11-07 17:41:51
+=== token window start 2026-11-07T09:41:52Z
+head=e15577b4f0550870bb11672a04497c038c9d88b2
+gate_sha256=3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0
+tree_records=48
+forward_token_rc=0
+BUILD-IDENTITY=PASS assertions=115 identity=exe-sha+HEAD+native-tree-sha head=e15577b4f055
+exe_sha256=f2f2fd89b90ae9c4f32c96ad4431f8954a373d5e729f0d60fbeb88675bc4e38e
+exe_size_bytes=2772480
+settings_copies_untouched=yes
+gate_sha256_after=3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0
+tree_records_after=48
+=== token window done 2026-11-07T09:42:24Z
+LOCKED-COMMAND-EXIT rc=0 owner=t90-identity

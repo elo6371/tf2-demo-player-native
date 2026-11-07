@@ -1,0 +1,3 @@
+package=tf2_demo_native version=0.1.0 versionCode=100
+buildUtc=2026-11-02T16:22:30Z sourceDateEpoch=0 sourceTree=12042361ffd1
+before_version_rc=0
