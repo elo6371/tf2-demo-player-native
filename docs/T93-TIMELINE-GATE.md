@@ -143,3 +143,18 @@ named_red() { grep -a -qF "FAIL $2" "$OUT/gates/$1/gate.log"; }
 - 断言语义、代码锚点、变异机制：**已实现**，锚点行号逐条读过源码与脚本。
 - 全绿 29 条 / m1 / m2 的**本树实测数字**：**尚未产出**。forward 部分由合并窗口整链第 12 步（`TIMELINE-CHECK=PASS`）代跑；m1/m2 待整链结束后按 lead 派发单独跑。本文件与 `TIMELINE-GATE.md` 里的实测占位（§6/§8）在拿到原文后回填，未回填前不得把"设计如此"写成"已验证"。
 - 环境依赖：Windows + D3D11 GPU 抓帧、SNAKE demo（`bb841c6d…cp_snakewater_final1.dem`）、`python 3.13`。换机器要改 `timeline-check.sh:76-84` 的路径。
+## 9. 门禁自身的缺陷（供总报告「门禁自身的缺陷」一节）
+
+没有观测到"假绿发生过"（31 例手工矩阵与整链里 timeline 步都是真跑）。以下是**路径性风险与已发生过的真实错误**，按对结论的威胁排序；每条都能用 git 或脚本行号复核。
+
+| # | 缺陷 | 证据（file:line / commit） | 性质与现状 |
+|---|---|---|---|
+| G-1 | trap 守卫里写进了**字面量占位符**，不是变量展开 | `git show 425a5f5:timeline-check.sh` 第 130 行原为 `[ -n "@@{TMPROOT:-}" ] && rm -rf "$TMPROOT"`；02f03f9 改为 `[ -n "${TMPROOT:-}" ]` | **真实进过主线**（425a5f5 被合入 t91）但没造成假绿：字面量永远非空，rm 反而总执行；真实危害是若 TMPROOT 为空会 `rm -rf ""`。教训：编辑器的占位符残留会让"看起来正确"的清理逻辑失去保护，只有 diff/展开检查能抓到 |
+| G-2 | 两个读数互相比较时，**两边同时 `<missing>` 会判等** | `timeline-check.sh:320` `assert_eq "seek 999999 clamps to the demo's last tick" "$applied" "$end"`；`field()` 缺字段返回 `<missing>`（:158-163） | 理论假绿路径：若 `playback: request ... requestedTick=999999` 与 `playback: state` 两行都缺失，两个 `<missing>` 相等 → 该条绿。当前前面 :315 要求 `-1` 请求的 applied==0，所以必须至少有一行 request 存在，实际很难撞上；但 S3 的 `:299` 只是靠 `:298`（match==1）间接兜住，**不是设计出来的兜底**。修法：比较前显式判 `<missing>` 为红（不增加健康运行的断言数） |
+| G-3 | 总量守卫只要求 **≥4 条**，不校验每段应有的条数（9/12/5/3） | `timeline-check.sh:324-326` | 若某段因逻辑短路少跑若干条，只要总数仍 ≥4 就照样 `TIMELINE-CHECK=PASS`。修法：每段末断言本段条数，或末行要求 `assertions=29` |
+| G-4 | 像素断言**看不见倍速映射错误**（这是设计边界，不是缺陷，但必须写在门禁旁） | `timeline-check.sh:281-285` 三对 XOR；m2 变异就是"8x 当 4x"，像素仍全绿 | 所以 S2 必须有 `speed == 请求值` 这条读数断言（:279）；只留像素就等于没有速度门禁 |
+| G-5 | 变异 harness 原来只用 `git status` 证明已恢复 | 4568fc0 之前的 `timeline-mutations.sh`；现在 :137/:163/:195/:230 记 `native/src/main.cpp` 的 sha，任一次不等即 `RESTORE=FAIL` | 由 lead 的 t85 C2001 教训驱动：git 干净 ≠ 文件字节一致 |
+| G-6 | 需要干净树的门禁，**脏树成本是整次租约** | `timeline-mutations.sh:130-135`：非空即 `FATAL`；2026-11-07 17:01 实际发生过（6 个 untracked 交付文件） | 不是假绿，是流程税：一次排队 25 分钟换来一次退出。缓解：门禁产物目录进 `.gitignore`（`evidence/t85-timeline/`），且整链收尾要清 `evidence/` |
+| G-7 | 设置隔离是**后补的** | 初版 `run_product` 用输出目录放 `settings.ini`；现为 `mktemp -d`（:129-131、:185-190） | 产品退出无条件写设置（`native/src/main.cpp:11613-11629`）→ 初版会把用户配置写脏并让下一次运行继承 MRU（D-22）。不影响"门禁是否变绿"，但违反"跑门禁不许改用户数据" |
+
+写这一节的用途：总报告里"门禁自己错过"比"门禁变绿"更有信息量 —— 尤其 G-1（真的进过主线）与 G-2/G-3（现在还存在的假绿路径）。
