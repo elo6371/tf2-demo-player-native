@@ -8,17 +8,34 @@ whenever a task finished or a date passed.
 1. **The full chain runs once, on the final frozen tree**, after the final task wave
    (T75 at the time of writing) is complete and merged. Not per task, not per day,
    not for a milestone count.
-2. **Quality is carried by each task's own gates**, not by repeated chain runs:
+2. **"The full chain" means `verify-release.sh`, not `verify-all.sh`.** The chain
+   entry point runs `verify-all.sh` and then the acceptance gates it does not
+   contain: `outline-check.sh`, `third-person-weapon-check.sh`,
+   `player-body-appearance-check.sh`, `class-pixels-check.sh`, and (once it
+   exists) `build-identity-check.sh`. 70 of the 99 gate scripts in this tree are
+   outside `verify-all.sh` -- the four P0 gates named by the handoff among them --
+   so `VERIFY=PASS` from `verify-all.sh` alone is not "the chain ran"
+   (debts D-19/D-21). `verify-release.sh` prints one line,
+   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=6`, and that line is the only
+   citable whole-chain verdict.
+3. **Quality is carried by each task's own gates**, not by repeated chain runs:
    every task ships a forward gate and a mutation for every assertion it makes,
    and the mutation must turn the assertion red for the right reason.
-3. **Merging is guarded by the regression gate of every module it touches.**
+4. **Merging is guarded by the regression gate of every module it touches.**
    A merge is not accepted on the strength of 'the chain ran last week'.
-4. **Builds, frame captures and mutation suites stay serial** -- one instance
+5. **Builds, frame captures and mutation suites stay serial** -- one instance
    machine-wide, through the host lock. That has not changed and this policy does
    not relax it.
-5. **After the full chain, if code changes**, re-run the gates of the affected
+6. **After the full chain, if code changes**, re-run the gates of the affected
    modules. **If the change touches more than one module, or anything the
    acceptance chain itself asserts, run the full chain again.**
+
+> Numbering: item 2 was inserted on 2026-11-07, when the chain entry point became
+> `verify-release.sh`; items 2-5 became 3-6 and their wording is unchanged.
+> Citations written before that date that quote the list by line --
+> `evidence/t61-animation/T61-ANIMATION-REPORT.md:828` and `:1570`, both citing
+> `:12-13` -- mean the pre-insert item 2, i.e. the "quality is carried by each
+> task's own gates" rule that now sits at item 3.
 
 ## Why
 

@@ -98,13 +98,20 @@
 | N16 | 与 Source 渲染器的像素一致性 | 明确不承诺 | 支持边界 B6；`world-render-reliability-check.sh:48-52` |
 | N17 | 产品内小地图（绘制/投影/命中/交互） | **无通路**：`src/minimap.cpp` 只链 `minimap_probe`（`native/cmake/tf2-probes-minimap.cmake:23`），不在产品源清单（`tf2-product.cmake:16`），`main.cpp` 中 `minimap` 零命中；产品侧仅 `review_workspace.cpp:367-375` 持久化 `workspace.minimap` 状态 | 本次 grep + CMake 复核（workflow-auditor 结论成立）；C21 只覆盖探针 |
 | N18 | 产品 HUD 的文本/字体/图像 | **无通路**：正常路径只推彩色矩形（`main_hud.cpp:247-250` 自述 "this build rasterises no font and no image"）；唯一 Text 原语调用点在 `main_hud.cpp:210` 的 `--hud-text-test` 分支（开关 `main.cpp:2514-2517`），`hud-text-check.sh:284` 正是用该 flag | 本次复核（workflow-auditor 结论成立）；渲染器文本能力在 `native_renderer_frame.cpp:1171` 存在但无默认调用者 |
-
 | N19 | "官方四图都已验证角色轴/播放" | **无门禁**：角色轴只在 snakewater（默认 demo：`class-pixels-check.sh:102`、`player-body-appearance-check.sh:42`、`third-person-weapon-check.sh:85`）与 upward（队伍对夹具）取证；sunshine 无九职业齐样本（demos.tf 最好 8/9）、rc12 本地 0 条 demo（demos.tf 15 条候选、0 条 9/9，最好 6/9） | task-6 复核 task-3 索引：`D:/_shared/t85-assets/demo-candidates.csv`、`local-demo-index.csv`；支持边界 §3 表末列；DEBT D-17 |
+| N20 | 雾（`env_fog_controller`）：四图各 1 个控制器，参数可读 | **产品与 99 脚本 0 命中**（`fog|env_fog_controller|fogenable`）；暗像素账把帧暗像素分类到光图/几何/采样，全局调色不会让某类"出错" → 2% 的 product-attributable 上限永远满足 | 地图审计 `D:/_shared/t85-maps/GAPS.md` §2 的 N19（顺延为 N20） |
+| N21 | `func_illusionary` 按静态可见几何绘制 | **被 `brushClassIsStatic()` 当"会动"跳过**（`native/src/bsp_map.cpp:319-321`、`:335-342` 计数）：snakewater 跳过的 3278 个 brush 面里 2892 个（88.2%）是 illusionary，sunshine 427/960，bagel 100/417 ×2；面账把 `skippedBrushModel` 当合法桶（`map-geometry-lighting-check.sh`）→ 数字自洽即过 | 同上 N20（顺延为 N21）；`probe-runs/skipped-faces-by-class.txt` |
+| N22 | `prop_static` / game lump(35) / `info_overlay` 解析 | **0 命中**；四图 `prop_static=0`/`info_overlay=0` → 授权集上**无可见错误**，属能力缺口、不是四图欠账；换一张用道具的图立刻可见 | 同上 N21（顺延为 N22） |
+| N23 | 世界通路 `$translucent`/`$alphatest` 生效 | **解析但不生效、无计数**：`native/src/vmt_material.cpp:266-267` 解析；世界 PS（`native/src/native_renderer_shaders.cpp:110-262`）无 discard、无 alpha test 分支；`main.cpp` 世界段 0 个计数器 → 这些面被当不透明画且无 trace 记录 | 同上 N22（顺延为 N23）；`T85-STATUS.md` §3 第 3 条 |
+| N24 | 光照 HDR 削顶有数值 pin（N07 的子项） | **无 pin**：解码真值在 `native/src/bsp_map.cpp:97-110`（`writeLuxel`）；实测每个 luxel 进 8bit atlas 被钉 255 的占比 snakewater 9.34%、sunshine 16.90%、bagel 8.22%/8.23% | 同上 N23（顺延为 N24）；`probe-runs/hdr-stats.txt` |
+| N25 | 地图侧 `func_lod` 距离剔除（N04 的子项） | **无**：`func_lod` 在静态白名单里（`bsp_map.cpp:319-321`）→ 当常驻 brush 画；四图 0/4/53/53 个 | 同上 N24（顺延为 N25） |
+
+> 编号口径：map-auditor 原稿把雾/illusionary/props/世界 alpha/HDR/func_lod 编为 N19–N24；主账本 N19 已被"官方四图角色轴外推"占用，故整体 **+1 → N20–N25**，顺序不变。HDR 与 func_lod 审计建议分别并入 N07/N04，主账本**保留独立编号**以免丢掉量化数字（削顶占比、0/4/53/53）。
 
 ## 8. 覆盖统计（据本表）
 
 - 有门禁可引用的支持声明：**C01–C29 共 29 条**；其中等级 A 8 条（C01/C05/C08/C09/C14/C15/C18/C26）、B 19 条、C 2 条（C02 为探针计数、C07 为矩阵读数，均无门禁断言）。
-- 明确无门禁的声明：**N01–N19 共 19 条**（N17/N18 是 task-6 复核 workflow-auditor 结论后新增的"产品内无通路"两条；N19 是 task-6 按地图夹具覆盖度新增的外推闸）。
+- 明确无门禁的声明：**N01–N25 共 25 条**（N17/N18 是 task-6 复核 workflow-auditor 结论后新增的"产品内无通路"两条；N19 是 task-6 按地图夹具覆盖度新增的外推闸；N20–N25 是 task-15 接收地图审计的六条，编号已按上表顺延）。
 - 关键结构性事实：**"45/45 PASS"是矩阵读数的合成**——45 格里只有 18 格绑定了具名渲染实体（`CHARACTER-MATRIX.md:375`），其余靠静态/结构断言与文档推理。引用 45/45 时必须同时引这一条，否则就是外推。
 
 ## 9. 复核用的哈希与命令（只读）
@@ -122,11 +129,11 @@ sha256sum evidence/t62-matrix/CHARACTER-MATRIX.md   # 81028863238a7bb5c1f000f193
 sha256sum evidence/t62-matrix/MAP-MATRIX.md         # 1caa6829d8bd2b207d357f753bce65bdd74b3aec1ed8cd43c63a7469d5ceba17
 sha256sum evidence/t62-matrix/T62-REPORT.md         # a4d52b530b1492dcd5dd8b482d106b60401f7017dee0488d0f5e9da5e3d217e4
 sha256sum evidence/t62-matrix/RUNS-2026-11-04.md    # b5d4e100316d32c3eaa401c5dd3e5e4dd7c13a39d4402c8bb18742ef0bc8e1d5
-sha256sum docs/RELEASE-POLICY.md                    # c1fdb92923992ccc21c1c0becf2a27ba712b8ffea81af8c313f73f60adb2ffa3
+sha256sum docs/RELEASE-POLICY.md                    # f647fea960724ded93bc42050627dc5446cd687b60bf38e3e64a2fd4deb9a6d9
 sha256sum docs/KNOWN-ISSUES-AND-FIXES.md            # 2e6413737601e75c90cd79449fb718c8ee00f12ec25ccfe3b8ee452b859d8cb9
 ```
 
-> **哈希口径（2026-11-07 task-6 校正）**：上表一律是**工作树字节**的 sha256（这些文档在工作树里是 CRLF；`git show HEAD:…` 得到的是 LF blob，值不同）。task-6 重算后的变化：`CHARACTER-MATRIX.md` 与 `T62-REPORT.md` 因加"取代注"而变（cb5bfcd 时记录为 `6fa7df9f…` / `653b4952…`，均已作废）；`MAP-MATRIX.md` 在 cb5bfcd 记录为 `7fa92339…` 是 **git blob（LF）值**，与工作树字节 `1caa6829…` 不同，此前记录口径不一致，此处按工作树值改正。`RUNS-2026-11-04.md`/`RELEASE-POLICY.md`/`KNOWN-ISSUES-AND-FIXES.md` 本次复核未变。
+> **哈希口径（2026-11-07 task-6 校正，task-15 续）**：上表一律是**工作树字节**的 sha256（这些文档在工作树里是 CRLF；`git show HEAD:…` 得到的是 LF blob，值不同）。task-6 重算后的变化：`CHARACTER-MATRIX.md` 与 `T62-REPORT.md` 因加"取代注"而变（cb5bfcd 时记录为 `6fa7df9f…` / `653b4952…`，均已作废）；`MAP-MATRIX.md` 在 cb5bfcd 记录为 `7fa92339…` 是 **git blob（LF）值**，与工作树字节 `1caa6829…` 不同，此前记录口径不一致，此处按工作树值改正。`RUNS-2026-11-04.md`/`KNOWN-ISSUES-AND-FIXES.md` 本次复核未变。**`RELEASE-POLICY.md` 于 task-15 插入整链条目后重算**（旧值 `c1fdb929…` 作废；插入的条目是 "The rule" 第 2 条，原第 2–5 条顺延为 3–6，见文件内编号注）。
 
 门禁脚本 sha256（本次实测，`e15577b` 工作树干净状态下计算）：
 
@@ -160,7 +167,10 @@ d8a1c7e43534ca68daf8ce2ebc4fa7b80d21c4b1e43d08334b61aef913342b66  world-geometry
 69d2967b77ed0f1177454a066624048c58344c2a38145063f681ebde026fe3fd  resource-reachability-check.sh
 180be8a64542432715655ad74d62bc78ba25c5cefefbfef3f07c963709805fc8  verify-fast.sh
 7e28c987738a15fb32564311ed71ae0c675c0cd4d689e05e86b92f2945082d20  verify-all.sh
+e659777b0a52517e2ce7c9f1000971bacdfbd7413d60fa4bf23ed4fe77b9f60e  verify-release.sh
 ```
+
+> `verify-release.sh` 是 **task-15 新增的整链入口**（279 行；分支 `task/t86-phase0`，不在 `e15577b` 的 99 个脚本里）。它按顺序跑 `verify-all.sh` + 四个链外 P0 门禁 + `build-identity-check.sh`（后者尚不存在 → 记 `STUB-ABSENT=FAIL`），每步独立 timeout、逐步落 `evidence/release/<utc>-<step>.log`，最后一行 `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=6`。只在 `hostlock.sh run` 内、且 `VERIFY_RELEASE_OWNER` 与锁主一致时启动，否则 exit 9 拒绝。本任务只做 `bash -n` 与 `VERIFY_RELEASE_DRY_RUN=1`，**未真跑**（未占锁、未构建、未启动产品）。策略条文见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条。
 
 **未做（阶段 0 明确不做）**：重跑任何门禁、构建、启动产品、抓帧。上表 PASS 的重现需要持有 host lock 并按上表命令行执行；执行者必须自己记录 exe/gate/demo/BSP 的 sha256、rc、断言数、hostlock owner 与锁结束状态。
 

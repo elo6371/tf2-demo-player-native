@@ -2,7 +2,7 @@
 
 基线：`e15577b4f055…`；产品 exe sha256 `a3c93d57…724e9`。
 源清单：`D:/_shared/PROJECT-HANDOFF-2026-11-07.md` §8（`:188-250`），共 **4+9+5+6+5+6+4 = 39** 个复选框。
-配套：`docs/T85-SUPPORT-SCOPE.md`（边界）、`docs/T85-COVERAGE-MANIFEST.md`（C01–C29 / N01–N16）、`evidence/t62-matrix/POSTFREEZE-INVENTORY-CORRECTED.md`（账本对账）。
+配套：`docs/T85-SUPPORT-SCOPE.md`（边界）、`docs/T85-COVERAGE-MANIFEST.md`（C01–C29 / N01–N25）、`evidence/t62-matrix/POSTFREEZE-INVENTORY-CORRECTED.md`（账本对账）。
 
 ## 0. 状态判据（先说清，否则表没法读）
 
@@ -30,12 +30,12 @@
 | 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 |
 |---|---|---|---|---|
 | 8.2-1 | 四张官方图 + Upward 夹具 + Odyssey 只作历史 | 已覆盖 | `docs/T85-SUPPORT-SCOPE.md` §3 地图表（含实测大小与 sha256）；`MAP-MATRIX.md:26-34` 五行（第五行 rc11） | — |
-| 8.2-2 | 每图 BSP 查找路径 + 哈希（尤其 RC11 来自 `tf/download/maps`），trace 里写 name/source/fallback | 部分覆盖 | `MAP-MATRIX.md:26-34` 记录 rc11 只在 `tf/download/maps`（26,370,688 B / `f06cfe4b…`）；`map-material-matrix.sh:36` 断言 `demo map=`/`server_map=` 等于该行地图；`resource-discovery-check.sh`（查找顺序） | **trace 里 source/fallback 字段无断言**（只断 map 名相同）；BSP sha256 未写入 trace，是文档侧记录 |
+| 8.2-2 | 每图 BSP 查找路径 + 哈希（尤其 RC11 来自 `tf/download/maps`），trace 里写 name/source/fallback | 部分覆盖 | `MAP-MATRIX.md:26-34` 记录 rc11 只在 `tf/download/maps`（26,370,688 B / `f06cfe4b…`）；`map-material-matrix.sh:36` 断言 `demo map=`/`server_map=` 等于该行地图；`resource-discovery-check.sh`（查找顺序） | **trace 里 source/fallback 字段无断言**（只断 map 名相同）；BSP sha256 未写入 trace，是文档侧记录。另：sunshine/bagel 两张的 lump 是 LZMA 压缩块、snakewater 未压缩（`bsp_map.cpp:41-56/:65/:120-134`），同一个「BSP 路径」实为两条解码路径而无门禁区分（地图审计 `GAPS.md` §1） |
 | 8.2-3 | 世界几何（含 displacement、sky 面、负控）**+ 正式图可见动态 brush 必须按 demo 时间更新位置/角度**；"不支持"改名不算结案 | 部分覆盖（动态 brush **无覆盖**） | `map-geometry-lighting-check.sh:38/:939`（面账分区、天空 brush 多边形、lightmap 样本、flat 嵌套、cull 归因、点 oracle）；`world-geometry-hole-check.sh:178-179`（帧字节 pin） | **动态 brush 完全没有实现也没有门禁**：`func_door`/`func_movelinear`/`track_train`/`func_breakable`/`m_vecMoveDir` 在产品源码与 99 脚本中 **0 命中**（本次 grep）。这是 §8.2 明文禁止用"不支持"结案的条目 → 见 N05 |
 | 8.2-4 | 天空 vs 3D skybox **分开**测（边界、开口、视角变化、PVS、sky 关闭对照） | 部分覆盖 | `world-render-reliability-check.sh` 3/4 六面天空 + `--world-sky`/`--no-world-sky` 对照；`--world-flat --no-world-sky` 四张捕获（`MAP-MATRIX.md:22`） | **3D skybox 分离无覆盖**：`3d skybox|_skybox` 在门禁中 0 命中 → N06 |
 | 8.2-5 | 材质：VMT proxy/inherit、VTF+mip、slot、alpha、blend、mask、emissive、detail、bump/normal、lightmap 逐类登记 + 确定性回退与诊断 | 部分覆盖 | `map-material-matrix.sh:36/:624`（fetch/atlas/tile 不变量）；`vmt_material.cpp:104/:119/:199`、`vtf_texture.cpp:45/:190/:266`；`world-material-check.sh`（六控制）、`world-material-effects-check.sh`（warp+三效果）、`material-coverage-check.sh` | **没有"逐材质类别 × 逐特性"的登记矩阵**（哪些 proxy 被支持、哪些回退）没有一份可核对表；emissive/detail/bump 的**逐类**断言散在各门禁，未汇总；确定性回退的具名诊断只覆盖部分路径 |
 | 8.2-6 | 水 = 只做当前纹理/颜色，**不做反射/折射** | 已覆盖（范围声明） | `T85-SUPPORT-SCOPE.md` B3；`world-material-effects-check.sh:16-21`（warp 三属性 + 像素 on≠off） | 此为"边界已冻结"，不是"水面正确性已验证"；不承诺 |
-| 8.2-7 | 光照需独立 luxel/atlas **数值**采样：LDR/HDR、边界、UV clamp、已知源对比、显式 oracle 与残差 | 部分覆盖 | 帧级：100 个世界帧 pin（`T62-REPORT.md:99-101`）、`lighting-semantics-check.sh`（98 断言）、`lighting-dark-account-check.sh`（暗像素账）、`map-geometry-lighting-check.sh` 的"每个被读样本都写出" | **解码数值无 pin**：`MAP-MATRIX.md:183` 明写 OPEN；没有独立 oracle 与残差数字；HDR exponent（`bsp_map.cpp:621`）无单元级断言 → N07 |
+| 8.2-7 | 光照需独立 luxel/atlas **数值**采样：LDR/HDR、边界、UV clamp、已知源对比、显式 oracle 与残差 | 部分覆盖 | 帧级：100 个世界帧 pin（`T62-REPORT.md:99-101`）、`lighting-semantics-check.sh`（98 断言）、`lighting-dark-account-check.sh`（暗像素账）、`map-geometry-lighting-check.sh` 的"每个被读样本都写出" | **解码数值无 pin**：`MAP-MATRIX.md:183` 明写 OPEN；没有独立 oracle 与残差数字；HDR exponent 无单元级断言 → N07/N24。**锚点更正（地图审计）**：解码真值在 `bsp_map.cpp:97-110`（writeLuxel）；`:621` 只是 HDR tone census 统计，旧引文指错了位置 |
 | 8.2-8 | LOD 层可读可建，切换/材质一致/过渡/预算；无 LOD1+ 时**不得**宣称 LOD 完整 | 无覆盖 | 只有"不宣称"这一半做到了：`CHARACTER-MATRIX.md:131`（只建 LOD0）、`T85-SUPPORT-SCOPE.md` B5 | **LOD1+ 未实现、无门禁**（`lod[1-9]` 0 命中）→ N04 |
 | 8.2-9 | 逐图矩阵按轴，历史 Odyssey 格**不计入**总数 | 已覆盖 | `MAP-MATRIX.md:26-34/:40`（20 格含 4 格 Odyssey 历史；官方四图 16 格）；`T85-SUPPORT-SCOPE.md` §6 数字口径 | —（引用时必须写"20 含 4 历史格"，本表已固定该口径） |
 
@@ -98,8 +98,13 @@
 | D-14 | 动态 brush 按 demo 时间位移（8.2-3 的硬缺口） | 无覆盖 | 产品侧 0 实现、门禁侧 0 命中 → N05；交接书明确不许用"不支持"改名结案，因此保留为**功能欠账**而不是边界 |
 | D-15 | 产品 HUD 不渲染文字/字体（8.6-2 的硬缺口） | 无覆盖 | `main_hud.cpp:247-250` 自述 "this build rasterises no font and no image"；唯一 Text 原语在 `main_hud.cpp:210`，只在 `--hud-text-test` 下跑（`main.cpp:2514-2517`），`hud-text-check.sh` 全用该 flag → N18。属**功能欠账**：用户看到的计时/比分/状态全是彩色矩形 |
 | D-16 | 产品内小地图通路（8.6-4 的范围收窄） | 明确不做（范围收窄） | `src/minimap.cpp` 只链 `minimap_probe`（`native/cmake/tf2-probes-minimap.cmake:23`），不在产品源清单（`tf2-product.cmake:16`）；产品侧仅 `review_workspace.cpp:367-375` 持久化 `workspace.minimap` 状态 → N17。按支持边界记 UNSUPPORTED，不得写成"部分支持" |
-
 | D-17 | 官方地图的**夹具覆盖不均**（角色轴跨图外推风险） | 部分覆盖 | 角色轴门禁默认跑 snakewater（`class-pixels-check.sh:102`、`player-body-appearance-check.sh:42`、`third-person-weapon-check.sh:85`），队伍对夹具在 upward；sunshine 的 demos.tf 候选最好 8/9、rc12 本地 0 条 demo（demos.tf 15 条候选中 0 条九职业齐，最好 6/9）。因此"官方四图"不能被写成"四图角色轴已验证"。数据：`D:/_shared/t85-assets/demo-candidates.csv`、`local-demo-index.csv`（2026-11-07） |
+| D-18 | 门禁改写 **tracked** 证据（settings/ui 漂移） | 无覆盖（缺陷已实测，修复未做） | **现象**：产品退出时必改写 `--ui-settings-file` 指向文件的 `recentDemo0..7`（`native/src/native_ui.cpp:137-139` 写回、`:356-363` 把本次 demo 插到队首、`:75` 读回），而 `third-person-weapon-check.sh:219/:559`、`player-body-appearance-check.sh:73`、`probe_attach.sh:23` 把 `evidence/t62-matrix/.../ui.json`（tracked）传进产品 → `git status` 变脏、输入不再可复现；受影响 tracked 文件 22 个。**为什么危险**：`git status` 不再是"冻结树干净"的证据，`git add -A` 会把 MRU 漂移带进证据基线。**证据**：`D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md` §1/§4/§5（修法 A = 复制到 `$OUT` 再传 + 断言原件 sha256 不变）。**归属**：发布工程/卫生（建议 worktree `t89-hygiene`，未派）。**现在能否判红**：不能——无门禁断言"跑完门禁后 evidence/ 零改动"，§5 的负向控制（改回 tracked 路径必须红）也未实现 |
+| D-19 | 发布链注册缺口：99 个 `*.sh` 只有 29 个进 `verify-all.sh` | 无覆盖（task-15 的 C 段只补入口，不补注册） | **现象**：`verify-all.sh` 30 步只显式调用 29 个脚本；交接书点名的四个 P0 门禁 `outline-check.sh`/`third-person-weapon-check.sh`/`player-body-appearance-check.sh`/`class-pixels-check.sh` 在链内 `grep -c` 全 0；7 个独立变异 harness 也全在链外。**为什么危险**：单跑 `verify-all.sh` 会被当成"整套验收通过"，而 P0 门禁一次没跑。**证据**：`D:/_shared/t85-mutation/GATE-REGISTRATION.md`（差集与门禁哈希）。**归属**：发布工程。**现在能否判红**：不能——链自身 PASS 不检查注册完备性；本任务新增的 `verify-release.sh` 把四个 P0 串进整链，是入口侧缓解，不是全解 |
+| D-20 | 构建身份错误：`--version` 报的 sourceTree/时间戳不属于该 exe | 无覆盖（缺陷已实测；task-14 修复中） | **现象**：冻结 exe 的 `--version` 报 `sourceTree=12042361ffd1`（比 e15577b 早 **41 个提交**）、`buildUtc=2026-11-02T16:22:30Z`（比 exe mtime 2026-11-06 20:20:35 早 4 天）、`sourceDateEpoch=0`、脏树无记录。**根因**：`native/cmake/tf2-version.cmake:25/:26-32` 在 **configure 期**求值 → 写进 `install_lifecycle.cpp:590-592`；增量构建从不重新 configure。**为什么危险**：所有"这个 exe 由 e15577b 构建"的话都缺证据，二进制与提交无法互证。**证据**：`D:/_shared/T85-STATUS.md` §3 第 4 条、task-14。**归属**：**task-14 / t90-identity**；其 `build-identity-check.sh` 落地后，`verify-release.sh` 第 6 步才能去掉 STUB。**现在能否判红**：不能——没有门禁把 `--version` 输出与 `git rev-parse HEAD` 对比 |
+| D-21 | 冻结树**没有整链 PASS 产物**（发布前必须消除） | 无覆盖 | **现象**：evidence 里只有旧 **18 步 311.1s PASS**、quick 链 145.9s，以及 2026-11-02 一次 `VERIFY=FAIL`（30 步 203.6s，SPECTATE-CHECK 红）；没有任何一次"e15577b 上 30 步全 PASS"的记录。**为什么危险**：发布签字时没有可引用的整链绿，也没有可比对的失败基线。**证据**：`D:/_shared/T85-STATUS.md` §3 第 6 条。**归属**：发布工程（阶段 7 在冻结树上跑 `bash hostlock.sh run <owner> bash verify-release.sh`）。**现在能否判红**：不能——这是"缺产物"不是"门禁红"；`verify-release.sh` 的 `VERIFY-RELEASE=PASS|FAIL` 行是将来唯一可引用的判据 |
+
+**D 表统计（9 条，不要与 §8 的 39 条混加）**：D-13 已关闭（task-6）；D-16 明确不做；D-17 部分覆盖；D-14/D-15/D-18/D-19/D-20/D-21 无覆盖。
 
 ## 9. 跨任务移交（避免重复劳动）
 
@@ -109,6 +114,10 @@
 | opt-in 动画驱动状态层（crouch/crouchwalk/flinch 扩到 walk/jump/attack） | **task-4 / t87-anim** | `native/tools/model_pose_probe.cpp` 补丁（9233fcf + 141 行）冻结待用 |
 | 资产/材质逐类登记矩阵（8.2-5） | **task-3 / t85-assets** | `D:/_shared/t85-assets/` |
 | 证据封装与门禁模板（8.7-3） | **task-5 / t85-workflow** | `D:/_shared/t85-workflow/` |
+| D-18 门禁改写 tracked 证据 | **发布工程 / 卫生（未派）** | `D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md` §5 修法 A |
+| D-19 发布链注册缺口 | **发布工程**（task-15 只补入口） | `D:/_shared/t85-mutation/GATE-REGISTRATION.md` |
+| D-20 构建身份 | **task-14 / t90-identity** | `D:/_shared/T85-STATUS.md` §3 第 4 条 |
+| D-21 冻结树整链 PASS 产物 | **发布工程**（阶段 7） | `D:/_shared/T85-STATUS.md` §3 第 6 条；本任务新增 `verify-release.sh` |
 
 ## 10. 引用口径（防止下一轮再写出 40/5）
 
@@ -118,3 +127,5 @@
 - "40 PASS / 5 UNSUPPORTED" 只属于 pass-7 历史（`T62-REPORT.md:8`），不得作为当前结论；`T62-REPORT.md:124` 的重复是过期文字。
 - 任何"已覆盖"必须能指到本表 8.x 行的门禁行号；指不到就降级为"部分覆盖"。
 - 地图：授权集 5 行（4 官方 + upward 夹具）；世界轴 20 格只覆盖矩阵里的 5 行（含 4 格 Odyssey 历史行），**角色轴只覆盖 snakewater（默认 demo）与 upward（队伍对）**。引用"官方四图"必须同时给每图的证据级别（`T85-SUPPORT-SCOPE.md` §3 表末列），否则就是把几何/材质证据外推成角色/播放证据（D-17）。
+- **单跑 `verify-all.sh` ≠ 跑过整链**：整链入口是 `verify-release.sh`（verify-all 30 步 + 四个链外 P0 门禁 + `build-identity-check.sh`），见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条（task-15 新增）与 D-19/D-21。
+- **地图审计编号已顺延 +1**：map-auditor 的 N19–N24 在本账本为 **N20–N25**（顺序：雾 / func_illusionary / prop_static+game lump / 世界 alpha / HDR 削顶 / func_lod）；其中 HDR 解码锚点真值是 `bsp_map.cpp:97-110`，旧引用的 `:621` 只是 tone census 统计。
