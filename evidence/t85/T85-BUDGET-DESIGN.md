@@ -219,7 +219,7 @@ before.bmp 与 after.bmp 的 sha256 都是 d297340f6bbd1c9edfe9d5674fe989c0cd793
 
 | # | 项 | 读数 | 状态 |
 |---|---|---|---|
-| 1 | 干净构建 | job bash-a769a10a74874246 rc=0，[100%]，exe_count=53 | 通过 |
+| 1 | 干净构建 | job bash-a769a10a74874246 rc=0，[100%]，exe_count=53（旧源码）；**最终源码再次只编验证**：bash build-target.sh tf2_demo_native entity_overlay_probe rc=0，0 error，exe sha256 d696c875…f3a7a23（§8.8，lead m02051 破例不进锁） | 通过（构建层）；产品未跑 |
 | 2 | outline-check.sh | 断言数 102(HEAD) → **173**（口径：grep -cE '^[[:space:]]*assert_(eq|ne|ge|le|lt|contains)\b' outline-check.sh）。lease 1 整轮跑满 2700 s 被驱动超时杀掉：**rc=124、160 条 OK、9 条 FAIL、未打印终判**；9 条全部定位到三个根因并已修（§6.5），但改动**未编译、未复跑** | 分支上**未验证**（按 lead m01908 改为合并树验收） |
 | 3 | third-person-weapon-check.sh | 未跑（lease 2 一直没轮到；命令、输入副本、设置隔离都已就绪） | 分支上**未验证** |
 | 4 | player-body-appearance-check.sh | 未跑（同上） | 分支上**未验证** |
@@ -227,7 +227,8 @@ before.bmp 与 after.bmp 的 sha256 都是 d297340f6bbd1c9edfe9d5674fe989c0cd793
 | 6 | 三个模型不再 OOM | BEFORE 3 次 0x8007000E → AFTER 0 次（§6.1） | 通过（附带 §6.1 的 tick 域限定） |
 | 7 | 预算/prepared/drawn/refusal 读数 | §6.1 全部四层都有实数 | 通过 |
 
-**这张表的读法**：第 1、6、7 项是在**已经构建过的那一版源码**（exe sha256 55efceb6…4fc8ce1650，§6.1）上
+**这张表的读法**：第 1 项包含两次证据——旧的整轮 build-cmake.sh（job bash-a769a10a74874246）与最终源码的
+只编验证（§8.8，rc=0 但产品未跑）；第 6、7 项是在**已经构建过的那一版源码**（exe sha256 55efceb6…4fc8ce1650，§6.1）上
 实跑得到的；第 2–5 项所属的验收要在合并树上跑，因为 lead m01908 明令"分支上不再排整轮 outline 的租约"，
 而且**本轮最后一组改动（--window-size、submitted、门禁补丁）还没有编译过**。凡是在未编译的源码上
 "写通过"都是假证据，所以 2–5 一律写"未验证"。
