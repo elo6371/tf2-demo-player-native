@@ -59,6 +59,8 @@
 #   uses. Sources are restored byte-identical and rebuilt before the gate exits.
 #
 # USAGE
+#   bash install-cli-contract-check.sh                       (bare: forward,
+#                                                            default out-dir)
 #   bash install-cli-contract-check.sh --forward  <out-dir>
 #   bash install-cli-contract-check.sh --mutation <out-dir>   (forward first)
 # Exit 0 = every assertion held / every mutation was caught; 1 = a red reading;
@@ -70,12 +72,18 @@ OUT_ARG=""
 if [ "$#" -ge 1 ]; then MODE="$1"; fi
 if [ "$#" -ge 2 ]; then OUT_ARG="$2"; fi
 if [ "$MODE" != "--forward" ] && [ "$MODE" != "--mutation" ]; then
-  echo "usage: $0 --forward|--mutation <out-dir>"; exit 2
+  echo "usage: $0 [--forward|--mutation] [<out-dir>]"; exit 2
 fi
-if [ -z "$OUT_ARG" ]; then echo "usage: $0 $MODE <out-dir>"; exit 2; fi
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
 cd "$REPO" || exit 2
+#   verify-release.sh runs a step as "bash <script>" with NO arguments. A gate
+#   that only accepts "--forward <dir>" fails the tenth step of the chain for
+#   the wrong reason (usage, exit 2), so a bare call means "forward run into the
+#   default evidence directory"; --mutation with no directory reuses the same
+#   directory, which is where its forward artifacts live. An explicit argument
+#   still wins.
+if [ -z "$OUT_ARG" ]; then OUT_ARG="$REPO/evidence/t92-install/gate"; fi
 mkdir -p "$OUT_ARG"
 OUT="$(cd "$OUT_ARG" && pwd)"
 mkdir -p "$OUT/logs" "$OUT/cases"

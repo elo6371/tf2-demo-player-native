@@ -88,7 +88,7 @@
 
 ## 3 门禁本体
 
-- 位置：仓库根 `install-cli-contract-check.sh`，用法 `bash install-cli-contract-check.sh --forward|--mutation <out-dir>`；
+- 位置：仓库根 `install-cli-contract-check.sh`，用法 `bash install-cli-contract-check.sh [--forward|--mutation] [<out-dir>]`；**裸调用（verify-release.sh 就是这样调用每个步骤的）默认 forward 到 `evidence/t92-install/gate`**，`--mutation` 不带目录时复用同目录（正向产物在那里）；
 - 退出码：0=全绿，1=有断言红，2=usage，90=`MUTATION-NOT-LINKED`；
 - 末行是可判红字面串：`INSTALL-CLI-CONTRACT=PASS assertions=N` / `INSTALL-CLI-CONTRACT=FAIL assertions=N`；变异轮另有 `INSTALL-CLI-CONTRACT-MUTATION=…`；
 - **不自取 hostlock**（整链里由外层持锁），**fresh worktree 无 `native/build-nmake` 时自建**：0/5 步先 `bash build-target.sh tf2_demo_native install_cli_probe native_install_smoke_probe` 并断言 rc=0 与三个产物存在；
