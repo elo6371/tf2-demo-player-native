@@ -127,7 +127,7 @@ fi
 # The trap is the only one in this script; adding a second trap later would
 # silently replace this cleanup.
 TMPROOT=$(mktemp -d)
-cleanup_tmproot() { [ -n "@@{TMPROOT:-}" ] && rm -rf "$TMPROOT"; }
+cleanup_tmproot() { [ -n "${TMPROOT:-}" ] && rm -rf "$TMPROOT"; }
 trap cleanup_tmproot EXIT INT TERM
 
 for path in "$EXE" "$TF" "$SNAKE"; do
