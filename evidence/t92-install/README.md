@@ -1,7 +1,7 @@
 # T92 — 安装器 CLI 契约：dry-run 是一个模式，manifest 是 UTF-8
 
 日期：2026-11-07　worktree：`D:/TF2_Native_Worktrees/t92-install`（分支 `task/t92-install`，基线 `e15577b`）
-门禁脚本：`install-cli-contract-check.sh`（仓库根，487 行，sha256 见同目录 `gate-script.sha256`）
+门禁脚本：`install-cli-contract-check.sh`（仓库根，539 行，sha256 见同目录 `gate-script.sha256`）
 
 ## 0. 状态（先读这一行）
 
@@ -31,75 +31,96 @@
 | `native/src/main_lifecycle.cpp` | 48-52 | `dryRun` 与非 `Install` 的显式 mode 同时出现 → `dryRunConflict = true` 并 return true |
 | `native/src/main_lifecycle.cpp` | 79-85 | 冲突分支：输出 `install=FAIL reason=dry-run-conflict mode=<uninstall\|install-status\|version> detail=--install-dry-run only modifies --install`，`exitCode = 2`，不碰磁盘 |
 | `native/src/main_internal.h` | 61-64 | `LifecycleRequest` 新增 `bool dryRunConflict = false;` |
+| `native/src/install_lifecycle.cpp` | 291-296 | dry-run 额外输出 `install: dryrun mode=install dir=<path> plan=<N> files`（D-24 要求的可观察行，UTF-8 路径） |
 | `native/src/install_lifecycle.cpp` | 340-349 | 写侧改 `installDir.u8string()`（C++17 返回 UTF-8 字节） |
 | `native/src/install_manifest.cpp` | 38-90 | 读侧新增 `validUtf8()` / `acpToUtf8()` / `installDirectoryAsUtf8()`：非法 UTF-8 → 按 ACP 重读，并打印 `manifest: legacy-acp installDirectory`（stdout + fflush） |
 | `native/src/install_manifest.cpp` | 308 | 解析 `installDirectory` 时调用 `installDirectoryAsUtf8(value)` |
 | `README.md` | 46-49 | 生命周期 flag 一段：dry-run 两种合法写法、冲突 exit 2、manifest UTF-8 与 legacy-acp 提示 |
-| `install-cli-contract-check.sh` | 新增 487 行 | 门禁（见 §3），含 hermetic settings（§4.3） |
+| `install-cli-contract-check.sh` | 新增 539 行 | 门禁（见 §3），含 hermetic settings（§4.3） |
 
-## 3. 门禁的四组断言（原文 + 期望 token，行号对应当前脚本）
+## 3. 门禁的五组断言（原文 + 期望 token，行号对应当前脚本）
 
-判定读法：每行 `OK <claim> = <reading>` 或 `FAIL <claim> = <reading>, expected <token>`。**只看 rc 不够**——下表是每条断言的 claim 与它要求的 token。完整逐条清单（含 mutation 段）见 `assertions.txt`。
+判定读法：每行 `OK <claim> = <reading>` 或 `FAIL <claim> = <reading>, expected <token>`。**只看 rc 不够**——下表是每条断言的 claim 与它要求的 token。完整逐条清单（含 mutation 段）见 `assertions.txt`。forward 末行是 `INSTALL-CLI-CONTRACT=PASS assertions=N`（红时 `=FAIL assertions=N`，N 是实际断言条数）。
 
-### A1 `--install-dry-run` 单独用 = dry run，不是产品启动（行 203-235）
-
-| 行 | claim | 期望 |
-| --- | --- | --- |
-| 206 | `A1 the package staged` | `0` |
-| 213 | `A1 the staged package carries a payload` | `yes` |
-| 223 | `A1 exit code` | `0` |
-| 224 | `A1 the answer is a dry run` | 输出含 `install=DRYRUN` |
-| 225 | `A1 the plan lists the payload count` | 输出含 `files=4` |
-| 227 | `A1 the directory did not change` | `same`（前后 `find` 清单逐字节相同） |
-| 229 | `A1 no manifest was written` | `absent` |
-| 231-235 | `A1 it answered inside 5 s` | 读数为毫秒数，必须 `< 5000` |
-
-### A3 中文路径安装后 manifest 记录为 UTF-8（行 237-265）
+### A1 单独 --install-dry-run 是一次 dry run，不是产品启动（:208-240）
 
 | 行 | claim | 期望 |
 | --- | --- | --- |
-| 240 | `A3 the package staged` | `0` |
-| 254 | `A3 install exit code` | `0` |
-| 255 | `A3 the install succeeded` | 输出含 `install=PASS` |
-| 256 | `A3 the payload was laid down` | 输出含 `files=5` |
-| 258 | `A3 the manifest was written` | `yes` |
-| 263 | `A3 the recorded value is valid UTF-8` | `valid_utf8=yes` |
-| 264 | `A3 the recorded value is the installed path` | `equals_utf8=yes`（分隔符归一化后比较） |
-| 265 | `A3 it is not ANSI bytes that only look like the path` | **不得**含 `cp936_reads_as_path=yes` |
+| 211 | A1 the package staged | 0 |
+| 218 | A1 the staged package carries a payload | yes |
+| 228 | A1 exit code | 0 |
+| 229 | A1 the answer is a dry run | 含 install=DRYRUN |
+| 230 | A1 the plan lists the payload count | 含 files=4 |
+| 232 | A1 the directory did not change | same（前后 find 清单逐字节同） |
+| 234 | A1 no manifest was written | absent |
+| 237/239 | A1 it answered inside 5 s | 读数毫秒，必须 < 5000 |
 
-### A2 / A2b dry-run 与别的 mode 并列 = 显式拒绝 exit 2（行 267-291）
-
-| 行 | claim | 期望 |
-| --- | --- | --- |
-| 276 | `A2 exit code`（`--uninstall --install-dry-run`） | `2` |
-| 277 | `A2 the refusal names the reason` | 含 `reason=dry-run-conflict` |
-| 278 | `A2 the refusal names the mode it was given` | 含 `mode=uninstall` |
-| 280 | `A2 nothing was uninstalled` | `same` |
-| 289 | `A2b exit code`（`--install-status --install-dry-run`） | `2` |
-| 290 | `A2b the refusal names the mode it was given` | 含 `mode=install-status` |
-| 291 | `A2b no status answer was produced` | **不得**含 `status=VERIFIED` |
-
-### A4 旧 ACP manifest 仍能读回并打出提示（行 293-321）
+### A1b 两种合法写法给出同一个计划（:242-266）
 
 | 行 | claim | 期望 |
 | --- | --- | --- |
-| 301 | `A4 control: status exit code` | `0` |
-| 302 | `A4 control: status is VERIFIED` | 含 `status=VERIFIED` |
-| 303 | `A4 control: a UTF-8 manifest is not announced as legacy` | **不得**含 `manifest: legacy-acp installDirectory` |
-| 307 | `A4 the fixture was rewritten to ANSI bytes` | `rewritten_to_cp936=yes` |
-| 311 | `A4 the fixture really is not valid UTF-8` | **不得**含 `valid_utf8=yes` |
-| 319 | `A4 legacy status exit code` | `0` |
-| 320 | `A4 legacy status is still VERIFIED` | 含 `status=VERIFIED` |
-| 321 | `A4 the ANSI fallback is announced` | 含 `manifest: legacy-acp installDirectory` |
+| 248 | A1b the package staged | 0 |
+| 257 | A1b exit code（--install --install-dry-run） | 0 |
+| 258 | A1b the answer is a dry run | 含 install=DRYRUN |
+| 259 | A1b the answer names itself | 含 install: dryrun mode=install dir= |
+| 261 | A1b the directory did not change | same |
+| 266 | A1b both spellings plan the same payload | 与 A1 的 files=N 相同 |
 
-### 两条变异（`--mutation`，行 379-483）
+### A3 中文路径安装后 manifest 记 UTF-8（:268-296）
+
+| 行 | claim | 期望 |
+| --- | --- | --- |
+| 271 | A3 the package staged | 0 |
+| 285 | A3 install exit code | 0 |
+| 286 | A3 the install succeeded | 含 install=PASS |
+| 287 | A3 the payload was laid down | 含 files=5 |
+| 289 | A3 the manifest was written | yes |
+| 294 | A3 the recorded value is valid UTF-8 | valid_utf8=yes |
+| 295 | A3 the recorded value is the installed path | equals_utf8=yes（分隔符归一化后比） |
+| 296 | A3 it is not ANSI bytes that only look like the path | 不得含 cp936_reads_as_path=yes |
+
+### A2 / A2b dry run 与别的 mode 并列 = 显式拒绝 exit 2（:298-322）
+
+| 行 | claim | 期望 |
+| --- | --- | --- |
+| 307 | A2 exit code（--uninstall --install-dry-run） | 2 |
+| 308 | A2 the refusal names the reason | 含 reason=dry-run-conflict |
+| 309 | A2 the refusal names the mode it was given | 含 mode=uninstall |
+| 311 | A2 nothing was uninstalled | same |
+| 320 | A2b exit code（--install-status --install-dry-run） | 2 |
+| 321 | A2b the refusal names the mode it was given | 含 mode=install-status |
+| 322 | A2b no status answer was produced | 不得含 status=VERIFIED |
+
+### A4 旧 ACP manifest 仍能读回并打出提示（:324-352）
+
+| 行 | claim | 期望 |
+| --- | --- | --- |
+| 332 | A4 control: status exit code | 0 |
+| 333 | A4 control: status is VERIFIED | 含 status=VERIFIED |
+| 334 | A4 control: a UTF-8 manifest is not announced as legacy | 不得含 manifest: legacy-acp installDirectory |
+| 338 | A4 the fixture was rewritten to ANSI bytes | rewritten_to_cp936=yes |
+| 342 | A4 the fixture really is not valid UTF-8 | 不得含 valid_utf8=yes |
+| 350 | A4 legacy status exit code | 0 |
+| 351 | A4 legacy status is still VERIFIED | 含 status=VERIFIED |
+| 352 | A4 the ANSI fallback is announced | 含 manifest: legacy-acp installDirectory |
+
+### A5 中文路径 + 旧 ACP manifest 也能卸载（:354-373）
+
+| 行 | claim | 期望 |
+| --- | --- | --- |
+| 362 | A5 uninstall exit code | 0 |
+| 363 | A5 the uninstall succeeded | 含 uninstall=PASS |
+| 366/368 | A5 it removed at least one file | removed 数值 >= 1 |
+| 371 | A5 the manifest is gone | absent |
+
+### 两条变异（--mutation，从 :430 起）
 
 | 变异 | 做法 | 必须变红 |
 | --- | --- | --- |
-| M1 | 把 `request->mode = LifecycleMode::Install;` 换成 `(void)0;` 再重链 | A1：45 s deadline 内没有 `install=DRYRUN`（退化成 GUI 启动），gate 用 `taskkill //f` 收尾并记录残留产品数 |
-| M2 | 把 `installDir.u8string()` 换回 `installDir.generic_string()` 再重链 | A3：manifest 值 `valid_utf8=no`（中文路径下必然） |
+| M1 | 把 request->mode = LifecycleMode::Install; 换成 (void)0; 再重链 | A1：45 s deadline 内没有 install=DRYRUN（退化成 GUI），gate 用 taskkill //f 收尾并记残留产品数 |
+| M2 | 把 installDir.u8string() 换回 installDir.generic_string() 再重链 | A3：manifest 值 valid_utf8=no（中文路径下必然） |
 
-两条变异均要求「重链后 exe 哈希必须变」，否则报 `MUTATION-NOT-LINKED` 并 exit 90（与 `install-lifecycle-check.sh` 同语义）；变异结束把源文件按字节原样恢复并重链。
+两条变异均要求「重链后 exe 哈希必须变」，否则报 MUTATION-NOT-LINKED 并 exit 90（与 install-lifecycle-check.sh 同语义）；变异结束把源文件按字节原样恢复并重链。
 
 ## 4. 怎么跑（给合并窗口照抄）
 
@@ -129,7 +150,7 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run <owner> \
 
 ### 4.3 hermetic settings（门禁自身的卫生要求）
 
-产品退出时无条件写设置与 UI 状态（D-22），会写真实 `%LOCALAPPDATA%\TF2 Demo Player\settings.ini` / `ui.ini`。门禁里 **8 处**产品启动全部带 `--settings-file` 与 `--ui-settings-file`，指向 `mktemp -d` 出来的目录；脚本开头 `trap cleanup_hermetic EXIT`（若已有 EXIT trap 则不覆盖），结束 `rm -rf`。日志第一行会打印 `hermetic settings: <dir>`。
+产品退出时无条件写设置与 UI 状态（D-22），会写真实 `%LOCALAPPDATA%\TF2 Demo Player\settings.ini` / `ui.ini`。门禁里 **10 处**产品启动全部带 `--settings-file` 与 `--ui-settings-file`，指向 `mktemp -d` 出来的目录；脚本开头 `trap cleanup_hermetic EXIT`（若已有 EXIT trap 则不覆盖），结束 `rm -rf`。日志第一行会打印 `hermetic settings: <dir>`。
 
 ## 5. 第一次跑为什么是红的（门禁前置，不是产品缺陷）
 
@@ -157,7 +178,7 @@ CMake Error at native/build-nmake/cmake_install.cmake:40 (file):
 
 已验证（本 worktree，有实测输出）：
 
-- `bash -n install-cli-contract-check.sh` 通过（487 行）。
+- `bash -n install-cli-contract-check.sh` 通过（539 行）。
 - 门禁前置构建：`build-target.sh tf2_demo_native install_cli_probe native_install_smoke_probe` BUILD_RC=0，exe sha256=`25018de7…9f2b6`（见 `build-here.txt`）。
 - helper 的字节判读在两种路径分隔符下都正确（`helper-offline-test.txt`）：UTF-8 + 反斜杠路径 → `valid_utf8=yes`、`equals_utf8=yes`、`cp936_reads_as_path=no`；同一行走完 `legacy` 重写 → `valid_utf8=no`、`cp936_reads_as_path=yes`。
 - A2/A2b 冲突拒绝：真实二进制 8 条断言全绿（`red-run-1/forward.log`）。

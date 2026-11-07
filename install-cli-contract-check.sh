@@ -30,9 +30,14 @@
 #      "manifest: legacy-acp installDirectory", so a directory installed by an
 #      older build still works and the conversion is visible in the log.
 #
-# WHAT THIS GATE ASSERTS (four groups)
+# WHAT THIS GATE ASSERTS (five groups)
 #   A1  a lone --install-dry-run exits 0 inside 5 s, prints install=DRYRUN with
-#       the payload count, and leaves the directory byte-for-byte unchanged
+#       the payload count, names itself ("install: dryrun mode=install dir=...
+#       plan=N files"), and leaves the directory byte-for-byte unchanged
+#   A1b --install --install-dry-run plans the same payload as the lone spelling,
+#       so the flag does the same thing wherever it sits on the command line
+#   A5  the Chinese-path directory uninstalls after that, legacy manifest and
+#       all: exit 0, uninstall=PASS, at least one file removed, manifest gone
 #   A2  --uninstall --install-dry-run and --install-status --install-dry-run are
 #       refused with exit 2 (reason=dry-run-conflict, mode named) and change
 #       nothing
@@ -180,7 +185,7 @@ PY
 # ===================================================================== forward
 if [ "$MODE" = "--forward" ]; then
 
-sec "0/4 the build the gate is about to drive"
+sec "0/5 the build the gate is about to drive"
 # The stage step runs `cmake --install`, and that install rule copies
 # native_install_smoke_probe.exe out of the build tree. install-lifecycle-check.sh
 # assumes a tree where someone already built it; in a fresh worktree it is
@@ -200,7 +205,7 @@ sha256sum "$PROBE" > "$OUT/reference-probe.sha256"
 echo "  product exe sha256=$(cut -d' ' -f1 "$OUT/reference-exe.sha256")"
 echo "  probe   exe sha256=$(cut -d' ' -f1 "$OUT/reference-probe.sha256")"
 
-sec "1/4 A1 --install-dry-run alone: a dry run, not a product launch"
+sec "1/5 A1 --install-dry-run alone: a dry run, not a product launch"
 A1="$OUT/cases/a1"
 ST1_RC=0; stage_package "$A1" a1-stage || ST1_RC=$?
 eq "A1 the package staged" "$ST1_RC" "0"
@@ -234,7 +239,33 @@ else
   wrong "A1 it answered inside 5 s" "$A1_MS" "under 5000"
 fi
 
-sec "2/4 A3 an install into a Chinese path records it as UTF-8"
+# A1b -- the two legal spellings must agree. "install --install-dry-run" is the
+# documented form; a lone "--install-dry-run" is the one that used to start the
+# GUI. Both must produce the same plan token, or the flag is still doing two
+# different things depending on where it sits.
+A1B="$OUT/cases/a1b"
+STB_RC=0; stage_package "$A1B" a1b-stage || STB_RC=$?
+eq "A1b the package staged" "$STB_RC" "0"
+inventory "$A1B" "$OUT/logs/a1b-before.txt"
+A1B_RC="$(run_exe "$A1B/tf2_demo_native.exe" "$OUT/logs/a1b-out.txt" "$OUT/logs/a1b.ms" \
+  --install --install-dry-run --install-dir "$(cygpath -w "$A1B")" \
+  --settings-file "$(cygpath -w "$HERM_SET")" \
+  --ui-settings-file "$(cygpath -w "$HERM_UI")")"
+A1B_OUT="$(cat "$OUT/logs/a1b-out.txt")"
+echo "  A1b exit=$A1B_RC"
+echo "$A1B_OUT" | sed 's/^/    /'
+eq "A1b exit code" "$A1B_RC" "0"
+has "A1b the answer is a dry run" "$A1B_OUT" "install=DRYRUN"
+has "A1b the answer names itself" "$A1B_OUT" "install: dryrun mode=install dir="
+inventory "$A1B" "$OUT/logs/a1b-after.txt"
+eq "A1b the directory did not change" \
+  "$(cmp -s "$OUT/logs/a1b-before.txt" "$OUT/logs/a1b-after.txt" && echo same || echo changed)" "same"
+A1_FILES="$(sed -n 's/.*install=DRYRUN files=\([0-9][0-9]*\).*/\1/p' <<< "$A1_OUT" | head -1)"
+A1B_FILES="$(sed -n 's/.*install=DRYRUN files=\([0-9][0-9]*\).*/\1/p' <<< "$A1B_OUT" | head -1)"
+if [ -z "$A1_FILES" ]; then A1_FILES="none"; fi
+eq "A1b both spellings plan the same payload" "$A1B_FILES" "$A1_FILES"
+
+sec "2/5 A3 an install into a Chinese path records it as UTF-8"
 CJK="$OUT/cases/验收 路径 空格/安装 目录"
 ST3_RC=0; stage_package "$CJK" a3-stage || ST3_RC=$?
 eq "A3 the package staged" "$ST3_RC" "0"
@@ -264,7 +295,7 @@ has "A3 the recorded value is valid UTF-8" "$A3_BYTES" "valid_utf8=yes"
 has "A3 the recorded value is the installed path" "$A3_BYTES" "equals_utf8=yes"
 hasnt "A3 it is not ANSI bytes that only look like the path" "$A3_BYTES" "cp936_reads_as_path=yes"
 
-sec "3/4 A2 a dry run beside another mode is refused and touches nothing"
+sec "3/5 A2 a dry run beside another mode is refused and touches nothing"
 inventory "$CJK" "$OUT/logs/a2-before.txt"
 A2_RC="$(run_exe "$CJK/tf2_demo_native.exe" "$OUT/logs/a2-uninstall.txt" "$OUT/logs/a2.ms" \
   --uninstall --install-dry-run --install-dir "$(cygpath -w "$CJK")" \
@@ -290,7 +321,7 @@ eq "A2b exit code" "$A2B_RC" "2"
 has "A2b the refusal names the mode it was given" "$A2B_OUT" "mode=install-status"
 hasnt "A2b no status answer was produced" "$A2B_OUT" "status=VERIFIED"
 
-sec "4/4 A4 a manifest written in the ANSI code page still reads back"
+sec "4/5 A4 a manifest written in the ANSI code page still reads back"
 S1_RC="$(run_exe "$CJK/tf2_demo_native.exe" "$OUT/logs/a4-before.txt" "$OUT/logs/a4.ms" \
   --install-status --install-dir "$(cygpath -w "$CJK")" \
   --settings-file "$(cygpath -w "$HERM_SET")" \
@@ -320,10 +351,30 @@ eq "A4 legacy status exit code" "$S2_RC" "0"
 has "A4 legacy status is still VERIFIED" "$S2_OUT" "status=VERIFIED"
 has "A4 the ANSI fallback is announced" "$S2_OUT" "manifest: legacy-acp installDirectory"
 
+sec "5/5 A5 the Chinese-path install uninstalls, legacy manifest and all"
+A5_RC="$(run_exe "$CJK/tf2_demo_native.exe" "$OUT/logs/a5-uninstall.txt" "$OUT/logs/a5.ms" \
+  --uninstall --install-dir "$(cygpath -w "$CJK")" \
+  --settings-file "$(cygpath -w "$HERM_SET")" \
+  --ui-settings-file "$(cygpath -w "$HERM_UI")")"
+A5_OUT="$(cat "$OUT/logs/a5-uninstall.txt")"
+echo "  A5 exit=$A5_RC"
+echo "$A5_OUT" | sed 's/^/    /'
+eq "A5 uninstall exit code" "$A5_RC" "0"
+has "A5 the uninstall succeeded" "$A5_OUT" "uninstall=PASS"
+A5_REMOVED="$(sed -n 's/.*removed=\([0-9][0-9]*\).*/\1/p' <<< "$A5_OUT" | head -1)"
+if [ -z "$A5_REMOVED" ]; then A5_REMOVED="-1"; fi
+if [ "$A5_REMOVED" -ge 1 ] 2>/dev/null; then
+  ok "A5 it removed at least one file" "$A5_REMOVED"
+else
+  wrong "A5 it removed at least one file" "$A5_REMOVED" ">= 1"
+fi
+eq "A5 the manifest is gone" \
+  "$([ -f "$MAN" ] && echo present || echo absent)" "absent"
+
 echo
-echo "  cases=4 checks=$CHECKS fail=$FAIL exe_sha256=$(cut -d' ' -f1 "$OUT/reference-exe.sha256")"
-if [ "$FAIL" -eq 0 ]; then echo "  INSTALL-CLI-CONTRACT=PASS"; exit 0; fi
-echo "  INSTALL-CLI-CONTRACT=FAIL"; exit 1
+echo "  cases=5 checks=$CHECKS fail=$FAIL exe_sha256=$(cut -d' ' -f1 "$OUT/reference-exe.sha256")"
+if [ "$FAIL" -eq 0 ]; then echo "  INSTALL-CLI-CONTRACT=PASS assertions=$CHECKS"; exit 0; fi
+echo "  INSTALL-CLI-CONTRACT=FAIL assertions=$CHECKS"; exit 1
 fi
 
 # ==================================================================== mutation
@@ -343,7 +394,8 @@ cp "$SRC_LIFE" "$MUT/backup/install_lifecycle.cpp"
 rebuild() { # <log-name>
   local before after rc=0
   before="$(sha256sum "$EXE" 2>/dev/null | cut -d' ' -f1)"
-  bash build-target.sh tf2_demo_native install_cli_probe > "$MUT/logs/$1.log" 2>&1 || rc=$?
+  bash build-target.sh tf2_demo_native install_cli_probe native_install_smoke_probe \
+    > "$MUT/logs/$1.log" 2>&1 || rc=$?
   after="$(sha256sum "$EXE" 2>/dev/null | cut -d' ' -f1)"
   MUTATED_EXE_SHA="$after"
   echo "  rebuild $1 rc=$rc reference=$REFERENCE_EXE_SHA exe_before=$before exe_after=$after"

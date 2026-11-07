@@ -290,6 +290,11 @@ Result installInto(const Options& options, const PackageInfo& info) {
     [](const ManifestFile& a, const ManifestFile& b) { return a.path < b.path; });
 
   if (options.dryRun) {
+    // The dry run says what it is doing in its own words, not only in an
+    // install= token: a caller that cannot tell "I am planning an install" from
+    // "I started the product" was exactly the D-24 defect.
+    emit(result, std::string("install: dryrun mode=install dir=") + installDir.u8string()
+      + " plan=" + std::to_string(files.size()) + " files");
     emit(result, "install=DRYRUN files=" + std::to_string(files.size()) + " backups="
       + std::to_string(backups) + " manifest="
       + std::filesystem::path(kStateDirectory).generic_string() + "/" + kManifestName);
