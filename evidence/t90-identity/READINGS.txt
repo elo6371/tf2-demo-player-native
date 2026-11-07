@@ -26,3 +26,19 @@ log_token=logs/window-token.log
 log_forward=forward/gate-forward-final.log
 log_mutation=mutation/gate-mutation-final.log
 log_reproducible=reproducible/gate-repro-final.log
+# --- commit and clean-tree re-run (added after the two commits landed) ---
+commits=bff6006bd118735051ce38cb026f95e58e7c8e18 976f78a0c379a80d34339a7caf70e8db349a2659
+commit_1=bff6006bd118735051ce38cb026f95e58e7c8e18 fix(identity): measure the build stamp at link time and prove two builds identical
+commit_2=976f78a0c379a80d34339a7caf70e8db349a2659 feat(cli): count unrecognized arguments and add --strict-args
+clean_run_head=976f78a0c379a80d34339a7caf70e8db349a2659
+clean_run_records_before=0 records_after=0
+clean_run_result=BUILD-IDENTITY=PASS assertions=115 identity=exe-sha+HEAD+native-tree-sha head=976f78a0c379
+clean_run_baseline=buildUtc=2026-11-07T09:48:26Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379 dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0
+clean_run_probe=buildUtc=2026-11-07T09:48:41Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379 dirty=1 dirtyFiles=2 dirtyTracked=1 dirtyUntracked=1
+clean_run_restored=buildUtc=2026-11-07T09:48:47Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379 dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0
+clean_run_exe_sha256_at_baseline=a3efe042c60084f9951480c07b451d913af7b0f825ddd578bb4a2741dc90eb09
+clean_run_native_tree_sha256=773aa3a68fe8e961c2c5dc61e31b4e5ffd959de7a4daa3e8886873081cd445a1
+clean_run_window_utc=2026-11-07T09:46Z..09:48:53Z (queued behind t88-budget)
+log_clean=forward-clean/gate-forward-clean.log
+log_clean_window=logs/window-clean.log
+why=every earlier evidence run was made on a dirty tree (15-48 records); step 8 of verify-all runs on a clean checkout, so the 0-record path was measured once by hand after the commits

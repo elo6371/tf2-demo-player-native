@@ -1,0 +1,159 @@
+
+=== 1/5 build the product and the probe, then read what the binary says about itself ===
+  OK   baseline build exit code = 0
+  OK   the build produced native/build-nmake/tf2_demo_native.exe = present
+  OK   the build produced native/build-nmake/install_cli_probe.exe = present
+  OK   product --version exit code = 0
+  --- baseline --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-11-07T09:48:26Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379
+    dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0
+  OK   baseline: the --version answer printed a line 1 = 1
+  OK   baseline: the --version answer printed a line 2 = 1
+  OK   baseline: the --version answer printed a line 3 = 1
+  OK   baseline: the answer carries buildUtc= = 1
+  OK   baseline: the answer carries sourceDateEpoch= = 1
+  OK   baseline: the answer carries sourceTree= = 1
+  OK   baseline: the answer carries dirty= = 1
+  OK   baseline: the answer carries dirtyFiles= = 1
+  OK   baseline: the answer carries dirtyTracked= = 1
+  OK   baseline: the answer carries dirtyUntracked= = 1
+  OK   baseline: buildUtc is an ISO-8601 UTC stamp = 1
+  OK   baseline: the answer is not the configure-time placeholder = absent
+  OK   baseline: sourceTree is not the placeholder = real
+  --- tree now: HEAD=976f78a0c379 records=0 tracked=0 untracked=0
+  --- baseline answers: buildUtc=2026-11-07T09:48:26Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379 dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0 
+  OK   baseline: sourceTree is the commit this build was made from = 976f78a0c379
+  OK   baseline: sourceDateEpoch is that commit's committer epoch = 1794044771
+  OK   baseline: dirty is 1 exactly when the worktree has uncommitted changes = 0
+  OK   baseline: dirtyFiles is the porcelain record count git reports now = 0
+  OK   baseline: dirtyTracked is the tracked share of that count = 0
+  OK   baseline: dirtyUntracked is the untracked share of that count = 0
+  OK   baseline: buildUtc parses as a UTC instant = yes
+  OK   baseline: buildUtc is not earlier than the commit it names = 1794044906
+  OK   baseline: buildUtc is not later than the executable's own mtime = 1794044906
+  OK   baseline: line 1 keeps the shape install-lifecycle-check.sh parses = package=tf2_demo_native version=0.1.0
+  OK   baseline: line 1 ends in a numeric versionCode = 1
+  --- baseline exe sha256=a3efe042c60084f9951480c07b451d913af7b0f825ddd578bb4a2741dc90eb09 stamp sha256=24ef215b98c97ee53003ba107cc381008d9fe0e14d70661e258fbddcbc55a7e9 records=0
+  OK   the stamp file is where the build put it = present
+
+=== 1b/5 the probe reports the same identity as the product ===
+  OK   install_cli_probe --version exit code = 0
+  OK   the probe printed a line 1 = 1
+  OK   the probe printed dirty= = 1
+  OK   install_cli_probe agrees with the product on line 1 = package=tf2_demo_native version=0.1.0
+  OK   install_cli_probe reports the same sourceTree = 976f78a0c379
+  OK   install_cli_probe reports the same dirty state = 0
+
+=== 1c/5 an argument the product does not know is a reading, not silence ===
+  OK   arg surface: an unknown argument is still ignored, rc=13 is the value refusal = 13
+  OK   arg surface: the run wrote a trace file with lines = 2
+  OK   arg surface: the trace has exactly one args: line = 1
+  OK   arg surface: the unknown argument is counted (args: unrecognized=1) = 1
+  OK   arg surface: that line names the argument in first= and all= = 1
+  OK   arg surface: --strict-args refuses the unknown argument (rc 2) = 2
+  OK   arg surface: the refusal reached stderr = 1
+  OK   arg surface: the refusal names the argument the caller wrote = 1
+  OK   arg surface: the strict run still printed its args: line = 1
+  OK   arg surface: the strict exit happens before startup resolves assets = absent
+  OK   arg surface: a command line the product understands is not refused (rc 0) = 0
+  OK   arg surface: that run counts zero unrecognised arguments = 1
+  OK   arg surface: with nothing to list, first= and all= say so (-) = 1
+
+=== 2/5 a rebuild with no source change must neither relink nor move buildUtc ===
+  OK   no-op build exit code = 0
+  OK   no-op --version exit code = 0
+  OK   a no-op rebuild does not relink the product (same exe sha256) = a3efe042c60084f9951480c07b451d913af7b0f825ddd578bb4a2741dc90eb09
+  OK   a no-op rebuild does not rewrite the stamp (same stamp sha256) = 24ef215b98c97ee53003ba107cc381008d9fe0e14d70661e258fbddcbc55a7e9
+  OK   a no-op rebuild answers with the same bytes = package=tf2_demo_native version=0.1.0 versionCode=100
+buildUtc=2026-11-07T09:48:26Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379
+dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0
+
+=== 3/5 a dirty tree must be reported as dirty, with the count git reports ===
+  --- probe added 1 tracked change (docs/RELEASE-POLICY.md) and 1 untracked file
+  OK   the probe added exactly two records to the tree = 2
+  OK   dirty build exit code = 0
+  OK   dirty --version exit code = 0
+  --- dirty --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-11-07T09:48:41Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379
+    dirty=1 dirtyFiles=2 dirtyTracked=1 dirtyUntracked=1
+  OK   dirty: the --version answer printed a line 1 = 1
+  OK   dirty: the --version answer printed a line 2 = 1
+  OK   dirty: the --version answer printed a line 3 = 1
+  OK   dirty: the answer carries buildUtc= = 1
+  OK   dirty: the answer carries sourceDateEpoch= = 1
+  OK   dirty: the answer carries sourceTree= = 1
+  OK   dirty: the answer carries dirty= = 1
+  OK   dirty: the answer carries dirtyFiles= = 1
+  OK   dirty: the answer carries dirtyTracked= = 1
+  OK   dirty: the answer carries dirtyUntracked= = 1
+  OK   dirty: buildUtc is an ISO-8601 UTC stamp = 1
+  OK   dirty: the answer is not the configure-time placeholder = absent
+  OK   dirty: sourceTree is not the placeholder = real
+  --- tree now: HEAD=976f78a0c379 records=2 tracked=1 untracked=1
+  --- dirty answers: buildUtc=2026-11-07T09:48:41Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379 dirty=1 dirtyFiles=2 dirtyTracked=1 dirtyUntracked=1 
+  OK   dirty: sourceTree is the commit this build was made from = 976f78a0c379
+  OK   dirty: sourceDateEpoch is that commit's committer epoch = 1794044771
+  OK   dirty: dirty is 1 exactly when the worktree has uncommitted changes = 1
+  OK   dirty: dirtyFiles is the porcelain record count git reports now = 2
+  OK   dirty: dirtyTracked is the tracked share of that count = 1
+  OK   dirty: dirtyUntracked is the untracked share of that count = 1
+  OK   the dirty rebuild relinked the product (exe sha256 moved) = moved
+  OK   the dirty build answers differently from the clean one = differs
+  OK   the dirty build still names the same commit as sourceTree = 976f78a0c379
+
+=== 4/5 restoring the tree must restore the identity ===
+  OK   the probe's tracked file is restored byte-identically = 0
+  OK   the restored tracked file has its original sha256 = c1fdb92923992ccc21c1c0becf2a27ba712b8ffea81af8c313f73f60adb2ffa3
+  OK   restored build exit code = 0
+  OK   restored --version exit code = 0
+  --- restored --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-11-07T09:48:47Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379
+    dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0
+  OK   restored: the --version answer printed a line 1 = 1
+  OK   restored: the --version answer printed a line 2 = 1
+  OK   restored: the --version answer printed a line 3 = 1
+  OK   restored: the answer carries buildUtc= = 1
+  OK   restored: the answer carries sourceDateEpoch= = 1
+  OK   restored: the answer carries sourceTree= = 1
+  OK   restored: the answer carries dirty= = 1
+  OK   restored: the answer carries dirtyFiles= = 1
+  OK   restored: the answer carries dirtyTracked= = 1
+  OK   restored: the answer carries dirtyUntracked= = 1
+  OK   restored: buildUtc is an ISO-8601 UTC stamp = 1
+  OK   restored: the answer is not the configure-time placeholder = absent
+  OK   restored: sourceTree is not the placeholder = real
+  --- tree now: HEAD=976f78a0c379 records=0 tracked=0 untracked=0
+  --- restored answers: buildUtc=2026-11-07T09:48:47Z sourceDateEpoch=1794044771 sourceTree=976f78a0c379 dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0 
+  OK   restored: sourceTree is the commit this build was made from = 976f78a0c379
+  OK   restored: sourceDateEpoch is that commit's committer epoch = 1794044771
+  OK   restored: dirty is 1 exactly when the worktree has uncommitted changes = 0
+  OK   restored: dirtyFiles is the porcelain record count git reports now = 0
+  OK   restored: dirtyTracked is the tracked share of that count = 0
+  OK   restored: dirtyUntracked is the untracked share of that count = 0
+  OK   the gate left the tree with the record count it found = 0
+  OK   the gate left the tree with the tracked/untracked split it found = 0/0
+  OK   the restored identity fields match the pre-probe identity = sourceDateEpoch=1794044771 sourceTree=976f78a0c379 dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0 
+  OK   the restored build's buildUtc did not move backwards = 1794044927
+  OK   the restored stamp carries a dirtyFiles reading at all = 1
+  OK   the restored stamp carries the pre-probe record count (0) = 1
+  OK   the stamp is not left carrying the probe's record count = 0
+
+=== 4b/5 the identity record: exe sha + HEAD + native/ tree hash, never the sha alone ===
+  OK   identity: the record has the fields it promises = 10
+  OK   identity: the record pairs the exe sha256 with a full git HEAD = 1
+  OK   identity: the record pairs it with a native/ tree sha256 = 1
+  OK   identity: the recorded exe sha256 is the executable on disk = 169f7c229579ae39cc30b1e1a64733b02914de013b7a63687d59781e5d58fdcf
+  OK   identity: the recorded HEAD is the live HEAD = 976f78a0c379a80d34339a7caf70e8db349a2659
+  OK   identity: the recorded native/ hash is what git hashes now = 773aa3a68fe8e961c2c5dc61e31b4e5ffd959de7a4daa3e8886873081cd445a1
+  OK   identity: the version's sourceTree is the short form of that same HEAD = 976f78a0c379
+
+=== 5/5 what the assertions above established, and what they did not ===
+  NOT-PROVEN cross-machine reproducibility: --reproducible measured two clean full builds on THIS machine only
+  NOT-PROVEN a content hash: sourceTree+dirty name a commit and a count, not the dirty content
+  NOT-PROVEN the manifest/VERSION.txt agree with --version (install-lifecycle-check.sh's subject)
+  NOT-PROVEN that a dirty build can be rebuilt from the dirty tree (it is not recorded, only counted)
+  assertions=115 failed=0
+BUILD-IDENTITY=PASS assertions=115 identity=exe-sha+HEAD+native-tree-sha head=976f78a0c379
