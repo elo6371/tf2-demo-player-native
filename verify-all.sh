@@ -468,8 +468,17 @@ tail -8 "$OUT/8-mutation.txt"
 # upload is short-circuited, or the gate's parse layer and its binding layer
 # would be one reading counted twice; m13 adds three red assertions and one hold
 # for the animation-property positive control. m13 was run alone on 2026-10-10
-# and the complete suite read 46/6/0/0/6. Adding a case is an explicit edit here,
-# which is the
+# and the complete suite read 46/6/0/0/6.
+# m14 (the P0 world-model budget, task-1) adds three red assertions and no hold:
+# the outline gate's refusal on the revenue ledger, the count of evicted meshes
+# that must be resupplied, and the attach gate's refusal. 46 + 3 = 49.
+# m10's fixture assertion used to be one of the suite's GREEN lines: the probe's
+# self-test had been red since the T62 axis permutation and the summary line the
+# assertion greps was unreachable, so "world route gone" could never produce it.
+# The self-test was repaired (its expectations now follow the permutation) and the
+# fixed build is asserted green before any case runs, which turns m10 back into a
+# red line and is why this total is 49 and not 48. Adding a case is an explicit
+# edit here, which is the
 # point: a suite whose assertion count drifts silently is a suite that stopped
 # testing. Any GREEN or BROKE line means a mutation did not move the reading it
 # targets -- which is the one thing the suite exists to detect.
@@ -480,7 +489,7 @@ GREEN=$(grep -c '^MUTATION-GREEN' "$OUT/8-mutation.txt" || true)
 IDENT=$(grep -c '^RESTORED-IDENTICAL' "$OUT/8-mutation.txt" || true)
 echo "mutation_red=$RED hold=$HOLD green=$GREEN broke=$BROKE restored_identical=$IDENT"
 if grep -q 'MUTATION-SUITE=PASS' "$OUT/8-mutation.txt" \
-   && [ "$RED" -eq 46 ] && [ "$HOLD" -eq 6 ] \
+   && [ "$RED" -eq 49 ] && [ "$HOLD" -eq 6 ] \
    && [ "$GREEN" -eq 0 ] && [ "$BROKE" -eq 0 ] && [ "$IDENT" -eq 6 ]; then
   echo "MUTATION=PASS"
 else

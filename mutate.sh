@@ -200,6 +200,8 @@ echo "=== fixed-build readings (the values every mutation must move away from) =
 "$PROBE" "$POV"     > "$OUT/pov.fixed.txt"     2>&1
 "$FIXPROBE"         > "$OUT/fixture.fixed.txt" 2>&1
 "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.fixed.txt" 2>&1
+"$MODELPROBE" --self-test > "$OUT/model.selftest-fixed.json" 2> "$OUT/model.selftest-fixed.txt"
+selftest_rc=$?
 ./native/build-nmake/presentation_probe.exe > "$OUT/recording.fixed.txt" 2>&1
 echo "bagel:   entity_failures=$(value "$OUT/bagel.fixed.txt" 'entity_failures=[0-9]+') malformed=$(value "$OUT/bagel.fixed.txt" 'malformed_packets=[0-9]+') baselines=$(value "$OUT/bagel.fixed.txt" 'instance_baselines=[0-9]+') recording=$(value "$OUT/bagel.fixed.txt" 'recording=[^ ]*')"
 echo "proto23: malformed=$(value "$OUT/proto23.fixed.txt" 'malformed_packets=[0-9]+') unknown=$(value "$OUT/proto23.fixed.txt" 'unknown_message_packets=[0-9]+')"
@@ -207,6 +209,19 @@ echo "pov:     model_precache=$(value "$OUT/pov.fixed.txt" 'model_precache_entri
 echo "model:   requests=$(jvalue "$OUT/model.fixed.txt" requests) demoRenderable=$(jvalue "$OUT/model.fixed.txt" demoRenderable)"
 echo "fixture: $(grep -oE 'fixture_failures=[0-9]+' "$OUT/fixture.fixed.txt")"
 echo "recording probe: $(grep -oE '"recording":[a-z]+' "$OUT/recording.fixed.txt")"
+# The fixture self-test is the sharpest witness m10 has, and until this line ran
+# nowhere in the fixed build: it had been red since the T62 axis permutation landed,
+# which silently made m10's first assertion vacuous -- the summary line it greps was
+# unreachable in both the fixed and the mutated build. Assert the fixed build here so
+# the pair (fixed prints a full table, mutated refuses) cannot rot again unnoticed.
+selftest_ok=$(grep -cE '^\{"ok":true' "$OUT/model.selftest-fixed.json" || true)
+selftest_fixture=$(grep -oE 'weapon-wiring-fixture refs=[0-9]+ known=[0-9]+ resolved=[0-9]+' "$OUT/model.selftest-fixed.txt" | head -1)
+echo "selftest: rc=$selftest_rc ok=$selftest_ok fixture=${selftest_fixture:-<none>}"
+if [ "$selftest_rc" -ne 0 ] || [ "$selftest_ok" -ne 1 ] \
+   || [ "$selftest_fixture" != "weapon-wiring-fixture refs=11 known=10 resolved=6" ]; then
+  echo "MUTATION-FIXED-SELFTEST=FAIL rc=$selftest_rc ok=$selftest_ok fixture=${selftest_fixture:-<none>} -- the fixed build's fixture self-test is not green, so every refusal asserted below would be an artifact of a broken baseline, not of a mutation"
+  rc_all=1
+fi
 
 for case_id in $CASES; do
   echo

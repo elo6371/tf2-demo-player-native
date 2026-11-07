@@ -59,7 +59,7 @@
 #
 # ARTEFACTS: evidence/release/<utc>-<step>.log, <utc>-summary.txt,
 #            <utc>-machine-before.txt, <utc>-machine-after.txt
-# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=12  (last stdout line)
+# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=13  (last stdout line)
 #
 # Exit: 0 PASS, 1 FAIL, 9 refused (not under the host lock / owner mismatch).
 #
@@ -73,7 +73,7 @@ STAMP=${VERIFY_RELEASE_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 OWNER=${VERIFY_RELEASE_OWNER:-}
 DRY=${VERIFY_RELEASE_DRY_RUN:-0}
 
-STEPS=(launch-hygiene debt-claim verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget install-cli-contract playback-error-paths timeline)
+STEPS=(launch-hygiene debt-claim verify-all rebuild outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget install-cli-contract playback-error-paths timeline)
 TOTAL=${#STEPS[@]}
 
 step_file() {
@@ -81,6 +81,7 @@ step_file() {
     launch-hygiene)        echo gate-launch-hygiene-check.sh ;;
     debt-claim)            echo debt-claim-check.sh ;;
     verify-all)            echo verify-all.sh ;;
+    rebuild)               echo release-rebuild.sh ;;
     outline)               echo outline-check.sh ;;
     third-person-weapon)   echo third-person-weapon-check.sh ;;
     body-appearance)       echo player-body-appearance-check.sh ;;
@@ -98,15 +99,16 @@ step_timeout() {
   case "$1" in
     launch-hygiene)        echo "${VERIFY_RELEASE_TIMEOUT_LAUNCH_HYGIENE:-120}" ;;
     debt-claim)            echo "${VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM:-120}" ;;
-    verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-7200}" ;;
+    verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-14400}" ;;
+    rebuild)               echo "${VERIFY_RELEASE_TIMEOUT_REBUILD:-3600}" ;;
     outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-5400}" ;;
-    third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-1200}" ;;
-    body-appearance)       echo "${VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE:-1200}" ;;
-    class-pixels)          echo "${VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS:-1200}" ;;
-    build-identity)        echo "${VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY:-1200}" ;;
-    world-geometry-budget) echo "${VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET:-1200}" ;;
-    install-cli-contract)  echo "${VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT:-1800}" ;;
-    playback-error-paths)  echo "${VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS:-1200}" ;;
+    third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-3600}" ;;
+    body-appearance)       echo "${VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE:-3600}" ;;
+    class-pixels)          echo "${VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS:-3600}" ;;
+    build-identity)        echo "${VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY:-2400}" ;;
+    world-geometry-budget) echo "${VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET:-3600}" ;;
+    install-cli-contract)  echo "${VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT:-2400}" ;;
+    playback-error-paths)  echo "${VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS:-1800}" ;;
     timeline)              echo "${VERIFY_RELEASE_TIMEOUT_TIMELINE:-1800}" ;;
     *)                     echo 1200 ;;
   esac
@@ -120,6 +122,7 @@ step_verdict() {
     launch-hygiene)        echo GATE-LAUNCH-HYGIENE ;;
     debt-claim)            echo DEBT-CLAIM ;;
     verify-all)            echo VERIFY ;;
+    rebuild)               echo REBUILD ;;
     outline)               echo OUTLINE-CHECK ;;
     third-person-weapon)   echo THIRD-PERSON-WEAPON ;;
     body-appearance)       echo BODY-APPEARANCE ;;

@@ -8,14 +8,22 @@ whenever a task finished or a date passed.
 1. **The full chain runs once, on the final frozen tree**, after the final task wave
    (T75 at the time of writing) is complete and merged. Not per task, not per day,
    not for a milestone count.
-2. **"The full chain" means `verify-release.sh`, not `verify-all.sh`.** The chain
-   entry point runs `verify-all.sh` and then the acceptance gates it does not
-   contain: `outline-check.sh`, `third-person-weapon-check.sh`,
-   `player-body-appearance-check.sh`, `class-pixels-check.sh`,
-   `build-identity-check.sh` and `world-geometry-budget-check.sh` (the last two
-   while their gates are still being written: their steps record
-   `STUB-ABSENT=FAIL`, they are never skipped). **It also runs
-   `gate-launch-hygiene-check.sh` first**, a static ratchet that freezes the set
+2. **"The full chain" means `verify-release.sh`, not `verify-all.sh`.** Order
+   matters in the chain (static steps before anything takes the lock, a rebuild
+   after the mutation suites), so the full list is written here; the `STEPS` array
+   in `verify-release.sh` remains the source of truth:
+   1 `gate-launch-hygiene-check.sh`, 2 `debt-claim-check.sh`, 3
+   `verify-all.sh`, 4 a rebuild step (`build-target.sh` for the product and the
+   probes the later steps trust), 5 `outline-check.sh`, 6
+   `third-person-weapon-check.sh`, 7 `player-body-appearance-check.sh`, 8
+   `class-pixels-check.sh`, 9 `build-identity-check.sh`, 10
+   `world-geometry-budget-check.sh`, 11 `install-cli-contract-check.sh`, 12
+   `playback-error-paths-check.sh`, 13 `timeline-check.sh`. The rebuild step is
+   load-bearing: `verify-all.sh` runs mutation/restore suites that refresh source
+   mtimes, and `outline-check.sh` refuses a binary older than its sources -- without
+   the rebuild the chain measures a pre-mutation product (observed in round 2,
+   2026-11-07). **Step 1**, `gate-launch-hygiene-check.sh`, is a static ratchet that
+   freezes the set
    of product launches still skipping `--settings-file`/`--ui-settings-file`
    (D-22) and fails both when the set grows and when a gate was fixed without
    deleting its baseline row -- so "the chain isolated the machine" cannot decay
@@ -24,11 +32,12 @@ whenever a task finished or a date passed.
    must name a gate anchor (`gate:<script>#<literal token>`) that resolves to a
    real script containing that token, so "this debt can be judged red" is not
    prose. `CANNOT-RED` / `CAN-RED-UNANCHORED` are allowed only with a reason; the
-   latter is the list of gates still owed. It needs no lock: no build, no launch. 70 of the 99 gate scripts in this
-   tree are outside `verify-all.sh` -- the four P0 gates named by the handoff
-   among them -- so `VERIFY=PASS` from `verify-all.sh` alone is not "the chain
-   ran" (debts D-19/D-21). `verify-release.sh` prints one line,
-   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=9`, and that line is the only
+   latter is the list of gates still owed. It needs no lock: no build, no launch.
+   Most of the gate scripts in this tree are outside `verify-all.sh` -- the four
+   P0 gates named by the handoff among them -- so `VERIFY=PASS` from
+   `verify-all.sh` alone is not "the chain ran" (debts D-19/D-21).
+   `verify-release.sh` prints one line,
+   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=13`, and that line is the only
    citable whole-chain verdict. **The chain must also prove it did not rewrite the
    tester's real configuration.** Before the first step and after the last one it
    snapshots `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` and `ui.ini`
@@ -69,6 +78,7 @@ whenever a task finished or a date passed.
 > `evidence/t61-animation/T61-ANIMATION-REPORT.md:828` and `:1570`, both citing
 > `:12-13` -- mean the pre-insert item 2, i.e. the "quality is carried by each
 > task's own gates" rule that now sits at item 3.
+> On 2026-11-07 (merge window) the chain gained install-cli-contract, playback-error-paths, timeline and a rebuild step between verify-all and outline; total 12 -> 13.
 
 ## Why
 
