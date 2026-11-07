@@ -1,0 +1,74 @@
+WAITING owner=t90-identity queue_head=1794039462124359600-t87-anim-224763
+WAITING owner=t90-identity queue_head=1794039462124359600-t87-anim-224763
+WAITING owner=t90-identity queue_head=1794039462124359600-t87-anim-224763
+WAITING owner=t90-identity queue_head=1794039462124359600-t87-anim-224763
+WAITING owner=t90-identity queue_head=1794039462124359600-t87-anim-224763
+WAITING owner=t90-identity queue_head=1794039462124359600-t87-anim-224763
+WAITING owner=t90-identity queue_head=1794040764520938900-t85-timeline-252771
+WAITING owner=t90-identity queue_head=1794040764520938900-t85-timeline-252771
+WAITING owner=t90-identity queue_head=1794040764520938900-t85-timeline-252771
+WAITING owner=t90-identity queue_head=1794040764520938900-t85-timeline-252771
+ACQUIRED owner=t90-identity at 2026-11-07 17:01:56
+=== final window start 2026-11-07T09:01:56Z host=DESKTOP-9U1GAU8
+LOCKED owner=t90-identity heartbeat_age=1s
+queue=1794041719101821200-t88-budget-268452 1794042011590073800-t93-playback-274359 head=1794041719101821200-t88-budget-268452
+reservation=none
+product_processes=0
+tree_records_at_start=15
+--- before --version (frozen t79 candidate) ---
+package=tf2_demo_native version=0.1.0 versionCode=100
+buildUtc=2026-11-02T16:22:30Z sourceDateEpoch=0 sourceTree=12042361ffd1
+before_version_rc=0
+a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9 */d/TF2_Native_Worktrees/t79-integration/native/build-nmake/tf2_demo_native.exe
+/d/TF2_Native_Worktrees/t79-integration/native/build-nmake/tf2_demo_native.exe size=2763264 mtime=2026-11-06 20:20:35.743656100 +0800
+=== stage A: gate --forward 2026-11-07T09:01:59Z
+stage_A_forward_rc=0
+=== 1/5 build the product and the probe, then read what the binary says about itself ===
+=== 1b/5 the probe reports the same identity as the product ===
+=== 1c/5 an argument the product does not know is a reading, not silence ===
+=== 2/5 a rebuild with no source change must neither relink nor move buildUtc ===
+=== 3/5 a dirty tree must be reported as dirty, with the count git reports ===
+=== 4/5 restoring the tree must restore the identity ===
+=== 4b/5 the identity record: exe sha + HEAD + native/ tree hash, never the sha alone ===
+=== 5/5 what the assertions above established, and what they did not ===
+BUILD-IDENTITY=PASS (115 assertions, identity=exe-sha+HEAD+native-tree-sha, head e15577b4f055)
+=== stage B: gate --mutation 2026-11-07T09:05:51Z
+stage_B_mutation_rc=0
+=== 1/5 build the product and the probe, then read what the binary says about itself ===
+=== 1b/5 the probe reports the same identity as the product ===
+=== 1c/5 an argument the product does not know is a reading, not silence ===
+=== 2/5 a rebuild with no source change must neither relink nor move buildUtc ===
+=== 3/5 a dirty tree must be reported as dirty, with the count git reports ===
+=== 4/5 restoring the tree must restore the identity ===
+=== 4b/5 the identity record: exe sha + HEAD + native/ tree hash, never the sha alone ===
+=== 5/5 what the assertions above established, and what they did not ===
+=== mutation suite: three edits that must turn a named assertion red ===
+=== M1: the stamp reports a hard-coded source tree instead of HEAD ===
+=== M2: the stamp reports a clean tree while the tree has uncommitted changes ===
+=== M3: the argument loop still ignores an unknown argument but stops counting it ===
+=== mutation summary ===
+BUILD-IDENTITY-MUTATION=PASS (3 mutations caught, sources restored, 146 assertions)
+=== stage C: gate --reproducible 2026-11-07T09:07:58Z
+stage_C_reproducible_rc=0
+=== repro/1 the tree both builds will be made from ===
+  --- HEAD=e15577b4f055 native/ tree sha256=74a0836cfc16527a44c2270901951d8f6d1d2db157be573dec4c19de3e28969e records=15
+=== repro/2 first clean full build ===
+  --- build 1: sha256=040eb11caf30232ae8d5d3da27dbfc4cfadaff0bbb3c1e5b924345ae2b17d533 size=2772480 pe_timedate=1970978447
+  --- build 1 PE: timedate=1970978447 checksum=0 debug_timedate=1970978447 cv=none type=13
+=== repro/3 second clean full build of the same tree ===
+  --- build 2: sha256=040eb11caf30232ae8d5d3da27dbfc4cfadaff0bbb3c1e5b924345ae2b17d533 size=2772480 pe_timedate=1970978447
+  --- build 2 PE: timedate=1970978447 checksum=0 debug_timedate=1970978447 cv=none type=13
+=== repro/4 the two builds are the same binary, and the identity is a triple ===
+BUILD-REPRODUCIBLE=PASS builds=2 sha=040eb11caf30232ae8d5d3da27dbfc4cfadaff0bbb3c1e5b924345ae2b17d533
+--- after --version (this tree) ---
+package=tf2_demo_native version=0.1.0 versionCode=100
+buildUtc=2026-11-07T09:06:42Z sourceDateEpoch=1794023209 sourceTree=e15577b4f055
+dirty=1 dirtyFiles=15 dirtyTracked=11 dirtyUntracked=4
+after_version_rc=0
+tree_records_at_end=15
+forward_rc=0
+mutation_rc=0
+reproducible_rc=0
+real_settings_sha_unchanged=yes
+=== final window done 2026-11-07T09:39:59Z
+LOCKED-COMMAND-EXIT rc=0 owner=t90-identity

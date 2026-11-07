@@ -19,7 +19,14 @@
 # installer": the gate stages them, the probe performs the install, and neither
 # half has to guess what the other meant.
 add_executable(install_cli_probe tools/install_cli_probe.cpp
-  src/install_lifecycle.cpp src/install_manifest.cpp)
+  src/install_lifecycle.cpp src/install_manifest.cpp
+  # T90: the build-identity stamp, generated at build time (tf2-version.cmake).
+  # The probe reports --version too, and install-lifecycle-check.sh asserts that
+  # the probe and the product agree on it, so both sides must compile the same
+  # generated constants.
+  ${TF2_BUILD_STAMP_SOURCE})
+# T90: generate the stamp before this target compiles it.
+add_dependencies(install_cli_probe tf2_build_stamp)
 
 # T37: the VPK readiness probe. vpk_query answers "OPEN FAILED" and stops, which
 # conflates absent, unreadable and refused; this one reads the header

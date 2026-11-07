@@ -71,6 +71,12 @@ struct Manifest {
   int packageVersionCode = 0;
   std::string sourceDateEpoch;
   std::string sourceTree;
+  // T90: the state of the tree this build came from, recorded so an installed
+  // package can say "built from e15577b with 3 uncommitted files" instead of
+  // naming a commit it does not actually match. Empty in manifests written
+  // before T90; parse() accepts their absence (see install_manifest.cpp).
+  std::string sourceDirty;
+  std::string sourceDirtyFiles;
   std::string installedUtc;
   std::string installDirectory;
   std::vector<ManifestFile> files;

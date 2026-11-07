@@ -1,0 +1,1503 @@
+=== build (Release, parallel 2) ===
+Warning: NMake does not support parallel builds. Ignoring parallel build command line option.
+[  0%] build identity stamp: git HEAD + dirty state -> generated/tf2_build_stamp.cpp
+-- build identity: e15577b4f055 dirty=1 (15 records) unchanged; stamp kept
+[  0%] Built target tf2_build_stamp
+[  0%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main.cpp.obj
+main.cpp
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2587): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2588): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2589): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2590): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2591): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(9824): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(1859): note: 参见“instance”的声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(10050): warning C4456: “elapsed”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(9060): note: 参见“elapsed”的声明
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): note: 模板实例化上下文(最早的实例化上下文)为
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(5950): note: 查看对正在编译的函数 模板 实例化“std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string<std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,0>(_Iter,_Iter,const _Alloc &)”的引用
+        with
+        [
+            _Elem=wchar_t,
+            _Iter=std::_String_iterator<std::_String_val<std::_Simple_types<wchar_t>>>,
+            _Alloc=std::allocator<char>
+        ]
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(5950): note: 请参阅 "wWinMain::<lambda_25>::operator ()" 中对 "std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string" 的第一个引用
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xstring(812): note: 查看对正在编译的函数 模板 实例化“void std::basic_string<char,std::char_traits<char>,std::allocator<char>>::_Construct_from_iter<wchar_t*,wchar_t*,_Size_type>(_Iter,const _Sent,_Size)”的引用
+        with
+        [
+            _Size_type=unsigned __int64,
+            _Iter=wchar_t *,
+            _Sent=wchar_t *,
+            _Size=unsigned __int64
+        ]
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xstring(968): note: 查看对正在编译的函数 模板 实例化“_OutIt *std::_Copy_n_unchecked4<wchar_t*,_Size,char*>(_InIt,_SizeTy,_OutIt)”的引用
+        with
+        [
+            _OutIt=char *,
+            _Size=unsigned __int64,
+            _InIt=wchar_t *,
+            _SizeTy=unsigned __int64
+        ]
+[  0%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main_trace.cpp.obj
+main_trace.cpp
+[  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main_lifecycle.cpp.obj
+main_lifecycle.cpp
+?⒁? 包含文件:         C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\cstddef
+[  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/playback_state.cpp.obj
+playback_state.cpp
+[  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main_hud.cpp.obj
+main_hud.cpp
+[  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main_camera.cpp.obj
+main_camera.cpp
+[  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main_helpers.cpp.obj
+main_helpers.cpp
+[  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/main_ui.cpp.obj
+main_ui.cpp
+[  1%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+?⒁? 包含文件:      C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\__msvc_system_error_abi.hpp
+[  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[  2%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[  3%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+?⒁? 包含文件:             C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\tmmintrin.h
+[  3%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[  3%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[  3%] Building C object CMakeFiles/tf2_demo_native.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[  3%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer.cpp.obj
+native_renderer.cpp
+?⒁? 包含文件:     C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um\objbase.h
+?⒁? 包含文件:      C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\istream
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer.cpp(693): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer.cpp(461): note: 参见“samplerDescription”的声明
+[  3%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_shaders.cpp.obj
+native_renderer_shaders.cpp
+[  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_settings.cpp.obj
+native_renderer_settings.cpp
+[  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_capture.cpp.obj
+native_renderer_capture.cpp
+[  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_camera.cpp.obj
+native_renderer_camera.cpp
+[  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_entity.cpp.obj
+native_renderer_entity.cpp
+[  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_overlay.cpp.obj
+native_renderer_overlay.cpp
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_overlay.cpp(142): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_overlay.cpp(400): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_overlay.cpp(296): note: 参见“world”的声明
+[  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_viewmodel.cpp.obj
+native_renderer_viewmodel.cpp
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(390): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(391): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(698): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(564): note: 参见“view”的声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(868): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(564): note: 参见“view”的声明
+[  4%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_world_material.cpp.obj
+native_renderer_world_material.cpp
+[  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_world.cpp.obj
+native_renderer_world.cpp
+[  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_renderer_frame.cpp.obj
+native_renderer_frame.cpp
+[  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/projectile_track.cpp.obj
+projectile_track.cpp
+[  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/projectile_overlay.cpp.obj
+projectile_overlay.cpp
+[  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/map_lookup.cpp.obj
+map_lookup.cpp
+[  5%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/asset_lookup.cpp.obj
+asset_lookup.cpp
+[  6%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+?⒁? 包含文件:        C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\limits.h
+[  6%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/model_loader.cpp.obj
+model_loader.cpp
+D:\TF2_Native_Worktrees\t90-identity\native\src\model_loader.cpp(536): warning C4456: “i”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\model_loader.cpp(518): note: 参见“i”的声明
+[  6%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/viewmodel.cpp.obj
+viewmodel.cpp
+[  6%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[  6%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[  6%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/animation_clock.cpp.obj
+animation_clock.cpp
+[  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/audio_player.cpp.obj
+audio_player.cpp
+[  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/effects_timeline.cpp.obj
+effects_timeline.cpp
+[  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/pcf_operators.cpp.obj
+pcf_operators.cpp
+[  7%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/playback_hud.cpp.obj
+playback_hud.cpp
+[  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/playback_control.cpp.obj
+playback_control.cpp
+[  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/hud_import.cpp.obj
+hud_import.cpp
+[  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/hud_state.cpp.obj
+hud_state.cpp
+[  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/hud_font.cpp.obj
+hud_font.cpp
+[  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/keybinds.cpp.obj
+keybinds.cpp
+[  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/ini_section.cpp.obj
+ini_section.cpp
+[  8%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/entity_overlay.cpp.obj
+entity_overlay.cpp
+?⒁? 包含文件:            C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\stddef.h
+[  9%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[  9%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_material.cpp.obj
+world_material.cpp
+[  9%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_tile_atlas.cpp.obj
+world_tile_atlas.cpp
+[  9%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_material_features.cpp.obj
+world_material_features.cpp
+[  9%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/world_lighting.cpp.obj
+world_lighting.cpp
+[  9%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/texture2d.cpp.obj
+texture2d.cpp
+[ 10%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/settings_store.cpp.obj
+settings_store.cpp
+[ 10%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/item_schema.cpp.obj
+item_schema.cpp
+?⒁? 包含文件:     C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\list
+[ 10%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/native_ui.cpp.obj
+native_ui.cpp
+[ 10%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/camera_director.cpp.obj
+camera_director.cpp
+[ 10%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/camera_bookmarks.cpp.obj
+camera_bookmarks.cpp
+?⒁? 包含文件:            C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\zmmintrin.h
+D:\TF2_Native_Worktrees\t90-identity\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\camera_bookmarks.cpp(121): note: 参见“index”的声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\camera_bookmarks.cpp(175): note: 参见“index”的声明
+[ 10%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/logstf_viewer.cpp.obj
+logstf_viewer.cpp
+[ 10%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/logstf_webview.cpp.obj
+logstf_webview.cpp
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/logstf_panel.cpp.obj
+logstf_panel.cpp
+?⒁? 包含文件:     C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um\fileapifromapp.h
+D:\TF2_Native_Worktrees\t90-identity\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/install_manifest.cpp.obj
+install_manifest.cpp
+D:\TF2_Native_Worktrees\t90-identity\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/install_lifecycle.cpp.obj
+install_lifecycle.cpp
+?⒁? 包含文件:     C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xlocbuf
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/generated/tf2_build_stamp.cpp.obj
+tf2_build_stamp.cpp
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/spectate_target.cpp.obj
+spectate_target.cpp
+D:\TF2_Native_Worktrees\t90-identity\native\src\spectate_target.cpp(309): warning C4127: 条件表达式是常量
+D:\TF2_Native_Worktrees\t90-identity\native\src\spectate_target.cpp(309): note: 考虑改用 "if constexpr" 语句
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/review_workspace.cpp.obj
+review_workspace.cpp
+[ 11%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/review_bookmarks.cpp.obj
+review_bookmarks.cpp
+[ 12%] Building CXX object CMakeFiles/tf2_demo_native.dir/src/review_session.cpp.obj
+review_session.cpp
+[ 12%] Linking CXX executable tf2_demo_native.exe
+Copying WebView2Loader.dll next to tf2_demo_native.exe
+[ 12%] Built target tf2_demo_native
+[ 12%] Building CXX object CMakeFiles/logstf_viewer_probe.dir/tools/logstf_viewer_probe.cpp.obj
+logstf_viewer_probe.cpp
+[ 12%] Building CXX object CMakeFiles/logstf_viewer_probe.dir/src/logstf_viewer.cpp.obj
+logstf_viewer.cpp
+[ 12%] Linking CXX executable logstf_viewer_probe.exe
+[ 12%] Built target logstf_viewer_probe
+[ 12%] Building CXX object CMakeFiles/item_schema_probe.dir/tools/item_schema_probe.cpp.obj
+item_schema_probe.cpp
+[ 12%] Building CXX object CMakeFiles/item_schema_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 12%] Building CXX object CMakeFiles/item_schema_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 12%] Linking CXX executable item_schema_probe.exe
+[ 12%] Built target item_schema_probe
+[ 12%] Building CXX object CMakeFiles/entity_overlay_probe.dir/tools/entity_overlay_probe.cpp.obj
+entity_overlay_probe.cpp
+[ 12%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/entity_overlay.cpp.obj
+entity_overlay.cpp
+[ 12%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 12%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 13%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 13%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 13%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\concurrencysal.h
+[ 13%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 13%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 13%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 13%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 14%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 14%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 14%] Building CXX object CMakeFiles/entity_overlay_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 14%] Building C object CMakeFiles/entity_overlay_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 14%] Linking CXX executable entity_overlay_probe.exe
+[ 14%] Built target entity_overlay_probe
+[ 14%] Building CXX object CMakeFiles/temp_effect_probe.dir/tools/temp_effect_probe.cpp.obj
+temp_effect_probe.cpp
+[ 14%] Building CXX object CMakeFiles/temp_effect_probe.dir/src/effects_timeline.cpp.obj
+effects_timeline.cpp
+[ 14%] Linking CXX executable temp_effect_probe.exe
+[ 14%] Built target temp_effect_probe
+[ 14%] Building CXX object CMakeFiles/temp_entities_fixture_probe.dir/tools/temp_entities_fixture_probe.cpp.obj
+temp_entities_fixture_probe.cpp
+[ 14%] Linking CXX executable temp_entities_fixture_probe.exe
+[ 14%] Built target temp_entities_fixture_probe
+[ 14%] Building CXX object CMakeFiles/demo_open_probe.dir/tools/demo_open_probe.cpp.obj
+demo_open_probe.cpp
+[ 15%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 15%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 15%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+?⒁? 包含文件:           C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\stddef.h
+[ 15%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 15%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 15%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 15%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 16%] Building CXX object CMakeFiles/demo_open_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 16%] Building CXX object CMakeFiles/demo_open_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 16%] Building CXX object CMakeFiles/demo_open_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\cfloat
+[ 16%] Building CXX object CMakeFiles/demo_open_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+?⒁? 包含文件:     C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\istream
+[ 16%] Building C object CMakeFiles/demo_open_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 16%] Building CXX object CMakeFiles/demo_open_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 16%] Building CXX object CMakeFiles/demo_open_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 17%] Linking CXX executable demo_open_probe.exe
+[ 17%] Built target demo_open_probe
+[ 17%] Building CXX object CMakeFiles/pcf_capability_probe.dir/tools/pcf_capability_probe.cpp.obj
+pcf_capability_probe.cpp
+?⒁? 包含文件:            C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_memory.h
+[ 17%] Building CXX object CMakeFiles/pcf_capability_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 17%] Linking CXX executable pcf_capability_probe.exe
+[ 17%] Built target pcf_capability_probe
+[ 17%] Building CXX object CMakeFiles/material_chain_probe.dir/tools/material_chain_probe.cpp.obj
+material_chain_probe.cpp
+[ 17%] Building CXX object CMakeFiles/material_chain_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 17%] Building CXX object CMakeFiles/material_chain_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 17%] Building CXX object CMakeFiles/material_chain_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 17%] Building CXX object CMakeFiles/material_chain_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\exception
+[ 17%] Building C object CMakeFiles/material_chain_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 18%] Linking CXX executable material_chain_probe.exe
+[ 18%] Built target material_chain_probe
+[ 18%] Building CXX object CMakeFiles/resource_reachability_probe.dir/tools/resource_reachability_probe.cpp.obj
+resource_reachability_probe.cpp
+[ 18%] Building CXX object CMakeFiles/resource_reachability_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 19%] Building CXX object CMakeFiles/resource_reachability_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 19%] Building CXX object CMakeFiles/resource_reachability_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 19%] Building CXX object CMakeFiles/resource_reachability_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 19%] Building C object CMakeFiles/resource_reachability_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 19%] Linking CXX executable resource_reachability_probe.exe
+[ 19%] Built target resource_reachability_probe
+[ 19%] Building CXX object CMakeFiles/vpk_query.dir/tools/vpk_query.cpp.obj
+vpk_query.cpp
+[ 19%] Building CXX object CMakeFiles/vpk_query.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 19%] Building C object CMakeFiles/vpk_query.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 19%] Linking CXX executable vpk_query.exe
+[ 19%] Built target vpk_query
+[ 19%] Building CXX object CMakeFiles/vpk_integrity_probe.dir/tools/vpk_integrity_probe.cpp.obj
+vpk_integrity_probe.cpp
+[ 20%] Building CXX object CMakeFiles/vpk_integrity_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 20%] Building CXX object CMakeFiles/vpk_integrity_probe.dir/src/asset_lookup.cpp.obj
+asset_lookup.cpp
+[ 20%] Linking CXX executable vpk_integrity_probe.exe
+[ 20%] Built target vpk_integrity_probe
+[ 20%] Building CXX object CMakeFiles/world_material_probe.dir/tools/world_material_probe.cpp.obj
+world_material_probe.cpp
+[ 21%] Building CXX object CMakeFiles/world_material_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 21%] Building CXX object CMakeFiles/world_material_probe.dir/src/world_material.cpp.obj
+world_material.cpp
+[ 21%] Building CXX object CMakeFiles/world_material_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 21%] Building CXX object CMakeFiles/world_material_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 21%] Building CXX object CMakeFiles/world_material_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 21%] Building C object CMakeFiles/world_material_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 22%] Linking CXX executable world_material_probe.exe
+[ 22%] Built target world_material_probe
+[ 23%] Building CXX object CMakeFiles/world_geometry_probe.dir/tools/world_geometry_probe.cpp.obj
+world_geometry_probe.cpp
+[ 23%] Building CXX object CMakeFiles/world_geometry_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 23%] Building CXX object CMakeFiles/world_geometry_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+?⒁? 包含文件:           C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\stdint.h
+[ 23%] Building CXX object CMakeFiles/world_geometry_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 23%] Building C object CMakeFiles/world_geometry_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 23%] Linking CXX executable world_geometry_probe.exe
+[ 23%] Built target world_geometry_probe
+[ 23%] Building CXX object CMakeFiles/material_coverage_probe.dir/tools/material_coverage_probe.cpp.obj
+material_coverage_probe.cpp
+[ 23%] Building CXX object CMakeFiles/material_coverage_probe.dir/src/world_tile_atlas.cpp.obj
+world_tile_atlas.cpp
+[ 23%] Building CXX object CMakeFiles/material_coverage_probe.dir/src/world_material_features.cpp.obj
+world_material_features.cpp
+[ 23%] Building CXX object CMakeFiles/material_coverage_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 23%] Building CXX object CMakeFiles/material_coverage_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 24%] Building CXX object CMakeFiles/material_coverage_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 24%] Building CXX object CMakeFiles/material_coverage_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+?⒁? 包含文件:              C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\tmmintrin.h
+[ 24%] Building CXX object CMakeFiles/material_coverage_probe.dir/src/world_material.cpp.obj
+world_material.cpp
+[ 24%] Building C object CMakeFiles/material_coverage_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 24%] Linking CXX executable material_coverage_probe.exe
+[ 24%] Built target material_coverage_probe
+[ 24%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/tools/lighting_semantics_probe.cpp.obj
+lighting_semantics_probe.cpp
+[ 25%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/src/world_lighting.cpp.obj
+world_lighting.cpp
+[ 25%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/src/world_material_features.cpp.obj
+world_material_features.cpp
+[ 25%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+?⒁? 包含文件:       C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_terminate.h
+[ 25%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 25%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 25%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 25%] Building CXX object CMakeFiles/lighting_semantics_probe.dir/src/world_material.cpp.obj
+world_material.cpp
+[ 26%] Building C object CMakeFiles/lighting_semantics_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 26%] Linking CXX executable lighting_semantics_probe.exe
+[ 26%] Built target lighting_semantics_probe
+[ 26%] Building CXX object CMakeFiles/world_feature_probe.dir/tools/world_feature_probe.cpp.obj
+world_feature_probe.cpp
+[ 26%] Building CXX object CMakeFiles/world_feature_probe.dir/src/world_lighting.cpp.obj
+world_lighting.cpp
+[ 26%] Building CXX object CMakeFiles/world_feature_probe.dir/src/world_material_features.cpp.obj
+world_material_features.cpp
+[ 26%] Building CXX object CMakeFiles/world_feature_probe.dir/src/world_tile_atlas.cpp.obj
+world_tile_atlas.cpp
+[ 27%] Building CXX object CMakeFiles/world_feature_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 27%] Building CXX object CMakeFiles/world_feature_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 27%] Building CXX object CMakeFiles/world_feature_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 27%] Building CXX object CMakeFiles/world_feature_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 27%] Building CXX object CMakeFiles/world_feature_probe.dir/src/world_material.cpp.obj
+world_material.cpp
+[ 27%] Building C object CMakeFiles/world_feature_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 27%] Linking CXX executable world_feature_probe.exe
+[ 27%] Built target world_feature_probe
+[ 27%] Building CXX object CMakeFiles/terrain_blend_probe.dir/tools/terrain_blend_probe.cpp.obj
+terrain_blend_probe.cpp
+[ 28%] Building CXX object CMakeFiles/terrain_blend_probe.dir/src/bsp_map.cpp.obj
+bsp_map.cpp
+[ 28%] Building CXX object CMakeFiles/terrain_blend_probe.dir/src/world_material.cpp.obj
+world_material.cpp
+[ 28%] Building CXX object CMakeFiles/terrain_blend_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 28%] Building CXX object CMakeFiles/terrain_blend_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 28%] Building CXX object CMakeFiles/terrain_blend_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 28%] Building C object CMakeFiles/terrain_blend_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 29%] Linking CXX executable terrain_blend_probe.exe
+[ 29%] Built target terrain_blend_probe
+[ 30%] Building CXX object CMakeFiles/presentation_probe.dir/tools/presentation_probe.cpp.obj
+presentation_probe.cpp
+[ 30%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 30%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 30%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+?⒁? 包含文件:     D:\TF2_Native_Worktrees\t90-identity\native\include\vpk_archive.h
+[ 30%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 30%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 31%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+?⒁? 包含文件:     C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xkeycheck.h
+?⒁? 包含文件:         C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt.h
+[ 31%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 31%] Building CXX object CMakeFiles/presentation_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 31%] Building CXX object CMakeFiles/presentation_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 31%] Building CXX object CMakeFiles/presentation_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\exception
+[ 31%] Building CXX object CMakeFiles/presentation_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 31%] Building C object CMakeFiles/presentation_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 32%] Linking CXX executable presentation_probe.exe
+[ 32%] Built target presentation_probe
+[ 32%] Building CXX object CMakeFiles/map_lookup_probe.dir/tools/map_lookup_probe.cpp.obj
+map_lookup_probe.cpp
+[ 32%] Building CXX object CMakeFiles/map_lookup_probe.dir/src/map_lookup.cpp.obj
+map_lookup.cpp
+[ 33%] Linking CXX executable map_lookup_probe.exe
+[ 33%] Built target map_lookup_probe
+[ 33%] Building CXX object CMakeFiles/texture_quad_probe.dir/tools/texture_quad_probe.cpp.obj
+texture_quad_probe.cpp
+[ 33%] Building CXX object CMakeFiles/texture_quad_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 33%] Linking CXX executable texture_quad_probe.exe
+[ 33%] Built target texture_quad_probe
+[ 33%] Building CXX object CMakeFiles/model_pose_probe.dir/tools/model_pose_probe.cpp.obj
+model_pose_probe.cpp
+[ 33%] Building CXX object CMakeFiles/model_pose_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 33%] Building CXX object CMakeFiles/model_pose_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 33%] Building CXX object CMakeFiles/model_pose_probe.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[ 33%] Building CXX object CMakeFiles/model_pose_probe.dir/src/animation_clock.cpp.obj
+animation_clock.cpp
+[ 33%] Building CXX object CMakeFiles/model_pose_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 34%] Building CXX object CMakeFiles/model_pose_probe.dir/src/entity_overlay.cpp.obj
+entity_overlay.cpp
+[ 34%] Building CXX object CMakeFiles/model_pose_probe.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 34%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 34%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 34%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 34%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 35%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 35%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+?⒁? 包含文件:         C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_math.h
+[ 35%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+?⒁? 包含文件:            C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xlocinfo
+[ 35%] Building CXX object CMakeFiles/model_pose_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 35%] Building CXX object CMakeFiles/model_pose_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 35%] Building CXX object CMakeFiles/model_pose_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 35%] Building CXX object CMakeFiles/model_pose_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 36%] Building C object CMakeFiles/model_pose_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 36%] Building CXX object CMakeFiles/model_pose_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 36%] Linking CXX executable model_pose_probe.exe
+[ 36%] Built target model_pose_probe
+[ 36%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/tools/viewmodel_range_probe.cpp.obj
+viewmodel_range_probe.cpp
+[ 36%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 36%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 36%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 36%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 37%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+?⒁? 包含文件:              C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\tmmintrin.h
+[ 37%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 37%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 37%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 37%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 37%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 38%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 38%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 38%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 38%] Building C object CMakeFiles/viewmodel_range_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 38%] Building CXX object CMakeFiles/viewmodel_range_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 38%] Linking CXX executable viewmodel_range_probe.exe
+[ 38%] Built target viewmodel_range_probe
+[ 38%] Building CXX object CMakeFiles/model_robustness_probe.dir/tools/model_robustness_probe.cpp.obj
+model_robustness_probe.cpp
+[ 38%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[ 38%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 38%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 39%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 39%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 39%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 39%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 39%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 39%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 39%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 40%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 40%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 40%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 40%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 40%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 40%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 41%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 41%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 41%] Building C object CMakeFiles/model_robustness_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 41%] Building CXX object CMakeFiles/model_robustness_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 41%] Linking CXX executable model_robustness_probe.exe
+[ 41%] Built target model_robustness_probe
+[ 41%] Building CXX object CMakeFiles/entity_model_probe.dir/tools/entity_model_probe.cpp.obj
+entity_model_probe.cpp
+[ 41%] Building CXX object CMakeFiles/entity_model_probe.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 41%] Building CXX object CMakeFiles/entity_model_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+?⒁? 包含文件:      C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\vadefs.h
+[ 41%] Building CXX object CMakeFiles/entity_model_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 42%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 42%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 42%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 42%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 42%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 42%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 42%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 43%] Building CXX object CMakeFiles/entity_model_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 43%] Building CXX object CMakeFiles/entity_model_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xlocbuf
+[ 43%] Building CXX object CMakeFiles/entity_model_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 43%] Building CXX object CMakeFiles/entity_model_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 43%] Building C object CMakeFiles/entity_model_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 43%] Building CXX object CMakeFiles/entity_model_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 44%] Building CXX object CMakeFiles/entity_model_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 44%] Building CXX object CMakeFiles/entity_model_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 44%] Linking CXX executable entity_model_probe.exe
+[ 44%] Built target entity_model_probe
+[ 45%] Building CXX object CMakeFiles/spectate_probe.dir/tools/spectate_probe.cpp.obj
+spectate_probe.cpp
+[ 45%] Building CXX object CMakeFiles/spectate_probe.dir/src/spectate_target.cpp.obj
+spectate_target.cpp
+[ 45%] Building CXX object CMakeFiles/spectate_probe.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 45%] Building CXX object CMakeFiles/spectate_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 45%] Building CXX object CMakeFiles/spectate_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 45%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 45%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 46%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 46%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 46%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 46%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+?⒁? 包含文件:          C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_memcpy_s.h
+[ 46%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 46%] Building CXX object CMakeFiles/spectate_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 47%] Building CXX object CMakeFiles/spectate_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+?⒁? 包含文件:       C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_search.h
+[ 47%] Building CXX object CMakeFiles/spectate_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 47%] Building CXX object CMakeFiles/spectate_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 47%] Building C object CMakeFiles/spectate_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+?⒁? 包含文件:   C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt.h
+[ 47%] Building CXX object CMakeFiles/spectate_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 47%] Building CXX object CMakeFiles/spectate_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 47%] Building CXX object CMakeFiles/spectate_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 48%] Linking CXX executable spectate_probe.exe
+[ 48%] Built target spectate_probe
+[ 48%] Building CXX object CMakeFiles/projectile_track_probe.dir/tools/projectile_track_probe.cpp.obj
+projectile_track_probe.cpp
+[ 48%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/projectile_track.cpp.obj
+projectile_track.cpp
+[ 48%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/projectile_overlay.cpp.obj
+projectile_overlay.cpp
+?⒁? 包含文件:          C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_math.h
+[ 48%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 48%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 48%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 49%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+?⒁? 包含文件:  D:\TF2_Native_Worktrees\t90-identity\native\src\demo_header_internal.h
+[ 49%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 49%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 49%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 49%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 49%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+?⒁? 包含文件:   C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\vector
+[ 49%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 50%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 50%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 50%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um\wincontypes.h
+[ 50%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 50%] Building C object CMakeFiles/projectile_track_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 50%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+?⒁? 包含文件:                  C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\mmintrin.h
+[ 51%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+?⒁? 包含文件:    C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xstring
+[ 51%] Building CXX object CMakeFiles/projectile_track_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 51%] Linking CXX executable projectile_track_probe.exe
+[ 51%] Built target projectile_track_probe
+[ 51%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/tools/viewmodel_fov_probe.cpp.obj
+viewmodel_fov_probe.cpp
+[ 51%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/viewmodel.cpp.obj
+viewmodel.cpp
+?⒁? 包含文件:     C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\filesystem
+[ 51%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[ 52%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 52%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 52%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 52%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 52%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 52%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 53%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 53%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 53%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 53%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 53%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 53%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 53%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 54%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 54%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 54%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 54%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 54%] Building C object CMakeFiles/viewmodel_fov_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 54%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 54%] Building CXX object CMakeFiles/viewmodel_fov_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 55%] Linking CXX executable viewmodel_fov_probe.exe
+[ 55%] Built target viewmodel_fov_probe
+[ 56%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/tools/viewmodel_contract_probe.cpp.obj
+viewmodel_contract_probe.cpp
+[ 56%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/viewmodel.cpp.obj
+viewmodel.cpp
+[ 56%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[ 56%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 56%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 56%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 57%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 57%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 57%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 57%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 57%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 57%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 57%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 58%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 58%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 58%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 58%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 58%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 58%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 58%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 59%] Building C object CMakeFiles/viewmodel_contract_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 59%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 59%] Building CXX object CMakeFiles/viewmodel_contract_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 59%] Linking CXX executable viewmodel_contract_probe.exe
+[ 59%] Built target viewmodel_contract_probe
+[ 59%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/tools/viewmodel_animation_probe.cpp.obj
+viewmodel_animation_probe.cpp
+[ 59%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/viewmodel.cpp.obj
+viewmodel.cpp
+[ 59%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[ 59%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 59%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 60%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 60%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 60%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 60%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+?⒁? 包含文件:      C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xcall_once.h
+[ 60%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+?⒁? 包含文件:         C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\eh.h
+[ 60%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 61%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 61%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 61%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 61%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 61%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 61%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 61%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 62%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+?⒁? 包含文件:    C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\stdint.h
+[ 62%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 62%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 62%] Building C object CMakeFiles/viewmodel_animation_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 62%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+?⒁? 包含文件:            C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\memory
+[ 62%] Building CXX object CMakeFiles/viewmodel_animation_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 62%] Linking CXX executable viewmodel_animation_probe.exe
+[ 62%] Built target viewmodel_animation_probe
+[ 62%] Building CXX object CMakeFiles/weapon_body_probe.dir/tools/weapon_body_probe.cpp.obj
+weapon_body_probe.cpp
+[ 62%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/viewmodel.cpp.obj
+viewmodel.cpp
+[ 62%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 62%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+[ 62%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 63%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/entity_model.cpp.obj
+entity_model.cpp
+[ 63%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 63%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 63%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 63%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 63%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 64%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+?⒁? 包含文件:           C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xlocale
+[ 64%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 64%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 64%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 64%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+?⒁? 包含文件:          C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\cstddef
+[ 64%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 64%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 65%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 65%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 65%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 65%] Building C object CMakeFiles/weapon_body_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 65%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 65%] Building CXX object CMakeFiles/weapon_body_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 65%] Linking CXX executable weapon_body_probe.exe
+[ 65%] Built target weapon_body_probe
+[ 65%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/tools/animation_viewmodel_probe.cpp.obj
+animation_viewmodel_probe.cpp
+[ 65%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 65%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/animation_binding.cpp.obj
+animation_binding.cpp
+?⒁? 包含文件:            C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\smmintrin.h
+[ 65%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/viewmodel.cpp.obj
+viewmodel.cpp
+[ 65%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 65%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 66%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 66%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 66%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 66%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 66%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 66%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 66%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 67%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 67%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 67%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 67%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 67%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 67%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 67%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+?⒁? 包含文件:         C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_wconio.h
+[ 68%] Building C object CMakeFiles/animation_viewmodel_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 68%] Building CXX object CMakeFiles/animation_viewmodel_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 68%] Linking CXX executable animation_viewmodel_probe.exe
+[ 68%] Built target animation_viewmodel_probe
+[ 68%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/tools/skeleton_skin_probe.cpp.obj
+skeleton_skin_probe.cpp
+[ 68%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 68%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 69%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 69%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 69%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 69%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 69%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 69%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 69%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 70%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 70%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 70%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 70%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 70%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 70%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 70%] Building CXX object CMakeFiles/skeleton_skin_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 71%] Building C object CMakeFiles/skeleton_skin_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 71%] Linking CXX executable skeleton_skin_probe.exe
+[ 71%] Built target skeleton_skin_probe
+[ 71%] Building CXX object CMakeFiles/weapon_animation_probe.dir/tools/weapon_animation_probe.cpp.obj
+weapon_animation_probe.cpp
+?⒁? 包含文件:       C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\exception
+[ 71%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/animation_decoder.cpp.obj
+animation_decoder.cpp
+[ 71%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 72%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+?⒁? 包含文件:         C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\corecrt_wconio.h
+[ 72%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 72%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 72%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 72%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 72%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 72%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 73%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 73%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 73%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 73%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 73%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 73%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 73%] Building CXX object CMakeFiles/weapon_animation_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 74%] Building C object CMakeFiles/weapon_animation_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 74%] Linking CXX executable weapon_animation_probe.exe
+[ 74%] Built target weapon_animation_probe
+[ 74%] Building CXX object CMakeFiles/audio_effects_probe.dir/tools/audio_effects_probe.cpp.obj
+audio_effects_probe.cpp
+[ 74%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/audio_player.cpp.obj
+audio_player.cpp
+[ 74%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 75%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared\poppack.h
+[ 75%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/effects_timeline.cpp.obj
+effects_timeline.cpp
+[ 75%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/pcf_operators.cpp.obj
+pcf_operators.cpp
+[ 75%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/playback_hud.cpp.obj
+playback_hud.cpp
+[ 75%] Building CXX object CMakeFiles/audio_effects_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 75%] Building C object CMakeFiles/audio_effects_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 75%] Linking CXX executable audio_effects_probe.exe
+[ 75%] Built target audio_effects_probe
+[ 76%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/tools/audio_scheduler_probe.cpp.obj
+audio_scheduler_probe.cpp
+[ 76%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/src/audio_player.cpp.obj
+audio_player.cpp
+[ 76%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 76%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+?⒁? 包含文件:       C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared\sdv_driverspecs.h
+?⒁? 包含文件:     C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um\winnt.h
+[ 76%] Building CXX object CMakeFiles/audio_scheduler_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 76%] Linking CXX executable audio_scheduler_probe.exe
+[ 76%] Built target audio_scheduler_probe
+[ 76%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/tools/sound_timeline_census_probe.cpp.obj
+sound_timeline_census_probe.cpp
+[ 77%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/audio_player.cpp.obj
+audio_player.cpp
+[ 77%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 77%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 77%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 77%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+?⒁? 包含文件:    C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\algorithm
+?⒁? 包含文件:   C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xcharconv_ryu.h
+[ 77%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 77%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 78%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 78%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 78%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+?⒁? 包含文件:     C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\ctype.h
+[ 78%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+?⒁? 包含文件:           C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xiosbase
+[ 78%] Building CXX object CMakeFiles/sound_timeline_census_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 78%] Building C object CMakeFiles/sound_timeline_census_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 78%] Linking CXX executable sound_timeline_census_probe.exe
+[ 78%] Built target sound_timeline_census_probe
+[ 78%] Building CXX object CMakeFiles/sound_content_map_probe.dir/tools/sound_content_map_probe.cpp.obj
+sound_content_map_probe.cpp
+[ 78%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/audio_player.cpp.obj
+audio_player.cpp
+[ 78%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 78%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 78%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 79%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 79%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+?⒁? 包含文件:     D:\TF2_Native_Worktrees\t90-identity\native\include\vpk_archive.h
+[ 79%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 79%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+?⒁? 包含文件:   C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\vector
+[ 79%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 79%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 80%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 80%] Building CXX object CMakeFiles/sound_content_map_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 80%] Building C object CMakeFiles/sound_content_map_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 80%] Linking CXX executable sound_content_map_probe.exe
+[ 80%] Built target sound_content_map_probe
+[ 80%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/tools/sound_corpus_scan_probe.cpp.obj
+sound_corpus_scan_probe.cpp
+[ 80%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/audio_player.cpp.obj
+audio_player.cpp
+?⒁? 包含文件:            C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\tmmintrin.h
+[ 80%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 81%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 81%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 81%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 81%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 81%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 81%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 81%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 82%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 82%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 82%] Building CXX object CMakeFiles/sound_corpus_scan_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 82%] Building C object CMakeFiles/sound_corpus_scan_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 82%] Linking CXX executable sound_corpus_scan_probe.exe
+[ 82%] Built target sound_corpus_scan_probe
+[ 83%] Building CXX object CMakeFiles/winmm_sink_probe.dir/tools/winmm_sink_probe.cpp.obj
+winmm_sink_probe.cpp
+?⒁? 包含文件:    C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\__msvc_ostream.hpp
+[ 83%] Linking CXX executable winmm_sink_probe.exe
+[ 83%] Built target winmm_sink_probe
+[ 83%] Building CXX object CMakeFiles/native_install_smoke_probe.dir/tools/native_install_smoke_probe.cpp.obj
+native_install_smoke_probe.cpp
+[ 83%] Building CXX object CMakeFiles/native_install_smoke_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 84%] Building CXX object CMakeFiles/native_install_smoke_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 84%] Linking CXX executable native_install_smoke_probe.exe
+[ 84%] Built target native_install_smoke_probe
+[ 84%] Building CXX object CMakeFiles/native_ui_probe.dir/tools/native_ui_probe.cpp.obj
+native_ui_probe.cpp
+[ 84%] Building CXX object CMakeFiles/native_ui_probe.dir/src/native_ui.cpp.obj
+native_ui.cpp
+[ 84%] Building CXX object CMakeFiles/native_ui_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+[ 84%] Building CXX object CMakeFiles/native_ui_probe.dir/src/map_lookup.cpp.obj
+map_lookup.cpp
+[ 84%] Building CXX object CMakeFiles/native_ui_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 85%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 85%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 85%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 85%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+?⒁? 包含文件:        C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\wchar.h
+[ 85%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 85%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 86%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 86%] Building CXX object CMakeFiles/native_ui_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 86%] Building CXX object CMakeFiles/native_ui_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 86%] Building CXX object CMakeFiles/native_ui_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 86%] Building C object CMakeFiles/native_ui_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 86%] Building CXX object CMakeFiles/native_ui_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 86%] Building CXX object CMakeFiles/native_ui_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 87%] Linking CXX executable native_ui_probe.exe
+[ 87%] Built target native_ui_probe
+[ 87%] Building CXX object CMakeFiles/playback_control_probe.dir/tools/playback_control_probe.cpp.obj
+playback_control_probe.cpp
+?⒁? 包含文件:    C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\intrin0.inl.h
+[ 87%] Building CXX object CMakeFiles/playback_control_probe.dir/src/playback_control.cpp.obj
+playback_control.cpp
+[ 87%] Linking CXX executable playback_control_probe.exe
+[ 87%] Built target playback_control_probe
+[ 87%] Building CXX object CMakeFiles/camera_probe.dir/tools/camera_probe.cpp.obj
+camera_probe.cpp
+?⒁? 包含文件:      C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xmemory
+[ 88%] Building CXX object CMakeFiles/camera_probe.dir/src/camera_director.cpp.obj
+camera_director.cpp
+[ 88%] Building CXX object CMakeFiles/camera_probe.dir/src/camera_bookmarks.cpp.obj
+camera_bookmarks.cpp
+[ 88%] Building CXX object CMakeFiles/camera_probe.dir/src/keybinds.cpp.obj
+keybinds.cpp
+[ 88%] Building CXX object CMakeFiles/camera_probe.dir/src/ini_section.cpp.obj
+ini_section.cpp
+[ 88%] Linking CXX executable camera_probe.exe
+[ 88%] Built target camera_probe
+[ 88%] Building CXX object CMakeFiles/entity_protocol_probe.dir/tools/entity_protocol_probe.cpp.obj
+entity_protocol_probe.cpp
+[ 88%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 89%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 89%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+?⒁? 包含文件:        C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\__msvc_threads_core.hpp
+[ 89%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+?⒁? 包含文件:  C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\unordered_set
+[ 89%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 89%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 89%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 90%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 90%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 90%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 90%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 90%] Building C object CMakeFiles/entity_protocol_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 90%] Building CXX object CMakeFiles/entity_protocol_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 90%] Linking CXX executable entity_protocol_probe.exe
+[ 90%] Built target entity_protocol_probe
+[ 90%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/tools/entity_message_fixture_probe.cpp.obj
+entity_message_fixture_probe.cpp
+[ 90%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 90%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 90%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 90%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 90%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+?⒁? 包含文件:     C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xloctime
+[ 91%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 91%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 91%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 91%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 91%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+?⒁? 包含文件:      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared\pshpack4.h
+?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um\ioapiset.h
+[ 91%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 92%] Building C object CMakeFiles/entity_message_fixture_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 92%] Building CXX object CMakeFiles/entity_message_fixture_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 92%] Linking CXX executable entity_message_fixture_probe.exe
+[ 92%] Built target entity_message_fixture_probe
+[ 92%] Building CXX object CMakeFiles/quiet_capture_probe.dir/tools/quiet_capture_probe.cpp.obj
+quiet_capture_probe.cpp
+[ 92%] Linking CXX executable quiet_capture_probe.exe
+[ 92%] Built target quiet_capture_probe
+[ 92%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/tools/viewmodel_material_probe.cpp.obj
+viewmodel_material_probe.cpp
+[ 92%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/model_loader.cpp.obj
+model_loader.cpp
+[ 92%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/asset_root.cpp.obj
+asset_root.cpp
+?⒁? 包含文件:           C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt\string.h
+[ 92%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/vmt_material.cpp.obj
+vmt_material.cpp
+[ 92%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/vtf_texture.cpp.obj
+vtf_texture.cpp
+[ 93%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/viewmodel_material.cpp.obj
+viewmodel_material.cpp
+[ 93%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header.cpp.obj
+demo_header.cpp
+[ 93%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header_core.cpp.obj
+demo_header_core.cpp
+[ 93%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header_net.cpp.obj
+demo_header_net.cpp
+[ 93%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header_entity.cpp.obj
+demo_header_entity.cpp
+[ 93%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header_strtab.cpp.obj
+demo_header_strtab.cpp
+[ 93%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header_sound.cpp.obj
+demo_header_sound.cpp
+[ 94%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header_events.cpp.obj
+demo_header_events.cpp
+[ 94%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/demo_header_track.cpp.obj
+demo_header_track.cpp
+[ 94%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/audio_timeline.cpp.obj
+audio_timeline.cpp
+[ 94%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/audio_resource.cpp.obj
+audio_resource.cpp
+[ 94%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+?⒁? 包含文件:          C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\vcruntime_new.h
+[ 94%] Building C object CMakeFiles/viewmodel_material_probe.dir/third_party/lzma/LzmaDec.c.obj
+LzmaDec.c
+[ 94%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/item_schema.cpp.obj
+item_schema.cpp
+[ 95%] Building CXX object CMakeFiles/viewmodel_material_probe.dir/src/proto_wire.cpp.obj
+proto_wire.cpp
+[ 95%] Linking CXX executable viewmodel_material_probe.exe
+[ 95%] Built target viewmodel_material_probe
+[ 96%] Building CXX object CMakeFiles/hud_probe.dir/tools/hud_probe.cpp.obj
+hud_probe.cpp
+[ 96%] Building CXX object CMakeFiles/hud_probe.dir/src/hud_import.cpp.obj
+hud_import.cpp
+[ 96%] Linking CXX executable hud_probe.exe
+[ 96%] Built target hud_probe
+[ 96%] Building CXX object CMakeFiles/install_cli_probe.dir/tools/install_cli_probe.cpp.obj
+install_cli_probe.cpp
+[ 96%] Building CXX object CMakeFiles/install_cli_probe.dir/src/install_lifecycle.cpp.obj
+install_lifecycle.cpp
+?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared\tvout.h
+[ 96%] Building CXX object CMakeFiles/install_cli_probe.dir/src/install_manifest.cpp.obj
+install_manifest.cpp
+[ 96%] Building CXX object CMakeFiles/install_cli_probe.dir/generated/tf2_build_stamp.cpp.obj
+tf2_build_stamp.cpp
+[ 97%] Linking CXX executable install_cli_probe.exe
+[ 97%] Built target install_cli_probe
+[ 98%] Building CXX object CMakeFiles/vpk_readiness_probe.dir/tools/vpk_readiness_probe.cpp.obj
+vpk_readiness_probe.cpp
+?⒁? 包含文件:    C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared\poppack.h
+[ 98%] Building CXX object CMakeFiles/vpk_readiness_probe.dir/src/vpk_archive.cpp.obj
+vpk_archive.cpp
+[ 98%] Linking CXX executable vpk_readiness_probe.exe
+[ 98%] Built target vpk_readiness_probe
+[ 98%] Building CXX object CMakeFiles/minimap_probe.dir/tools/minimap_probe.cpp.obj
+minimap_probe.cpp
+[ 98%] Building CXX object CMakeFiles/minimap_probe.dir/src/minimap.cpp.obj
+minimap.cpp
+[ 99%] Linking CXX executable minimap_probe.exe
+[ 99%] Built target minimap_probe
+[ 99%] Building CXX object CMakeFiles/review_workspace_probe.dir/tools/review_workspace_probe.cpp.obj
+review_workspace_probe.cpp
+[ 99%] Building CXX object CMakeFiles/review_workspace_probe.dir/src/review_workspace.cpp.obj
+review_workspace.cpp
+?⒁? 包含文件:   C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xtree
+[100%] Building CXX object CMakeFiles/review_workspace_probe.dir/src/review_bookmarks.cpp.obj
+review_bookmarks.cpp
+[100%] Building CXX object CMakeFiles/review_workspace_probe.dir/src/install_manifest.cpp.obj
+install_manifest.cpp
+D:\TF2_Native_Worktrees\t90-identity\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+[100%] Linking CXX executable review_workspace_probe.exe
+[100%] Built target review_workspace_probe
+=== summary ===
+cmake_build_rc=0
+errors=0
+warnings=22
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2587): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2588): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2589): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2590): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(2591): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(9824): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Worktrees\t90-identity\native\src\main.cpp(10050): warning C4456: “elapsed”的声明隐藏了上一个本地声明
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer.cpp(693): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_overlay.cpp(142): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_overlay.cpp(400): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(390): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(391): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(698): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\native_renderer_viewmodel.cpp(868): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\model_loader.cpp(536): warning C4456: “i”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t90-identity\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t90-identity\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+D:\TF2_Native_Worktrees\t90-identity\native\src\spectate_target.cpp(309): warning C4127: 条件表达式是常量
+D:\TF2_Native_Worktrees\t90-identity\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+exe_count=53

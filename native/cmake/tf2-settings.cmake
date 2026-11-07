@@ -18,6 +18,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_WIN32_EXECUTABLE ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
+# T90 (2026-11-07): every binary this tree links must be a function of its
+# inputs, not of when nmake happened to run. Without this, two builds of one
+# source tree differ in the COFF TimeDateStamp and the embedded debug records,
+# which is how "exe sha256" came to be mistaken for an identity: three builds of
+# the same tree measured three different hashes, and the PE header timestamp
+# moved by 14 s between two of them. /Brepro is the documented MSVC switch on
+# BOTH sides (cl and link); the NMake generator adds it to neither on its own.
+# Measured by build-identity-check.sh --reproducible, which builds the whole tree
+# cleanly twice and compares bytes -- the flag is not taken on faith.
+if (MSVC)
+  add_compile_options(/Brepro)
+  add_link_options(/Brepro)
+endif()
+
 # T9 (2026-10-16): build-graph repair, no behaviour change.
 #
 # The audio layer moved buildSoundTimeline into demo_header.cpp, where it calls
