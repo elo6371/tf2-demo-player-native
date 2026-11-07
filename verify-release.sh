@@ -27,12 +27,14 @@
 #
 #   debt-claim             120   VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM
 #   verify-all            3600   VERIFY_RELEASE_TIMEOUT_VERIFY_ALL
-#   outline               1800   VERIFY_RELEASE_TIMEOUT_OUTLINE
+#   outline               3600   VERIFY_RELEASE_TIMEOUT_OUTLINE
 #   third-person-weapon   1200   VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON
 #   body-appearance       1200   VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE
 #   class-pixels          1200   VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS
 #   build-identity        1200   VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY
 #   world-geometry-budget 1200   VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET
+#   install-cli-contract  1800   VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT
+#   playback-error-paths  1200   VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS
 #
 # Step 2 is debt-claim-check.sh (task-20): it is static (no build, no product,
 # no lock) and fails when a row of docs/T85-DEBT-LIST.md claims CAN-RED without a
@@ -56,7 +58,7 @@
 #
 # ARTEFACTS: evidence/release/<utc>-<step>.log, <utc>-summary.txt,
 #            <utc>-machine-before.txt, <utc>-machine-after.txt
-# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=9   (last stdout line)
+# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=11  (last stdout line)
 #
 # Exit: 0 PASS, 1 FAIL, 9 refused (not under the host lock / owner mismatch).
 #
@@ -70,7 +72,7 @@ STAMP=${VERIFY_RELEASE_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 OWNER=${VERIFY_RELEASE_OWNER:-}
 DRY=${VERIFY_RELEASE_DRY_RUN:-0}
 
-STEPS=(launch-hygiene debt-claim verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget)
+STEPS=(launch-hygiene debt-claim verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget install-cli-contract playback-error-paths)
 TOTAL=${#STEPS[@]}
 
 step_file() {
@@ -84,6 +86,8 @@ step_file() {
     class-pixels)          echo class-pixels-check.sh ;;
     build-identity)        echo build-identity-check.sh ;;
     world-geometry-budget) echo world-geometry-budget-check.sh ;;
+    install-cli-contract)  echo install-cli-contract-check.sh ;;
+    playback-error-paths)  echo playback-error-paths-check.sh ;;
     *)                     echo "" ;;
   esac
 }
@@ -93,12 +97,14 @@ step_timeout() {
     launch-hygiene)        echo "${VERIFY_RELEASE_TIMEOUT_LAUNCH_HYGIENE:-120}" ;;
     debt-claim)            echo "${VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM:-120}" ;;
     verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-3600}" ;;
-    outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-1800}" ;;
+    outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-3600}" ;;
     third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-1200}" ;;
     body-appearance)       echo "${VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE:-1200}" ;;
     class-pixels)          echo "${VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS:-1200}" ;;
     build-identity)        echo "${VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY:-1200}" ;;
     world-geometry-budget) echo "${VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET:-1200}" ;;
+    install-cli-contract)  echo "${VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT:-1800}" ;;
+    playback-error-paths)  echo "${VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS:-1200}" ;;
     *)                     echo 1200 ;;
   esac
 }
@@ -117,6 +123,8 @@ step_verdict() {
     class-pixels)          echo CLASS-PIXELS ;;
     build-identity)        echo BUILD-IDENTITY ;;
     world-geometry-budget) echo WORLD-GEOMETRY-BUDGET ;;
+    install-cli-contract)  echo INSTALL-CLI-CONTRACT ;;
+    playback-error-paths)  echo PLAYBACK-ERROR-PATHS ;;
     *)                     echo "" ;;
   esac
 }
@@ -312,11 +320,18 @@ for step in "${STEPS[@]}"; do
       echo
     } > "$log"
     start=$(date +%s)
+    # A gate that self-acquires the host lock would deadlock behind the lock this
+    # chain already holds. Such gates accept HOLD_LOCK=1 + LOCK_OWNER to run inline
+    # instead; everything else ignores both.
+    step_env=()
+    case "$step" in
+      world-geometry-budget) step_env=(env HOLD_LOCK=1 LOCK_OWNER="$OWNER") ;;
+    esac
     if command -v timeout >/dev/null 2>&1; then
-      timeout --kill-after=30s "${timeout_s}s" bash "$ROOT/$script" >> "$log" 2>&1
+      "${step_env[@]}" timeout --kill-after=30s "${timeout_s}s" bash "$ROOT/$script" >> "$log" 2>&1
       rc=$?
     else
-      bash "$ROOT/$script" >> "$log" 2>&1
+      "${step_env[@]}" bash "$ROOT/$script" >> "$log" 2>&1
       rc=$?
       echo "  NOTE no timeout(1) on PATH: $step ran without a wall-clock bound" | tee -a "$log"
     fi

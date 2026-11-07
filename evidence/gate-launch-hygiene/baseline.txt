@@ -12,14 +12,10 @@ lighting-dark-account-check.sh|--settings-file
 lighting-dark-account-check.sh|--ui-settings-file
 lighting-semantics-check.sh|--ui-settings-file
 logstf-check.sh|--ui-settings-file
-map-geometry-lighting-check.sh|--settings-file
-map-geometry-lighting-check.sh|--ui-settings-file
 map-material-matrix.sh|--settings-file
 map-material-matrix.sh|--ui-settings-file
 outline-check.sh|--settings-file
 outline-check.sh|--ui-settings-file
-player-body-appearance-check.sh|shared --settings-file
-player-body-appearance-check.sh|shared --ui-settings-file
 probe_attach.sh|shared --settings-file
 probe_attach.sh|shared --ui-settings-file
 quality-audit-check.sh|--settings-file
@@ -32,8 +28,6 @@ t21-capture.sh|--settings-file
 t21-capture.sh|--ui-settings-file
 terrain-blend-check.sh|--settings-file
 terrain-blend-check.sh|--ui-settings-file
-third-person-weapon-check.sh|shared --settings-file
-third-person-weapon-check.sh|shared --ui-settings-file
 verify-audio-content.sh|--settings-file
 verify-audio-content.sh|--ui-settings-file
 verify-audio.sh|--settings-file

@@ -43,8 +43,14 @@ SPEED=32
 TICK=30001
 # Copies, not the tracked originals: the product rewrites recentDemo0..7 in the
 # --ui-settings-file on exit (native_ui.cpp:356 rememberDemo -> :137 persist).
-SETTINGS="evidence/t85/inputs/upward-settings.json"
-UI="evidence/t85/inputs/upward-ui.json"
+# D-22: the machine must not be able to tell this gate ran. Both files live in a
+# throwaway directory, never in evidence/ (a tracked/oracle path -- the launch-hygiene
+# gate fails a launch that points its configuration at one).
+ISO_DIR=${T85_ATTACH_ISO_DIR:-$(mktemp -d)}
+SETTINGS="$ISO_DIR/settings.ini"
+UI="$ISO_DIR/ui.ini"
+: > "$SETTINGS"
+: > "$UI"
 # TICK DOMAIN, stated because it is easy to over-claim: --capture-tick is NOT a seek
 # (main.cpp:9015-9019 clamps the cursor back after playback passes the tick). Every
 # "supplied" line below is a PLAYBACK-domain event -- the model was built when the

@@ -68,7 +68,7 @@
 | 8.5-2 | 每职业每槽位库存武器（主/副/近战）覆盖表；**不能以每职业一种武器代表所有槽位** | 无覆盖 | 现状：Spy 持 `c_knife`（`RUNS §26.6`），其余职业各一把 | 没有槽位轴；没有覆盖表 → N09 | CANNOT-RED 槽位轴无实现也无门禁（N09）  |
 | 8.5-3 | 有动画序列就用，否则记录资源事实与回退；**不以人物身体动画 PASS 代替武器动画 PASS** | 部分覆盖 | `weapon-animation-check.sh:1122`（GPU 蒙皮/光标+姿势随 tick 前进/矩阵序变异）；`T85-SUPPORT-SCOPE.md` §5 明确"身体 PASS ≠ 武器动画 PASS" | 第三人称武器**序列**是否被使用未登记；"资源事实与回退"没有逐武器记录 | CAN-RED gate:weapon-animation-check.sh#WEAPON-ANIMATION=PASS  |
 | 8.5-4 | 第一人称 ViewModel 手臂/武器 idle/move/fire/reload/switch/jump；**opt-in 与默认分开记录，默认不能因加门禁而改变** | 部分覆盖 | `viewmodel-apply-check.sh:818`（33 断言，opt-in）；`viewmodel-contract-check.sh`（127 断言）；`viewmodel-animation-check.sh:1169`；默认 `main.cpp:2117`（false，未变） | fire/reload/switch/jump 的 **ViewModel 动作**都没有门禁；只有 applied pose 一条路径 | CAN-RED gate:viewmodel-apply-check.sh#VIEWMODEL-APPLY=PASS  |
-| 8.5-5 | 身体+武器同帧挂接；越界/缺模型给明确原因；预算不得为了非目标预载牺牲可见目标 | 部分覆盖 | `T62-REPORT.md:10`（supply=23 refused=3，`0x8007000E` 具名拒绝）；`outline-check.sh:1840-1857`；`main.cpp:3695/:3730` | 预算"非目标预载挤占可见目标"的**优先级断言**没有；三把 OOM 武器是 task-1 的 P0（未修） | CAN-RED-UNANCHORED 预算拒绝只有证据读数与 outline 历史段，无专门断言  |
+| 8.5-5 | 身体+武器同帧挂接；越界/缺模型给明确原因；预算不得为了非目标预载牺牲可见目标 | 部分覆盖 | `T62-REPORT.md:10`（supply=23 refused=3，`0x8007000E` 具名拒绝）；`outline-check.sh:1840-1857`；`main.cpp:3695/:3730` | 预算"非目标预载挤占可见目标"的**优先级断言**没有；三把 OOM 武器是 task-1 的 P0（未修） | CAN-RED gate:attach-weapon-budget-check.sh#ATTACH-WEAPON-BUDGET=PASS  |
 
 ## 6. §8.6 音频 / HUD / 相机 / UI / 安装流（6 条）
 

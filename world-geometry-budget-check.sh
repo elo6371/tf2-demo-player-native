@@ -92,7 +92,7 @@ PROBE_HUGE=4000000
 SHRINK="200000 100000"
 MAPS="cp_snakewater_final1 cp_sunshine koth_bagel_rc12 koth_bagel_rc11"
 READING_MAPS="pl_odyssey"
-LOCK_OWNER=t88-budget
+LOCK_OWNER=${LOCK_OWNER:-t88-budget}
 
 ONLY=""
 REPIN=0
