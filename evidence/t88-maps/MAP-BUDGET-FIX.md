@@ -117,7 +117,8 @@ different input (H1 checks that the real profile did not move).
 a *named* assertion -- not merely red:
 
 - capacity-shrink: main.cpp kWorldTriangleCapacity 400000 -> 200000, expected
-  red at "B2 ... dropped=".
+  red at "B2 ... capacity=200000" (the capacity pin fires before the dropped
+  reading; expecting "dropped=" called a correct red the wrong red).
 - illusionary-whitelist: bsp_map.cpp world whitelist loses func_illusionary,
   expected red at "B4 ... facesDrawn=".
 
@@ -126,14 +127,40 @@ and sha256, rebuilt, and the gate must be green again. A mutation whose patch
 does not match exactly once exits 3 with PATTERN NOT FOUND instead of silently
 testing nothing (docs/GATE-DESIGN-TRAPS.md trap 5).
 
-**NOT RUN on this branch -- deferred to the merge window.** The script and the two
-patch patterns are in place and syntax-checked (bash -n), but no mutation was
-applied to this tree, so there is no red/green pair to quote. Run it with the
-command in section 9 (b). Expected: WORLD-GEOMETRY-BUDGET-MUTATION=PASS, with
-capacity-shrink red at "B2 cp_snakewater_final1: dropped=" and
-illusionary-whitelist red at "B4 cp_snakewater_final1: facesDrawn=". Until that
-run exists the mutation proof is a design, not a measurement -- it is not evidence
-that the assertions fire on the degradations they name.
+**RUN on this branch: WORLD-GEOMETRY-BUDGET-MUTATION=PASS**
+(evidence/t88-maps/mutation-window-20261107-174856.log, 17:48:55-17:52:11, 196 s
+inside the held lock, product rebuilt twice per mutation):
+
+    mutation capacity-shrink: gate red at the named assertion --
+      FAIL B2 cp_snakewater_final1: capacity=200000, expected 400000
+    mutation capacity-shrink: main.cpp restored byte-identical (sha256 9914fa02...)
+    mutation capacity-shrink: gate green again after restore
+    mutation illusionary-whitelist: gate red at the named assertion --
+      FAIL B4 cp_snakewater_final1: facesDrawn=354, pin=3246
+    mutation illusionary-whitelist: bsp_map.cpp restored byte-identical (sha256 363d2dc7...)
+    mutation illusionary-whitelist: gate green again after restore
+
+The 354 is arithmetic, not a coincidence: 3,246 pinned drawn faces minus the
+2,892 func_illusionary faces the rollback deletes. So both degradations are
+caught by the assertion that names them, and neither mutation stays in the tree
+(git diff --stat on the two files is empty at the end of the window).
+
+The first execution of this mode (mutation-window-20261107-174521.log) FAILED on
+two gate bugs that only a real run could reveal, and both are fixed here:
+
+1. The whitelist anchor spans two source lines, and native/src/*.cpp are CRLF.
+   The pattern was a literal-LF string, so edit_source counted 0 occurrences and
+   the mutation reported "could not apply the mutation" -- a correct gate reading
+   as broken. Patterns are now $'...' with an explicit \r\n (50662d1).
+2. The pin row starts with the map name (map capacity requested dropped
+   facesDrawn facesSkipped worldFaces brushFaces) but was read into seven words,
+   shifting every field: B3 compared requested=242361 against pin=400000 and B4
+   compared facesDrawn=3246 against pin=0, so a correctly restored build read as
+   red. Fixed by consuming the name (223ec8a).
+
+Both are recorded rather than quietly repaired because they are the failure mode
+this doc warns about: a mutation window that cannot produce a red/green pair is
+indistinguishable from a gate that does not fire.
 
 ## 6. Pixel attribution
 
@@ -158,12 +185,19 @@ the same scene with one extra changed pixel on an already drawn face reads
 outside=1 and exits 1 with "FAIL 1 changed pixels belong to faces that were already
 drawn". So the containment assertion is not one that can only pass.
 
-**NOT RUN on this branch -- deferred to the merge window.** No attribution frame
-was captured from this tree (evidence/t88-maps/pixels/ is empty) and no pixel
-baseline was re-pinned: the T62 pins in evidence/t62-map-matrix/ are untouched by
-this commit. What exists is the tool and its negative case (above). Run it with
-the command in section 9 (c). Expected: WORLD-GEOMETRY-PIXELS=PASS plus one
-"reading <map>: changed=... outside=0" line per map.
+**NOT RUN: attempted and cancelled, no frame exists.** --pixel-attr was started
+at 17:53:xx on cp_snakewater_final1, but the t91 integration chain took the lock
+first and this run's ticket queued behind it (hostlock status: owner=t91-integration,
+queue=...-t88-budget-308447). Rather than queue a rebuild chain behind a lease
+that owns the machine for the evening, the job was killed and the ticket removed
+at 17:54; the lock was left to the chain. So evidence/t88-maps/pixels/ is empty,
+no attribution frame was captured from this tree, and no pixel baseline was
+re-pinned: the T62 pins in evidence/t62-map-matrix/ are untouched by this commit.
+What exists is the tool and its negative case (above). Run it with the command in
+section 9 (c) -- one map is enough to be evidence, four maps take roughly four
+times as long because the mode rebuilds twice and captures four frames per map.
+Expected: WORLD-GEOMETRY-PIXELS=PASS plus one "reading <map>: changed=...
+outside=0" line per map.
 
 ## 7. Cost
 
