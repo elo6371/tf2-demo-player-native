@@ -105,14 +105,15 @@
 | N23 | 世界通路 `$translucent`/`$alphatest` 生效 | **解析但不生效、无计数**：`native/src/vmt_material.cpp:266-267` 解析；世界 PS（`native/src/native_renderer_shaders.cpp:110-262`）无 discard、无 alpha test 分支；`main.cpp` 世界段 0 个计数器 → 这些面被当不透明画且无 trace 记录 | 同上 N22（顺延为 N23）；`T85-STATUS.md` §3 第 3 条 |
 | N24 | 光照 HDR 削顶有数值 pin（N07 的子项） | **无 pin**：解码真值在 `native/src/bsp_map.cpp:97-110`（`writeLuxel`）；实测每个 luxel 进 8bit atlas 被钉 255 的占比 snakewater 9.34%、sunshine 16.90%、bagel 8.22%/8.23% | 同上 N23（顺延为 N24）；`probe-runs/hdr-stats.txt` |
 | N25 | 地图侧 `func_lod` 距离剔除（N04 的子项） | **无**：`func_lod` 在静态白名单里（`bsp_map.cpp:319-321`）→ 当常驻 brush 画；四图 0/4/53/53 个 | 同上 N24（顺延为 N25） |
-| N26 | 门禁/整链不改写用户真实配置（`settings.ini` / `ui.ini`） | **单门禁无断言，整链有守卫**：51 个非 lifecycle 启动者里 **29 个**缺 `--settings-file`、**42 个**缺 `--ui-settings-file`（task-16 逐文件实测，清单见 DEBT D-22）；产品退出必写 `settings.ini`（`native/src/main.cpp:11613-11616`、`:11627-11629`），每个 `--demo` 启动必写 `ui.ini`（`native_ui.cpp:196-197` → `:128-143`）。`verify-release.sh` 的 machine guard 在整链层判 `MACHINE-MUTATED=FAIL`，**没有任何单门禁**断言自己没改用户配置 | task-16；`docs/T85-DEBT-LIST.md` D-22；`verify-release.sh` machine guard |
+| N26 | 门禁/整链不改写用户真实配置（`settings.ini` / `ui.ini`） | **静态棘轮已接管“不许变坏”，“确实没改写”仍只有整链守卫**：`gate-launch-hygiene-check.sh`（task-18）枚举命令位启动点，断言违规集合 == `evidence/gate-launch-hygiene/baseline.txt`；权威读数 launchers=51、sites=78、violations=**85 行 / 43 脚本**（32 缺 `--settings-file` + 42 缺 `--ui-settings-file` + 6 shared settings + 5 shared ui）、warnings=23、lifecycle 豁免 1；产品退出必写 `settings.ini`（`native/src/main.cpp:11613-11616`、`:11627-11629`），每个 `--demo` 启动必写 `ui.ini`（`native_ui.cpp:196-197` → `:128-143`）。`verify-release.sh` 的 machine guard 在整链层判 `MACHINE-MUTATED=FAIL`，**没有任何单门禁**断言自己没改用户配置（棘轮只冻结集合，不证明没写） | task-16/task-18；`docs/T85-DEBT-LIST.md` D-22；`gate-launch-hygiene-check.sh`；`verify-release.sh` machine guard |
+| N27 | 启动卫生棘轮的**覆盖盲区** | 棘轮只认静态可见的“命令位产品调用”（direct / array-exec / array-def）。以下**都不可见、无任何断言**：python heredoc 内 `subprocess` 启动、PowerShell `.ps1` 启动、函数包装器（如 `run_exe`）转发、"$@" 转发、.cmd/.bat 启动器、以及 `bash -c` 字符串里的启动。本次 101 脚本扫描里 wrapped 站点全部落在 lifecycle 脚本、非 lifecycle 侧未见——但**这是抽样结论，不是棘轮保证**：新增包装器写法可绕过棘轮而不变红 | task-18；`gate-launch-hygiene-check.sh` 头注“模型边界”段；`evidence/gate-launch-hygiene/baseline.txt` |
 
 > 编号口径：map-auditor 原稿把雾/illusionary/props/世界 alpha/HDR/func_lod 编为 N19–N24；主账本 N19 已被"官方四图角色轴外推"占用，故整体 **+1 → N20–N25**，顺序不变。HDR 与 func_lod 审计建议分别并入 N07/N04，主账本**保留独立编号**以免丢掉量化数字（削顶占比、0/4/53/53）。
 
 ## 8. 覆盖统计（据本表）
 
 - 有门禁可引用的支持声明：**C01–C29 共 29 条**；其中等级 A 8 条（C01/C05/C08/C09/C14/C15/C18/C26）、B 19 条、C 2 条（C02 为探针计数、C07 为矩阵读数，均无门禁断言）。
-- 明确无门禁的声明：**N01–N26 共 26 条**（N17/N18 是 task-6 复核 workflow-auditor 结论后新增的"产品内无通路"两条；N19 是 task-6 按地图夹具覆盖度新增的外推闸；N20–N25 是 task-15 接收地图审计的六条，编号已按上表顺延；N26 是 task-16 新增的"门禁不改写用户真实配置"，只有整链守卫、单门禁零断言）。
+- 明确无门禁的声明：**N01–N27 共 27 条**（N17/N18 是 task-6 复核 workflow-auditor 结论后新增的"产品内无通路"两条；N19 是 task-6 按地图夹具覆盖度新增的外推闸；N20–N25 是 task-15 接收地图审计的六条，编号已按上表顺延；N26 是 task-16 新增的"门禁不改写用户真实配置"，task-18 后用静态棘轮接管"set 不变坏"、整链 machine guard 仍负责"确实没写"；N27 是 task-18 新增的棘轮盲区（python/PS/包装器/转发启动不可见））。
 - 关键结构性事实：**"45/45 PASS"是矩阵读数的合成**——45 格里只有 18 格绑定了具名渲染实体（`CHARACTER-MATRIX.md:375`），其余靠静态/结构断言与文档推理。引用 45/45 时必须同时引这一条，否则就是外推。
 
 ## 9. 复核用的哈希与命令（只读）
@@ -130,11 +131,11 @@ sha256sum evidence/t62-matrix/CHARACTER-MATRIX.md   # 81028863238a7bb5c1f000f193
 sha256sum evidence/t62-matrix/MAP-MATRIX.md         # 1caa6829d8bd2b207d357f753bce65bdd74b3aec1ed8cd43c63a7469d5ceba17
 sha256sum evidence/t62-matrix/T62-REPORT.md         # a4d52b530b1492dcd5dd8b482d106b60401f7017dee0488d0f5e9da5e3d217e4
 sha256sum evidence/t62-matrix/RUNS-2026-11-04.md    # b5d4e100316d32c3eaa401c5dd3e5e4dd7c13a39d4402c8bb18742ef0bc8e1d5
-sha256sum docs/RELEASE-POLICY.md                    # 15668e85b7d176c43f9d455d66910be7278a1aecc1fae429b356b14f7835131c
+sha256sum docs/RELEASE-POLICY.md                    # fefca411291c9f0f108ab0e8d755d4683c1a765ed8a0bf5765a9cf34998e7f83
 sha256sum docs/KNOWN-ISSUES-AND-FIXES.md            # 2e6413737601e75c90cd79449fb718c8ee00f12ec25ccfe3b8ee452b859d8cb9
 ```
 
-> **哈希口径（2026-11-07 task-6 校正，task-15 续）**：上表一律是**工作树字节**的 sha256（这些文档在工作树里是 CRLF；`git show HEAD:…` 得到的是 LF blob，值不同）。task-6 重算后的变化：`CHARACTER-MATRIX.md` 与 `T62-REPORT.md` 因加"取代注"而变（cb5bfcd 时记录为 `6fa7df9f…` / `653b4952…`，均已作废）；`MAP-MATRIX.md` 在 cb5bfcd 记录为 `7fa92339…` 是 **git blob（LF）值**，与工作树字节 `1caa6829…` 不同，此前记录口径不一致，此处按工作树值改正。`RUNS-2026-11-04.md`/`KNOWN-ISSUES-AND-FIXES.md` 本次复核未变。**`RELEASE-POLICY.md` 于 task-15 插入整链条目后重算**（旧值 `c1fdb929…` 作废；插入的条目是 "The rule" 第 2 条，原第 2–5 条顺延为 3–6，见文件内编号注）。**task-16 又扩展了第 2 条**（机器隔离要求 + 第 7 步），task-15 记录的值 `f647fea9…` 作废，现值为上表 `15668e85…`。
+> **哈希口径（2026-11-07 task-6 校正，task-15 续）**：上表一律是**工作树字节**的 sha256（这些文档在工作树里是 CRLF；`git show HEAD:…` 得到的是 LF blob，值不同）。task-6 重算后的变化：`CHARACTER-MATRIX.md` 与 `T62-REPORT.md` 因加"取代注"而变（cb5bfcd 时记录为 `6fa7df9f…` / `653b4952…`，均已作废）；`MAP-MATRIX.md` 在 cb5bfcd 记录为 `7fa92339…` 是 **git blob（LF）值**，与工作树字节 `1caa6829…` 不同，此前记录口径不一致，此处按工作树值改正。`RUNS-2026-11-04.md`/`KNOWN-ISSUES-AND-FIXES.md` 本次复核未变。**`RELEASE-POLICY.md` 于 task-15 插入整链条目后重算**（旧值 `c1fdb929…` 作废；插入的条目是 "The rule" 第 2 条，原第 2–5 条顺延为 3–6，见文件内编号注）。**task-16 又扩展了第 2 条**（机器隔离要求 + 第 7 步），task-15 记录的值 `f647fea9…` 作废。**task-18 再次扩展第 2 条**（启动卫生棘轮作为第 1 个执行步骤、总步数 8），task-16 记录的值 `15668e85…` 作废，现值为上表 `fefca411…`；`verify-release.sh` 亦由 422 行/7 步变为 425 行/8 步（旧值 `4a3dd255…` 仅作历史）。
 
 门禁脚本 sha256（本次实测，`e15577b` 工作树干净状态下计算）：
 
@@ -168,10 +169,13 @@ d8a1c7e43534ca68daf8ce2ebc4fa7b80d21c4b1e43d08334b61aef913342b66  world-geometry
 69d2967b77ed0f1177454a066624048c58344c2a38145063f681ebde026fe3fd  resource-reachability-check.sh
 180be8a64542432715655ad74d62bc78ba25c5cefefbfef3f07c963709805fc8  verify-fast.sh
 7e28c987738a15fb32564311ed71ae0c675c0cd4d689e05e86b92f2945082d20  verify-all.sh
-4a3dd2556ae0b04d9b96194349540867d186020e5c2cab5964cbf280d2b6d033  verify-release.sh
+4a3dd2556ae0b04d9b96194349540867d186020e5c2cab5964cbf280d2b6d033  verify-release.sh   # e15577b/7 步版（历史）
+bc5b7c9b4127a1d08fc094c08e28e862c93e38d04bb726232447e30a03c47309  verify-release.sh   # task-18 8 步版（现行）
+4fa73f6ae22312bf935dd37d7163d031695df6379b68f47143c4cadf5ab02508  gate-launch-hygiene-check.sh   # task-18 新增，385 行
+2b417a767313b14add52b51f3e0fd85343b8a47c02a754249febfcab4136bfbf  evidence/gate-launch-hygiene/baseline.txt   # 85 行 = 43 脚本
 ```
 
-> `verify-release.sh` 是 **task-15 新增、task-16 扩到 7 步的整链入口**（422 行；分支 `task/t86-phase0`，不在 `e15577b` 的 99 个脚本里）。步骤顺序与超时：`verify-all.sh`（3600s）→ `outline-check.sh`（1800s）→ `third-person-weapon-check.sh`（1200s）→ `player-body-appearance-check.sh`（1200s）→ `class-pixels-check.sh`（1200s）→ `build-identity-check.sh`（1200s）→ `world-geometry-budget-check.sh`（1200s）；后两个脚本尚不存在 → 各自记 `STUB-ABSENT=FAIL`，不跳过。每步独立 timeout（可用 `VERIFY_RELEASE_TIMEOUT_*` 覆盖）、逐步落 `evidence/release/<utc>-<step>.log`，最后一行 `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=7`。**machine guard（D-22，task-16）**：第一步前与末步后快照 `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` 与 `ui.ini`（exists/bytes/mtime/sha256）到 `<utc>-machine-before.txt` / `-machine-after.txt`，任何变化默认 `MACHINE-MUTATED=FAIL` 并令整链 FAIL；`VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1` 只降级为 `MACHINE-MUTATION-ALLOWED=1` 且该次运行不能签发布。只在 `hostlock.sh run` 内、且 `VERIFY_RELEASE_OWNER` 与锁主一致时启动，否则 exit 9 拒绝。task-15/16 都只做 `bash -n` 与 `VERIFY_RELEASE_DRY_RUN=1`，**未真跑**（未占锁、未构建、未启动产品）。策略条文见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条。
+> `verify-release.sh` 是 **task-15 新增、task-16 扩到 7 步、task-18 扩到 8 步的整链入口**（分支 `task/t86-phase0`，不在 `e15577b` 的 99 个脚本里）。步骤顺序与超时：**`gate-launch-hygiene-check.sh`（120s，第 1 个执行；task-18 新增的启动卫生棘轮）** → `verify-all.sh`（3600s）→ `outline-check.sh`（1800s）→ `third-person-weapon-check.sh`（1200s）→ `player-body-appearance-check.sh`（1200s）→ `class-pixels-check.sh`（1200s）→ `build-identity-check.sh`（1200s）→ `world-geometry-budget-check.sh`（1200s）；后两个脚本尚不存在 → 各自记 `STUB-ABSENT=FAIL`，不跳过。每步独立 timeout（可用 `VERIFY_RELEASE_TIMEOUT_*` 覆盖）、逐步落 `evidence/release/<utc>-<step>.log`，最后一行 `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=8`。**machine guard（D-22，task-16）**：第一步前与末步后快照 `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` 与 `ui.ini`（exists/bytes/mtime/sha256）到 `<utc>-machine-before.txt` / `-machine-after.txt`，任何变化默认 `MACHINE-MUTATED=FAIL` 并令整链 FAIL；`VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1` 只降级为 `MACHINE-MUTATION-ALLOWED=1` 且该次运行不能签发布。只在 `hostlock.sh run` 内、且 `VERIFY_RELEASE_OWNER` 与锁主一致时启动，否则 exit 9 拒绝。task-15/16 都只做 `bash -n` 与 `VERIFY_RELEASE_DRY_RUN=1`，**未真跑**（未占锁、未构建、未启动产品）。策略条文见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条。
 
 **未做（阶段 0 明确不做）**：重跑任何门禁、构建、启动产品、抓帧。上表 PASS 的重现需要持有 host lock 并按上表命令行执行；执行者必须自己记录 exe/gate/demo/BSP 的 sha256、rc、断言数、hostlock owner 与锁结束状态。
 

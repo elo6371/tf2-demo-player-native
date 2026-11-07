@@ -14,11 +14,16 @@ whenever a task finished or a date passed.
    `player-body-appearance-check.sh`, `class-pixels-check.sh`,
    `build-identity-check.sh` and `world-geometry-budget-check.sh` (the last two
    while their gates are still being written: their steps record
-   `STUB-ABSENT=FAIL`, they are never skipped). 70 of the 99 gate scripts in this
+   `STUB-ABSENT=FAIL`, they are never skipped). **It also runs
+   `gate-launch-hygiene-check.sh` first**, a static ratchet that freezes the set
+   of product launches still skipping `--settings-file`/`--ui-settings-file`
+   (D-22) and fails both when the set grows and when a gate was fixed without
+   deleting its baseline row -- so "the chain isolated the machine" cannot decay
+   silently between release runs. 70 of the 99 gate scripts in this
    tree are outside `verify-all.sh` -- the four P0 gates named by the handoff
    among them -- so `VERIFY=PASS` from `verify-all.sh` alone is not "the chain
    ran" (debts D-19/D-21). `verify-release.sh` prints one line,
-   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=7`, and that line is the only
+   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=8`, and that line is the only
    citable whole-chain verdict. **The chain must also prove it did not rewrite the
    tester's real configuration.** Before the first step and after the last one it
    snapshots `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` and `ui.ini`
@@ -45,6 +50,10 @@ whenever a task finished or a date passed.
 > `verify-release.sh`; items 2-5 became 3-6 and their wording is unchanged. Item 2
 > was extended the same day with the machine-isolation requirement (debt D-22) and
 > with step 7 (`world-geometry-budget-check.sh`); no item was renumbered.
+> On 2026-11-07 (task-18) the launch-hygiene ratchet
+> (`gate-launch-hygiene-check.sh`) was added as the chain's first *executed*
+> step: total steps 7 -> 8, and the old seven keep their order (they now run as
+> steps 2-8).
 > Citations written before that date that quote the list by line --
 > `evidence/t61-animation/T61-ANIMATION-REPORT.md:828` and `:1570`, both citing
 > `:12-13` -- mean the pre-insert item 2, i.e. the "quality is carried by each

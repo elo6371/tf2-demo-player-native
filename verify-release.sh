@@ -65,11 +65,12 @@ STAMP=${VERIFY_RELEASE_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 OWNER=${VERIFY_RELEASE_OWNER:-}
 DRY=${VERIFY_RELEASE_DRY_RUN:-0}
 
-STEPS=(verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget)
+STEPS=(launch-hygiene verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget)
 TOTAL=${#STEPS[@]}
 
 step_file() {
   case "$1" in
+    launch-hygiene)        echo gate-launch-hygiene-check.sh ;;
     verify-all)            echo verify-all.sh ;;
     outline)               echo outline-check.sh ;;
     third-person-weapon)   echo third-person-weapon-check.sh ;;
@@ -83,6 +84,7 @@ step_file() {
 
 step_timeout() {
   case "$1" in
+    launch-hygiene)        echo "${VERIFY_RELEASE_TIMEOUT_LAUNCH_HYGIENE:-120}" ;;
     verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-3600}" ;;
     outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-1800}" ;;
     third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-1200}" ;;
@@ -99,6 +101,7 @@ step_timeout() {
 # we can cite (recorded as NO-VERDICT below).
 step_verdict() {
   case "$1" in
+    launch-hygiene)        echo GATE-LAUNCH-HYGIENE ;;
     verify-all)            echo VERIFY ;;
     outline)               echo OUTLINE-CHECK ;;
     third-person-weapon)   echo THIRD-PERSON-WEAPON ;;
