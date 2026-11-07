@@ -1,0 +1,12 @@
+weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
+  fixture entity=0 modelIndex=0 viewModelIndex=0 worldModelIndex=0 path=<none> source=model
+  fixture entity=1 modelIndex=10 viewModelIndex=10 worldModelIndex=11 path=models/weapons/c_models/c_test_arms.mdl source=model
+  fixture entity=2 modelIndex=12 viewModelIndex=0 worldModelIndex=0 path=models/player/scout.mdl source=model
+  fixture entity=3 modelIndex=12 viewModelIndex=12 worldModelIndex=99 path=models/player/scout.mdl source=model
+  fixture entity=4 modelIndex=0 viewModelIndex=0 worldModelIndex=14 path=<none> source=model
+  fixture entity=5 modelIndex=12 viewModelIndex=12 worldModelIndex=4294967274 path=models/player/scout.mdl source=model
+  fixture entity=6 modelIndex=0 viewModelIndex=11 worldModelIndex=11 path=<none> source=model
+  fixture entity=7 modelIndex=12 viewModelIndex=11 worldModelIndex=11 path=models/player/scout.mdl source=model
+  fixture entity=8 modelIndex=12 viewModelIndex=0 worldModelIndex=11 path=models/player/scout.mdl source=model
+  fixture entity=9 modelIndex=10 viewModelIndex=10 worldModelIndex=0 path=models/weapons/c_models/c_test_arms.mdl source=model
+  fixture entity=10 modelIndex=10 viewModelIndex=10 worldModelIndex=10 path=models/weapons/c_models/c_test_arms.mdl source=model

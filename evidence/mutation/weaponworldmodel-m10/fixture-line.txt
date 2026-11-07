@@ -1,0 +1,1 @@
+weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2

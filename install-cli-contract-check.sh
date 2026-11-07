@@ -381,8 +381,12 @@ eq "A5 the manifest is gone" \
 
 echo
 echo "  cases=5 checks=$CHECKS fail=$FAIL exe_sha256=$(cut -d' ' -f1 "$OUT/reference-exe.sha256")"
-if [ "$FAIL" -eq 0 ]; then echo "  INSTALL-CLI-CONTRACT=PASS assertions=$CHECKS"; exit 0; fi
-echo "  INSTALL-CLI-CONTRACT=FAIL assertions=$CHECKS"; exit 1
+# The verdict line starts in column 0 with the bare token: verify-release.sh only
+# accepts a step whose log matches '^<TOKEN>=PASS'. An indented token reads as
+# NO-VERDICT in the chain even when every assertion passed, which would fail the
+# tenth step for a formatting reason after hours of work.
+if [ "$FAIL" -eq 0 ]; then echo "INSTALL-CLI-CONTRACT=PASS assertions=$CHECKS"; exit 0; fi
+echo "INSTALL-CLI-CONTRACT=FAIL assertions=$CHECKS"; exit 1
 fi
 
 # ==================================================================== mutation
@@ -542,6 +546,6 @@ eq "M2 restore build succeeded" "$?" "0"
 echo
 echo "  checks=$CHECKS fail=$FAIL mutations=$MUTATIONS"
 if [ "$FAIL" -eq 0 ] && [ "$MUTATIONS" -eq 2 ]; then
-  echo "  INSTALL-CLI-CONTRACT-MUTATION=PASS"; exit 0
+  echo "INSTALL-CLI-CONTRACT-MUTATION=PASS"; exit 0
 fi
-echo "  INSTALL-CLI-CONTRACT-MUTATION=FAIL"; exit 1
+echo "INSTALL-CLI-CONTRACT-MUTATION=FAIL"; exit 1

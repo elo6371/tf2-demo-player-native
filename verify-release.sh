@@ -25,26 +25,29 @@
 # TIMEOUTS (seconds, per step; a step that hits its timeout is recorded as
 # <STEP>=TIMEOUT, the chain continues, and the run cannot be PASS)
 #
+#   launch-hygiene         120   VERIFY_RELEASE_TIMEOUT_LAUNCH_HYGIENE
 #   debt-claim             120   VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM
-#   verify-all            7200   VERIFY_RELEASE_TIMEOUT_VERIFY_ALL
+#   verify-all           14400   VERIFY_RELEASE_TIMEOUT_VERIFY_ALL   (round 2 measured ~150 min)
+#   rebuild               3600   VERIFY_RELEASE_TIMEOUT_REBUILD
 #   outline               5400   VERIFY_RELEASE_TIMEOUT_OUTLINE
-#   third-person-weapon   1200   VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON
-#   body-appearance       1200   VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE
-#   class-pixels          1200   VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS
-#   build-identity        1200   VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY
-#   world-geometry-budget 1200   VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET
-#   install-cli-contract  1800   VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT
-#   playback-error-paths  1200   VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS
+#   third-person-weapon   3600   VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON
+#   body-appearance       3600   VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE
+#   class-pixels          3600   VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS
+#   build-identity        2400   VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY
+#   world-geometry-budget 3600   VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET
+#   install-cli-contract  2400   VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT
+#   playback-error-paths  1800   VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS
 #   timeline              1800   VERIFY_RELEASE_TIMEOUT_TIMELINE
 #
 # Step 2 is debt-claim-check.sh (task-20): it is static (no build, no product,
 # no lock) and fails when a row of docs/T85-DEBT-LIST.md claims CAN-RED without a
-# resolvable gate anchor. Step 3 is verify-all.
+# resolvable gate anchor. Step 3 is verify-all. Step 4 (release-rebuild.sh) exists
+# because the mutation suites inside verify-all restore sources with a new mtime:
+# without it the capture steps read a binary the tree no longer vouches for.
 #
-# build-identity-check.sh (task-14 / t90-identity) and
-# world-geometry-budget-check.sh (task-13) do not exist yet. Until each lands its
-# step records STUB-ABSENT=FAIL and the chain is FAIL. Neither is skipped: a
-# chain that silently omits a step is the defect this file is meant to end.
+# Every one of the thirteen steps has a script in this tree. A step whose script
+# is missing still records STUB-ABSENT=FAIL and fails the chain: a chain that
+# silently omits a step is the defect this file is meant to end.
 #
 # MACHINE ISOLATION (debt D-22)
 # The chain must prove it did not rewrite the tester's real configuration. Before
@@ -345,7 +348,7 @@ for step in "${STEPS[@]}"; do
     dur=$(( $(date +%s) - start ))
     if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
       status=TIMEOUT
-    elif [ "$rc" -eq 0 ] && grep -qE "^${verdict}=PASS($| )" "$log"; then
+    elif [ "$rc" -eq 0 ] && grep -qE "^[[:space:]]*${verdict}=PASS($| )" "$log"; then
       status=PASS
     elif [ "$rc" -eq 0 ]; then
       status=NO-VERDICT

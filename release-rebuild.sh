@@ -15,14 +15,14 @@
 #   invalidating it. One rebuild makes freshness a measured fact.
 #
 # WHAT IT PROVES
-#   1. all four targets link from the tree as it stands (build rc=0);
+#   1. all five targets link from the tree as it stands (build rc=0);
 #   2. no input is newer than the binary it feeds -- the exact reading that
 #      failed at step 4;
 #   3. a second build changes nothing, i.e. nothing in the tree still declares
 #      itself newer than what was built. Point 2 alone can pass on an empty
 #      source list; the no-op build is what makes it mean "settled".
 #
-# VERDICT: REBUILD=PASS targets=4 rebuilt=N fresh=4 noop=4 exe_sha256=<sha>
+# VERDICT: REBUILD=PASS targets=5 rebuilt=N fresh=5 noop=5 exe_sha256=<sha>
 #   rebuilt counts the binaries the first build relinked. rebuilt=0 on an
 #   already-current tree is a pass: the claim is about agreement, not churn.
 # Exit: 0 pass, 1 fail, 2 refused (no build tree / no such target / usage).
@@ -30,7 +30,10 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 2
 
 BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
-TARGETS=(tf2_demo_native entity_overlay_probe entity_model_probe entity_protocol_probe)
+# world_geometry_probe is built here because step 10 (world-geometry-budget)
+# refuses to run without it and only rebuilds it on the --mutation path: left out
+# of this step it would be a stale binary the forward pass trusts.
+TARGETS=(tf2_demo_native entity_overlay_probe entity_model_probe entity_protocol_probe world_geometry_probe)
 N=${#TARGETS[@]}
 
 if [ ! -f "$BUILD/Makefile" ]; then
