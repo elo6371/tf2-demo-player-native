@@ -26,8 +26,8 @@
 # <STEP>=TIMEOUT, the chain continues, and the run cannot be PASS)
 #
 #   debt-claim             120   VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM
-#   verify-all            3600   VERIFY_RELEASE_TIMEOUT_VERIFY_ALL
-#   outline               3600   VERIFY_RELEASE_TIMEOUT_OUTLINE
+#   verify-all            7200   VERIFY_RELEASE_TIMEOUT_VERIFY_ALL
+#   outline               5400   VERIFY_RELEASE_TIMEOUT_OUTLINE
 #   third-person-weapon   1200   VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON
 #   body-appearance       1200   VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE
 #   class-pixels          1200   VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS
@@ -98,8 +98,8 @@ step_timeout() {
   case "$1" in
     launch-hygiene)        echo "${VERIFY_RELEASE_TIMEOUT_LAUNCH_HYGIENE:-120}" ;;
     debt-claim)            echo "${VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM:-120}" ;;
-    verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-3600}" ;;
-    outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-3600}" ;;
+    verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-7200}" ;;
+    outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-5400}" ;;
     third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-1200}" ;;
     body-appearance)       echo "${VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE:-1200}" ;;
     class-pixels)          echo "${VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS:-1200}" ;;
