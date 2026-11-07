@@ -1,0 +1,15 @@
+resume
+tick 400
+pause
+frames 4
+snapshot before
+capture D:/TF2_Native_Worktrees/t93-playback/evidence/t93-playback/pre-b-before.bmp
+frames 4
+freefly on
+frames 4
+capture D:/TF2_Native_Worktrees/t93-playback/evidence/t93-playback/pre-b-after.bmp
+frames 4
+snapshot after
+expect-same-tick
+playback-state
+quit

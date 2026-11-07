@@ -196,7 +196,19 @@ void AudioEventScheduler::reset(std::int32_t tick) {
   if (initialized_ && tick < lastTick_) ++stats_.reverseRecoveries;
   const std::size_t keepReverseRecoveries = stats_.reverseRecoveries;
   const std::size_t keepDuplicateTicks = stats_.duplicateTicks;
-  lastTick_ = initialized_ ? tick : tick - 1;
+  // T93-D (T85 defect D): `initialized_` means "reset() has run", not "a range has
+  // been consumed", and the startup reset(0) in main.cpp sets it. A resume that
+  // followed a paused start therefore re-entered at tick 0 with lastTick_ = 0 and
+  // the range 1..0 played nothing: the 746 events at tick 0 (14.0% of the
+  // timeline, measured on the T85 audio fixture) were lost -- a whole run read
+  // events_seen=10.
+  //
+  // Dedupe basis: lastTick_ >= 0 is precisely "this scheduler has consumed a
+  // range". While it is still -1 nothing has been played, so the reset is
+  // INCLUSIVE of the tick it names; once a range has been consumed the old
+  // exclusive behaviour stands, which is what makes "pause at T, resume at T"
+  // not replay T. replace_all: none of the two call shapes is affected.
+  lastTick_ = lastTick_ >= 0 ? tick : tick - 1;
   initialized_ = true;
   stats_ = {};
   stats_.reverseRecoveries = keepReverseRecoveries;
