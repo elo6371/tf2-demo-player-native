@@ -166,6 +166,30 @@ wears a product bug's clothes costs a debugging session and, worse, teaches you
 to ignore the compiler. Fix the invocation (here: `export MSYS2_ARG_CONV_EXCL='*'`
 and spell options with `-`), then believe the output.
 
+### 12. A refusal counter is not the size of the loss (T88's budget gate)
+The world triangle budget gate proves two opposite things: at capacity=400000
+nothing is dropped, and at capacity=200000 the loss is visible. The first draft
+proved the second with an equality -- `dropped == requested - capacity` -- which
+is wrong by construction. A displacement grid refused by the budget still emits a
+fallback fan of triangles, and those vertices are counted in the same refusal
+counter. Measured on cp_snakewater_final1: requested=242,361, capacity=200,000,
+arithmetic shortfall 42,361, counter **42,643**. A correct implementation would
+have turned that gate red, and the natural repair ("adjust the expected number")
+would have made the assertion a measurement of itself.
+
+**Rule:** when the counter counts *refusals* rather than *the size of the loss*,
+assert a bound (`dropped >= shortfall`, `dropped <= requested`) and write the
+over-count mechanism into the gate's own comment -- otherwise the next reader
+"fixes" the inequality back into an equality. Pair it with a reversed case that
+must be red (drop the capacity to 200,000 and require the assertion to fail at a
+named string), because `capacity == 400000` on its own is decoration: it is
+green even when no map ever reaches the limit.
+
+The other half of the same lesson: the limit has to come from a measured demand,
+printed by the same gate. 400,000 was chosen because the worst authorised map
+asks for 242,361 (probe at --triangle-limit 4000000), not because the parser's
+default was 200,000.
+
 ## Checklist before calling a gate green
 
 1. For each new assertion: **does its object exist on the success path?** Name the
@@ -190,3 +214,8 @@ and spell options with `-`), then believe the output.
     happened (trap 10)?
 12. Does the gate state in the report **what it does not prove** (T51: no panel
    pixels are read; T54: no page pixels are read), with the cheapest next step?
+13. For every budget or threshold: which run prints the **measured demand** that
+    sized it, and is that demand a map property rather than a copy of the limit?
+14. If a counter counts refusals rather than the size of the loss, is the
+    assertion a **bound**, and does the gate comment name what makes the counter
+    exceed the arithmetic shortfall (T88: 42,643 vs 42,361)?
