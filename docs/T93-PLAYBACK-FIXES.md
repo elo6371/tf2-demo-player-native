@@ -31,7 +31,8 @@
 - **修法**（patch B）：新增 `g_cameraModeApplies` / `g_frameAppliedCameraMode`（main.cpp:313-321），在每帧块**之前**（main.cpp:9126-9153）比对真正的「上一帧应用值」，变了就（非第一人称且非 debug 时）`clearObserverDemoView()`、更新变量、`++g_cameraModeApplies`、打 `camera: mode applied=%s tick=%d paused=%d`（:9147）；`camera: summary` 增 `modeApplies=%u`（main.cpp:11582/11588）；脚本 `freefly` 步改成「设置后必须真的等于目标状态，否则 fail("unreachable")」，detail 带 `mode=`（main.cpp:962-970）。
 - **读数对照**（门禁 B 用例：resume → tick 400 → pause → 停 4 帧 → freefly on → 抓两帧）：
   - 修前：`camera: mode applied=…` 行**不存在**（`fnum` 返回 `-`）、`modeApplies=-`、脚本 `failures=1`、rc=1。
-  - 修后：`applied=free-look tick=413 paused=1`、`modeApplies=1`、两帧 BMP **2,582,406 B / sha256 before aeb0b5f0…dffe8 vs after 3a848650…3a3393a2 不同**、`failures=0`、rc=0、两张 snapshot tick 都是 413 且 `expect-same-tick match=1`（**暂停中画面变了，时钟没动**）。
+  - 修后：`applied=free-look tick=413 paused=1`、`modeApplies=1`、两张 snapshot tick 都是 413 且 `expect-same-tick match=1`（**时钟没动**）、`failures=0`、rc=0。
+  - **关于像素（更正，实测）**：两张 BMP 确实不同（2,582,406 B，before aeb0b5f0…dffe8 / after 3a848650…3a3393a2），但**修前那轮的同名两张 BMP 是逐字节相同的这两个 sha**——即像素差来自 `freefly` 之外的东西（同一份 trace 里 focus z 从 0.570319 变 0.539210，pre 与 green 完全一致），**这条断言不区分修前/修后**。B 的判别力在 `camera: mode applied=… paused=1` / `modeApplies` / 三者同 tick 这三条上。
 
 ## 3. C：seek 之后先把调度器复位，再前进
 
@@ -76,6 +77,6 @@ E 用例（不变量，修前修后都必须是这组数）：`scheduled=5323`�
 
 - **没有在真实声卡上播放过**：所有用例一律 `--audio-disabled`，`waveOutOpen` 调用次数恒 0。C/D 证明的是「调度器喂给 sink 的事件数/顺序对不对」，不是「声音好不好听」。
 - **变异证据待补**（见 §5 状态）。
-- **像素只证明「变了」**：B 的两张 BMP 差异证明「暂停中相机真的移动了」，不证明「构图像自由视角」。
+- **像素断言不区分修前/修后（实测更正）**：B 的 before/after BMP 在 pre 与 green 两轮**逐字节相同**（aeb0b5f0… / 3a848650…），所以「两帧不同」不能当作修复证据；它只证明抓帧链路在动。B 的判据以 trace 为准。
 - **跨 seek 的总量口径**：seek 会 reset 调度器，只有逐条累加 `audio: advance` 才是用户实际听到的事件数。
 - A 的 `return 2` 是**新的退出码契约**（此前该路径 rc=0）：任何下游脚本若把「非 0」当「可忽略」需要改。
