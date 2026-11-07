@@ -504,9 +504,12 @@ if [[ $MUTATION -eq 1 ]]; then
     "constexpr std::size_t kWorldTriangleCapacity = 400000;" \
     "constexpr std::size_t kWorldTriangleCapacity = 200000;" \
     "B2 cp_snakewater_final1: capacity=200000" cp_snakewater_final1
+  # The whitelist anchor spans two source lines, and native/src/*.cpp are CRLF:
+  # the pattern must be $'...' with an explicit \r\n. A literal newline here
+  # matches nothing (count=0), edit_source exits 3 and the mutation reports
+  # "could not apply the mutation" -- a false red that looks like the gate broke.
   mutation illusionary-whitelist native/src/bsp_map.cpp \
-    'return name == "func_brush" || name == "func_wall" || name == "func_lod"
-        || name == "func_illusionary";' \
+    $'return name == "func_brush" || name == "func_wall" || name == "func_lod"\r\n        || name == "func_illusionary";' \
     'return name == "func_brush" || name == "func_wall" || name == "func_lod";' \
     "B4 cp_snakewater_final1: facesDrawn=" cp_snakewater_final1
   echo ""
@@ -564,8 +567,7 @@ mutate_both() { # put the pre-fix behaviour back in the two places that changed
     "constexpr std::size_t kWorldTriangleCapacity = 400000;" \
     "constexpr std::size_t kWorldTriangleCapacity = 200000;" || return 1
   edit_source native/src/bsp_map.cpp \
-    'return name == "func_brush" || name == "func_wall" || name == "func_lod"
-        || name == "func_illusionary";' \
+    $'return name == "func_brush" || name == "func_wall" || name == "func_lod"\r\n        || name == "func_illusionary";' \
     'return name == "func_brush" || name == "func_wall" || name == "func_lod";' || return 1
   return 0
 }
