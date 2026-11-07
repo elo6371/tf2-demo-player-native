@@ -1,0 +1,9 @@
+clean-tree forward run (post-commit, 0 porcelain records)
+head=976f78a0c379a80d34339a7caf70e8db349a2659
+branch=task/t90-identity
+gate_sha256=3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0
+records_before=0 records_after=0
+result: BUILD-IDENTITY=PASS assertions=115 identity=exe-sha+HEAD+native-tree-sha head=976f78a0c379
+baseline_exe_sha256=a3efe042c60084f9951480c07b451d913af7b0f825ddd578bb4a2741dc90eb09
+native_tree_sha256=773aa3a68fe8e961c2c5dc61e31b4e5ffd959de7a4daa3e8886873081cd445a1
+window_start_done: see logs/window-clean.log (start 2026-11-07T09:46:xx Z, done 2026-11-07T09:48:53Z)

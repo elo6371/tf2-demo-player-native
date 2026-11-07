@@ -1,0 +1,23 @@
+ACQUIRED owner=t90-identity at 2026-11-07 17:48:24
+=== clean-forward start 2026-11-07T09:48:24Z head=976f78a0c379
+records_before=0
+3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0 *build-identity-check.sh
+gate_forward_clean_rc=0
+--- last lines of .scratch/t90/gate-forward-clean.log
+  OK   identity: the recorded exe sha256 is the executable on disk = 169f7c229579ae39cc30b1e1a64733b02914de013b7a63687d59781e5d58fdcf
+  OK   identity: the recorded HEAD is the live HEAD = 976f78a0c379a80d34339a7caf70e8db349a2659
+  OK   identity: the recorded native/ hash is what git hashes now = 773aa3a68fe8e961c2c5dc61e31b4e5ffd959de7a4daa3e8886873081cd445a1
+  OK   identity: the version's sourceTree is the short form of that same HEAD = 976f78a0c379
+
+=== 5/5 what the assertions above established, and what they did not ===
+  NOT-PROVEN cross-machine reproducibility: --reproducible measured two clean full builds on THIS machine only
+  NOT-PROVEN a content hash: sourceTree+dirty name a commit and a count, not the dirty content
+  NOT-PROVEN the manifest/VERSION.txt agree with --version (install-lifecycle-check.sh's subject)
+  NOT-PROVEN that a dirty build can be rebuilt from the dirty tree (it is not recorded, only counted)
+  assertions=115 failed=0
+BUILD-IDENTITY=PASS assertions=115 identity=exe-sha+HEAD+native-tree-sha head=976f78a0c379
+sha_after=3b9194b0a0c4615b6224b8203f2f4c4abdcef80c926ca21e9cda39ba3d2267e0 *build-identity-check.sh
+records_after=0
+git_status_after:
+=== clean-forward done 2026-11-07T09:48:53Z
+LOCKED-COMMAND-EXIT rc=0 owner=t90-identity
