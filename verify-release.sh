@@ -336,6 +336,11 @@ for step in "${STEPS[@]}"; do
     step_env=()
     case "$step" in
       world-geometry-budget) step_env=(env HOLD_LOCK=1 LOCK_OWNER="$OWNER") ;;
+      # outline-check globs "$OUT"/*.trace to build its lease-wide readings. Its
+      # default OUT is evidence/outline, which survives from run to run, so a
+      # second chain would compare its captures against the first chain's traces.
+      # Every chain run gets its own directory (t85's merge-window runbook).
+      outline) step_env=(env OUTLINE_OUT="$OUT/$STAMP-outline") ;;
     esac
     if command -v timeout >/dev/null 2>&1; then
       "${step_env[@]}" timeout --kill-after=30s "${timeout_s}s" bash "$ROOT/$script" >> "$log" 2>&1
