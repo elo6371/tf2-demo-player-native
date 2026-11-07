@@ -491,3 +491,33 @@ lead 在 m02051 破例允许"只编不跑"（不进 hostlock，绝不启动 exe�
 - **仍未越过的边界**：本次只有编译器看过这些代码，产品一行都没跑。也就是说 \`--window-size\` 是否真的钉住客户区、
   \`capture: frame\` 是否每帧都打、\`budget: instances ... submitted\` 的账是否平，全部仍然是"未验证"。
   唯一新增的事实是"它能编译"。
+
+## 8.9 exe 不是位可复现的：exe sha256 是"构建实例"，不是"源码身份"
+
+在只编不跑的验证里顺手测到的一条独立事实（与预算改动无关，但影响所有证据的写法）：
+
+- 同一份源码（工作树 git status --short = 0）、不改任何字节，连续三次 \`bash build-target.sh tf2_demo_native\` 得到三个不同的 exe：
+  \`746573396b94bd7d2e1a2cb3f5009def34d7728aef177971772f0d82037a1cf5\`、
+  \`f47341de8bf64f747f5242bbd54aacb6fefdc781fc368d355c48e0b3e9999c68\`、
+  \`1bd58f4f1095593d290c179a4abc102072335545af7fc9a75535637c296713ca\`。
+- 差异的直接来源读得到：PE 头 COFF TimeDateStamp（\`e_lfanew + 8\` 处的 DWORD）两次构建分别是
+  \`0x6aeee287\` = 2026-11-07 08:34:15Z 与 \`0x6aeee295\` = 2026-11-07 08:34:29Z，相差 14 秒，正好是两次构建的墙钟。
+- 因此：
+  1. 证据里写"exe sha256"只能标识**那一次构建产物**，不能标识源码版本；要标识源码请用 \`git rev-parse HEAD\` + 文件 sha，
+     或先给链接器加 \`/Brepro\`（当前没有，属于构建身份问题，建议转 build-identity / task-14）。
+  2. 任何"还原后 exe 必须与之前一致"的判定都会假红；把还原判定建立在**读数**（mutate.sh 的 RESTORED-IDENTICAL 就是比读数）
+     或**源码 sha** 上才对。
+  3. 本文档 §6.1 里出现的两个 exe sha（a3c93d57… 冻结版、55efceb6… 我这一版）都只是各自构建实例，行为归因靠读数，不靠 sha。
+
+## 8.10 m14 变异体的编译验证（同样只编不跑）
+
+m14 的源码变异我不等合并窗口就先验了"能不能编"这一半：
+
+- 用与 \`mutate.sh:684-694\` 完全相同的锚（\`native/src/main.cpp:3825-3828\` 那 4 行，出现次数 = 1）替换为
+  \`/* mutation m14: the priority order is gone -- first-come-first-served */ (void)prepareCandidates; return left < right;\`，
+  \`bash build-target.sh tf2_demo_native\` → **rc=0，25 s，0 error**。变异体是合法 C++。
+- 随后从备份还原：\`cmp\` 字节一致，\`native/src/main.cpp\` sha256
+  \`c365886a49e3c90d0fe58f1e73aca10c508d3aa8952bb6682f9ceec2fc31ee47\`（改前 = 改后），再构建 rc=0，
+  \`git status --short\` = 0（没有把变异留在树里）。
+- **未验证的部分**：m14 的另一半是"跑 --world-only 看具名断言变红"，那必须启动产品，按 lead m02051 的边界没有做，
+  留给合并窗口。所以现在的状态是"变异体能编译"，不是"m14 已通过"。
