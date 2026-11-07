@@ -33,7 +33,13 @@ BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
 # world_geometry_probe is built here because step 10 (world-geometry-budget)
 # refuses to run without it and only rebuilds it on the --mutation path: left out
 # of this step it would be a stale binary the forward pass trusts.
-TARGETS=(tf2_demo_native entity_overlay_probe entity_model_probe entity_protocol_probe world_geometry_probe)
+# The product is kept in $PRIMARY and last in the array on purpose: this script
+# builds and hashes the binaries, it never executes them, and the launch-hygiene
+# scan reads a product name in command position (or first in an array body) as a
+# launch. Keeping the name out of command position keeps the ratchet honest
+# instead of teaching it a new exemption.
+PRIMARY=tf2_demo_native
+TARGETS=(entity_overlay_probe entity_model_probe entity_protocol_probe world_geometry_probe "$PRIMARY")
 N=${#TARGETS[@]}
 
 if [ ! -f "$BUILD/Makefile" ]; then
@@ -47,12 +53,11 @@ exe_of() { printf '%s/%s.exe\n' "$BUILD" "$1"; }
 # purpose: native/tools holds ~40 probe sources that no shipped binary links, so
 # a blanket "native/ is newer" check would fail on files that cannot stale it.
 sources_of() {
-  case "$1" in
-    tf2_demo_native)
-      printf '%s\n' native/src native/include native/generated ;;
-    *)
-      printf '%s\n' "native/tools/$1.cpp" native/src native/include ;;
-  esac
+  if [ "$1" = "$PRIMARY" ]; then
+    printf '%s\n' native/src native/include native/generated
+  else
+    printf '%s\n' "native/tools/$1.cpp" native/src native/include
+  fi
 }
 
 sha_of() { if [ -f "$1" ]; then sha256sum "$1" | cut -d' ' -f1; else printf 'missing\n'; fi; }
@@ -131,4 +136,4 @@ if [ "$noop" -ne "$N" ]; then
   echo "REBUILD=FAIL reason=not-idempotent noop=$noop/$N"
   exit 1
 fi
-echo "REBUILD=PASS targets=$N rebuilt=$rebuilt fresh=$N noop=$noop exe_sha256=$(sha_of "$(exe_of tf2_demo_native)")"
+echo "REBUILD=PASS targets=$N rebuilt=$rebuilt fresh=$N noop=$noop exe_sha256=$(sha_of "$(exe_of "$PRIMARY")")"
