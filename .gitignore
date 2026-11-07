@@ -204,3 +204,24 @@ evidence/t84-animdrive/animation-drive-states/neg-*/*.bmp
 evidence/t84-animdrive/animation-drive-states/neg-*/*.csv
 evidence/t84-animdrive/animation-drive-states/neg-*/*.log
 evidence/t84-animdrive/animation-drive-states/neg-*/*.rc
+
+# ---- T85 P0 (mesh/instance budget) evidence ---------------------------------
+# 114 MB of raw product traces (single files up to 21 MB) and captured .bmp
+# frames, plus 50 MB of settings/UI COPIES handed to the product so it cannot
+# dirty a tracked file (see evidence/t85/T85-BUDGET-DESIGN.md §7 and the hygiene
+# doc D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md). All of it is derived
+# and reproducible with evidence/t85/run-*.sh, which print the exe/demo/gate
+# sha256 and the exact argv they used; the exception is the handful of gate
+# pixel baselines that were already tracked before this work.
+#
+# What STAYS tracked: the design doc, the gate assertion inventory, every
+# evidence/t85/run-*.sh driver, the .log/.ledger.txt readings and the small
+# before/after ledgers that the assertions quote. Same policy as the oracle
+# dumps above: raw blobs on disk, the readings and the reproducer in git.
+evidence/t85/**/*.trace
+evidence/t85/**/*.bmp
+evidence/t85/oom/
+evidence/t85/inputs/
+evidence/t85/**/inputs/
+evidence/t85/**/*.pgm
+evidence/t85/smoke-skiplive/

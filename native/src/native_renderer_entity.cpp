@@ -24,6 +24,16 @@
 
 namespace tf2::native {
 
+namespace {
+// LAYER B: the resident mesh table's bound, and the one number this task did
+// NOT raise. It is a cache bound, not a draw bound: capacity 96 means "at most
+// 96 models resident at once", which is why the policy at the bound is
+// eviction-and-refusal rather than "grow the constant". The ledger that
+// publishes it is "budget: meshTable" in main.cpp.
+constexpr std::size_t kEntityModelMeshCapacity = 96;
+}  // namespace
+
+std::size_t Renderer::entityModelMeshCapacity() const { return kEntityModelMeshCapacity; }
 
 bool Renderer::uploadBindPoseModel(const std::vector<ModelDrawVertex>& vertices) {
   modelVertexBuffer_.Reset(); modelVertexCount_ = 0; modelGpuStatus_ = ModelGpuStatus::NotLoaded;
@@ -155,22 +165,64 @@ void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
   entityMarkerVertexCount_ = static_cast<UINT>(vertices.size());
 }
 
-bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
-    const std::vector<ModelMeshMaterialRun>& runs) {
-  if (!device_ || cacheKey.empty() || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
-  // 96, not 64 (2026-10-22). The cap is a GPU-memory guard, and the sizes it
-  // guards are the world pass's 64 models plus the outline's nine class models,
-  // which are uploaded by the same call and are NOT part of the world budget.
-  // At 64 the reference recording (59 world models) left five of the nine
-  // refused with E_OUTOFMEMORY, and a refused key is the worst failure shape
-  // available here: the draw list submits it, the counter counts it, and the
-  // frame is empty -- the same defect mutation m8 injects on purpose.
-  constexpr std::size_t kEntityModelMeshLimit = 96;
-  if (entityModelMeshes_.size() >= kEntityModelMeshLimit
-      && entityModelMeshes_.find(cacheKey) == entityModelMeshes_.end()) {
-    lastError_ = E_OUTOFMEMORY;
-    return false;
+std::string Renderer::evictableEntityModelMeshKey() const {
+  // Which resident to give up, or end() when every one of them outranks the
+  // newcomer. The order is a policy, not a preference:
+  //   1. never a mesh that outranks the newcomer (a body is never traded for a
+  //      prop, a held weapon never for a world prop);
+  //   2. never a mesh the most recent instance update actually drew. That mesh
+  //      is behind a live draw range, and dropping it is mutation m8's defect --
+  //      a submitted key with an empty frame -- arriving as a cache policy;
+  //   3. among the rest: lowest priority first, then least recently drawn, then
+  //      the key itself, so the choice is deterministic across two processes.
+  //
+  // T85 P0 review B1/M1: the candidate set is stated by the ladder, not by
+  // comparing ranks with the newcomer (that comparison let the overlay -- rank 2,
+  // and never touched by an instance update -- become the only victim, i.e. the
+  // policy spent the nine MANDATORY silhouettes to admit a gun). Only
+  // WorldProp/Deferred meshes may be spent; bodies, held weapons and the pinned
+  // overlay are protected outright.
+  std::string bestKey;
+  int bestRank = -1;
+  std::uint64_t bestTouch = 0;
+  for (const auto& entry : entityModelMeshes_) {
+    const auto& mesh = entry.second;
+    if (mesh.pinned) continue;
+    const int rank = static_cast<int>(mesh.priority);
+    if (rank < static_cast<int>(EntityMeshPriority::WorldProp)) continue;
+    // entityModelMeshFrame_ == 0 means no instance update has run yet (the
+    // one-time upload pass), so nothing is live and everything is evictable.
+    if (entityModelMeshFrame_ != 0 && mesh.lastTouchedFrame >= entityModelMeshFrame_) continue;
+    const bool better = bestKey.empty()
+      || rank > bestRank
+      || (rank == bestRank && mesh.lastTouchedFrame < bestTouch)
+      || (rank == bestRank && mesh.lastTouchedFrame == bestTouch && entry.first < bestKey);
+    if (better) { bestKey = entry.first; bestRank = rank; bestTouch = mesh.lastTouchedFrame; }
   }
+  return bestKey;
+}
+
+bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ModelMeshMaterialRun>& runs, EntityMeshPriority priority) {
+  if (!device_ || cacheKey.empty() || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
+  // T85 P0: THE TABLE IS A BUDGETED CACHE, NOT A WALL.
+  //
+  // 96 is kept (2026-10-22 added it for the world pass's 64 models plus the
+  // outline's nine class models, which share this table). What changed is what
+  // happens at the bound: until now a full table refused an unknown key with
+  // E_OUTOFMEMORY and never tried again, and the three held-weapon world models
+  // this task exists for (c_flamethrower, c_sapper_xmas, c_shogun_warhorn) were
+  // refused exactly there while 96 slots were held by models that outrank
+  // nobody: first-person rigs, gibs and world props. A refusal with no policy is
+  // the worst failure shape available here -- the draw list submits the key, the
+  // counter counts it, and the frame is empty.
+  //
+  // So a full table now makes room: the least useful resident is evicted for a
+  // more important newcomer (evictableEntityModelMeshKey), and only a newcomer that
+  // outranks nothing resident is refused -- with a counter and a reason. Both
+  // outcomes are published in "budget: meshTable" (main.cpp).
+  const auto existing = entityModelMeshes_.find(cacheKey);
+  const bool wasResident = existing != entityModelMeshes_.end();
   // T57 measured this line cutting every one of the nine player models at 12000
   // vertices (603..20724 LOD0 indices lost per class). The cap was a budget for
   // some model that was never named, applied to a list whose length the model
@@ -227,8 +279,12 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   D3D11_SUBRESOURCE_DATA data{};
   data.pSysMem = local.data();
   Microsoft::WRL::ComPtr<ID3D11Buffer> buffer;
-  if (FAILED(device_->CreateBuffer(&description, &data, buffer.GetAddressOf()))) {
-    lastError_ = E_FAIL;
+  // Review minor 2: the real HRESULT, not a generic E_FAIL -- the trace's
+  // lastError is the only evidence a refusal is D3D memory pressure rather than
+  // a policy decision, and it must stay the code D3D actually returned.
+  const HRESULT createResult = device_->CreateBuffer(&description, &data, buffer.GetAddressOf());
+  if (FAILED(createResult)) {
+    lastError_ = createResult;
     return false;
   }
   EntityModelMesh mesh;
@@ -245,7 +301,54 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
     mesh.boundsMin[axis] = boundsMin[axis];
     mesh.boundsMax[axis] = boundsMax[axis];
   }
-  entityModelMeshes_[cacheKey] = std::move(mesh);
+  // T85 P0 review B5: the newcomer's buffer exists before any victim is chosen.
+  // Choosing first would let a build failure above (invalid runs, CreateBuffer)
+  // spend a resident and still fail, turning a D3D error into a hole in the
+  // frame. Here a failed build leaves the table exactly as it was.
+  EntityMeshPriority residentPriority = priority;
+  if (wasResident) {
+    // Re-uploading a key drops the textures already attached to it, so this is a
+    // reading and not a no-op: a bounded cache that rotates the attach's keys
+    // would unpaint guns. The attach's own rule is "once per key"; the counter
+    // proves it is still true after eviction exists.
+    ++entityModelMeshReuploads_;
+    // Never demote an existing key: the world pass and the attach can both ask
+    // for the same model with different labels, and the higher label must win.
+    if (static_cast<int>(existing->second.priority) < static_cast<int>(priority)) {
+      residentPriority = existing->second.priority;
+    }
+  } else if (entityModelMeshes_.size() >= kEntityModelMeshCapacity) {
+    const std::string victimKey = evictableEntityModelMeshKey();
+    if (victimKey.empty()) {
+      // Every resident is protected (bodies, held weapons, pinned overlay) or was
+      // drawn by the last instance update. Refuse, with the reason on the record:
+      // ++capacityRefusals is the published "the table was full of things it may
+      // not spend" counter, and the caller names the key.
+      lastError_ = E_OUTOFMEMORY;
+      ++entityModelMeshCapacityRefusals_;
+      return false;
+    }
+    entityModelMeshes_.erase(victimKey);
+    // The evicted mesh owned the vertex buffer the draw ranges point at, so BOTH
+    // range sets are cleared in the SAME step: a range holding a released buffer
+    // is a use-after-free, not a short frame. Entity ranges are rebuilt by the
+    // next setEntityModelInstances; overlay ranges by the next overlay submit.
+    // (A pinned overlay mesh can never be the victim; this clear is the belt to
+    // that brace, not the braces.)
+    entityModelDrawRanges_.clear();
+    overlayDrawRanges_.clear();
+    entityModelTexturedRangeCount_ = 0;
+    entityModelTexturedInstanceCount_ = 0;
+    // B4: the caller owns the path->key tables; hand it the victim so it can
+    // unpublish and re-supply instead of leaving a dead key behind.
+    entityModelMeshEvictedKeys_.push_back(victimKey);
+    ++entityModelMeshEvictions_;
+  }
+  EntityModelMesh& resident = entityModelMeshes_[cacheKey];
+  resident = std::move(mesh);
+  resident.priority = residentPriority;
+  resident.pinned = residentPriority == EntityMeshPriority::Overlay;
+  resident.lastTouchedFrame = entityModelMeshFrame_;
   entityModelDrawRanges_.clear();
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
@@ -292,7 +395,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   world.minZ = worldMinZ_;
   world.horizontalScale = worldHorizontalScale_;
   world.zScale = 0.8f / worldSpanZ_;
-  constexpr std::size_t maxInstances = 96;
+  constexpr std::size_t maxInstances = entityModelInstanceCapacityLimit;
   // A bucket is one (model, skin family) pair: the same model worn by a red and a
   // blue player shares the vertex buffer but not the paint, so it needs one range
   // per material run per family. Keying only by cacheKey -- as this did before T60
@@ -307,14 +410,37 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   buckets.reserve(8);
   bucketOf.reserve(8);
   std::size_t accepted = 0;
-  for (std::size_t i = 0; i < instances.size() && accepted < maxInstances; ++i) {
+  // T85 P0: one frame counter and four refusal counters. Until this change every
+  // rejection in the loop below was a bare `continue`: a key with no mesh, a
+  // buffer that could not be drawn, a non-finite matrix and an instance past the
+  // 96-instance draw capacity all produced the same invisible short frame. A
+  // bounded budget is allowed to refuse -- it is not allowed to be silent.
+  ++entityModelMeshFrame_;
+  entityModelInstanceRejectedMissingMesh_ = 0;
+  entityModelInstanceRejectedDeferredNotResident_ = 0;
+  entityModelInstanceRejectedBadMesh_ = 0;
+  entityModelInstanceRejectedNonFinite_ = 0;
+  entityModelInstanceRejectedBudget_ = 0;
+  for (std::size_t i = 0; i < instances.size(); ++i) {
     const auto& instance = instances[i];
-    if (instance.cacheKey.empty()) continue;
+    if (instance.cacheKey.empty()) { ++entityModelInstanceRejectedBadMesh_; continue; }
     const auto mesh = entityModelMeshes_.find(instance.cacheKey);
-    if (mesh == entityModelMeshes_.end() || !mesh->second.vertexBuffer
-        || mesh->second.vertexCount < 3 || (mesh->second.vertexCount % 3) != 0) continue;
+    if (mesh == entityModelMeshes_.end()) {
+      // Two different facts, counted apart (lead review, point 2): a model the
+      // 64-slot prepare budget deferred is a bounded, published decision, while a
+      // key the caller believes in with nothing behind it is the m8 defect. One
+      // counter for both made the defect indistinguishable from the budget.
+      if (instance.budgetDeferred) { ++entityModelInstanceRejectedDeferredNotResident_; }
+      else { ++entityModelInstanceRejectedMissingMesh_; }
+      continue;
+    }
+    if (!mesh->second.vertexBuffer || mesh->second.vertexCount < 3
+        || (mesh->second.vertexCount % 3) != 0) { ++entityModelInstanceRejectedBadMesh_; continue; }
     EntityModelInstanceRows rows;
-    if (!buildEntityModelInstanceRows(instance.origin, instance.angles, instance.hasAngles, world, rows)) continue;
+    if (!buildEntityModelInstanceRows(instance.origin, instance.angles, instance.hasAngles, world, rows)) {
+      ++entityModelInstanceRejectedNonFinite_;
+      continue;
+    }
     // An instance placed by a local matrix rides on another model's bone: the
     // rows just built carry the PARENT's frame to world, so the local goes
     // inside the composition -- C = P * L in this file's row-major "v' = M v"
@@ -330,7 +456,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       // One non-finite row would poison every vertex of the instance, and a
       // silently vanished weapon is the failure mode this whole path exists to
       // remove; refuse the instance instead and let the caller count it.
-      if (!finite) continue;
+      if (!finite) { ++entityModelInstanceRejectedNonFinite_; continue; }
       EntityModelInstanceRows composed;
       for (int row = 0; row < 3; ++row) {
         for (int column = 0; column < 3; ++column) {
@@ -347,6 +473,13 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       }
       rows = composed;
     }
+    // The draw capacity is layer D's twin in this file: at most maxInstances
+    // entity instances reach one update. Past it the instance is REFUSED and
+    // counted; it is not silently skipped.
+    if (accepted >= maxInstances) { ++entityModelInstanceRejectedBudget_; continue; }
+    // A mesh this update actually asked for is not evictable this frame. The
+    // eviction policy reads this stamp (evictForEntityModelMesh).
+    mesh->second.lastTouchedFrame = entityModelMeshFrame_;
     const std::string bucketKey = instance.cacheKey + "#" + std::to_string(instance.skinFamily);
     const auto inserted = bucketOf.emplace(bucketKey, buckets.size());
     if (inserted.second) {

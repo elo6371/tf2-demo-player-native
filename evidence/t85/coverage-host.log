@@ -1,0 +1,63 @@
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031718017444000-t87-anim-53435
+WAITING owner=t85-budget queue_head=1794031882426860900-t90-identity-60514
+WAITING owner=t85-budget queue_head=1794031882426860900-t90-identity-60514
+WAITING owner=t85-budget queue_head=1794031882426860900-t90-identity-60514
+WAITING owner=t85-budget queue_head=1794031882426860900-t90-identity-60514
+WAITING owner=t85-budget queue_head=1794031882426860900-t90-identity-60514
+ACQUIRED owner=t85-budget at 2026-11-07 15:14:25
+driver sha256=b8a54704362acfaa83e3cd204551ab454e39f0a8903039386757277560841076
+branch=task/t85-budget head=e15577b4f0550870bb11672a04497c038c9d88b2
+demo sha256=7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3
+==== source patch: the coverage ledger (idempotent) ====
+patch: main.cpp sha256 before=28a79917bb81a0792424a6c254ed0c3811ec5bbeb6f646aee833318fa14a7a86
+CRLF
+PATCH-OK bytes=728639
+patch: main.cpp sha256 after=20184d2973a3c2ef5e0416ad9f136a1200591cf518e89b18415441242062a030
+==== build ====
+build rc=0 log=evidence/t85/upward-pyro/build-coverage.log
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(10207): warning C4456: “elapsed”的声明隐藏了上一个本地声明
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0
+exe sha256=55efceb69cc7feae02ac8d5d8724cf92360ba2a284d2d3246664254fc8ce1650 mtime=2026-11-07 15:14:43.543377800 +0800
+==== run ====
+argv: native/build-nmake/tf2_demo_native.exe --tf-root D:/SteamLibrary/steamapps/common/Team Fortress 2/tf --hidden-window --audio-disabled --settings-file evidence/t85/inputs/upward-settings.json --ui-settings-file evidence/t85/inputs/upward-ui.json --demo D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem --capture-tick 30001 --playback-speed 32 --capture-frame evidence/t85/upward-pyro/coverage.bmp --debug-camera 1707.0 -125.1 152.8 4.1 0.0 --player-animation --player-weapon-attach on
+rc=0 bmp=yes bmp_sha256=d297340f6bbd1c9edfe9d5674fe989c0cd793e4f067df33b629fbf062476987c trace=4238618
+==== layer A (prepare) ====
+37357.2 budget: prepare capacity=64 candidates=98 admitted=64 built=64 deferred=34 failed=0 admittedByPriority=player:9,weapon:43,overlay:0,prop:12,firstPersonOnly:0 deferredByPriority=player:0,weapon:0,overlay:0,prop:25,firstPersonOnly:9
+==== world pass ====
+41982.9 gpu: models done 64 uploaded=64
+==== layer C (instances) ====
+57007.3 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+==== layer D (draw) ====
+57007.1 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+==== layer B (mesh table, settled) ====
+57007.3 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+==== attach coverage (the answer) ====
+57007.1 attach: coverage requested=5988 resolvedFromWorld=5975 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+57007.1 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+57007.1 scene: weaponAttach on=1 held=13 drawn=13 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=11 firstRefusal=-
+==== refusals / OOM ====
+attach refused lines = 0
+0x8007000E occurrences = 0
+budget: eviction lines = 0
+==== coverage distribution over the recording ====
+      1 attach: coverage requested=986 resolvedFromWorld=975 uploaded=11
+      1 attach: coverage requested=969 resolvedFromWorld=958 uploaded=11
+      1 attach: coverage requested=952 resolvedFromWorld=941 uploaded=11
+      1 attach: coverage requested=935 resolvedFromWorld=924 uploaded=11
+      1 attach: coverage requested=918 resolvedFromWorld=907 uploaded=11
+      1 attach: coverage requested=901 resolvedFromWorld=890 uploaded=11
+      1 attach: coverage requested=884 resolvedFromWorld=873 uploaded=11
+      1 attach: coverage requested=867 resolvedFromWorld=856 uploaded=11
+ledger=evidence/t85/upward-pyro/coverage.ledger.txt (60 lines)
+coverage-balance-violations=0
+COVERAGE-RUN=PASS
+LOCKED-COMMAND-EXIT rc=0 owner=t85-budget

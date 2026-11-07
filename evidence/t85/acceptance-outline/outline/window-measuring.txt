@@ -1,0 +1,1 @@
+demo history packets=190 retainedFirst=74481 retainedLast=74671 checkpoints=2 checkpointFirst=74481 checkpointLast=74609 archive=96 dropped=174 flushes=174 gap=0 gapTick=0 firstRecordedPacketTick=1 serverTickOrigin=10320 activeEntities=626 lastEntityStates=2048 limitsEvents=8192 limitsCheckpoints=8 limitsStride=128

@@ -1,0 +1,10 @@
+=== build tf2_demo_native entity_overlay_probe ===
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(2552): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(2553): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(2554): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(2555): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(2556): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(9968): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Worktrees\t85-budget\native\src\main.cpp(10207): warning C4456: “elapsed”的声明隐藏了上一个本地声明
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+rc=0

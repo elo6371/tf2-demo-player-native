@@ -1,0 +1,17 @@
+ACQUIRED owner=t85-budget at 2026-11-07 13:33:03
+class=heavy ent=11 tick=24001 origin=1609.4,-1293.8,80.7 eye=1359.4,-1293.8,138.7 speed=32
+demo sha256=7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3
+before exe sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+after  exe sha256=1d1ecca511c6ad2a7c744332a27f4c6a7c735c434cad5578b4fa7256d6351cb8
+before rc=0 bmp=yes trace=5905163
+---- before ----
+  attach refusals        = 3
+  E_OUTOFMEMORY 0x8007000E = 417
+  attach refused paths:
+  42928.4 attach: meshSource supplied=23 refused=3 meshes=23
+  42928.3 scene: weaponAttach on=1 held=15 drawn=15 poseMissing=0 overBudget=0 refused=1 noHoldPoint=0 noWorldMesh=0 skippedStandalone=12 firstRefusal=ent=2:worldModelIndexZero
+  last meshTable : 
+  last instances : 
+  last draw      : 
+  ledger: evidence/t85/upward-heavy/before.ledger.txt (40 lines)
+LOCKED-COMMAND-EXIT rc=0 owner=t85-budget

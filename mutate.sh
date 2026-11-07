@@ -10,7 +10,7 @@
 #
 # The tree MUST be committed first: `git checkout --` is the restore mechanism.
 #
-# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13]
+# Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14]
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -53,7 +53,7 @@ MODELPROBE=native/build-nmake/entity_model_probe.exe
 OUT=evidence/mutation
 mkdir -p "$OUT"
 
-CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13}"
+CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
@@ -653,6 +653,81 @@ for case_id in $CASES; do
       # sweep looked at nothing".
       must_hold "m13 sweep ablated -> CTFPlayer is still found (found=1)" \
         "$OUT/animavail-m13/bagel.txt" 'tfPlayerFound=[0-9]+' '1'
+      ;;
+    m14)
+      # Reintroduce the defect the T85 budget round fixed, at the one point its
+      # own gate has to see: the prepare pass still runs, still finds the same
+      # candidates, still builds meshes -- but the priority order is gone and the
+      # 64-slot prepare budget is handed out first-come-first-served again.
+      #
+      # Why this and not a bigger constant: the BEFORE trace of the upward fixture
+      # (evidence/t85/upward-pyro/before.trace) shows the old build holding
+      # 64 world models + 9 overlay + 23 attach = exactly 96, its table capacity,
+      # which is why the last three attach uploads died with 0x8007000E. The fix
+      # admits the held-weapon world models into the prepare budget instead of
+      # raising 96; reverting the ORDER (not the capacity) puts the budget back on
+      # the demo order, the attach pass then has to upload ~23 models again, and
+      # the named per-model assertions in outline-check.sh --world-only are the
+      # readings that have to go red. A gate that only checked "capacity==96" or
+      # "refusals==0" would stay green under this mutation, which is the point:
+      # make the ORDER load-bearing and prove it.
+      #
+      # This is also the long-term guard against "just raise the constant":
+      # raising 96 -> 160/192 moves the numbers these assertions pin but does not
+      # restore the priority order, so this case still refuses such a build.
+      echo "--- m14 the prepare budget ignores priority (first-come-first-served is back)"
+      patch_in "$MAINSRC" \
+        "          const auto leftRank = static_cast<std::size_t>(prepareCandidates[left].priority);
+          const auto rightRank = static_cast<std::size_t>(prepareCandidates[right].priority);
+          if (leftRank != rightRank) return leftRank < rightRank;
+          return left < right;  // same priority: the demo's own order decides" \
+        "          /* mutation m14: the priority order is gone -- first-come-first-served */
+          (void)prepareCandidates;
+          return left < right;" \
+        || { rc_all=1; continue; }
+      rebuild tf2_demo_native || continue
+      # --world-only runs the named world-model section alone: one product launch,
+      # one demo load, no pixel fixture to re-pin. Its output is a whole gate
+      # report, so it is redirected into the mutation evidence directory.
+      OUTLINE_OUT="$OUT/outline-m14" bash outline-check.sh --world-only \
+        > "$OUT/gate.m14.txt" 2>&1
+      m14rc=$?
+      must_refuse "m14 priority ignored -> the named world-model section refuses" \
+        "$OUT/gate.m14.txt" 'OUTLINE-CHECK=FAIL (--world-only' "$m14rc"
+      # The red has to be a NAMED per-model assertion, not just the gate's exit
+      # code: an exit code alone cannot tell "the budget ran out" from "the demo
+      # failed to load". Each target model the mutated build can no longer supply
+      # prints its own "FAIL named world models: ..." line.
+      m14_named_red=$(grep -c -E '^[[:space:]]*FAIL named world models:' "$OUT/gate.m14.txt" || true)
+      if [ "${m14_named_red:-0}" -ge 1 ]; then
+        printf 'MUTATION-RED   %-56s %s\n' \
+          "m14 priority ignored -> a named world model is refused" \
+          "$m14_named_red named assertion(s) red"
+        grep -a -E '^[[:space:]]*FAIL named world models:' "$OUT/gate.m14.txt" | head -5 | sed 's/^/    /'
+      else
+        printf 'MUTATION-GREEN %-56s no named world-model assertion went red\n' \
+          "m14 priority ignored -> a named world model is refused"
+        rc_all=1
+      fi
+      # The budget accounts the round added have to move for the stated reason.
+      # admittedByPriority is the layer-A composition: without the order the
+      # weapon rank no longer gets slots first, so the makeup of the admitted 64
+      # changes even though the count cannot (64 either way).
+      m14_admitted=$(grep -oE 'admittedByPriority=player:[0-9]+,weapon:[0-9]+' "$OUT/gate.m14.txt" | head -1)
+      printf '    %-56s %s\n' "m14 layer-A composition under the mutation" "${m14_admitted:-<none>}"
+      # deferred is the honest-budget reading: it must still be >= 1 (the budget
+      # still binds on this recording), otherwise the deferral counter was only
+      # measuring the order, and the gate's "deferred >= 1" assertion would flip
+      # green under exactly the defect it exists to catch.
+      m14_deferred=$(value "$OUT/gate.m14.txt" 'deferred=[0-9]+')
+      if [ "${m14_deferred:-0}" -ge 1 ] 2>/dev/null; then
+        printf 'MUTATION-RED   %-56s deferred=%s (still binds)\n' \
+          "m14 deferred stays honest under the mutation" "$m14_deferred"
+      else
+        printf 'MUTATION-GREEN %-56s deferred=%s\n' \
+          "m14 deferred stays honest under the mutation" "${m14_deferred:-<none>}"
+        rc_all=1
+      fi
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac

@@ -1,0 +1,60 @@
+56687.7 budget: draw capacity=96 playerBudget=14 propBudgetAfterAttach=68 playerDrawn=14 propDrawn=68 attachReserved=14 attachDrawn=14 droppedPlayers=0 droppedProps=83
+56687.7 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56687.7 attach: coverage requested=5842 resolvedFromWorld=5829 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56687.8 budget: instances capacity=96 accepted=60 slots=181 rejected=missingMesh:0,deferredNotResident:36,badMesh:0,nonFinite:0,budget:0
+56687.8 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56718.6 budget: draw capacity=96 playerBudget=14 propBudgetAfterAttach=68 playerDrawn=14 propDrawn=68 attachReserved=14 attachDrawn=14 droppedPlayers=0 droppedProps=83
+56718.6 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56718.6 attach: coverage requested=5856 resolvedFromWorld=5843 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56718.8 budget: instances capacity=96 accepted=60 slots=181 rejected=missingMesh:0,deferredNotResident:36,badMesh:0,nonFinite:0,budget:0
+56718.8 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56747.7 budget: draw capacity=96 playerBudget=14 propBudgetAfterAttach=68 playerDrawn=14 propDrawn=68 attachReserved=14 attachDrawn=14 droppedPlayers=0 droppedProps=83
+56747.7 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56747.7 attach: coverage requested=5870 resolvedFromWorld=5857 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56747.9 budget: instances capacity=96 accepted=60 slots=181 rejected=missingMesh:0,deferredNotResident:36,badMesh:0,nonFinite:0,budget:0
+56747.9 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56778.6 budget: draw capacity=96 playerBudget=14 propBudgetAfterAttach=68 playerDrawn=14 propDrawn=68 attachReserved=14 attachDrawn=14 droppedPlayers=0 droppedProps=83
+56778.6 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56778.6 attach: coverage requested=5884 resolvedFromWorld=5871 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56778.7 budget: instances capacity=96 accepted=60 slots=181 rejected=missingMesh:0,deferredNotResident:36,badMesh:0,nonFinite:0,budget:0
+56778.7 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56811.7 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+56811.7 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56811.7 attach: coverage requested=5897 resolvedFromWorld=5884 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56811.8 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+56811.8 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56849.5 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+56849.5 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56849.5 attach: coverage requested=5910 resolvedFromWorld=5897 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56849.6 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+56849.6 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56880.2 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+56880.3 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56880.3 attach: coverage requested=5923 resolvedFromWorld=5910 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56880.4 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+56880.4 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56901.1 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+56901.1 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56901.1 attach: coverage requested=5936 resolvedFromWorld=5923 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56901.2 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+56901.3 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56923.9 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+56923.9 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56923.9 attach: coverage requested=5949 resolvedFromWorld=5936 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56924.0 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+56924.0 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56946.0 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+56946.0 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56946.0 attach: coverage requested=5962 resolvedFromWorld=5949 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56946.1 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+56946.1 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+56980.1 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+56980.1 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+56980.1 attach: coverage requested=5975 resolvedFromWorld=5962 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+56980.2 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+56980.3 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0
+57007.1 budget: draw capacity=96 playerBudget=13 propBudgetAfterAttach=70 playerDrawn=13 propDrawn=70 attachReserved=13 attachDrawn=13 droppedPlayers=0 droppedProps=82
+57007.1 attach: meshSource supplied=13 refused=0 meshes=13 resupply=0
+57007.1 attach: coverage requested=5988 resolvedFromWorld=5975 uploaded=13 refused=0 retrySkipped=0 unresolvedPath=0 meshes=13
+57007.3 budget: instances capacity=96 accepted=59 slots=170 rejected=missingMesh:0,deferredNotResident:37,badMesh:0,nonFinite:0,budget:0
+57007.3 budget: meshTable capacity=96 resident=86 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:56,overlay:9,prop:12,firstPersonOnly:0

@@ -20,6 +20,10 @@
 #include "world_tile_atlas.h"
 #include "viewmodel_material.h"
 #include "entity_overlay.h"
+// T85 P0: which budget layer a mesh belongs to. The mesh table below is a cache
+// shared by the world pass, the overlay and the third-person attach, and a
+// refusal now says what it was refused FOR (see entity_mesh_budget.h).
+#include "entity_mesh_budget.h"
 // T53: ProjectileTrackPoint, a three-float POD in a header that includes nothing,
 // so the renderer can take observed positions without including the demo decoder.
 #include "projectile_track_point.h"
@@ -264,6 +268,13 @@ struct EntityModelDrawInstance {
   // code path for every prop.
   bool hasLocalMatrix = false;
   float localPositionRows[12] = {};
+  // T85 P0 (lead review, point 2): why this instance's key is not resident when
+  // the frame is built. True means layer A deliberately DEFERRED the model (the
+  // 64-slot prepare budget did not admit it) -- a known, bounded decision, not a
+  // hole. False means the caller offered a key that should have had a mesh and
+  // there is none: the m8 failure shape. The two are counted separately so the
+  // defect detector is not drowned in the budget's own noise.
+  bool budgetDeferred = false;
 };
 
 // Everything the first-person pass needs, in one value. It is deliberately a
@@ -776,8 +787,15 @@ public:
   // and no truncation: the buffer is exactly as long as the model's LOD0. `runs`
   // splits the buffer into per-material draws; an empty list means one draw with
   // material slot 0.
+  //
+  // T85 P0: `priority` is the delivery order (entity_mesh_budget.h). The table is
+  // a BOUNDED CACHE, not a wall: when it is full the least useful resident is
+  // evicted to make room for a more important mesh, and only a request that
+  // outranks nothing resident is refused. Every eviction and every refusal is
+  // counted; see entityModelMeshEvictions() / entityModelMeshCapacityRefusals().
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
-    const std::vector<ModelMeshMaterialRun>& runs = {});
+    const std::vector<ModelMeshMaterialRun>& runs = {},
+    EntityMeshPriority priority = EntityMeshPriority::WorldProp);
   // One texture per (material slot, skin family). The draw loop picks the
   // instance's family and binds that texture for the matching runs.
   bool uploadEntityModelTexture(const std::string& cacheKey, std::uint32_t materialSlot, std::uint32_t skinFamily,
@@ -806,6 +824,48 @@ public:
   // measured this path cutting every player model at 12000 vertices. The counter
   // exists so a re-introduced cap is a published reading, not a silent cut.
   std::size_t entityModelMeshTruncatedCount() const { return entityModelMeshTruncatedCount_; }
+  // T85 P0: the entity-mesh table AS A BUDGET. The four layers are named in
+  // entity_mesh_budget.h; these readings make layer B (the cache) observable:
+  // capacity (the compile-time bound), resident (what is in it now), and the
+  // price of keeping it bounded -- evictions and capacity refusals. A bounded
+  // cache that never evicts is either oversized or not being measured, which is
+  // exactly the shape of the defect this replaced: a wall that said
+  // E_OUTOFMEMORY and a frame that was silently short.
+  std::size_t entityModelMeshCapacity() const;
+  // Layer C's bound: at most this many entity instances reach one update. Named
+  // here so the ledger can print the capacity it is measured against instead of
+  // repeating a literal.
+  static constexpr std::size_t entityModelInstanceCapacityLimit = 96;
+  std::size_t entityModelMeshEvictions() const { return entityModelMeshEvictions_; }
+  std::vector<std::string> takeEvictedEntityModelMeshKeys() {
+    std::vector<std::string> out = std::move(entityModelMeshEvictedKeys_);
+    entityModelMeshEvictedKeys_.clear();
+    return out;
+  }
+  std::size_t entityModelMeshCapacityRefusals() const { return entityModelMeshCapacityRefusals_; }
+  // Uploads of a key that was already resident. Non-zero means the attach's
+  // "prepare a weapon once" rule is churning: a re-upload drops the textures the
+  // key already carried (see uploadEntityModelMesh), so a bounded cache must not
+  // turn into a rotating door behind that rule.
+  std::size_t entityModelMeshReuploads() const { return entityModelMeshReuploads_; }
+  std::size_t entityModelMeshResident(EntityMeshPriority priority) const {
+    std::size_t count = 0;
+    for (const auto& entry : entityModelMeshes_) {
+      if (entry.second.priority == priority) ++count;
+    }
+    return count;
+  }
+  // Why the last instance update dropped an instance. These used to be a bare
+  // `continue`: a key with no mesh, a buffer shorter than three vertices and a
+  // non-finite local matrix all produced the same invisible short frame.
+  std::size_t entityModelInstanceRejectedMissingMesh() const { return entityModelInstanceRejectedMissingMesh_; }
+  std::size_t entityModelInstanceRejectedBadMesh() const { return entityModelInstanceRejectedBadMesh_; }
+  std::size_t entityModelInstanceRejectedNonFinite() const { return entityModelInstanceRejectedNonFinite_; }
+  std::size_t entityModelInstanceRejectedBudget() const { return entityModelInstanceRejectedBudget_; }
+  // A draw whose model layer A deliberately deferred. Separate from missingMesh
+  // on purpose: one is the budget working, the other is a submitted key with
+  // nothing behind it.
+  std::size_t entityModelInstanceRejectedDeferredNotResident() const { return entityModelInstanceRejectedDeferredNotResident_; }
   // Number of (material slot, skin family) textures uploaded for entity models.
   // Zero means every draw falls back to the world atlas.
   std::size_t entityModelTextureCount() const { return entityModelTextureCount_; }
@@ -1363,6 +1423,12 @@ public:
   void requestFrameCapture(std::wstring path, std::wstring depthPath = {});
   bool frameCapturePending() const { return !capturePath_.empty(); }
   bool lastFrameCaptureSucceeded() const { return captureSucceeded_; }
+  // The size the capture is written at: the swap chain back buffer, i.e. the
+  // client rect the window had when the frame was drawn. --window-size pins the
+  // outer rect for the whole run, so this reading is a constant a gate can assert
+  // instead of assuming a geometry the product never promised.
+  int frameWidth() const { return static_cast<int>(width_); }
+  int frameHeight() const { return static_cast<int>(height_); }
   bool lastDepthCaptureSucceeded() const { return depthCaptureSucceeded_; }
   unsigned long long lastDepthCaptureBytes() const { return depthCaptureBytes_; }
   const std::wstring& lastFrameCaptureError() const { return captureError_; }
@@ -1590,6 +1656,22 @@ private:
     // for this slot/family": that run falls back to the world atlas, it does not
     // borrow another slot's texture.
     std::unordered_map<std::uint64_t, Texture2D> textures;
+    // T85 P0: what this mesh is for, and the last instance update that asked for
+    // it. The pair is what makes eviction a policy rather than a coin flip: a
+    // mesh that the previous frame drew is never evicted to make room for one
+    // that ranks below it, and when the whole table was drawn last frame the
+    // admission is refused instead of punched into a live draw range (the m8
+    // failure shape: a submitted key with nothing behind it).
+    EntityMeshPriority priority = EntityMeshPriority::WorldProp;
+    std::uint64_t lastTouchedFrame = 0;
+    // T85 P0 review B1/M1: overlay meshes are PINNED. The overlay's draw ranges
+    // hold this mesh's ID3D11Buffer* directly (native_renderer_overlay.cpp), and
+    // they are rebuilt only on an overlay sample frame -- so evicting one is a
+    // use-after-free between samples, and the next sample silently loses the
+    // class silhouette. The nine class models are also MANDATORY (the outline is
+    // the product's identity pass), so they are never a candidate: pinned is a
+    // property of the mesh, not a rank comparison that a policy could get wrong.
+    bool pinned = false;
     static std::uint64_t textureKey(std::uint32_t materialSlot, std::uint32_t skinFamily) {
       return (static_cast<std::uint64_t>(materialSlot) << 32) | skinFamily;
     }
@@ -1605,7 +1687,34 @@ private:
     // t0 per range; null means "no model material, fall back to the world atlas".
     ID3D11ShaderResourceView* textureView = nullptr;
   };
+  // T85 P0: layer B's compile-time bound, named. 96 is kept: the defect was not
+  // that the number was too small, it was that a bounded table refused instead
+  // of budgeting, so the fix is accounting (priority + eviction + counters), not
+  // a larger number.
+  // Layer B's bound (96) is defined in native_renderer_entity.cpp next to the
+  // eviction policy it belongs to, so the budget and the behaviour that spends
+  // it are read in one place.
   std::unordered_map<std::string, EntityModelMesh> entityModelMeshes_;
+  // The key to evict to make room for `incoming`, or empty when every resident
+  // outranks it. "Least useful" is, in order: not touched by the most recent
+  // instance update, then strictly lower priority, then the oldest touch, then
+  // the key itself (so the choice is deterministic and two processes agree).
+  std::string evictableEntityModelMeshKey() const;
+  // Keys erased by the last upload(s), handed to the caller so the tables that
+  // MAP a path to a cache key can drop them in the same step (review B4): a
+  // mapping left behind resolves a dead key, the attach's one-shot trial set
+  // refuses to try the path again, and the eviction becomes permanent loss.
+  // Drained by takeEvictedEntityModelMeshKeys(); empty on the common path.
+  std::vector<std::string> entityModelMeshEvictedKeys_;
+  std::size_t entityModelMeshEvictions_ = 0;
+  std::size_t entityModelMeshCapacityRefusals_ = 0;
+  std::size_t entityModelMeshReuploads_ = 0;
+  std::uint64_t entityModelMeshFrame_ = 0;
+  std::size_t entityModelInstanceRejectedMissingMesh_ = 0;
+  std::size_t entityModelInstanceRejectedDeferredNotResident_ = 0;
+  std::size_t entityModelInstanceRejectedBadMesh_ = 0;
+  std::size_t entityModelInstanceRejectedNonFinite_ = 0;
+  std::size_t entityModelInstanceRejectedBudget_ = 0;
   std::vector<EntityModelDrawRange> entityModelDrawRanges_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> entityModelInstanceBuffer_;
   std::size_t entityModelInstanceCapacity_ = 0;

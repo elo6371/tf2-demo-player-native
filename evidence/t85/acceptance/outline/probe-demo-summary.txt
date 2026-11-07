@@ -1,0 +1,1 @@
+demo summary ticks=6 rows=120 distinctEntities=20 withTeam=120 red=36 blue=36 unknown=48 withPose=120 exact=0 checkpointFallback=6 unavailable=0 appeared=20 vanished=0 ticksWithRows=6 rowsMissingTeam=0 rowsMissingPose=0 teamMappingMismatches=0

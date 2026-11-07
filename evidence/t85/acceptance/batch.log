@@ -1,0 +1,19 @@
+===========================================================================
+T85 P0 acceptance batch  0s  2026-11-07T06:26:48Z
+driver      = evidence/t85/run-acceptance-batch.sh sha256=d7fbfbdbc01693782821868b965ad8b7d7d99315a16e0ac57f435cf8aebf24d1
+pwd         = /d/TF2_Native_Worktrees/t85-budget
+git         = branch task/t85-budget head e15577b4f0550870bb11672a04497c038c9d88b2
+exe         = f0739790a4a120af515fdf346bb06ab3a46da96592e0c9ccd57a8037236a2f92 mtime 2026-11-07T13:44:02
+gates       = outline 15a6d869db2df3aec1faf07e7b336e954116fd5a72bcf833664d826c809bc767
+              third-person fb97ddb75d194c6f9ef980dd59fdc8db34c3929a2849459a8e572d1f409b4e44
+              body 72e5053c4ecd533ddf292b15f891f7371ef3e8bd830ebfef68edb3549c463946
+budget      = 3600s (T85_BATCH_BUDGET)
+lock        = this process runs INSIDE a hostlock grant owned by t85-budget
+  lock-before: LOCKED owner=t85-budget heartbeat_age=1s
+  lock-before: queue=1794031718017444000-t87-anim-53435 1794031882426860900-t90-identity-60514 1794032086200256600-t88-budget-69282 1794032597353210300-t85-timeline-88005 1794032645099048700-t85-av-89948 head=1794031718017444000-t87-anim-53435
+  lock-before: reservation=none
+  lock-before: product_processes=0
+===========================================================================
+
+=== STEP outline-check (budget 1500s, remaining 3598s) ===
+  argv: env OUTLINE_OUT=evidence/t85/acceptance/outline bash outline-check.sh
