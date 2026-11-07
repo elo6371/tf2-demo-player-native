@@ -177,6 +177,8 @@ bc5b7c9b4127a1d08fc094c08e28e862c93e38d04bb726232447e30a03c47309  verify-release
 
 > `verify-release.sh` 是 **task-15 新增、task-16 扩到 7 步、task-18 扩到 8 步的整链入口**（分支 `task/t86-phase0`，不在 `e15577b` 的 99 个脚本里）。步骤顺序与超时：**`gate-launch-hygiene-check.sh`（120s，第 1 个执行；task-18 新增的启动卫生棘轮）** → `verify-all.sh`（3600s）→ `outline-check.sh`（1800s）→ `third-person-weapon-check.sh`（1200s）→ `player-body-appearance-check.sh`（1200s）→ `class-pixels-check.sh`（1200s）→ `build-identity-check.sh`（1200s）→ `world-geometry-budget-check.sh`（1200s）；后两个脚本尚不存在 → 各自记 `STUB-ABSENT=FAIL`，不跳过。每步独立 timeout（可用 `VERIFY_RELEASE_TIMEOUT_*` 覆盖）、逐步落 `evidence/release/<utc>-<step>.log`，最后一行 `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=8`。**machine guard（D-22，task-16）**：第一步前与末步后快照 `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` 与 `ui.ini`（exists/bytes/mtime/sha256）到 `<utc>-machine-before.txt` / `-machine-after.txt`，任何变化默认 `MACHINE-MUTATED=FAIL` 并令整链 FAIL；`VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1` 只降级为 `MACHINE-MUTATION-ALLOWED=1` 且该次运行不能签发布。只在 `hostlock.sh run` 内、且 `VERIFY_RELEASE_OWNER` 与锁主一致时启动，否则 exit 9 拒绝。task-15/16 都只做 `bash -n` 与 `VERIFY_RELEASE_DRY_RUN=1`，**未真跑**（未占锁、未构建、未启动产品）。策略条文见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条。
 
+> **行尾口径修正（task-18，commit `f384fa1`）**：本文档与 `T85-DEBT-LIST.md`、`verify-release.sh`、`gate-launch-hygiene-check.sh`、`baseline.txt` 经 task-18 重写后为 **LF**（CR=0）；`RELEASE-POLICY.md` 仍为 CRLF（80 行 / 80 CR），`CHARACTER-MATRIX.md` 等未改文档仍 CRLF。因此上表数值是“该文件当前工作树字节”的 sha256，checkout 归一化后可能变；要跨环境复核请用 `git show <commit>:<path> | sha256sum`（LF blob 口径）。
+
 **未做（阶段 0 明确不做）**：重跑任何门禁、构建、启动产品、抓帧。上表 PASS 的重现需要持有 host lock 并按上表命令行执行；执行者必须自己记录 exe/gate/demo/BSP 的 sha256、rc、断言数、hostlock owner 与锁结束状态。
 
 ## 10. 已知的引用陷阱
