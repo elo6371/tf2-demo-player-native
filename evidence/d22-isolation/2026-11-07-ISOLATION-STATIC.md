@@ -79,3 +79,62 @@ C:/Users/Administrator/AppData/Local/TF2 Demo Player/ui.ini
 ```
 
 （动态抽验会在启动前后各记一次并断言 `APPDATA-UNCHANGED=YES`。）
+
+## 8. 动态抽验：`DEFERRED-TO-INTEGRATION`（由 Lead 在合并树执行，本文件不含动态结论）
+
+状态：**未执行**。本分支上排队过 `hostlock`（队位 7/7，锁主 `t85-budget` 长时间持锁），
+Lead 决定改在**合并后的树**（`t91-integration`）上跑，结论由合并窗口产出。在那之前，
+“产品真的不写 `%LOCALAPPDATA%`”这件事**未验证**，不要引用本文件去主张它。
+
+脚本已提交：`evidence/d22-isolation/dyn-iso.sh`（133 行；`--plan` / `--skip-build` / `--tree DIR` / `--out DIR` / `--lease NAME`）。
+
+先看计划（不构建、不启动、不需要锁）：
+
+```bash
+bash /d/TF2_Native_Worktrees/t94-hygiene/evidence/d22-isolation/dyn-iso.sh --plan --tree /d/TF2_Native_Worktrees/t91-integration
+```
+
+真正跑（必须包在锁里；`timeout` 由执行的 Lead 自己给）：
+
+```bash
+bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t94-hygiene bash /d/TF2_Native_Worktrees/t94-hygiene/evidence/d22-isolation/dyn-iso.sh --tree /d/TF2_Native_Worktrees/t91-integration
+```
+
+（`--tree` 默认取脚本所在仓库根，所以先 `cd` 进目标树再省略也可以。）
+
+### 8.1 它会 build 什么
+
+`bash build-target.sh tf2_demo_native review_workspace_probe spectate_probe viewmodel_animation_probe weapon_animation_probe`
+
+= 产品 exe + 4 个探针；后三个被三条像素/工作区门禁使用，`review_workspace_probe` 给 review-workspace 用。
+build 失败打印 `BUILD rc=<n>` 与 `BUILD-ERROR <最后 3 行 error>`，然后 `DYNAMIC-ISO=FAIL reason=build`，退出码 **3**
+——**这是构建/环境问题，不是隔离结论**。
+
+### 8.2 它跑哪 6 条门禁（按顺序）
+
+| # | 脚本 | 期望 token | 传给门禁的 OUT 环境变量 |
+|---|---|---|---|
+| 1 | `frame-capture-check.sh` | `FRAME-CAPTURE=` | `FRAME_CAPTURE_OUT` |
+| 2 | `idle-spin-check.sh` | `IDLE-SPIN=` | `IDLE_SPIN_OUT` |
+| 3 | `review-workspace-check.sh` | `REVIEW-WORKSPACE-CHECK=` | `REVIEW_WORKSPACE_OUT` |
+| 4 | `spectate-check.sh` | `SPECTATE-CHECK=` | `SPECTATE_OUT` |
+| 5 | `viewmodel-animation-check.sh` | `VIEWMODEL-ANIMATION=` | `VIEWMODEL_ANIMATION_TRACE_DIR` |
+| 6 | `weapon-animation-check.sh` | `WEAPON-ANIMATION=` | `WEAPON_ANIMATION_OUT` + `WEAPON_ANIMATION_TRACE_DIR` |
+
+每条输出 `GATE <script> rc=<n> token=<TOKEN=...> log=<path>`；红时紧跟一行 `GATE-FAIL-DETAIL <日志里最后 2 行 FAIL/ERROR/assert>`。
+判定：`rc=0` **且** token 行存在 → 计入通过（脚本不校验 token 的值，只保证门禁确实打了收尾行）。
+
+### 8.3 AppData 断言怎么写的
+
+1. 开跑前对两个真实文件各记 `sha256` 与 `size:mtime`：`<LOCALAPPDATA>/TF2 Demo Player/settings.ini`、`ui.ini`
+   （`cygpath -u` 归一）。打印 `APPDATA-BEFORE settings=… (bytes:mtime) ui=… (…)`。
+2. 六条门禁跑完后各记一次，打印 `APPDATA-AFTER`。
+3. 四项（两文件各自的 sha256 与 size:mtime）任意一项变化 → `APPDATA-UNCHANGED=NO` 并打印 `APPDATA-DIFF <before -> after>`；全同 → `YES`。
+4. 收尾：`DYNAMIC-ISO=PASS gates=<n>/6` 仅当 6 条全过 **且** AppData 未变；否则 `DYNAMIC-ISO=FAIL gates_passed=<n>/6 appdata_touched=YES|NO`，退出码 **1**。
+
+### 8.4 红了怎么一眼判断责任
+
+- `DYNAMIC-ISO=FAIL reason=build|exe-missing`（rc=3）→ 构建/环境，不是隔离结论。
+- `DYNAMIC-ISO=FAIL reason=tree-missing|not-a-repo`（rc=2）→ 传错树。
+- `GATE <script> rc!=0` 且 `APPDATA-UNCHANGED=YES` → 该门禁自身红，与隔离无关。
+- `APPDATA-UNCHANGED=NO` 且 6 条门禁全绿 → **D-22 未修好或产品另有写点**，看 `APPDATA-DIFF` 与对应门禁日志里的启动命令行。
