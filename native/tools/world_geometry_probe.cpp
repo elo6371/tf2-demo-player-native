@@ -291,6 +291,18 @@ int main(int argc, char** argv) {
   // is the product's buffer and must not include them; this line says how many
   // polygons the sky brushes contribute, which is what the `--world-geometry
   // sky` mask draws and therefore what a missing pixel can be attributed to.
+  // T88: the triangle budget as a reading. `requested` is every triangle the
+  // map asked for before the capacity was applied and `dropped` is what the
+  // capacity refused, so a probe run with --triangle-limit above any map's
+  // demand measures the demand, while a run at the product's capacity measures
+  // the product's loss. state=within means nothing was refused.
+  std::printf("geometry budget capacity=%zu requested=%zu dropped=%zu facesDropped=%zu"
+              " brushFacesDropped=%zu brushModelsDropped=%zu firstFace=%d firstBrush=%s state=%s\n",
+              map.triangleCapacity, map.trianglesRequested, map.trianglesDropped,
+              map.facesDroppedByBudget, map.brushFacesDroppedByBudget,
+              map.brushModelsDroppedByBudget, static_cast<int>(map.firstDroppedFace),
+              map.firstDroppedBrushModel.empty() ? "-" : map.firstDroppedBrushModel.c_str(),
+              map.trianglesDropped > 0 ? "truncated" : "within");
   std::printf("geometry sky faces=%zu triangles=%zu bufferTriangles=%zu\n",
               map.skyFaces, map.skyTriangles.size(), map.triangles.size());
   if (!faceInfoIds.empty()) {

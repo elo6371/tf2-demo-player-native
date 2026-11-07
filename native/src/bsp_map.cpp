@@ -316,10 +316,24 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   }
   // "Cannot move on its own" is the whole test. func_wall_toggle is left out on
   // purpose: it still toggles, and a toggle is not a static pose.
+  //
+  // T88: func_illusionary is in the list, and its absence was a defect, not a
+  // policy. An illusionary brush is non-solid but VISIBLE and has no keyvalues
+  // that move it -- there is no origin/angles/target input to apply -- so
+  // drawing it at its compile-time pose is exactly right, and refusing it
+  // deleted real surfaces: measured on the four authorised maps, 2,892 of
+  // snakewater's 3,278 skipped brush faces and 427 of sunshine's 960 are
+  // func_illusionary (probe-runs/bsp_skipped_faces.py). It was excluded only
+  // because the list was written from the three classes earlier tasks had
+  // needed, and a class that is missing from a whitelist fails silently.
   const auto brushClassIsStatic = [](const std::string& name) {
-    return name == "func_brush" || name == "func_wall" || name == "func_lod";
+    return name == "func_brush" || name == "func_wall" || name == "func_lod"
+        || name == "func_illusionary";
   };
   std::vector<char> modelDrawn(modelCount, 0);
+  // T88: which brush models lost a face to the triangle budget, so
+  // brushModelsDroppedByBudget is a number of models and not of faces.
+  std::vector<char> modelLostToBudget(modelCount, 0);
   std::vector<int> faceModel(faces.size() / 56, 0);
   for (std::size_t index = 0; index < modelCount; ++index) {
     const auto modelFirst = read<std::int32_t>(models, index * 48 + 40);
@@ -657,9 +671,53 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // T23: set only while the fallback fan below is being emitted, so the
     // triangles it pushes can say they are a substitution for a refused grid.
     bool emittingFallbackQuad = false;
+    // T88: set the first time THIS face loses a triangle to the budget, so the
+    // face is counted once however many of its triangles are refused.
+    bool faceLostToBudget = false;
+    // T88: one place that records what a refusal cost, used by pushTriangle()
+    // and by the displacement gate that refuses a whole grid before it is built.
+    // Both must agree on which face and which brush model lost something, or the
+    // counters would describe two different maps.
+    const auto noteBudgetDrop = [&](std::size_t droppedTriangles) {
+      map.trianglesDropped += droppedTriangles;
+      if (faceLostToBudget) return;
+      faceLostToBudget = true;
+      ++map.facesDroppedByBudget;
+      const auto slot = static_cast<std::size_t>(faceIndex);
+      const bool brushFace = slot < faceModel.size() && faceModel[slot] > 0;
+      if (brushFace) {
+        ++map.brushFacesDroppedByBudget;
+        const auto model = static_cast<std::size_t>(faceModel[slot]);
+        if (model < modelLostToBudget.size() && !modelLostToBudget[model]) {
+          modelLostToBudget[model] = 1;
+          ++map.brushModelsDroppedByBudget;
+        }
+        if (map.firstDroppedFace < 0) {
+          map.firstDroppedFace = faceIndex;
+          map.firstDroppedBrushModel = model < modelClassName.size() ? modelClassName[model] : std::string{};
+          if (map.firstDroppedBrushModel.empty()) map.firstDroppedBrushModel = "(unnamed)";
+        }
+      } else if (map.firstDroppedFace < 0) {
+        map.firstDroppedFace = faceIndex;
+        map.firstDroppedBrushModel = "worldspawn";
+      }
+    };
     const auto pushTriangle = [&](BspVertex a, BspVertex b, BspVertex c, bool displacement,
                                   float aAlpha = -1.0f, float bAlpha = -1.0f, float cAlpha = -1.0f) {
-      if (map.triangles.size() >= triangleLimit) return;
+      // T88: trianglesRequested is what the map asks for with an UNBOUNDED
+      // budget. A fallback fan pushed because the budget already refused its
+      // grid is not part of that ask -- the grid's own triangles were counted
+      // where the grid was refused, arithmetically -- so the substitution is
+      // not counted again. Without this, the same map would report a different
+      // demand at every capacity, and the counter would only describe itself.
+      if (!(emittingFallbackQuad && faceLostToBudget)) ++map.trianglesRequested;
+      if (map.triangles.size() >= triangleLimit) {
+        // T88: this used to be a bare `return`. The triangle is one the map
+        // asked for and the capacity refused: count it, and count the face it
+        // belonged to, instead of making the loss invisible.
+        noteBudgetDrop(1);
+        return;
+      }
       bool flipped = false;
       // T11 third round: does the displacement grid's parametrisation keep the
       // polygon's own order? Taken on the FIRST triangle of the face and BEFORE
@@ -877,8 +935,10 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
             return std::isfinite(area2) && area2 > 1.0e-8f
               && ab2 <= 262144.0f && ac2 <= 262144.0f && bc2 <= 262144.0f;
           };
+          const auto gridTriangles = static_cast<std::size_t>(size - 1)
+            * static_cast<std::size_t>(size - 1) * 2u;
           if (finite) dispFail = kDispLimit;
-          if (finite && map.triangles.size() + static_cast<std::size_t>(size - 1) * static_cast<std::size_t>(size - 1) * 2u <= triangleLimit) {
+          if (finite && map.triangles.size() + gridTriangles <= triangleLimit) {
             dispFail = kDispOk;
             const auto before = map.triangles.size();
             // T12 post-merge: the blend weight is a property of a grid cell, not
@@ -936,6 +996,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               ++map.displacementCornerMatches;
               map.displacementTriangles += map.triangles.size() - before;
             }
+          } else if (finite) {
+            // T88: the grid was refused before a single cell was built, so
+            // nothing reached pushTriangle() to be counted. The grid's triangle
+            // count is known arithmetically -- count the ask here, through the
+            // same bookkeeper, so trianglesRequested is what the map asked for
+            // and not only what the code happened to attempt.
+            map.trianglesRequested += gridTriangles;
+            noteBudgetDrop(gridTriangles);
           }
         }
       }
@@ -962,15 +1030,22 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         }
       }
       emittingFallbackQuad = dispIndex >= 0;
-      for (std::size_t i = 1; i + 1 < polygon.size() && map.triangles.size() < triangleLimit; ++i) {
+      for (std::size_t i = 1; i + 1 < polygon.size(); ++i) {
         pushTriangle(polygon[0], polygon[i + 1], polygon[i], false);
       }
       emittingFallbackQuad = false;
     }
     if (water) ++map.waterFaces;
     ++map.renderedFaceCount;
-    if (map.triangles.size() >= triangleLimit) break;
+    // T88: no early break here any more. The budget decides what is KEPT, not
+    // what is READ: stopping the walk at the capacity made every reading after
+    // that point describe the truncation rather than the map (renderedFaceCount,
+    // skyFaces, the lightmap tone histograms), and it made the loss itself
+    // unmeasurable -- the parser could not say how much it had dropped because
+    // it never looked at the rest. pushTriangle() refuses and counts instead,
+    // which costs one pass over the face lump and no memory.
   }
+  map.triangleCapacity = triangleLimit;
   map.triangleCount = map.triangles.size();
   map.hasHdrLightmap = hdrLumpUsable;
   if (hdrLumpUsable) {

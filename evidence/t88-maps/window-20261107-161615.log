@@ -1,0 +1,38 @@
+== window start 2026-11-07T16:16:15+08:00 owner=t88-budget pid=222980
+-- step build
+=== build tf2_demo_native world_geometry_probe ===
+rc=0
+build rc=0 seconds=4
+-- step gate --re-pin
+HOLD_LOCK=1: captures and builds run inside the held lock (owner=t88-budget)
+seeded evidence/t88-maps/inputs/settings.ini from the real profile (read only)
+seeded evidence/t88-maps/inputs/ui.ini from the real profile (read only)
+
+== cp_snakewater_final1 ==
+  FAIL B1 cp_snakewater_final1: no map: geometry budget line in the capture trace
+
+== cp_sunshine ==
+  FAIL B1 cp_sunshine: no map: geometry budget line in the capture trace
+
+== koth_bagel_rc12 ==
+  FAIL B1 koth_bagel_rc12: no map: geometry budget line in the capture trace
+
+== koth_bagel_rc11 ==
+  FAIL B1 koth_bagel_rc11: no map: geometry budget line in the capture trace
+  reading pl_odyssey (not asserted): probe demand=105486 at 4000000
+
+re-pinned evidence/t88-maps/budget-pins.tsv
+  # T88 world triangle budget pins. Written by
+  #   bash world-geometry-budget-check.sh --re-pin=T88: capacity 400000 sized from measured demand (242361 worst map); func_illusionary restored to the world whitelist
+  # on 2026-11-07T16:22:04+08:00 product sha256 56d7b61b0582848ad21948cb6c8945e5e74de84583bd6af5c04ba257896d920f
+  # map capacity requested dropped facesDrawn facesSkipped worldFaces brushFaces
+  cp_snakewater_final1       
+  cp_sunshine       
+  koth_bagel_rc12       
+  koth_bagel_rc11       
+  ok   H1 real profile untouched by this run: /c/Users/Administrator/AppData/Local/TF2 Demo Player/settings.ini 2786 1794031387 /c/Users/Administrator/AppData/Local/TF2 Demo Player/ui.ini 978 1794031363 
+
+WORLD-GEOMETRY-BUDGET=FAIL (4 assertions)
+gate rc=1
+-- cost: peak working set and fps from the metrics CSVs under .scratch/t88-budget
+== window end (gate failed, pixels not run) 2026-11-07T16:22:04+08:00

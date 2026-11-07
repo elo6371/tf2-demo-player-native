@@ -1,0 +1,33 @@
+== window start 2026-11-07T15:20:00+08:00 owner=t88-budget pid=130273
+-- step build
+=== build tf2_demo_native world_geometry_probe ===
+note: header stamp is missing; forcing requested source rebuild
+D:\TF2_Native_Worktrees\t88-maps\native\src\main.cpp(2552): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\main.cpp(2553): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\main.cpp(2554): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\main.cpp(2555): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\main.cpp(2556): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\main.cpp(9781): warning C4457: “instance”的声明隐藏了函数参数
+D:\TF2_Native_Worktrees\t88-maps\native\src\main.cpp(10007): warning C4456: “elapsed”的声明隐藏了上一个本地声明
+C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include\xutility(4813): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\native_renderer.cpp(693): warning C4456: “samplerDescription”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t88-maps\native\src\native_renderer_overlay.cpp(142): warning C4100: 'tick': 未引用的参数
+D:\TF2_Native_Worktrees\t88-maps\native\src\native_renderer_overlay.cpp(400): warning C4456: “world”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t88-maps\native\src\native_renderer_viewmodel.cpp(390): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\native_renderer_viewmodel.cpp(391): warning C4267: “=”: 从“size_t”转换到“uint32_t”，可能丢失数据
+D:\TF2_Native_Worktrees\t88-maps\native\src\native_renderer_viewmodel.cpp(698): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t88-maps\native\src\native_renderer_viewmodel.cpp(868): warning C4456: “view”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t88-maps\native\src\model_loader.cpp(536): warning C4456: “i”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t88-maps\native\src\camera_bookmarks.cpp(134): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t88-maps\native\src\camera_bookmarks.cpp(191): warning C4456: “index”的声明隐藏了上一个本地声明
+D:\TF2_Native_Worktrees\t88-maps\native\src\logstf_panel.cpp(376): warning C4100: 'window': 未引用的参数
+D:\TF2_Native_Worktrees\t88-maps\native\src\install_manifest.cpp(51): warning C4189: “dataSize”: 局部变量已初始化但不引用
+rc=0
+build rc=0 seconds=105
+-- step gate --re-pin
+HOLD_LOCK=1: captures and builds run inside the held lock (owner=t88-budget)
+world-geometry-budget-check.sh: line 459: Demo: command not found
+world-geometry-budget-check.sh: line 468: REALPROFILE: unbound variable
+gate rc=1
+-- cost: peak working set and fps from the metrics CSVs under .scratch/t88-budget
+== window end (gate failed, pixels not run) 2026-11-07T15:21:46+08:00

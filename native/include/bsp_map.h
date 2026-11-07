@@ -113,6 +113,23 @@ struct BspMap {
   std::size_t brushFacesDrawn = 0;
   std::size_t brushFacesSkipped = 0;
   std::size_t triangleCount = 0;
+  // T88: the triangle budget is a CAPACITY, and a capacity that is hit is a
+  // decision this parser made, not a fact about the file. Before this change
+  // pushTriangle() returned early and told nobody, so the product asked a
+  // 234,699-triangle map for 200,000 triangles and 3,632 of its faces vanished
+  // from the frame without a line in any trace. These fields make the refusal
+  // readable: triangleCapacity is what parse() was given, trianglesRequested is
+  // what the map asked for (every push attempt, before the capacity check),
+  // trianglesDropped is the difference, and the face/model counters say where
+  // the loss happened so a hole can be named instead of inferred.
+  std::size_t triangleCapacity = 0;
+  std::size_t trianglesRequested = 0;
+  std::size_t trianglesDropped = 0;
+  std::size_t facesDroppedByBudget = 0;        // faces that lost >= 1 triangle
+  std::size_t brushFacesDroppedByBudget = 0;   // the subset owned by a brush model
+  std::size_t brushModelsDroppedByBudget = 0;  // distinct brush models that lost a face
+  std::int32_t firstDroppedFace = -1;          // -1 when nothing was dropped
+  std::string firstDroppedBrushModel;          // class of that face (worldspawn for model 0)
   std::size_t lightmapSampleCount = 0;
   std::size_t lightmapFaceCount = 0;
   std::size_t lightmapTriangleCount = 0;
