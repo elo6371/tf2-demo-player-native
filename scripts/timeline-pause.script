@@ -1,0 +1,12 @@
+# timeline-pause.script -- used by timeline-check.sh section 3 (pause / resume).
+# Pause on the first scripted frame, remember the cursor, let three frames pass and
+# assert the cursor did not move by even one tick. Then resume and read the ledger
+# on the next frame: the gate wants cursor - marked in [1, 2], i.e. the cursor moved
+# on after the resume but did not repay the paused wall time.
+pause
+mark-tick
+frames 3
+expect-same-tick
+resume
+playback-state
+quit

@@ -1,0 +1,10 @@
+# timeline-speed.script -- used by timeline-check.sh section 2 (same tick, three speeds).
+# One ledger reading before the capture pin fires: the gate compares the speed the
+# run reports against the speed it asked for. Without this line a product that
+# played 8x at 4x would still pass the pixel clause (T85 measured: the frame at a
+# pinned tick is a pure function of the tick), so this is where the mapping is
+# actually observable.
+playback-state
+# Wait for the capture pin at tick 600; the product quits itself once the frame is
+# written (main.cpp:11377-11387). The step never completes, which is correct.
+tick 999999

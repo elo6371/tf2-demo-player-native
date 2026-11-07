@@ -36,6 +36,12 @@ evidence/cmake-build.log
 # 不进 git，否则每跑一次就脏一次工作树，而 mutate.sh 那类脚本需要干净的树。
 evidence/fast/
 
+# timeline-check.sh（T85 时间线门禁）的产物：一轮 8 次产品启动，3 张 2.5 MB BMP、每例
+# trace/stdout，外加变异 harness 的 4 次重建 log 与 5 次门禁 log。它们是工作读数，不是
+# 该提交的证据 —— 提交的是门禁脚本与 TIMELINE-GATE.md 里的实测结论。留在盘上供复核，
+# 不进 git：timeline-mutations.sh 在同一个工作树里改 main.cpp，跑之前要求 git status 干净。
+evidence/t85-timeline/
+
 # weapon-animation-check.sh 的 trace 与 metrics CSV 是机器产物：三个 tick 约 15 万行，
 # CSV 里的 elapsed_seconds / fps / working_set_bytes 每次运行都不同。默认写进
 # evidence/fast/weapon-animation/（上面那条已经覆盖），这里再按扩展名兜一层，
