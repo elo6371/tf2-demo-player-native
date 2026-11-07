@@ -123,7 +123,7 @@ cannot delete each other.
 text field has focus **no** bound action fires, and character keys are left to
 the control (`WM_CHAR`), including keys that are also bound (`P`, `H`, `F1`).
 
-### 1.3 `[ui]` (in `ui.ini`) — T51 section
+### 1.3 `[hud]` (in `ui.ini`) — T51 section
 
 | key | type | default |
 |---|---|---|
@@ -132,6 +132,10 @@ the control (`WM_CHAR`), including keys that are also bound (`P`, `H`, `F1`).
 | `hud.layout` | string relative path | `` |
 | `hud.scale` | int percent, 50..200 | 100 |
 | `hud.preview` | int 0/1 | 1 |
+
+Section name and key prefix are different things: the INI section is `[hud]`
+(`native/src/hud_state.cpp:11`: `kSection[] = L"hud"`), while every key in it still
+begins with `hud.`. There is no `[ui]` section holding these keys.
 
 T51 owns every `hud.*` key; T50 owns every `camera.*` and `keys.*` key. A key
 that belongs to neither prefix is `ui.*` and read-only for both (T51 may read
@@ -256,3 +260,22 @@ and vice versa.
 Any change to a field name, a default, the chord grammar, the conflict rule or
 the `UiControlId` reservation is a change to **this** file first, then to both
 implementations, then to both gates. A one-sided edit is a contract break.
+
+## Appendix A — command-line switches that drive this contract
+
+These are product flags, not INI keys. They are parsed in `native/src/main.cpp`
+and are listed here because the gates that exercise sections 1–4 pass them.
+
+| switch | values | effect | implementation |
+|---|---|---|---|
+| `--camera-script <path>` | path to a step file | runs the scripted acceptance driver: each step is reported as `camera: accept`, and the run exits with the failure count | `native/src/main.cpp:2460-2468` |
+| `--debug-camera <x> <y> <z> <pitch> <yaw>` | five numbers, map coordinates (eye x, eye y, eye z, pitch, yaw) | freezes the per-frame camera at that pose so two builds can be compared without the observer view moving | `native/src/main.cpp:2547-2557` |
+| `--outline-vertex-extent` | flag; off by default | publishes each silhouette's region from the vertices the draw consumes instead of from the entity AABB | `native/src/main.cpp:2453-2459` |
+| `--capture-tick <tick>` | non-negative integer | the frame written is the one drawn **at** that tick — a pin, not a seek | `native/src/main.cpp:3026-3033` |
+
+Behaviour worth knowing when writing a gate. `--camera-script` and `--capture-tick`
+without a value are named rejections (exit 13; `native/src/main.cpp:3073-3076` and
+`:3055-3058`), but `--debug-camera` with fewer than five numbers falls through and
+is ignored silently (its branch requires `i + 5 < argumentCount`, `:2547`), and a
+switch that does not exist at all is ignored silently — there is no `--help`
+(see README.md).

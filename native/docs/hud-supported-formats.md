@@ -157,7 +157,7 @@ the screen, and a panel anchored at `-175` becomes `-350`.
 | `#base` includes | 23 of the 102 corpus documents use one; resolving it means a second document load with its own path-safety question, and a partially-included HUD renders with holes | `unsupported-include`, with the count of directives |
 | fonts and font metrics | needs a rasteriser and Source's scheme lookup | `"font"` read and reported; the panel draws as a block |
 | images and crosshairs | needs the VMT/VTF chain plus VGUI scaling | `"image"` read and reported; the panel draws as a block |
-| `labelText` token expansion | `%Health%` is game state this build would have to fabricate | the raw text is drawn in the preview |
+| `labelText` token expansion | `%Health%` is game state this build would have to fabricate | the raw text is read and reported but **not drawn** (2.2); the panel draws as a block. The only path that draws text is the test-only `--hud-text-test` |
 | animations, `pincorner`, `pin_to_sibling` | a real VGUI layout engine | counted as unknown keys |
 | `.nut` scripts | a Squirrel VM | extensions are refused before the file is read as a layout |
 | `.vpk` HUD archives | the HUD is imported as loose files under a user-chosen folder | a `.vpk` is refused as `unsupported-extension` |

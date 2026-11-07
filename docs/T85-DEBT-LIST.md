@@ -1,0 +1,142 @@
+# T85-DEBT-LIST — 交接书 §8 欠账清单（阶段 0 冻结版）
+
+基线：`e15577b4f055…`；产品 exe sha256 `a3c93d57…724e9`。
+源清单：`D:/_shared/PROJECT-HANDOFF-2026-11-07.md` §8（`:188-250`），共 **4+9+5+6+5+6+4 = 39** 个复选框。
+配套：`docs/T85-SUPPORT-SCOPE.md`（边界）、`docs/T85-COVERAGE-MANIFEST.md`（C01–C29 / N01–N26）、`evidence/t62-matrix/POSTFREEZE-INVENTORY-CORRECTED.md`（账本对账）。
+
+## 0. 状态判据（先说清，否则表没法读）
+
+| 状态 | 判据 |
+|---|---|
+| **已覆盖** | 有门禁/文档对**这一条要求的全部内容**给出可引用断言或可引用冻结文本；不是"相关领域有门禁"。 |
+| **部分覆盖** | 有门禁覆盖了其中一部分，缺的那部分必须在本表"缺什么"列点名；只有"部分"两字不算。 |
+| **无覆盖** | 没有任何门禁或证据触及；产品侧也可能根本没实现。 |
+| **明确不做** | 已在 `T85-SUPPORT-SCOPE.md` 冻结为支持边界之外，且**不再声称**。 |
+
+统计：**已覆盖 4 / 部分覆盖 30 / 无覆盖 4 / 明确不做 1**（合计 39）。
+判据的依据是"读过的门禁与文档"，不是重跑结果；阶段 0 不构建、不启动、不抓帧。
+
+## 1. §8.1 播放核心与鲁棒性（4 条）
+
+| 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 | 机器判红 |
+|---|---|---|---|---|---|
+| 8.1-1 | POV 与 SourceTV 解析，且对 header / string tables / net messages / snapshots+delta / events / tick 时间线做**畸形输入测试** | 部分覆盖 | `demo-clock-check.sh`（65 断言，A0–A6：两个 tick 空间、流起点两极性、中点快照、视角采样顺序、相机眼=入口 tick；A6 是修复前原点负控）；`game-event-check.sh`（3/3 变异）；`spectate-check.sh:620`（STV 三次死亡/交接）；`playback-control-check.sh` 的缺 demo 负控 | **没有系统化的畸形输入矩阵**：截断 string table、坏 net message 类型、未知快照 delta 的具名错误路径，未被任一脚本枚举。见 N-类第 3 条 | CAN-RED gate:demo-clock-check.sh#DEMO-CLOCK-CHECK=PASS  |
+| 8.1-2 | play/pause/resume/speed/jump-tick/scrub/replay+restart 一致，且 seek 时有**显式复位规则**（相机、实体插值、骨骼、音频、HUD） | 部分覆盖 | `playback-control-check.sh:507/:516`（95 断言：A 逐帧精确、B 1s/5s 跳不改变 transport、C 速度、D seek 中断、E 不可达 tick 落点、F 缺 demo 负控、G 产品接线；4/4 变异）；`camera-ui-check.sh`（暂停冻结）；`spectate-check.sh`（seek 只算一次、16x 是播放不是 seek） | **restart/replay 无门禁**；**seek 复位规则对音频与 HUD 无断言**（相机有、骨骼相位靠相位钉间接、音频无）；`restart` 在 99 脚本里无播放/回放命中 | CAN-RED gate:playback-control-check.sh#PLAYBACK-CONTROL-CHECK=PASS  |
+| 8.1-3 | 截断/损坏/未知协议/不完整 demo → **定位明确、可理解的错误**，不崩、不挂、不静默画错帧 | 部分覆盖 | `frame-capture-check.sh`（坏 tick 被拒绝而不是猜）；`playback-control-check.sh` F 段；`player-model-check.sh:186`（坏 demo：`player-model-audit FAIL the demo header did not parse`，rc=2） | 未找到"损坏/截断 demo 全集"的负控矩阵；"不静默画错帧"没有直接断言（只有帧字节 pin 间接） | CAN-RED gate:frame-capture-check.sh#FRAME-CAPTURE=PASS  |
+| 8.1-4 | 固定播放的确定性，且动画相位/时钟/线程差异被**量化解释**；禁止用 "PHASE VARIANCE" 当一般豁免 | 部分覆盖 | 相位钉住：`class-pixels-check.sh:60-70`、`third-person-weapon-check.sh:457-461`（`maxDeltaCycle` 0.84 vs 9.32、2,129 px 跨相位 vs 169 px 同相位）；identity 双捕获 byte-identical（`CHARACTER-MATRIX.md:317-321`） | **线程/长期运行方差无量化**；没有"相位以外的不确定输出"清单；4x/64x 速度被判"不是合法证据速度"（`RUNS §26.2`）但未进门禁 | CAN-RED gate:class-pixels-check.sh#CLASS-PIXELS=PASS  |
+
+## 2. §8.2 地图与世界（9 条）
+
+| 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 | 机器判红 |
+|---|---|---|---|---|---|
+| 8.2-1 | 四张官方图 + Upward 夹具 + Odyssey 只作历史 | 已覆盖 | `docs/T85-SUPPORT-SCOPE.md` §3 地图表（含实测大小与 sha256）；`MAP-MATRIX.md:26-34` 五行（第五行 rc11） | — | CANNOT-RED 地图授权集是文档冻结（SUPPORT-SCOPE §3），无门禁断言集合成员  |
+| 8.2-2 | 每图 BSP 查找路径 + 哈希（尤其 RC11 来自 `tf/download/maps`），trace 里写 name/source/fallback | 部分覆盖 | `MAP-MATRIX.md:26-34` 记录 rc11 只在 `tf/download/maps`（26,370,688 B / `f06cfe4b…`）；`map-material-matrix.sh:36` 断言 `demo map=`/`server_map=` 等于该行地图；`resource-discovery-check.sh`（查找顺序） | **trace 里 source/fallback 字段无断言**（只断 map 名相同）；BSP sha256 未写入 trace，是文档侧记录。另：sunshine/bagel 两张的 lump 是 LZMA 压缩块、snakewater 未压缩（`bsp_map.cpp:41-56/:65/:120-134`），同一个「BSP 路径」实为两条解码路径而无门禁区分（地图审计 `GAPS.md` §1） | CANNOT-RED BSP 查找路径/trace 字段只有 MATRIX 记录，无门禁断言  |
+| 8.2-3 | 世界几何（含 displacement、sky 面、负控）**+ 正式图可见动态 brush 必须按 demo 时间更新位置/角度**；"不支持"改名不算结案 | 部分覆盖（动态 brush **无覆盖**） | `map-geometry-lighting-check.sh:38/:939`（面账分区、天空 brush 多边形、lightmap 样本、flat 嵌套、cull 归因、点 oracle）；`world-geometry-hole-check.sh:178-179`（帧字节 pin） | **动态 brush 完全没有实现也没有门禁**：`func_door`/`func_movelinear`/`track_train`/`func_breakable`/`m_vecMoveDir` 在产品源码与 99 脚本中 **0 命中**（本次 grep）。这是 §8.2 明文禁止用"不支持"结案的条目 → 见 N05 | CAN-RED gate:map-geometry-lighting-check.sh#MAP-GEOMETRY-LIGHTING=PASS  |
+| 8.2-4 | 天空 vs 3D skybox **分开**测（边界、开口、视角变化、PVS、sky 关闭对照） | 部分覆盖 | `world-render-reliability-check.sh` 3/4 六面天空 + `--world-sky`/`--no-world-sky` 对照；`--world-flat --no-world-sky` 四张捕获（`MAP-MATRIX.md:22`） | **3D skybox 分离无覆盖**：`3d skybox\|_skybox` 在门禁中 0 命中 → N06 | CAN-RED gate:world-render-reliability-check.sh#WORLD-RENDER-RELIABILITY=PASS  |
+| 8.2-5 | 材质：VMT proxy/inherit、VTF+mip、slot、alpha、blend、mask、emissive、detail、bump/normal、lightmap 逐类登记 + 确定性回退与诊断 | 部分覆盖 | `map-material-matrix.sh:36/:624`（fetch/atlas/tile 不变量）；`vmt_material.cpp:104/:119/:199`、`vtf_texture.cpp:45/:190/:266`；`world-material-check.sh`（六控制）、`world-material-effects-check.sh`（warp+三效果）、`material-coverage-check.sh` | **没有"逐材质类别 × 逐特性"的登记矩阵**（哪些 proxy 被支持、哪些回退）没有一份可核对表；emissive/detail/bump 的**逐类**断言散在各门禁，未汇总；确定性回退的具名诊断只覆盖部分路径 | CAN-RED gate:map-material-matrix.sh#MAP-MATERIAL-MATRIX=PASS  |
+| 8.2-6 | 水 = 只做当前纹理/颜色，**不做反射/折射** | 已覆盖（范围声明） | `T85-SUPPORT-SCOPE.md` B3；`world-material-effects-check.sh:16-21`（warp 三属性 + 像素 on≠off） | 此为"边界已冻结"，不是"水面正确性已验证"；不承诺 | CAN-RED gate:world-material-effects-check.sh#WORLD-MATERIAL-EFFECTS=PASS  |
+| 8.2-7 | 光照需独立 luxel/atlas **数值**采样：LDR/HDR、边界、UV clamp、已知源对比、显式 oracle 与残差 | 部分覆盖 | 帧级：100 个世界帧 pin（`T62-REPORT.md:99-101`）、`lighting-semantics-check.sh`（98 断言）、`lighting-dark-account-check.sh`（暗像素账）、`map-geometry-lighting-check.sh` 的"每个被读样本都写出" | **解码数值无 pin**：`MAP-MATRIX.md:183` 明写 OPEN；没有独立 oracle 与残差数字；HDR exponent 无单元级断言 → N07/N24。**锚点更正（地图审计）**：解码真值在 `bsp_map.cpp:97-110`（writeLuxel）；`:621` 只是 HDR tone census 统计，旧引文指错了位置 | CAN-RED-UNANCHORED 光照数值 oracle 无门禁；帧级 pin 只存在证据文档  |
+| 8.2-8 | LOD 层可读可建，切换/材质一致/过渡/预算；无 LOD1+ 时**不得**宣称 LOD 完整 | 无覆盖 | 只有"不宣称"这一半做到了：`CHARACTER-MATRIX.md:131`（只建 LOD0）、`T85-SUPPORT-SCOPE.md` B5 | **LOD1+ 未实现、无门禁**（`lod[1-9]` 0 命中）→ N04 | CANNOT-RED LOD1+ 未实现，只有“不宣称”的文档约束，无 LOD 门禁  |
+| 8.2-9 | 逐图矩阵按轴，历史 Odyssey 格**不计入**总数 | 已覆盖 | `MAP-MATRIX.md:26-34/:40`（20 格含 4 格 Odyssey 历史；官方四图 16 格）；`T85-SUPPORT-SCOPE.md` §6 数字口径 | —（引用时必须写"20 含 4 历史格"，本表已固定该口径） | CANNOT-RED 矩阵格数口径是文档约定，无门禁断言行数  |
+
+## 3. §8.3 角色外观（5 条）
+
+| 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 | 机器判红 |
+|---|---|---|---|---|---|
+| 8.3-1 | 九职业红蓝加载/蒙皮/明暗/绘制；45/45 与 18 身体/9 对是**基线证据，不是回归覆盖** | 部分覆盖 | `player-model-check.sh:213/:294/:184-190`；`player-body-appearance-check.sh:287`；矩阵 `CHARACTER-MATRIX.md:362/:375/:379` | 45/45 是**一次快照**；没有把"18 身体/9 对"变成每次改动的回归门禁；矩阵合成中有 27 格无渲染实体（只有 18 格有） | CAN-RED gate:player-body-appearance-check.sh#BODY-APPEARANCE=PASS  |
+| 8.3-2 | 玩家实体身份 vs 职业回退要**分开**（checksum/path/骨骼 rig） | 部分覆盖 | `entity_model.cpp:699/:782`、`entity_overlay.cpp:301`；`CHARACTER-MATRIX.md:42`（36/36、14/14 回退计数）、`:313`（真 Heavy ent=11） | **没有"实体自带 model index → 精确模型"的身份断言**（采样实体不携带该字段）；checksum 比对无门禁 | CAN-RED-UNANCHORED 身份 vs 回退只有产品代码与矩阵记录，无专门断言  |
+| 8.3-3 | 外观范围由 catalogue 界定（基础模型必须；cosmetic 只有被编目且可用才算） | 部分覆盖 | `T85-SUPPORT-SCOPE.md` §4（范围冻结）；`item_schema.cpp`/`pcf_operators.cpp` 存在（文件级，未断言行为） | **没有 cosmetic catalogue 门禁**；没有"被编目且可用"的可核对清单 | CANNOT-RED cosmetic catalogue 未定义，无门禁可断言  |
+| 8.3-4 | 骨骼映射 / helper-bone / bind pose / 动画普查 + 负控；helper-bone 不匹配不算骨骼失败，但**主要可见骨骼不得静默停在 bind pose** | 部分覆盖 | `bone-mismatch-semantics-check.sh:229`（语义固定）；`animation-availability-check.sh`；`class-pose-family-check.sh`（crouch/flinch 数据解码）；`main.cpp:2119-2132`（bind pose 是**已知默认**） | **helper-bone 普查只覆盖 Demo/Heavy/Scout**（`D:/_shared/t62-p1-bonemismatch/REPORT.md:244-339`，承接旧账）；九职业的 helper-bone 结构检查未做；"主要骨骼静默 bind pose"在产品默认路径上**恰好发生**（`viewModelApplyAnimation=false` + 实体无 sequence），这是设计决定，但未写成每职业清单 | CAN-RED gate:bone-mismatch-semantics-check.sh#BONE-MISMATCH-SEMANTICS=PASS  |
+| 8.3-5 | 容量覆盖目标角色/活动武器/必要 overlay，单一优先级，拒绝诊断；回退三把已知 OOM 武器，并确认提高单一上限没有造成"上传成功但未绘制" | 部分覆盖 | `native_renderer_entity.cpp:168`（96）；`main.cpp:3730`（reserve(64)）；`outline-check.sh:1840-1857`（96 上限变异）；"supply=23 refused=3"（`T62-REPORT.md:10`）；`resource-reachability-check.sh`（512 cap 是测量的） | **P0 已知缺陷仍在**：`c_sapper_xmas`/`c_shogun_warhorn`/`c_flamethrower` 走模型/实例预算链失败，交接书明确"不能只提高单个 `kEntityModelMeshLimit`"——属 **task-1（t85-budget）** 范围；"上传成功但未绘制"的检查只有 outline-check 的 59=59 个例 | CAN-RED gate:outline-check.sh#OUTLINE-CHECK=PASS  |
+
+## 4. §8.4 动作矩阵（6 条）
+
+| 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 | 机器判红 |
+|---|---|---|---|---|---|
+| 8.4-1 | 九职业动作矩阵 ≥ idle/walk-run/turn/crouch/crouchwalk/jump/air-fall/land/flinch/death-respawn/taunt/attack，每格写来源/规则/可见证据/限制 | 部分覆盖 | `CHARACTER-MATRIX.md` §3 动作轴表（idle/run PASS，walk/airwalk/reload NV，attack 数据 PASS/驱动 NV，crouch+flinch opt-in，ragdoll UNSUPPORTED） | 矩阵里 **walk、turn、jump、air-fall、land、death-respawn 大面积 NOT VERIFIED**；每职业一具身体一次采样 → N11 | CAN-RED gate:player-animation-check.sh#PLAYER-ANIMATION-CHECK=PASS  |
+| 8.4-2 | 选输入前先验证 demo 可用字段与实体关联；**有限样本缺 sequence/cycle/model-index 不能证明所有 Source demo 都没有** | 部分覆盖 | `CHARACTER-MATRIX.md:396`（`status=missing`）；`main.cpp:2119-2132`（pinned recordings 上 sequence 1/29/30 不落 descriptor） | 只有**少量录音**的观测；没有跨更多 demo 类型的字段普查，因此"所有 demo 都没有"这一更强结论**不成立**（本表不写它） | CANNOT-RED 缺字段是数据事实，无门禁断言“不得外推”  |
+| 8.4-3 | 区分"事件推断动画"与"服务器姿态还原"，每种回退给可靠性 | 部分覆盖 | `demo_header_events.cpp:47`、`effects_timeline.cpp:42`（事件→固定一枪）；`T62-REPORT.md:10`（C 轴挂点 0.00 drift） | 无可靠性分级表；攻击事件不选序列（`main.cpp` 无映射） | CANNOT-RED 无可靠性分级表，门禁不表达推断 vs 还原  |
+| 8.4-4 | 时钟可重复：暂停/seek/后退/变速/长播/快速切换；固定 tick 复现要控制 seek 历史与相位 | 部分覆盖 | `playback-control-check.sh`（95 断言）；`camera-ui-check.sh`（暂停冻结）；`spectate-check.sh`（seek/16x）；`class-pixels-check.sh:60-70`（相位钉） | **后退播放**与**长播**无门禁；"固定 tick 复现控制 seek 历史"只在部分门禁里隐式做到 | CAN-RED gate:spectate-check.sh#SPECTATE-CHECK=PASS  |
+| 8.4-5 | 每个动作都要可见证据：同相机 idle/动作对比证明像素或骨骼变化 + 一个**必须不变**的对照；parser 解码/开关接通不算验收 | 部分覆盖 | `class-pixels-check.sh`（每职业 drive on/off 同帧 + identity 双捕获）；`player-animation-pixels.sh`（F 段）；`animation-drive-states-check.sh:446`（crouch/flinch） | 有可见证据的动作只有 **D2 九格 + crouch/crouchwalk/flinch**；walk/jump/land/attack 没有 → 与 8.4-1 同缺口 | CAN-RED gate:class-pixels-check.sh#CLASS-PIXELS=PASS  |
+| 8.4-6 | 不可靠动作要先有**约定政策**才能变成已知限制 | 已覆盖（政策侧） | `docs/T85-SUPPORT-SCOPE.md` §4/§5：`walk/airwalk/reload` NOT VERIFIED、`attack` 只有数据 PASS、`ragdoll` 不做、`T55 导出` UNSUPPORTED 均写成边界而不是"支持" | 政策已冻结；动作本身仍未验证（不冲突） | CANNOT-RED 政策条文由 SUPPORT-SCOPE 冻结，无门禁  |
+
+## 5. §8.5 武器（5 条）
+
+| 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 | 机器判红 |
+|---|---|---|---|---|---|
+| 8.5-1 | 九职业第三人称基础武器与持枪点可追（模型、归属、骨骼/挂点变换、队/皮肤、PVS、遮挡、动画）；活动武器不得消失/漂浮/错位 | 部分覆盖 | `third-person-weapon-check.sh:457-461/:580/:582`（每职业一帧、drift 0.00、attached≠off、off=基线）；`docs/THIRD-PERSON-WEAPON.md:1-6`（链路文档） | **PVS/遮挡**未断言；每职业只一把、一个姿势（`CHARACTER-MATRIX.md:398`） | CAN-RED gate:third-person-weapon-check.sh#THIRD-PERSON-WEAPON=PASS  |
+| 8.5-2 | 每职业每槽位库存武器（主/副/近战）覆盖表；**不能以每职业一种武器代表所有槽位** | 无覆盖 | 现状：Spy 持 `c_knife`（`RUNS §26.6`），其余职业各一把 | 没有槽位轴；没有覆盖表 → N09 | CANNOT-RED 槽位轴无实现也无门禁（N09）  |
+| 8.5-3 | 有动画序列就用，否则记录资源事实与回退；**不以人物身体动画 PASS 代替武器动画 PASS** | 部分覆盖 | `weapon-animation-check.sh:1122`（GPU 蒙皮/光标+姿势随 tick 前进/矩阵序变异）；`T85-SUPPORT-SCOPE.md` §5 明确"身体 PASS ≠ 武器动画 PASS" | 第三人称武器**序列**是否被使用未登记；"资源事实与回退"没有逐武器记录 | CAN-RED gate:weapon-animation-check.sh#WEAPON-ANIMATION=PASS  |
+| 8.5-4 | 第一人称 ViewModel 手臂/武器 idle/move/fire/reload/switch/jump；**opt-in 与默认分开记录，默认不能因加门禁而改变** | 部分覆盖 | `viewmodel-apply-check.sh:818`（33 断言，opt-in）；`viewmodel-contract-check.sh`（127 断言）；`viewmodel-animation-check.sh:1169`；默认 `main.cpp:2117`（false，未变） | fire/reload/switch/jump 的 **ViewModel 动作**都没有门禁；只有 applied pose 一条路径 | CAN-RED gate:viewmodel-apply-check.sh#VIEWMODEL-APPLY=PASS  |
+| 8.5-5 | 身体+武器同帧挂接；越界/缺模型给明确原因；预算不得为了非目标预载牺牲可见目标 | 部分覆盖 | `T62-REPORT.md:10`（supply=23 refused=3，`0x8007000E` 具名拒绝）；`outline-check.sh:1840-1857`；`main.cpp:3695/:3730` | 预算"非目标预载挤占可见目标"的**优先级断言**没有；三把 OOM 武器是 task-1 的 P0（未修） | CAN-RED-UNANCHORED 预算拒绝只有证据读数与 outline 历史段，无专门断言  |
+
+## 6. §8.6 音频 / HUD / 相机 / UI / 安装流（6 条）
+
+| 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 | 机器判红 |
+|---|---|---|---|---|---|
+| 8.6-1 | 音频：解析、play/pause/seek 同步、音量与设备失败、资源释放、**枚举声明的格式**并点名未列出的 | 部分覆盖 | `verify-audio.sh:1280`（六段 + 变异）、`verify-audio-content.sh:566`（MP3 内容）；`audio_player.cpp:98/:170`、`demo_header_sound.cpp:23` | **真实设备可听**只有带 `--device` 才测（默认跳过，N08）；**格式表**没有（哪些格式支持、哪些不）；seek 与音频同步无断言 | CAN-RED gate:verify-audio.sh#VERIFY-AUDIO=PASS  |
+| 8.6-2 | HUD：计时/比分/玩家状态/事件，按 POV/STV 数据源，缺字段有明确状态，不显示过期帧 | 部分覆盖 | `hud-check.sh:388`（`--hud-apply --hud-on`，产品矩形路径）、`:1402`（导入/拒绝/绘制/区域外不变/缩放/坏文档 PASS）；`hud-text-check.sh:658`（**测试路径**：`:284` 用 `--hud-text-test`）；`hud_state.cpp:16-20` | **产品 HUD 不画字**：`main_hud.cpp:249-251` 自述 "this build rasterises no font and no image"，唯一 Text 原语在 `main_hud.cpp:210` 的 `--hud-text-test` 分支（开关 `main.cpp:2514-2517`）。因此计时/比分/状态/事件的**字段显示本身不存在**，逐字段断言无从谈起；"不显示过期帧"只有区域外像素不变这一条间接证据 → N18 | CAN-RED gate:hud-check.sh#HUD=PASS  |
+| 8.6-3 | 相机：默认轨道/SourceTV 观察者/跟随/切目标/debug/越界与无观察者回退；**trace 要描述真正喂给绘制的相机**，姿势↔像素可连 | 部分覆盖 | `camera-ui-check.sh:1208/:1212`（T4+T50，90 断言）；`spectate-check.sh:620`（三次交接、暂停/seek）；`camera_director.cpp:91/:120/:127/:148` | **"trace 描述真正喂给绘制的相机"没有专门断言**（`demo-clock-check.sh` A5 只覆盖 POV 入口 tick 视角）；越界/无观察者回退无具名负控 | CAN-RED gate:camera-ui-check.sh#CAMERA-UI=PASS  |
+| 8.6-4 | UI 能力表（打开 demo/播放/速度/跳 tick/相机/目标/HUD/书签/小地图/logstf+WebView2）标注支持/实验/不支持；**可见控件 ≠ 可用功能** | 无覆盖 | 只有零散能力：`minimap-check.sh:314`（**仅探针**，`native/cmake/tf2-probes-minimap.cmake:23`）、`logstf-check.sh:1086`、`camera-ui-check.sh:1212`、`hud-check.sh:1402` | **没有能力表文档**；也没有"控件 ↔ 功能"一致性的门禁 → N13。且两条被点名的 UI 能力比表格更弱：**小地图在产品内无通路**（N17）、**产品 HUD 不渲染文字**（N18） | CANNOT-RED 产品内无小地图通路且无 UI 能力表（N17/N13）  |
+| 8.6-5 | 典型流：安装→demo→TF2 根→地图→播放/暂停/seek→设置→重启，加上坏 demo/缺地图/缺模型/坏路径/WebView2/权限失败 | 部分覆盖 | `install-readiness-check.sh:596`、`install-lifecycle-check.sh:817`（含 WebView2 缺失路径）；坏 demo/坏 tick 负控散在 `player-model-check.sh:184-190`、`frame-capture-check.sh` | **单一端到端流无门禁**；**重启**没有播放侧断言（只有安装侧） → N15 | CAN-RED gate:install-readiness-check.sh#INSTALL-READINESS=PASS  |
+| 8.6-6 | 导出/截图/日志——只有承诺了才做验收（真实输出、路径、覆盖、可读、失败信息） | 明确不做 | `T85-SUPPORT-SCOPE.md` B4：视频导出 UNSUPPORTED，不承诺；截图/日志不在冻结承诺内 | —（若将来承诺，需重新立项） | CANNOT-RED 明确不做（B4），门禁不为不做的事变红  |
+
+## 7. §8.7 环境 / 打包 / CI / 文档（4 条）
+
+| 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 | 机器判红 |
+|---|---|---|---|---|---|
+| 8.7-1 | 支持环境：Windows 版本、GPU/驱动下限、D3D11、内容发现、WebView2、磁盘、权限 | 无覆盖 | 无文档；只有门禁运行环境事实（`env-msvc.sh`：MSVC 14.44.35207 + SDK 10.0.26100.0） | 没有"支持环境"文档，也没有环境探测门禁 → 无覆盖 | CANNOT-RED 无支持环境文档，也无探测门禁  |
+| 8.7-2 | 干净配置构建 + 安装/便携包（manifest、依赖来源、逐文件 SHA256、卸载/升级、用户数据保留） | 部分覆盖 | `install_manifest.cpp:47/:78/:263`（sha256 + 写 manifest）；`install-lifecycle-check.sh:817/:1092`（4 变异，升级/降级/卸载保留数据）；`install-readiness-check.sh:596` | **便携包**未验证；运行中镜像检查是具名递延（`:446`）→ N14；依赖来源清单无门禁 | CAN-RED gate:install-lifecycle-check.sh#INSTALL-LIFECYCLE=PASS  |
+| 8.7-3 | 轻量持续检查（干净 configure/build + 可用的 `verify-fast.sh` 子集 + 脚本语法），`verify-all.sh` 全链按 RELEASE-POLICY | 部分覆盖 | `docs/RELEASE-POLICY.md:1-25`（全链只在冻结树跑一次）；`verify-fast.sh`（257 行，tier 1）；`logstf-syntax-check.sh`（`cl /Zs` 语法检查，**不是构建**） | 没有 CI 配置或"每次改动跑哪个子集"的可执行判定；脚本语法检查只覆盖 logstf 一个 | CAN-RED gate:verify-fast.sh#VERIFY-FAST=PASS  |
+| 8.7-4 | 用户文档/README/已知限制/地图与模型目录与矩阵一致；License 保持"本轮不加" | 部分覆盖 | `README.md`、`CHANGELOG.md`、`docs/` 5 篇、`evidence/*/CHARACTER-MATRIX.md` 等存在；`docs/KNOWN-ISSUES-AND-FIXES.md:3` | **一致性未验证**；两处**过期段落**已于 2026-11-07 task-6 加"取代注"（`T62-REPORT.md:124` 的 40/5、`CHARACTER-MATRIX.md:438` 的旧表述，历史数字保留、未删改）→ D-13 关闭；但"文档与矩阵一致"仍无门禁。License 按政策不加 | CANNOT-RED 文档一致性无门禁断言；本次已实测两处过期段落  |
+
+## 8. 本阶段新增的欠账（不属于 §8 原始 39 条，但必须记）
+
+| ID | 内容 | 状态 | 说明 | 机器判红 |
+|---|---|---|---|---|
+| D-13 | 修 `T62-REPORT.md:124` 与 `CHARACTER-MATRIX.md:438` 两处过期段落（正文与同文件 `:10`/`:362` 矛盾） | 已覆盖（2026-11-07 task-6） | task-6 提交（父提交 `cb5bfcd`）在两段后各加一块 `> **Superseded, annotated 2026-11-07 (task-6). History kept, not deleted.**`：保留历史数字，指向 `CHARACTER-MATRIX.md:362/:375/:379` 与 `POSTFREEZE-INVENTORY-CORRECTED.md` §3，并说明行号漂移（旧账本 `:297` 真值 `:313`、`:422` 真值 `:438`）。原文未删除 | CANNOT-RED 文档修补已合入，无门禁断言文档段落（本行已关闭）  |
+| D-14 | 动态 brush 按 demo 时间位移（8.2-3 的硬缺口） | 无覆盖 | 产品侧 0 实现、门禁侧 0 命中 → N05；交接书明确不许用"不支持"改名结案，因此保留为**功能欠账**而不是边界 | CANNOT-RED 产品 0 实现，无门禁可红（N05）  |
+| D-15 | 产品 HUD 不渲染文字/字体（8.6-2 的硬缺口） | 无覆盖 | `main_hud.cpp:249-251` 自述 "this build rasterises no font and no image"；唯一 Text 原语在 `main_hud.cpp:210`，只在 `--hud-text-test` 下跑（`main.cpp:2514-2517`），`hud-text-check.sh` 全用该 flag → N18。属**功能欠账**：用户看到的计时/比分/状态全是彩色矩形 | CANNOT-RED 产品 HUD 无文字通路，门禁只验矩形路径（N18）  |
+| D-16 | 产品内小地图通路（8.6-4 的范围收窄） | 明确不做（范围收窄） | `src/minimap.cpp` 只链 `minimap_probe`（`native/cmake/tf2-probes-minimap.cmake:23`），不在产品源清单（`tf2-product.cmake:16`）；产品侧仅 `review_workspace.cpp:367-375` 持久化 `workspace.minimap` 状态 → N17。按支持边界记 UNSUPPORTED，不得写成"部分支持" | CANNOT-RED 明确收窄为 UNSUPPORTED，门禁不应为不做的事变红  |
+| D-17 | 官方地图的**夹具覆盖不均**（角色轴跨图外推风险） | 部分覆盖 | 角色轴门禁默认跑 snakewater（`class-pixels-check.sh:102`、`player-body-appearance-check.sh:42`、`third-person-weapon-check.sh:85`），队伍对夹具在 upward；sunshine 的 demos.tf 候选最好 8/9、rc12 本地 0 条 demo（demos.tf 15 条候选中 0 条九职业齐，最好 6/9）。因此"官方四图"不能被写成"四图角色轴已验证"。数据：`D:/_shared/t85-assets/demo-candidates.csv`、`local-demo-index.csv`（2026-11-07） | CAN-RED-UNANCHORED 夹具分布只有 CSV/矩阵记录，无门禁断言角色轴覆盖四图  |
+| D-18 | 门禁改写 **tracked** 证据（settings/ui 漂移） | 无覆盖（缺陷已实测，修复未做） | **现象**：产品退出时必改写 `--ui-settings-file` 指向文件的 `recentDemo0..7`（`native/src/native_ui.cpp:137-139` 写回、`:356-363` 把本次 demo 插到队首、`:75` 读回），而 `third-person-weapon-check.sh:219/:559`、`player-body-appearance-check.sh:73`、`probe_attach.sh:23` 把 `evidence/t62-matrix/.../ui.json`（tracked）传进产品 → `git status` 变脏、输入不再可复现；受影响 tracked 文件 22 个。**为什么危险**：`git status` 不再是"冻结树干净"的证据，`git add -A` 会把 MRU 漂移带进证据基线。**证据**：`D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md` §1/§4/§5（修法 A = 复制到 `$OUT` 再传 + 断言原件 sha256 不变）。**归属**：发布工程/卫生（建议 worktree `t89-hygiene`，未派）。**现在能否判红**：不能——无门禁断言"跑完门禁后 evidence/ 零改动"，§5 的负向控制（改回 tracked 路径必须红）也未实现 | CANNOT-RED 无门禁断言跑完门禁后 evidence 零改动  |
+| D-19 | 发布链注册缺口：99 个 `*.sh` 只有 29 个进 `verify-all.sh` | 无覆盖（task-15 的 C 段只补入口，不补注册） | **现象**：`verify-all.sh` 30 步只显式调用 29 个脚本；交接书点名的四个 P0 门禁 `outline-check.sh`/`third-person-weapon-check.sh`/`player-body-appearance-check.sh`/`class-pixels-check.sh` 在链内 `grep -c` 全 0；7 个独立变异 harness 也全在链外。**为什么危险**：单跑 `verify-all.sh` 会被当成"整套验收通过"，而 P0 门禁一次没跑。**证据**：`D:/_shared/t85-mutation/GATE-REGISTRATION.md`（差集与门禁哈希）。**归属**：发布工程。**现在能否判红**：不能——链自身 PASS 不检查注册完备性；本任务新增的 `verify-release.sh` 把四个 P0 串进整链，是入口侧缓解，不是全解 | CANNOT-RED 注册缺口是静态事实，链 PASS 不检查注册完备性  |
+| D-20 | 构建身份错误：`--version` 报的 sourceTree/时间戳不属于该 exe | 无覆盖（缺陷已实测；task-14 修复中） | **现象**：冻结 exe 的 `--version` 报 `sourceTree=12042361ffd1`（比 e15577b 早 **41 个提交**）、`buildUtc=2026-11-02T16:22:30Z`（比 exe mtime 2026-11-06 20:20:35 早 4 天）、`sourceDateEpoch=0`、脏树无记录。**根因**：`native/cmake/tf2-version.cmake:25/:26-32` 在 **configure 期**求值 → 写进 `install_lifecycle.cpp:590-592`；增量构建从不重新 configure。**为什么危险**：所有"这个 exe 由 e15577b 构建"的话都缺证据，二进制与提交无法互证。**证据**：`D:/_shared/T85-STATUS.md` §3 第 4 条、task-14。**归属**：**task-14 / t90-identity**；其 `build-identity-check.sh` 落地后，`verify-release.sh` 第 6 步才能去掉 STUB。**现在能否判红**：不能——没有门禁把 `--version` 输出与 `git rev-parse HEAD` 对比 | CAN-RED-UNANCHORED build-identity-check.sh 未落地（第 6 步 STUB-ABSENT），落地后补锚  |
+| D-21 | 冻结树**没有整链 PASS 产物**（发布前必须消除） | 无覆盖 | **现象**：evidence 里只有旧 **18 步 311.1s PASS**、quick 链 145.9s，以及 2026-11-02 一次 `VERIFY=FAIL`（30 步 203.6s，SPECTATE-CHECK 红）；没有任何一次"e15577b 上 30 步全 PASS"的记录。**为什么危险**：发布签字时没有可引用的整链绿，也没有可比对的失败基线。**证据**：`D:/_shared/T85-STATUS.md` §3 第 6 条。**归属**：发布工程（阶段 7 在冻结树上跑 `bash hostlock.sh run <owner> bash verify-release.sh`）。**现在能否判红**：不能——这是"缺产物"不是"门禁红"；`verify-release.sh` 的 `VERIFY-RELEASE=PASS\|FAIL` 行是将来唯一可引用的判据 | CANNOT-RED 缺整链 PASS 产物属缺证据，不是可断言项  |
+| D-22 | 门禁启动产品时**不隔离设置目录** → 改写用户真实配置（`settings.ini` + `ui.ini`） | 部分覆盖（task-18 静态棘轮已接管；实际改写仍只有整链 machine guard） | **现象**：多数启动产品的门禁不传 `--settings-file` / `--ui-settings-file`，产品于是读写 `%LOCALAPPDATA%/TF2 Demo Player/settings.ini`（`native/src/settings_store.cpp:38-52` `settingsPath()`）与同目录 `ui.ini`（`native/src/native_ui.cpp:38-48` `computeUiSettingsPath()`，`:44` 是字面量）。**写入与"有没有改设置"无关**：每次正常退出都写 `settings.ini`（`native/src/main.cpp:11613-11616` 相机书签/热键 `saveToSettings`、`:11627-11629` `saveSettings(persistent)`），每个 `--demo` 启动都写 `ui.ini`（`main.cpp:3240-3241` → `nativeUi.openDemo` → `native_ui.cpp:196-197` `saveSettings()` 写 `recentDemo0..7`，`:128-143`）。lifecycle（`--version`/`--install`/`--install-status`）在 `loadSettings` 之前返回（`main.cpp:1892-1899` 早于 `:1922-1928`），不写配置；`--settings-file`/`--ui-settings-file` 缺值时的预扫描在 `:1900-1920`（`OutputDebugStringW` + return 13）。**判据与计数（本次逐文件实测，脚本级）**：只看"确有产品执行行"的脚本（join 续行 + 数组展开 + 变量解析；lifecycle-only 排除）——99 个 `*.sh` 里 71 个提到产品，**51 个**是非 lifecycle 启动者、共 **76 个**启动点；**29 个**至少一个启动点缺 `--settings-file`，**42 个**至少一个启动点缺 `--ui-settings-file`，**两者全隔离只有 9 个**（`class-pixels-check.sh`、`demo-clock-check.sh`、`hud-check.sh`、`hud-text-check.sh`、`playback-control-check.sh`、`player-animation-pixels.sh`、`player-body-appearance-check.sh`、`probe_attach.sh`、`third-person-weapon-check.sh`）。29 个缺 settings 的：`animation-drive-states-check.sh`、`bone-mismatch-semantics-check.sh`、`camera-ui-check.sh`、`frame-capture-check.sh`、`fullscreen-quiet-check.sh`、`idle-spin-check.sh`、`lighting-dark-account-check.sh`、`map-geometry-lighting-check.sh`、`material-coverage-check.sh`、`outline-check.sh`、`quality-audit-check.sh`、`quiet-capture-check.sh`、`review-workspace-check.sh`、`spectate-check.sh`、`t2-visual-matrix.sh`、`t21-capture.sh`、`terrain-blend-check.sh`、`verify-audio-content.sh`、`verify-audio.sh`、`visual-baseline-check.sh`、`weapon-animation-check.sh`、`world-geometry-completeness-capture.sh`、`world-geometry-hole-capture.sh`、`world-geometry-hole-check.sh`、`world-material-check.sh`、`world-material-effects-check.sh`、`world-material-face-check.sh`、`world-near-clip-check.sh`、`world-render-reliability-check.sh`。13 个只缺 ui（有 settings）：`lighting-semantics-check.sh`、`logstf-check.sh`、`viewmodel-animation-check.sh`、`viewmodel-apply-check.sh`、`viewmodel-companion-check.sh`、`viewmodel-contract-check.sh`、`viewmodel-material-check.sh`、`viewmodel-presentation-check.sh`、`viewmodel-range-check.sh`、`viewmodel-robustness-check.sh`、`weapon-body-check.sh`、`weapon-material-check.sh`、`world-material-semantics-check.sh`。**四个 P0 里 `outline-check.sh` 一个 flag 都没带**（`outline-check.sh:699` 的 `productArgs` 数组、`:722` 启动，前面只有 `:716-720` 的 `--audio-disabled` 自检）；其余三个 P0（`third-person-weapon`、`player-body-appearance`、`class-pixels`）都隔离。**PowerShell 侧单列**：8 个 tracked `*.ps1` 引用产品，3 个有 `--settings-file`（`stability-root-check.ps1`、`stability-run-case.ps1`、`title-capture.ps1`），**0 个**有 `--ui-settings-file`；`install-readiness-capture.ps1`、`native/tools/install_smoke_probe.ps1`、`stability-run-matrix.ps1`（间接驱动 `stability-run-case.ps1`）也是启动者。**与本表其他计数的差异（写清，别混）**：lead 的 40/55 用的是"引用产品 + `--tf-root`/`--demo` 行级"口径，把只跑 probe 的脚本也算进去了；本行 51/29/42 是"确有产品执行行"口径。**为什么危险**：跑一次门禁就改掉开发者/测试者的真实配置（recent demo 列表、相机书签、热键、render 设置），而且**改了什么没有任何记录**；同一台机器上两次门禁运行因此不再共享同一初始状态，"确定性"证据里混进了机器状态。真机证据：av-auditor 的 a1–a4 批未带 `--settings-file`，产品退出后真实 `settings.ini` mtime 变到 14:03:07。**与 D-18 的关系（两个出口、一条持久化路径）**：D-18 是**带了 flag 但指向仓库内 tracked 证据**（`evidence/t62-matrix/**/ui.json`），后果是 `git status` 变脏、输入不可复现；D-22 是**连 flag 都不给**，后果是改用户家目录。两者都源于"产品的 MRU/设置持久化在退出时无条件发生"，修法相同：**门禁把副本放在自己的输出目录或 `.scratch`，`--settings-file`/`--ui-settings-file` 指向副本本身即可，产品不关心文件名**（D-18 另外还要断言原件 sha256 不变）。**证据**：本任务实测（上列脚本清单与行号）；`D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md`（D-18 侧）；`D:/_shared/t85-mutation/GATE-REGISTRATION.md`（链外门禁）。**本任务已在整链加守卫**：`verify-release.sh` 在第一步前和末步后快照 `settings.ini` + `ui.ini`（exists/bytes/mtime/sha256），任何变化默认 `MACHINE-MUTATED=FAIL` 并令整链 FAIL；`VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1` 只降级为 `MACHINE-MUTATION-ALLOWED=1` 警告且该次运行不能签发布（`docs/RELEASE-POLICY.md` "The rule" 第 2 条）。**归属**：发布工程/卫生（建议与 D-18 同批修，worktree `t89-hygiene`，未派）。**现在能否判红**：单门禁层面不能（没有任何门禁断言"本脚本没有改写用户配置"）；整链层面能，且**默认就会红**——D-22 修完前这是发布阻塞，不许用环境变量把它变绿。 | CAN-RED gate:gate-launch-hygiene-check.sh#FAIL: new unisolated launch  |
+| D-26 | 后退 seek 后玩家动画相位被复位（用户可见：拖回进度条后角色动作从头开始） | 部分覆盖（已定位、已可复现、有意取舍） | 判据：同一 demo 同一场景 tick 的两条路径——后退 seek 后 8 个实体 `cycle` 全 `0.000000`（`D:/_shared/t85-timeline/runs/H3a/trace.txt:782-789`），正向播放 `0.248827`-`0.960206`（`runs/H3c/trace.txt:7012-7019`），7 个共同实体 `maxDeltaCycle=0.960206`，重复基线 `0.000000`；BMP XOR=1,952,690 且跨批可复现（H3a==H2、H3c==H1）→ 屏幕可见。代码锚点：`native/src/main.cpp:9339-9346` 在 `sceneTick < lastObservedTick` 时 `playerAnimationRuntimes.clear()`，注释写明 cross-seek 不积分的取舍。为什么不能判红：要红就得反向定义后退后必须与正向同帧，而产品当前有意不保证这条；所有门禁都走正向播放，写死反向判据等于先改产品语义。处置：记为已知取舍 + 用户可见 + 不阻塞发布，写进 `T85-SUPPORT-SCOPE.md` 已知限制；若将来要求拖回后连续，须先改 `main.cpp` 语义再立门禁。 | CANNOT-RED 产品有意不保证后退 seek 与正向同帧（main.cpp:9339-9346 取舍），无判据可红 |
+
+> **D-22 补记（2026-11-07 task-18，棘轮接管）**：新增 `gate-launch-hygiene-check.sh` 把本文的"脚本级粗扫"变成**可枚举、可回滚的静态棘轮**——它只看命令位（direct / array-exec / array-def），把"flag 没传"（D-22）与"flag 指向 tracked evidence/AppData"（D-18）都记为违规，断言 = **当前违规集合与 `evidence/gate-launch-hygiene/baseline.txt` 集合相等**：新增违规红、基线过期（修好但没删行）也红，`--update-baseline` 只用于人工确认后落盘。**权威读数（本次实测，t86-phase0 树 101 个 `*.sh`）**：launchers=51、sites=78、violations=**85 行 / 47 个脚本**（42 个有“完全没传”、6 个有“传了但指向 tracked/AppData”，`viewmodel-animation-check.sh` 两者兼有）= 32 缺 `--settings-file` + 42 缺 `--ui-settings-file` + 6 shared `--settings-file` + 5 shared `--ui-settings-file`；warnings=23（缺 `--audio-disabled`/`--hidden-window`）；lifecycle 豁免 1（`install-lifecycle-check.sh`）。**旧口径 29/42/9 作废的原因**：那是"至少一个启动点缺"的脚本计数，且把 python/PowerShell 间接启动也算进来；棘轮按"每个（脚本, flag）对"逐行记，且把 shared 单列。**剩余违规的清零仍是独立任务**（修 47 个脚本 = 改 47 份门禁，需逐个回归），棘轮只保证"不再变坏、修好的必须销账"。`verify-release.sh` 中它是**第 1 个执行、共 8 步**（[1/8]，120s）。
+
+**D 表统计（11 条，不要与 §8 的 39 条混加）**：D-13 已关闭（task-6）；D-16 明确不做；D-17/D-22/D-26 部分覆盖；D-14/D-15/D-18/D-19/D-20/D-21 无覆盖。
+
+**机器判红列（2026-11-07 task-20）**：表格最后一列是**唯一**的机器可读声明，由 `debt-claim-check.sh` 解析：`CAN-RED gate:<脚本>#<字面 token>` 要求脚本存在且 grep -F 得到该 token；`CAN-RED-UNANCHORED <理由>` / `CANNOT-RED <理由>` 必须带理由，前者计入待补门禁。整链第 2 步跑它，汇总行 `DEBT-CLAIM=PASS|FAIL claims= anchored= cannot= unanchored=`。
+
+> **D-23–D-25 号段**由并行任务占用，本树未含；D-26 由 lead 于 2026-11-07 指派补入（证据见本行），不另开提交。
+
+## 9. 跨任务移交（避免重复劳动）
+
+| 事项 | 归属 | 依据 |
+|---|---|---|
+| 三把 OOM 武器（`c_sapper_xmas`/`c_shogun_warhorn`/`c_flamethrower`）预算链缺陷 | **task-1 / t85-budget** | 交接书 §1 P0；`main.cpp:3730` reserve(64) 与 `native_renderer_entity.cpp:168` 96 的关系是它的主题 |
+| opt-in 动画驱动状态层（crouch/crouchwalk/flinch 扩到 walk/jump/attack） | **task-4 / t87-anim** | `native/tools/model_pose_probe.cpp` 补丁（9233fcf + 141 行）冻结待用 |
+| 资产/材质逐类登记矩阵（8.2-5） | **task-3 / t85-assets** | `D:/_shared/t85-assets/` |
+| 证据封装与门禁模板（8.7-3） | **task-5 / t85-workflow** | `D:/_shared/t85-workflow/` |
+| D-18 门禁改写 tracked 证据 | **发布工程 / 卫生（未派）** | `D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md` §5 修法 A |
+| D-19 发布链注册缺口 | **发布工程**（task-15 只补入口） | `D:/_shared/t85-mutation/GATE-REGISTRATION.md` |
+| D-20 构建身份 | **task-14 / t90-identity** | `D:/_shared/T85-STATUS.md` §3 第 4 条 |
+| D-21 冻结树整链 PASS 产物 | **发布工程**（阶段 7） | `D:/_shared/T85-STATUS.md` §3 第 6 条；本任务新增 `verify-release.sh` |
+| D-22 门禁不隔离设置目录（改用户真实配置） | **发布工程 / 卫生（未派，建议与 D-18 同批）** | 本表 D-22；`D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md`；整链守卫见 `verify-release.sh` |
+
+## 10. 引用口径（防止下一轮再写出 40/5）
+
+- 角色矩阵：**45 PASS / 0 NV / 0 UNSUPPORTED / 0 FAIL**（`CHARACTER-MATRIX.md:362`），其中 **18 格**有具名渲染实体（`:375`），**9 对**队伍对（`:379`）。
+- 地图矩阵：**20 格全 PASS**，含 **4 格 Odyssey 历史行**（`MAP-MATRIX.md:26-34/:40`），官方四图为 16 格。
+- 武器：九职业各一格 PASS（`third-person-weapon-check.sh:580-582`），**不是**"九职业全槽位"。
+- "40 PASS / 5 UNSUPPORTED" 只属于 pass-7 历史（`T62-REPORT.md:8`），不得作为当前结论；`T62-REPORT.md:124` 的重复是过期文字。
+- 任何"已覆盖"必须能指到本表 8.x 行的门禁行号；指不到就降级为"部分覆盖"。
+- 地图：授权集 5 行（4 官方 + upward 夹具）；世界轴 20 格只覆盖矩阵里的 5 行（含 4 格 Odyssey 历史行），**角色轴只覆盖 snakewater（默认 demo）与 upward（队伍对）**。引用"官方四图"必须同时给每图的证据级别（`T85-SUPPORT-SCOPE.md` §3 表末列），否则就是把几何/材质证据外推成角色/播放证据（D-17）。
+- **单跑 `verify-all.sh` ≠ 跑过整链**：整链入口是 `verify-release.sh`（verify-all 30 步 + 四个链外 P0 门禁 + `build-identity-check.sh` + `world-geometry-budget-check.sh`，共 **9 步** —— task-18 加 `gate-launch-hygiene-check.sh` 为第 1 步、task-20 加 `debt-claim-check.sh` 为第 2 步，后两个未落地前记 `STUB-ABSENT=FAIL`），见 `docs/RELEASE-POLICY.md` "The rule" 第 2 条（task-15 新增，task-16 补第 7 步，task-20 补第 2 步）与 D-19/D-21。
+- **整链必须证明没改写用户真实配置**：`verify-release.sh` 快照 `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` + `ui.ini`，默认任何变化 = `MACHINE-MUTATED=FAIL`；D-22 修完前这一步会红，红就是发布阻塞（task-16）。
+- **「能判红」必须机器可查**：每条 D-xx 与 8.x 行的末列写 `CAN-RED gate:<脚本>#<字面 token>` / `CANNOT-RED <理由>` / `CAN-RED-UNANCHORED <理由>`，由 `debt-claim-check.sh`（整链第 2 步）解析；改判断必须同时改锚点，否则门禁红。当前 50 行：anchored=24、cannot=21、unanchored=5（8.2-7 / 8.3-2 / 8.5-5 / D-17 / D-20）。
+- **地图审计编号已顺延 +1**：map-auditor 的 N19–N24 在本账本为 **N20–N25**（顺序：雾 / func_illusionary / prop_static+game lump / 世界 alpha / HDR 削顶 / func_lod）；其中 HDR 解码锚点真值是 `bsp_map.cpp:97-110`，旧引用的 `:621` 只是 tone census 统计。
