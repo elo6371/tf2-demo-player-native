@@ -4518,7 +4518,33 @@ bool outlineVertexExtent = false;
       requestedMap.c_str(), mapLookupStore.c_str(),
       mapLookupSelected.empty() ? "-" : mapLookupSelected.c_str(),
       mapBytes.size(), mapLookupReason.c_str());
-    tf2::native::BspParser::parse(mapBytes, displayMap, 200000);
+    // T88: THE WORLD TRIANGLE CAPACITY, and why it is this number rather than
+    // the 200,000 it was. 200,000 was the parser's default, never measured
+    // against the maps the product has to draw; cp_snakewater_final1 asks for
+    // 242,361 triangles (it asked for 234,699 while the func_illusionary bug was
+    // deleting 2,892 of its faces). At the old 200,000 the fixed build reports
+    // requested=242,361 dropped=42,643 over 3,513 faces (the count exceeds the
+    // 42,361 arithmetic shortfall because a refused displacement grid still
+    // emits its fallback fan), and the frame showed a map with surfaces
+    // missing. The capacity is now sized from the demand, measured
+    // with `world_geometry_probe --triangle-limit 4000000` on the four authorised
+    // maps (evidence/t88-maps/demand.txt): the largest is snakewater at 242,361,
+    // so 400,000 covers every one of them with 65 % headroom and still bounds the
+    // buffer. It is a capacity, not an aspiration: if a map ever exceeds it, the
+    // `map: geometry budget` trace line says so with numbers.
+    constexpr std::size_t kWorldTriangleCapacity = 400000;
+    tf2::native::BspParser::parse(mapBytes, displayMap, kWorldTriangleCapacity);
+    // T88: the budget as a reading, on the map-load path, so every run -- a
+    // probe, a normal window, a --capture-frame -- carries it. state=within with
+    // requested <= capacity is the pass; state=truncated names the first face
+    // and the first brush model the capacity refused.
+    traceFmt("map: geometry budget capacity=%zu requested=%zu dropped=%zu facesDropped=%zu"
+      " brushFacesDropped=%zu brushModelsDropped=%zu firstFace=%d firstBrush=%s state=%s",
+      displayMap.triangleCapacity, displayMap.trianglesRequested, displayMap.trianglesDropped,
+      displayMap.facesDroppedByBudget, displayMap.brushFacesDroppedByBudget,
+      displayMap.brushModelsDroppedByBudget, static_cast<int>(displayMap.firstDroppedFace),
+      displayMap.firstDroppedBrushModel.empty() ? "-" : displayMap.firstDroppedBrushModel.c_str(),
+      displayMap.trianglesDropped > 0 ? "truncated" : "within");
     // T24: the bytes now live in an owner that survives this block, because the
     // pakfile reader below is called from outside it. `mapBytesView` is the
     // local name for the same bytes; `mapBytes` must not be used again.
@@ -7739,6 +7765,17 @@ bool outlineVertexExtent = false;
   const auto traceWorldDraw = [&]() {
     if (worldDrawTraceEmitted) return;
     worldDrawTraceEmitted = true;
+    // T88: the budget again, from the drawn frame rather than from the load. The
+    // load line proves what the parser decided; this one proves the frame that
+    // was drawn is the one the decision applies to, and it lands in the capture
+    // trace where a gate reads frames, not in a startup log nobody keeps.
+    traceFmt("gpu: world geometry budget capacity=%zu requested=%zu dropped=%zu"
+      " facesDropped=%zu brushFacesDropped=%zu brushModelsDropped=%zu"
+      " drawTriangles=%zu state=%s",
+      displayMap.triangleCapacity, displayMap.trianglesRequested, displayMap.trianglesDropped,
+      displayMap.facesDroppedByBudget, displayMap.brushFacesDroppedByBudget,
+      displayMap.brushModelsDroppedByBudget, displayMap.triangles.size(),
+      displayMap.trianglesDropped > 0 ? "truncated" : "within");
     const auto sample = renderer.worldMaterialSampleState();
     traceFmt("gpu: world sky state=%s vertices=%u triangles=%u faces=%u draws=%u side=%u"
       " resampled=%d reason=%s",

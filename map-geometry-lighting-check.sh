@@ -192,6 +192,15 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 LOCK=${HOSTLOCK:-/d/TF2_Native_Worktrees/_shared/hostlock.sh}
 MATRIX=evidence/t62-map-matrix
 OUT=${MAP_AXIS_OUT:-evidence/t62-map-axes}
+# Hermetic product inputs. The product writes settings.ini and ui.ini on every
+# exit (main.cpp saveSettings(persistent) at 11613-11625, native_ui.cpp
+# recentDemo0..7 MRU at 137-139), so a gate that lets it write the operator's
+# real profile makes the next run start from different input -- and a run that
+# edited tracked files elsewhere is a repository contamination. Both paths point
+# at copies under the matrix directory.
+RUN_INPUTS=$MATRIX/inputs
+SETTINGS_FILE=$RUN_INPUTS/settings.ini
+UI_FILE=$RUN_INPUTS/ui.ini
 SCRATCH=.scratch/t62-map-axes
 MAPS=(cp_snakewater_final1 pl_odyssey cp_sunshine koth_bagel_rc12 koth_bagel_rc11)
 FRAMES=(textured none sky-faces flat-base flat-novis flat-nocull flat-novis-nocull ids ids-nocull lmoff)
@@ -329,7 +338,9 @@ capture() { # capture <name> [extra world flags...]
     fi
   fi
   local -a args=( "$PRODUCT" --tf-root "$TF" --audio-device 6 --audio-disabled
-    --hidden-window --demo "$DEMO" --playback-speed "$SPEED" --capture-tick "$TICK"
+    --hidden-window --settings-file "$(cygpath -m "$SETTINGS_FILE")"
+    --ui-settings-file "$(cygpath -m "$UI_FILE")"
+    --demo "$DEMO" --playback-speed "$SPEED" --capture-tick "$TICK"
     --capture-frame "$(cygpath -m "$bmp")" --metrics-file "$(cygpath -m "$csv")"
     --debug-camera "$CX" "$CY" "$CZ" "$CP" "$CYAW" "$@" )
   local cmd attempt rc dims want other
@@ -383,7 +394,20 @@ capture() { # capture <name> [extra world flags...]
   echo "  captured $name"
 }
 
-mkdir -p "$OUT" "$SCRATCH" || exit 2
+mkdir -p "$OUT" "$SCRATCH" "$RUN_INPUTS" || exit 2
+# Seed the input copies from the real profile once, read only. After that the
+# run's input is whatever is in $RUN_INPUTS and nothing else.
+for pair in "settings.ini:$SETTINGS_FILE" "ui.ini:$UI_FILE"; do
+  name=${pair%%:*}; dest=${pair#*:}
+  if [[ ! -s $dest ]]; then
+    real="$LOCALAPPDATA/TF2 Demo Player/$name"
+    if [[ -f $real ]]; then
+      cp "$real" "$dest" && echo "seeded $dest from the real profile (read only)"
+    else
+      : > "$dest" && echo "seeded $dest empty (no real profile to copy)"
+    fi
+  fi
+done
 maps_judged=0
 geometry_ok=0
 lighting_ok=0
