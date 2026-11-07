@@ -1,0 +1,25 @@
+== mutation window start 2026-11-07T17:45:21+08:00 owner=t88-budget pid=304126
+HOLD_LOCK=1: captures and builds run inside the held lock (owner=t88-budget)
+seeded /tmp/tmp.3A4z9hdNtK/settings.ini from the real profile (read only)
+seeded /tmp/tmp.3A4z9hdNtK/ui.ini from the real profile (read only)
+
+-- mutation capacity-shrink: native/src/main.cpp
+  mutation capacity-shrink: gate red at the named assertion --   FAIL B2 cp_snakewater_final1: capacity=200000, expected 400000
+  mutation capacity-shrink: native/src/main.cpp restored byte-identical (sha256 9914fa023f02ac1530c44fb96cde87d245c293d19333d7057208cffaa6a0c9bf)
+  FAIL MUTATION capacity-shrink: gate did not come back green after restore (see .scratch/t88-budget/mut/capacity-shrink-restored.log)
+      FAIL B3 cp_snakewater_final1: requested=242361, pin=400000
+      FAIL B3 cp_snakewater_final1: capacity=400000, pin=cp_snakewater_final1
+      FAIL B4 cp_snakewater_final1: facesDrawn=3246, pin=0
+
+-- mutation illusionary-whitelist: native/src/bsp_map.cpp
+  mutation illusionary-whitelist: gate red at the named assertion --   FAIL B4 cp_snakewater_final1: facesDrawn=354, pin=0
+  mutation illusionary-whitelist: native/src/bsp_map.cpp restored byte-identical (sha256 363d2dc7a6cd20588bc3007cf0b76192e51d152ebdac235549dbb523cb375777)
+  FAIL MUTATION illusionary-whitelist: gate did not come back green after restore (see .scratch/t88-budget/mut/illusionary-whitelist-restored.log)
+      FAIL B3 cp_snakewater_final1: requested=242361, pin=400000
+      FAIL B3 cp_snakewater_final1: capacity=400000, pin=cp_snakewater_final1
+      FAIL B4 cp_snakewater_final1: facesDrawn=3246, pin=0
+
+WORLD-GEOMETRY-BUDGET-MUTATION=FAIL (2)
+mutation rc=1
+-- source state after the mutations (must show no mutation left behind)
+== mutation window end 2026-11-07T17:48:22+08:00 rc=1

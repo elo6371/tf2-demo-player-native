@@ -272,7 +272,10 @@ judge_map() { # judge_map <map> -> 0 when every assertion held
     failure "B2 $map: requested=$req > capacity=$cap"
   fi
 
-  read -r pcap preq pdropped pdrawn pskipped pwfaces pbfaces <<< "$(pin_line "$map")"
+  # The pin row starts with the map name (map capacity requested ...): reading it
+  # into seven words would shift every field by one and compare the map name
+  # against the capacity. pmap holds the name; the rest line up with the header.
+  read -r pmap pcap preq pdropped pdrawn pskipped pwfaces pbfaces <<< "$(pin_line "$map")"
   wfaces=$(field "$brush_line" worldFaces); bfaces=$(field "$brush_line" brushFaces)
   # B3: the demand, pinned. A parser change that stops reading faces moves it.
   if [[ -n $preq ]]; then
