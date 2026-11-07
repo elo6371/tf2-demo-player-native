@@ -1,0 +1,15 @@
+# pre-merge snapshot 2026-11-07 16:10:02
+
+## t91 HEAD
+e15577b docs(t62): close the nine C cells, record the phase rule, freeze the tree
+?? evidence/t91-merge/
+
+## branch HEADs vs e15577b
+task/t87-anim        e042bcf ahead=1
+task/t88-maps        e15577b ahead=0
+task/t90-identity    e15577b ahead=0
+task/t92-install     e15577b ahead=0
+task/t93-playback    e15577b ahead=0
+task/t85-budget      e15577b ahead=0
+task/t86-phase0      d889376 ahead=10
+task/t94-hygiene     eae004d ahead=13
