@@ -31,14 +31,27 @@
 #   body-appearance       1200   VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE
 #   class-pixels          1200   VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS
 #   build-identity        1200   VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY
+#   world-geometry-budget 1200   VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET
 #
-# build-identity-check.sh does not exist yet (task-14 / t90-identity owns it).
-# Until it lands this step records STUB-ABSENT=FAIL and the chain is FAIL. It is
-# not skipped: a chain that silently omits a step is the defect this file is
-# meant to end.
+# build-identity-check.sh (task-14 / t90-identity) and
+# world-geometry-budget-check.sh (task-13) do not exist yet. Until each lands its
+# step records STUB-ABSENT=FAIL and the chain is FAIL. Neither is skipped: a
+# chain that silently omits a step is the defect this file is meant to end.
 #
-# ARTEFACTS: evidence/release/<utc>-<step>.log and evidence/release/<utc>-summary.txt
-# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=6   (last stdout line)
+# MACHINE ISOLATION (debt D-22)
+# The chain must prove it did not rewrite the tester's real configuration. Before
+# the first step and after the last one this script snapshots
+# %LOCALAPPDATA%/TF2 Demo Player/settings.ini and ui.ini -- existence, size,
+# mtime, sha256 -- to <utc>-machine-before.txt / <utc>-machine-after.txt and
+# compares them. By default ANY change is MACHINE-MUTATED=FAIL and the chain is
+# FAIL (both files are written by the product itself: settings.ini at exit,
+# ui.ini when a demo is opened). VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1 turns
+# the failure into a recorded warning (MACHINE-MUTATION-ALLOWED=1) and is meant
+# only for diagnosing D-22, never for signing a release.
+#
+# ARTEFACTS: evidence/release/<utc>-<step>.log, <utc>-summary.txt,
+#            <utc>-machine-before.txt, <utc>-machine-after.txt
+# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=7   (last stdout line)
 #
 # Exit: 0 PASS, 1 FAIL, 9 refused (not under the host lock / owner mismatch).
 #
@@ -52,7 +65,7 @@ STAMP=${VERIFY_RELEASE_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 OWNER=${VERIFY_RELEASE_OWNER:-}
 DRY=${VERIFY_RELEASE_DRY_RUN:-0}
 
-STEPS=(verify-all outline third-person-weapon body-appearance class-pixels build-identity)
+STEPS=(verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget)
 TOTAL=${#STEPS[@]}
 
 step_file() {
@@ -63,6 +76,7 @@ step_file() {
     body-appearance)       echo player-body-appearance-check.sh ;;
     class-pixels)          echo class-pixels-check.sh ;;
     build-identity)        echo build-identity-check.sh ;;
+    world-geometry-budget) echo world-geometry-budget-check.sh ;;
     *)                     echo "" ;;
   esac
 }
@@ -75,6 +89,7 @@ step_timeout() {
     body-appearance)       echo "${VERIFY_RELEASE_TIMEOUT_BODY_APPEARANCE:-1200}" ;;
     class-pixels)          echo "${VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS:-1200}" ;;
     build-identity)        echo "${VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY:-1200}" ;;
+    world-geometry-budget) echo "${VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET:-1200}" ;;
     *)                     echo 1200 ;;
   esac
 }
@@ -90,11 +105,64 @@ step_verdict() {
     body-appearance)       echo BODY-APPEARANCE ;;
     class-pixels)          echo CLASS-PIXELS ;;
     build-identity)        echo BUILD-IDENTITY ;;
+    world-geometry-budget) echo WORLD-GEOMETRY-BUDGET ;;
     *)                     echo "" ;;
   esac
 }
 
 upper() { printf "%s" "$1" | tr "a-z" "A-Z"; }
+
+# ---------------------------------------------------------------- machine guard
+# Debt D-22: gates launch the product without --settings-file / --ui-settings-file,
+# and the product writes its real config on the way out (settings.ini at exit,
+# ui.ini when a demo is opened). A "green" chain that silently rewrites the
+# tester's own configuration is not evidence of anything, so the chain measures
+# the two files before and after and fails on any change.
+ALLOW_MACHINE_MUTATION=${VERIFY_RELEASE_ALLOW_MACHINE_MUTATION:-0}
+
+machine_dir() {
+  local base=${LOCALAPPDATA:-}
+  if [ -z "$base" ] && command -v cmd >/dev/null 2>&1; then
+    base=$(cmd //c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r')
+  fi
+  [ -n "$base" ] || return 1
+  if command -v cygpath >/dev/null 2>&1; then
+    base=$(cygpath -u "$base" 2>/dev/null) || return 1
+  else
+    base=${base//\\//}
+  fi
+  [ -n "$base" ] || return 1
+  printf "%s/TF2 Demo Player" "$base"
+}
+
+machine_snapshot() {
+  local out=$1 dir f
+  {
+    echo "# machine settings snapshot (verify-release.sh)"
+    echo "# taken_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    if ! dir=$(machine_dir); then
+      echo "MACHINE-SNAPSHOT=UNAVAILABLE reason=localappdata-unset"
+      return 2
+    fi
+    echo "dir=$dir"
+    for f in settings.ini ui.ini; do
+      if [ -f "$dir/$f" ]; then
+        printf "file=%s exists=1 bytes=%s mtime=%s sha256=%s\n" "$f" \
+          "$(stat -c %s "$dir/$f" 2>/dev/null || echo '?')" \
+          "$(stat -c %Y "$dir/$f" 2>/dev/null || echo '?')" \
+          "$(sha256sum "$dir/$f" 2>/dev/null | cut -d' ' -f1)"
+      else
+        printf "file=%s exists=0\n" "$f"
+      fi
+    done
+  } > "$out"
+  grep -q "MACHINE-SNAPSHOT=UNAVAILABLE" "$out" && return 2
+  return 0
+}
+
+snapshot_line() {
+  grep "^file=$1 " "$2" 2>/dev/null || echo "file=$1 missing-from-snapshot"
+}
 
 if [ "$DRY" = "1" ]; then
   echo "VERIFY-RELEASE dry run -- nothing is executed, no lock is taken, no log is written."
@@ -107,6 +175,12 @@ if [ "$DRY" = "1" ]; then
     timeout_s=$(step_timeout "$step")
     printf "  [%d/%d] timeout %ss bash %s  > %s\n" "$i" "$TOTAL" "$timeout_s" "$script" "$OUT/$STAMP-$step.log"
   done
+  echo
+  echo "machine guard (debt D-22): snapshot $OUT/$STAMP-machine-before.txt before step 1 and"
+  echo "  $OUT/$STAMP-machine-after.txt after the last step (settings.ini + ui.ini under"
+  echo "  %LOCALAPPDATA%/TF2 Demo Player: exists, bytes, mtime, sha256). Any change is"
+  echo "  MACHINE-MUTATED=FAIL unless VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1, which records"
+  echo "  MACHINE-MUTATION-ALLOWED=1 and still cannot sign a release."
   echo "VERIFY-RELEASE=DRY-RUN steps_total=$TOTAL"
   exit 0
 fi
@@ -170,6 +244,16 @@ rec "note: ok_lines counts output lines starting with two-spaces-OK or OK-space 
 rec "note: bound on assertions, not the per-gate pinned totals (verify-all.sh prints those itself)."
 rec ""
 
+MACHINE_BEFORE="$OUT/$STAMP-machine-before.txt"
+MACHINE_AFTER="$OUT/$STAMP-machine-after.txt"
+machine_snapshot "$MACHINE_BEFORE"
+machine_rc=$?
+rec "machine_before=$MACHINE_BEFORE"
+rec "machine_after=$MACHINE_AFTER"
+if [ "$machine_rc" -eq 2 ]; then
+  rec "MACHINE-SNAPSHOT=UNAVAILABLE before-step-1 note=the chain then cannot prove it left the tester's configuration alone"
+fi
+
 steps_ok=0
 overall=0
 i=0
@@ -187,14 +271,18 @@ for step in "${STEPS[@]}"; do
   dur=0
   status=""
   if [ ! -f "$ROOT/$script" ]; then
-    if [ "$step" = "build-identity" ]; then
+    stub_owner=""
+    case "$step" in
+      build-identity)        stub_owner="task-14 / t90-identity; evidence: docs/T85-DEBT-LIST.md D-20, D:/_shared/T85-STATUS.md 3.4" ;;
+      world-geometry-budget) stub_owner="task-13; the gate is being delivered there" ;;
+    esac
+    if [ -n "$stub_owner" ]; then
       status=STUB-ABSENT
       rc=127
       {
-        echo "STUB-ABSENT=FAIL step=build-identity"
-        echo "the gate $script does not exist in this tree (task-14 / t90-identity owns it)."
+        echo "STUB-ABSENT=FAIL step=$step"
+        echo "the gate $script does not exist in this tree ($stub_owner)."
         echo "this step is not skipped: until the gate lands the chain cannot be PASS."
-        echo "evidence for the defect: docs/T85-DEBT-LIST.md D-20; D:/_shared/T85-STATUS.md 3.4"
       } > "$log"
     else
       status=MISSING
@@ -262,6 +350,61 @@ else
   overall=1
   rec "product_processes_after=${procs:-unknown} (must be 0: a player process outlived the chain)"
   echo "PRODUCT-PROCESSES=FAIL (${procs:-unknown}; must be 0)"
+fi
+
+# ---------------------------------------------------------------- machine guard verdict
+# The two files are written by the product itself, not by this script: settings.ini
+# at exit (bookmarks, keys, render/tfRoot) and ui.ini when a demo is opened
+# (recentDemo0..7). A change here means some gate in the chain launched the product
+# without pointing --settings-file / --ui-settings-file somewhere disposable (D-22).
+machine_failed=0
+machine_reason=""
+machine_changed=""
+if [ "$machine_rc" -eq 2 ]; then
+  machine_failed=1
+  machine_reason="snapshot-unavailable-before"
+else
+  machine_snapshot "$MACHINE_AFTER"
+  machine_rc_after=$?
+  if [ "$machine_rc_after" -eq 2 ]; then
+    machine_failed=1
+    machine_reason="snapshot-unavailable-after"
+  else
+    for f in settings.ini ui.ini; do
+      b=$(snapshot_line "$f" "$MACHINE_BEFORE")
+      a=$(snapshot_line "$f" "$MACHINE_AFTER")
+      if [ "$b" != "$a" ]; then machine_changed="$machine_changed $f"; fi
+    done
+    machine_changed=${machine_changed# }
+    if [ -n "$machine_changed" ]; then
+      machine_failed=1
+      machine_reason="files=${machine_changed// /,}"
+    fi
+  fi
+fi
+
+if [ "$machine_failed" -eq 1 ]; then
+  if [ "$ALLOW_MACHINE_MUTATION" = "1" ]; then
+    echo "MACHINE-MUTATION-ALLOWED=1 $machine_reason"
+    rec "MACHINE-MUTATION-ALLOWED=1 $machine_reason"
+    rec "note: the chain rewrote the tester's real configuration; it passed only because"
+    rec "note: VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1 was set (debt D-22). Not a release run."
+  else
+    overall=1
+    echo "MACHINE-MUTATED=FAIL $machine_reason"
+    rec "MACHINE-MUTATED=FAIL $machine_reason"
+    for f in settings.ini ui.ini; do
+      case " $machine_changed " in
+        *" $f "*)
+          rec "  $f before: $(snapshot_line "$f" "$MACHINE_BEFORE")"
+          rec "  $f after:  $(snapshot_line "$f" "$MACHINE_AFTER")"
+          ;;
+      esac
+    done
+  fi
+else
+  echo "MACHINE-UNCHANGED=PASS files=settings.ini,ui.ini"
+  rec "MACHINE-UNCHANGED=PASS files=settings.ini,ui.ini"
 fi
 
 if [ "$overall" -eq 0 ]; then

@@ -11,13 +11,24 @@ whenever a task finished or a date passed.
 2. **"The full chain" means `verify-release.sh`, not `verify-all.sh`.** The chain
    entry point runs `verify-all.sh` and then the acceptance gates it does not
    contain: `outline-check.sh`, `third-person-weapon-check.sh`,
-   `player-body-appearance-check.sh`, `class-pixels-check.sh`, and (once it
-   exists) `build-identity-check.sh`. 70 of the 99 gate scripts in this tree are
-   outside `verify-all.sh` -- the four P0 gates named by the handoff among them --
-   so `VERIFY=PASS` from `verify-all.sh` alone is not "the chain ran"
-   (debts D-19/D-21). `verify-release.sh` prints one line,
-   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=6`, and that line is the only
-   citable whole-chain verdict.
+   `player-body-appearance-check.sh`, `class-pixels-check.sh`,
+   `build-identity-check.sh` and `world-geometry-budget-check.sh` (the last two
+   while their gates are still being written: their steps record
+   `STUB-ABSENT=FAIL`, they are never skipped). 70 of the 99 gate scripts in this
+   tree are outside `verify-all.sh` -- the four P0 gates named by the handoff
+   among them -- so `VERIFY=PASS` from `verify-all.sh` alone is not "the chain
+   ran" (debts D-19/D-21). `verify-release.sh` prints one line,
+   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=7`, and that line is the only
+   citable whole-chain verdict. **The chain must also prove it did not rewrite the
+   tester's real configuration.** Before the first step and after the last one it
+   snapshots `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` and `ui.ini`
+   (existence, size, mtime, sha256) and fails `MACHINE-MUTATED=FAIL` on any
+   change; debt D-22 is why this is needed -- gates launch the product without
+   `--settings-file` / `--ui-settings-file`, and the product writes
+   `settings.ini` on exit and `ui.ini` whenever it opens a demo. Until D-22 is
+   fixed this step is expected to be red, and a red machine step blocks the
+   release; it is not a warning to be waived (`VERIFY_RELEASE_ALLOW_MACHINE_MUTATION=1`
+   exists only to diagnose D-22 and its runs cannot sign a release).
 3. **Quality is carried by each task's own gates**, not by repeated chain runs:
    every task ships a forward gate and a mutation for every assertion it makes,
    and the mutation must turn the assertion red for the right reason.
@@ -31,7 +42,9 @@ whenever a task finished or a date passed.
    acceptance chain itself asserts, run the full chain again.**
 
 > Numbering: item 2 was inserted on 2026-11-07, when the chain entry point became
-> `verify-release.sh`; items 2-5 became 3-6 and their wording is unchanged.
+> `verify-release.sh`; items 2-5 became 3-6 and their wording is unchanged. Item 2
+> was extended the same day with the machine-isolation requirement (debt D-22) and
+> with step 7 (`world-geometry-budget-check.sh`); no item was renumbered.
 > Citations written before that date that quote the list by line --
 > `evidence/t61-animation/T61-ANIMATION-REPORT.md:828` and `:1570`, both citing
 > `:12-13` -- mean the pre-insert item 2, i.e. the "quality is carried by each
