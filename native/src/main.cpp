@@ -3645,6 +3645,41 @@ bool outlineVertexExtent = false;
   // model count stays the number other tasks read (see the preparation site).
   std::vector<PreparedEntityMesh> overlayBindMeshes;
   std::unordered_map<std::string, std::string> entityMeshKeyByPath;
+  // T83 B1: the same table under the NORMALISED spelling, for the attach's own
+  // lookups only. Deliberately a second map rather than extra keys in the one
+  // above: that one is read by the draw stage ("if the path is known, take the
+  // key from the table" -- the body-key and instance-key sites in the draw
+  // loop), so widening it would let a spelling alias decide which cache key a
+  // world instance is drawn with. That is a change to frames other gates pin,
+  // made by a task that is not about those frames.
+  //
+  // What it is for: a held weapon's path arrives from m_iWorldModelIndex through
+  // the demo's precache table, while a prepared path comes from the asset list.
+  // They agree in every recording measured here, but if they ever did not, the
+  // attach would rebuild and re-upload a mesh the world pass had already
+  // uploaded -- and re-uploading one cache key drops the textures already
+  // attached to it (native_renderer_entity.cpp), i.e. a correctly painted gun
+  // would quietly go unpainted. Matching a mesh by its own identity rather than
+  // by a string spelling is the cheap way to make that impossible.
+  std::unordered_map<std::string, std::string> entityMeshKeyByNormalizedPath;
+  // T83 B1: the models the third-person attach supplies for ITSELF.
+  //
+  // A held weapon's world model is not guaranteed to be one of the world pass's
+  // prepared meshes: preparation walks the demo's last-state asset list in
+  // entity order and stops at 64, so a weapon entity past that cut never gets a
+  // mesh and the hand is drawn empty. Measured on pl_upward: pyro's
+  // c_flamethrower and spy's c_letranger were not in the set at all while
+  // sniper's c_sniperrifle happened to land inside it.
+  //
+  // These live in their OWN list for the same reason overlayBindMeshes does --
+  // the world pass's model count ("gpu: models done N uploaded=M") is a number
+  // other tasks assert against, and a fix for this must not move it.
+  std::vector<PreparedEntityMesh> attachEntityMeshes;
+  // The paths this stage has already asked about, normalised. A model that
+  // cannot be prepared is asked about once, not once per frame.
+  std::unordered_set<std::string> attachMeshTried;
+  std::size_t attachMeshSupplied = 0;
+  std::size_t attachMeshRefused = 0;
   // How many skin families each prepared mesh actually has. The draw stage needs
   // it to ask for a family that exists (material_slot_resolution.h): a one-family
   // model drawn for BLU asked for family 1, resolved nothing, and its instances
@@ -3723,6 +3758,18 @@ bool outlineVertexExtent = false;
       }
       preparedKeys.insert(request.cacheKey);
       entityMeshKeyByPath[request.modelPath] = request.cacheKey;
+      // T83 B1: index the same mesh under the normalised spelling, in the table
+      // the ATTACH reads -- never in the one the draw stage reads, for the reason
+      // at that table's declaration. This is the bookkeeping that lets the attach
+      // recognise a weapon the world pass already prepared instead of uploading
+      // it a second time.
+      {
+        const std::string normalizedPrepared =
+          tf2::native::normalizeModelPath(request.modelPath);
+        if (!normalizedPrepared.empty()) {
+          entityMeshKeyByNormalizedPath[normalizedPrepared] = request.cacheKey;
+        }
+      }
       entitySkinFamilyCountByKey[request.cacheKey] =
         static_cast<std::uint32_t>(prepared.skinFamilies.families.size());
       rememberEntityRig(request.cacheKey, request.inspection.metadata);
@@ -3935,6 +3982,192 @@ bool outlineVertexExtent = false;
     if (found != materialVtfCache.end()) return found->second;
     auto looked = assetChain.lookup(path);
     return materialVtfCache.emplace(path, std::move(looked.bytes)).first->second;
+  };
+  // T83 B1: THE ATTACH'S OWN MESH SOURCE, built on demand.
+  //
+  // The world pass prepares at most 64 models and then stops, and a held
+  // weapon's world model that falls past that cut has no mesh at all -- the
+  // third-person attach then draws an empty hand with no reason recorded. The
+  // fix belongs to the stage that needs the mesh, not to the world pass's list:
+  // raising 64 would change "gpu: models done N uploaded=M", a number the
+  // outline gate pins, and reordering that list would silently change what the
+  // world pass draws. So the attach supplies what it needs, when it needs it.
+  //
+  // Three rules, each from a failure already paid for elsewhere in this file:
+  //   * a key is uploaded ONCE. uploadEntityModelMesh drops the mesh's uploaded
+  //     textures when the same key is uploaded again (native_renderer_entity.cpp),
+  //     so a second upload would quietly unpaint a gun that was already correct.
+  //   * a path that cannot be prepared is tried once, then never again, and it
+  //     is SAID OUT LOUD. The counter it replaces (noWorldMesh) names no path,
+  //     which is why "the hand is empty" took a whole forensic pass to explain.
+  //   * the textures are resolved here rather than by a shared helper: the paint
+  //     lambda that does this for the world pass is scoped to a block this code
+  //     cannot see (main.cpp:3939-5119), and lifting it would move a world-pass
+  //     counter. The resolver is the same one, so the pixels cannot disagree.
+  const auto uploadAttachMesh = [&](PreparedEntityMesh& prepared) -> bool {
+    if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs)) {
+      traceFmt("attach: mesh result=refused stage=upload key=%s lastError=0x%08lX",
+        prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
+      return false;
+    }
+    std::size_t painted = 0;
+    for (const auto& paintedSlot : prepared.paintedSlots) {
+      const auto& paintedVtf = readMaterialVtf(paintedSlot.vtfPath);
+      tf2::native::VtfTexture paintedTexture;
+      std::vector<std::uint8_t> paintedRgba;
+      if (paintedVtf.empty() || !paintedTexture.parse(paintedVtf)
+          || (paintedRgba = paintedTexture.decodeRgba(paintedVtf)).empty()) {
+        traceFmt("attach: texture result=decode-failed key=%s slot=%u family=%u path=%s",
+          prepared.cacheKey.c_str(), paintedSlot.materialSlot, paintedSlot.skinFamily,
+          paintedSlot.vtfPath.c_str());
+        continue;
+      }
+      if (!renderer.uploadEntityModelTexture(prepared.cacheKey, paintedSlot.materialSlot,
+            paintedSlot.skinFamily, paintedRgba, paintedTexture.header().width,
+            paintedTexture.header().height)) {
+        traceFmt("attach: texture result=refused key=%s slot=%u family=%u lastError=0x%08lX",
+          prepared.cacheKey.c_str(), paintedSlot.materialSlot, paintedSlot.skinFamily,
+          static_cast<unsigned long>(renderer.lastError()));
+        continue;
+      }
+      ++painted;
+    }
+    // A mesh with no texture still draws (flat, tinted), and on this product a
+    // gun that is present but unpainted is a much smaller error than a gun that
+    // is absent: the presence question is what this stage exists to answer.
+    return true;
+  };
+  const auto attachPaintRead = [&assetChain](const std::string& resource) {
+    return assetChain.lookup(resource).bytes;
+  };
+  // Returns the cache key to draw with, or empty when the model cannot be drawn.
+  // Paths the world pass already prepared resolve immediately and cost nothing.
+  const auto supplyAttachMesh = [&](const std::string& modelPath) -> std::string {
+    if (modelPath.empty()) return std::string();
+    const auto preparedAlready = entityMeshKeyByPath.find(modelPath);
+    if (preparedAlready != entityMeshKeyByPath.end()) return preparedAlready->second;
+    const std::string normalized = tf2::native::normalizeModelPath(modelPath);
+    if (normalized.empty()) return std::string();
+    const auto preparedNormalized = entityMeshKeyByNormalizedPath.find(normalized);
+    if (preparedNormalized != entityMeshKeyByNormalizedPath.end()) return preparedNormalized->second;
+    if (!attachMeshTried.insert(normalized).second) return std::string();
+    tf2::native::AssetReference reference;
+    reference.hasModelPath = true;
+    reference.modelPath = modelPath;
+    std::vector<tf2::native::AssetReference> references{std::move(reference)};
+    auto requests = tf2::native::ModelLoader::buildRenderRequests(
+      assets, references, itemSchema.get(), nullptr);
+    if (requests.empty() || !requests.front().renderable) {
+      ++attachMeshRefused;
+      traceFmt("attach: mesh result=refused stage=resolve path=%s reason=%s", modelPath.c_str(),
+        requests.empty() ? "no request" : requests.front().diagnostic.c_str());
+      return std::string();
+    }
+    tf2::native::ModelRenderRequest& request = requests.front();
+    std::string meshError;
+    if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)
+        || request.inspection.metadata.bindPoseVertices.size() < 3) {
+      ++attachMeshRefused;
+      traceFmt("attach: mesh result=refused stage=bind-pose path=%s reason=%s", modelPath.c_str(),
+        meshError.empty() ? "fewer than three bind-pose vertices" : meshError.c_str());
+      return std::string();
+    }
+    PreparedEntityMesh prepared;
+    prepared.path = modelPath;
+    prepared.cacheKey = request.cacheKey;
+    prepared.vertices = std::move(request.inspection.metadata.bindPoseVertices);
+    prepared.textureSlots = request.inspection.metadata.textureCount;
+    prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
+    std::string runsError;
+    if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs, runsError)) {
+      ++attachMeshRefused;
+      traceFmt("attach: mesh result=refused stage=runs path=%s reason=%s", modelPath.c_str(),
+        runsError.c_str());
+      return std::string();
+    }
+    prepared.skinFamilies = request.inspection.metadata.skinFamilies;
+    prepared.textureCandidates = request.inspection.metadata.textureCandidates;
+    if (!request.inspection.metadata.textureCandidates.empty()) {
+      prepared.materialCandidates = request.inspection.metadata.textureCandidates.front();
+    }
+    if (!prepared.materialCandidates.empty()) {
+      prepared.materialName = prepared.materialCandidates.front();
+    }
+    std::set<std::uint32_t> attachSlots;
+    for (const auto& run : prepared.runs) attachSlots.insert(run.materialSlot);
+    const std::uint32_t attachFamilies =
+      tf2::native::selectableSkinFamilyCount(prepared.skinFamilies);
+    for (std::uint32_t family = 0; family < attachFamilies; ++family) {
+      for (const std::uint32_t slot : attachSlots) {
+        tf2::native::MaterialSlotResolution resolution;
+        if (!tf2::native::resolveMaterialSlot(prepared.skinFamilies, prepared.textureCandidates,
+              family, static_cast<std::int32_t>(slot), attachPaintRead, resolution)) {
+          traceFmt("attach: paint result=unresolved path=%s family=%u slot=%u reason=%s",
+            modelPath.c_str(), family, slot, resolution.reason.c_str());
+          continue;
+        }
+        PreparedEntityMesh::PaintedSlot paintedSlot;
+        paintedSlot.materialSlot = slot;
+        paintedSlot.skinFamily = family;
+        paintedSlot.vmtPath = resolution.vmtPath;
+        paintedSlot.vtfPath = resolution.vtfPath;
+        prepared.paintedSlots.push_back(std::move(paintedSlot));
+      }
+    }
+    const std::string cacheKey = prepared.cacheKey;
+    const std::size_t paintedCount = prepared.paintedSlots.size();
+    if (!uploadAttachMesh(prepared)) {
+      ++attachMeshRefused;
+      return std::string();
+    }
+    // Only a mesh that actually reached the GPU is published: a key that resolves
+    // and draws nothing is the failure mode this stage was added to end. The
+    // exact spelling goes in the draw stage's table (a weapon entity may be drawn
+    // standalone when it is in nobody's hand, and that path expects the table the
+    // rest of the draw stage uses); the normalised spelling goes in the attach's
+    // own table, so a later frame that hands back the other spelling resolves
+    // here instead of rebuilding a mesh this stage already uploaded.
+    entityMeshKeyByPath[modelPath] = cacheKey;
+    entityMeshKeyByNormalizedPath[normalized] = cacheKey;
+    entitySkinFamilyCountByKey[cacheKey] =
+      static_cast<std::uint32_t>(prepared.skinFamilies.families.size());
+    rememberEntityRig(cacheKey, request.inspection.metadata);
+    attachEntityMeshes.push_back(std::move(prepared));
+    ++attachMeshSupplied;
+    traceFmt("attach: mesh result=supplied path=%s key=%s verts=%zu runs=%zu painted=%zu supplied=%zu refused=%zu",
+      modelPath.c_str(), cacheKey.c_str(), attachEntityMeshes.back().vertices.size(),
+      attachEntityMeshes.back().runs.size(), paintedCount, attachMeshSupplied, attachMeshRefused);
+    return cacheKey;
+  };
+  // A device reset drops every entity model mesh in the renderer
+  // (native_renderer.cpp clears entityModelMeshes_), including the ones this
+  // stage uploaded. The world pass rebuilds its list through reloadGpuResources;
+  // this stage has no such hook, so a key left in entityMeshKeyByPath would
+  // point at a mesh that no longer exists and the hand would go empty again for
+  // the rest of the run. Unpublish and let the next frame supply them again.
+  const auto resetAttachMeshes = [&]() {
+    for (const auto& prepared : attachEntityMeshes) {
+      // Both tables this stage may have published into (see the publish site).
+      const auto keyedExact = entityMeshKeyByPath.find(prepared.path);
+      if (keyedExact != entityMeshKeyByPath.end() && keyedExact->second == prepared.cacheKey) {
+        entityMeshKeyByPath.erase(keyedExact);
+      }
+      const std::string normalizedPath = tf2::native::normalizeModelPath(prepared.path);
+      if (!normalizedPath.empty()) {
+        const auto keyedNormalized = entityMeshKeyByNormalizedPath.find(normalizedPath);
+        if (keyedNormalized != entityMeshKeyByNormalizedPath.end()
+            && keyedNormalized->second == prepared.cacheKey) {
+          entityMeshKeyByNormalizedPath.erase(keyedNormalized);
+        }
+      }
+      entitySkinFamilyCountByKey.erase(prepared.cacheKey);
+      entityAttachmentsByCacheKey.erase(prepared.cacheKey);
+      entityBoneNamesByCacheKey.erase(prepared.cacheKey);
+    }
+    attachEntityMeshes.clear();
+    attachMeshTried.clear();
+    attachMeshSupplied = 0;
+    attachMeshRefused = 0;
   };
   if (assets.valid()) {
     // ---- T9 (2026-10-16): where the map came from -------------------------
@@ -9479,15 +9712,21 @@ bool outlineVertexExtent = false;
               }
               continue;
             }
-            const auto weaponKey = entityMeshKeyByPath.find(held.lookup.worldModelPath);
-            if (weaponKey == entityMeshKeyByPath.end()) {
-              // The weapon has a world model path but that model is not one of the
-              // prepared meshes: nothing to draw, and drawing the wrong mesh in the
-              // hand is worse than an empty hand.
+            // T83 B1: ask the attach's own mesh source instead of accepting the
+            // world pass's 64-model cut as final. A weapon that was prepared
+            // there resolves immediately; one that was not is prepared and
+            // uploaded here, once, and the reason is written down when it cannot
+            // be. An empty hand now means "this model cannot be drawn", not
+            // "this model happened to sort past a limit".
+            const std::string weaponCacheKey = supplyAttachMesh(held.lookup.worldModelPath);
+            if (weaponCacheKey.empty()) {
+              // The weapon has a world model path but that model could not be
+              // made drawable: drawing the wrong mesh in the hand is worse than
+              // an empty hand.
               ++attachNoWorldMesh;
               continue;
             }
-            held.weaponCacheKey = weaponKey->second;
+            held.weaponCacheKey = weaponCacheKey;
             heldWeaponEntities.insert(held.lookup.weaponEntityIndex);
             heldByPlayer[static_cast<std::int32_t>(holder.entityIndex)] = std::move(held);
           }
@@ -10183,6 +10422,13 @@ bool outlineVertexExtent = false;
             heldByPlayer.size(), attachDrawn, attachPoseMissing, attachOverBudget,
             attachRefused, attachNoHoldPoint, attachNoWorldMesh, attachSkippedStandalone,
             attachRefusalFirst.c_str());
+          // The mesh source's own books, on their own line: how many weapon
+          // models this stage had to build because the world pass did not, and
+          // how many it could not build. Counters, so they read the same on
+          // every frame; the per-model reasons are printed once, when they
+          // happen.
+          traceFmt("attach: meshSource supplied=%zu refused=%zu meshes=%zu",
+            attachMeshSupplied, attachMeshRefused, attachEntityMeshes.size());
         }
         renderer.setEntityBoneMatrices(entityBoneMatrices);
         renderer.setEntityModelInstances(draws);
@@ -11179,6 +11425,7 @@ bool outlineVertexExtent = false;
           continue;
         }
         renderer.shutdown();
+        resetAttachMeshes();
         if (!renderer.initialize(window) || !reloadGpuResources()) {
           PostQuitMessage(2);
         }

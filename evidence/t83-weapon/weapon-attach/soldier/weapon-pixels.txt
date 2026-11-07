@@ -1,13 +1,13 @@
-BODY id=75 ent=2 model=models/player/soldier.mdl pixels=1499 bbox=623,332,694,384
-WEAPON ids=[76] pixels=214 bbox=642,334,692,363 centre=667.0,348.5 size=51x30
-HAND distance=1 shareInsideBody=0.000 centreShareFromTop=0.311 bodyHeight=53 weaponHeightShare=0.566
-HOLDPOINT source=attachment bone=24 boneAt=25.0,51.0,2.9 holdAt=25.0,51.0,2.9 radius=56.9
+BODY id=75 ent=2 model=models/player/soldier.mdl pixels=1502 bbox=623,331,693,380
+WEAPON ids=[76] pixels=207 bbox=638,335,686,374 centre=662.0,354.5 size=49x40
+HAND distance=1 shareInsideBody=0.000 centreShareFromTop=0.470 bodyHeight=50 weaponHeightShare=0.800
+HOLDPOINT source=attachment bone=24 boneAt=23.8,53.3,7.8 holdAt=23.8,53.3,7.8 radius=58.9
 HOLDPOINT driftFromBone=0.00
 WEAPON-PIXELS=PASS
 frame: class=soldier ent=2 tick=63000
-frame: bmp off sha256=fec70f87c74f1c2cef359093aed900336ce15028bf2ec42fa71c60c16c58e8ba baseline=fec70f87c74f1c2cef359093aed900336ce15028bf2ec42fa71c60c16c58e8ba
-frame: bmp attached sha256=a29dd7ea77bc5770946acf1446812f838bacf01d3ebbbfca8096cf2258853332 attached-2 sha256=a29dd7ea77bc5770946acf1446812f838bacf01d3ebbbfca8096cf2258853332
-frame: bmp identity sha256=685fe2d88dc8afcdac65c60f02b166ecbf89ceb52a0dd7b9bebe83949b7e9086 baseline=685fe2d88dc8afcdac65c60f02b166ecbf89ceb52a0dd7b9bebe83949b7e9086
-frame: bmp identity-attached sha256=79e2b1cfae2108a0cd7988809cf503bf79dfc33da884b56866b774f528bce85a
+frame: bmp off sha256=f3aab78fbde16131a82efcfa0075e4ecb6a7eeae6540636a98f8371bf4d13ddb baseline=f3aab78fbde16131a82efcfa0075e4ecb6a7eeae6540636a98f8371bf4d13ddb
+frame: bmp attached sha256=e07426d1ab5b9ddeb1103440b16caf7f08f231dec3bc1ef00de6b18d3115b355 attached-2 sha256=e07426d1ab5b9ddeb1103440b16caf7f08f231dec3bc1ef00de6b18d3115b355
+frame: bmp identity sha256=b6497fe698aef280ee7233e3415710266be1e1657434fc61376fcf0c91106ce7 baseline=b6497fe698aef280ee7233e3415710266be1e1657434fc61376fcf0c91106ce7
+frame: bmp identity-attached sha256=34e95c2c8a6ada0c67860a5ea178fff335ebd87353012f4edeef2cebc1b6aa3f
 frame: attach held=11 drawn=11 skipped=10 pixels_rc=0 n1_rc=1 n2_rc=1
-frame: product sha256=2747e9090a9d7fb381299bc75cd9a7881038c9103ddab05ad4359d8d3d94f153
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9

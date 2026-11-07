@@ -1,0 +1,202 @@
+ACQUIRED owner=lead at 2026-11-07 10:51:09
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- blu-engineer: engineer ent=2 tick=24001 origin=1452.1,-1487.1,128.0 eye=1202.1,-1487.1,186.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 50401.0 entity: id=81 ent=2 model=models/player/engineer.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1452.1,-1487.1,128.0 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1786 pixels (>= 200)
+  BODY id=81 pixels=1786 mean_r=23.4 mean_g=38.7 mean_b=58.0 r_minus_b=-34.6 b_minus_r=34.6
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 34.6 (>= 15)
+
+--- red-engineer: engineer ent=8 tick=24001 origin=1889.4,288.9,400.0 eye=1639.4,288.9,458.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 53013.6 entity: id=86 ent=8 model=models/player/engineer.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1889.4,288.9,400.0 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 3040 pixels (>= 200)
+  BODY id=86 pixels=3040 mean_r=81.2 mean_g=14.4 mean_b=9.2 r_minus_b=72.0 b_minus_r=-72.0
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 72.0 (>= 15)
+
+--- blu-pyro: pyro ent=3 tick=24001 origin=608.6,-1639.1,211.6 eye=358.6,-1639.1,269.6
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 48862.3 entity: id=82 ent=3 model=models/player/pyro.mdl team=3 family=1 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=608.6,-1639.1,211.6 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 622 pixels (>= 200)
+  BODY id=82 pixels=622 mean_r=15.6 mean_g=30.0 mean_b=48.9 r_minus_b=-33.3 b_minus_r=33.3
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 33.3 (>= 15)
+
+--- red-pyro: pyro ent=9 tick=24001 origin=2008.8,-647.0,483.4 eye=1758.8,-647.0,541.4
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 60357.1 entity: id=87 ent=9 model=models/player/pyro.mdl team=2 family=0 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=2008.8,-647.0,483.4 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 3287 pixels (>= 200)
+  BODY id=87 pixels=3287 mean_r=62.2 mean_g=12.3 mean_b=8.7 r_minus_b=53.5 b_minus_r=-53.5
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 53.5 (>= 15)
+
+--- blu-soldier: soldier ent=4 tick=24001 origin=-362.3,-1911.3,193.0 eye=-612.3,-1911.3,251.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 72100.7 entity: id=83 ent=4 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=-362.3,-1911.3,193.0 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 2711 pixels (>= 200)
+  BODY id=83 pixels=2711 mean_r=15.2 mean_g=30.2 mean_b=50.6 r_minus_b=-35.4 b_minus_r=35.4
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 35.4 (>= 15)
+
+--- red-soldier: soldier ent=16 tick=24001 origin=1365.2,-854.4,342.9 eye=1115.2,-854.4,400.9
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 71251.1 entity: id=94 ent=16 model=models/player/soldier.mdl team=2 family=0 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=1365.2,-854.4,342.9 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 3105 pixels (>= 200)
+  BODY id=94 pixels=3105 mean_r=62.9 mean_g=10.3 mean_b=7.1 r_minus_b=55.8 b_minus_r=-55.8
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 55.8 (>= 15)
+
+--- blu-demo: demo ent=6 tick=24001 origin=2154.1,-1319.1,533.7 eye=1904.1,-1319.1,591.7
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 72373.3 entity: id=84 ent=6 model=models/player/demo.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=2154.1,-1319.1,533.7 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 2692 pixels (>= 200)
+  BODY id=84 pixels=2692 mean_r=14.7 mean_g=23.3 mean_b=34.6 r_minus_b=-19.8 b_minus_r=19.8
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 19.8 (>= 15)
+
+--- red-demo: demo ent=19 tick=24001 origin=1938.2,-758.7,444.1 eye=1688.2,-758.7,502.1
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 72369.4 entity: id=96 ent=19 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1938.2,-758.7,444.1 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 2077 pixels (>= 200)
+  BODY id=96 pixels=2077 mean_r=45.4 mean_g=9.7 mean_b=6.7 r_minus_b=38.8 b_minus_r=-38.8
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 38.8 (>= 15)
+
+--- blu-medic: medic ent=7 tick=24001 origin=1817.8,-1340.8,296.2 eye=1567.8,-1340.8,354.2
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 71673.2 entity: id=85 ent=7 model=models/player/medic.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1817.8,-1340.8,296.2 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 5054 pixels (>= 200)
+  BODY id=85 pixels=5054 mean_r=14.2 mean_g=33.1 mean_b=59.0 r_minus_b=-44.7 b_minus_r=44.7
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 44.7 (>= 15)
+
+--- red-medic: medic ent=10 tick=24001 origin=1795.6,-438.0,490.0 eye=1545.6,-438.0,548.0
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 75461.2 entity: id=88 ent=10 model=models/player/medic.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1795.6,-438.0,490.0 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 2891 pixels (>= 200)
+  BODY id=88 pixels=2891 mean_r=92.1 mean_g=23.6 mean_b=17.3 r_minus_b=74.8 b_minus_r=-74.8
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 74.8 (>= 15)
+
+--- blu-heavy: heavy ent=11 tick=24001 origin=1609.4,-1293.8,80.7 eye=1359.4,-1293.8,138.7
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 66637.5 entity: id=89 ent=11 model=models/player/heavy.mdl team=3 family=1 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=1609.4,-1293.8,80.7 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 4977 pixels (>= 200)
+  BODY id=89 pixels=4977 mean_r=20.4 mean_g=29.1 mean_b=41.1 r_minus_b=-20.7 b_minus_r=20.7
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 20.7 (>= 15)
+
+--- red-heavy: heavy ent=5 tick=20001 origin=1036.5,-1807.5,288.0 eye=786.5,-1807.5,346.0
+  captures identity=0/entity-id/20001/29957 painted=0/textured/20001/29957
+  LEDGER 62535.1 entity: id=84 ent=5 model=models/player/heavy.mdl team=2 family=0 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=1036.5,-1807.5,288.0 frame_tick=20001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 5134 pixels (>= 200)
+  BODY id=84 pixels=5134 mean_r=68.2 mean_g=14.7 mean_b=9.4 r_minus_b=58.8 b_minus_r=-58.8
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 58.8 (>= 15)
+
+--- blu-spy: spy ent=13 tick=24001 origin=1449.9,284.1,461.4 eye=1199.9,284.1,519.4
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 72668.7 entity: id=91 ent=13 model=models/player/spy.mdl team=3 family=1 state=idle seq=10 label=AttackStand_SECONDARY skinned=1 origin=1449.9,284.1,461.4 frame_tick=24001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1422 pixels (>= 200)
+  BODY id=91 pixels=1422 mean_r=10.1 mean_g=21.9 mean_b=47.3 r_minus_b=-37.1 b_minus_r=37.1
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 37.1 (>= 15)
+
+--- red-spy: spy ent=18 tick=24001 origin=955.4,-1255.4,349.5 eye=705.4,-1255.4,407.5
+  captures identity=0/entity-id/24001/34135 painted=0/textured/24001/34135
+  LEDGER 68060.1 entity: id=95 ent=18 model=models/player/spy.mdl team=2 family=0 state=idle seq=10 label=AttackStand_SECONDARY skinned=1 origin=955.4,-1255.4,349.5 frame_tick=24001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 2729 pixels (>= 200)
+  BODY id=95 pixels=2729 mean_r=59.7 mean_g=13.4 mean_b=9.6 r_minus_b=50.1 b_minus_r=-50.1
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 50.1 (>= 15)
+
+--- red-scout: scout ent=12 tick=45001 origin=882.6,-2084.1,288.0 eye=632.6,-2084.1,346.0
+  captures identity=0/entity-id/45001/55911 painted=0/textured/45001/55911
+  LEDGER 79208.2 entity: id=89 ent=12 model=models/player/scout.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=882.6,-2084.1,288.0 frame_tick=45001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 3010 pixels (>= 200)
+  BODY id=89 pixels=3010 mean_r=103.7 mean_g=22.6 mean_b=15.9 r_minus_b=87.7 b_minus_r=-87.7
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 87.7 (>= 15)
+
+--- blu-scout: scout ent=14 tick=45001 origin=-2528.0,-1360.0,0.0 eye=-2778.0,-1360.0,58.0
+  captures identity=0/entity-id/45001/55911 painted=0/textured/45001/55911
+  LEDGER 77207.6 entity: id=91 ent=14 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=-2528.0,-1360.0,0.0 frame_tick=45001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 1548 pixels (>= 200)
+  BODY id=91 pixels=1548 mean_r=26.8 mean_g=46.9 mean_b=78.0 r_minus_b=-51.3 b_minus_r=51.3
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 51.3 (>= 15)
+
+--- red-sniper: sniper ent=15 tick=45001 origin=643.0,963.4,505.3 eye=393.0,963.4,563.3
+  captures identity=0/entity-id/45001/55911 painted=0/textured/45001/55911
+  LEDGER 79317.4 entity: id=92 ent=15 model=models/player/sniper.mdl team=2 family=0 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=643.0,963.4,505.3 frame_tick=45001
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 2339 pixels (>= 200)
+  BODY id=92 pixels=2339 mean_r=51.5 mean_g=11.0 mean_b=7.1 r_minus_b=44.4 b_minus_r=-44.4
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 44.4 (>= 15)
+
+--- blu-sniper: sniper ent=17 tick=45001 origin=-1791.9,-2305.4,-64.0 eye=-2041.9,-2305.4,-6.0
+  captures identity=0/entity-id/45001/55911 painted=0/textured/45001/55911
+  LEDGER 75656.3 entity: id=94 ent=17 model=models/player/sniper.mdl team=3 family=1 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=-1791.9,-2305.4,-64.0 frame_tick=45001
+  OK   team=3 (want_family=1 got_family=1)
+  OK   the body's own mask is 3405 pixels (>= 200)
+  BODY id=94 pixels=3405 mean_r=13.5 mean_g=21.9 mean_b=34.7 r_minus_b=-21.2 b_minus_r=21.2
+  SIZE 1264x681
+  OK   blu body reads blue-dominant: mean_b - mean_r = 21.2 (>= 15)
+
+=== pair check: same model, both teams ===
+  PAIR engineer is judged in both teams (3,2) with ids 81,86 and pixels 1786,3040
+  PAIR engineer red-minus-blu gap = 106.6 (red 72.0, blu -34.6)
+  OK   the two teams separate by 106.6 >= 40
+  PAIR pyro is judged in both teams (3,2) with ids 82,87 and pixels 622,3287
+  PAIR pyro red-minus-blu gap = 86.8 (red 53.5, blu -33.3)
+  OK   the two teams separate by 86.8 >= 40
+  PAIR soldier is judged in both teams (3,2) with ids 83,94 and pixels 2711,3105
+  PAIR soldier red-minus-blu gap = 91.2 (red 55.8, blu -35.4)
+  OK   the two teams separate by 91.2 >= 40
+  PAIR spy is judged in both teams (3,2) with ids 91,95 and pixels 1422,2729
+  PAIR spy red-minus-blu gap = 87.2 (red 50.1, blu -37.1)
+  OK   the two teams separate by 87.2 >= 40
+  PAIR scout is judged in both teams (2,3) with ids 89,91 and pixels 3010,1548
+  PAIR scout red-minus-blu gap = 139.0 (red 87.7, blu -51.3)
+  OK   the two teams separate by 139.0 >= 40
+  PAIR demo is judged in both teams (3,2) with ids 84,96 and pixels 2692,2077
+  PAIR demo red-minus-blu gap = 58.6 (red 38.8, blu -19.8)
+  OK   the two teams separate by 58.6 >= 40
+  PAIR medic is judged in both teams (3,2) with ids 85,88 and pixels 5054,2891
+  PAIR medic red-minus-blu gap = 119.5 (red 74.8, blu -44.7)
+  OK   the two teams separate by 119.5 >= 40
+  PAIR sniper is judged in both teams (2,3) with ids 92,94 and pixels 2339,3405
+  PAIR sniper red-minus-blu gap = 65.6 (red 44.4, blu -21.2)
+  OK   the two teams separate by 65.6 >= 40
+  PAIR heavy is judged in both teams (3,2) with ids 89,84 and pixels 4977,5134
+  PAIR heavy red-minus-blu gap = 79.5 (red 58.8, blu -20.7)
+  OK   the two teams separate by 79.5 >= 40
+  OK   this batch asked for both teams and judged bodies in both
+
+===========================================================================
+BODY-APPEARANCE=PASS
+BODY-FINAL-RC=0
+LOCKED-COMMAND-EXIT rc=0 owner=lead

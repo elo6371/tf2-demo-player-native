@@ -1,0 +1,20 @@
+52160.1 scene: begin tick=64161 sceneTick=74481
+52160.1 scene: clock tick=64161 entryTick=64162 serverTick=74481 serverTickKnown=1
+52163.1 scene: snapshot status=0 stale=0 states=2048
+52163.1 scene: observer done
+52163.2 scene: hud fxDue=2029 drawable=1
+52167.1 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+52173.3 anim: ent=5 model=models/player/demo.mdl state=moving speed=310.621 rate=1.242483 cycle=0.432152 delta=0.838676 seq=147 label=run_PRIMARY advanced=1 origin=5613.8,-1102.1,-52.1
+52173.3 anim: ent=15 model=models/player/scout.mdl state=moving speed=263.028 rate=1.052110 cycle=0.005392 delta=0.710175 seq=212 label=run_PRIMARY advanced=1 origin=2742.7,-1327.1,-112.0
+52173.3 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+52173.3 scene: setInstances draws=96 markers=32 playerDraws=2 propDraws=94 playerBudget=2 propBudget=94
+52173.4 scene: entityRanges ranges=54 texturedRanges=54 texturedInstances=95 skinnedInstances=88 meshes=68 textures=269
+52173.4 scene: anim skinned=89 bindPose=7 matrices=364 gpuSkin=88/364 boneMismatch=7884 poseChanges=4679 targetInstances=3 targetPose=3 advances=4479 targetAdv=3 cycle=19980/16508 tick=74481 status=ok reason=run_PRIMARY
+52173.4 scene: animwitness any=models/player/scout.mdl ent=15 seq=212 frame=0/49 lf=0/0 poseChanges=190 seen=1627 target=models/weapons/c_models/c_spy_arms.mdl ent=289 seq=19 frame=10/11 lf=10/0 seen=115
+52173.4 scene: instances set
+52174.9 overlay: corpseFilter removed=18 samples=20 kept=2
+52175.1 scene: done
+52175.1 scene: camera mode=free-look target=0 follows=0 holds=0 freeze=1631 eye=2492.7,-1327.1,-54.0 pitch=4.10 yaw=0.00 src=debug
+52175.9 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=200174 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=4096x1156, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=64161/64352 req=0 act=0 frame=pending fdelta=na speed=32.000000 rate=66.666669 anchorAbs=64352@51830590 forward playing HUD[tick=64161 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=32.000000 entity=available stale=0 audio=0/3513 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=2029 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=169 entityModelVerts=228942 entityMaterials=95/95 entityMaterialRanges=54/54 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=89/96 animBones=364 animSeq=212 animFrame=0/49 animSource=ok animBindings=96/156576 animCache=156533 animAdv=4479 animWitness=models/player/scout.mdl gpuSkin=88/364 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029...[TRUNCATED]
+52175.9 draw: begin tick=64161 frames=1629
+52175.9 capture: armed requested=64161 frame_tick=64161 frames=1629

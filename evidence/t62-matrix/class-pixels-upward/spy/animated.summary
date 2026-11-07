@@ -1,14 +1,14 @@
 tag=animated rc=0 view=textured frameTick=24001 sceneTick=34135
-39394.5 animsum: tick=34135 players=16 moving=0 idle=16 advanced=0 skipped=0 maxDeltaCycle=0.000000
-28174.3 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
-28190.0 anim: pick model=models/player/pyro.mdl idleSeq=19 idleLabel=AttackStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY
-28215.7 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
-28243.2 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
-28268.0 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
-28293.1 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
-28315.2 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
-28333.3 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
-28358.4 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+56045.6 animsum: tick=34135 players=16 moving=0 idle=16 advanced=0 skipped=0 maxDeltaCycle=0.000000
+44722.4 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
+44743.8 anim: pick model=models/player/pyro.mdl idleSeq=19 idleLabel=AttackStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY
+44779.4 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+44820.6 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
+44856.1 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+44894.2 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+44920.7 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
+44952.5 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+44988.6 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
 anim: ent=10 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY
 anim: ent=10 model=models/player/medic.mdl state=moving seq=80 label=run_PRIMARY
 anim: ent=11 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY
@@ -35,6 +35,9 @@ anim: ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_
 anim: ent=8 model=models/player/engineer.mdl state=moving seq=265 label=run_PRIMARY
 anim: ent=9 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY
 anim: ent=9 model=models/player/pyro.mdl state=moving seq=141 label=run_PRIMARY
-28401.7 gpu: world debug view=textured
-39396.5 capture: armed requested=24001 frame_tick=24001 frames=675
-39394.6 scene: anim skinned=90 bindPose=6 matrices=1455 gpuSkin=90/1455 boneMismatch=3483 poseChanges=1718 targetInstances=1 targetPose=0 advances=1622 targetAdv=0 cycle=11466/10698 tick=34135 status=ok reason=AttackStand_PRIMARY
+45056.7 gpu: world debug view=textured
+56051.9 capture: armed requested=24001 frame_tick=24001 frames=317
+56046.0 scene: anim skinned=90 bindPose=6 matrices=1455 gpuSkin=90/1455 boneMismatch=1636 poseChanges=1674 targetInstances=1 targetPose=0 advances=1569 targetAdv=0 cycle=5396/5015 tick=34135 status=ok reason=AttackStand_PRIMARY
+frame: bmp=animated.bmp sha256=e727770bbe69f6a3211e0a1d272677e2ce23fd2cd4c46e3aa693714f5cc5a9da
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem tick=24001 speed=32 camera=705.4,-1255.4,407.5,4.1,0.0 flags=--player-animation

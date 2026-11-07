@@ -1,2 +1,2 @@
-BODY id=95 ent=5 model=models/player/demo.mdl pixels=1767 bbox=603,307,664,368
+BODY id=95 ent=5 model=models/player/demo.mdl pixels=1711 bbox=619,308,664,370
 FAIL the ledger carries no entity: attach=1 heldEnt=5 line: this frame has no attached weapon instance to measure

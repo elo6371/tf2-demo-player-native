@@ -1,13 +1,25 @@
 LEDGER lines=96 distinct-ids=96
 PICKS  models=9
-MASK   distinct-ids=1 pixels=3152
-SUBJECT id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=3152
+MASK   distinct-ids=1 pixels=3151
+SUBJECT id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=3151
 VISIBLE players=1 props=0
 JOIN   subject matches its own pick: models/player/pyro.mdl idle seq=19 label=AttackStand_PRIMARY
 DRAWN  13 skinned player instance(s) report their own pick (0 not skinned, not judged)
 SAMPLE 28 per-entity sample line(s), each matching its own model pick
-MOTION subject=85 over-mask=3152 differ=1180 share=37.44%
+MOTION subject=85 over-mask=3151 differ=1176 share=37.32%
 BODIES drawn player bodies on screen:
-BODY id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=3152 differ=1180 share=37.44%
+BODY id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=3151 differ=1176 share=37.32%
 DECODED id=85 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY
 ENTITY-ID=PASS
+frame: class=pyro ent=3 tick=30001
+frame: bmp animated sha256=fc0f67d88b4284ad0e046c8370f85ae5abf09e131a0132f4fae1188ea7175b03
+frame: bmp identity sha256=21ca12198300910468bb73ca308c9426f7ad246bb700f328434a8c2ddef98904
+frame: bmp identity-2 sha256=21ca12198300910468bb73ca308c9426f7ad246bb700f328434a8c2ddef98904
+frame: bmp off sha256=d89c01246274f587da8aba3fe5bc298e8545684245c01598afe5f803738bf885
+frame: identity capture twice byte-identical=yes
+frame: phase identity=maxDeltaCycle=0.000000 identity-2=maxDeltaCycle=0.000000 animated=maxDeltaCycle=0.000000 off=n/a
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+frame: request tick=30001 speed=32
+frame: request camera=1707.0,-125.1,152.8,4.1,0.0
+frame: request flags=--player-animation --world-entity-id

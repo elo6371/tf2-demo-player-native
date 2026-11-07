@@ -1,4 +1,7 @@
 tag=off rc=0 view=textured frameTick=20001 sceneTick=29957
-28609.8 gpu: world debug view=textured
-37730.0 capture: armed requested=20001 frame_tick=20001 frames=567
-37727.9 scene: anim skinned=74 bindPose=22 matrices=162 gpuSkin=74/162 boneMismatch=0 poseChanges=702 targetInstances=4 targetPose=0 advances=690 targetAdv=0 cycle=573/0 tick=29957 status=missing reason=entity carried no m_nSequence
+45196.1 gpu: world debug view=textured
+54324.4 capture: armed requested=20001 frame_tick=20001 frames=294
+54320.4 scene: anim skinned=74 bindPose=22 matrices=162 gpuSkin=74/162 boneMismatch=0 poseChanges=702 targetInstances=4 targetPose=0 advances=690 targetAdv=0 cycle=298/0 tick=29957 status=missing reason=entity carried no m_nSequence
+frame: bmp=off.bmp sha256=71c926680beedd8ac3428c42f83bf63f78c69409c832e6018fe060f50f0e3c5e
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem tick=20001 speed=32 camera=-1208.4,-1496.8,325.6,4.1,0.0 flags=<none>

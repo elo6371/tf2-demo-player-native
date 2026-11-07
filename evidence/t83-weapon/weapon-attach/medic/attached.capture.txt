@@ -1,0 +1,26 @@
+51331.5 scene: begin tick=64000 sceneTick=74320
+51331.5 scene: clock tick=64000 entryTick=64001 serverTick=74320 serverTickKnown=1
+51335.1 scene: snapshot status=1 stale=359 states=2048
+51335.1 scene: observer done
+51335.1 scene: hud fxDue=2029 drawable=1
+51339.2 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+51345.8 anim: ent=5 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.532575 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=5016.2,-1297.6,-62.2
+51345.9 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=26.2,57.6,0.0 holdAt=26.2,57.6,0.0
+51345.9 anim: ent=13 model=models/player/medic.mdl state=idle speed=0.000 rate=0.000000 cycle=0.516412 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=4779.4,-2001.4,-88.0
+51346.0 weaponAttach: class=CTFPlayer ent=13 source=bone bone=19 body=models/player/medic.mdl weaponEnt=535 weaponClass=CWeaponMedigun weapon=models/weapons/c_models/c_medigun/c_medigun.mdl worldIndex=217 family=0 boneAt=-6.5,41.5,2.2 holdAt=-6.5,41.5,2.2
+51346.0 anim: ent=15 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.564816 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=5042.3,-1693.0,-144.8
+51346.0 weaponAttach: class=CTFPlayer ent=15 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=188 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=1 boneAt=21.2,61.0,-6.0 holdAt=21.2,61.0,-6.0
+51346.0 animsum: tick=73961 players=3 moving=0 idle=3 advanced=0 skipped=0 maxDeltaCycle=0.000000
+51346.0 scene: setInstances draws=96 markers=32 playerDraws=3 propDraws=90 playerBudget=3 propBudget=90
+51346.0 scene: weaponAttach on=1 held=3 drawn=3 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=3 firstRefusal=-
+51346.0 attach: meshSource supplied=1 refused=0 meshes=1
+51346.1 scene: entityRanges ranges=60 texturedRanges=60 texturedInstances=95 skinnedInstances=87 meshes=69 textures=271
+51346.1 scene: anim skinned=88 bindPose=5 matrices=452 gpuSkin=87/452 boneMismatch=8034 poseChanges=4309 targetInstances=3 targetPose=3 advances=4110 targetAdv=3 cycle=17827/16823 tick=73961 status=ok reason=AttackStand_PRIMARY
+51346.1 scene: animwitness any=models/player/scout.mdl ent=15 seq=9 frame=11/21 lf=11/0 poseChanges=188 seen=1653 target=models/weapons/c_models/c_spy_arms.mdl ent=289 seq=19 frame=10/11 lf=10/0 seen=124
+51346.1 scene: instances set
+51347.6 overlay: corpseFilter removed=17 samples=20 kept=3
+51347.7 scene: done
+51347.7 scene: camera mode=free-look target=0 follows=0 holds=0 freeze=1656 eye=4529.4,-2001.4,-30.0 pitch=4.10 yaw=0.00 src=debug
+51350.2 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=200174 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=4096x1156, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=64000/64352 req=0 act=0 frame=pending fdelta=na speed=32.000000 rate=66.666669 anchorAbs=64352@51830590 forward playing HUD[tick=64000 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=32.000000 entity=checkpoint stale=359 audio=0/3513 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=2029 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=69 entityModels=95 entitySlots=173 entityModelVerts=282417 entityMaterials=95/95 entityMaterialRanges=60/60 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=88/93 animBones=452 animSeq=9 animFrame=11/21 animSource=ok animBindings=93/142721 animCache=142682 animAdv=4110 animWitness=models/player/scout.mdl gpuSkin=87/452 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=20...[TRUNCATED]
+51350.3 draw: begin tick=64000 frames=1654
+51350.3 capture: armed requested=64000 frame_tick=64000 frames=1654

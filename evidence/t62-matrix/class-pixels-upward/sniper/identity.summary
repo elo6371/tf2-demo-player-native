@@ -1,14 +1,14 @@
 tag=identity rc=0 view=entity-id frameTick=20001 sceneTick=29957
-37765.9 animsum: tick=29957 players=16 moving=0 idle=16 advanced=0 skipped=0 maxDeltaCycle=0.000000
-28398.5 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
-28414.3 anim: pick model=models/player/pyro.mdl idleSeq=19 idleLabel=AttackStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY
-28439.6 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
-28467.3 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
-28493.2 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
-28519.8 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
-28544.0 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
-28566.3 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
-28593.5 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+54009.2 animsum: tick=29957 players=16 moving=0 idle=16 advanced=0 skipped=0 maxDeltaCycle=0.000000
+44533.9 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
+44555.9 anim: pick model=models/player/pyro.mdl idleSeq=19 idleLabel=AttackStand_PRIMARY movingSeq=141 movingLabel=run_PRIMARY
+44591.7 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+44631.3 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
+44666.9 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+44708.1 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+44737.2 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
+44770.2 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+44807.2 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
 anim: ent=10 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY
 anim: ent=10 model=models/player/medic.mdl state=moving seq=80 label=run_PRIMARY
 anim: ent=11 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY
@@ -35,102 +35,105 @@ anim: ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_
 anim: ent=8 model=models/player/engineer.mdl state=moving seq=265 label=run_PRIMARY
 anim: ent=9 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY
 anim: ent=9 model=models/player/pyro.mdl state=moving seq=141 label=run_PRIMARY
-37764.6 entity: id=1 ent=238 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-2092.0,-999.1,128.2 frame_tick=20001
-37764.6 entity: id=2 ent=244 model=models/props_gameplay/door_grate002_bottom.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
-37764.6 entity: id=3 ent=245 model=models/props_gameplay/door_grate002_top.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-1.3 frame_tick=20001
-37764.6 entity: id=4 ent=246 model=models/props_gameplay/door_grate002_bottom.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-1.3 frame_tick=20001
-37764.6 entity: id=5 ent=247 model=models/props_gameplay/door_grate002_top.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
-37764.6 entity: id=6 ent=248 model=models/props_gameplay/door_grate003_bottom.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
-37764.6 entity: id=7 ent=250 model=models/props_gameplay/door_grate003_top.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
-37764.7 entity: id=8 ent=251 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1471.0,-396.8,16.2 frame_tick=20001
-37764.7 entity: id=9 ent=253 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-2655.0,-1199.1,0.2 frame_tick=20001
-37764.7 entity: id=10 ent=256 model=models/props_gameplay/door_slide_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,-2.0,0.2 frame_tick=20001
-37764.7 entity: id=11 ent=258 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.8,767.0,592.2 frame_tick=20001
-37764.7 entity: id=12 ent=260 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=512.8,1623.0,576.2 frame_tick=20001
-37764.7 entity: id=13 ent=261 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-1809.0,-2464.8,-63.8 frame_tick=20001
-37764.7 entity: id=14 ent=263 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-2388.8,-2271.0,-63.8 frame_tick=20001
-37764.7 entity: id=15 ent=264 model=models/props_trainyard/track_midcap.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1536.0,1088.0,256.0 frame_tick=20001
-37764.7 entity: id=16 ent=265 model=models/props_trainyard/track_midcap.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1024.0,624.0,510.0 frame_tick=20001
-37764.7 entity: id=17 ent=271 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,802.0,672.0 frame_tick=20001
-37764.7 entity: id=18 ent=318 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-1536.0,136.0 frame_tick=20001
-37764.7 entity: id=19 ent=320 model=models/props_trainyard/bomb_cart.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=408.7,-2044.7,158.9 frame_tick=20001
-37764.7 entity: id=20 ent=358 model=models/props_trainyard/track_midcap.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-1536.0,128.0 frame_tick=20001
-37764.7 entity: id=21 ent=370 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=1536.0,1088.0,264.0 frame_tick=20001
-37764.8 entity: id=22 ent=426 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=-1024.0,624.0,516.0 frame_tick=20001
-37764.8 entity: id=23 ent=481 model=models/props_gameplay/door_slide_large_dynamic.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=512.0,1296.0,640.0 frame_tick=20001
-37764.8 entity: id=24 ent=493 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2752.0,-672.0,40.0 frame_tick=20001
-37764.8 entity: id=25 ent=494 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2752.0,-544.0,40.0 frame_tick=20001
-37764.8 entity: id=26 ent=495 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=320.0,-1392.0,328.0 frame_tick=20001
-37764.8 entity: id=27 ent=496 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-2240.0,304.0 frame_tick=20001
-37764.8 entity: id=28 ent=497 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-1920.0,144.0 frame_tick=20001
-37764.8 entity: id=29 ent=498 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1744.0,-384.0,72.0 frame_tick=20001
-37764.8 entity: id=30 ent=500 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1464.0,128.0,441.2 frame_tick=20001
-37764.8 entity: id=31 ent=501 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1464.0,64.0,441.2 frame_tick=20001
-37764.8 entity: id=32 ent=502 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1376.0,304.0,392.0 frame_tick=20001
-37764.8 entity: id=33 ent=503 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1120.0,1024.0,160.0 frame_tick=20001
-37764.8 entity: id=34 ent=504 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-176.0,192.0,584.0 frame_tick=20001
-37764.8 entity: id=35 ent=505 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-192.0,384.0,584.0 frame_tick=20001
-37764.8 entity: id=36 ent=506 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=352.0,-1408.0,537.2 frame_tick=20001
-37764.9 entity: id=37 ent=507 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1760.0,1568.0,424.0 frame_tick=20001
-37764.9 entity: id=38 ent=508 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1904.0,1568.0,424.0 frame_tick=20001
-37764.9 entity: id=39 ent=518 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,1792.0,220.0 frame_tick=20001
-37764.9 entity: id=40 ent=522 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-416.0,-224.0,344.0 frame_tick=20001
-37764.9 entity: id=41 ent=523 model=models/items/medkit_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-288.0,-224.0,344.0 frame_tick=20001
-37764.9 entity: id=42 ent=526 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-208.0,-1072.0,728.0 frame_tick=20001
-37764.9 entity: id=43 ent=527 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-208.0,-976.0,728.0 frame_tick=20001
-37764.9 entity: id=44 ent=528 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1136.0,-96.0,728.0 frame_tick=20001
-37764.9 entity: id=45 ent=529 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=459.8,556.0,391.9 frame_tick=20001
-37764.9 entity: id=46 ent=530 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=571.8,556.0,392.0 frame_tick=20001
-37764.9 entity: id=47 ent=532 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1744.0,-304.0,71.0 frame_tick=20001
-37764.9 entity: id=48 ent=535 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1088.0,704.0,520.0 frame_tick=20001
-37764.9 entity: id=49 ent=536 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2290.9,761.3,333.2 frame_tick=20001
-37764.9 entity: id=50 ent=537 model=models/items/ammopack_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1271.0,-2509.0,13.0 frame_tick=20001
-37764.9 entity: id=51 ent=538 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1612.0,-1204.0,248.0 frame_tick=20001
-37765.0 entity: id=52 ent=539 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1404.0,-848.0,528.0 frame_tick=20001
-37765.0 entity: id=53 ent=544 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1655.1,-1079.1,828.6 frame_tick=20001
-37765.0 entity: id=54 ent=545 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1003.0,-748.0,808.0 frame_tick=20001
-37765.0 entity: id=55 ent=546 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=336.0,-1120.0,604.0 frame_tick=20001
-37765.0 entity: id=56 ent=553 model=models/props_gameplay/sign_gameplay01_hanging01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,1283.0,774.0 frame_tick=20001
-37765.0 entity: id=57 ent=554 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=752.0,656.0,528.0 frame_tick=20001
-37765.0 entity: id=58 ent=558 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,1264.0,744.0 frame_tick=20001
-37765.0 entity: id=59 ent=560 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=768.0,656.0,536.0 frame_tick=20001
-37765.0 entity: id=60 ent=561 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=256.0,896.0,536.0 frame_tick=20001
-37765.0 entity: id=61 ent=563 model=models/props_gameplay/sign_gameplay01_witharrow_r.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=336.0,496.0,328.0 frame_tick=20001
-37765.0 entity: id=62 ent=608 model=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl team=2 family=0 state=- seq=29 label=sequence 29 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
-37765.0 entity: id=63 ent=653 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=0.0,2.0,-63.8 frame_tick=20001
-37765.0 entity: id=64 ent=654 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-2.0,0.0,-63.8 frame_tick=20001
-37765.1 entity: id=65 ent=656 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=304.0,-816.0,488.0 frame_tick=20001
-37765.1 entity: id=66 ent=657 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-480.0,-688.0,564.7 frame_tick=20001
-37765.1 entity: id=67 ent=663 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=656.0,-1184.0,728.0 frame_tick=20001
-37765.1 entity: id=68 ent=664 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1088.0,-384.0,728.0 frame_tick=20001
-37765.1 entity: id=69 ent=668 model=models/workshop/weapons/c_models/c_quadball/c_quadball.mdl team=3 family=1 state=- seq=26 label=sequence 26 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
-37765.1 entity: id=70 ent=676 model=models/weapons/c_models/c_machete/c_machete.mdl team=2 family=0 state=- seq=7 label=sequence 7 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
-37765.1 entity: id=71 ent=680 model=models/buildables/gibs/dispenser_gib1.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
-37765.1 entity: id=72 ent=684 model=models/buildables/gibs/dispenser_gib2.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
-37765.1 entity: id=73 ent=688 model=models/weapons/c_models/c_sniper_arms.mdl team=2 family=0 state=- seq=0 label=sequence has no animation binding skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
-37765.1 entity: id=74 ent=692 model=models/buildables/gibs/dispenser_gib3.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
-37765.1 entity: id=75 ent=696 model=models/weapons/c_models/c_ubersaw/c_ubersaw_xmas.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
-37765.1 entity: id=76 ent=697 model=models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl team=3 family=1 state=- seq=9 label=sequence 9 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
-37765.2 entity: id=77 ent=699 model=models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl team=3 family=0 state=- seq=16 label=sequence 16 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
-37765.2 entity: id=78 ent=704 model=models/weapons/c_models/c_ubersaw/c_ubersaw.mdl team=3 family=1 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
-37765.2 entity: id=79 ent=708 model=models/workshop/weapons/c_models/c_snub_nose/c_snub_nose.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
-37765.2 entity: id=80 ent=712 model=models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
-37765.3 entity: id=81 ent=2 model=models/player/engineer.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=-348.9,-1444.0,221.9 frame_tick=20001
-37765.3 entity: id=82 ent=3 model=models/player/pyro.mdl team=3 family=1 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=-144.7,-1691.4,250.3 frame_tick=20001
-37765.4 entity: id=83 ent=4 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=-2410.9,-1980.2,29.3 frame_tick=20001
-37765.4 entity: id=84 ent=5 model=models/player/heavy.mdl team=2 family=0 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=1036.5,-1807.5,288.0 frame_tick=20001
-37765.5 entity: id=85 ent=6 model=models/player/demo.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=-194.6,-1930.0,238.0 frame_tick=20001
-37765.5 entity: id=86 ent=8 model=models/player/engineer.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1170.0,-1863.4,136.0 frame_tick=20001
-37765.6 entity: id=87 ent=9 model=models/player/pyro.mdl team=2 family=0 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=722.5,-1579.5,129.0 frame_tick=20001
-37765.6 entity: id=88 ent=10 model=models/player/medic.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1005.4,-1886.0,136.0 frame_tick=20001
-37765.7 entity: id=89 ent=11 model=models/player/heavy.mdl team=3 family=1 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=-284.0,-1444.0,244.0 frame_tick=20001
-37765.7 entity: id=90 ent=12 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=-262.3,-2349.6,102.7 frame_tick=20001
-37765.7 entity: id=91 ent=13 model=models/player/spy.mdl team=3 family=1 state=idle seq=10 label=AttackStand_SECONDARY skinned=1 origin=-2357.0,-1975.8,-39.9 frame_tick=20001
-37765.8 entity: id=92 ent=14 model=models/player/scout.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=461.9,-2684.6,166.5 frame_tick=20001
-37765.8 entity: id=93 ent=15 model=models/player/sniper.mdl team=3 family=1 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=-958.4,-1496.8,267.6 frame_tick=20001
-37765.8 entity: id=94 ent=16 model=models/player/soldier.mdl team=2 family=0 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=1062.0,-1686.7,129.0 frame_tick=20001
-37765.9 entity: id=95 ent=17 model=models/player/sniper.mdl team=2 family=0 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=904.0,-1379.9,145.7 frame_tick=20001
-37765.9 entity: id=96 ent=19 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=896.0,-1691.4,129.0 frame_tick=20001
-28648.0 gpu: world debug view=entity-id
-37767.7 capture: armed requested=20001 frame_tick=20001 frames=535
-37766.0 scene: anim skinned=90 bindPose=6 matrices=1438 gpuSkin=90/1438 boneMismatch=2809 poseChanges=1457 targetInstances=4 targetPose=0 advances=1378 targetAdv=0 cycle=9169/8559 tick=29957 status=ok reason=AttackStand_PRIMARY
+54006.0 entity: id=1 ent=238 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-2092.0,-999.1,128.2 frame_tick=20001
+54006.0 entity: id=2 ent=244 model=models/props_gameplay/door_grate002_bottom.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
+54006.0 entity: id=3 ent=245 model=models/props_gameplay/door_grate002_top.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-1.3 frame_tick=20001
+54006.0 entity: id=4 ent=246 model=models/props_gameplay/door_grate002_bottom.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-1.3 frame_tick=20001
+54006.1 entity: id=5 ent=247 model=models/props_gameplay/door_grate002_top.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
+54006.1 entity: id=6 ent=248 model=models/props_gameplay/door_grate003_bottom.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
+54006.1 entity: id=7 ent=250 model=models/props_gameplay/door_grate003_top.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,-2.6 frame_tick=20001
+54006.1 entity: id=8 ent=251 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1471.0,-396.8,16.2 frame_tick=20001
+54006.1 entity: id=9 ent=253 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-2655.0,-1199.1,0.2 frame_tick=20001
+54006.1 entity: id=10 ent=256 model=models/props_gameplay/door_slide_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,-2.0,0.2 frame_tick=20001
+54006.1 entity: id=11 ent=258 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.8,767.0,592.2 frame_tick=20001
+54006.1 entity: id=12 ent=260 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=512.8,1623.0,576.2 frame_tick=20001
+54006.1 entity: id=13 ent=261 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-1809.0,-2464.8,-63.8 frame_tick=20001
+54006.2 entity: id=14 ent=263 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-2388.8,-2271.0,-63.8 frame_tick=20001
+54006.2 entity: id=15 ent=264 model=models/props_trainyard/track_midcap.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1536.0,1088.0,256.0 frame_tick=20001
+54006.2 entity: id=16 ent=265 model=models/props_trainyard/track_midcap.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1024.0,624.0,510.0 frame_tick=20001
+54006.3 entity: id=17 ent=271 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,802.0,672.0 frame_tick=20001
+54006.3 entity: id=18 ent=318 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-1536.0,136.0 frame_tick=20001
+54006.3 entity: id=19 ent=320 model=models/props_trainyard/bomb_cart.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=408.7,-2044.7,158.9 frame_tick=20001
+54006.3 entity: id=20 ent=358 model=models/props_trainyard/track_midcap.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-1536.0,128.0 frame_tick=20001
+54006.4 entity: id=21 ent=370 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=1536.0,1088.0,264.0 frame_tick=20001
+54006.4 entity: id=22 ent=426 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=-1024.0,624.0,516.0 frame_tick=20001
+54006.4 entity: id=23 ent=481 model=models/props_gameplay/door_slide_large_dynamic.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=512.0,1296.0,640.0 frame_tick=20001
+54006.5 entity: id=24 ent=493 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2752.0,-672.0,40.0 frame_tick=20001
+54006.5 entity: id=25 ent=494 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2752.0,-544.0,40.0 frame_tick=20001
+54006.5 entity: id=26 ent=495 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=320.0,-1392.0,328.0 frame_tick=20001
+54006.5 entity: id=27 ent=496 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-2240.0,304.0 frame_tick=20001
+54006.5 entity: id=28 ent=497 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1024.0,-1920.0,144.0 frame_tick=20001
+54006.5 entity: id=29 ent=498 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1744.0,-384.0,72.0 frame_tick=20001
+54006.6 entity: id=30 ent=500 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1464.0,128.0,441.2 frame_tick=20001
+54006.6 entity: id=31 ent=501 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1464.0,64.0,441.2 frame_tick=20001
+54006.6 entity: id=32 ent=502 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1376.0,304.0,392.0 frame_tick=20001
+54006.6 entity: id=33 ent=503 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1120.0,1024.0,160.0 frame_tick=20001
+54006.6 entity: id=34 ent=504 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-176.0,192.0,584.0 frame_tick=20001
+54006.7 entity: id=35 ent=505 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-192.0,384.0,584.0 frame_tick=20001
+54006.7 entity: id=36 ent=506 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=352.0,-1408.0,537.2 frame_tick=20001
+54006.7 entity: id=37 ent=507 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1760.0,1568.0,424.0 frame_tick=20001
+54006.7 entity: id=38 ent=508 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1904.0,1568.0,424.0 frame_tick=20001
+54006.7 entity: id=39 ent=518 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,1792.0,220.0 frame_tick=20001
+54006.7 entity: id=40 ent=522 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-416.0,-224.0,344.0 frame_tick=20001
+54006.8 entity: id=41 ent=523 model=models/items/medkit_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-288.0,-224.0,344.0 frame_tick=20001
+54006.8 entity: id=42 ent=526 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-208.0,-1072.0,728.0 frame_tick=20001
+54006.8 entity: id=43 ent=527 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-208.0,-976.0,728.0 frame_tick=20001
+54006.8 entity: id=44 ent=528 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1136.0,-96.0,728.0 frame_tick=20001
+54006.8 entity: id=45 ent=529 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=459.8,556.0,391.9 frame_tick=20001
+54006.8 entity: id=46 ent=530 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=571.8,556.0,392.0 frame_tick=20001
+54007.0 entity: id=47 ent=532 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1744.0,-304.0,71.0 frame_tick=20001
+54007.0 entity: id=48 ent=535 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1088.0,704.0,520.0 frame_tick=20001
+54007.0 entity: id=49 ent=536 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2290.9,761.3,333.2 frame_tick=20001
+54007.0 entity: id=50 ent=537 model=models/items/ammopack_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1271.0,-2509.0,13.0 frame_tick=20001
+54007.0 entity: id=51 ent=538 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1612.0,-1204.0,248.0 frame_tick=20001
+54007.1 entity: id=52 ent=539 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1404.0,-848.0,528.0 frame_tick=20001
+54007.1 entity: id=53 ent=544 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1655.1,-1079.1,828.6 frame_tick=20001
+54007.1 entity: id=54 ent=545 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1003.0,-748.0,808.0 frame_tick=20001
+54007.1 entity: id=55 ent=546 model=models/props_trainyard/train_billboard001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=336.0,-1120.0,604.0 frame_tick=20001
+54007.1 entity: id=56 ent=553 model=models/props_gameplay/sign_gameplay01_hanging01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,1283.0,774.0 frame_tick=20001
+54007.2 entity: id=57 ent=554 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=752.0,656.0,528.0 frame_tick=20001
+54007.2 entity: id=58 ent=558 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=512.0,1264.0,744.0 frame_tick=20001
+54007.2 entity: id=59 ent=560 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=768.0,656.0,536.0 frame_tick=20001
+54007.2 entity: id=60 ent=561 model=models/props_gameplay/sign_gameplay01.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=256.0,896.0,536.0 frame_tick=20001
+54007.3 entity: id=61 ent=563 model=models/props_gameplay/sign_gameplay01_witharrow_r.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=336.0,496.0,328.0 frame_tick=20001
+54007.3 entity: id=62 ent=608 model=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl team=2 family=0 state=- seq=29 label=sequence 29 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
+54007.3 entity: id=63 ent=653 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=0.0,2.0,-63.8 frame_tick=20001
+54007.3 entity: id=64 ent=654 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-2.0,0.0,-63.8 frame_tick=20001
+54007.3 entity: id=65 ent=656 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=304.0,-816.0,488.0 frame_tick=20001
+54007.4 entity: id=66 ent=657 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-480.0,-688.0,564.7 frame_tick=20001
+54007.4 entity: id=67 ent=663 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=656.0,-1184.0,728.0 frame_tick=20001
+54007.4 entity: id=68 ent=664 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1088.0,-384.0,728.0 frame_tick=20001
+54007.4 entity: id=69 ent=668 model=models/workshop/weapons/c_models/c_quadball/c_quadball.mdl team=3 family=1 state=- seq=26 label=sequence 26 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
+54007.4 entity: id=70 ent=676 model=models/weapons/c_models/c_machete/c_machete.mdl team=2 family=0 state=- seq=7 label=sequence 7 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
+54007.5 entity: id=71 ent=680 model=models/buildables/gibs/dispenser_gib1.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
+54007.5 entity: id=72 ent=684 model=models/buildables/gibs/dispenser_gib2.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
+54007.5 entity: id=73 ent=688 model=models/weapons/c_models/c_sniper_arms.mdl team=2 family=0 state=- seq=0 label=sequence has no animation binding skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
+54007.5 entity: id=74 ent=692 model=models/buildables/gibs/dispenser_gib3.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
+54007.5 entity: id=75 ent=696 model=models/weapons/c_models/c_ubersaw/c_ubersaw_xmas.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
+54007.6 entity: id=76 ent=697 model=models/workshop/weapons/c_models/c_crusaders_crossbow/c_crusaders_crossbow.mdl team=3 family=1 state=- seq=9 label=sequence 9 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
+54007.6 entity: id=77 ent=699 model=models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl team=3 family=0 state=- seq=16 label=sequence 16 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=20001
+54007.6 entity: id=78 ent=704 model=models/weapons/c_models/c_ubersaw/c_ubersaw.mdl team=3 family=1 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
+54007.6 entity: id=79 ent=708 model=models/workshop/weapons/c_models/c_snub_nose/c_snub_nose.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
+54007.7 entity: id=80 ent=712 model=models/workshop/weapons/c_models/c_xms_cold_shoulder/c_xms_cold_shoulder.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,0.0,0.0 frame_tick=20001
+54007.8 entity: id=81 ent=2 model=models/player/engineer.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=-348.9,-1444.0,221.9 frame_tick=20001
+54007.9 entity: id=82 ent=3 model=models/player/pyro.mdl team=3 family=1 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=-144.7,-1691.4,250.3 frame_tick=20001
+54008.0 entity: id=83 ent=4 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=-2410.9,-1980.2,29.3 frame_tick=20001
+54008.1 entity: id=84 ent=5 model=models/player/heavy.mdl team=2 family=0 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=1036.5,-1807.5,288.0 frame_tick=20001
+54008.2 entity: id=85 ent=6 model=models/player/demo.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=-194.6,-1930.0,238.0 frame_tick=20001
+54008.3 entity: id=86 ent=8 model=models/player/engineer.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1170.0,-1863.4,136.0 frame_tick=20001
+54008.4 entity: id=87 ent=9 model=models/player/pyro.mdl team=2 family=0 state=idle seq=19 label=AttackStand_PRIMARY skinned=1 origin=722.5,-1579.5,129.0 frame_tick=20001
+54008.5 entity: id=88 ent=10 model=models/player/medic.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=1005.4,-1886.0,136.0 frame_tick=20001
+54008.6 entity: id=89 ent=11 model=models/player/heavy.mdl team=3 family=1 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=-284.0,-1444.0,244.0 frame_tick=20001
+54008.7 entity: id=90 ent=12 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=-262.3,-2349.6,102.7 frame_tick=20001
+54008.8 entity: id=91 ent=13 model=models/player/spy.mdl team=3 family=1 state=idle seq=10 label=AttackStand_SECONDARY skinned=1 origin=-2357.0,-1975.8,-39.9 frame_tick=20001
+54008.9 entity: id=92 ent=14 model=models/player/scout.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=461.9,-2684.6,166.5 frame_tick=20001
+54009.0 entity: id=93 ent=15 model=models/player/sniper.mdl team=3 family=1 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=-958.4,-1496.8,267.6 frame_tick=20001
+54009.0 entity: id=94 ent=16 model=models/player/soldier.mdl team=2 family=0 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=1062.0,-1686.7,129.0 frame_tick=20001
+54009.1 entity: id=95 ent=17 model=models/player/sniper.mdl team=2 family=0 state=idle seq=11 label=AttackStand_PRIMARY skinned=1 origin=904.0,-1379.9,145.7 frame_tick=20001
+54009.2 entity: id=96 ent=19 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=896.0,-1691.4,129.0 frame_tick=20001
+44876.0 gpu: world debug view=entity-id
+54012.7 capture: armed requested=20001 frame_tick=20001 frames=266
+54009.4 scene: anim skinned=90 bindPose=6 matrices=1438 gpuSkin=90/1438 boneMismatch=1399 poseChanges=1422 targetInstances=4 targetPose=0 advances=1334 targetAdv=0 cycle=4563/4233 tick=29957 status=ok reason=AttackStand_PRIMARY
+frame: bmp=identity.bmp sha256=a0396b0d23aff9257fab2522399497a94ef4dc679efe68c031ae1a6e07e7ff5d
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem tick=20001 speed=32 camera=-1208.4,-1496.8,325.6,4.1,0.0 flags=--player-animation --world-entity-id

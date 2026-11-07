@@ -1,13 +1,25 @@
 LEDGER lines=96 distinct-ids=96
 PICKS  models=9
-MASK   distinct-ids=4 pixels=18068
-SUBJECT id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=3033
+MASK   distinct-ids=4 pixels=18075
+SUBJECT id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=3040
 VISIBLE players=1 props=3
 JOIN   subject matches its own pick: models/player/engineer.mdl idle seq=9 label=AttackStand_PRIMARY
 DRAWN  16 skinned player instance(s) report their own pick (0 not skinned, not judged)
 SAMPLE 26 per-entity sample line(s), each matching its own model pick
-MOTION subject=86 over-mask=3033 differ=2631 share=86.75%
+MOTION subject=86 over-mask=3040 differ=2616 share=86.05%
 BODIES drawn player bodies on screen:
-BODY id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=3033 differ=2631 share=86.75%
+BODY id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=3040 differ=2616 share=86.05%
 DECODED id=86 ent=8 model=models/player/engineer.mdl state=idle seq=9 label=AttackStand_PRIMARY
 ENTITY-ID=PASS
+frame: class=engineer ent=8 tick=24001
+frame: bmp animated sha256=b35cc2a3e99221e840a8de129691cdc3bb4690974601402ddfe090d113aa592d
+frame: bmp identity sha256=415d5c491552b03a7fa4a527d5a30406be07000ba41cbbc71918c680645d763b
+frame: bmp identity-2 sha256=415d5c491552b03a7fa4a527d5a30406be07000ba41cbbc71918c680645d763b
+frame: bmp off sha256=b3097daa6f4a8cc9570a4b458228d1ad243617e75fe8fd8eb7f9449f055416a3
+frame: identity capture twice byte-identical=yes
+frame: phase identity=maxDeltaCycle=0.000000 identity-2=maxDeltaCycle=0.000000 animated=maxDeltaCycle=0.000000 off=n/a
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+frame: request tick=24001 speed=32
+frame: request camera=1639.4,288.9,458.0,4.1,0.0
+frame: request flags=--player-animation --world-entity-id

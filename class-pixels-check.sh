@@ -36,23 +36,47 @@
 # with identical arguments, and the script fails unless the two BMPs hash the
 # same -- the construction T61 uses for its animated/animated2 pair.
 #
-# The point is not tidiness. On this tree the same request reproduced a
-# byte-identical frame from independent processes over nine hours: the Scout at
-# tick 64161 (ent=15, eye 2492.7,-1327.1,-54.0, pitch 4.1, yaw 0.0) hashed
-# 7317b7a28afedbb129d9e564ed4c0f7aa1bb3e6497cd80a98471f73205f0e423 six times
-# across four driver generations. What could NOT be reproduced across processes
-# was every CUMULATIVE counter in the same trace -- boneMismatch, cycle,
-# poseChanges: the replay advances by wall-clock time (src/main.cpp:454,
-# kTargetFrameSeconds = 1/120) so each process draws a different number of
-# frames before it reaches the capture tick (5607..7807 observed on this demo,
-# at SPEED=8), and a per-frame counter scales with that count (boneMismatch =
-# 4.860469 * frames - 89.862, R^2 = 0.999731 over ten runs). A gate that
-# published a pixel count without asserting the bytes would be one relink away
-# from reading frame pacing as a rendering difference.
+# The point is not tidiness. What could NOT be reproduced across processes was
+# every CUMULATIVE counter in the trace -- boneMismatch, cycle, poseChanges: the
+# replay advances by wall-clock time (src/main.cpp:454, kTargetFrameSeconds =
+# 1/120) so each process draws a different number of frames before it reaches
+# the capture tick (5607..7807 observed on this demo, at SPEED=8), and a
+# per-frame counter scales with that count (boneMismatch = 4.860469 * frames -
+# 89.862, R^2 = 0.999731 over ten runs). A gate that published a pixel count
+# without asserting the bytes would be one relink away from reading frame pacing
+# as a rendering difference.
 #
-# If this assertion ever fires, the captured frame is no longer a function of
-# (demo, tick, camera, flags) and NO pixel count from that run may be quoted
-# until the cause is named.
+# ANIMATION PHASE (learned the hard way on 2026-11-06)
+# The FRAME is reproducible, but not as one value: for a MOVING body it has two
+# legal branches, and which one a run lands on is decided by the animation clock,
+# not by the renderer. native/src/main.cpp:9827-9836 builds speed from
+# distance/elapsedTicks and src/animation_clock.cpp:110/123 multiplies it by dt;
+# the two tick terms cancel, leaving
+#     delta = |origin delta| / strideUnits        (strideUnits = 250,
+#                                                  include/animation_clock.h:52-62)
+# so cycle accumulates the LENGTH OF THE POLYLINE the origin was sampled along,
+# and the polyline is cut into as many segments as the wall clock drew frames.
+# Rendering one intermediate snapshot at tick 74436 before the capture tick 74481
+# gives cycle 0.005392 (branch A, Scout identity 1161 px, sha 7317b7a2...);
+# skipping straight from 73961 to 74481 gives 0.879967 (branch B, 1211 px, sha
+# 00e30490...). The 0.125426 cycle difference IS the extra segment. Every frame
+# in each branch is byte-identical across processes and across days; the two
+# branches differ only in pose (474 px, all inside the body bbox, best integer
+# translation explains none of it).
+#
+# maxDeltaCycle in the animsum line is the fingerprint of the branch (0.838676/
+# 9.315151 for the branches above, an 11x gap), it is already in every summary,
+# and it is not a cumulative counter, so this gate pins each row to ONE phase:
+# identity picks the phase, every other capture in the row is retried until it
+# lands there, and a pair that still disagrees about phase fails as "not a
+# reading" rather than as "the renderer is non-deterministic". A frame from
+# branch A may be quoted inside branch A; a pixel count of branch A may NOT be
+# compared with one from branch B. SPEED=64 is not a legal capture speed: it
+# steps several demo ticks per frame and always lands on branch B.
+#
+# If the "not byte-identical inside one phase" branch ever fires, the captured
+# frame is no longer a function of (demo, tick, camera, flags) and NO pixel
+# count from that run may be quoted until the cause is named.
 #
 # PROVENANCE
 # The sha256 of all four frames and of the product executable are appended as
@@ -93,6 +117,55 @@ sha_of() {
   local f="$1"
   [ -f "$f" ] || { echo "<none>"; return 0; }
   sha256sum "$f" 2>/dev/null | cut -d' ' -f1
+}
+
+# --- ANIMATION PHASE: the quantity that decides whether two frames are comparable
+# A pixel count is only a reading when the SAME request in a second process lands
+# on the same frame. It does not always: the playback advances on wall-clock time
+# (native/src/main.cpp, clamp 0..0.25 s per step) and the animation clock advances
+# by the chord length of however many steps that produced
+# (delta = |dOrigin| / strideUnits, native/src/animation_clock.cpp), so one request
+# can land on one of exactly two phases. Measured 2026-11-06 on this demo (scout,
+# tick 64161, speed 32, 5 runs): phase A maxDeltaCycle=0.838676 / sha 7317b7a2 and
+# phase B maxDeltaCycle=9.315151 / sha 00e30490, each stable inside itself across
+# days and relinks; the 64x playback speed lands on B only, 4x-32x on A almost
+# always. A pair split across the two phases differs by 474 px of POSE, not of
+# geometry (all inside the body bbox, IoU 0.67, no integer translation fits), so
+# calling it a non-deterministic renderer is a false red and a reader would go
+# looking in the wrong file. The pair is therefore retried (bounded) until both
+# captures sit in ONE phase, and only a same-phase mismatch is a failure.
+PHASE_ATTEMPTS=${T62_CLASS_PHASE_ATTEMPTS:-4}
+phase_of_summary() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  grep -a 'animsum:' "$f" 2>/dev/null | tail -1 | grep -o 'maxDeltaCycle=[0-9.]*' | tail -1
+}
+phase_of() { phase_of_summary "$1/$2.summary"; }
+want_phase() {
+  case "${1:-}" in
+    maxDeltaCycle=*) printf '%s' "$1" ;;
+    *)               printf '%s' "-" ;;
+  esac
+}
+
+# run_frame_until_phase <dir> <tag> <wantPhase|-> <eye...> <flags...>
+# Same request, repeated in a NEW process until it lands on <wantPhase> or the
+# budget runs out. Leaves the last attempt's files in <dir>; prints one line:
+#   rc view frameTick sceneTick phase attempts
+run_frame_until_phase() {
+  local dir="$1" tag="$2" want="$3"; shift 3
+  local attempt=1 out rc view ft st ph
+  while : ; do
+    out=$(run_frame "$dir" "$tag" "$@")
+    read -r rc view ft st <<<"$out"
+    ph=$(phase_of "$dir" "$tag")
+    [ "$want" = "-" ] && break
+    [ "$ph" = "$want" ] && break
+    [ "$attempt" -ge "$PHASE_ATTEMPTS" ] && break
+    attempt=$((attempt + 1))
+    echo "  RETRY $tag: landed ${ph:-<no animsum line>}, wanted $want (attempt $attempt of $PHASE_ATTEMPTS)" >&2
+  done
+  printf '%s %s %s %s %s %s\n' "${rc:-1}" "${view:-<none>}" "${ft:-<none>}" "${st:-<none>}" "${ph:-<none>}" "$attempt"
 }
 
 for path in "$PRODUCT" "$TF" "$DEMO" "$PY" "$OUT/targets.txt"; do
@@ -166,16 +239,34 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
   echo "--- ${CLASS}: ent=$ENT tick=$TICK origin=${ORIGIN_X},${ORIGIN_Y},${ORIGIN_Z}"\
        " eye=${eyeX},${eyeY},${eyeZ} model=$model"
 
-  read -r on_rc on_view on_ft on_st < <(run_frame "$dir" animated "$eyeX" "$eyeY" "$eyeZ" --player-animation)
-  read -r off_rc off_view off_ft off_st < <(run_frame "$dir" off "$eyeX" "$eyeY" "$eyeZ")
-  read -r id_rc id_view id_ft id_st < <(run_frame "$dir" identity "$eyeX" "$eyeY" "$eyeZ" --player-animation --world-entity-id)
+  # The identity pair is the one that has to agree, so IT leads: its first
+  # capture fixes the phase this row is read in and the second capture is retried
+  # until it lands there. animated has no determinism claim of its own (it is a
+  # single capture), but it is pinned to the same phase anyway so the row
+  # describes one moment of the recording rather than two.
+  read -r id_rc id_view id_ft id_st id_ph id_try < <(run_frame_until_phase "$dir" identity - "$eyeX" "$eyeY" "$eyeZ" --player-animation --world-entity-id)
+  read -r on_rc on_view on_ft on_st on_ph on_try < <(run_frame_until_phase "$dir" animated "$(want_phase "$id_ph")" "$eyeX" "$eyeY" "$eyeZ" --player-animation)
+  # off is deliberately NOT pinned to a phase, and it cannot be: it is the frame
+  # with the animation drive flag ABSENT, so the replay never runs the animation
+  # clock and never prints the 'animsum:' line the phase is read from. Asking for
+  # a phase here is a request that can never be satisfied -- it burns all
+  # PHASE_ATTEMPTS runs of an 8 minute capture and then reds the row for a
+  # quantity the pass does not have. Measured 2026-11-06: 'grep -c animsum:' is 0
+  # for every off.summary in both committed baselines (4 snakewater + 5 upward)
+  # and 1 for every identity/animated one. off is still compared to the other
+  # passes inside the row -- same request, same tick, same scene tick -- which is
+  # what the flag-inert assertions need; it just has no phase to be pinned to.
+  read -r off_rc off_view off_ft off_st off_ph off_try < <(run_frame_until_phase "$dir" off - "$eyeX" "$eyeY" "$eyeZ")
+
   # The SAME request a second time, in a second process: this pair is what turns
   # the pixel count below from "a frame we got" into "the frame the request
   # names". Identical arguments, identical lock, different process.
-  read -r id2_rc id2_view id2_ft id2_st < <(run_frame "$dir" identity-2 "$eyeX" "$eyeY" "$eyeZ" --player-animation --world-entity-id)
+  read -r id2_rc id2_view id2_ft id2_st id2_ph id2_try < <(run_frame_until_phase "$dir" identity-2 "$(want_phase "$id_ph")" "$eyeX" "$eyeY" "$eyeZ" --player-animation --world-entity-id)
   echo "  captures animated=$on_rc/${on_view}/${on_ft}/${on_st} off=$off_rc/${off_view}/${off_ft}/${off_st}"\
        " identity=$id_rc/${id_view}/${id_ft}/${id_st}"\
        " identity-2=$id2_rc/${id2_view}/${id2_ft}/${id2_st}"
+  echo "  phase identity=${id_ph:-<none>}(${id_try:-?}x) identity-2=${id2_ph:-<none>}(${id2_try:-?}x)"\
+       " animated=${on_ph:-<none>}(${on_try:-?}x) off=n/a(no animation drive, see the capture block)"
 
   [ "$on_rc" = "0" ] || say_fail "${CLASS}: animated capture exited $on_rc"
   [ "$off_rc" = "0" ] || say_fail "${CLASS}: off capture exited $off_rc"
@@ -208,24 +299,37 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
   echo "  sha256 off=$OFF_SHA"
   echo "  sha256 product=$PRODUCT_SHA"
   if [ "$ID_SHA" != "<none>" ] && [ "$ID_SHA" = "$ID2_SHA" ]; then
-    echo "  OK   the identity capture twice is byte-identical ($ID_SHA)"
+    echo "  OK   the identity capture twice is byte-identical ($ID_SHA) in phase ${id_ph:-<none>}"
+  elif [ -n "${id_ph:-}" ] && [ "$id_ph" != "-" ] && [ "$id_ph" != "${id2_ph:-}" ]; then
+    # Two captures in two DIFFERENT phases are not a rendering difference: they
+    # are two moments of the animation (see the ANIMATION PHASE block above --
+    # 474 px of pose, all inside the body bbox, on the two branches of the same
+    # request). Reporting this as non-determinism would send a reader into the
+    # renderer for something that lives in the animation clock. It is still a
+    # failure, because the count below cannot be quoted across runs, and the
+    # retry budget is what should have prevented it.
+    say_fail "${CLASS}: the two identity captures landed on different animation phases (identity=$id_ph/$ID_SHA identity-2=${id2_ph:-?}/$ID2_SHA) and the retry budget (${PHASE_ATTEMPTS}x) ran out, so a cross-run pixel count cannot be a reading; the pair differs by pose, not by rendering"
   else
-    # A differing pair is a failure either way, but the two causes are different
-    # findings and the failure text has to say which one happened. The summary
-    # keeps this frame's entity census ("entity: id=" lines), so the two plants
-    # can be compared directly. Measured on 2026-11-05 (freeze4 step
-    # class-snakewater): the pair differed by 474 px and the census differed by
-    # ONE body -- a medic that had an origin in one run and not in the other --
-    # which renumbered every body after it (demo id 95 vs 94). That is not a
-    # pixel difference, it is a different scene, and a reader who is told "the
-    # picture moved" would go looking in the renderer for it.
+    # Same phase, different bytes: this IS a rendering difference and the
+    # failure text has to name the right one. The summary keeps this frame's
+    # entity census ("entity: id=" lines), so the two lists can be diffed and the
+    # difference distinguishes the two causes that look alike from outside.
+    # Measured on 2026-11-05 (freeze4 step class-snakewater): the pair differed
+    # by 474 px and the census differed by ONE body -- a medic with an origin in
+    # one run and not in the other -- which renumbered every body after it (demo
+    # id 95 vs 94). That is a different scene. The other cause is a renderer that
+    # draws one scene two ways; the census then matches and only pixels differ.
+    # The phase, not the census, is what made the earlier reading of this pair
+    # ambiguous: on 2026-11-06 the same demo split on maxDeltaCycle while both
+    # censuses carried 96 entity lines, so a census diff alone cannot be the
+    # discriminator -- which is why the branch above runs first.
     census_diff=$(diff <(grep -a 'entity: id=' "$dir/identity.summary" | cut -d' ' -f2-) \
                        <(grep -a 'entity: id=' "$dir/identity-2.summary" | cut -d' ' -f2-) | head -6)
     if [ -n "$census_diff" ]; then
       say_fail "${CLASS}: the two identity captures do not show the same SCENE (identity=$ID_SHA identity-2=$ID2_SHA); the entity census differs, so this is not a rendering difference:"
       printf '%s\n' "$census_diff" | sed 's/^/    /'
     else
-      say_fail "${CLASS}: the same identity capture twice is not byte-identical, so a cross-run pixel count cannot be a reading (identity=$ID_SHA identity-2=$ID2_SHA); the entity census is identical, so the difference is in the rendering of one scene"
+      say_fail "${CLASS}: the same identity capture twice is not byte-identical inside one phase (identity=$ID_SHA identity-2=$ID2_SHA, phase=${id_ph:-?}), so a cross-run pixel count cannot be a reading; the entity census is identical, so the same scene is being rendered two different ways"
     fi
   fi
 
@@ -249,6 +353,14 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
     echo "frame: bmp identity-2 sha256=$ID2_SHA"
     echo "frame: bmp off sha256=$OFF_SHA"
     echo "frame: identity capture twice byte-identical=$([ -n "$ID_SHA" ] && [ "$ID_SHA" = "$ID2_SHA" ] && echo yes || echo no)"
+    # The phase each frame was taken in, next to the bytes it hashed to: two
+    # frames from one phase are one reading, and a later reader comparing this
+    # row with another one can see whether the comparison is legal at all.
+    # off has no phase of its own: without --player-animation the animation clock
+    # never runs, so there is no 'animsum:' line to read one from (see the
+    # capture block above). The field is written as "n/a" so a later reader does
+    # not mistake an empty value for a phase that failed to be recorded.
+    echo "frame: phase identity=${id_ph:-<none>} identity-2=${id2_ph:-<none>} animated=${on_ph:-<none>} off=n/a"
     echo "frame: product sha256=$PRODUCT_SHA"
     echo "frame: request demo=$DEMO"
     echo "frame: request tick=$TICK speed=$SPEED"

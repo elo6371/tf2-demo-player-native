@@ -1,18 +1,30 @@
 LEDGER lines=96 distinct-ids=96
 PICKS  models=9
-MASK   distinct-ids=10 pixels=25705
-SUBJECT id=89 ent=11 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY pixels=5072
+MASK   distinct-ids=10 pixels=25645
+SUBJECT id=89 ent=11 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY pixels=4977
 VISIBLE players=6 props=4
 JOIN   subject matches its own pick: models/player/heavy.mdl idle seq=16 label=AttackStand_SECONDARY
 DRAWN  16 skinned player instance(s) report their own pick (0 not skinned, not judged)
 SAMPLE 26 per-entity sample line(s), each matching its own model pick
-MOTION subject=89 over-mask=5072 differ=3377 share=66.58%
+MOTION subject=89 over-mask=4977 differ=3300 share=66.31%
 BODIES drawn player bodies on screen:
-BODY id=89 ent=11 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY pixels=5072 differ=3377 share=66.58%
-BODY id=85 ent=7 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=1611 differ=767 share=47.61%
-BODY id=90 ent=12 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=489 differ=336 share=68.71%
-BODY id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=392 differ=256 share=65.31%
-BODY id=84 ent=6 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=249 differ=183 share=73.49%
-BODY-SKIP id=81 ent=2 model=models/player/engineer.mdl pixels=29 (< 200, too few to judge)
+BODY id=89 ent=11 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY pixels=4977 differ=3300 share=66.31%
+BODY id=85 ent=7 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=1613 differ=756 share=46.87%
+BODY id=90 ent=12 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=451 differ=325 share=72.06%
+BODY id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=413 differ=286 share=69.25%
+BODY id=84 ent=6 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=266 differ=203 share=76.32%
+BODY-SKIP id=81 ent=2 model=models/player/engineer.mdl pixels=62 (< 200, too few to judge)
 DECODED id=89 ent=11 model=models/player/heavy.mdl state=idle seq=16 label=AttackStand_SECONDARY
 ENTITY-ID=PASS
+frame: class=heavy ent=11 tick=24001
+frame: bmp animated sha256=d8876a89ed5159d95c80f9903c362ce4d8baf29c46a9b0d0a7377e0d2a457585
+frame: bmp identity sha256=db5de679232ae58c1b5235b4fc010db60bdae318130a6d5b1477c50225743c16
+frame: bmp identity-2 sha256=db5de679232ae58c1b5235b4fc010db60bdae318130a6d5b1477c50225743c16
+frame: bmp off sha256=96a5ac926382200d3edc130ec8c357ef0a29b34a5c152b9faba054b49bf3bce2
+frame: identity capture twice byte-identical=yes
+frame: phase identity=maxDeltaCycle=0.000000 identity-2=maxDeltaCycle=0.000000 animated=maxDeltaCycle=0.000000 off=n/a
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+frame: request tick=24001 speed=32
+frame: request camera=1359.4,-1293.8,138.7,4.1,0.0
+frame: request flags=--player-animation --world-entity-id

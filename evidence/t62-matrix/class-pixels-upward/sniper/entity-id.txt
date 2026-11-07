@@ -1,22 +1,34 @@
 LEDGER lines=96 distinct-ids=96
 PICKS  models=9
-MASK   distinct-ids=14 pixels=4676
-SUBJECT id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=3681
+MASK   distinct-ids=14 pixels=4508
+SUBJECT id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=3485
 VISIBLE players=10 props=4
 JOIN   subject matches its own pick: models/player/sniper.mdl idle seq=11 label=AttackStand_PRIMARY
 DRAWN  16 skinned player instance(s) report their own pick (0 not skinned, not judged)
 SAMPLE 26 per-entity sample line(s), each matching its own model pick
-MOTION subject=93 over-mask=3681 differ=2213 share=60.12%
+MOTION subject=93 over-mask=3485 differ=2238 share=64.22%
 BODIES drawn player bodies on screen:
-BODY id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=3681 differ=2213 share=60.12%
-BODY id=85 ent=6 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=248 differ=174 share=70.16%
-BODY id=82 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=237 differ=59 share=24.89%
-BODY-SKIP id=90 ent=12 model=models/player/scout.mdl pixels=157 (< 200, too few to judge)
-BODY-SKIP id=89 ent=11 model=models/player/heavy.mdl pixels=80 (< 200, too few to judge)
-BODY-SKIP id=84 ent=5 model=models/player/heavy.mdl pixels=68 (< 200, too few to judge)
-BODY-SKIP id=81 ent=2 model=models/player/engineer.mdl pixels=66 (< 200, too few to judge)
-BODY-SKIP id=92 ent=14 model=models/player/scout.mdl pixels=65 (< 200, too few to judge)
+BODY id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY pixels=3485 differ=2238 share=64.22%
+BODY id=85 ent=6 model=models/player/demo.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=249 differ=179 share=71.89%
+BODY id=82 ent=3 model=models/player/pyro.mdl state=idle seq=19 label=AttackStand_PRIMARY pixels=236 differ=58 share=24.58%
+BODY-SKIP id=90 ent=12 model=models/player/scout.mdl pixels=155 (< 200, too few to judge)
+BODY-SKIP id=81 ent=2 model=models/player/engineer.mdl pixels=98 (< 200, too few to judge)
+BODY-SKIP id=89 ent=11 model=models/player/heavy.mdl pixels=84 (< 200, too few to judge)
+BODY-SKIP id=92 ent=14 model=models/player/scout.mdl pixels=64 (< 200, too few to judge)
+BODY-SKIP id=84 ent=5 model=models/player/heavy.mdl pixels=63 (< 200, too few to judge)
 BODY-SKIP id=86 ent=8 model=models/player/engineer.mdl pixels=1 (< 200, too few to judge)
 BODY-SKIP id=87 ent=9 model=models/player/pyro.mdl pixels=1 (< 200, too few to judge)
 DECODED id=93 ent=15 model=models/player/sniper.mdl state=idle seq=11 label=AttackStand_PRIMARY
 ENTITY-ID=PASS
+frame: class=sniper ent=15 tick=20001
+frame: bmp animated sha256=858914fffa5d21f6b748984c690a8ac53faad8c4ef677530ff82dc92b8737926
+frame: bmp identity sha256=a0396b0d23aff9257fab2522399497a94ef4dc679efe68c031ae1a6e07e7ff5d
+frame: bmp identity-2 sha256=a0396b0d23aff9257fab2522399497a94ef4dc679efe68c031ae1a6e07e7ff5d
+frame: bmp off sha256=71c926680beedd8ac3428c42f83bf63f78c69409c832e6018fe060f50f0e3c5e
+frame: identity capture twice byte-identical=yes
+frame: phase identity=maxDeltaCycle=0.000000 identity-2=maxDeltaCycle=0.000000 animated=maxDeltaCycle=0.000000 off=n/a
+frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem
+frame: request tick=20001 speed=32
+frame: request camera=-1208.4,-1496.8,325.6,4.1,0.0
+frame: request flags=--player-animation --world-entity-id

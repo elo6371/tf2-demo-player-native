@@ -13,5 +13,7 @@ blu-heavy heavy 11 24001 1609.4 -1293.8 80.7
 red-heavy heavy 5 20001 1036.5 -1807.5 288.0
 blu-spy spy 13 24001 1449.9 284.1 461.4
 red-spy spy 18 24001 955.4 -1255.4 349.5
-blu-scout scout 12 24001 1681.4 -1252.5 60.6
-blu-sniper sniper 15 24001 2073.3 -1589.5 324.2
+red-scout scout 12 45001 882.6 -2084.1 288.0
+blu-scout scout 14 45001 -2528.0 -1360.0 0.0
+red-sniper sniper 15 45001 643.0 963.4 505.3
+blu-sniper sniper 17 45001 -1791.9 -2305.4 -64.0
