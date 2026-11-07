@@ -57,6 +57,23 @@ fnum() {
 maxseen() {
   awk 'index($0,"audio: advance"){ for(i=1;i<=NF;i++){ if(index($i,"seen=")==1){ split($i,KV,"="); n=KV[2]+0; if(n>m) m=n } } } END{ print m+0 }' "$1"
 }
+# max over the advances that come AFTER the line containing <marker>. The first
+# advance of a run legitimately covers the load-time catch-up (tick 0..N, several
+# hundred events), so a whole-trace maximum would be red on a correct seek.
+maxseen_after() {
+  # If the marker line is missing altogether, fall back to the whole trace: a
+  # product that never says "seek reset" must not pass this by printing nothing.
+  awk -v pat="$2" '
+    index($0,pat){p=1;found=1;next}
+    index($0,"audio: advance"){
+      for(i=1;i<=NF;i++){ if(index($i,"seen=")==1){ split($i,KV,"="); n=KV[2]+0; if(n>ma) ma=n; if(p&&n>mp) mp=n } }
+    }
+    END{ print (found ? mp : ma)+0 }' "$1"
+}
+# value of <field=> from the FIRST line containing <marker>, or -
+firstf() {
+  awk -v pat="$2" -v key="$3" 'index($0,pat){ for(i=1;i<=NF;i++){ if(index($i,key)==1){ n=split($i,KV,"="); v=KV[2]; f=1 } } if(f) exit } END{ if(f) print v; else print "-" }' "$1"
+}
 sha() { sha256sum "$1" 2>/dev/null | cut -d" " -f1; }
 
 # run <name> -- launches the argv in "$@" with the trace, rc and stderr kept.
@@ -123,6 +140,7 @@ if want B; then
     echo "tick 400"
     echo "pause"
     echo "frames 4"
+    echo "mark-tick"
     echo "snapshot before"
     echo "capture $OUTW/$TAG-b-before.bmp"
     echo "frames 4"
@@ -141,15 +159,24 @@ if want B; then
   if [ "$R" = 0 ]; then green; else red B-exit "rc=$R want 0"; fi
   if has $T "cmd=freefly result=ok detail=on mode=free-look"; then green; else red B-step "the freefly step does not report the mode it left the product in (want detail=on mode=free-look)"; fi
   if has $T "camera: mode applied=free-look"; then green; else red B-applied "no frame-level reading of the free-look mode change"; fi
-  if has $T "camera: mode applied=free-look tick=400 paused=1"; then green; else red B-paused "the mode change was not applied on a frame drawn while paused"; fi
+  PA=$(fnum $T "camera: mode applied=free-look" "paused=")
+  if [ "$PA" = 1 ]; then green; else red B-paused "camera: mode applied=free-look paused=$PA (want 1: the mode change is applied on a frame drawn while paused)"; fi
   MA=$(fnum $T "camera: summary" "modeApplies=")
   if [ "$MA" != "-" ] && [ "$MA" != "0" ]; then green; else red B-summary "camera: summary modeApplies=$MA (want >=1)"; fi
   B1=$(sha $OUT/$TAG-b-before.bmp); B2=$(sha $OUT/$TAG-b-after.bmp)
   if [ -n "$B1" ] && [ -n "$B2" ] && [ "$B1" != "$B2" ]; then green; else red B-pixels "frames before/after the mode change are identical or missing ($B1 / $B2)"; fi
   FB=$(fnum $T "camera: accept steps=" "failures=")
   if [ "$FB" = 0 ]; then green; else red B-script "camera: accept failures=$FB (want 0)"; fi
+  # The absolute tick is not pinned (the script's "tick 400" lands wherever the
+  # loop happens to be, measured 403 and 413 in two runs): what has to hold is
+  # that the applied-frame reading, and both snapshots, are the SAME tick -- and
+  # that the tick was frozen for the whole pause, which mark-tick/expect-same-tick
+  # proves against the tick the mark recorded.
   TB=$(fnum $T "camera: snapshot label=before" "tick="); TA=$(fnum $T "camera: snapshot label=after" "tick=")
-  if [ "$TB" = 400 ] && [ "$TA" = 400 ]; then green; else red B-clock "snapshots at tick=$TB/$TA (want 400/400: the mode change must not need a tick to arrive)"; fi
+  AB=$(fnum $T "camera: mode applied=free-look" "tick=")
+  if [ "$TB" != "-" ] && [ "$TB" = "$TA" ] && [ "$TB" = "$AB" ]; then green; else red B-clock "mode applied at tick=$AB, snapshots at $TB/$TA (want one and the same tick: the mode change must not need a tick to arrive)"; fi
+  MF=$(fnum $T "camera: expect what=same-tick" "match=")
+  if [ "$MF" = 1 ]; then green; else red B-frozen "mark-tick/expect-same-tick match=$MF (want 1: the tick stands still across the mode change)"; fi
 fi
 
 # ---------------------------------------------------------- C: forward seek audio
@@ -169,8 +196,9 @@ if want C; then
   if [ "$R" = 0 ]; then green; else red C-exit "rc=$R want 0"; fi
   if has $T "audio: seek reset from="; then green; else red C-trace "no audio: seek reset line for a forward seek"; fi
   if has $T "to=3000"; then green; else red C-target "the seek reset does not name tick 3000"; fi
-  MS=$(maxseen $T)
-  if [ "$MS" -le 60 ]; then green; else red C-burst "one audio: advance saw=$MS events (want <=60: the skipped span must not be dumped into one frame)"; fi
+  MS=$(maxseen_after $T "audio: seek reset")
+  ALL=$(maxseen $T)
+  if [ "$MS" -le 60 ]; then green; else red C-burst "after the seek reset one audio: advance saw=$MS events (want <=60: the skipped span must not be dumped into one frame; whole-trace max=$ALL comes from the load-time catch-up)"; fi
   if has $T "audio: advance tick=3000"; then green; else red C-landing "no audio: advance at the seek target"; fi
 fi
 
@@ -182,10 +210,16 @@ if want D; then
   T=$OUT/$TAG-D-start-paused.trace
   R=$(cat $OUT/$TAG-D-start-paused.rc)
   if [ "$R" = 0 ]; then green; else red D-exit "rc=$R want 0"; fi
-  S0=$(fnum $T "audio: advance tick=0 " "seen=")
-  if [ "$S0" != "-" ] && [ "$S0" -ge 700 ]; then green; else red D-tick0 "the resumed tick 0 saw=$S0 events (want >=700: the 746 events at tick 0 are dropped)"; fi
-  DUP=$(fnum $T "audio: advance tick=0 " "dup=")
-  if [ "$DUP" = 0 ]; then green; else red D-dup "the resumed tick 0 was a duplicate (dup=$DUP): a resume must not consume the tick it re-enters at"; fi
+  # The tick the first advance lands on is not pinned: after --start-paused the
+  # loop is already at tick 16 by the frame the resume is applied (measured), so
+  # the claim is about the RANGE: the first advance after the resume must carry
+  # the tick-0 events (>=700 of the 746) and must not count the re-entered tick as
+  # a duplicate.
+  FT=$(firstf $T "audio: advance" "tick=")
+  S0=$(firstf $T "audio: advance" "seen=")
+  if [ "$S0" != "-" ] && [ "$S0" -ge 700 ]; then green; else red D-first "the first advance after the resume (tick=$FT) saw=$S0 events (want >=700: the 746 tick-0 events must not be dropped)"; fi
+  DUP=$(firstf $T "audio: advance" "dup=")
+  if [ "$DUP" = 0 ]; then green; else red D-dup "the first advance after the resume (tick=$FT) saw dup=$DUP (want 0: a resume must not consume the tick it re-enters at)"; fi
 fi
 
 # -------------------------------------------------------------- E: unchanged runs
