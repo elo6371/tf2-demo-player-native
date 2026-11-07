@@ -1,0 +1,37 @@
+verify-release step: launch-hygiene (gate-launch-hygiene-check.sh)
+cmd: timeout 120s bash gate-launch-hygiene-check.sh
+owner: t91-integration
+commit: d6d351ff5567944a865c0cce29296c010e88b745
+
+== launch hygiene (D-22): static scan of /d/TF2_Native_Worktrees/t91-integration
+   STAT|scripts=111|launchers=54|sites=85|violations=61|warnings=25|lifecycle=1
+   lifecycle-only (exempt: --install/--version/--install-status, no --demo):
+     install-lifecycle-check.sh
+   WARN (--audio-disabled/--hidden-window absent; registered, not fatal):
+     animation-drive-states-check.sh|missing --audio-disabled
+     animation-drive-states-check.sh|missing --hidden-window
+     camera-ui-check.sh|missing --audio-disabled
+     camera-ui-check.sh|missing --hidden-window
+     frame-capture-check.sh|missing --audio-disabled
+     frame-capture-check.sh|missing --hidden-window
+     fullscreen-quiet-check.sh|missing --audio-disabled
+     fullscreen-quiet-check.sh|missing --hidden-window
+     idle-spin-check.sh|missing --audio-disabled
+     idle-spin-check.sh|missing --hidden-window
+     install-readiness-check.sh|missing --audio-disabled
+     install-readiness-check.sh|missing --hidden-window
+     outline-check.sh|missing --audio-disabled
+     outline-check.sh|missing --hidden-window
+     quiet-capture-check.sh|missing --audio-disabled
+     quiet-capture-check.sh|missing --hidden-window
+     verify-audio.sh|missing --hidden-window
+     viewmodel-range-check.sh|missing --audio-disabled
+     viewmodel-range-check.sh|missing --hidden-window
+     weapon-body-check.sh|missing --audio-disabled
+     weapon-body-check.sh|missing --hidden-window
+     weapon-material-check.sh|missing --audio-disabled
+     weapon-material-check.sh|missing --hidden-window
+     world-geometry-completeness-capture.sh|missing --hidden-window
+     world-geometry-hole-capture.sh|missing --hidden-window
+   violations match baseline: 61 rows, all still real
+GATE-LAUNCH-HYGIENE=PASS violations=61 baseline=61 warnings=25 lifecycle=1

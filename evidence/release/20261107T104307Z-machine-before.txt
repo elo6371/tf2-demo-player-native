@@ -1,0 +1,5 @@
+# machine settings snapshot (verify-release.sh)
+# taken_utc=2026-11-07T10:43:09Z
+dir=/c/Users/Administrator/AppData/Local/TF2 Demo Player
+file=settings.ini exists=1 bytes=2786 mtime=1794047441 sha256=dcd30ffe7b1aa60cd230edd3747a622206d3b2bb3bff3da55e984570ae69b827
+file=ui.ini exists=1 bytes=978 mtime=1794047373 sha256=2180e260960486bfa1805b0ecd69256827b4e09571c79023a20bc8b3de6f0d73

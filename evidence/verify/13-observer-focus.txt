@@ -1,14 +1,13 @@
 === 1/4 wiring fixture (synthetic entities, every branch by construction) ===
-observer-focus-fixture cases=11 withMode=9 modeNonZero=8 hasTarget=8 inRange=5 present=4 missing=1 outOfRange=3 follows=2 serial=867
-  OK   fixture cases = 11
-  OK   fixture withMode = 9
-  OK   fixture modeNonZero = 8
-  OK   fixture hasTarget = 8
-  OK   fixture inRange = 5
-  OK   fixture present = 4
-  OK   fixture missing (slot present, entity gone) = 1
-  OK   fixture outOfRange (index past the snapshot) = 3
-  OK   fixture follows (in-eye + chase only, not the deathcam) = 2
+  FAIL fixture cases = <none>, expected 11
+  FAIL fixture withMode = <none>, expected 9
+  FAIL fixture modeNonZero = <none>, expected 8
+  FAIL fixture hasTarget = <none>, expected 8
+  FAIL fixture inRange = <none>, expected 5
+  FAIL fixture present = <none>, expected 4
+  FAIL fixture missing (slot present, entity gone) = <none>, expected 1
+  FAIL fixture outOfRange (index past the snapshot) = <none>, expected 3
+  FAIL fixture follows (in-eye + chase only, not the deathcam) = <none>, expected 2
 
 === 2/4 POV -- the recorder's observing life, with the tick each answer came from ===
 observer-focus at tick=51900 status=checkpoint resolved=51742 states=2048
@@ -80,4 +79,4 @@ oracle mode=1 target=606217 / ours mode=1 handle=606217 idx=9 serial=296 status=
   OK   witness handle -> serial = 296
   OK   witness answers deathcam, not a follow = 0
 
-OBSERVER-FOCUS=PASS (assertions_ok=46)
+OBSERVER-FOCUS=FAIL

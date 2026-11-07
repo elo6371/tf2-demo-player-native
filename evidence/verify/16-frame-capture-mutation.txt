@@ -27,10 +27,10 @@ demo 1264x681 bpp=24 fileBytes=2582406 actual=2582406
 demo sha256 = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
   OK   a demo scene and the paused scene are different pictures
 installed-map demo capture rc=0 size=2582406
-installed-map demo sha256 = 3823da3d01c49e8c5d9a7d85277649d5fc3bd31e80428d9765a50ab9e8a4b745
+installed-map demo sha256 = 18fc3d18bfb0b38ed9aa3d8ad12fe4ed19335c37f068705705c4922f9b3c73c6
   OK   the installed-map demo scene differs from the paused scene
-installed-map distinct colours (full count) = 39653  [reading only]
-installed-map vs fallback-capture: differing 2572063 / 2582352 = 0.9960 (need >= 10%)
+installed-map distinct colours (full count) = 38667  [reading only]
+installed-map vs fallback-capture: differing 2539553 / 2582352 = 0.9834 (need >= 10%)
   OK   the installed-map frame is not the fallback picture
 
 === 4/4 a bad tick is refused instead of guessed ===

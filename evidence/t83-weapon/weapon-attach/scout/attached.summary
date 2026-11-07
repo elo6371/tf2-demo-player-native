@@ -1,11 +1,11 @@
 tag=attached rc=0 frameTick=64161 sceneTick=74481
-52144.5 scene: begin tick=64161 sceneTick=74481
-52158.3 scene: setInstances draws=96 markers=32 playerDraws=2 propDraws=92 playerBudget=2 propBudget=92
-52158.3 scene: weaponAttach on=1 held=2 drawn=2 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=2 firstRefusal=-
-52158.3 attach: meshSource supplied=1 refused=0 meshes=1
-52158.3 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
-52158.2 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=-13.5,55.6,4.1 holdAt=-13.5,55.6,4.1
-52158.3 weaponAttach: class=CTFPlayer ent=15 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=188 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=1 boneAt=-3.1,49.9,4.1 holdAt=-3.1,49.9,4.1
-frame: bmp=attached.bmp sha256=f69ca3c8f698c56df9dd750a0c0afee286c5855d1baadcd3e72ad1653074392b
-frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
-frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=64161 speed=32 camera=2492.7,-1327.1,-54.0,4.1,0.0 flags=--player-animation --player-weapon-attach on
+147636.9 scene: begin tick=64161 sceneTick=74481
+147661.6 scene: setInstances draws=96 markers=32 playerDraws=2 propDraws=92 playerBudget=2 propBudget=92
+147661.6 scene: weaponAttach on=1 held=2 drawn=2 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=2 firstRefusal=-
+147661.6 attach: meshSource supplied=1 refused=0 meshes=1 resupply=0
+147661.6 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+147661.5 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=-13.5,55.6,4.1 holdAt=-13.5,55.6,4.1
+147661.6 weaponAttach: class=CTFPlayer ent=15 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=188 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=1 boneAt=-3.1,49.9,4.1 holdAt=-3.1,49.9,4.1
+frame: bmp=attached.bmp sha256=1d710e6a40b0d6e3a08c43a01ce32effc37c092e42e9395f39d5bb45c88cedba
+frame: product sha256=ec48b6e6b111dad9762150098047fa4f289a8add4e333bdee42ae825915edc2b
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=64161 speed=8 camera=2492.7,-1327.1,-54.0,4.1,0.0 flags=--player-animation --player-weapon-attach on

@@ -1,0 +1,22 @@
+verify-release summary
+started_utc=20261107T104307Z
+host=DESKTOP-9U1GAU8
+owner=t91-integration
+worktree=/d/TF2_Native_Worktrees/t91-integration
+commit=d6d351ff5567944a865c0cce29296c010e88b745
+branch=integration/t91
+exe=/d/TF2_Native_Worktrees/t91-integration/native/build-nmake/tf2_demo_native.exe
+exe_sha256=c0c0262986d320b72204d9cebf1d4b8f0742263c340f40ca5ef1bae0da22851b
+hostlock_before=LOCKED owner=t91-integration heartbeat_age=13s|queue=head=|reservation=none|product_processes=0
+note: ok_lines counts output lines starting with two-spaces-OK or OK-space -- a lower
+note: bound on assertions, not the per-gate pinned totals (verify-all.sh prints those itself).
+
+machine_before=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261107T104307Z-machine-before.txt
+machine_after=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261107T104307Z-machine-after.txt
+step=launch-hygiene rc=0 dur=2s status=PASS ok_lines=0 key=GATE-LAUNCH-HYGIENE=PASS violations=61 baseline=61 warnings=25 lifecycle=1 log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261107T104307Z-launch-hygiene.log
+step=debt-claim rc=0 dur=0s status=PASS ok_lines=0 key=DEBT-CLAIM=PASS claims=51 anchored=27 cannot=21 unanchored=3 log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261107T104307Z-debt-claim.log
+step=verify-all rc=124 dur=7200s status=TIMEOUT ok_lines=257 key=ANIMATION-AVAILABILITY-MUTATION=PASS (every rewritten reading reached its extractor) log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261107T104307Z-verify-all.log
+VERIFY-ALL=TIMEOUT timeout=7200s
+step=outline rc=1 dur=2s status=FAIL ok_lines=15 key=OUTLINE-CHECK=FAIL log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261107T104307Z-outline.log
+step=third-person-weapon rc=124 dur=1200s status=TIMEOUT ok_lines=8 key=none log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261107T104307Z-third-person-weapon.log
+THIRD-PERSON-WEAPON=TIMEOUT timeout=1200s

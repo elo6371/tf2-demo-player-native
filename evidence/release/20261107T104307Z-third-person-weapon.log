@@ -1,0 +1,51 @@
+verify-release step: third-person-weapon (third-person-weapon-check.sh)
+cmd: timeout 1200s bash third-person-weapon-check.sh
+owner: t91-integration
+commit: d6d351ff5567944a865c0cce29296c010e88b745
+
+=== T83 third-person weapon attach: per class, off is the baseline ===
+  demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+  output=evidence/t83-weapon/weapon-attach baseline=evidence/t62-matrix/class-pixels targets=evidence/t62-matrix/class-pixels/targets.txt speed=8
+  product=native/build-nmake/tf2_demo_native.exe sha256=ec48b6e6b111dad9762150098047fa4f289a8add4e333bdee42ae825915edc2b
+
+--- demo: ent=5 tick=64161 origin=5613.8,-1102.1,-52.1
+    behind eye=5363.8,-1102.1,5.9 yaw=0 / side eye=5437.0,-1278.9,5.9 yaw=45.0
+window off: lines 217598..217620 of evidence/t83-weapon/weapon-attach/demo/off.trace (23)
+window attached: lines 303754..303781 of evidence/t83-weapon/weapon-attach/demo/attached.trace (28)
+window attached-2: lines 306231..306258 of evidence/t83-weapon/weapon-attach/demo/attached-2.trace (28)
+window identity: lines 207828..207946 of evidence/t83-weapon/weapon-attach/demo/identity.trace (119)
+window identity-attached: lines 197099..197222 of evidence/t83-weapon/weapon-attach/demo/identity-attached.trace (124)
+    rc/landed: off=0/64161 attached=0/64161 attached-2=0/64161 identity=0/64161 identity-attached=0/64161
+    phase: off=maxDeltaCycle=0.838676(1) attached=maxDeltaCycle=0.838676(1) attached-2=maxDeltaCycle=0.838676(1) identity=maxDeltaCycle=0.838676(1) identity-attached=maxDeltaCycle=0.838676(1)
+    baseline phase: animated=maxDeltaCycle=0.838676 identity=maxDeltaCycle=0.838676
+  OK   every capture sits in the phase its baseline was taken in (maxDeltaCycle=0.838676)
+    sha off=00fd8776862ddb46f461b3781f25f81520d6f2bc77c9e775841c2f474dd933cd
+    sha attached=79d1c93e4904563faf9395fa4f791000cfd9e6a9ab8e9abe4f4787215d8fb908 attached-2=79d1c93e4904563faf9395fa4f791000cfd9e6a9ab8e9abe4f4787215d8fb908
+    sha identity=148e244a28712f50c5e6711bf8547fcf9d0cd201c62ea5bf216de4d30b572225 baseline(identity)=148e244a28712f50c5e6711bf8547fcf9d0cd201c62ea5bf216de4d30b572225
+    sha identity-attached=520e893e7845566e8c68aff486ee4999fb43cf46a28e69c9b041c66df388ee74
+  FAIL demo: off frame (00fd8776862ddb46f461b3781f25f81520d6f2bc77c9e775841c2f474dd933cd) is NOT the class-pixels baseline (e92bcfe04d4bf8b0d276dcce1fdcd18d091f4e8f33b41a3ca9a09a952c0f1e14): the default path moved
+  OK   identity frame is byte-identical to the class-pixels identity
+  attach ledger: held=2 drawn=2 refused=0 skippedStandalone=2 firstRefusal=-
+  OK   attached twice is byte-identical (79d1c93e4904563faf9395fa4f791000cfd9e6a9ab8e9abe4f4787215d8fb908)
+  OK   attached differs from off
+  OK   the off run prints no weapon-attach line
+  OK   attach placement lines:
+      141431.1 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=-13.5,55.6,4.1 holdAt=-13.5,55.6,4.1
+      141431.1 weaponAttach: class=CTFPlayer ent=15 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=188 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=1 boneAt=-3.1,49.9,4.1 holdAt=-3.1,49.9,4.1
+  OK   weapon entity ent=744 is drawn only as the attached instance (no standalone twin)
+  OK   this frame holds 2 weapon(s), drew 2, and left 2 standalone draw(s) out
+    BODY id=93 ent=5 model=models/player/demo.mdl pixels=1599 bbox=622,309,687,369
+    WEAPON ids=[94] pixels=181 bbox=654,342,691,355 centre=672.5,348.5 size=38x14
+    HAND distance=1 shareInsideBody=0.000 centreShareFromTop=0.648 bodyHeight=61 weaponHeightShare=0.230
+    HOLDPOINT source=bone bone=21 boneAt=-13.5,55.6,4.1 holdAt=-13.5,55.6,4.1 radius=57.4
+    HOLDPOINT driftFromBone=0.00
+    WEAPON-PIXELS=PASS
+  weapon-pixels rc=0
+  N1 off identity capture into the checker rc=1 (must be non-zero)
+  N2 attach id rewritten to the body id (93) rc=1 (must be non-zero)
+
+--- scout: ent=15 tick=64161 origin=2742.7,-1327.1,-112.0
+    behind eye=2492.7,-1327.1,-54.0 yaw=0 / side eye=2565.9,-1503.9,-54.0 yaw=45.0
+window off: lines 136067..136089 of evidence/t83-weapon/weapon-attach/scout/off.trace (23)
+window attached: lines 183676..183703 of evidence/t83-weapon/weapon-attach/scout/attached.trace (28)
+window attached-2: lines 186267..186294 of evidence/t83-weapon/weapon-attach/scout/attached-2.trace (28)

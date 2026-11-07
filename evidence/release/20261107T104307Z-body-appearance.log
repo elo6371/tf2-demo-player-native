@@ -1,0 +1,20 @@
+verify-release step: body-appearance (player-body-appearance-check.sh)
+cmd: timeout 1200s bash player-body-appearance-check.sh
+owner: t91-integration
+commit: d6d351ff5567944a865c0cce29296c010e88b745
+
+=== T62 body appearance: one red and one blu body, same class, same tick ===
+  demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+  speed=32 camera-offset=(-250,0,58) pitch=4.1 yaw=0.0
+  min-body-pixels=200 min-tint=15
+
+--- red-demo: demo ent=4 tick=63000 origin=4336.8,-704.3,-39.9 eye=4086.8,-704.3,18.1
+  captures identity=0/entity-id/63000/72374 painted=0/textured/63000/72374
+  LEDGER 58863.5 entity: id=88 ent=4 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4336.8,-704.3,-39.9 frame_tick=63000
+  OK   team=2 (want_family=0 got_family=0)
+  OK   the body's own mask is 1571 pixels (>= 200)
+  BODY id=88 pixels=1571 mean_r=57.5 mean_g=11.7 mean_b=8.1 r_minus_b=49.4 b_minus_r=-49.4
+  SIZE 1264x681
+  OK   red body reads red-dominant: mean_r - mean_b = 49.4 (>= 15)
+
+--- blu-demo: demo ent=5 tick=63000 origin=3759.9,-1163.8,8.0 eye=3509.9,-1163.8,66.0

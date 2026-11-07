@@ -1,0 +1,33 @@
+verify-release step: outline (outline-check.sh)
+cmd: timeout 5400s bash outline-check.sh
+owner: t91-integration
+commit: d6d351ff5567944a865c0cce29296c010e88b745
+
+=== -1/6 the harness itself: every assert_* it calls is defined and can go red ===
+  OK   the harness defines assert_contains
+  OK   the harness defines assert_eq
+  OK   the harness defines assert_ge
+  OK   the harness defines assert_le
+  OK   the harness defines assert_lt
+  OK   the harness defines assert_world_fixture
+  OK   launch_product refuses an argv without --audio-disabled (returns 99)
+  OK   launch_product prints why it refused (not a silent drop)
+  OK   assert_contains goes red when the sentence is absent
+  OK   assert_contains goes green when the sentence is present
+  OK   an undefined command leaves the trace that reddens the verdict
+  OK   a source newer than the binary is reported as stale
+  OK   a binary at least as new as its sources passes the same guard
+  OK   the dependency list is scoped to its target: entity_overlay_probe does not compile projectile_track_probe.cpp
+  OK   the same list names demo_header.cpp, a source that target does compile
+  FAIL native/build-nmake/tf2_demo_native.exe cannot be trusted for this tree, so this run would measure a binary the tree does not describe:
+sources are newer than the binary, so it is a build of some other tree:
+         D:/TF2_Native_Worktrees/t91-integration/native/src/entity_model.cpp
+         rebuild first: bash build-target.sh tf2_demo_native entity_overlay_probe
+  FAIL native/build-nmake/entity_overlay_probe.exe cannot be trusted for this tree, so this run would measure a binary the tree does not describe:
+sources are newer than the binary, so it is a build of some other tree:
+         D:/TF2_Native_Worktrees/t91-integration/native/src/demo_header.cpp
+         D:/TF2_Native_Worktrees/t91-integration/native/src/demo_header_core.cpp
+         rebuild first: bash build-target.sh tf2_demo_native entity_overlay_probe
+
+OUTLINE-CHECK=FAIL
+  the harness is broken, so nothing measured below this line can be believed.

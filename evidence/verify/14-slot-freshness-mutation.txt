@@ -1,12 +1,11 @@
 === 1/4 wiring fixture (every branch by construction, ranking and renderer) ===
-slot-freshness-fixture shapes=4 freshChosen=2 staleChosen=0 freshnessDecided=1 rankTiePrefersLocal=2 apiMatches=4 tickRoundTrip=4
-  OK   fixture shapes = 4
-  OK   fixture freshChosen = 2
-  OK   fixture staleChosen (the defect signature) = 0
-  OK   fixture freshnessDecided (the term is load-bearing) = 1
-  OK   fixture rankTiePrefersLocal (equal + unknown ticks) = 2
-  OK   fixture apiMatches (extractTransform agrees with the ranking) = 4
-  OK   fixture tickRoundTrip = 4
+  FAIL fixture shapes = <none>, expected 4
+  FAIL fixture freshChosen = <none>, expected 2
+  FAIL fixture staleChosen (the defect signature) = <none>, expected 0
+  FAIL fixture freshnessDecided (the term is load-bearing) = <none>, expected 1
+  FAIL fixture rankTiePrefersLocal (equal + unknown ticks) = <none>, expected 2
+  FAIL fixture apiMatches (extractTransform agrees with the ranking) = <none>, expected 4
+  FAIL fixture tickRoundTrip = <none>, expected 4
 
 === 2/4 POV entity 3 -- the pick moved to the slot that was still being written ===
 prop-candidates at tick=53976 status=checkpoint resolved=53976
@@ -54,4 +53,4 @@ bagel entity 1 duplicated: m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_v
   OK   duplicated properties, bagel entity 1 (same set, other demo) = m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]
   OK   m_nModelIndex is not duplicated (model selection is untouched)
 
-MUTATION-CAUGHT=PASS (2/2 perturbations caught, red_lines=2)
+MUTATION-CAUGHT=FAIL (expected 2 red lines, saw 9 -- a perturbation went unnoticed)

@@ -1,0 +1,37 @@
+  world fixture: demo=D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem sha256=7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3
+  world fixture: map=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/pl_upward_f12.bsp bytes=25252306
+  OK   named world models: the upward fixture demo is the pinned file = 7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3
+  OK   named world models: the upward map is the installed pl_upward_f12 BSP = 25252306
+  world rc=0 bmp=2582406 trace=5813792 bytes
+  OK   named world models: the upward multiply-held-weapons run rc = 0
+  OK   named world models: the run captured a frame = 2582406 (>= 1)
+  named world models supplied: flamethrower=1 warhorn=1 sapper=1; refused-naming-any=0; OOM-lines=0
+  OK   named world models: c_flamethrower's world mesh was supplied (it used to OOM) = 1 (>= 1)
+  OK   named world models: c_shogun_warhorn's world mesh was supplied (it used to OOM) = 1 (>= 1)
+  OK   named world models: no refusal line names any of the three = 0
+  OK   named world models: E_OUTOFMEMORY 0x8007000E never appears in the trace = 0
+  world layer A: capacity=64 candidates=98 admitted=64 deferred=34 failed=0
+  world layer B: capacity=96 resident=96 evictions=3 capacityRefusals=0
+  OK   named world models: the run saw a candidate set = 98 (>= 1)
+  OK   named world models: every candidate is admitted or deferred = 98
+  OK   named world models: the prepare budget is 64 (not raised) = 64
+  OK   named world models: the budget actually binds (some candidates are deferred) = 34 (>= 1)
+  OK   named world models: no admitted model failed to build = 0
+  OK   named world models: the table never exceeds its bound = 96 (<= 96)
+  OK   named world models: the table refused nothing at the shipped bound = 0
+  FAIL named world models: no resident mesh was evicted at the shipped bound = 3, expected 0
+  world attach coverage: lines=555 requested=8219 resolvedFromWorld=8193 uploaded=26 refused=0 retrySkipped=0 unresolvedPath=0 balance-violations=0
+  OK   named world models: the attach reports its request accounting = 555 (>= 1)
+  OK   named world models: every attach request left through a named exit (coverage balances) = 0
+  OK   named world models: the hand's weapon world models are covered (uploaded + resolved from prepare) = 8219 (>= 1)
+  OK   named world models: the coverage ledger agrees with the mesh-source ledger on uploads = 26
+  world layer C: accepted=96 slots=207
+  OK   named world models: the instance list has slots = 207 (>= 1)
+  OK   named world models: the accepted instances fit the instance list = 96 (<= 207)
+  world layer C split: missingMesh=0 deferredNotResident=0; hand held=13 drawn=13
+  OK   named world models: nothing that should exist is missing its mesh (missingMesh) = 0
+  FAIL named world models: deferred instances are counted as deferred, not dropped (deferredNotResident) = 0, expected >= 1
+  OK   named world models: the frame has weapon-holding bodies = 13 (>= 1)
+  OK   named world models: every weapon-holding body got its world mesh (held == drawn) = 13
+
+OUTLINE-CHECK=FAIL (--world-only: the named world-model section)

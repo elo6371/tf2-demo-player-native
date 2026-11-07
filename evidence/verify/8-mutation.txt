@@ -58,7 +58,7 @@ MUTATION-RED   m9 index-even thinning -> gate refuses                   exit=1 H
 MUTATION-RED   m9 index-even thinning -> bagel worst gap                51568 (> 10000)
 
 --- m10: world-model route unreachable again (weapons name their arms)
-MUTATION-RED   m10 world route gone -> fixture self-test refuses        exit=1 weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
+MUTATION-GREEN m10 world route gone -> fixture self-test refuses        exit=1 missing: weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
 MUTATION-RED   m10 world route gone -> protocol probe fromWorld         0 (fixed=69)
 MUTATION-RED   m10 world route gone -> protocol probe known             0 (fixed=71)
 MUTATION-RED   m10 world route gone -> view/model compare dies with the block 0 (fixed=2)
@@ -85,6 +85,14 @@ MUTATION-RED   m13 sweep ablated -> classesWithSequence collapses       0 (fixed
 MUTATION-RED   m13 sweep ablated -> the CTFPlayer line is unchanged     animprop-player class=CTFPlayer id=247 sequence=0 cycle=0 rate=0 pose=0
 MUTATION-HOLD  m13 sweep ablated -> CTFPlayer is still found (found=1)  1 (unchanged)
 
+--- m14 the prepare budget ignores priority (first-come-first-served is back)
+MUTATION-RED   m14 priority ignored -> the named world-model section refuses exit=1 OUTLINE-CHECK=FAIL (--world-only
+MUTATION-RED   m14 priority ignored -> a named world model is refused   2 named assertion(s) red
+      FAIL named world models: no resident mesh was evicted at the shipped bound = 3, expected 0
+      FAIL named world models: deferred instances are counted as deferred, not dropped (deferredNotResident) = 0, expected >= 1
+    m14 layer-A composition under the mutation               <none>
+MUTATION-RED   m14 deferred stays honest under the mutation             deferred=34 (still binds)
+
 === restored tree: readings must be identical to the fixed build ===
 RESTORED-IDENTICAL bagel.fixed.txt
 RESTORED-IDENTICAL proto23.fixed.txt
@@ -93,4 +101,4 @@ RESTORED-IDENTICAL model.fixed.txt
 RESTORED-IDENTICAL fixture.fixed.txt
 RESTORED-IDENTICAL recording.fixed.txt
 
-MUTATION-SUITE=PASS
+MUTATION-SUITE=FAIL
