@@ -1,0 +1,31 @@
+ACQUIRED owner=t88-budget at 2026-11-07 18:35:30
+HOLD_LOCK=1: captures and builds run inside the held lock (owner=t88-budget)
+seeded /tmp/tmp.2zt3W9JYxe/settings.ini from the real profile (read only)
+seeded /tmp/tmp.2zt3W9JYxe/ui.ini from the real profile (read only)
+ONLY: judging cp_snakewater_final1
+
+== pixel attribution: after (fixed build, sha 7fb62a4da9406fc56d630de3b49258ccced19610fae00253e919db8f039388b3) ==
+  after  cp_snakewater_final1 textured=after-textured.bmp ids=after-ids.bmp
+
+== pixel attribution: putting the pre-fix behaviour back ==
+  pre-fix build sha a411092f3383a43be30b702fc735e3f54134b4d045fda195d4fec4487163f826
+  before cp_snakewater_final1 textured=before-textured.bmp ids=before-ids.bmp
+
+== pixel attribution: restoring the fix ==
+  FAIL PIXELS: the rebuilt product is not the fixed build (sha f949ff554603072d57f5fe188560656577f8d66e9e813d12b097090665b383cf, wanted 7fb62a4da9406fc56d630de3b49258ccced19610fae00253e919db8f039388b3)
+
+== pixel attribution: what the restored faces drew ==
+
+-- cp_snakewater_final1
+  changed=15722 bbox=(0, 0, 1263, 678)
+  ids before=5700 after=5655 added=25 removed=70
+  added_pixels=13207 outside=2516
+  added_visible=25 added_not_visible=0
+  top_added=12397:4142,12339:2070,12320:1592,12405:1251,12392:1100,12302:1046,12279:1042,12381:333
+  added_id_range=12267..9345708
+  removed_id_sample=3924,5719,5721,9572,9641,9645,9650,9654
+  FAIL 2516 changed pixels belong to faces that were already drawn: the change is not contained in the restored geometry
+  FAIL PIXELS cp_snakewater_final1: the change is NOT fully explained by the restored faces (evidence/t88-maps/pixels/cp_snakewater_final1.txt)
+
+WORLD-GEOMETRY-PIXELS=FAIL (2 assertions)
+LOCKED-COMMAND-EXIT rc=1 owner=t88-budget

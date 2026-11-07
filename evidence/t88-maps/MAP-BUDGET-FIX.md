@@ -35,7 +35,10 @@ the numbers agree with the probe, the capacity is the measured one, nothing is
 dropped on the four authorised maps, and the two named degradations (capacity
 shrunk, whitelist rolled back) each turn it red at a *named* assertion. Its
 --pixel-attr mode answers the question a re-pin must answer: which faces did the
-restored geometry actually draw, and did anything else move.
+restored geometry actually draw, and did anything else move. It was measured on
+cp_snakewater_final1 (section 6) and the first assertion shape had to be replaced:
+"pixels only increase" is unsatisfiable when a fix substitutes a curved displacement
+grid for a flat fallback quad.
 
 ## 1. What was wrong, in the old code
 
@@ -164,40 +167,127 @@ indistinguishable from a gate that does not fire.
 
 ## 6. Pixel attribution
 
-Re-pinning a frame without saying which faces caused the change is a baseline
-edit. --pixel-attr answers it with the product's own face-id channel:
+Re-pinning a frame without saying which faces caused the change is a baseline edit.
+--pixel-attr answers it with the product's own face-id channel: native/src/native_renderer_world.cpp:27-37
+writes the BSP face index into the vertex colour under --world-face-id (r = id & 0xFF,
+g = (id >> 8) & 0xFF, b = (id >> 16) & 0xFF). The mode captures the same camera and tick
+twice -- the fixed build, then a rebuild with BOTH defects put back (capacity 200000,
+whitelist without func_illusionary, i.e. the pre-fix behaviour) -- and hands the four
+frames to world-geometry-budget-pixels.py.
 
-- native/src/native_renderer_world.cpp:31-37 encodes the BSP face index into the
-  vertex colour (r = id & 0xFF, g = id >> 8, b = id >> 16) under --world-face-id.
-- The mode captures the same camera and tick twice: on the fixed build, and on a
-  rebuild with BOTH defects put back (capacity 200000, whitelist without
-  func_illusionary) -- i.e. the pre-fix behaviour.
-- world-geometry-budget-pixels.py decodes the two id frames and the two textured
-  frames and asserts the containment: every changed textured pixel must belong to
-  a face id that did not exist in the earlier frame (outside=0). Adding opaque
-  geometry can only replace what a pixel showed, never reveal something new, so a
-  changed pixel on an already-drawn face would be an unexplained change.
+### 6.1 The run (measured 2026-11-07 18:35, cp_snakewater_final1)
 
-The attribution tool has its own negative case, run on synthetic frames before it
-touched a product capture (.scratch-t88/selftest-pixels.py, 16x16 BMPs): a changed
-region owned by a newly drawn face reads changed=128 outside=0 and exits 0, while
-the same scene with one extra changed pixel on an already drawn face reads
-outside=1 and exits 1 with "FAIL 1 changed pixels belong to faces that were already
-drawn". So the containment assertion is not one that can only pass.
+Command: HOLD_LOCK=1 bash world-geometry-budget-check.sh --pixel-attr
+--only=cp_snakewater_final1. Wall time 3 min 12 s. Log:
+evidence/t88-maps/pixel-window-20261107-181526.log. Frames, traces and CSV:
+.scratch/t88-budget/pix/cp_snakewater_final1/ (4 BMPs, 4 traces, 4 metrics files).
+Camera: evidence/t62-map-matrix/cp_snakewater_final1/camera.txt, tick 2000.
 
-**NOT RUN: attempted and cancelled, no frame exists.** --pixel-attr was started
-at 17:53:xx on cp_snakewater_final1, but the t91 integration chain took the lock
-first and this run's ticket queued behind it (hostlock status: owner=t91-integration,
-queue=...-t88-budget-308447). Rather than queue a rebuild chain behind a lease
-that owns the machine for the evening, the job was killed and the ticket removed
-at 17:54; the lock was left to the chain. So evidence/t88-maps/pixels/ is empty,
-no attribution frame was captured from this tree, and no pixel baseline was
-re-pinned: the T62 pins in evidence/t62-map-matrix/ are untouched by this commit.
-What exists is the tool and its negative case (above). Run it with the command in
-section 9 (c) -- one map is enough to be evidence, four maps take roughly four
-times as long because the mode rebuilds twice and captures four frames per map.
-Expected: WORLD-GEOMETRY-PIXELS=PASS plus one "reading <map>: changed=...
-outside=0" line per map.
+Result: **WORLD-GEOMETRY-PIXELS=FAIL (2 assertions)**, and both failures are real
+measurements, not noise:
+
+1. FAIL PIXELS: the rebuilt product is not the fixed build (sha f949ff55..., wanted
+   7fb62a4d...). This branch has no /Brepro (grep -r Brepro over the build scripts and
+   native/ finds nothing), so a rebuild of identical sources has a different PE
+   timestamp. The assertion was wrong, not the rollback: the sources were restored
+   byte-identically (checked with cmp). Fixed in the same commit -- see 6.4.
+2. FAIL 2516 changed pixels belong to faces that were already drawn: the change is not
+   contained in the restored geometry. This is the important one; section 6.2 explains
+   the 2516 to the pixel.
+
+### 6.2 What the two frame pairs say
+
+    changed                                   15,722   bbox (0,0,1263,678)
+      owned by an added face id               13,207   25 added ids, all of them visible
+      outside                                  2,516
+        same face id, small delta                942   856 of them are delta 1
+        lost to a different face id            1,574   before ids: 12225 -> 1,565, 12227 -> 9
+    pixels owned by the restored faces       before 0 / after 51  (one face, 14362)
+
+### 6.3 Why "pixels only increase" is unsatisfiable for THIS fix
+
+The truncated build does not draw a prefix of the face list. bsp_map.cpp:941 refuses a
+displacement GRID when the remaining room is smaller than the grid, but bsp_map.cpp:1007-1043
+still pushes that face's flat fallback fan, which usually fits. So faces past firstFace
+reach the screen as FLAT quads until the budget is genuinely full:
+
+- pre-fix trace: capacity=200000 requested=234951 dropped=35233 facesDropped=621
+  firstFace=12204 state=truncated, displacedTriangles=165376;
+- fixed trace: capacity=400000 requested=242361 dropped=0 drawTriangles=242109,
+  displacedTriangles=199360;
+- both frames report hiddenTriangles=5350, i.e. the visibility set did not change --
+  what changed is which triangles exist;
+- the pre-fix id frame owns pixels on faces 12225, 12227 and 12228, all >= firstFace
+  and all displacement faces -- they can only be there as flat fallback quads.
+
+Faces 12225 and 12227 are displacement surfaces. The fixed build draws their real
+(curved) grids, and a curved grid does not cover the same screen area as the flat quad
+it replaces. At this camera nothing is behind that patch -- the sky pass draws a 6-face
+cube and writes no face id, so the after frame decodes those pixels to noise values
+(9002075, 9001817, ...) -- and 1,574 pixels go wall -> sky. The loss is the fixed
+picture being right, not geometry disappearing.
+
+The restored func_illusionary faces are NOT what moved the picture: the after frame
+shows 51 pixels of exactly one of their 2,892 faces (14362, WOOD/WOOD_BEAM02) and the
+before frame shows none. They are real occluders, but at this camera almost all of them
+sit behind nearer geometry. So the occluder explanation for the 2516 is excluded by
+measurement; the flat-quad-versus-grid substitution is what is left, and it accounts
+for 1,574 of the 2,516 (the rest is 942 same-face pixels: 856 at delta 1 = lightmap
+sampling, and 20 above delta 8 that all touch an id edge, i.e. antialiased silhouettes
+of face 12228 as its grid shifts).
+
+### 6.4 The assertion that replaced it
+
+world-geometry-budget-pixels.py no longer asks for outside = 0. It partitions and fails
+on a gap:
+
+1. every changed pixel belongs to an added id, or to a face drawn before and after with
+   a channel delta <= 8 (--same-face-delta); a pixel above that limit is allowed only if
+   it touches a pixel whose id changed (silhouette antialiasing) -- interior drift is a
+   shading change and fails;
+2. every other changed pixel ("lost") must have been owned before by a face in the map's
+   dispinfo list AND with an index >= firstFace read from the pre-fix trace -- i.e. a
+   face whose grid the pre-fix build refused and drew flat instead. Anything else fails
+   as "not a displacement-grid substitution";
+3. the faces the whitelist restored must own pixels in the after frame and none in the
+   before frame (positive signature that the fix reached the screen).
+
+The face lists come from the map, not from a build: world-geometry-budget-faces.py reads
+lump 26 (dispinfo mapFace at +36) and lump 0/lump 14 (func_illusionary models, dmodel_t
+firstface at +40, numfaces at +44). If those lists are not passed, the tool falls back to
+the old strict rule -- nothing is weakened silently.
+
+Offline re-run on the saved frames with the face lists (no product, no lock):
+rc 0, outside_partition same_face=942 lost=1574, lost_grid_substitution=1574,
+unattributed_lost absent, restored_face_pixels before=0 after=51.
+
+The rolled-back-sha assertion from 6.1(1) was rewritten too: byte equality is only
+asserted when the branch can produce it; otherwise the check asserts that the restore
+rebuilt the product and that its bytes are not the pre-fix build's.
+
+### 6.5 Negative cases (the assertions are not one-way)
+
+world-geometry-budget-pixels-selftest.py edits a copy of the real frames once each
+(command in run (c) of section 9) and re-runs the tool:
+
+- case A: one interior pixel of a face drawn before and after moved by +40 in blue ->
+  rc 1, "FAIL ... away from any id edge (max channel delta 40 > 8): that is a shading
+  change";
+- case B: one lost pixel's before id rewritten to a face that is not a displacement face
+  -> rc 1, "FAIL 1 lost pixels are not a displacement-grid substitution".
+
+The tool's first version was tested the same way with 16x16 synthetic frames before it
+ever read a product capture (changed=128 outside=0 passes; one changed pixel on an
+already drawn face reads outside=1 and fails), which is how the assertion was known to
+be falsifiable in the first place.
+
+### 6.6 Status of the baseline
+
+No pin was re-pinned and evidence/t62-map-matrix/ is untouched by this commit: --pixel-attr
+ran on one camera of one map, and re-pinning needs the t62-mapaxes owner lease. The
+numbers above are therefore evidence for the assertion shape and for this camera only.
+The T62 frame pins still have to be re-pinned with a reason string in that window (section
+9c), and the four-map run is four times the captures.
 
 ## 7. Cost
 
@@ -223,9 +313,9 @@ before/after.
 
 ## 8. What this does not prove
 
-- The pixel attribution proves *containment*, not full coverage: a restored face
-  that is edge-on, occluded or out of view owns no pixels and is reported as a
-  reading, not asserted.
+- The pixel attribution proves a *partition with no unowned gap*, not full coverage: a
+  restored face that is edge-on, occluded or out of view owns no pixels and is reported
+  as a reading, not asserted. It also runs on one camera of one map so far (section 6).
 - The budget is sized for the authorised map set. A future map above 400,000
   triangles will truncate -- but now it prints capacity/requested/dropped and
   names the first refused face, and the gate's B2 fails instead of the picture

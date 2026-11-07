@@ -190,6 +190,28 @@ printed by the same gate. 400,000 was chosen because the worst authorised map
 asks for 242,361 (probe at --triangle-limit 4000000), not because the parser's
 default was 200,000.
 
+### 13. A one-sided containment assertion can be unsatisfiable when the fix substitutes geometry (T88's pixel attribution)
+The pixel attribution asserted "every changed pixel belongs to a face id that did not
+exist in the earlier frame" (outside == 0), reasoning that adding opaque geometry can
+only replace what a pixel showed. It failed on the fixed build with 2,516 of 15,722
+changed pixels outside that set, and none of that was a product defect. The pre-fix
+build refuses a displacement GRID when the remaining budget is too small but still
+pushes the face's flat fallback fan (native/src/bsp_map.cpp:1007-1043), so faces past
+firstFace are on screen as flat quads; the fix draws the real curved grid, which covers
+a different set of pixels, and 1,574 pixels go wall -> sky because nothing is behind
+them (the sky pass writes no face id, so the after frame decodes them to noise).
+
+**Rule:** before writing "the change can only go one way", name the mechanism that
+produces the picture in the OLD build too. If the old build reached the screen by an
+approximation that the fix replaces, the assertion must be a partition with a named
+owner and a zero gap (added ids | same face with sampling drift | lost to a named
+substitution), not a containment. Pair it with a positive signature that the fix
+reached the screen at all (T88: the restored faces own 0 pixels before and 51 after),
+because a partition alone can be satisfied by a picture that did not change.
+Measured partition: same_face=942 (856 at delta 1, 20 above the limit and all on an id
+edge), lost=1,574 (before ids 12225:1,565 and 12227:9, both displacement faces at or
+past firstFace=12204), unattributed=0.
+
 ## Checklist before calling a gate green
 
 1. For each new assertion: **does its object exist on the success path?** Name the
@@ -219,3 +241,7 @@ default was 200,000.
 14. If a counter counts refusals rather than the size of the loss, is the
     assertion a **bound**, and does the gate comment name what makes the counter
     exceed the arithmetic shortfall (T88: 42,643 vs 42,361)?
+15. If an assertion says the change can only go one way, which mechanism
+    produced the OLD picture, and does the fix replace it?
+16. Does a partition assertion come with a positive signature (the fix reached
+    the screen) and a negative case that goes red?
