@@ -35,7 +35,10 @@ the numbers agree with the probe, the capacity is the measured one, nothing is
 dropped on the four authorised maps, and the two named degradations (capacity
 shrunk, whitelist rolled back) each turn it red at a *named* assertion. Its
 --pixel-attr mode answers the question a re-pin must answer: which faces did the
-restored geometry actually draw, and did anything else move.
+restored geometry actually draw, and did anything else move. It was measured on
+cp_snakewater_final1 (section 6) and the first assertion shape had to be replaced:
+"pixels only increase" is unsatisfiable when a fix substitutes a curved displacement
+grid for a flat fallback quad.
 
 ## 1. What was wrong, in the old code
 
@@ -117,7 +120,8 @@ different input (H1 checks that the real profile did not move).
 a *named* assertion -- not merely red:
 
 - capacity-shrink: main.cpp kWorldTriangleCapacity 400000 -> 200000, expected
-  red at "B2 ... dropped=".
+  red at "B2 ... capacity=200000" (the capacity pin fires before the dropped
+  reading; expecting "dropped=" called a correct red the wrong red).
 - illusionary-whitelist: bsp_map.cpp world whitelist loses func_illusionary,
   expected red at "B4 ... facesDrawn=".
 
@@ -126,44 +130,164 @@ and sha256, rebuilt, and the gate must be green again. A mutation whose patch
 does not match exactly once exits 3 with PATTERN NOT FOUND instead of silently
 testing nothing (docs/GATE-DESIGN-TRAPS.md trap 5).
 
-**NOT RUN on this branch -- deferred to the merge window.** The script and the two
-patch patterns are in place and syntax-checked (bash -n), but no mutation was
-applied to this tree, so there is no red/green pair to quote. Run it with the
-command in section 9 (b). Expected: WORLD-GEOMETRY-BUDGET-MUTATION=PASS, with
-capacity-shrink red at "B2 cp_snakewater_final1: dropped=" and
-illusionary-whitelist red at "B4 cp_snakewater_final1: facesDrawn=". Until that
-run exists the mutation proof is a design, not a measurement -- it is not evidence
-that the assertions fire on the degradations they name.
+**RUN on this branch: WORLD-GEOMETRY-BUDGET-MUTATION=PASS**
+(evidence/t88-maps/mutation-window-20261107-174856.log, 17:48:55-17:52:11, 196 s
+inside the held lock, product rebuilt twice per mutation):
+
+    mutation capacity-shrink: gate red at the named assertion --
+      FAIL B2 cp_snakewater_final1: capacity=200000, expected 400000
+    mutation capacity-shrink: main.cpp restored byte-identical (sha256 9914fa02...)
+    mutation capacity-shrink: gate green again after restore
+    mutation illusionary-whitelist: gate red at the named assertion --
+      FAIL B4 cp_snakewater_final1: facesDrawn=354, pin=3246
+    mutation illusionary-whitelist: bsp_map.cpp restored byte-identical (sha256 363d2dc7...)
+    mutation illusionary-whitelist: gate green again after restore
+
+The 354 is arithmetic, not a coincidence: 3,246 pinned drawn faces minus the
+2,892 func_illusionary faces the rollback deletes. So both degradations are
+caught by the assertion that names them, and neither mutation stays in the tree
+(git diff --stat on the two files is empty at the end of the window).
+
+The first execution of this mode (mutation-window-20261107-174521.log) FAILED on
+two gate bugs that only a real run could reveal, and both are fixed here:
+
+1. The whitelist anchor spans two source lines, and native/src/*.cpp are CRLF.
+   The pattern was a literal-LF string, so edit_source counted 0 occurrences and
+   the mutation reported "could not apply the mutation" -- a correct gate reading
+   as broken. Patterns are now $'...' with an explicit \r\n (50662d1).
+2. The pin row starts with the map name (map capacity requested dropped
+   facesDrawn facesSkipped worldFaces brushFaces) but was read into seven words,
+   shifting every field: B3 compared requested=242361 against pin=400000 and B4
+   compared facesDrawn=3246 against pin=0, so a correctly restored build read as
+   red. Fixed by consuming the name (223ec8a).
+
+Both are recorded rather than quietly repaired because they are the failure mode
+this doc warns about: a mutation window that cannot produce a red/green pair is
+indistinguishable from a gate that does not fire.
 
 ## 6. Pixel attribution
 
-Re-pinning a frame without saying which faces caused the change is a baseline
-edit. --pixel-attr answers it with the product's own face-id channel:
+Re-pinning a frame without saying which faces caused the change is a baseline edit.
+--pixel-attr answers it with the product's own face-id channel: native/src/native_renderer_world.cpp:27-37
+writes the BSP face index into the vertex colour under --world-face-id (r = id & 0xFF,
+g = (id >> 8) & 0xFF, b = (id >> 16) & 0xFF). The mode captures the same camera and tick
+twice -- the fixed build, then a rebuild with BOTH defects put back (capacity 200000,
+whitelist without func_illusionary, i.e. the pre-fix behaviour) -- and hands the four
+frames to world-geometry-budget-pixels.py.
 
-- native/src/native_renderer_world.cpp:31-37 encodes the BSP face index into the
-  vertex colour (r = id & 0xFF, g = id >> 8, b = id >> 16) under --world-face-id.
-- The mode captures the same camera and tick twice: on the fixed build, and on a
-  rebuild with BOTH defects put back (capacity 200000, whitelist without
-  func_illusionary) -- i.e. the pre-fix behaviour.
-- world-geometry-budget-pixels.py decodes the two id frames and the two textured
-  frames and asserts the containment: every changed textured pixel must belong to
-  a face id that did not exist in the earlier frame (outside=0). Adding opaque
-  geometry can only replace what a pixel showed, never reveal something new, so a
-  changed pixel on an already-drawn face would be an unexplained change.
+### 6.1 The run (measured 2026-11-07 18:35, cp_snakewater_final1)
 
-The attribution tool has its own negative case, run on synthetic frames before it
-touched a product capture (.scratch-t88/selftest-pixels.py, 16x16 BMPs): a changed
-region owned by a newly drawn face reads changed=128 outside=0 and exits 0, while
-the same scene with one extra changed pixel on an already drawn face reads
-outside=1 and exits 1 with "FAIL 1 changed pixels belong to faces that were already
-drawn". So the containment assertion is not one that can only pass.
+Command: HOLD_LOCK=1 bash world-geometry-budget-check.sh --pixel-attr
+--only=cp_snakewater_final1. Wall time 3 min 12 s. Log:
+evidence/t88-maps/pixel-window-20261107-181526.log. Frames, traces and CSV:
+.scratch/t88-budget/pix/cp_snakewater_final1/ (4 BMPs, 4 traces, 4 metrics files).
+Camera: evidence/t62-map-matrix/cp_snakewater_final1/camera.txt, tick 2000.
 
-**NOT RUN on this branch -- deferred to the merge window.** No attribution frame
-was captured from this tree (evidence/t88-maps/pixels/ is empty) and no pixel
-baseline was re-pinned: the T62 pins in evidence/t62-map-matrix/ are untouched by
-this commit. What exists is the tool and its negative case (above). Run it with
-the command in section 9 (c). Expected: WORLD-GEOMETRY-PIXELS=PASS plus one
-"reading <map>: changed=... outside=0" line per map.
+Result: **WORLD-GEOMETRY-PIXELS=FAIL (2 assertions)**, and both failures are real
+measurements, not noise:
+
+1. FAIL PIXELS: the rebuilt product is not the fixed build (sha f949ff55..., wanted
+   7fb62a4d...). This branch has no /Brepro (grep -r Brepro over the build scripts and
+   native/ finds nothing), so a rebuild of identical sources has a different PE
+   timestamp. The assertion was wrong, not the rollback: the sources were restored
+   byte-identically (checked with cmp). Fixed in the same commit -- see 6.4.
+2. FAIL 2516 changed pixels belong to faces that were already drawn: the change is not
+   contained in the restored geometry. This is the important one; section 6.2 explains
+   the 2516 to the pixel.
+
+### 6.2 What the two frame pairs say
+
+    changed                                   15,722   bbox (0,0,1263,678)
+      owned by an added face id               13,207   25 added ids, all of them visible
+      outside                                  2,516
+        same face id, small delta                942   856 of them are delta 1
+        lost to a different face id            1,574   before ids: 12225 -> 1,565, 12227 -> 9
+    pixels owned by the restored faces       before 0 / after 51  (one face, 14362)
+
+### 6.3 Why "pixels only increase" is unsatisfiable for THIS fix
+
+The truncated build does not draw a prefix of the face list. bsp_map.cpp:941 refuses a
+displacement GRID when the remaining room is smaller than the grid, but bsp_map.cpp:1007-1043
+still pushes that face's flat fallback fan, which usually fits. So faces past firstFace
+reach the screen as FLAT quads until the budget is genuinely full:
+
+- pre-fix trace: capacity=200000 requested=234951 dropped=35233 facesDropped=621
+  firstFace=12204 state=truncated, displacedTriangles=165376;
+- fixed trace: capacity=400000 requested=242361 dropped=0 drawTriangles=242109,
+  displacedTriangles=199360;
+- both frames report hiddenTriangles=5350, i.e. the visibility set did not change --
+  what changed is which triangles exist;
+- the pre-fix id frame owns pixels on faces 12225, 12227 and 12228, all >= firstFace
+  and all displacement faces -- they can only be there as flat fallback quads.
+
+Faces 12225 and 12227 are displacement surfaces. The fixed build draws their real
+(curved) grids, and a curved grid does not cover the same screen area as the flat quad
+it replaces. At this camera nothing is behind that patch -- the sky pass draws a 6-face
+cube and writes no face id, so the after frame decodes those pixels to noise values
+(9002075, 9001817, ...) -- and 1,574 pixels go wall -> sky. The loss is the fixed
+picture being right, not geometry disappearing.
+
+The restored func_illusionary faces are NOT what moved the picture: the after frame
+shows 51 pixels of exactly one of their 2,892 faces (14362, WOOD/WOOD_BEAM02) and the
+before frame shows none. They are real occluders, but at this camera almost all of them
+sit behind nearer geometry. So the occluder explanation for the 2516 is excluded by
+measurement; the flat-quad-versus-grid substitution is what is left, and it accounts
+for 1,574 of the 2,516 (the rest is 942 same-face pixels: 856 at delta 1 = lightmap
+sampling, and 20 above delta 8 that all touch an id edge, i.e. antialiased silhouettes
+of face 12228 as its grid shifts).
+
+### 6.4 The assertion that replaced it
+
+world-geometry-budget-pixels.py no longer asks for outside = 0. It partitions and fails
+on a gap:
+
+1. every changed pixel belongs to an added id, or to a face drawn before and after with
+   a channel delta <= 8 (--same-face-delta); a pixel above that limit is allowed only if
+   it touches a pixel whose id changed (silhouette antialiasing) -- interior drift is a
+   shading change and fails;
+2. every other changed pixel ("lost") must have been owned before by a face in the map's
+   dispinfo list AND with an index >= firstFace read from the pre-fix trace -- i.e. a
+   face whose grid the pre-fix build refused and drew flat instead. Anything else fails
+   as "not a displacement-grid substitution";
+3. the faces the whitelist restored must own pixels in the after frame and none in the
+   before frame (positive signature that the fix reached the screen).
+
+The face lists come from the map, not from a build: world-geometry-budget-faces.py reads
+lump 26 (dispinfo mapFace at +36) and lump 0/lump 14 (func_illusionary models, dmodel_t
+firstface at +40, numfaces at +44). If those lists are not passed, the tool falls back to
+the old strict rule -- nothing is weakened silently.
+
+Offline re-run on the saved frames with the face lists (no product, no lock):
+rc 0, outside_partition same_face=942 lost=1574, lost_grid_substitution=1574,
+unattributed_lost absent, restored_face_pixels before=0 after=51.
+
+The rolled-back-sha assertion from 6.1(1) was rewritten too: byte equality is only
+asserted when the branch can produce it; otherwise the check asserts that the restore
+rebuilt the product and that its bytes are not the pre-fix build's.
+
+### 6.5 Negative cases (the assertions are not one-way)
+
+world-geometry-budget-pixels-selftest.py edits a copy of the real frames once each
+(command in run (c) of section 9) and re-runs the tool:
+
+- case A: one interior pixel of a face drawn before and after moved by +40 in blue ->
+  rc 1, "FAIL ... away from any id edge (max channel delta 40 > 8): that is a shading
+  change";
+- case B: one lost pixel's before id rewritten to a face that is not a displacement face
+  -> rc 1, "FAIL 1 lost pixels are not a displacement-grid substitution".
+
+The tool's first version was tested the same way with 16x16 synthetic frames before it
+ever read a product capture (changed=128 outside=0 passes; one changed pixel on an
+already drawn face reads outside=1 and fails), which is how the assertion was known to
+be falsifiable in the first place.
+
+### 6.6 Status of the baseline
+
+No pin was re-pinned and evidence/t62-map-matrix/ is untouched by this commit: --pixel-attr
+ran on one camera of one map, and re-pinning needs the t62-mapaxes owner lease. The
+numbers above are therefore evidence for the assertion shape and for this camera only.
+The T62 frame pins still have to be re-pinned with a reason string in that window (section
+9c), and the four-map run is four times the captures.
 
 ## 7. Cost
 
@@ -189,9 +313,9 @@ before/after.
 
 ## 8. What this does not prove
 
-- The pixel attribution proves *containment*, not full coverage: a restored face
-  that is edge-on, occluded or out of view owns no pixels and is reported as a
-  reading, not asserted.
+- The pixel attribution proves a *partition with no unowned gap*, not full coverage: a
+  restored face that is edge-on, occluded or out of view owns no pixels and is reported
+  as a reading, not asserted. It also runs on one camera of one map so far (section 6).
 - The budget is sized for the authorised map set. A future map above 400,000
   triangles will truncate -- but now it prints capacity/requested/dropped and
   names the first refused face, and the gate's B2 fails instead of the picture

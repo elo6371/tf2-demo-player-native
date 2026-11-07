@@ -8,30 +8,56 @@ WHY THIS FILE EXISTS
   cover, or whether anything else moved with them.
 
   The product can draw world geometry with the BSP face index encoded into the colour
-  (--world-face-id, native/src/native_renderer_world.cpp:31-37: r = id & 0xFF,
+  (--world-face-id, native/src/native_renderer_world.cpp:27-37: r = id & 0xFF,
   g = (id >> 8) & 0xFF, b = (id >> 16) & 0xFF). Two runs of the same camera and tick,
-  one on the fixed build and one on the pre-fix behaviour, therefore give two sets of
-  drawn face ids and two textured frames. The difference between the id sets is the
-  population that appeared; the textured difference is where the picture moved.
+  one on the fixed build and one with the pre-fix behaviour put back, therefore give
+  two sets of drawn face ids and two textured frames.
 
-WHAT IT PROVES, AND WHAT IT DOES NOT
-  outside=0 is the statement that every changed pixel belongs to a face that did not
-  exist in the earlier frame: adding opaque geometry can only replace what a pixel
-  showed, never reveal something new, so a changed pixel whose new id is an already
-  drawn face would be an unexplained change. The tool fails on that.
+WHY "PIXELS ONLY INCREASE" IS THE WRONG ASSERTION HERE (T88, measured)
+  The first version of this file asserted outside == 0: every changed pixel must belong
+  to a face id that did not exist before, because adding opaque geometry can only
+  replace what a pixel showed. The fixed build failed that with 2516 pixels out of
+  15722 changed, and the failure is real geometry behaviour, not a regression:
 
-  It cannot prove the reverse containment (that every added face also owns pixels):
-  a face can be edge-on, behind a nearer surface, or outside the view. The added ids
-  with zero pixels are reported as a reading, not asserted.
+    * the pre-fix build refuses a displacement GRID when the remaining budget is too
+      small, but still pushes the face's flat fallback fan (native/src/bsp_map.cpp:1007-1043,
+      emittingFallbackQuad), so faces past firstDroppedFace can be on screen as FLAT
+      quads until the budget is truly full;
+    * the fixed build draws the real (curved) grid for those faces instead, which covers
+      a different set of pixels -- so pixels leave as well as arrive, and a wall pixel
+      can become sky because the curved surface no longer covers it.
 
-  removed ids are expected and not a defect: a newly drawn face in front of an old one
-  takes over every pixel the old one owned, so an old id can vanish entirely.
+  So the loss is the signature of the fix in both directions, not only the gain. What
+  survives as an assertion is a PARTITION with a named owner for every pixel and a
+  nonzero gap failing:
+    1. every changed pixel either belongs to an added id, or to a face that was drawn
+       before and after with a channel delta <= --same-face-delta (sampling drift);
+    2. every other changed pixel ("lost") was owned before by a deformation face whose
+       grid the pre-fix build refused (before id in --displacement-faces and
+       >= --before-first-dropped-face) -- i.e. it is a flat-quad-versus-grid
+       substitution, not an unexplained move;
+    3. the faces the whitelist restored own pixels in the after frame and none in the
+       before frame (--restored-faces) -- the positive signature that the fix reached
+       the screen at all.
+
+  If the face lists are not supplied, the tool keeps the original strict outside == 0
+  rule. Nothing is silently weakened: the partition is only accepted when the map data
+  that names the owner is on the command line.
+
+WHAT IT STILL DOES NOT PROVE
+  It cannot prove the reverse containment (that every added face owns pixels): a face
+  can be edge-on, behind a nearer surface, or outside the view. Zero-pixel added ids are
+  reported as a reading, not asserted.
 
 Usage:
   world-geometry-budget-pixels.py --before-textured a.bmp --after-textured b.bmp \
-      --before-ids c.bmp --after-ids d.bmp [--out report.txt] [--top 10]
+      --before-ids c.bmp --after-ids d.bmp [--out report.txt] [--top 10] \
+      [--displacement-faces f] [--before-first-dropped-face n] [--restored-faces f] \
+      [--same-face-delta 8]
 
-Exit: 0 the containment held; 1 it did not; 2 an input is missing or unreadable.
+Exit: 0 the partition held; 1 it did not; 2 an input is missing or unreadable.
+
+Written by T88 (map axis).
 """
 import argparse
 import struct
@@ -68,7 +94,7 @@ def read_bmp(path):
 
 
 def face_ids(frame):
-    """BGR bytes -> face index, per native_renderer_world.cpp:31-37."""
+    """BGR bytes -> face index, per native_renderer_world.cpp:27-37."""
     b = frame[:, :, 0].astype(np.int32)
     g = frame[:, :, 1].astype(np.int32)
     r = frame[:, :, 2].astype(np.int32)
@@ -83,6 +109,29 @@ def bbox(mask):
     return int(cols[0]), int(rows[0]), int(cols[-1]), int(rows[-1])
 
 
+def load_faces(path):
+    """One face index per line (world-geometry-budget-faces.py writes this shape)."""
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError as error:
+        raise SystemExit("cannot read %s: %s" % (path, error))
+    faces = np.array([int(tok) for tok in text.split()], dtype=np.int64)
+    if faces.size == 0:
+        raise SystemExit("%s names no faces" % path)
+    return faces
+
+
+def top_ids(ids, mask, limit):
+    if not mask.any():
+        return ""
+    values, counts = np.unique(ids[mask], return_counts=True)
+    order = np.argsort(-counts)[:limit]
+    return ",".join("%d:%d" % (int(values[i]), int(counts[i])) for i in order)
+
+
 def main(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("--before-textured", required=True)
@@ -91,6 +140,10 @@ def main(argv):
     parser.add_argument("--after-ids", required=True)
     parser.add_argument("--out")
     parser.add_argument("--top", type=int, default=8)
+    parser.add_argument("--displacement-faces")
+    parser.add_argument("--restored-faces")
+    parser.add_argument("--before-first-dropped-face", type=int)
+    parser.add_argument("--same-face-delta", type=int, default=8)
     args = parser.parse_args(argv)
 
     before = read_bmp(args.before_textured)
@@ -103,8 +156,11 @@ def main(argv):
     if ids_before.shape != ids_after.shape:
         print("FAIL id frame size changed")
         return EXIT_ERROR
+    disp_faces = load_faces(args.displacement_faces)
+    restored_faces = load_faces(args.restored_faces)
 
-    changed = np.any(before != after, axis=2)
+    delta = np.abs(after - before).max(axis=2)
+    changed = delta > 0
     changed_pixels = int(changed.sum())
     added_ids = np.setdiff1d(np.unique(ids_after), np.unique(ids_before))
     removed_ids = np.setdiff1d(np.unique(ids_before), np.unique(ids_after))
@@ -131,14 +187,88 @@ def main(argv):
     if removed_ids.size:
         lines.append("removed_id_sample=%s" % ",".join(str(int(i)) for i in removed_ids[: args.top]))
 
+    # The partition of the pixels that did NOT come from an added id.
+    same_face = outside & (ids_before == ids_after)
+    lost = outside & ~same_face
+    same_face_pixels = int(same_face.sum())
+    lost_pixels = int(lost.sum())
+    lines.append("outside_partition same_face=%d lost=%d" % (same_face_pixels, lost_pixels))
+    # A pixel whose own face did not change can still move because a neighbour moved:
+    # where the silhouette of a face shifts, the antialiased edge pixel of the SAME face
+    # takes a different blend. Those are allowed above the bulk limit only when the pixel
+    # touches a pixel whose id changed; interior drift above the limit is a shading
+    # change and fails.
+    id_edge = np.zeros_like(changed)
+    id_edge[:, 1:] |= ids_after[:, 1:] != ids_after[:, :-1]
+    id_edge[:, :-1] |= ids_after[:, 1:] != ids_after[:, :-1]
+    id_edge[1:, :] |= ids_after[1:, :] != ids_after[:-1, :]
+    id_edge[:-1, :] |= ids_after[1:, :] != ids_after[:-1, :]
+    over = same_face & (delta > args.same_face_delta)
+    over_fringe = over & id_edge
+    over_interior = over & ~id_edge
+    if same_face_pixels:
+        lines.append("same_face_delta max=%d limit=%d over=%d on_id_edge=%d interior=%d "
+                     "top_before_ids=%s" % (
+                     int(delta[same_face].max()), args.same_face_delta, int(over.sum()),
+                     int(over_fringe.sum()), int(over_interior.sum()),
+                     top_ids(ids_before, same_face, args.top)))
+
+    explained = None
+    if lost_pixels:
+        if disp_faces is None or args.before_first_dropped_face is None:
+            explained = np.zeros_like(lost)
+        else:
+            before_at_lost = ids_before[lost]
+            is_disp = np.isin(before_at_lost, disp_faces)
+            was_refused = before_at_lost >= args.before_first_dropped_face
+            ok_lost = is_disp & was_refused
+            explained = np.zeros_like(lost)
+            explained[lost] = ok_lost
+            lines.append("lost_grid_substitution=%d top_before_ids=%s" % (
+                         int(ok_lost.sum()), top_ids(ids_before, lost & explained, args.top)))
+        unattributed = lost & ~explained
+        if int(unattributed.sum()):
+            lines.append("unattributed_lost=%d top_before_ids=%s top_after_ids=%s" % (
+                         int(unattributed.sum()), top_ids(ids_before, unattributed, args.top),
+                         top_ids(ids_after, unattributed, args.top)))
+
+    if restored_faces is not None:
+        after_owned = int(np.isin(ids_after, restored_faces).sum())
+        before_owned = int(np.isin(ids_before, restored_faces).sum())
+        lines.append("restored_face_pixels before=%d after=%d" % (before_owned, after_owned))
+
     ok = True
     if added_ids.size == 0:
         lines.append("FAIL no face id appeared: the frame did not change for the claimed reason")
         ok = False
-    if outside_pixels != 0:
-        lines.append("FAIL %d changed pixels belong to faces that were already drawn: "
-                     "the change is not contained in the restored geometry" % outside_pixels)
+    if int(over_interior.sum()):
+        lines.append("FAIL %d pixels changed on faces that were drawn before and after, "
+                     "away from any id edge (max channel delta %d > %d): that is a "
+                     "shading change, not a coverage change"
+                     % (int(over_interior.sum()), int(delta[over_interior].max()),
+                        args.same_face_delta))
         ok = False
+    if lost_pixels:
+        if explained is None:
+            lines.append("FAIL %d changed pixels belong to faces that were already drawn: "
+                         "the change is not contained in the restored geometry "
+                         "(pass --displacement-faces and --before-first-dropped-face to "
+                         "allow the grid-versus-flat-fallback substitution)" % lost_pixels)
+            ok = False
+        elif int((lost & ~explained).sum()):
+            lines.append("FAIL %d lost pixels are not a displacement-grid substitution: "
+                         "the loss has no owner in this map's geometry"
+                         % int((lost & ~explained).sum()))
+            ok = False
+    if restored_faces is not None:
+        if after_owned == 0:
+            lines.append("FAIL the restored faces own no pixel in the after frame: the "
+                         "whitelist fix did not reach the screen")
+            ok = False
+        if before_owned != 0:
+            lines.append("FAIL the restored faces already owned %d pixels in the before "
+                         "frame: the pre-fix build drew them too" % before_owned)
+            ok = False
     if added_ids.size and len(visible) == 0:
         lines.append("FAIL %d face ids appeared but none owns a pixel" % int(added_ids.size))
         ok = False

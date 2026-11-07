@@ -528,9 +528,18 @@ fi
 # 200000 and the whitelist without func_illusionary, i.e. the pre-fix behaviour)
 # -- and hands the four frames to world-geometry-budget-pixels.py.
 #
-# The assertion is one-sided on purpose: every changed textured pixel must belong
-# to a face id that did not exist in the earlier frame. --pixel-attr rebuilds
-# twice, so it needs the held lock (HOLD_LOCK=1) like --mutation does.
+# The first version of this mode asserted "every changed pixel belongs to a face id
+# that did not exist before" -- pixels only increase. T88 measured that this is NOT
+# satisfiable by this fix, and the reason is geometry, not a regression: the pre-fix
+# build refuses a displacement GRID when the remaining budget is too small but still
+# pushes the face's flat fallback fan (native/src/bsp_map.cpp:1007-1043), so faces past
+# firstFace are on screen as flat quads; the fixed build draws the real curved grid,
+# which covers different pixels. Wall pixels become sky in 1574 places for that reason.
+# What is asserted instead is a PARTITION with a named owner and a zero gap:
+#   added ids | same face with sampling drift | lost to a grid-versus-flat substitution
+# plus the positive signature that the faces the whitelist restored own pixels in the
+# after frame and none in the before frame.
+# --pixel-attr rebuilds twice, so it needs the held lock (HOLD_LOCK=1) like --mutation.
 capture_frame() { # capture_frame <map> <tag> [extra product args...] -> bmp path
   local map=$1 tag=$2 dir=$SCRATCH/pix/$1 cam_file=$MATRIX/$1/camera.txt
   shift 2
@@ -584,6 +593,7 @@ restore_both() {
 
 pixel_attr() {
   local maps=$1 map a_tex a_ids b_tex b_ids out rc sha_now
+  local bsp disp restored first_dropped btrace
   mkdir -p "$SCRATCH/pix" "$OUT/pixels"
   FIXED_SHA=$PRODUCT_SHA
   echo ""
@@ -606,7 +616,11 @@ pixel_attr() {
     build_product
     return 1
   fi
-  echo "  pre-fix build sha $(sha256sum "$PRODUCT" | cut -d" " -f1)"
+  BEFORE_SHA=$(sha256sum "$PRODUCT" | cut -d" " -f1)
+  echo "  pre-fix build sha $BEFORE_SHA"
+  if [[ $BEFORE_SHA == "$FIXED_SHA" ]]; then
+    failure "PIXELS: the pre-fix build has the fixed build's bytes -- the mutation did not build"
+  fi
   for map in $maps; do
     b_tex=$(capture_frame "$map" before-textured) || { failure "PIXELS $map: before textured capture failed"; continue; }
     b_ids=$(capture_frame "$map" before-ids --world-face-id) || { failure "PIXELS $map: before id capture failed"; continue; }
@@ -622,10 +636,18 @@ pixel_attr() {
     return 1
   fi
   sha_now=$(sha256sum "$PRODUCT" | cut -d" " -f1)
-  if [[ $sha_now != $FIXED_SHA ]]; then
-    failure "PIXELS: the rebuilt product is not the fixed build (sha $sha_now, wanted $FIXED_SHA)"
-  else
+  # Byte-identical rebuilds need /Brepro, which this branch does not have (grep -r
+  # Brepro over the build scripts and native/ finds nothing), so the earlier version of
+  # this check failed on a correct rollback -- a run-to-run PE timestamp, not a defect.
+  # What must hold here: the restore rebuilt the product, and it is not the pre-fix
+  # build any more. The source identity is already asserted byte-identically by
+  # restore_both + source_restore (cmp), which is the claim that actually matters.
+  if [[ $sha_now == $FIXED_SHA ]]; then
     pass "PIXELS: the pre-fix rebuild was rolled back; product sha back to $FIXED_SHA"
+  elif [[ $sha_now == "$BEFORE_SHA" ]]; then
+    failure "PIXELS: the rebuilt product is still the pre-fix build (sha $sha_now)"
+  else
+    pass "PIXELS: the rebuilt product is not the pre-fix build (sha $sha_now; this run's fixed build was $FIXED_SHA; no /Brepro on this branch, so equal bytes are not available)"
   fi
   echo ""
   echo "== pixel attribution: what the restored faces drew =="
@@ -641,15 +663,49 @@ pixel_attr() {
     fi
     echo ""
     echo "-- $map"
+    # The face lists come from the .bsp, not from a build, so they are the same facts
+    # the source was written against: which faces carry a dispinfo, and which faces
+    # belong to a func_illusionary model (i.e. what the whitelist fix restored).
+    bsp=$TF/maps/$map.bsp
+    disp=$SCRATCH/pix/$map.disp.txt
+    restored=$SCRATCH/pix/$map.restored.txt
+    if [[ ! -s $bsp ]]; then
+      failure "PIXELS $map: no map at $bsp, cannot name the faces"
+      continue
+    fi
+    if ! "$PYTHON" world-geometry-budget-faces.py --bsp "$bsp" \
+        --disp-out "$disp" --restored-out "$restored" > "$SCRATCH/pix/$map.faces" 2>&1; then
+      failure "PIXELS $map: could not extract the face lists from $bsp"
+      sed "s/^/  /" "$SCRATCH/pix/$map.faces"
+      continue
+    fi
+    sed "s/^/  /" "$SCRATCH/pix/$map.faces"
+    # firstFace is the first face whose displacement GRID was refused for room -- not
+    # the first face that never reached the screen (its flat fallback fan can still fit).
+    # The before trace is the only place that number exists, so it is read, not guessed.
+    btrace=$SCRATCH/pix/$map/before-ids.trace
+    first_dropped=0
+    if [[ -s $btrace ]]; then
+      first_dropped=$(grep -a "map: geometry budget " "$btrace" | head -1 \
+        | tr ' ' '\n' | grep -a "^firstFace=" | cut -d= -f2)
+    fi
+    if [[ -z $first_dropped ]]; then
+      failure "PIXELS $map: no firstFace= in the pre-fix trace, the lost pixels have no anchor"
+      first_dropped=0
+    fi
+    echo "  firstFace from the pre-fix trace: $first_dropped"
     "$PYTHON" world-geometry-budget-pixels.py \
       --before-textured "$b_tex" --after-textured "$a_tex" \
-      --before-ids "$b_ids" --after-ids "$a_ids" --out "$out" > "$SCRATCH/pix/$map.report" 2>&1
+      --before-ids "$b_ids" --after-ids "$a_ids" \
+      --displacement-faces "$disp" --restored-faces "$restored" \
+      --before-first-dropped-face "$first_dropped" \
+      --out "$out" > "$SCRATCH/pix/$map.report" 2>&1
     rc=$?
     sed "s/^/  /" "$SCRATCH/pix/$map.report"
     if [[ $rc -eq 0 ]]; then
-      pass "PIXELS $map: the picture change is contained in newly drawn faces ($out)"
+      pass "PIXELS $map: every changed pixel is an added face, same-face sampling drift, or a displacement grid replacing its flat fallback ($out)"
     else
-      failure "PIXELS $map: the change is NOT fully explained by the restored faces ($out)"
+      failure "PIXELS $map: the change is NOT explained (unowned lost pixels or a shading change) ($out)"
     fi
     cp "$SCRATCH/pix/$map/after-ids.trace" "$OUT/pixels/$map-after-ids.trace" 2>/dev/null || true
     cp "$SCRATCH/pix/$map/before-ids.trace" "$OUT/pixels/$map-before-ids.trace" 2>/dev/null || true

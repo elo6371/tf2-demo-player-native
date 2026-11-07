@@ -1,0 +1,15 @@
+# Negative cases for the two partition assertions, run on the real frames.
+# Command (from the worktree root):
+#   python world-geometry-budget-pixels-selftest.py 
+#     --frames-dir .scratch/t88-budget/pix/cp_snakewater_final1 
+#     --displacement-faces evidence/t88-maps/pixels/cp_snakewater_final1.disp-faces.txt 
+#     --restored-faces evidence/t88-maps/pixels/cp_snakewater_final1.restored-faces.txt
+# Case A: one interior pixel of a face drawn before and after moved by +40.
+# Case B: one lost pixel's before id rewritten to a non-displacement face.
+case A: same-face interior pixel (1234,5) id=9647 delta=1
+case B: lost pixel (793,151) before id=12227 after id=9001818
+case B replacement before id (not a displacement face): 12
+case A rc=1 red-as-expected=True
+case B rc=1 red-as-expected=True
+SELFTEST=PASS
+# exit status: 0

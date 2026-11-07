@@ -1,0 +1,8 @@
+changed=15722 bbox=(0, 0, 1263, 678)
+ids before=5700 after=5655 added=25 removed=70
+added_pixels=13207 outside=2516
+added_visible=25 added_not_visible=0
+top_added=12397:4142,12339:2070,12320:1592,12405:1251,12392:1100,12302:1046,12279:1042,12381:333
+added_id_range=12267..9345708
+removed_id_sample=3924,5719,5721,9572,9641,9645,9650,9654
+FAIL 2516 changed pixels belong to faces that were already drawn: the change is not contained in the restored geometry

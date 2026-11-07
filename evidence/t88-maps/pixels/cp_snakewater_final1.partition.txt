@@ -1,0 +1,18 @@
+# Offline re-analysis of the frames captured by the 18:35 --pixel-attr run.
+# No product process was started for this file: it is world-geometry-budget-pixels.py
+# re-run on the four saved BMPs, so it shows the assertion shape that the run's
+# FAIL led to. The original FAIL report is cp_snakewater_final1.txt next to this.
+# Frames: .scratch/t88-budget/pix/cp_snakewater_final1/ (sha256 in .frames.sha256).
+#
+changed=15722 bbox=(0, 0, 1263, 678)
+ids before=5700 after=5655 added=25 removed=70
+added_pixels=13207 outside=2516
+added_visible=25 added_not_visible=0
+top_added=12397:4142,12339:2070,12320:1592,12405:1251,12392:1100,12302:1046,12279:1042,12381:333
+added_id_range=12267..9345708
+removed_id_sample=3924,5719,5721,9572,9641,9645,9650,9654
+outside_partition same_face=942 lost=1574
+same_face_delta max=18 limit=8 over=20 on_id_edge=20 interior=0 top_before_ids=9655:232,9453:202,12228:94,10909:58,9656:47,9465:46,9698:45,732:39
+lost_grid_substitution=1574 top_before_ids=12225:1565,12227:9
+restored_face_pixels before=0 after=51
+# exit status: 0
