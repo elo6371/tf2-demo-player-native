@@ -58,8 +58,8 @@
 | ID | 支持声明 | 产品路径 | 输入夹具 | 门禁 + 断言/判定行 | 变异 / 负控 | 证据目录 | 级 |
 |---|---|---|---|---|---|---|---|
 | C19 | 音频：事件/音轨解析、时间线普查、内容图、null sink 下产品运行；**device 6 可听验收只有在 `--device` 时执行** | `native/src/audio_player.cpp:98`（`play`）/`:170`（`stop`）、`native/src/demo_header_sound.cpp:23`（`readSounds`）、`native/src/audio_resource.cpp:29` | 钉住的录制（`verify-audio.sh` 头） | `verify-audio.sh:1275`（MUTATION）、`:1280`（PASS）；`verify-audio-content.sh:566`（MP3 内容 PASS） | 期望列表全可红；负 fixture 具名拒绝 | 两门禁日志 | B |
-| C20 | HUD：导入/拒绝/绘制、三热键、HUD 内外像素仅区域内变化、缩放规则、坏 HUD 拒绝不半应用 | `native/src/hud_state.cpp:16-20`（键）、`native/src/hud_import.cpp:447/:457`、`native/src/playback_hud.cpp` | HUD fixture 文档 | `hud-check.sh:1392`（MUTATION）、`:1402`（PASS）；`hud-text-check.sh:658`（文本栅格 PASS） | 四个变异 + 缩放/坏文档负控 | 各门禁日志 | B |
-| C21 | 小地图：世界↔小地图像素映射、命中测试、不可用原因可读 | `native/src/minimap.cpp:13/:77/:89/:127` | 纯逻辑夹具 | `minimap-check.sh:314`（`MINIMAP-CHECK=PASS`；该脚本无 `===` 段头、无 `assert_*`，断言写法不同） | 自身负向分支 | 该门禁日志 | B |
+| C20 | HUD：导入/拒绝/绘制、三热键、HUD 内外像素仅区域内变化、缩放规则、坏 HUD 拒绝不半应用。**产品只画彩色矩形，不画字也不画图**：`main_hud.cpp:247-250` 注释自述 "this build rasterises no font and no image"；唯一 Text 原语调用点在 `main_hud.cpp:210` 的 `--hud-text-test` 分支（开关 `main.cpp:2514-2517`），`hud-text-check.sh:284` 正是用这个 flag 跑 | `native/src/hud_state.cpp:16-20`（键）、`native/src/hud_import.cpp:447/:457`、`native/src/main_hud.cpp:243/:247-250`、`native_renderer_frame.cpp:1171`（渲染器文本能力存在，正常路径无调用者） | HUD fixture 文档 | `hud-check.sh:388`（`--hud-apply --hud-on`：矩形产品路径）、`:1392`（MUTATION）、`:1402`（PASS）；`hud-text-check.sh:658`（**测试路径** PASS，非产品 HUD） | 四个变异 + 缩放/坏文档负控 | 各门禁日志 | B |
+| C21 | 小地图：**仅探针逻辑**（世界↔小地图像素映射、命中测试、不可用原因可读）。产品内无小地图通路：`src/minimap.cpp` 只链进 `minimap_probe`（`native/cmake/tf2-probes-minimap.cmake:23`），产品 target 源清单无此文件，`main.cpp` 无 `minimap` 字样；产品侧只有 `review_workspace.cpp:367-375` 的 `workspace.minimap` 状态持久化 | `native/src/minimap.cpp:13/:77/:89/:127`、`native/src/review_workspace.cpp:367-375`、`native/cmake/tf2-probes-minimap.cmake:23` | 纯逻辑夹具（探针） | `minimap-check.sh:36`（`PROBE=minimap_probe.exe`）、`:314`（`MINIMAP-CHECK=PASS`；该脚本无 `===` 段头、无 `assert_*`） | 自身负向分支 | 该门禁日志 | B |
 | C22 | logs.tf 面板：内容/realtime 可用性判定；**面板 PASS ≠ 页面已显示** | `native/src/logstf_webview.cpp:18/:28/:45` | `logstf-check.sh` 夹具 | `logstf-check.sh:1081`（MUTATION）、`:1086`（PASS）、`:397`（边界警告原文） | 九个变异族（m1–m9） | 该门禁日志 | B |
 
 ## 6. 相机 / 播放 / 事件 / 安装（C23–C29）
@@ -96,11 +96,15 @@
 | N14 | 安装后运行中镜像检查 | 具名递延，不是 PASS | `install-lifecycle-check.sh:446` |
 | N15 | 一次可复现的"典型用户流"（装→demo→TF2 根→地图→播放/seek→设置→重启） | 无单一端到端门禁；`restart` 无播放/回放门禁命中 | handoff §8.6 |
 | N16 | 与 Source 渲染器的像素一致性 | 明确不承诺 | 支持边界 B6；`world-render-reliability-check.sh:48-52` |
+| N17 | 产品内小地图（绘制/投影/命中/交互） | **无通路**：`src/minimap.cpp` 只链 `minimap_probe`（`native/cmake/tf2-probes-minimap.cmake:23`），不在产品源清单（`tf2-product.cmake:16`），`main.cpp` 中 `minimap` 零命中；产品侧仅 `review_workspace.cpp:367-375` 持久化 `workspace.minimap` 状态 | 本次 grep + CMake 复核（workflow-auditor 结论成立）；C21 只覆盖探针 |
+| N18 | 产品 HUD 的文本/字体/图像 | **无通路**：正常路径只推彩色矩形（`main_hud.cpp:247-250` 自述 "this build rasterises no font and no image"）；唯一 Text 原语调用点在 `main_hud.cpp:210` 的 `--hud-text-test` 分支（开关 `main.cpp:2514-2517`），`hud-text-check.sh:284` 正是用该 flag | 本次复核（workflow-auditor 结论成立）；渲染器文本能力在 `native_renderer_frame.cpp:1171` 存在但无默认调用者 |
+
+| N19 | "官方四图都已验证角色轴/播放" | **无门禁**：角色轴只在 snakewater（默认 demo：`class-pixels-check.sh:102`、`player-body-appearance-check.sh:42`、`third-person-weapon-check.sh:85`）与 upward（队伍对夹具）取证；sunshine 无九职业齐样本（demos.tf 最好 8/9）、rc12 本地 0 条 demo（demos.tf 15 条候选、0 条 9/9，最好 6/9） | task-6 复核 task-3 索引：`D:/_shared/t85-assets/demo-candidates.csv`、`local-demo-index.csv`；支持边界 §3 表末列；DEBT D-17 |
 
 ## 8. 覆盖统计（据本表）
 
 - 有门禁可引用的支持声明：**C01–C29 共 29 条**；其中等级 A 8 条（C01/C05/C08/C09/C14/C15/C18/C26）、B 19 条、C 2 条（C02 为探针计数、C07 为矩阵读数，均无门禁断言）。
-- 明确无门禁的声明：**N01–N16 共 16 条**。
+- 明确无门禁的声明：**N01–N19 共 19 条**（N17/N18 是 task-6 复核 workflow-auditor 结论后新增的"产品内无通路"两条；N19 是 task-6 按地图夹具覆盖度新增的外推闸）。
 - 关键结构性事实：**"45/45 PASS"是矩阵读数的合成**——45 格里只有 18 格绑定了具名渲染实体（`CHARACTER-MATRIX.md:375`），其余靠静态/结构断言与文档推理。引用 45/45 时必须同时引这一条，否则就是外推。
 
 ## 9. 复核用的哈希与命令（只读）
@@ -114,13 +118,15 @@ sha256sum native/build-nmake/tf2_demo_native.exe
 # a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9  2,763,264 B
 
 # 文档（本仓库内的权威读数）
-sha256sum evidence/t62-matrix/CHARACTER-MATRIX.md   # 6fa7df9f7d3b6f5b6d31310f0a247255d028d5875cc6f19c48dc70fe59ff31d9
-sha256sum evidence/t62-matrix/MAP-MATRIX.md         # 7fa92339be23e415e2f3e91613cc840c0b7297ac95b56b43cb3f0413c7ca2528
-sha256sum evidence/t62-matrix/T62-REPORT.md         # 653b49529816bbd89f9ce345d10a5cb77613cd114dac7d0b860902cd20596c49
+sha256sum evidence/t62-matrix/CHARACTER-MATRIX.md   # 81028863238a7bb5c1f000f1939694c73e719837c612b96648c730bbd3ac9ecc
+sha256sum evidence/t62-matrix/MAP-MATRIX.md         # 1caa6829d8bd2b207d357f753bce65bdd74b3aec1ed8cd43c63a7469d5ceba17
+sha256sum evidence/t62-matrix/T62-REPORT.md         # a4d52b530b1492dcd5dd8b482d106b60401f7017dee0488d0f5e9da5e3d217e4
 sha256sum evidence/t62-matrix/RUNS-2026-11-04.md    # b5d4e100316d32c3eaa401c5dd3e5e4dd7c13a39d4402c8bb18742ef0bc8e1d5
 sha256sum docs/RELEASE-POLICY.md                    # c1fdb92923992ccc21c1c0becf2a27ba712b8ffea81af8c313f73f60adb2ffa3
 sha256sum docs/KNOWN-ISSUES-AND-FIXES.md            # 2e6413737601e75c90cd79449fb718c8ee00f12ec25ccfe3b8ee452b859d8cb9
 ```
+
+> **哈希口径（2026-11-07 task-6 校正）**：上表一律是**工作树字节**的 sha256（这些文档在工作树里是 CRLF；`git show HEAD:…` 得到的是 LF blob，值不同）。task-6 重算后的变化：`CHARACTER-MATRIX.md` 与 `T62-REPORT.md` 因加"取代注"而变（cb5bfcd 时记录为 `6fa7df9f…` / `653b4952…`，均已作废）；`MAP-MATRIX.md` 在 cb5bfcd 记录为 `7fa92339…` 是 **git blob（LF）值**，与工作树字节 `1caa6829…` 不同，此前记录口径不一致，此处按工作树值改正。`RUNS-2026-11-04.md`/`RELEASE-POLICY.md`/`KNOWN-ISSUES-AND-FIXES.md` 本次复核未变。
 
 门禁脚本 sha256（本次实测，`e15577b` 工作树干净状态下计算）：
 
@@ -160,7 +166,7 @@ d8a1c7e43534ca68daf8ce2ebc4fa7b80d21c4b1e43d08334b61aef913342b66  world-geometry
 
 ## 10. 已知的引用陷阱
 
-1. `CHARACTER-MATRIX.md:438`（§6"Still missing"）与 `T62-REPORT.md:124` 是**过期段落**，仍写 40/5 与"缺 Scout/Sniper 对"；引用矩阵结论用 `:362`/`:375`/`:379`。
+1. `CHARACTER-MATRIX.md:438`（§6"Still missing"）与 `T62-REPORT.md:124` 原为**过期段落**（40/5、"缺 Scout/Sniper 对"）；已于 2026-11-07 task-6 各加一块取代注并**保留历史数字**。引用矩阵结论仍用 `:362`/`:375`/`:379`；文档历史与现状的权威口径见 `POSTFREEZE-INVENTORY-CORRECTED.md` §3。
 2. `MAP-MATRIX.md:3` 的第五行是 rc13→rc11 的**文档换行**，"No gate was re-run for the swap"；该行的读数是既有的，换行本身不是重跑证据。
 3. `minimap-check.sh` 与 `resource-discovery-check.sh` 没有 `===` 段头和 `assert_*`，不能用"grep assert_ 数量"评估其强度。
 4. `logstf-check.sh:397`：面板内容 PASS 不等于"页面已显示"。

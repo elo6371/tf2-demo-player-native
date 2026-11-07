@@ -75,9 +75,9 @@
 | 条款 | 要求（压缩） | 状态 | 门禁 / 证据 | 缺什么 |
 |---|---|---|---|---|
 | 8.6-1 | 音频：解析、play/pause/seek 同步、音量与设备失败、资源释放、**枚举声明的格式**并点名未列出的 | 部分覆盖 | `verify-audio.sh:1280`（六段 + 变异）、`verify-audio-content.sh:566`（MP3 内容）；`audio_player.cpp:98/:170`、`demo_header_sound.cpp:23` | **真实设备可听**只有带 `--device` 才测（默认跳过，N08）；**格式表**没有（哪些格式支持、哪些不）；seek 与音频同步无断言 |
-| 8.6-2 | HUD：计时/比分/玩家状态/事件，按 POV/STV 数据源，缺字段有明确状态，不显示过期帧 | 部分覆盖 | `hud-check.sh:1402`（导入/拒绝/绘制/区域外不变/缩放/坏文档）、`hud-text-check.sh:658`（文本栅格）；`hud_state.cpp:16-20` | **逐字段（计时/比分/状态/事件）**没有断言；"不显示过期帧"只有区域外像素不变这一条间接证据 |
+| 8.6-2 | HUD：计时/比分/玩家状态/事件，按 POV/STV 数据源，缺字段有明确状态，不显示过期帧 | 部分覆盖 | `hud-check.sh:388`（`--hud-apply --hud-on`，产品矩形路径）、`:1402`（导入/拒绝/绘制/区域外不变/缩放/坏文档 PASS）；`hud-text-check.sh:658`（**测试路径**：`:284` 用 `--hud-text-test`）；`hud_state.cpp:16-20` | **产品 HUD 不画字**：`main_hud.cpp:247-250` 自述 "this build rasterises no font and no image"，唯一 Text 原语在 `main_hud.cpp:210` 的 `--hud-text-test` 分支（开关 `main.cpp:2514-2517`）。因此计时/比分/状态/事件的**字段显示本身不存在**，逐字段断言无从谈起；"不显示过期帧"只有区域外像素不变这一条间接证据 → N18 |
 | 8.6-3 | 相机：默认轨道/SourceTV 观察者/跟随/切目标/debug/越界与无观察者回退；**trace 要描述真正喂给绘制的相机**，姿势↔像素可连 | 部分覆盖 | `camera-ui-check.sh:1208/:1212`（T4+T50，90 断言）；`spectate-check.sh:620`（三次交接、暂停/seek）；`camera_director.cpp:91/:120/:127/:148` | **"trace 描述真正喂给绘制的相机"没有专门断言**（`demo-clock-check.sh` A5 只覆盖 POV 入口 tick 视角）；越界/无观察者回退无具名负控 |
-| 8.6-4 | UI 能力表（打开 demo/播放/速度/跳 tick/相机/目标/HUD/书签/小地图/logstf+WebView2）标注支持/实验/不支持；**可见控件 ≠ 可用功能** | 无覆盖 | 只有零散能力：`minimap-check.sh:314`、`logstf-check.sh:1086`、`camera-ui-check.sh:1212`、`hud-check.sh:1402` | **没有能力表文档**；也没有"控件 ↔ 功能"一致性的门禁 → N13 |
+| 8.6-4 | UI 能力表（打开 demo/播放/速度/跳 tick/相机/目标/HUD/书签/小地图/logstf+WebView2）标注支持/实验/不支持；**可见控件 ≠ 可用功能** | 无覆盖 | 只有零散能力：`minimap-check.sh:314`（**仅探针**，`native/cmake/tf2-probes-minimap.cmake:23`）、`logstf-check.sh:1086`、`camera-ui-check.sh:1212`、`hud-check.sh:1402` | **没有能力表文档**；也没有"控件 ↔ 功能"一致性的门禁 → N13。且两条被点名的 UI 能力比表格更弱：**小地图在产品内无通路**（N17）、**产品 HUD 不渲染文字**（N18） |
 | 8.6-5 | 典型流：安装→demo→TF2 根→地图→播放/暂停/seek→设置→重启，加上坏 demo/缺地图/缺模型/坏路径/WebView2/权限失败 | 部分覆盖 | `install-readiness-check.sh:596`、`install-lifecycle-check.sh:817`（含 WebView2 缺失路径）；坏 demo/坏 tick 负控散在 `player-model-check.sh:184-190`、`frame-capture-check.sh` | **单一端到端流无门禁**；**重启**没有播放侧断言（只有安装侧） → N15 |
 | 8.6-6 | 导出/截图/日志——只有承诺了才做验收（真实输出、路径、覆盖、可读、失败信息） | 明确不做 | `T85-SUPPORT-SCOPE.md` B4：视频导出 UNSUPPORTED，不承诺；截图/日志不在冻结承诺内 | —（若将来承诺，需重新立项） |
 
@@ -88,14 +88,18 @@
 | 8.7-1 | 支持环境：Windows 版本、GPU/驱动下限、D3D11、内容发现、WebView2、磁盘、权限 | 无覆盖 | 无文档；只有门禁运行环境事实（`env-msvc.sh`：MSVC 14.44.35207 + SDK 10.0.26100.0） | 没有"支持环境"文档，也没有环境探测门禁 → 无覆盖 |
 | 8.7-2 | 干净配置构建 + 安装/便携包（manifest、依赖来源、逐文件 SHA256、卸载/升级、用户数据保留） | 部分覆盖 | `install_manifest.cpp:47/:78/:263`（sha256 + 写 manifest）；`install-lifecycle-check.sh:817/:1092`（4 变异，升级/降级/卸载保留数据）；`install-readiness-check.sh:596` | **便携包**未验证；运行中镜像检查是具名递延（`:446`）→ N14；依赖来源清单无门禁 |
 | 8.7-3 | 轻量持续检查（干净 configure/build + 可用的 `verify-fast.sh` 子集 + 脚本语法），`verify-all.sh` 全链按 RELEASE-POLICY | 部分覆盖 | `docs/RELEASE-POLICY.md:1-25`（全链只在冻结树跑一次）；`verify-fast.sh`（257 行，tier 1）；`logstf-syntax-check.sh`（`cl /Zs` 语法检查，**不是构建**） | 没有 CI 配置或"每次改动跑哪个子集"的可执行判定；脚本语法检查只覆盖 logstf 一个 |
-| 8.7-4 | 用户文档/README/已知限制/地图与模型目录与矩阵一致；License 保持"本轮不加" | 部分覆盖 | `README.md`、`CHANGELOG.md`、`docs/` 5 篇、`evidence/*/CHARACTER-MATRIX.md` 等存在；`docs/KNOWN-ISSUES-AND-FIXES.md:3` | **一致性未验证**，且已确认两处**过期段落**：`T62-REPORT.md:124` 仍写 40/5；`CHARACTER-MATRIX.md:438` 仍写"只有 class-fallback Heavy / 16 身体 7 对"。License 按政策不加 |
+| 8.7-4 | 用户文档/README/已知限制/地图与模型目录与矩阵一致；License 保持"本轮不加" | 部分覆盖 | `README.md`、`CHANGELOG.md`、`docs/` 5 篇、`evidence/*/CHARACTER-MATRIX.md` 等存在；`docs/KNOWN-ISSUES-AND-FIXES.md:3` | **一致性未验证**；两处**过期段落**已于 2026-11-07 task-6 加"取代注"（`T62-REPORT.md:124` 的 40/5、`CHARACTER-MATRIX.md:438` 的旧表述，历史数字保留、未删改）→ D-13 关闭；但"文档与矩阵一致"仍无门禁。License 按政策不加 |
 
-## 8. 本阶段新增的两条欠账（不属于 §8 原始 39 条，但必须记）
+## 8. 本阶段新增的欠账（不属于 §8 原始 39 条，但必须记）
 
 | ID | 内容 | 状态 | 说明 |
 |---|---|---|---|
-| D-13 | 修 `T62-REPORT.md:124` 与 `CHARACTER-MATRIX.md:438` 两处过期段落（正文与同文件 `:10`/`:362` 矛盾） | 无覆盖 | 文档欠账；本阶段只定位、不改（阶段 0 只写 T85-* 新文档，不动矩阵正文，避免与 task-1/task-4 并发写冲突） |
+| D-13 | 修 `T62-REPORT.md:124` 与 `CHARACTER-MATRIX.md:438` 两处过期段落（正文与同文件 `:10`/`:362` 矛盾） | 已覆盖（2026-11-07 task-6） | task-6 提交（父提交 `cb5bfcd`）在两段后各加一块 `> **Superseded, annotated 2026-11-07 (task-6). History kept, not deleted.**`：保留历史数字，指向 `CHARACTER-MATRIX.md:362/:375/:379` 与 `POSTFREEZE-INVENTORY-CORRECTED.md` §3，并说明行号漂移（旧账本 `:297` 真值 `:313`、`:422` 真值 `:438`）。原文未删除 |
 | D-14 | 动态 brush 按 demo 时间位移（8.2-3 的硬缺口） | 无覆盖 | 产品侧 0 实现、门禁侧 0 命中 → N05；交接书明确不许用"不支持"改名结案，因此保留为**功能欠账**而不是边界 |
+| D-15 | 产品 HUD 不渲染文字/字体（8.6-2 的硬缺口） | 无覆盖 | `main_hud.cpp:247-250` 自述 "this build rasterises no font and no image"；唯一 Text 原语在 `main_hud.cpp:210`，只在 `--hud-text-test` 下跑（`main.cpp:2514-2517`），`hud-text-check.sh` 全用该 flag → N18。属**功能欠账**：用户看到的计时/比分/状态全是彩色矩形 |
+| D-16 | 产品内小地图通路（8.6-4 的范围收窄） | 明确不做（范围收窄） | `src/minimap.cpp` 只链 `minimap_probe`（`native/cmake/tf2-probes-minimap.cmake:23`），不在产品源清单（`tf2-product.cmake:16`）；产品侧仅 `review_workspace.cpp:367-375` 持久化 `workspace.minimap` 状态 → N17。按支持边界记 UNSUPPORTED，不得写成"部分支持" |
+
+| D-17 | 官方地图的**夹具覆盖不均**（角色轴跨图外推风险） | 部分覆盖 | 角色轴门禁默认跑 snakewater（`class-pixels-check.sh:102`、`player-body-appearance-check.sh:42`、`third-person-weapon-check.sh:85`），队伍对夹具在 upward；sunshine 的 demos.tf 候选最好 8/9、rc12 本地 0 条 demo（demos.tf 15 条候选中 0 条九职业齐，最好 6/9）。因此"官方四图"不能被写成"四图角色轴已验证"。数据：`D:/_shared/t85-assets/demo-candidates.csv`、`local-demo-index.csv`（2026-11-07） |
 
 ## 9. 跨任务移交（避免重复劳动）
 
@@ -113,3 +117,4 @@
 - 武器：九职业各一格 PASS（`third-person-weapon-check.sh:580-582`），**不是**"九职业全槽位"。
 - "40 PASS / 5 UNSUPPORTED" 只属于 pass-7 历史（`T62-REPORT.md:8`），不得作为当前结论；`T62-REPORT.md:124` 的重复是过期文字。
 - 任何"已覆盖"必须能指到本表 8.x 行的门禁行号；指不到就降级为"部分覆盖"。
+- 地图：授权集 5 行（4 官方 + upward 夹具）；世界轴 20 格只覆盖矩阵里的 5 行（含 4 格 Odyssey 历史行），**角色轴只覆盖 snakewater（默认 demo）与 upward（队伍对）**。引用"官方四图"必须同时给每图的证据级别（`T85-SUPPORT-SCOPE.md` §3 表末列），否则就是把几何/材质证据外推成角色/播放证据（D-17）。

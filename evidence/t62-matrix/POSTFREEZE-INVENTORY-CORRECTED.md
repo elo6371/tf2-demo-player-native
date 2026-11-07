@@ -28,7 +28,7 @@
 | 3 | Heavy 身份"文档内部矛盾"（原 `:53`，引 `CHARACTER-MATRIX.md:297` 与 `:422`） | 真值在 `:294`/`:313`："Heavy now uses a real Heavy player body (ent=11, blue, AttackStand_SECONDARY)"；`:438` 是过期段落；`:297` 现在是 Sniper 的 D2 行、`:422` 是证据索引行 | **stale**（矛盾源自引用漂移） |
 | 4 | C 轴证据分裂：旧矩阵只有四个 snakewater、upward 225° 未索引（原 `:50`） | `CHARACTER-MATRIX.md:202`（9/9 PASS）、`:206`（snakewater cases=4 phase-pinned=4 …；upward 同形计数）；`T62-REPORT.md:10` 记录九格由修产品关闭 | **stale** |
 | 5 | 冻结清扫覆盖 "18 T62-dependent steps, not all 66"（原 `:11`，引 handoff :185） | 这句本身作为"那次清扫"的说明成立，但被当成"当前覆盖"就会误导：矩阵数字已在 `65315d2`/`931588b`/`b859dd8` 后重算，`MAP-MATRIX.md:4`/`:40` 有 20/20 的新计数 | **stale（作为当前结论）/ 有效（作为历史）** |
-| 6 | —（旧文件没有这条） | 本仓自身还有两处过期文档行：`T62-REPORT.md:124` 仍写 "character count is 40 PASS / 5 UNSUPPORTED"；`CHARACTER-MATRIX.md:438` 仍写 "only the class-fallback body appears as Heavy / 16 bodies and seven pairs"。引用时必须避开 | **insufficient-evidence 的文档缺陷**（已定位，未修，见 DEBT-LIST D-13） |
+| 6 | —（旧文件没有这条） | 本仓自身原有两处过期文档行：`T62-REPORT.md:124` 的 "character count is 40 PASS / 5 UNSUPPORTED"、`CHARACTER-MATRIX.md:438` 的 "only the class-fallback body appears as Heavy / 16 bodies and seven pairs"。2026-11-07 task-6 已在两段后各加 `Superseded, annotated` 引用块（历史数字保留、未删除）；引用时以本文件 §3 为准 | **resolved（文档缺陷已加注，未删历史）**，见 DEBT-LIST D-13 |
 
 ## 2. 逐行对账
 
@@ -130,7 +130,7 @@
 - 自然 ViewModel apply、默认不变（E1/E2）→ 8.5-4。
 - 每槽位（主/副/近战）武器、持枪动画（E2）→ 8.5-2/3。
 - 两姿势之外的地图视角（E2-9）→ 8.2-9。
-- **本次对账新增/上升的两条**：(a) 动态 brush 按 demo 时间位移无任何门禁（8.2-3）；(b) 本仓 `T62-REPORT.md:124` 与 `CHARACTER-MATRIX.md:438` 两处过期段落需修（D-13）。
+- **本次对账新增/上升的两条**：(a) 动态 brush 按 demo 时间位移无任何门禁（8.2-3）；(b) 本仓 `T62-REPORT.md:124` 与 `CHARACTER-MATRIX.md:438` 两处过期段落已修（D-13 于 task-6 关闭：加取代注、保留历史数字）。
 
 ## 5. 保留的原始出处与日期（供追溯）
 

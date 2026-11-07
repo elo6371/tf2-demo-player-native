@@ -40,19 +40,20 @@
 
 ## 3. 地图授权集（唯一允许的集合）
 
-| 地图 | 角色 | BSP 路径（实测存在） | 字节 | SHA256（本次实测） |
-|---|---|---|---|---|
-| `cp_snakewater_final1` | 官方 | `tf/maps/cp_snakewater_final1.bsp` | 59,590,420 | `f09d406d2bbe397c8f9df9ca17f11b36b53d40fcf57e3f1532ec9af811b2a1eb` |
-| `cp_sunshine` | 官方 | `tf/maps/cp_sunshine.bsp` | 30,319,857 | `ca9ad7d01f46112abbc5b02f3d144fad833e6a0ff3bd82a1fff38fa8d3c32474` |
-| `koth_bagel_rc12` | 官方 | `tf/maps/koth_bagel_rc12.bsp`（`tf/download/maps/` 同哈希） | 26,486,963 | `c991a61edb0346e57ad4bfd256693322afb6a522d8005492418b12c094f1d680` |
-| `koth_bagel_rc11` | 官方 | `tf/download/maps/koth_bagel_rc11.bsp` | 26,370,688 | `f06cfe4b389da5ca152dff0702fb3f4d69b48bfc7b08ed9994e1d057a211720a` |
-| `pl_upward_f12` | **仅角色/动画夹具**，不是世界轴支持面 | `tf/maps/pl_upward_f12.bsp` | 25,252,306 | `0d9fe5486023df49f0e6d4da43ac3e777baee87f1c588933dc16750cb7c51677` |
-| `pl_odyssey` | 历史，**不在支持集** | —（不在此重列） | — | — |
+| 地图 | 角色 | BSP 路径（实测存在） | 字节 | SHA256（本次实测） | 证据级别（**授权 ≠ 全验**） |
+|---|---|---|---|---|---|
+| `cp_snakewater_final1` | 官方 | `tf/maps/cp_snakewater_final1.bsp` | 59,590,420 | `f09d406d2bbe397c8f9df9ca17f11b36b53d40fcf57e3f1532ec9af811b2a1eb` | 世界轴 4/4 PASS + 帧 pin；**角色轴主体**（`class-pixels-check.sh:102`、`player-body-appearance-check.sh:42`、`third-person-weapon-check.sh:85` 的默认 demo 就是本图）；9 职业样本 demos.tf 1 条、本地语料 340 条 |
+| `cp_sunshine` | 官方 | `tf/maps/cp_sunshine.bsp` | 30,319,857 | `ca9ad7d01f46112abbc5b02f3d144fad833e6a0ff3bd82a1fff38fa8d3c32474` | 世界轴 4/4 PASS + 帧 pin；**无角色轴证据**：demos.tf 110 条候选里 0 条九职业齐（最好 8/9），本地 2 条 demo |
+| `koth_bagel_rc12` | 官方 | `tf/maps/koth_bagel_rc12.bsp`（`tf/download/maps/` 同哈希） | 26,486,963 | `c991a61edb0346e57ad4bfd256693322afb6a522d8005492418b12c094f1d680` | **只有世界轴 4/4 PASS + 帧 pin**；本地 0 条 demo；demos.tf 候选 15 条但 0 条九职业齐（最好 6/9）→ 不可说"播放/角色轴已验证" |
+| `koth_bagel_rc11` | 官方 | `tf/download/maps/koth_bagel_rc11.bsp` | 26,370,688 | `f06cfe4b389da5ca152dff0702fb3f4d69b48bfc7b08ed9994e1d057a211720a` | 世界轴 4/4 PASS + 帧 pin；**无已提交的角色轴证据**；本地 1 条 demo（`demostf-1442132`，header 有效），demos.tf 1 条九职业齐（1442132） |
+| `pl_upward_f12` | **仅角色/动画夹具**，不是世界轴支持面 | `tf/maps/pl_upward_f12.bsp` | 25,252,306 | `0d9fe5486023df49f0e6d4da43ac3e777baee87f1c588933dc16750cb7c51677` | 仅角色/动画夹具：9 对同职业红蓝（`CHARACTER-MATRIX.md:178-179`）、animation-drive 两批；**没有地图矩阵格**；本地 1 条 demo，demos.tf 101 条九职业齐 |
+| `pl_odyssey` | 历史，**不在支持集** | —（不在此重列） | — | — | —（4 格 PASS 为历史读数，见 `MAP-MATRIX.md:31/:40`） |
 
 说明：
 - 路径在 `D:/SteamLibrary/steamapps/common/Team Fortress 2/` 下。RC11 只存在于 `tf/download/maps/`，这正是交接书 §8.2 要求的"per-map BSP lookup path + hash"事实；`MAP-MATRIX.md:26-34` 记录的 26,370,688 B 与本次实测一致。
 - 夹具 demo（`D:/TF2_Demo_Player/testdata/demos/`）：`bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem` sha256 `308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f`；`4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem` sha256 `03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436`（bagel_rc13 是**缺 BSP 的负控**，不是地图行，见 `T62-REPORT.md:103`）。
 - `koth_bagel_rc13` 永远不以"跑一遍"的方式补：没有 BSP，就是负控。
+- **"官方四图"不等于"四图全验"**（2026-11-07 加，防外推）：世界轴（材质/几何/光照）的五图矩阵只覆盖 snakewater/sunshine/bagel_rc12/bagel_rc11（+ 历史 odyssey 行），upward 不在矩阵里；**角色轴只在 snakewater（默认 demo）与 upward（队伍对夹具）上取过证据**，sunshine/rc12 没有角色轴读数。夹具统计来自 task-3 的 `D:/_shared/t85-assets/demo-candidates.csv`（mtime 2026-11-07 13:09，demos.tf 候选）与 `local-demo-index.csv`（mtime 2026-11-07 12:47，本地 467 行）：按地图列计数，rc12 在 demos.tf 有 15 条候选但九职业齐为 0（本地 0 条）；sunshine 最好 8/9。这些是**夹具覆盖度**，不是产品能力。
 
 ## 4. 逐能力域：可验证范围（能验到什么，不承诺什么）
 
@@ -72,8 +73,8 @@
 | 世界材质与覆盖 | fetch `capped=0`、`distinct>=tiled`、plan 无畸形/重复、tile 行 == tiled+refused、atlas bound bytes>0、tick 请求==帧 tick、地图名等于行名；tick0 vs tick2000 像素差**只记录不断言大小** | `map-material-matrix.sh:624`（PASS 行）；不变量清单 `:36` | 像素差的语义（不是光照/材质正确性 oracle，`MAP-MATRIX.md:36`） |
 | 光照 | 六种光照/着色控制、暗像素分桶账、空种群非空、乘积可归因 ≤2% 帧 | `lighting-semantics-check.sh`（98 asserts）；`map-geometry-lighting-check.sh:38` | 解码后的 lightmap/atlas 数值 pin（`MAP-MATRIX.md:183` 仍 OPEN）；LDR/HDR 边界与 UV clamp 的数值对照 |
 | 水面 | 当前水贴图/颜色、warp 三性质、像素 on≠off 且 on==repeat | `world-material-effects-check.sh:16-21` | 反射 / 折射（B3） |
-| HUD | 导入/拒绝/绘制、三个热键同表、缩放规则、越界矩形外像素不变、坏文档拒绝非半应用 | `hud-check.sh:1402`（71 asserts，`:1392` 变异 4/4）；`hud-text-check.sh:658` | 任意 HUD 文档；"看起来对"的视觉判断 |
-| 小地图 | 纯逻辑：bounds 可用性、世界↔地图换算、命中测试、不可用原因 | `minimap-check.sh:314`（无 `===` 分节、无 `assert_*`，断言写法独异，引用前请直读） | 游戏内导航正确性 |
+| HUD | 导入/拒绝/绘制（**产品只画彩色矩形**）、三个热键同表、缩放规则、越界矩形外像素不变、坏文档拒绝非半应用。**文字/字体不在产品路径**：`native/src/main_hud.cpp:247-250` 自述 "this build rasterises no font and no image"，唯一文本原语在 `--hud-text-test`（`main_hud.cpp:210`；开关 `native/src/main.cpp:2514-2517`） | `hud-check.sh:388`（`--hud-apply --hud-on`，矩形路径）、`:1402`（PASS，71 asserts）、`:1392`（变异 4/4）；`hud-text-check.sh:658`（**测试路径**：`:284` 用 `--hud-text-test`） | 计时/比分/玩家状态等**文字字段的显示**（产品不渲染文字，见 COVERAGE-MANIFEST N18）；任意 HUD 文档；"看起来对"的视觉判断 |
+| 小地图 | **仅探针逻辑，产品内无小地图通路 → UNSUPPORTED**：`native/src/minimap.cpp` 只链进 `minimap_probe`（`native/cmake/tf2-probes-minimap.cmake:23`），不在产品源清单（`native/cmake/tf2-product.cmake:16` 起的 target 列表无此文件），`main.cpp` 中 `minimap` 零命中；产品侧只有 `native/src/review_workspace.cpp:367-375` 持久化 `workspace.minimap` 状态（zoom/pan/mapName/available/reason），无绘制、无投影、无命中。探针可验：bounds 可用性、世界↔地图换算、命中测试、不可用原因 | `minimap-check.sh:36`（`PROBE=native/build-nmake/minimap_probe.exe`）、`:314`（无 `===` 分节、无 `assert_*`，断言写法独异，引用前请直读） | **产品内小地图（绘制/交互/导航）**；游戏内导航正确性 |
 | logs.tf 面板 | 面板内容/运行时可用性、九类变异（host/prefetch/静默/resize/导航/脚本/历史/JSON/截断） | `logstf-check.sh:1086`（PASS 行）、`:1081`（变异 17 项） | "页面真的被显示出来"（`:397` 自述：面板 PASS + 该条 NOT VERIFIED） |
 | 音频 | 解析、时间线普查、内容映射（MP3 content）、null sink 静默、播放器在真实录音上仍 `--audio-disabled` | `verify-audio.sh:1280`（`assertions_ok`）、`:1275` 变异；`verify-audio-content.sh:566` | **设备 6 可听验收**（不带 `--device` 会跳过）；格式清单成表 |
 | 安装与升级 | 全新用户安装、升级/降级按 packageVersionCode 判定、restart 复用根目录、用户数据保留、逐文件 SHA256 清单 | `install-readiness-check.sh:596`/`:836`；`install-lifecycle-check.sh:817`/`:1092`；`native/src/install_manifest.cpp:78`/`:263` | 运行中镜像检查（`install-lifecycle-check.sh:446` 明写为命名延期，不是 PASS） |
