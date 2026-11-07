@@ -128,22 +128,25 @@ sha256sum native/build-nmake/tf2_demo_native.exe
 # a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9  2,763,264 B
 
 # 门禁（task-18 / task-20）
+   # 行尾口径：docs/*.md 在仓库里以 LF 存储、工作树被 core.autocrlf 转成 CRLF，
+   # 所以 .md 的哈希要对得上必须取仓库字节：git show HEAD:docs/T85-DEBT-LIST.md | sha256sum
+   # *.sh 的工作树与仓库同为 LF，直接 sha256sum 即可。
 sha256sum gate-launch-hygiene-check.sh   # 4fa73f6ae22312bf935dd37d7163d031695df6379b68f47143c4cadf5ab02508
 sha256sum evidence/gate-launch-hygiene/baseline.txt # 2b417a767313b14add52b51f3e0fd85343b8a47c02a754249febfcab4136bfbf
 sha256sum debt-claim-check.sh            # 2500c56fb7cf11ff1bcc113e7e6a2982987bf2bab8b9b260d9dfc42ed498d752
 sha256sum verify-release.sh              # 7ac88ae47eb5330ae6c2befd440b0f0f3786e37ae358cc380afcbae1c767ae48
-sha256sum docs/T85-DEBT-LIST.md          # 3fa81d1971b89f0df4e856dc56d2e8d24f7e615b9c60d812c2bc0846ca08f2ee
+sha256sum docs/T85-DEBT-LIST.md          # 3baaf3edbcee93a9a0a7d1af87f185e0934cfccb7082d1c705b1b6a407137e8b
 
 # 文档（本仓库内的权威读数）
 sha256sum evidence/t62-matrix/CHARACTER-MATRIX.md   # 81028863238a7bb5c1f000f1939694c73e719837c612b96648c730bbd3ac9ecc
 sha256sum evidence/t62-matrix/MAP-MATRIX.md         # 1caa6829d8bd2b207d357f753bce65bdd74b3aec1ed8cd43c63a7469d5ceba17
 sha256sum evidence/t62-matrix/T62-REPORT.md         # a4d52b530b1492dcd5dd8b482d106b60401f7017dee0488d0f5e9da5e3d217e4
 sha256sum evidence/t62-matrix/RUNS-2026-11-04.md    # b5d4e100316d32c3eaa401c5dd3e5e4dd7c13a39d4402c8bb18742ef0bc8e1d5
-sha256sum docs/RELEASE-POLICY.md                    # fefca411291c9f0f108ab0e8d755d4683c1a765ed8a0bf5765a9cf34998e7f83
+sha256sum docs/RELEASE-POLICY.md                    # b407b7fe1b66e87a0fd43fc5644aa4704f4ef76c4db3963ee1a79686ee4f0dcb
 sha256sum docs/KNOWN-ISSUES-AND-FIXES.md            # 2e6413737601e75c90cd79449fb718c8ee00f12ec25ccfe3b8ee452b859d8cb9
 ```
 
-> **哈希口径（2026-11-07 task-6 校正，task-15 续）**：上表一律是**工作树字节**的 sha256（这些文档在工作树里是 CRLF；`git show HEAD:…` 得到的是 LF blob，值不同）。task-6 重算后的变化：`CHARACTER-MATRIX.md` 与 `T62-REPORT.md` 因加"取代注"而变（cb5bfcd 时记录为 `6fa7df9f…` / `653b4952…`，均已作废）；`MAP-MATRIX.md` 在 cb5bfcd 记录为 `7fa92339…` 是 **git blob（LF）值**，与工作树字节 `1caa6829…` 不同，此前记录口径不一致，此处按工作树值改正。`RUNS-2026-11-04.md`/`KNOWN-ISSUES-AND-FIXES.md` 本次复核未变。**`RELEASE-POLICY.md` 于 task-15 插入整链条目后重算**（旧值 `c1fdb929…` 作废；插入的条目是 "The rule" 第 2 条，原第 2–5 条顺延为 3–6，见文件内编号注）。**task-16 又扩展了第 2 条**（机器隔离要求 + 第 7 步），task-15 记录的值 `f647fea9…` 作废。**task-18 再次扩展第 2 条**（启动卫生棘轮作为第 1 个执行步骤、总步数 8），task-16 记录的值 `15668e85…` 作废，现值为上表 `fefca411…`；`verify-release.sh` 亦由 422 行/7 步变为 425 行/8 步（旧值 `4a3dd255…` 仅作历史）。
+> **哈希口径（2026-11-07 task-6 校正，task-15 续）**：上表一律是**工作树字节**的 sha256（这些文档在工作树里是 CRLF；`git show HEAD:…` 得到的是 LF blob，值不同）。task-6 重算后的变化：`CHARACTER-MATRIX.md` 与 `T62-REPORT.md` 因加"取代注"而变（cb5bfcd 时记录为 `6fa7df9f…` / `653b4952…`，均已作废）；`MAP-MATRIX.md` 在 cb5bfcd 记录为 `7fa92339…` 是 **git blob（LF）值**，与工作树字节 `1caa6829…` 不同，此前记录口径不一致，此处按工作树值改正。`RUNS-2026-11-04.md`/`KNOWN-ISSUES-AND-FIXES.md` 本次复核未变。**`RELEASE-POLICY.md` 于 task-15 插入整链条目后重算**（旧值 `c1fdb929…` 作废；插入的条目是 "The rule" 第 2 条，原第 2–5 条顺延为 3–6，见文件内编号注）。**task-16 又扩展了第 2 条**（机器隔离要求 + 第 7 步），task-15 记录的值 `f647fea9…` 作废。**task-18 再次扩展第 2 条**（启动卫生棘轮作为第 1 个执行步骤、总步数 8），task-16 记录的值 `15668e85…` 作废，现值为上表 `b407b7fe1b66e87a0fd43fc5644aa4704f4ef76c4db3963ee1a79686ee4f0dcb…`；`verify-release.sh` 亦由 422 行/7 步变为 425 行/8 步（旧值 `4a3dd255…` 仅作历史）。
 
 门禁脚本 sha256（本次实测，`e15577b` 工作树干净状态下计算）：
 
