@@ -128,10 +128,20 @@ seed_run_files() { # seed_run_files <prefix>: per-run copies, so two runs never 
 
 MUTATION=0
 SKIP_LIVE=0
+# WORLD_ONLY is set here and read down at the "T85 P0" section below. It was read
+# there but never set here until 2026-11-07: the flag was documented in the
+# section comment, the section existed, and turning it on was impossible -- the
+# parser answered "unknown argument: --world-only" and exited 2. mutate.sh m14
+# then read rc=2 as a refusal but could not find its token, so the mutation was
+# recorded MUTATION-GREEN (no named assertion went red) even though the gate's
+# behaviour under the mutant was never exercised. Fixing it here is what makes
+# m14 a real red-green test again.
+WORLD_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --mutation) MUTATION=1 ;;
     --skip-live) SKIP_LIVE=1 ;;
+    --world-only) WORLD_ONLY=1 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
