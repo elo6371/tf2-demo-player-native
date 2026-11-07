@@ -119,13 +119,28 @@ bool runSelfTest() {
   const float worldOrigin[3] = {100.0f, 200.0f, 50.0f};
   tf2::native::EntityModelInstanceRows rows;
   if (!tf2::native::buildEntityModelInstanceRows(worldOrigin, nullptr, false, world, rows)) return false;
+  // T62 permutes the model axes into the world axes: model (x,y,z) -> world (z,x,y).
+  // The world map translates X/Y by center and Z by minZ with a fixed 0.1 lift, so the
+  // permutation happens before the scale and the offsets follow the *world* axis.
+  // These expectations used to be written against the pre-T62 row order and went stale
+  // the moment the permutation landed: the self-test has been red for every build since,
+  // and because nothing but m10 ever ran it, the world-model fixture had silently become
+  // unreachable -- which made m10's first assertion vacuous rather than green.
   float mapped[3] = {};
   applyPosition(rows, 1.0f, 2.0f, 3.0f, mapped);
-  if (!near(mapped[0], 0.91f) || !near(mapped[1], 1.82f) || !near(mapped[2], 1.06f)) return false;
+  // world x = h*(origin.x - centerX) + h*model.z = 0.90 + 0.03
+  // world y = h*(origin.y - centerY) + h*model.x = 1.80 + 0.01
+  // world z = 0.1 + zScale*(origin.z - minZ) + zScale*model.y = 1.00 + 0.04
+  if (!near(mapped[0], 0.93f) || !near(mapped[1], 1.81f) || !near(mapped[2], 1.04f)) return false;
   float normal[3] = {};
   applyNormal(rows, 0.0f, 1.0f, 0.0f, normal);
-  if (!near(normal[0], 0.0f) || !near(normal[1], 1.0f) || !near(normal[2], 0.0f)) return false;
-  if (!near(rows.positionRows[0], world.horizontalScale) || !near(rows.normalRows[0], 1.0f)) return false;
+  // model +Y is world +Z under the permutation: it is the model's height axis.
+  if (!near(normal[0], 0.0f) || !near(normal[1], 0.0f) || !near(normal[2], 1.0f)) return false;
+  // Row 0 column 2 is the model z column, row 1 column 0 is the model x column, and the
+  // translation sits in column 3 of the world row it belongs to.
+  if (!near(rows.positionRows[0], 0.0f) || !near(rows.positionRows[2], world.horizontalScale)
+      || !near(rows.positionRows[3], 0.9f) || !near(rows.normalRows[0], 0.0f)
+      || !near(rows.normalRows[2], 1.0f)) return false;
 
   const float yaw90[3] = {0.0f, 90.0f, 0.0f};
   const float yawOrigin[3] = {10.0f, 0.0f, 0.0f};
@@ -134,17 +149,21 @@ bool runSelfTest() {
   unit.zScale = 1.0f;
   tf2::native::EntityModelInstanceRows yawRows;
   if (!tf2::native::buildEntityModelInstanceRows(yawOrigin, yaw90, true, unit, yawRows)) return false;
+  // yaw +90 turns the model's +X (which the permutation sends to world +Y) into
+  // world -X: 10 - 1, and the point keeps its 0.1 lift.
   applyPosition(yawRows, 1.0f, 0.0f, 0.0f, mapped);
-  if (!near(mapped[0], 10.0f) || !near(mapped[1], 1.0f) || !near(mapped[2], 0.1f)) return false;
+  if (!near(mapped[0], 9.0f) || !near(mapped[1], 0.0f) || !near(mapped[2], 0.1f)) return false;
   applyNormal(yawRows, 1.0f, 0.0f, 0.0f, normal);
-  if (!near(normal[0], 0.0f) || !near(normal[1], 1.0f) || !near(normal[2], 0.0f)) return false;
+  if (!near(normal[0], -1.0f) || !near(normal[1], 0.0f) || !near(normal[2], 0.0f)) return false;
 
   const float pitch90[3] = {90.0f, 0.0f, 0.0f};
   tf2::native::EntityModelInstanceRows pitchRows;
   const float zero[3] = {};
   if (!tf2::native::buildEntityModelInstanceRows(zero, pitch90, true, unit, pitchRows)) return false;
+  // pitch +90 drives the model's forward axis (model +Z, which the permutation sends
+  // to world +X) down the world -Z: the 0.1 lift minus one unit.
   applyPosition(pitchRows, 0.0f, 0.0f, 1.0f, mapped);
-  if (!near(mapped[0], 1.0f) || !near(mapped[1], 0.0f) || !near(mapped[2], 0.1f)) return false;
+  if (!near(mapped[0], 0.0f) || !near(mapped[1], 0.0f) || !near(mapped[2], -0.9f)) return false;
 
   const float badOrigin[3] = {0.0f, 0.0f, std::numeric_limits<float>::quiet_NaN()};
   if (tf2::native::buildEntityModelInstanceRows(badOrigin, nullptr, false, unit, rows)) return false;
