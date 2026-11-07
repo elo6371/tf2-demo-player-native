@@ -1,0 +1,21 @@
+HOLD_LOCK=1: captures and builds run inside the held lock (owner=t88-budget)
+seeded /tmp/tmp.7CyKYa92o2/settings.ini from the real profile (read only)
+seeded /tmp/tmp.7CyKYa92o2/ui.ini from the real profile (read only)
+ONLY: judging cp_snakewater_final1
+
+== cp_snakewater_final1 ==
+  reading load: 19523.9 map: geometry budget capacity=200000 requested=242361 dropped=42643 facesDropped=3513 brushFacesDropped=3246 brushModelsDropped=86 firstFace=12204 firstBrush=worldspawn state=truncated
+  reading brush: 21284.1 gpu: world brush models total=153 drawn=86 skippedMoving=67 skippedUnknown=0 facesDrawn=3246 facesSkipped=386 worldFaces=12471 brushFaces=3632
+  reading frame: 22948.6 gpu: world geometry budget capacity=200000 requested=242361 dropped=42643 facesDropped=3513 brushFacesDropped=3246 brushModelsDropped=86 drawTriangles=200000 state=truncated
+  FAIL B2 cp_snakewater_final1: capacity=200000, expected 400000
+  FAIL B2 cp_snakewater_final1: dropped=42643 state=truncated firstFace=12204 -- the map lost geometry to the budget
+  FAIL B2 cp_snakewater_final1: requested=242361 > capacity=200000
+  FAIL B3 cp_snakewater_final1: capacity=200000, pin=400000
+  reading cp_snakewater_final1: face partition world=12471 brush=3632 drawn=3246 skipped=386 unattributed=0
+  reading shrink 200000: geometry budget capacity=200000 requested=242361 dropped=42643 facesDropped=3513 brushFacesDropped=3246 brushModelsDropped=86 firstFace=12204 firstBrush=worldspawn state=truncated
+  reading shrink 100000: geometry budget capacity=100000 requested=242361 dropped=144209 facesDropped=4296 brushFacesDropped=3246 brushModelsDropped=86 firstFace=11421 firstBrush=worldspawn state=truncated
+  reading pl_odyssey (not asserted): probe demand=105486 at 4000000
+  ok   H1 real profile untouched by this run: /c/Users/Administrator/AppData/Local/TF2 Demo Player/settings.ini 2786 1794031387 /c/Users/Administrator/AppData/Local/TF2 Demo Player/ui.ini 978 1794031363 
+
+WORLD-GEOMETRY-BUDGET=FAIL (4 assertions)
+  EXIT-RESTORE main.cpp (a mutation was still applied at exit)

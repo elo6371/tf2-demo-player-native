@@ -1,0 +1,20 @@
+HOLD_LOCK=1: captures and builds run inside the held lock (owner=t88-budget)
+seeded /tmp/tmp.np2nUxlJzu/settings.ini from the real profile (read only)
+seeded /tmp/tmp.np2nUxlJzu/ui.ini from the real profile (read only)
+ONLY: judging cp_snakewater_final1
+
+== cp_snakewater_final1 ==
+  reading load: 17830.3 map: geometry budget capacity=400000 requested=234951 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading brush: 19579.0 gpu: world brush models total=153 drawn=25 skippedMoving=128 skippedUnknown=0 facesDrawn=354 facesSkipped=3278 worldFaces=12471 brushFaces=3632
+  reading frame: 21263.7 gpu: world geometry budget capacity=400000 requested=234951 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 drawTriangles=234699 state=within
+  FAIL B3 cp_snakewater_final1: requested=234951, pin=242361
+  FAIL B4 cp_snakewater_final1: facesDrawn=354, pin=3246
+  FAIL B4 cp_snakewater_final1: facesSkipped=3278, pin=386
+  reading cp_snakewater_final1: face partition world=12471 brush=3632 drawn=354 skipped=3278 unattributed=0
+  reading shrink 200000: geometry budget capacity=200000 requested=234951 dropped=35233 facesDropped=621 brushFacesDropped=354 brushModelsDropped=25 firstFace=12204 firstBrush=worldspawn state=truncated
+  reading shrink 100000: geometry budget capacity=100000 requested=234951 dropped=136799 facesDropped=1404 brushFacesDropped=354 brushModelsDropped=25 firstFace=11421 firstBrush=worldspawn state=truncated
+  reading pl_odyssey (not asserted): probe demand=105396 at 4000000
+  ok   H1 real profile untouched by this run: /c/Users/Administrator/AppData/Local/TF2 Demo Player/settings.ini 2786 1794031387 /c/Users/Administrator/AppData/Local/TF2 Demo Player/ui.ini 978 1794031363 
+
+WORLD-GEOMETRY-BUDGET=FAIL (3 assertions)
+  EXIT-RESTORE bsp_map.cpp (a mutation was still applied at exit)

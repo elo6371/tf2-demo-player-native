@@ -1,0 +1,19 @@
+== mutation window start 2026-11-07T17:48:56+08:00 owner=t88-budget pid=306210
+HOLD_LOCK=1: captures and builds run inside the held lock (owner=t88-budget)
+seeded /tmp/tmp.YdL4NPYGVv/settings.ini from the real profile (read only)
+seeded /tmp/tmp.YdL4NPYGVv/ui.ini from the real profile (read only)
+
+-- mutation capacity-shrink: native/src/main.cpp
+  mutation capacity-shrink: gate red at the named assertion --   FAIL B2 cp_snakewater_final1: capacity=200000, expected 400000
+  mutation capacity-shrink: native/src/main.cpp restored byte-identical (sha256 9914fa023f02ac1530c44fb96cde87d245c293d19333d7057208cffaa6a0c9bf)
+  mutation capacity-shrink: gate green again after restore
+
+-- mutation illusionary-whitelist: native/src/bsp_map.cpp
+  mutation illusionary-whitelist: gate red at the named assertion --   FAIL B4 cp_snakewater_final1: facesDrawn=354, pin=3246
+  mutation illusionary-whitelist: native/src/bsp_map.cpp restored byte-identical (sha256 363d2dc7a6cd20588bc3007cf0b76192e51d152ebdac235549dbb523cb375777)
+  mutation illusionary-whitelist: gate green again after restore
+
+WORLD-GEOMETRY-BUDGET-MUTATION=PASS
+mutation rc=0
+-- source state after the mutations (must show no mutation left behind)
+== mutation window end 2026-11-07T17:52:11+08:00 rc=0
