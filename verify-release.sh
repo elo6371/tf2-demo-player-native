@@ -35,6 +35,7 @@
 #   world-geometry-budget 1200   VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET
 #   install-cli-contract  1800   VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT
 #   playback-error-paths  1200   VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS
+#   timeline              1800   VERIFY_RELEASE_TIMEOUT_TIMELINE
 #
 # Step 2 is debt-claim-check.sh (task-20): it is static (no build, no product,
 # no lock) and fails when a row of docs/T85-DEBT-LIST.md claims CAN-RED without a
@@ -58,7 +59,7 @@
 #
 # ARTEFACTS: evidence/release/<utc>-<step>.log, <utc>-summary.txt,
 #            <utc>-machine-before.txt, <utc>-machine-after.txt
-# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=11  (last stdout line)
+# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=12  (last stdout line)
 #
 # Exit: 0 PASS, 1 FAIL, 9 refused (not under the host lock / owner mismatch).
 #
@@ -72,7 +73,7 @@ STAMP=${VERIFY_RELEASE_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 OWNER=${VERIFY_RELEASE_OWNER:-}
 DRY=${VERIFY_RELEASE_DRY_RUN:-0}
 
-STEPS=(launch-hygiene debt-claim verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget install-cli-contract playback-error-paths)
+STEPS=(launch-hygiene debt-claim verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget install-cli-contract playback-error-paths timeline)
 TOTAL=${#STEPS[@]}
 
 step_file() {
@@ -88,6 +89,7 @@ step_file() {
     world-geometry-budget) echo world-geometry-budget-check.sh ;;
     install-cli-contract)  echo install-cli-contract-check.sh ;;
     playback-error-paths)  echo playback-error-paths-check.sh ;;
+    timeline)              echo timeline-check.sh ;;
     *)                     echo "" ;;
   esac
 }
@@ -105,6 +107,7 @@ step_timeout() {
     world-geometry-budget) echo "${VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET:-1200}" ;;
     install-cli-contract)  echo "${VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT:-1800}" ;;
     playback-error-paths)  echo "${VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS:-1200}" ;;
+    timeline)              echo "${VERIFY_RELEASE_TIMEOUT_TIMELINE:-1800}" ;;
     *)                     echo 1200 ;;
   esac
 }
@@ -125,6 +128,7 @@ step_verdict() {
     world-geometry-budget) echo WORLD-GEOMETRY-BUDGET ;;
     install-cli-contract)  echo INSTALL-CLI-CONTRACT ;;
     playback-error-paths)  echo PLAYBACK-ERROR-PATHS ;;
+    timeline)              echo TIMELINE-CHECK ;;
     *)                     echo "" ;;
   esac
 }
