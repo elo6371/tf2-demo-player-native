@@ -1,7 +1,7 @@
 # T92 — 安装器 CLI 契约：dry-run 是一个模式，manifest 是 UTF-8
 
 日期：2026-11-07　worktree：`D:/TF2_Native_Worktrees/t92-install`（分支 `task/t92-install`，基线 `e15577b`）
-门禁脚本：`install-cli-contract-check.sh`（仓库根，482 行，sha256 见同目录 `gate-script.sha256`）
+门禁脚本：`install-cli-contract-check.sh`（仓库根，487 行，sha256 见同目录 `gate-script.sha256`）
 
 ## 0. 状态（先读这一行）
 
@@ -35,7 +35,7 @@
 | `native/src/install_manifest.cpp` | 38-90 | 读侧新增 `validUtf8()` / `acpToUtf8()` / `installDirectoryAsUtf8()`：非法 UTF-8 → 按 ACP 重读，并打印 `manifest: legacy-acp installDirectory`（stdout + fflush） |
 | `native/src/install_manifest.cpp` | 308 | 解析 `installDirectory` 时调用 `installDirectoryAsUtf8(value)` |
 | `README.md` | 46-49 | 生命周期 flag 一段：dry-run 两种合法写法、冲突 exit 2、manifest UTF-8 与 legacy-acp 提示 |
-| `install-cli-contract-check.sh` | 新增 482 行 | 门禁（见 §3），含 hermetic settings（§4.3） |
+| `install-cli-contract-check.sh` | 新增 487 行 | 门禁（见 §3），含 hermetic settings（§4.3） |
 
 ## 3. 门禁的四组断言（原文 + 期望 token，行号对应当前脚本）
 
@@ -157,7 +157,7 @@ CMake Error at native/build-nmake/cmake_install.cmake:40 (file):
 
 已验证（本 worktree，有实测输出）：
 
-- `bash -n install-cli-contract-check.sh` 通过（482 行）。
+- `bash -n install-cli-contract-check.sh` 通过（487 行）。
 - 门禁前置构建：`build-target.sh tf2_demo_native install_cli_probe native_install_smoke_probe` BUILD_RC=0，exe sha256=`25018de7…9f2b6`（见 `build-here.txt`）。
 - helper 的字节判读在两种路径分隔符下都正确（`helper-offline-test.txt`）：UTF-8 + 反斜杠路径 → `valid_utf8=yes`、`equals_utf8=yes`、`cp936_reads_as_path=no`；同一行走完 `legacy` 重写 → `valid_utf8=no`、`cp936_reads_as_path=yes`。
 - A2/A2b 冲突拒绝：真实二进制 8 条断言全绿（`red-run-1/forward.log`）。
