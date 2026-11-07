@@ -1578,6 +1578,119 @@ bool resolveMaterialSlotChain(const tf2::native::AssetRoot& assets, const tf2::n
     skinFamily, slot, reader, out);
 }
 
+// 8.3-2: a model index is not an anchor. Every claim this round makes about a
+// sequence ("a_flinch01 is 13 frames", "six classes have no crouch locomotion")
+// names a model path, and a path alone cannot tell two installs apart. The digest
+// below is taken over exactly the bytes the loader reads (the VPK member, or the
+// loose file when one is present), so the anchor is content, not a name.
+std::string sha256Hex(const std::uint8_t* data, std::size_t size) {
+  static const std::uint32_t kRound[64] = {
+    0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
+    0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
+    0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
+    0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
+    0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
+    0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
+    0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
+    0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u};
+  std::uint32_t h[8] = {0x6a09e667u,0xbb67ae85u,0x3c6ef372u,0xa54ff53au,
+                        0x510e527fu,0x9b05688cu,0x1f83d9abu,0x5be0cd19u};
+  const auto rotr = [](std::uint32_t x, int n) { return (x >> n) | (x << (32 - n)); };
+  std::vector<std::uint8_t> block;
+  block.reserve(((size + 8) / 64 + 1) * 64);
+  for (std::size_t i = 0; i < size; ++i) block.push_back(data[i]);
+  block.push_back(0x80u);
+  while (block.size() % 64 != 56) block.push_back(0u);
+  const std::uint64_t bits = static_cast<std::uint64_t>(size) * 8u;
+  for (int i = 7; i >= 0; --i) block.push_back(static_cast<std::uint8_t>((bits >> (i * 8)) & 0xffu));
+  std::uint32_t w[64];
+  for (std::size_t offset = 0; offset < block.size(); offset += 64) {
+    for (int i = 0; i < 16; ++i) {
+      const std::size_t at = offset + static_cast<std::size_t>(i) * 4;
+      w[i] = (static_cast<std::uint32_t>(block[at]) << 24) | (static_cast<std::uint32_t>(block[at + 1]) << 16)
+           | (static_cast<std::uint32_t>(block[at + 2]) << 8) | static_cast<std::uint32_t>(block[at + 3]);
+    }
+    for (int i = 16; i < 64; ++i) {
+      const std::uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
+      const std::uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
+      w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+    }
+    std::uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+    for (int i = 0; i < 64; ++i) {
+      const std::uint32_t s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const std::uint32_t ch = (e & f) ^ (~e & g);
+      const std::uint32_t t1 = hh + s1 + ch + kRound[i] + w[i];
+      const std::uint32_t s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const std::uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
+      const std::uint32_t t2 = s0 + maj;
+      hh = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+    }
+    h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e; h[5] += f; h[6] += g; h[7] += hh;
+  }
+  char out[65];
+  for (int i = 0; i < 8; ++i) std::snprintf(out + i * 8, 9, "%08x", h[i]);
+  return std::string(out, 64);
+}
+
+// index -> file -> content digest, plus the skeleton the file declares. The rig
+// name here is the studiohdr name (the file's own statement about what it is) and
+// the root bone is printed beside it, because a rig "identity" made of one string
+// is exactly the kind of assumption that later reads as a fact.
+void printModelFingerprints(const tf2::native::DemoNetworkSummary& summary,
+                            const tf2::native::AssetRoot& assets, const std::string& filter) {
+  std::vector<std::pair<std::uint16_t, std::string>> entries(
+      summary.modelPrecache.begin(), summary.modelPrecache.end());
+  std::sort(entries.begin(), entries.end(),
+            [](const auto& left, const auto& right) { return left.first < right.first; });
+  std::size_t shown = 0, hashed = 0, missing = 0;
+  for (const auto& [index, path] : entries) {
+    if (filter != "*" && path.find(filter) == std::string::npos) continue;
+    ++shown;
+    const auto bytes = readAssetBytes(assets, path);
+    const std::string digest = bytes.empty() ? std::string() : sha256Hex(bytes.data(), bytes.size());
+    if (bytes.empty()) { ++missing; } else { ++hashed; }
+    // The studiohdr fields a fingerprint needs are at fixed offsets, so the name,
+    // checksum and bone count come straight out of the bytes already read -- no
+    // second pass over the archive. Only the player models get a full inspection,
+    // because that is where the rig name and sequence table live and where the
+    // action table's claims are anchored; inspecting all nine hundred models would
+    // turn a fingerprint run into a minute of parsing.
+    std::string mdlName = "-";
+    std::string rootBone = "-";
+    std::uint32_t checksum = 0, bones = 0, sequences = 0;
+    if (bytes.size() > 160) {
+      std::size_t nameLength = 0;
+      while (nameLength < 64u && bytes[12 + nameLength] != 0) ++nameLength;
+      if (nameLength > 0) {
+        mdlName.assign(reinterpret_cast<const char*>(bytes.data() + 12), nameLength);
+      }
+      checksum = readLittleEndianU32(bytes, 8);
+      bones = readLittleEndianU32(bytes, 156);
+    }
+    if (path.find("models/player/") != std::string::npos) {
+      const auto candidate = tf2::native::ModelLoader::resolveAsset(assets, path);
+      const auto inspection = tf2::native::ModelLoader::inspect(candidate.resources);
+      if (inspection.metadata.valid) {
+        const auto& metadata = inspection.metadata;
+        if (!metadata.name.empty()) mdlName = metadata.name;
+        checksum = metadata.checksum != 0 ? metadata.checksum : checksum;
+        bones = metadata.boneCount != 0 ? metadata.boneCount : bones;
+        sequences = metadata.sequenceCount;
+        if (!metadata.bones.empty() && !metadata.bones.front().name.empty()) {
+          rootBone = metadata.bones.front().name;
+        }
+      }
+    }
+    std::fprintf(stdout,
+      "model-fingerprint idx=%u path=%s bytes=%zu sha256=%s mdlName=%s checksum=%u bones=%u sequences=%u rootBone=%s\n",
+      static_cast<unsigned>(index), path.c_str(), bytes.size(),
+      digest.empty() ? "-" : digest.c_str(), mdlName.c_str(), checksum, bones, sequences, rootBone.c_str());
+  }
+  std::fprintf(stdout, "model-fingerprint summary entries=%zu shown=%zu hashed=%zu missing=%zu filter=%s\n",
+               summary.modelPrecache.size(), shown, hashed, missing, filter.c_str());
+  std::fflush(stdout);
+}
+
 int runPlayerModelAudit(const std::string& tfRoot, const std::string& classTablePath) {
   const auto assets = tf2::native::AssetRoot::fromPath(tfRoot);
   if (!assets.valid()) {
@@ -1853,6 +1966,8 @@ int main(int argc, char** argv) {
   std::size_t historyCoverageSamples = 0;
   bool renderedOrigins = false;
   bool playerModelAudit = false;
+  bool modelFingerprints = false;
+  std::string modelFingerprintFilter = "*";
   std::string classTablePath;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -1878,6 +1993,7 @@ int main(int argc, char** argv) {
     else if (arg == "--trajectory-dump") trajectoryDump = true;
     else if (arg == "--trajectory-at" && i + 1 < argc) parseTickList(argv[++i], trajectoryAt);
     else if (arg == "--player-model-audit") playerModelAudit = true;
+    else if (arg == "--model-fingerprints") { modelFingerprints = true; if (i + 1 < argc) modelFingerprintFilter = argv[++i]; }
     else if (arg == "--class-table" && i + 1 < argc) classTablePath = argv[++i];
   }
   if (selfTest && !runSelfTest()) return fail("self-test failed");
@@ -2256,6 +2372,7 @@ int main(int argc, char** argv) {
       for (const auto& instance : instances) if (instance.worldModelIndexPath) ++worldModelInstances;
     }
     if (weaponModelDump) printWeaponModels(summary);
+    if (modelFingerprints) printModelFingerprints(summary, assets, modelFingerprintFilter);
     TrajectoryStats trajectory;
     if (trajectoryTicks > 0) measureTrajectory(summary, trajectoryTicks, trajectory);
     std::cout << "{\"ok\":true"
