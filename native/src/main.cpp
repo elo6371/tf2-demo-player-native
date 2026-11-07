@@ -1906,8 +1906,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
         // Refuse, do not guess: a run that asked for a size and silently got
         // another one would make its captures incomparable without saying so.
         LocalFree(preArguments);
-        OutputDebugStringW(L"TF2 Demo Player: --window-size wants WxH (e.g. 1280x720); refusing to guess.
-");
+        OutputDebugStringW(L"TF2 Demo Player: --window-size wants WxH (e.g. 1280x720); refusing to guess.\n");
         return 13;
       }
       windowWidth = static_cast<int>(widthValue);

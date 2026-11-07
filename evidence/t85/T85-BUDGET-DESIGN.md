@@ -466,3 +466,27 @@ third-person-weapon-check.sh 与 player-body-appearance-check.sh 用同样方法
 从 2575/2074 变成 **548/47**（真实改动），git diff 首块从"@@ -1,2074 +1,2575 @@"（整文件）变成
 "@@ -104,6 +104,28 @@"（局部）。教训：**补丁脚本回写前先断言文件里双 CRLF 计数为 0**，
 并在改完后立刻看 numstat 的量级——一个脚本的改动不该让一个 2600 行的文件"整篇重写"。
+
+## 8.8 首次编译验证（lead m02051 破例：只编不跑，不占锁）
+
+本轮的顺序是"改完即提交、编译推迟到合并窗口"，代价是 85 文件 / 7971 行在提交时从未编译过。
+lead 在 m02051 破例允许"只编不跑"（不进 hostlock，绝不启动 exe、不抓帧、不跑门禁），实测结果：
+
+- 第一次：\`bash build-target.sh tf2_demo_native entity_overlay_probe\` rc=2，4 条 error，全部集中在
+  \`native/src/main.cpp:1909-1911\`：\`error C2001: 常量中有换行符\`。
+  原因是我自己补 \`--window-size\` 时，python patcher 写进源码的 \`OutputDebugStringW(L"...; refusing to guess.\n")\`
+  里那个 \n 被写成了真正的换行，字符串字面量断成两行。这是"只用文本补丁改 C++ 而不编译"的典型代价：
+  补丁脚本对引号/转义没有任何类型检查。
+- 修复：\`native/src/main.cpp:1909\` 改回单行字面量 \`... refusing to guess.\n");\`（补丁 .scratch/fix-literal.py，
+  先断言坏串出现次数 ==1 再替换）。
+- 第二次：rc=0，0 条 error，仅剩仓库原有告警（camera_bookmarks.cpp:134/191 C4456、logstf_panel.cpp:376 C4100、
+  install_manifest.cpp:51 C4189、main.cpp:2605-2609 C4244、main.cpp:10021 C4457、main.cpp:10260 C4456）。
+  exe：\`native/build-nmake/tf2_demo_native.exe\` 2794496 B，sha256
+  \`d696c8756e8fe627835078a3e27f9b800099d9d80b827075ed7efdc2ff3a7a23\`（16:26:36）；
+  probe：\`entity_overlay_probe.exe\` sha256 \`f3418ebe90821c0458c5187666eb16903dbb6578baae3d2ba925cd5e819d2750\`。
+- 二进制里能静态看到的标记（不启动产品）：\`window: created\` 1 处、\`window: dpi-changed\` 1 处、
+  \`capture: frame\` 1 处、\`submitted=\` 2 处、\`budget: eviction\` 1 处、\`deferredNotResident\` 1 处、
+  \`attach: coverage\` 1 处；\`--window-size\` 是宽字符串（UTF-16LE 2 处，ASCII 0 处，用 python 按编码分别数）。
+- **仍未越过的边界**：本次只有编译器看过这些代码，产品一行都没跑。也就是说 \`--window-size\` 是否真的钉住客户区、
+  \`capture: frame\` 是否每帧都打、\`budget: instances ... submitted\` 的账是否平，全部仍然是"未验证"。
+  唯一新增的事实是"它能编译"。
