@@ -79,6 +79,8 @@
 | 音频 | 解析、时间线普查、内容映射（MP3 content）、null sink 静默、播放器在真实录音上仍 `--audio-disabled` | `verify-audio.sh:1280`（`assertions_ok`）、`:1275` 变异；`verify-audio-content.sh:566` | **设备 6 可听验收**（不带 `--device` 会跳过）；格式清单成表 |
 | 安装与升级 | 全新用户安装、升级/降级按 packageVersionCode 判定、restart 复用根目录、用户数据保留、逐文件 SHA256 清单 | `install-readiness-check.sh:596`/`:836`；`install-lifecycle-check.sh:817`/`:1092`；`native/src/install_manifest.cpp:78`/`:263` | 运行中镜像检查（`install-lifecycle-check.sh:446` 明写为命名延期，不是 PASS） |
 
+**已知限制（D-26，用户可见，不阻塞发布）**：后退 seek（`sceneTick < lastObservedTick`）会清空 `playerAnimationRuntimes`（`native/src/main.cpp:9339-9346`，注释写明是「cross-seek 不积分」的取舍），所以把进度条往回拖之后，角色动画从相位 0 重新开始，而不是与正向播放同帧。实测：同一 demo 同一场景 tick 的两条路径，后退路径 8 个实体 `cycle` 全 `0.000000`（`D:/_shared/t85-timeline/runs/H3a/trace.txt:782-789`），正向播放 `0.248827`–`0.960206`（`runs/H3c/trace.txt:7012-7019`），7 个共同实体 `maxDeltaCycle=0.960206`，重复基线 `0.000000`；BMP XOR=1,952,690 且跨批可复现（H3a==H2、H3c==H1）→ 屏幕可见。这是**有意取舍**：产品当前不保证「后退后与正向同帧」，所有门禁都走正向播放，因此没有门禁能判它红（`docs/T85-DEBT-LIST.md` D-26 记 `CANNOT-RED`）。若将来要求「拖回后连续」，须先改产品语义再立门禁。
+
 ## 5. 数字口径（写文档时必须用这一套）
 
 - 角色矩阵：**9 职业 × 5 轴 = 45 格，45 PASS**（`CHARACTER-MATRIX.md:362`）。其中 **18 格**有具名渲染实体（同 `:375`），**九对**同职业红蓝（`:379`）。

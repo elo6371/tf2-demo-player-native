@@ -19,11 +19,16 @@ whenever a task finished or a date passed.
    of product launches still skipping `--settings-file`/`--ui-settings-file`
    (D-22) and fails both when the set grows and when a gate was fixed without
    deleting its baseline row -- so "the chain isolated the machine" cannot decay
-   silently between release runs. 70 of the 99 gate scripts in this
+   silently between release runs. **Step 2 is `debt-claim-check.sh`**, a static
+   reader of `docs/T85-DEBT-LIST.md`: every row whose last cell claims `CAN-RED`
+   must name a gate anchor (`gate:<script>#<literal token>`) that resolves to a
+   real script containing that token, so "this debt can be judged red" is not
+   prose. `CANNOT-RED` / `CAN-RED-UNANCHORED` are allowed only with a reason; the
+   latter is the list of gates still owed. It needs no lock: no build, no launch. 70 of the 99 gate scripts in this
    tree are outside `verify-all.sh` -- the four P0 gates named by the handoff
    among them -- so `VERIFY=PASS` from `verify-all.sh` alone is not "the chain
    ran" (debts D-19/D-21). `verify-release.sh` prints one line,
-   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=8`, and that line is the only
+   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=9`, and that line is the only
    citable whole-chain verdict. **The chain must also prove it did not rewrite the
    tester's real configuration.** Before the first step and after the last one it
    snapshots `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` and `ui.ini`
@@ -39,6 +44,12 @@ whenever a task finished or a date passed.
    and the mutation must turn the assertion red for the right reason.
 4. **Merging is guarded by the regression gate of every module it touches.**
    A merge is not accepted on the strength of 'the chain ran last week'.
+   **A ratchet baseline is worktree-local evidence and must be re-checked after
+   the merge.** When `gate-launch-hygiene-check.sh` (or any gate that carries a
+   baseline file) is merged back into the frozen tree, the first chain run on the
+   frozen tree must re-run the gate there; if the baseline genuinely changed,
+   review the diff and only then run `--update-baseline`. A baseline generated in
+   a task worktree says nothing about the frozen tree.
 5. **Builds, frame captures and mutation suites stay serial** -- one instance
    machine-wide, through the host lock. That has not changed and this policy does
    not relax it.

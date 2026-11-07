@@ -107,13 +107,14 @@
 | N25 | 地图侧 `func_lod` 距离剔除（N04 的子项） | **无**：`func_lod` 在静态白名单里（`bsp_map.cpp:319-321`）→ 当常驻 brush 画；四图 0/4/53/53 个 | 同上 N24（顺延为 N25） |
 | N26 | 门禁/整链不改写用户真实配置（`settings.ini` / `ui.ini`） | **静态棘轮已接管“不许变坏”，“确实没改写”仍只有整链守卫**：`gate-launch-hygiene-check.sh`（task-18）枚举命令位启动点，断言违规集合 == `evidence/gate-launch-hygiene/baseline.txt`；权威读数 launchers=51、sites=78、violations=**85 行 / 47 脚本**（32 缺 `--settings-file` + 42 缺 `--ui-settings-file` + 6 shared settings + 5 shared ui；42 脚本有“完全没传”、6 脚本有“传了但落在 tracked/AppData”，`viewmodel-animation-check.sh` 两者兼有）、warnings=23、lifecycle 豁免 1；产品退出必写 `settings.ini`（`native/src/main.cpp:11613-11616`、`:11627-11629`），每个 `--demo` 启动必写 `ui.ini`（`native_ui.cpp:196-197` → `:128-143`）。`verify-release.sh` 的 machine guard 在整链层判 `MACHINE-MUTATED=FAIL`，**没有任何单门禁**断言自己没改用户配置（棘轮只冻结集合，不证明没写） | task-16/task-18；`docs/T85-DEBT-LIST.md` D-22；`gate-launch-hygiene-check.sh`；`verify-release.sh` machine guard |
 | N27 | 启动卫生棘轮的**覆盖盲区** | 棘轮只认静态可见的“命令位产品调用”（direct / array-exec / array-def）。以下**都不可见、无任何断言**：python heredoc 内 `subprocess` 启动、PowerShell `.ps1` 启动、函数包装器（如 `run_exe`）转发、"$@" 转发、.cmd/.bat 启动器、以及 `bash -c` 字符串里的启动。本次 101 脚本扫描里 wrapped 站点全部落在 lifecycle 脚本、非 lifecycle 侧未见——但**这是抽样结论，不是棘轮保证**：新增包装器写法可绕过棘轮而不变红 | task-18；`gate-launch-hygiene-check.sh` 头注“模型边界”段；`evidence/gate-launch-hygiene/baseline.txt` |
+| N28 | 债表「能判红」声明本身没有门禁（task-20） | 债表每行末列改为机器声明，由 `debt-claim-check.sh` 解析：`CAN-RED gate:<脚本>#<字面 token>` 要求脚本存在且字节级命中；无锚点、脚本不存在、token 打错三种都 `FAIL: <id> ...` 且 rc=1。`CANNOT-RED <理由>` / `CAN-RED-UNANCHORED <理由>` 必须带理由，后者计入「待补门禁」；全表 anchored=0 时门禁自身也红。当前 50 行（39 条 8.x + 11 条 D 表）：anchored=24、cannot=21、unanchored=5（8.2-7 / 8.3-2 / 8.5-5 / D-17 / D-20）。负控 4 红 + 2 正控见 `.scratch/debt-claim-nc.sh`；整链第 2 步 | task-20；`debt-claim-check.sh`；`docs/T85-DEBT-LIST.md` §8 末列；`verify-release.sh` 第 2 步 |
 
 > 编号口径：map-auditor 原稿把雾/illusionary/props/世界 alpha/HDR/func_lod 编为 N19–N24；主账本 N19 已被"官方四图角色轴外推"占用，故整体 **+1 → N20–N25**，顺序不变。HDR 与 func_lod 审计建议分别并入 N07/N04，主账本**保留独立编号**以免丢掉量化数字（削顶占比、0/4/53/53）。
 
 ## 8. 覆盖统计（据本表）
 
 - 有门禁可引用的支持声明：**C01–C29 共 29 条**；其中等级 A 8 条（C01/C05/C08/C09/C14/C15/C18/C26）、B 19 条、C 2 条（C02 为探针计数、C07 为矩阵读数，均无门禁断言）。
-- 明确无门禁的声明：**N01–N27 共 27 条**（N17/N18 是 task-6 复核 workflow-auditor 结论后新增的"产品内无通路"两条；N19 是 task-6 按地图夹具覆盖度新增的外推闸；N20–N25 是 task-15 接收地图审计的六条，编号已按上表顺延；N26 是 task-16 新增的"门禁不改写用户真实配置"，task-18 后用静态棘轮接管"set 不变坏"、整链 machine guard 仍负责"确实没写"；N27 是 task-18 新增的棘轮盲区（python/PS/包装器/转发启动不可见））。
+- 明确无门禁的声明：**N01–N28 共 28 条**（N17/N18 是 task-6 复核 workflow-auditor 结论后新增的"产品内无通路"两条；N19 是 task-6 按地图夹具覆盖度新增的外推闸；N20–N25 是 task-15 接收地图审计的六条，编号已按上表顺延；N26 是 task-16 新增的"门禁不改写用户真实配置"，task-18 后用静态棘轮接管"set 不变坏"、整链 machine guard 仍负责"确实没写"；N27 是 task-18 新增的棘轮盲区（python/PS/包装器/转发启动不可见）；N28 是 task-20 新增的「债表声明与门禁锚点一致性」）。
 - 关键结构性事实：**"45/45 PASS"是矩阵读数的合成**——45 格里只有 18 格绑定了具名渲染实体（`CHARACTER-MATRIX.md:375`），其余靠静态/结构断言与文档推理。引用 45/45 时必须同时引这一条，否则就是外推。
 
 ## 9. 复核用的哈希与命令（只读）
@@ -125,6 +126,13 @@ git rev-parse HEAD            # e15577b4f0550870bb11672a04497c038c9d88b2
 git status --porcelain | wc -l # 0
 sha256sum native/build-nmake/tf2_demo_native.exe
 # a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9  2,763,264 B
+
+# 门禁（task-18 / task-20）
+sha256sum gate-launch-hygiene-check.sh   # 4fa73f6ae22312bf935dd37d7163d031695df6379b68f47143c4cadf5ab02508
+sha256sum evidence/gate-launch-hygiene/baseline.txt # 2b417a767313b14add52b51f3e0fd85343b8a47c02a754249febfcab4136bfbf
+sha256sum debt-claim-check.sh            # 2500c56fb7cf11ff1bcc113e7e6a2982987bf2bab8b9b260d9dfc42ed498d752
+sha256sum verify-release.sh              # 7ac88ae47eb5330ae6c2befd440b0f0f3786e37ae358cc380afcbae1c767ae48
+sha256sum docs/T85-DEBT-LIST.md          # 3fa81d1971b89f0df4e856dc56d2e8d24f7e615b9c60d812c2bc0846ca08f2ee
 
 # 文档（本仓库内的权威读数）
 sha256sum evidence/t62-matrix/CHARACTER-MATRIX.md   # 81028863238a7bb5c1f000f1939694c73e719837c612b96648c730bbd3ac9ecc

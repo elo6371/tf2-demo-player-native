@@ -25,6 +25,7 @@
 # TIMEOUTS (seconds, per step; a step that hits its timeout is recorded as
 # <STEP>=TIMEOUT, the chain continues, and the run cannot be PASS)
 #
+#   debt-claim             120   VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM
 #   verify-all            3600   VERIFY_RELEASE_TIMEOUT_VERIFY_ALL
 #   outline               1800   VERIFY_RELEASE_TIMEOUT_OUTLINE
 #   third-person-weapon   1200   VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON
@@ -32,6 +33,10 @@
 #   class-pixels          1200   VERIFY_RELEASE_TIMEOUT_CLASS_PIXELS
 #   build-identity        1200   VERIFY_RELEASE_TIMEOUT_BUILD_IDENTITY
 #   world-geometry-budget 1200   VERIFY_RELEASE_TIMEOUT_WORLD_GEOMETRY_BUDGET
+#
+# Step 2 is debt-claim-check.sh (task-20): it is static (no build, no product,
+# no lock) and fails when a row of docs/T85-DEBT-LIST.md claims CAN-RED without a
+# resolvable gate anchor. Step 3 is verify-all.
 #
 # build-identity-check.sh (task-14 / t90-identity) and
 # world-geometry-budget-check.sh (task-13) do not exist yet. Until each lands its
@@ -51,7 +56,7 @@
 #
 # ARTEFACTS: evidence/release/<utc>-<step>.log, <utc>-summary.txt,
 #            <utc>-machine-before.txt, <utc>-machine-after.txt
-# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=7   (last stdout line)
+# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=9   (last stdout line)
 #
 # Exit: 0 PASS, 1 FAIL, 9 refused (not under the host lock / owner mismatch).
 #
@@ -65,12 +70,13 @@ STAMP=${VERIFY_RELEASE_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 OWNER=${VERIFY_RELEASE_OWNER:-}
 DRY=${VERIFY_RELEASE_DRY_RUN:-0}
 
-STEPS=(launch-hygiene verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget)
+STEPS=(launch-hygiene debt-claim verify-all outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget)
 TOTAL=${#STEPS[@]}
 
 step_file() {
   case "$1" in
     launch-hygiene)        echo gate-launch-hygiene-check.sh ;;
+    debt-claim)            echo debt-claim-check.sh ;;
     verify-all)            echo verify-all.sh ;;
     outline)               echo outline-check.sh ;;
     third-person-weapon)   echo third-person-weapon-check.sh ;;
@@ -85,6 +91,7 @@ step_file() {
 step_timeout() {
   case "$1" in
     launch-hygiene)        echo "${VERIFY_RELEASE_TIMEOUT_LAUNCH_HYGIENE:-120}" ;;
+    debt-claim)            echo "${VERIFY_RELEASE_TIMEOUT_DEBT_CLAIM:-120}" ;;
     verify-all)            echo "${VERIFY_RELEASE_TIMEOUT_VERIFY_ALL:-3600}" ;;
     outline)               echo "${VERIFY_RELEASE_TIMEOUT_OUTLINE:-1800}" ;;
     third-person-weapon)   echo "${VERIFY_RELEASE_TIMEOUT_THIRD_PERSON_WEAPON:-1200}" ;;
@@ -102,6 +109,7 @@ step_timeout() {
 step_verdict() {
   case "$1" in
     launch-hygiene)        echo GATE-LAUNCH-HYGIENE ;;
+    debt-claim)            echo DEBT-CLAIM ;;
     verify-all)            echo VERIFY ;;
     outline)               echo OUTLINE-CHECK ;;
     third-person-weapon)   echo THIRD-PERSON-WEAPON ;;
@@ -315,7 +323,7 @@ for step in "${STEPS[@]}"; do
     dur=$(( $(date +%s) - start ))
     if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
       status=TIMEOUT
-    elif [ "$rc" -eq 0 ] && grep -q "^${verdict}=PASS$" "$log"; then
+    elif [ "$rc" -eq 0 ] && grep -qE "^${verdict}=PASS($| )" "$log"; then
       status=PASS
     elif [ "$rc" -eq 0 ]; then
       status=NO-VERDICT
