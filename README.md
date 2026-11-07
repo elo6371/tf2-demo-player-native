@@ -43,7 +43,7 @@ The application uses resources from a local Team Fortress 2 installation. Game a
 native/build-nmake/tf2_demo_native.exe --tf-root "X:\SteamLibrary\steamapps\common\Team Fortress 2\tf" --demo "X:\SteamLibrary\steamapps\common\Team Fortress 2\tf\demos\sample.dem"
 ```
 
-`--demo` opens a recorded demo instead of the normal startup path; `--help` lists the other flags.
+`--demo` opens a recorded demo instead of the normal startup path. Flags the player does not recognise are ignored and counted in the trace (`args: unrecognized=N ...`); `--strict-args` refuses them instead, naming them on stderr and exiting 2 before a window appears — see [native/docs/cli-arguments.md](native/docs/cli-arguments.md).
 
 ## Verification
 

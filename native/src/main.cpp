@@ -2519,9 +2519,48 @@ bool outlineVertexExtent = false;
       }
     return false;
   };
+  // D-23 (2026-11-07): the argument loop below drops a switch it does not know,
+  // in silence, and the run continues with a configuration nobody asked for. Two
+  // gates in this wave were written that way -- one asked for
+  // `--no-player-animation`, which this product has never had, and one passed a
+  // bare `--player-weapon-attach`, which the product refuses (main.cpp:2821-2825)
+  // -- and both runs then measured something other than what their script said,
+  // with nothing in the output to show it. The default stays "ignore and keep
+  // going": verify-all.sh drives scripts that carry spellings this loop never
+  // sees, and refusing them would break runs that are not about arguments. What
+  // changes is that the count, the first name and the list are now in the trace,
+  // and that --strict-args turns that same list into a refusal.
+  //
+  // The list is capped at 16 because a trace line is a reading, not a dump of
+  // argv; the cap is written into the line as ",...+N more" rather than applied
+  // in silence, for the same reason every other truncated reading in this file
+  // says it was truncated.
+  std::vector<std::wstring> unrecognizedArguments;
+  bool strictArguments = false;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (parseFeatureArgument(i)) continue;
+      // D-23: flags that need no value and no ordering are consumed here, before the
+      // ladder, because the ladder below already sits at MSVC's block-nesting limit
+      // (C1061). Moving them out changes no behaviour: each one only set a flag, and
+      // none of them reads another argument.
+      if (wcscmp(arguments[i], L"--hidden-window") == 0) { hiddenWindow = true; continue; }
+      if (wcscmp(arguments[i], L"--audio-disabled") == 0) { audioDisabled = true; continue; }
+      if (wcscmp(arguments[i], L"--start-paused") == 0) { startPaused = true; continue; }
+      if (wcscmp(arguments[i], L"--vsync") == 0) { persistent.render.vsync = true; continue; }
+      if (wcscmp(arguments[i], L"--no-vsync") == 0) { persistent.render.vsync = false; continue; }
+      // The hermeticity pair is taken by the pre-scan at main.cpp:1898-1920, which has
+      // to run before the settings are loaded; the loop consumes it here as a KNOWN
+      // flag. Without this the D-23 counter would report the flags every gate passes
+      // as unrecognised, i.e. the gate's own hermeticity would look like a product bug.
+      if (wcscmp(arguments[i], L"--settings-file") == 0
+          || wcscmp(arguments[i], L"--ui-settings-file") == 0) {
+        if (i + 1 < argumentCount) ++i;  // the value, already read by the pre-scan
+        continue;
+      }
+      // --strict-args changes nothing by itself; it only decides what happens to the
+      // arguments this loop would otherwise ignore (see the block after the loop).
+      if (wcscmp(arguments[i], L"--strict-args") == 0) { strictArguments = true; continue; }
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"standard") == 0) {
           persistent.render = tf2::native::RenderSettings::fromPreset(
@@ -2530,10 +2569,6 @@ bool outlineVertexExtent = false;
           persistent.render = tf2::native::RenderSettings::fromPreset(
             tf2::native::QualityPreset::Performance);
         }
-      } else if (wcscmp(arguments[i], L"--vsync") == 0) {
-        persistent.render.vsync = true;
-      } else if (wcscmp(arguments[i], L"--no-vsync") == 0) {
-        persistent.render.vsync = false;
       } else if (wcscmp(arguments[i], L"--no-projectile-trajectory") == 0) {
         persistent.render.projectileTrajectory = false;
       } else if (wcscmp(arguments[i], L"--world-env-force") == 0) {
@@ -3007,12 +3042,6 @@ bool outlineVertexExtent = false;
         else audioDeviceRejected = true;
       } else if (wcscmp(arguments[i], L"--audio-device") == 0) {
         audioDeviceRejected = true;
-      } else if (wcscmp(arguments[i], L"--hidden-window") == 0) {
-        hiddenWindow = true;
-      } else if (wcscmp(arguments[i], L"--audio-disabled") == 0) {
-        audioDisabled = true;
-      } else if (wcscmp(arguments[i], L"--start-paused") == 0) {
-        startPaused = true;
       } else if (wcscmp(arguments[i], L"--metrics-file") == 0 && i + 1 < argumentCount) {
         metricsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--dump-entity-materials") == 0 && i + 1 < argumentCount) {
@@ -3030,9 +3059,60 @@ bool outlineVertexExtent = false;
         else captureTickRejected = true;
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0) {
         captureTickRejected = true;
+      } else {
+        // D-23: recorded, not rejected. The default run still ignores it, which
+        // is the behaviour every existing gate was written against.
+        unrecognizedArguments.push_back(arguments[i]);
       }
     }
     persistent.render.normalize();
+  }
+  // D-23: printed unconditionally, including the zero case, so that "the loop
+  // recognised the argument" and "the trace lost the line" cannot look alike.
+  // The first name is repeated outside the list because the list is capped; a
+  // reader that only wants to know WHICH switch it was should not have to parse
+  // a joined string.
+  char unrecognizedNames[512];
+  unrecognizedNames[0] = '\0';
+  {
+    std::size_t offset = 0;
+    const std::size_t listed = unrecognizedArguments.size() < 16
+      ? unrecognizedArguments.size() : 16;
+    for (std::size_t i = 0; i < listed; ++i) {
+      const std::string name = narrowAscii(unrecognizedArguments[i].c_str());
+      const int written = std::snprintf(unrecognizedNames + offset,
+        sizeof(unrecognizedNames) - offset, "%s%s", i == 0 ? "" : ",", name.c_str());
+      if (written <= 0) break;
+      offset += static_cast<std::size_t>(written);
+      if (offset >= sizeof(unrecognizedNames)) {
+        offset = sizeof(unrecognizedNames) - 1;
+        break;
+      }
+    }
+    if (unrecognizedArguments.size() > listed
+        && offset + 24 < sizeof(unrecognizedNames)) {
+      std::snprintf(unrecognizedNames + offset, sizeof(unrecognizedNames) - offset,
+        ",...+%zu more", unrecognizedArguments.size() - listed);
+    }
+    if (unrecognizedNames[0] == '\0') {
+      std::snprintf(unrecognizedNames, sizeof(unrecognizedNames), "-");
+    }
+  }
+  const std::string firstUnrecognized = unrecognizedArguments.empty()
+    ? std::string("-") : narrowAscii(unrecognizedArguments.front().c_str());
+  traceFmt("args: unrecognized=%zu first=%s all=%s",
+    unrecognizedArguments.size(), firstUnrecognized.c_str(), unrecognizedNames);
+  if (strictArguments && !unrecognizedArguments.empty()) {
+    // D-23: 2, not 13. Every rejection above returns 13 -- "the product refused a
+    // value it understood". This one is different in kind: the caller asked for
+    // strictness, so the command line it wrote is not the command line the
+    // product would have run. A script must be able to tell that apart from a bad
+    // setting value, and the name has to be in the message: the typo is the point.
+    std::fprintf(stderr,
+      "TF2 Demo Player: unrecognized argument(s) refused by --strict-args: %s\n",
+      unrecognizedNames);
+    std::fflush(stderr);
+    return 2;
   }
   // T52: the outline takes the overlay slot at startup, before anything can draw.
   // kUiPlay/F12 can then only change the FLAG; ownership is what makes "who is
