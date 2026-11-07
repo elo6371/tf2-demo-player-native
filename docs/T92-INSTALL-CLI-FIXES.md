@@ -38,7 +38,7 @@
 | native/src/main_lifecycle.cpp:42-44 | 整条参数表读完之后再决策：`if (dryRun && mode == None) mode = LifecycleMode::Install;`（位置无关） |
 | native/src/main_lifecycle.cpp:48-51 | `if (dryRun && mode != None && mode != Install) { dryRunConflict = true; return true; }` —— 两种问题一起问就拒绝 |
 | native/src/main_internal.h:61-64 | 新增 `bool dryRunConflict = false;` |
-| native/src/main_lifecycle.cpp:79-85 | 冲突分支输出 `install=FAIL reason=dry-run-conflict mode=<uninstall|install-status|version|unknown> detail=--install-dry-run only modifies --install`，`exitCode = 2` |
+| native/src/main_lifecycle.cpp:79-85 | 冲突分支输出 `install=FAIL reason=dry-run-conflict mode=<uninstall\|install-status\|version\|unknown> detail=--install-dry-run only modifies --install`，`exitCode = 2` |
 | native/src/install_lifecycle.cpp:296-297 | dry-run 自报身份：`install: dryrun mode=install dir=<UTF-8 路径> plan=<N> files`，再接原有的 `install=DRYRUN files=… backups=… manifest=…` |
 
 正确用法两种，等价：`--install-dry-run`（修后等价于 install+dryRun）与 `--install --install-dry-run`。
