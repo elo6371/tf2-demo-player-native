@@ -345,7 +345,7 @@ ATLAS=$(grep -ao "gpu: world atlas .*" "$TRACE_full" 2>/dev/null | head -1)
 VIS=$(grep -ao "gpu: world vis .*" "$TRACE_full" 2>/dev/null | head -1)
 printf '%s\n%s\n%s\n%s\n%s\n' "$FETCH" "$PLAN" "$ISO" "$ATLAS" "$VIS" > "$OUT/product-readings.txt"
 # The ceiling, as the reading it should have been all along.
-assert_eq "materials tiled" "$(rval "$FETCH" tiled)" "123"
+assert_eq "materials tiled" "$(rval "$FETCH" tiled)" "125"
 assert_eq "materials dropped by a ceiling" "$(rval "$FETCH" capped)" "0"
 assert_eq "the planner refused nothing" "$(rval "$PLAN" refused)" "0"
 assert_eq "batches bound" "$(rval "$PLAN" batches)" "2"
@@ -367,9 +367,9 @@ assert_ge "atlas bytes in total" "$(rval "$ATLAS" totalBytes)" "119000000"
 # one the old order would have thrown away first.
 TILES=$(tiles_of "$TRACE_full")
 echo "$TILES" > "$OUT/tile-table-$MAP.txt"
-assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "123"
+assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "125"
 assert_eq "tiles in batch 0" "$(printf '%s\n' "$TILES" | awk '$2==0' | grep -c .)" "64"
-assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "59"
+assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "61"
 VISIBLE_B1=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" | grep -c "visible=0 ")
 # 9 of the 59 batch-1 materials reach no triangle at this pose (6 before the
 # camera moved; see the 2026-11-01 RE-PIN note). The bound stays a ceiling on
@@ -386,7 +386,7 @@ assert_ge "$BEYOND_CAP_MATERIAL visible triangles" "$(rval "$BEYOND_LINE" visibl
 # pixel at this pose -- section 8 is where a pixel claim is made.
 SMALL_CAP_MATERIAL="WOOD/WOOD_WALL007A"
 SMALL_LINE=$(grep -ao "gpu: world tile material=$SMALL_CAP_MATERIAL .*" "$TRACE_full" | head -1)
-assert_eq "$SMALL_CAP_MATERIAL batch" "$(rval "$SMALL_LINE" batch)" "1"
+assert_eq "$SMALL_CAP_MATERIAL batch" "$(rval "$SMALL_LINE" batch)" "0"
 # 67 on ea97815 before T59 (measured), 39 on this tree (2026-11-01, same
 # measurement, the camera moved: see the RE-PIN note). The old floor of 100 was
 # set on a build whose material set differed. The assertion stays a floor: the
@@ -407,7 +407,7 @@ assert_ge "slot-0 binds" "$(rval "$ISO" slot0Binds)" "2"
 # orbit camera's reading on ea97815 before T80 moved the held camera off the
 # world origin; 184961 is the reading on this tree, and it is the same number
 # t2-visual-matrix.sh pins for this demo at this tick (see the RE-PIN note).
-assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "184961"
+assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "227070"
 # Two runs of the same build, byte for byte.
 run_product full2 "$DEMO" "$TICK"
 if cmp -s "$BMP_full" "$BMP_full2"; then
@@ -425,7 +425,7 @@ assert_eq "unclipped rc" "$RC_noclip" "0"
 NOCLIP_VIS=$(grep -ao "gpu: world vis .*" "$TRACE_noclip" 2>/dev/null | head -1)
 NOCLIP_PLAN=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_noclip" 2>/dev/null | head -1)
 assert_eq "unclipped frame is unclipped" "$(rval "$NOCLIP_VIS" clipApplied)" "0"
-assert_eq "unclipped tiles" "$(rval "$NOCLIP_PLAN" tiled)" "123"
+assert_eq "unclipped tiles" "$(rval "$NOCLIP_PLAN" tiled)" "125"
 assert_eq "unclipped batches" "$(rval "$NOCLIP_PLAN" batches)" "2"
 
 echo
@@ -434,7 +434,7 @@ run_product noblend "$DEMO" "$TICK" --world-blend off
 assert_eq "blend off rc" "$RC_noblend" "0"
 PLAN_OFF=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_noblend" 2>/dev/null | head -1)
 assert_eq "blend off batches" "$(rval "$PLAN_OFF" batches)" "2"
-assert_eq "blend off tiles" "$(rval "$PLAN_OFF" tiled)" "123"
+assert_eq "blend off tiles" "$(rval "$PLAN_OFF" tiled)" "125"
 assert_eq "blend off blend batches" "$(rval "$PLAN_OFF" blendBatches)" "0"
 
 echo
@@ -518,8 +518,8 @@ run_product control "$DEMO" "$TICK"
 CONTROL_LINE=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_control" 2>/dev/null | head -1)
 assert_eq "control rc" "$RC_control" "0"
 assert_eq "control tiles" "$(rval "$CONTROL_LINE" tiled)" "64"
-assert_eq "control refused" "$(rval "$CONTROL_LINE" refused)" "59"
-assert_eq "control refusals are budget refusals" "$(rval "$CONTROL_LINE" budget)" "59"
+assert_eq "control refused" "$(rval "$CONTROL_LINE" refused)" "61"
+assert_eq "control refusals are budget refusals" "$(rval "$CONTROL_LINE" budget)" "61"
 assert_eq "control batches" "$(rval "$CONTROL_LINE" batches)" "1"
 # The refusal has to name the same 59 materials the second batch admitted, or
 # "bounded batching added these" is a claim about a total rather than about a
@@ -529,12 +529,12 @@ printf '%s\n' "$TILES" | awk '$2==1 {print $1}' | sort > "$SCRATCH/beyond-cap.$R
 tiles_of "$TRACE_control" | awk '{print $1}' | sort > "$SCRATCH/control-tiles.$RUN_TAG.txt"
 comm -23 "$SCRATCH/beyond-cap.$RUN_TAG.txt" "$SCRATCH/control-tiles.$RUN_TAG.txt" \
   > "$SCRATCH/control-refused.$RUN_TAG.txt"
-assert_eq "materials the control refused" "$(grep -c . "$SCRATCH/control-refused.$RUN_TAG.txt")" "59"
+assert_eq "materials the control refused" "$(grep -c . "$SCRATCH/control-refused.$RUN_TAG.txt")" "61"
 # ...and every one of them is a named refusal in the table, not a missing row.
 CONTROL_REFUSED_ROWS=$(refused_of "$TRACE_control" | grep -c .)
 CONTROL_BUDGET_ROWS=$(grep -ao "gpu: world tile .*" "$TRACE_control" | grep -c "reason=atlas-budget")
-assert_eq "control rows that name a refusal" "$CONTROL_REFUSED_ROWS" "59"
-assert_eq "control rows refused for budget" "$CONTROL_BUDGET_ROWS" "59"
+assert_eq "control rows that name a refusal" "$CONTROL_REFUSED_ROWS" "61"
+assert_eq "control rows refused for budget" "$CONTROL_BUDGET_ROWS" "61"
 # And the picture. Two separate facts, because they are no longer the same one.
 #   - the control frame equals the full frame BYTE FOR BYTE at this pose. With 59
 #     materials refused to the flat fallback that is only possible because none of
@@ -595,8 +595,8 @@ printf '%s\n' "$DELTA" | sed 's/^/  /'
 # Re-pinned 2026-11-04 on 9219baf: 90188 was measured 2026-11-01, before be5e3ef
 # (2026-11-03) published the pose the followed frame is DRAWN with. The draw pose
 # moved, so 31 of the pixels the second batch's wall owned at the reference pose
-# now resolve elsewhere. The structural assertions above are unchanged.
-assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90157"
+# now resolve elsewhere. The structural assertions above are unchanged. Re-pinned 2026-11-08: the tree now reads 90109. 90157 was the pin this line carried since the T59 wave and 90188 above is the 2026-11-01 measurement; the pixels moved when fc884cd restored 45 func_illusionary faces (input/drawn 200000->242109 / 184961->227070).
+assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90109"
 DELTA_BLEND=$(frame_diff "$BMP_full" "$BMP_noblend")
 echo "$DELTA_BLEND" > "$OUT/coverage-delta-blend-off.txt"
 printf '%s\n' "$DELTA_BLEND" | sed 's/^/  /'
@@ -676,18 +676,18 @@ if [ "$MUTATION" -eq 1 ]; then
 
   # ---- m1: the budget stops the batching after one batch --------------------
   # This is the old ceiling, rebuilt out of new parts: one atlas, 64 tiles, the
-  # other 59 materials untextured. Every count that existed before this round
+  # other 61 materials untextured. Every count that existed before this round
   # stays green -- the atlas is bound, the fetch reports no cap -- and the
   # coverage claim is what goes red. Already run above as the control; the
-  # defect is the *forward* assertion that tiled=123, which the control's 64
+  # defect is the *forward* assertion that tiled=125, which the control's 64
   # fails.
   echo "--- m1: the budget admits one batch (the old 64-tile ceiling, rebuilt)"
-  if [ "$(rval "$CONTROL_LINE" tiled)" = "123" ]; then
+  if [ "$(rval "$CONTROL_LINE" tiled)" = "125" ]; then
     echo "  MUTATION-CAUGHT=FAIL (m1: the control still tiled every material)"
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$CONTROL_LINE" tiled)" = "64" ] && [ "$(rval "$CONTROL_LINE" refused)" = "59" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m1: tiled=64 refused=59 while the forward run read 123/0)"
+  if [ "$(rval "$CONTROL_LINE" tiled)" = "64" ] && [ "$(rval "$CONTROL_LINE" refused)" = "61" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m1: tiled=64 refused=61 while the forward run read 125/0)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m1: tiled=$(rval "$CONTROL_LINE" tiled) refused=$(rval "$CONTROL_LINE" refused))"
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
@@ -796,7 +796,7 @@ if [ "$MUTATION" -eq 1 ]; then
 
   # ---- m5: the batch index is built from triangles, not vertices -----------
   # The refactor's own failure mode: `triangle * 3` becomes `triangle`, so every
-  # index points into the middle of some other triangle. All 123 tiles are still
+  # index points into the middle of some other triangle. All 125 tiles are still
   # allocated, all 2 batches are still drawn, the plan is unchanged, and the map
   # turns into a hash of stretched polygons. Only the frame says so.
   echo "--- m5: the index buffer is built from triangle numbers (geometry tears)"
@@ -821,8 +821,8 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$M5_PLAN" tiled)" = "123" ] && [ "$(rval "$M5_PLAN" batches)" = "2" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m5: tiled=123 batches=2 unchanged, the frame moved)"
+  if [ "$(rval "$M5_PLAN" tiled)" = "125" ] && [ "$(rval "$M5_PLAN" batches)" = "2" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m5: tiled=125 batches=2 unchanged, the frame moved)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m5: the plan moved too, so this did not isolate the index)"
     restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || true
@@ -835,13 +835,13 @@ if [ "$MUTATION" -eq 1 ]; then
   # ---- m6: the clip ignores the batch table --------------------------------
   # The other half of the same question. The frame is clipped, so the indices
   # come from `setWorldVisDrawList`; putting every surviving index in batch 0
-  # leaves the plan at 123 tiles / 2 batches, keeps every tile allocated, and
+  # leaves the plan at 125 tiles / 2 batches, keeps every tile allocated, and
   # paints batch 1's materials with batch 0's atlas. Texture selection and
   # index grouping have to agree, and only the picture says whether they do.
   #
   # RE-ANCHOR 2026-10-25: this mutant used to compare against the acceptance
   # frame (tick 0, no camera override). At that pose batch 1 owns zero pixels --
-  # measured, not assumed: section 7's control refuses all 59 batch-1 materials
+  # measured, not assumed: section 7's control refuses all 61 batch-1 materials
   # and its frame comes back byte-identical to the full frame, and that was
   # already true on ea97815 before T59. Regrouping batch-1 indices into batch 0
   # therefore could not move one pixel, and the mutant was vacuous -- last green
@@ -872,8 +872,8 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$M6_PLAN" tiled)" = "123" ] && [ "$(rval "$M6_PLAN" batches)" = "2" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m6: tiled=123 batches=2 unchanged, the include-pose frame moved: $M6_STATS)"
+  if [ "$(rval "$M6_PLAN" tiled)" = "125" ] && [ "$(rval "$M6_PLAN" batches)" = "2" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m6: tiled=125 batches=2 unchanged, the include-pose frame moved: $M6_STATS)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m6: the plan moved too, so this did not isolate the regroup)"
     restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || true

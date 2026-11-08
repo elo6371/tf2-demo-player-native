@@ -219,10 +219,10 @@ PIN_ENCLOSED_COMPONENTS=2
 PIN_ENCLOSED_POP="rank=0 area=50343 sky=50343 unexplained=0 bbox=(x=602..845,y=91..407) edge=0 fill=0.651 | rank=1 area=4634 sky=4634 unexplained=0 bbox=(x=702..806,y=45..138) edge=0 fill=0.470"
 PIN_SKY_FACES=731
 PIN_SKY_TRIANGLES=1842
-PIN_WORLD_TRIANGLES=105310
+PIN_WORLD_TRIANGLES=105400
 PIN_BACKFACE=50765
-PIN_TEXTURED_SHA=61734c8f224bf04685b7d24197aad6b1737e2b4110bb826b5b4be5b63fe09f3d
-PIN_REF_SHA=0dad99ca7fa87005bcc180a6dcbeaf3c344fc666d85adbc600e2cc078029c533
+PIN_TEXTURED_SHA=3a178e8a138b4b0fb19171bdcb809bfd57f041385a30ead789d135fa3ff0d0f9
+PIN_REF_SHA=93fe13eac855167c51938b1963d77a7561520892cac98a2130b8ba28e0cd92d6
 
 # T58 pins, measured with the same trace and the same playback tick as the frame
 # pins above (captures/traces/world-ids.trace, last 'scene: camera' before
@@ -790,8 +790,8 @@ if [ "$PROBE_RC" -ne 0 ]; then
   echo "  FAIL probe rc=$PROBE_RC"
   fail=1
 fi
-assert_in "$ANA/probe.txt" "geometry sky faces=$PIN_SKY_FACES triangles=$PIN_SKY_TRIANGLES bufferTriangles=$PIN_WORLD_TRIANGLES" "sky face census"
-assert_in "$ANA/probe.txt" "geometry faces total=21119 rendered=19800 sky=731 skippedNoDraw=0 skippedInvalid=0" "face account unchanged"
+assert_in "$ANA/probe.txt" "geometry sky faces=$PIN_SKY_FACES triangles=$PIN_SKY_TRIANGLES bufferTriangles=$PIN_WORLD_TRIANGLES" "sky face census"  # the same census line also carries skippedBrushModel=543, which this assertion does not pin
+assert_in "$ANA/probe.txt" "geometry faces total=21119 rendered=19845 sky=731 skippedNoDraw=0 skippedInvalid=0" "face account unchanged"
 
 echo "== 5. first-hit oracle: the winding candidate is refused =="
 "$PROBE" --tf-root "$TF" --map maps/pl_odyssey.bsp \
