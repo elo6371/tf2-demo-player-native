@@ -684,7 +684,7 @@ for tick in "${TICKS[@]}"; do
   # frame hashes recorded in T39-WEAPON-ANIMATION-2026-10-21.md).
   TF2_NATIVE_TRACE="$ROOT/$TRACE" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
-    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \\
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --demo "$DEMO" \
     --capture-frame "$BMP" --capture-tick "$tick" --metrics-file "$CSV" \
     $CAM_POSE_ARGS \
@@ -880,7 +880,7 @@ run_model() { # run_model <name> <model> <args...>
   rm -f "$bmp"
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/model-$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
-    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \\
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --model "$model" \
     --capture-frame "$bmp" "$@" > "$TRACE_DIR/model-$name.log" 2>&1
   echo "$bmp"
