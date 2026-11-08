@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # release-rebuild.sh -- rebuild every binary the capture steps trust, then prove
-# the tree and those binaries agree.
+# that the tree and those binaries AGREE.
 #
 # WHY THIS STEP EXISTS (2026-11-07 chain, round 2)
 #   Step 4 (outline) failed after two seconds with
@@ -9,22 +9,56 @@
 #   Nothing had edited that file. The mutation suite restores every case with
 #   "git checkout -- native/", and a restore writes a NEW MTIME with unchanged
 #   content. outline-check.sh trusts a prebuilt binary only while no source is
-#   newer than it, so its stale guard fired on a tree whose bytes were correct,
-#   and every capture step after it (third-person-weapon, body-appearance,
-#   class-pixels, world-geometry-budget) runs that same exe without ever
-#   invalidating it. One rebuild makes freshness a measured fact.
+#   newer than it, so its stale guard fired on a tree whose bytes were correct.
+#
+#   THE FALSE RED THIS SCRIPT NOW AVOIDS (2026-11-07, T5A)
+#   The first version of this step repeated the same mistake: it asked
+#     find <inputs> -newer <exe>
+#   "is a source newer than the binary?", which is NOT the question the build
+#   system answers. A clean checkout writes every source with a fresh mtime while
+#   the object files and the exe keep theirs; make compares source-to-OBJECT, not
+#   source-to-exe, so the first build is a no-op and the exe stays older than the
+#   sources. The gate then reported REBUILD-FRESH=FAIL on a tree that was byte
+#   for byte the frozen commit, and the only way to silence it was to rebuild
+#   until the clock agreed.
+#
+#   WHAT THE GATE ASKS NOW
+#   Acceptance is "the tree and the binary agree", i.e. the build system has no
+#   work left and the inputs the binary was built from are the inputs on disk.
+#   That is a content question, so it is answered with content hashes:
+#     - inputs_sha(target) = sha256 over the sorted "sha256  path" lines of every
+#       file the target is allowed to depend on (per-target list below);
+#     - a manifest written on every PASS records inputs_sha256 + binary_sha256;
+#     - mtime is reported (mtime_newer=N) as a DIAGNOSTIC and never fails alone.
+#
+#   THE FOUR STATES (each has one named verdict field)
+#     1. clean checkout, sources newer than the exe, content unchanged
+#        -> basis=content-identical  PASS  (mtime_newer>0 is expected)
+#     2. source content changed (mtime newer or not)
+#        -> basis=rebuilt            PASS  (binary_sha256 changed)
+#     3. source content changed but the binary did NOT change after both passes
+#        -> REBUILD-FRESH=FAIL reason=inputs-changed-binary-not-rebuilt
+#           (the build system is lying: this is the case that matters)
+#     4. nothing changed
+#        -> basis=content-identical  PASS  (no-op, no churn)
+#   mtime alone never decides. The second build is still required: it is what
+#   turns "the build system says it is done" into "a second run agrees".
+#
+#   NO RETRY LOOP. Two build passes, maximum, always. If pass 1 left the tree
+#   stale, pass 2 is the forced rebuild the task allows; if pass 2 still does not
+#   change the binary the answer is FAIL, not a third attempt. Termination is
+#   structural (2 passes), not "until green".
 #
 # WHAT IT PROVES
 #   1. all five targets link from the tree as it stands (build rc=0);
-#   2. no input is newer than the binary it feeds -- the exact reading that
-#      failed at step 4;
-#   3. a second build changes nothing, i.e. nothing in the tree still declares
-#      itself newer than what was built. Point 2 alone can pass on an empty
-#      source list; the no-op build is what makes it mean "settled".
+#   2. the inputs on disk are the inputs the binary was built from (content hash
+#      vs manifest; without a manifest the inputs must at least be identical
+#      before and after both passes, and the manifest is written);
+#   3. a second build changes nothing -- the tree has no declared work left.
 #
-# VERDICT: REBUILD=PASS targets=5 rebuilt=N fresh=5 noop=5 exe_sha256=<sha>
-#   rebuilt counts the binaries the first build relinked. rebuilt=0 on an
-#   already-current tree is a pass: the claim is about agreement, not churn.
+# VERDICT: REBUILD=PASS targets=5 rebuilt=N fresh=5 noop=5 basis=<content-identical|rebuilt|settled-first-run|relinked-unchanged-inputs> mtime_newer=X exe_sha256=<sha>
+#   rebuilt counts binaries whose sha changed across the two passes; rebuilt=0 is
+#   a pass, the claim is agreement, not churn.
 # Exit: 0 pass, 1 fail, 2 refused (no build tree / no such target / usage).
 set -uo pipefail
 cd "$(dirname "$0")" || exit 2
@@ -41,6 +75,7 @@ BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
 PRIMARY=tf2_demo_native
 TARGETS=(entity_overlay_probe entity_model_probe entity_protocol_probe world_geometry_probe "$PRIMARY")
 N=${#TARGETS[@]}
+MANIFEST_DIR="$BUILD/.rebuild-inputs"
 
 if [ ! -f "$BUILD/Makefile" ]; then
   echo "REBUILD=FAIL reason=no-build-tree build=$BUILD (build or configure it first)"
@@ -60,12 +95,51 @@ sources_of() {
   fi
 }
 
+list_inputs() { # list_inputs <target> -- every existing input file, one per line
+  local t="$1" p
+  while IFS= read -r p; do
+    [ -z "$p" ] && continue
+    if [ -d "$p" ]; then find "$p" -type f 2>/dev/null; elif [ -f "$p" ]; then printf '%s\n' "$p"; fi
+  done <<< "$(sources_of "$t")"
+}
+
+# Content identity of a target's inputs. The "sha256  path" lines are sorted as
+# whole strings, which is deterministic because repository paths contain no
+# newlines.
+inputs_sha() {
+  list_inputs "$1" | LC_ALL=C sort -u | xargs -d '\n' -r sha256sum 2>/dev/null \
+    | LC_ALL=C sort | sha256sum | cut -d' ' -f1
+}
+
 sha_of() { if [ -f "$1" ]; then sha256sum "$1" | cut -d' ' -f1; else printf 'missing\n'; fi; }
 
-before=()
-for t in "${TARGETS[@]}"; do before+=("$(sha_of "$(exe_of "$t")")"); done
+mtime_newer() { # mtime_newer <exe> <target> -- DIAGNOSTIC ONLY, never a verdict
+  local e="$1" t="$2" n=0 f
+  while IFS= read -r f; do
+    [ -n "$f" ] && [ "$f" -nt "$e" ] && n=$((n + 1))
+  done < <(list_inputs "$t")
+  printf '%s' "$n"
+}
 
-echo "=== build (first pass) ==="
+manifest_get() { # manifest_get <target> <field>
+  local f="$MANIFEST_DIR/$1.env"
+  [ -f "$f" ] || return 1
+  sed -n "s/^$2=//p" "$f" | head -1
+}
+
+manifest_put() { # manifest_put <target> <inputs_sha> <binary_sha>
+  mkdir -p "$MANIFEST_DIR"
+  printf 'target=%s\ninputs_sha256=%s\nbinary_sha256=%s\nwritten_by=release-rebuild.sh\n' \
+    "$1" "$2" "$3" > "$MANIFEST_DIR/$1.env"
+}
+
+declare -A BIN_BEFORE IN_BEFORE
+for t in "${TARGETS[@]}"; do
+  BIN_BEFORE[$t]=$(sha_of "$(exe_of "$t")")
+  IN_BEFORE[$t]=$(inputs_sha "$t")
+done
+
+echo "=== build (pass 1 of 2) ==="
 bash build-target.sh "${TARGETS[@]}"
 rc=$?
 if [ "$rc" -ne 0 ]; then
@@ -73,67 +147,89 @@ if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
-after=()
-rebuilt=0
-i=0
+declare -A BIN_MID IN_MID
 for t in "${TARGETS[@]}"; do
-  e=$(exe_of "$t")
-  s=$(sha_of "$e")
-  if [ "$s" = "missing" ]; then
-    echo "REBUILD=FAIL reason=exe-not-built target=$t exe=$e"
+  BIN_MID[$t]=$(sha_of "$(exe_of "$t")")
+  IN_MID[$t]=$(inputs_sha "$t")
+  if [ "${BIN_MID[$t]}" = "missing" ]; then
+    echo "REBUILD-FRESH=FAIL exe=$(exe_of "$t") missing after the first build"
+    echo "REBUILD=FAIL reason=exe-not-built target=$t exe=$(exe_of "$t")"
     exit 1
   fi
-  [ "$s" != "${before[$i]}" ] && rebuilt=$((rebuilt+1))
-  after+=("$s")
-  i=$((i+1))
-done
-
-# Freshness: the reading step 4 died on.
-stale=0
-i=0
-for t in "${TARGETS[@]}"; do
-  e=$(exe_of "$t")
-  newer=""
-  while IFS= read -r p; do
-    [ -z "$p" ] && continue
-    hit=$(find "$p" -type f -newer "$e" -print 2>/dev/null | head -5)
-    [ -n "$hit" ] && newer="$newer$hit\n"
-  done <<< "$(sources_of "$t")"
-  if [ -n "$newer" ]; then
-    echo "REBUILD-FRESH=FAIL exe=$e is older than:"
-    printf "%b" "$newer" | sed 's/^/  /'
-    stale=1
+  if [ "${IN_MID[$t]}" != "${IN_BEFORE[$t]}" ]; then
+    echo "REBUILD-FRESH=FAIL exe=$(exe_of "$t") inputs changed while the gate was running (before=${IN_BEFORE[$t]:0:12} mid=${IN_MID[$t]:0:12})"
+    echo "REBUILD=FAIL reason=inputs-changed-during-run target=$t"
+    exit 1
   fi
-  echo "rebuild: target=$t exe=$e sha256=${after[$i]} bytes=$(stat -c %s "$e")"
-  i=$((i+1))
 done
 
-echo "=== build (second pass, must be a no-op) ==="
+echo "=== build (pass 2 of 2, must be a no-op) ==="
 bash build-target.sh "${TARGETS[@]}"
 rc=$?
 if [ "$rc" -ne 0 ]; then
   echo "REBUILD=FAIL reason=second-build-failed rc=$rc (the tree is not settled)"
   exit 1
 fi
-noop=0
-i=0
+
+rebuilt=0
+noop_changed=0
+stale=0
+basis="content-identical"
 for t in "${TARGETS[@]}"; do
   e=$(exe_of "$t")
-  s=$(sha_of "$e")
-  if [ "$s" = "${after[$i]}" ]; then
-    noop=$((noop+1))
-  else
-    echo "REBUILD-NOOP=FAIL exe=$e changed on a second build after=${after[$i]:0:12} now=${s:0:12} -- something still declares itself out of date"
+  in_now=$(inputs_sha "$t")
+  bin_now=$(sha_of "$e")
+  newer=$(mtime_newer "$e" "$t")
+  if [ "$in_now" != "${IN_MID[$t]}" ]; then
+    echo "REBUILD-FRESH=FAIL exe=$e inputs changed between the two builds (mid=${IN_MID[$t]:0:12} now=${in_now:0:12})"
+    echo "REBUILD=FAIL reason=inputs-not-settled target=$t"
+    exit 1
   fi
-  i=$((i+1))
+  [ "$bin_now" != "${BIN_MID[$t]}" ] && noop_changed=$((noop_changed + 1))
+  [ "$bin_now" != "${BIN_BEFORE[$t]}" ] && rebuilt=$((rebuilt + 1))
+
+  if want=$(manifest_get "$t" inputs_sha256) && want_bin=$(manifest_get "$t" binary_sha256); then
+    if [ "$want" != "$in_now" ]; then
+      # Inputs changed since the last recorded pass. The binary must have changed
+      # with them; if two build passes left it identical, nothing rebuilt it.
+      if [ "$bin_now" = "$want_bin" ]; then
+        echo "REBUILD-FRESH=FAIL exe=$e is older than its inputs and two build passes did not rebuild it:"
+        while IFS= read -r f; do [ -n "$f" ] && [ "$f" -nt "$e" ] && printf '  %s\n' "$f"; done < <(list_inputs "$t") | head -10
+        echo "REBUILD-FRESH=FAIL reason=inputs-changed-binary-not-rebuilt target=$t inputs_sha256_was=${want:0:12} now=${in_now:0:12} binary_sha256=${bin_now:0:12}"
+        stale=1
+      else
+        [ "$basis" = "content-identical" ] && basis="rebuilt"
+        echo "rebuild: target=$t state=rebuilt exe=$e sha256=$bin_now (inputs ${want:0:12}->${in_now:0:12}) mtime_newer=$newer"
+      fi
+    elif [ "$bin_now" != "$want_bin" ]; then
+      # Same inputs, different binary: the relink was caused by a touch or by
+      # non-determinism. Agreement still holds after the rebuild, so this is a
+      # note, not a failure -- the manifest is refreshed below.
+      [ "$basis" = "content-identical" ] && basis="relinked-unchanged-inputs"
+      echo "rebuild: target=$t state=relinked-unchanged-inputs exe=$e sha256=$bin_now (was ${want_bin:0:12}) mtime_newer=$newer"
+    else
+      echo "rebuild: target=$t state=content-identical exe=$e sha256=$bin_now mtime_newer=$newer"
+    fi
+  else
+    # No manifest yet (first run on this build tree). The strongest statement
+    # available is that the inputs were identical before and after both passes
+    # and the second build refused to touch the binary -- the tree is settled.
+    basis="settled-first-run"
+    echo "rebuild: target=$t state=settled-first-run exe=$e sha256=$bin_now mtime_newer=$newer"
+  fi
+  manifest_put "$t" "$in_now" "$bin_now"
 done
 
 if [ "$stale" -ne 0 ]; then
   echo "REBUILD=FAIL reason=source-newer-than-binary targets=$N (see REBUILD-FRESH=FAIL above)"
   exit 1
 fi
-if [ "$noop" -ne "$N" ]; then
-  echo "REBUILD=FAIL reason=not-idempotent noop=$noop/$N"
+if [ "$noop_changed" -ne 0 ]; then
+  echo "REBUILD-NOOP=FAIL a second build changed $noop_changed/$N binaries -- something still declares itself out of date"
+  echo "REBUILD=FAIL reason=not-idempotent noop=$noop_changed/$N"
   exit 1
 fi
-echo "REBUILD=PASS targets=$N rebuilt=$rebuilt fresh=$N noop=$noop exe_sha256=$(sha_of "$(exe_of "$PRIMARY")")"
+
+total_newer=0
+for t in "${TARGETS[@]}"; do total_newer=$((total_newer + $(mtime_newer "$(exe_of "$t")" "$t"))); done
+echo "REBUILD=PASS targets=$N rebuilt=$rebuilt fresh=$N noop=$N basis=$basis mtime_newer=$total_newer exe_sha256=$(sha_of "$(exe_of "$PRIMARY")")"
