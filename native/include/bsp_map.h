@@ -112,6 +112,20 @@ struct BspMap {
   std::size_t brushModelsSkippedUnknown = 0;
   std::size_t brushFacesDrawn = 0;
   std::size_t brushFacesSkipped = 0;
+  // N20: brush entities are compiled in MODEL space -- VBSP subtracts the
+  // entity's "origin" from every vertex and the engine adds it back at draw
+  // time. These five fields say how much of that translation this parser
+  // applied, so "the brush is in the wall" is a number and not a guess:
+  //   brushOriginModels   drawn models that moved by a non-zero origin
+  //   brushOriginFaces    faces whose POSITION moved (uv/lightUv did not)
+  //   brushOriginNoOrigin drawn models with no usable origin key (unshifted)
+  //   brushOriginLodExcluded  func_lod models, already world-space by design
+  //   brushOriginMaxShift  largest single-axis |origin| applied, in world units
+  std::size_t brushOriginModels = 0;
+  std::size_t brushOriginFaces = 0;
+  std::size_t brushOriginNoOrigin = 0;
+  std::size_t brushOriginLodExcluded = 0;
+  float brushOriginMaxShift = 0.0f;
   std::size_t triangleCount = 0;
   // T88: the triangle budget is a CAPACITY, and a capacity that is hit is a
   // decision this parser made, not a fact about the file. Before this change

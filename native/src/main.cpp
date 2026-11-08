@@ -7356,6 +7356,12 @@ bool outlineVertexExtent = false;
       // T83: the brush models, and which of them this build refuses to draw. A
       // refused model is a hole the frame may show, so the reasons are counted
       // separately instead of being folded into "faces skipped".
+      // N20: the brush entities are compiled in model space; this says how many
+      // of the drawn ones were put back where the mapper placed them.
+      traceFmt("gpu: world brush origin applied models=%zu faces=%zu skipped=%zu noOrigin=%zu maxShift=%.1f",
+        displayMap.brushOriginModels, displayMap.brushOriginFaces,
+        displayMap.brushOriginLodExcluded, displayMap.brushOriginNoOrigin,
+        static_cast<double>(displayMap.brushOriginMaxShift));
       traceFmt("gpu: world brush models total=%zu drawn=%zu skippedMoving=%zu skippedUnknown=%zu"
         " facesDrawn=%zu facesSkipped=%zu worldFaces=%zu brushFaces=%zu",
         displayMap.brushModelsTotal, displayMap.brushModelsDrawn,

@@ -272,7 +272,21 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   // its class cannot move by itself, because Source stores it at its compile-time
   // pose and a demo's runtime pose lives in the networked entity state, which
   // this parser does not read. Everything else is refused and counted by reason.
-  struct RawBrushEntity { std::string className; std::string model; };
+  // N20: a brush entity's brushes are stored in MODEL space, not in world space.
+  // VBSP subtracts the entity's "origin" from every vertex it compiles (the
+  // dmodel bounds stay model-local: measured on the four authorised maps, every
+  // func_brush/func_wall/func_illusionary model carries a non-zero origin and a
+  // face bounding box around (0,0,0)), and the engine puts it back at draw time.
+  // This parser read only classname/model, so every drawn brush face was emitted
+  // at the map's origin instead of where the mapper placed it: with the origin
+  // applied, pl_odyssey moves 104 models / 2,502 faces and cp_snakewater_final1
+  // moves 86 models / 3,246 faces -- the whole drawn brush face set of both maps.
+  struct RawBrushEntity {
+    std::string className;
+    std::string model;
+    std::array<float, 3> origin{{0.0f, 0.0f, 0.0f}};
+    bool hasOrigin = false;
+  };
   std::vector<RawBrushEntity> brushEntities;
   {
     Bytes entityBytes;
@@ -303,16 +317,46 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         }
         if (key == "classname") current.className = value;
         else if (key == "model") current.model = value;
+        else if (key == "origin") {
+          // "x y z" in one quoted value. A key that does not parse is not an
+          // origin: the model is then left in whatever space its vertices are
+          // in and counted as noOrigin, never guessed at.
+          const char* p = value.c_str();
+          char* end = nullptr;
+          float xyz[3] = {0.0f, 0.0f, 0.0f};
+          bool ok = true;
+          for (int k = 0; k < 3 && ok; ++k) {
+            xyz[k] = std::strtof(p, &end);
+            ok = end != p;
+            p = end;
+          }
+          if (ok) {
+            while (*p == ' ' || *p == '\t') ++p;
+            ok = *p == '\0';
+          }
+          if (ok && std::isfinite(xyz[0]) && std::isfinite(xyz[1]) && std::isfinite(xyz[2])) {
+            current.origin = {xyz[0], xyz[1], xyz[2]};
+            current.hasOrigin = true;
+          }
+        }
       }
     }
   }
   const std::size_t modelCount = models.size() / 48;
   std::vector<std::string> modelClassName(modelCount);
+  // N20: the translation each drawn brush model needs, and whether it has one.
+  std::vector<std::array<float, 3>> modelOrigin(modelCount,
+    std::array<float, 3>{{0.0f, 0.0f, 0.0f}});
+  std::vector<char> modelHasOrigin(modelCount, 0);
   for (const auto& entity : brushEntities) {
     if (entity.model.size() < 2 || entity.model[0] != '*') continue;
     const long index = std::strtol(entity.model.c_str() + 1, nullptr, 10);
     if (index <= 0 || static_cast<std::size_t>(index) >= modelCount) continue;
     modelClassName[static_cast<std::size_t>(index)] = entity.className;
+    if (entity.hasOrigin) {
+      modelOrigin[static_cast<std::size_t>(index)] = entity.origin;
+      modelHasOrigin[static_cast<std::size_t>(index)] = 1;
+    }
   }
   // "Cannot move on its own" is the whole test. func_wall_toggle is left out on
   // purpose: it still toggles, and a toggle is not a static pose.
@@ -349,6 +393,26 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     if (brushClassIsStatic(className)) {
       modelDrawn[index] = 1;
       ++map.brushModelsDrawn;
+      // N20: which drawn models carry a translation. func_lod is excluded on
+      // purpose and by evidence: it has no origin key at all on any of the four
+      // maps, and its vertices are already world-space (its face bounding box
+      // sits at the map's extent, not at (0,0,0)).
+      if (className == "func_lod") {
+        modelHasOrigin[index] = 0;
+        ++map.brushOriginLodExcluded;
+      } else if (modelHasOrigin[index] != 0) {
+        const float shift = std::max({std::fabs(modelOrigin[index][0]),
+          std::fabs(modelOrigin[index][1]), std::fabs(modelOrigin[index][2])});
+        if (shift > 0.0f) {
+          ++map.brushOriginModels;
+          map.brushOriginMaxShift = std::max(map.brushOriginMaxShift, shift);
+        } else {
+          modelHasOrigin[index] = 0;
+          ++map.brushOriginNoOrigin;
+        }
+      } else {
+        ++map.brushOriginNoOrigin;
+      }
     } else if (className.empty()) {
       ++map.brushModelsSkippedUnknown;
     } else {
@@ -457,6 +521,21 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         && faceModel[static_cast<std::size_t>(faceIndex)] > 0) {
       ++map.brushFacesDrawn;
     }
+    // N20: the world-space translation of the model this face belongs to. Zero
+    // for worldspawn faces, for refused models (they never reach here), and for
+    // func_lod. It moves the POSITION only: the texture axes and the lightmap
+    // axes are compiled in model space, so texCoord()/lightUv() below must keep
+    // reading the stored vertex -- translating them would slide the material
+    // and, worse, move the surface off its own baked lightmap.
+    std::array<float, 3> faceOrigin{{0.0f, 0.0f, 0.0f}};
+    if (faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceModel.size()) {
+      const auto model = faceModel[static_cast<std::size_t>(faceIndex)];
+      if (model > 0 && static_cast<std::size_t>(model) < modelHasOrigin.size()
+          && modelHasOrigin[static_cast<std::size_t>(model)] != 0) {
+        faceOrigin = modelOrigin[static_cast<std::size_t>(model)];
+        ++map.brushOriginFaces;
+      }
+    }
     const auto base = static_cast<std::size_t>(faceIndex) * 56; const auto firstEdge = read<std::int32_t>(faces, base + 4); const auto count = read<std::int16_t>(faces, base + 8); const auto infoIndex = read<std::int16_t>(faces, base + 10);
     if (count < 3 || firstEdge < 0 || static_cast<std::size_t>(firstEdge) + static_cast<std::size_t>(count) > surfEdgeCount || infoIndex < 0 || static_cast<std::size_t>(infoIndex) >= texInfo.size() / 72) continue;
     const auto flags = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 64);
@@ -504,8 +583,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       };
       for (std::size_t i = 1; i + 1 < polygon.size(); ++i) {
         BspTriangle triangle;
-        triangle.a = polygon[0]; triangle.b = polygon[i + 1]; triangle.c = polygon[i];
-        const auto ta = texCoord(triangle.a), tb = texCoord(triangle.b), tc = texCoord(triangle.c);
+        // N20: a brush model's sky faces are in the same model space as its
+        // world faces and take the same translation; the uv stays on the stored
+        // vertex, exactly as in the world pass.
+        const BspVertex sa = polygon[0], sb = polygon[i + 1], sc = polygon[i];
+        triangle.a = {sa.x + faceOrigin[0], sa.y + faceOrigin[1], sa.z + faceOrigin[2]};
+        triangle.b = {sb.x + faceOrigin[0], sb.y + faceOrigin[1], sb.z + faceOrigin[2]};
+        triangle.c = {sc.x + faceOrigin[0], sc.y + faceOrigin[1], sc.z + faceOrigin[2]};
+        const auto ta = texCoord(sa), tb = texCoord(sb), tc = texCoord(sc);
         triangle.au = ta[0]; triangle.av = ta[1];
         triangle.bu = tb[0]; triangle.bv = tb[1];
         triangle.cu = tc[0]; triangle.cv = tc[1];
@@ -702,8 +787,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         map.firstDroppedBrushModel = "worldspawn";
       }
     };
+    // N20: displacement grids are always worldspawn geometry (a displacement is
+    // never emitted for a brush model here), so their translation is zero.
+    const std::array<float, 3> noOrigin{{0.0f, 0.0f, 0.0f}};
     const auto pushTriangle = [&](BspVertex a, BspVertex b, BspVertex c, bool displacement,
-                                  float aAlpha = -1.0f, float bAlpha = -1.0f, float cAlpha = -1.0f) {
+                                  float aAlpha, float bAlpha, float cAlpha,
+                                  const std::array<float, 3>& origin) {
       // T88: trianglesRequested is what the map asks for with an UNBOUNDED
       // budget. A fallback fan pushed because the budget already refused its
       // grid is not part of that ask -- the grid's own triangles were counted
@@ -820,7 +909,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       }
       const auto ta = texCoord(a), tb = texCoord(b), tc = texCoord(c);
       BspTriangle triangle;
-      triangle.a = a; triangle.b = b; triangle.c = c;
+      // N20: position only. a/b/c themselves stay model-space for the texture
+      // and lightmap uv computed below.
+      triangle.a = {a.x + origin[0], a.y + origin[1], a.z + origin[2]};
+      triangle.b = {b.x + origin[0], b.y + origin[1], b.z + origin[2]};
+      triangle.c = {c.x + origin[0], c.y + origin[1], c.z + origin[2]};
       triangle.aAlpha = aAlpha; triangle.bAlpha = bAlpha; triangle.cAlpha = cAlpha;
       triangle.au = ta[0]; triangle.av = ta[1]; triangle.bu = tb[0]; triangle.bv = tb[1]; triangle.cu = tc[0]; triangle.cv = tc[1];
       // T27: the same axes the uv was computed from, so the renderer's tangent
@@ -981,9 +1074,9 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               }
               const auto w00 = weightAt(x, y), w11 = weightAt(x + 1, y + 1), w10 = weightAt(x + 1, y);
               const auto w01 = weightAt(x, y + 1);
-              pushTriangle(p00, p11, p10, true, w00, w11, w10);
+              pushTriangle(p00, p11, p10, true, w00, w11, w10, noOrigin);
               checkPairing(p00, p11, p10, w00, w11, w10);
-              pushTriangle(p00, p01, p11, true, w00, w01, w11);
+              pushTriangle(p00, p01, p11, true, w00, w01, w11, noOrigin);
               checkPairing(p00, p01, p11, w00, w01, w11);
             }
             emittedDisp = map.triangles.size() > before;
@@ -1031,7 +1124,8 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       }
       emittingFallbackQuad = dispIndex >= 0;
       for (std::size_t i = 1; i + 1 < polygon.size(); ++i) {
-        pushTriangle(polygon[0], polygon[i + 1], polygon[i], false);
+        pushTriangle(polygon[0], polygon[i + 1], polygon[i], false,
+          -1.0f, -1.0f, -1.0f, faceOrigin);
       }
       emittingFallbackQuad = false;
     }
