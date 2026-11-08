@@ -32,9 +32,16 @@
 #      the speed the ledger reports (native/src/main.cpp:1179). The mutation
 #      suite carries both cases for that reason.
 #   3. pause -> tick frozen (exact, not "wobbled by one"); resume -> the cursor
-#      moves on the first frame after resume and moves by at most two ticks. The
-#      second half is the "no wall-clock catch-up" clause: a player that banked
-#      the paused seconds would jump by tens or hundreds of ticks here.
+#      moves on and never by more wall time than has passed since the resume. The
+#      sampling is a CONDITION, not a frame number: the draw cadence is wall clock
+#      (~8.3 ms target) while a demo tick is ~15 ms at 1x, so the state read on the
+#      first frame after the resume can legitimately still show the pause tick. The
+#      script therefore asks for one state per frame (20 samples) and the gate
+#      waits for the first sample that moved; no sample moving inside the cap is a
+#      red, printed with the sample count. The upper bound is also wall-clock
+#      based (delta <= elapsed * tickRate + 2 ticks), not a fixed 2: one loaded
+#      frame can cover several ticks, and the clause that matters is that the
+#      paused seconds are not repaid (that would jump by tens or hundreds).
 #   4. seek -1 lands on 0 and seek 999999 lands on the demo's own last tick, read
 #      back from the same request line the product writes for every transport
 #      request (native/src/playback_state.cpp:15-24) and the state line
@@ -82,6 +89,9 @@
 #   bash timeline-check.sh --dry-run   print the launch plan only; starts nothing
 #   TIMELINE_SECTIONS=1,2,3,4   run only the named sections (mutations use this)
 #   TIMELINE_OUT=...            output directory (default evidence/t85-timeline/gate)
+#   TIMELINE_EXE=...            product executable (timeline-check-selftest.sh substitutes a mock)
+#   TIMELINE_TF=...             tf root (a mock only needs the path to exist)
+#   TIMELINE_DEMO=...           demo (a mock only needs the path to exist)
 # Exit: 0 = every assertion held; 1 = one did not; 2 = missing input.
 #
 # Run it under the host lock, e.g.
@@ -90,12 +100,12 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
-EXE=native/build-nmake/tf2_demo_native.exe
-TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+EXE="${TIMELINE_EXE:-native/build-nmake/tf2_demo_native.exe}"
+TF="${TIMELINE_TF:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf}"
 # cp_snakewater_final1 is installed on this machine, so the captures are of a real
 # world (the koth_bagel_rc13 map is not installed; its demo draws the fallback
 # quad, which is fine for "different scene" checks but useless for timing).
-SNAKE="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
+SNAKE="${TIMELINE_DEMO:-D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem}"
 OUT="${TIMELINE_OUT:-evidence/t85-timeline/gate}"
 SECTIONS="${TIMELINE_SECTIONS:-1,2,3,4}"
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
@@ -297,11 +307,48 @@ if section_on 3; then
   match=$(field "$line" match)
   assert_eq "pause freezes the cursor: expect-same-tick match" "$match" "1"
   assert_eq "pause freeze read the marked tick" "$actual" "$marked"
-  state=$(last_line_with "$OUT/$name/trace.txt" 'playback: state')
-  cursor=$(field "$state" cursor)
-  delta=$((cursor - marked))
-  assert_ge "resume advances the cursor past the pause tick (delta=$delta)" "$delta" 1
-  assert_le "resume does not replay paused wall time (delta=$delta)" "$delta" 2
+  trace="$OUT/$name/trace.txt"
+  resume_line=$(grep -n 'cmd=resume' "$trace" 2>/dev/null | tail -1 | cut -d: -f1)
+  if [ -z "${resume_line:-}" ]; then
+    bad "resume advances the cursor past the pause tick (no resume step in the trace)"
+  else
+    resume_ts=$(sed -n "${resume_line}p" "$trace" | awk '{print $1}')
+    # Poll the ledger, do not guess a frame: the product prints one state line per
+    # playback-state step (one per frame), and the draw cadence is wall clock while
+    # a tick is rate-locked. The script emits 20 samples; the first one whose
+    # cursor moved settles the question, and none moving is the red.
+    states=()
+    while IFS= read -r sample; do
+      states+=("$sample")
+    done < <(awk -v first="$resume_line" 'NR > first && /playback: state/' "$trace")
+    advanced=""
+    advanced_index=0
+    index=0
+    for sample in "${states[@]}"; do
+      index=$((index + 1))
+      sample_cursor=$(field "$sample" cursor)
+      if [ "${sample_cursor:-<missing>}" != "<missing>" ] && [ "$sample_cursor" -gt "$marked" ] 2>/dev/null; then
+        advanced="$sample"
+        advanced_index=$index
+        break
+      fi
+    done
+    if [ -z "$advanced" ]; then
+      bad "resume advances the cursor past the pause tick (no state sample moved past $marked in ${#states[@]} sample(s); cap 20)"
+    else
+      cursor=$(field "$advanced" cursor)
+      delta=$((cursor - marked))
+      state_ts=$(printf '%s' "$advanced" | awk '{print $1}')
+      rate=$(field "$advanced" rate)
+      case "$rate" in ''|'<missing>') rate=66.666669 ;; esac
+      # traceNowMs() stamps the ledger in MILLISECONDS (native/src/main_trace.cpp:40,
+      # "%.1f %s"), so convert to seconds before multiplying by ticks/second. Treating
+      # the ms delta as seconds would inflate the bound ~1000x and let a replay through.
+      allowed=$(awk -v a="$resume_ts" -v b="$state_ts" -v r="$rate" 'BEGIN { n = int(((b - a) / 1000.0) * r) + 2; if (n < 2) n = 2; print n }')
+      assert_ge "resume advances the cursor past the pause tick (delta=$delta after sample $advanced_index/${#states[@]})" "$delta" 1
+      assert_le "resume does not replay paused wall time (delta=$delta, wall time allowed $allowed ticks)" "$delta" "$allowed"
+    fi
+  fi
 fi
 
 if section_on 4; then
