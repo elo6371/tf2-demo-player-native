@@ -4862,7 +4862,9 @@ bool outlineVertexExtent = false;
       std::size_t fetchPatchDeclared = 0, fetchPatchResolved = 0, fetchPatchUnparsable = 0;
       // T59: a material whose $basetexturetransform is not the identity. Refused by
       // name; drawing it axis-aligned would be a wrong picture, not a missing one.
-      std::size_t fetchTransformRefused = 0;
+      // R2: and the ones whose transform this pass CAN read, which are applied by
+      // the vertex stage and counted here instead of being refused.
+      std::size_t fetchTransformRefused = 0, fetchTransformApplied = 0;
       std::size_t fetchVtfMissing = 0, fetchVtfTooLarge = 0, fetchDecodeEmpty = 0, fetchTiled = 0;
       std::size_t fetchMaxWidth = 0, fetchMaxHeight = 0;
       std::size_t fetchFromPakfile = 0, fetchDownscaled = 0;
@@ -5157,16 +5159,32 @@ bool outlineVertexExtent = false;
         if (material.baseTexture.empty() && material.baseTexture2.empty()) {
           ++fetchVmtNoBase; chain.reason = "no-basetexture"; continue;
         }
-          // T59: the base texture resolved, but the material re-maps its uv before
-          // sampling. Refused by name: the world pass samples the face's own texinfo
-          // axes, so drawing this axis-aligned would put the texture where TF2 does not.
-          if (material.baseTextureTransform) {
+        // T59: the base texture resolved, but the material re-maps its uv before
+        // sampling. R2: the world pass now applies that matrix in the vertex stage,
+        // so a transform this parser could read into numbers is applied and counted
+        // rather than refused. What still refuses is the shape it could not read --
+        // an object block, or a word it does not understand -- because drawing a
+        // rotated texture axis-aligned is a wrong picture nobody can tell is wrong.
+        if (material.baseTextureTransform) {
+          if (material.baseTextureTransformParsed) {
+            ++fetchTransformApplied;
+            traceFmt("gpu: world transform-applied material=%s transform=%s center=%.4f %.4f scale=%.4f %.4f rotate=%.4f translate=%.4f %.4f",
+              materialName.c_str(), material.baseTextureTransformText.c_str(),
+              static_cast<double>(material.baseTextureTransformCenter[0]),
+              static_cast<double>(material.baseTextureTransformCenter[1]),
+              static_cast<double>(material.baseTextureTransformScale[0]),
+              static_cast<double>(material.baseTextureTransformScale[1]),
+              static_cast<double>(material.baseTextureTransformRotate),
+              static_cast<double>(material.baseTextureTransformTranslate[0]),
+              static_cast<double>(material.baseTextureTransformTranslate[1]));
+          } else {
             ++fetchTransformRefused;
             chain.reason = "basetexture-transform";
             traceFmt("gpu: world transform-refused material=%s transform=%s",
               materialName.c_str(), material.baseTextureTransformText.c_str());
             continue;
           }
+        }
         // T12: one lookup policy, written once and used for every resource a
         // material names. Loose file, then the archives in the order this file
         // opened them, then the map's own pakfile -- the same order for the
@@ -5607,13 +5625,25 @@ bool outlineVertexExtent = false;
           tiled.detailFactor = material.detailBlendFactor;
           tiled.detailScale = material.detailScale;
           tiled.ssBump = material.ssBump;
+          // R2: the uv matrix this material asks for, carried with the tile so the
+          // vertex walk can apply it. Only a transform the parser read reaches here;
+          // an unreadable one never got this far (it was refused by name above).
+          tiled.baseTextureTransform = material.baseTextureTransformParsed;
+          tiled.baseTransformCenter[0] = material.baseTextureTransformCenter[0];
+          tiled.baseTransformCenter[1] = material.baseTextureTransformCenter[1];
+          tiled.baseTransformScale[0] = material.baseTextureTransformScale[0];
+          tiled.baseTransformScale[1] = material.baseTextureTransformScale[1];
+          tiled.baseTransformRotate = material.baseTextureTransformRotate;
+          tiled.baseTransformTranslate[0] = material.baseTextureTransformTranslate[0];
+          tiled.baseTransformTranslate[1] = material.baseTextureTransformTranslate[1];
           worldTextures.push_back(std::move(tiled));
         }
       }
-      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu patchDeclared=%zu patchResolved=%zu patchUnparsable=%zu transformRefused=%zu",
+      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu patchDeclared=%zu patchResolved=%zu patchUnparsable=%zu transformRefused=%zu transformApplied=%zu",
         fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
         fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled,
-        fetchBlendFirst, fetchBlendLastRank, fetchBlendCapped, fetchPatchDeclared, fetchPatchResolved, fetchPatchUnparsable, fetchTransformRefused);
+        fetchBlendFirst, fetchBlendLastRank, fetchBlendCapped, fetchPatchDeclared, fetchPatchResolved, fetchPatchUnparsable, fetchTransformRefused,
+        fetchTransformApplied);
       traceFmt("gpu: world blend-fetch declared=%zu resolved=%zu refused=%zu disabled=%zu resampled=%zu modulateDeclared=%zu modulateResolved=%zu modulateRefused=%zu",
         fetchBlendDeclared, fetchBlendResolved, fetchBlendRefused, fetchBlendDisabled, fetchBlendResampled,
         fetchModulateDeclared, fetchModulateResolved, fetchModulateRefused);

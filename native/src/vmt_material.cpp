@@ -151,11 +151,15 @@ bool resolveNode(VmtNode& node, const VmtParser::IncludeReader& read, int depth,
   return true;
 }
 
-// True only for a $basetexturetransform that leaves the uv alone. A word this
-// parser does not understand is NOT identity: an unknown key is a uv change it
-// cannot reproduce, and guessing identity is how a rotated texture gets drawn
-// axis-aligned without anyone noticing.
-bool textureTransformIsIdentity(const std::string& text) {
+// Parses one $basetexturetransform -- "center .5 .5 scale 4 4 rotate 45
+// translate 0 0" -- into the numbers it names. Every number must be a whole
+// token and every word must be one of the four keys this format defines;
+// anything else returns false. A word this parser does not understand is NOT
+// the identity: an unknown key is a uv change it cannot reproduce, and guessing
+// identity is how a rotated texture gets drawn axis-aligned without anyone
+// noticing.
+bool parseTextureTransform(const std::string& text, float centerOut[2], float scaleOut[2],
+    float* rotateOut, float translateOut[2]) {
   double center[2] = {0.5, 0.5}, scale[2] = {1.0, 1.0}, translate[2] = {0.0, 0.0}, rotate = 0.0;
   std::size_t i = 0;
   const auto word = [&](std::string& out) {
@@ -186,10 +190,23 @@ bool textureTransformIsIdentity(const std::string& text) {
       return false;
     }
   }
-  const auto same = [](double a, double b) { return std::fabs(a - b) <= 1.0e-6; };
-  return same(center[0], 0.5) && same(center[1], 0.5) && same(scale[0], 1.0)
-    && same(scale[1], 1.0) && same(rotate, 0.0) && same(translate[0], 0.0)
-    && same(translate[1], 0.0);
+  centerOut[0] = static_cast<float>(center[0]);
+  centerOut[1] = static_cast<float>(center[1]);
+  scaleOut[0] = static_cast<float>(scale[0]);
+  scaleOut[1] = static_cast<float>(scale[1]);
+  *rotateOut = static_cast<float>(rotate);
+  translateOut[0] = static_cast<float>(translate[0]);
+  translateOut[1] = static_cast<float>(translate[1]);
+  return true;
+}
+
+// True only for a transform that was parsed and leaves the uv alone.
+bool textureTransformIsIdentity(const float center[2], const float scale[2], float rotate,
+    const float translate[2]) {
+  const auto same = [](float a, float b) { return std::fabs(a - b) <= 1.0e-6f; };
+  return same(center[0], 0.5f) && same(center[1], 0.5f) && same(scale[0], 1.0f)
+    && same(scale[1], 1.0f) && same(rotate, 0.0f) && same(translate[0], 0.0f)
+    && same(translate[1], 0.0f);
 }
 
 // The field extraction stage, run on the EFFECTIVE root: for a patch wrapper that
@@ -272,37 +289,48 @@ bool extractFields(const std::unordered_map<std::string, VmtValue>& root, VmtMat
     || !material.waterBottomMaterial.empty() || !material.underwaterOverlay.empty();
   // T59: $basetexturetransform re-maps the uv before sampling (center, scale,
   // rotate, translate). The world pass samples the face's own texinfo axes, so a
-  // material carrying a non-identity transform would be drawn rotated and
-  // stretched from where TF2 puts it -- pl_odyssey's glass windows ask for
-  // rotate 45 scale 4. Refusing by name is the honest answer until the matrix is
-  // applied in the vertex stage; the alternative is a wrong picture nobody can
-  // tell is wrong.
+  // material carrying a transform has to be re-mapped by the same matrix or it
+  // lands rotated and stretched from where TF2 puts it -- pl_odyssey's glass
+  // windows ask for rotate 45 scale 4.
+  //
+  // R2: this pass now applies that matrix in the vertex stage, so a transform it
+  // can read into numbers is no longer a refusal. What still refuses is the shape
+  // it cannot read: an object block, or a word it does not understand. Guessing
+  // the identity there would draw a rotated texture axis-aligned and nobody could
+  // tell the picture is wrong.
+  //
+  // $basetexturetransform2 re-maps the second layer and is read the same way.
   {
-    // T59: $basetexturetransform re-maps the uv before sampling (center, scale,
-    // rotate, translate). The world pass samples the face's own texinfo axes, so a
-    // material carrying a non-identity transform would be drawn rotated and
-    // stretched from where TF2 puts it -- pl_odyssey's glass windows ask for
-    // rotate 45 scale 4. Refusing by name is the honest answer until the matrix is
-    // applied in the vertex stage; the alternative is a wrong picture nobody can
-    // tell is wrong.
-    //
-    // The key can also be an object block ({"center" ".5 .5"}) rather than a
-    // string; `scalar` reports an object as empty, so reading only the string form
-    // would treat that shape as "no transform" and draw it axis-aligned.
-    // $basetexturetransform2 re-maps the second layer and is checked the same way.
-    const auto refuseTransform = [&material](const std::string& text) {
+    const auto recordTransform = [&material](const std::string& text, bool parsed,
+                                             const float center[2], const float scale[2],
+                                             float rotate, const float translate[2]) {
       if (material.baseTextureTransform) return;
       material.baseTextureTransform = true;
       material.baseTextureTransformText = text;
+      if (!parsed) return;
+      material.baseTextureTransformParsed = true;
+      material.baseTextureTransformCenter[0] = center[0];
+      material.baseTextureTransformCenter[1] = center[1];
+      material.baseTextureTransformScale[0] = scale[0];
+      material.baseTextureTransformScale[1] = scale[1];
+      material.baseTextureTransformRotate = rotate;
+      material.baseTextureTransformTranslate[0] = translate[0];
+      material.baseTextureTransformTranslate[1] = translate[1];
     };
     for (const char* key : {"$basetexturetransform", "$basetexturetransform2"}) {
       const auto found = root.find(key);
       if (found == root.end()) continue;
+      float center[2] = {0.5f, 0.5f}, scale[2] = {1.0f, 1.0f}, translate[2] = {0.0f, 0.0f};
+      float rotate = 0.0f;
       if (found->second.object) {
-        refuseTransform(std::string(key) + " is an object block");
+        recordTransform(std::string(key) + " is an object block", false, center, scale,
+          rotate, translate);
         continue;
       }
-      if (!textureTransformIsIdentity(found->second.text)) refuseTransform(found->second.text);
+      const bool parsed =
+        parseTextureTransform(found->second.text, center, scale, &rotate, translate);
+      if (parsed && textureTransformIsIdentity(center, scale, rotate, translate)) continue;
+      recordTransform(found->second.text, parsed, center, scale, rotate, translate);
     }
   }
   // T59 (regression repaired): this assignment lived in VmtParser::parse before

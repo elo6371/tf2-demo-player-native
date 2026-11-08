@@ -611,12 +611,54 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       // extent/sourceSize, which is the downscale. Passing the tile size in
       // both places collapsed that ratio to 1 and made every downscaled
       // texture repeat: 70 of the 85 tiled materials on pl_odyssey.
-      a.u = worldTileCoord(triangle.au, t.sourceWidth, t.x, t.width, batch.width);
-      a.v = worldTileCoord(triangle.av, t.sourceHeight, t.y, t.height, batch.height);
-      b.u = worldTileCoord(triangle.bu, t.sourceWidth, t.x, t.width, batch.width);
-      b.v = worldTileCoord(triangle.bv, t.sourceHeight, t.y, t.height, batch.height);
-      c.u = worldTileCoord(triangle.cu, t.sourceWidth, t.x, t.width, batch.width);
-      c.v = worldTileCoord(triangle.cv, t.sourceHeight, t.y, t.height, batch.height);
+      // ---- R2: `$basetexturetransform` -----------------------------------
+      // Source re-maps the material's texcoord before the sampler ever sees it:
+      // the shader computes p = (uv - center) * scale, rotates p, and adds
+      // center + translate back (lightmappedgeneric_vs20.fxc:149-150). This is
+      // applied to the texcoord handed to the atlas walk, so the wrap/tile
+      // arithmetic below is unchanged. It is NOT applied to the lightmap uv,
+      // which is a separate attribute assigned further down: the VMT defines the
+      // transform as not affecting lightmaps.
+      float au = triangle.au, av = triangle.av;
+      float bu = triangle.bu, bv = triangle.bv;
+      float cu = triangle.cu, cv = triangle.cv;
+      {
+        const WorldTexture& tiledMaterial = textures[tile->second];
+        // The transform is normalised by the SOURCE size, the same denominator
+        // `worldTileCoord` uses. Zero means this tile never recorded one (the tile
+        // is its own source); without the number there is no normalised uv to
+        // rotate, and inventing one would move the texture without saying so, so
+        // the walk falls back to the face's own axes.
+        if (tiledMaterial.baseTextureTransform && t.sourceWidth != 0 && t.sourceHeight != 0) {
+          constexpr float kPi = 3.14159265358979323846f;
+          const float angle = tiledMaterial.baseTransformRotate * kPi / 180.0f;
+          const float cosAngle = std::cos(angle), sinAngle = std::sin(angle);
+          const float sourceW = static_cast<float>(t.sourceWidth);
+          const float sourceH = static_cast<float>(t.sourceHeight);
+          const float centerU = tiledMaterial.baseTransformCenter[0];
+          const float centerV = tiledMaterial.baseTransformCenter[1];
+          const auto applyTransform = [&](float u, float v, float* outU, float* outV) {
+            const float x = (u / sourceW - centerU) * tiledMaterial.baseTransformScale[0];
+            const float y = (v / sourceH - centerV) * tiledMaterial.baseTransformScale[1];
+            // Positive rotate turns the texture counter-clockwise as the player
+            // sees it, and v runs down the image, so the rotation below is the
+            // visual one (see the note in vmt_material.cpp).
+            const float rx = x * cosAngle - y * sinAngle;
+            const float ry = x * sinAngle + y * cosAngle;
+            *outU = (rx + centerU + tiledMaterial.baseTransformTranslate[0]) * sourceW;
+            *outV = (ry + centerV + tiledMaterial.baseTransformTranslate[1]) * sourceH;
+          };
+          applyTransform(triangle.au, triangle.av, &au, &av);
+          applyTransform(triangle.bu, triangle.bv, &bu, &bv);
+          applyTransform(triangle.cu, triangle.cv, &cu, &cv);
+        }
+      }
+      a.u = worldTileCoord(au, t.sourceWidth, t.x, t.width, batch.width);
+      a.v = worldTileCoord(av, t.sourceHeight, t.y, t.height, batch.height);
+      b.u = worldTileCoord(bu, t.sourceWidth, t.x, t.width, batch.width);
+      b.v = worldTileCoord(bv, t.sourceHeight, t.y, t.height, batch.height);
+      c.u = worldTileCoord(cu, t.sourceWidth, t.x, t.width, batch.width);
+      c.v = worldTileCoord(cv, t.sourceHeight, t.y, t.height, batch.height);
       // T12: a weight is handed to the shader only for a material that shipped
       // a second layer. A displacement whose VMT names one layer keeps the
       // sentinel, because the blend atlas has no tile under its uv and the

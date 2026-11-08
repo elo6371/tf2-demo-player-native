@@ -165,6 +165,24 @@ struct WorldTexture {
   // weight rather than a tangent-space normal -- a refusal that is not a missing
   // resource and must not be counted as one.
   bool ssBump = false;
+  // ---- R2 (2026-11-09): `$basetexturetransform` -------------------------
+  // The uv matrix the VMT asks the shader to apply before sampling, parsed by
+  // the VMT reader (vmt_material.cpp `parseTextureTransform`). `false` means the
+  // material declares no transform this reader could read -- such a material is
+  // refused by name in the fetch pass and never reaches a tile, so a tile with
+  // `baseTextureTransform` false is drawn on the face's own texinfo axes.
+  //
+  // Source applies it in the vertex shader as a 2x4 affine: u' = u*m00 + v*m01 +
+  // m03, v' = u*m10 + v*m11 + m13 (lightmappedgeneric_vs20.fxc:149-150 feeding
+  // SetVertexShaderTextureTransform). Center is the pivot, scale multiplies the
+  // normalised uv, rotate is in degrees and positive is counter-clockwise as the
+  // player sees it, translate is added after the pivot. The vertex walk below
+  // reproduces exactly that order.
+  bool baseTextureTransform = false;
+  float baseTransformCenter[2] = {0.5f, 0.5f};
+  float baseTransformScale[2] = {1.0f, 1.0f};
+  float baseTransformRotate = 0.0f;
+  float baseTransformTranslate[2] = {0.0f, 0.0f};
 };
 
 // T12: what the terrain blend path actually did, as counts a gate can read.
