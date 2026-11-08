@@ -987,10 +987,17 @@ WA_OK=$(grep -c '^  OK   ' "$OUT/22-weapon-animation.txt" || true)
 # the assertion measures the frame and not the trace), and "one picture on a
 # still camera" became "the frames differ with playback" -- the old claim only
 # held while the pre-T80 zero eye pointed the view at nothing that moved.
-if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 66 ]; then
+#
+# 67 since 2026-11-08: section 6 gained the mutationMoved assertion when the order
+# mutation moved onto the same --models witness as section 5. The default
+# class-name sample set is static on this demo, so swapping the multiply order
+# there measured nothing (skinLands 2.32458e-05, mutationMoved=false) and read as
+# a product regression; the gate now names that shape instead of hiding it.
+# Per-section on this tree: 27 / 6 / 6 / 20 / 6 / 2.
+if grep -q 'WEAPON-ANIMATION=PASS' "$OUT/22-weapon-animation.txt" && [ "${WA_OK:-0}" -eq 67 ]; then
   echo "WEAPON-ANIMATION=PASS (assertions_ok=$WA_OK)"
 else
-  echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0}, expected 66)"; rc_all=1
+  echo "WEAPON-ANIMATION=FAIL (assertions_ok=${WA_OK:-0}, expected 67)"; rc_all=1
 fi
 # This gate owns three contracts, and the second one is the shape that was
 # actually wrong. `--mutation` forces the sampled pose back to the bind pose and
