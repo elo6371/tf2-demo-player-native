@@ -343,8 +343,22 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     const bool batchesIndexed = worldIndexBuffer_ && worldIndexCount_ > 0 && !worldDrawBatches_.empty();
     if (batchesIndexed) {
       context_->IASetIndexBuffer(worldIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
+      bool blendedStateSet = false;
       for (const auto& batch : worldDrawBatches_) {
         if (batch.indexCount == 0) continue;
+        // T96: the blended sub-batch is the only one that changes device state.
+        // SrcAlpha/InvSrcAlpha with depth writes off, exactly what the viewmodel
+        // pass does for its own `$translucent` ranges
+        // (native_renderer_viewmodel.cpp:701). The opaque sub-batch explicitly
+        // clears blending so a state left by an earlier pass cannot composite
+        // the map.
+        if (batch.alphaMode == 1) {
+          context_->OMSetBlendState(worldAlphaBlendState_.Get(), nullptr, 0xffffffffu);
+          context_->OMSetDepthStencilState(worldBlendedDepthStencilState_.Get(), 0);
+          blendedStateSet = true;
+        } else {
+          context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+        }
         ID3D11ShaderResourceView* albedoView = batch.albedoView;
         bindSlot0(albedoView, "world-batch");
         // The second layer and its mask are per batch: a batch that holds no
@@ -370,6 +384,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         ++worldBatchDrawCalls_;
         if (albedoView) ++worldBatchTexturedDrawCalls_;
       }
+      // Put the state back before the water and entity passes: an
+      // OMSetBlendState is device state, not a per-draw argument.
+      context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+      if (blendedStateSet) context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
       worldVisDrewIndexed_ = !worldDiagnosticIsolation_ && worldVisClipApplied_;
       ID3D11Buffer* noIndex = nullptr;
       context_->IASetIndexBuffer(noIndex, DXGI_FORMAT_R32_UINT, 0);

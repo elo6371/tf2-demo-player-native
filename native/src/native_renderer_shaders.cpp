@@ -168,7 +168,13 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     if (envFeatures.x > 4.5) return float4(depthZ, depthZ, depthZ, 1.0);
     return float4(0.35, 0.62, 0.38, 1.0);
   }
-  float3 sampled = texture0.Sample(sampler0, uv).rgb;
+  // T96: the texel is sampled as float4 and its alpha kept. The VTF decoder
+  // already produced that alpha and the atlas is R8G8B8A8_UNORM with four
+  // channels copied per texel (world_tile_atlas.cpp:271), so `$translucent` and
+  // `$alphatest` only ever needed a consumer -- this is it. `sampled` stays the
+  // rgb triple every existing arm reads, so the opaque path is unchanged.
+  float4 sampledTexel = texture0.Sample(sampler0, uv);
+  float3 sampled = sampledTexel.rgb;
   // T61 diagnostic: the raw t0 sample for this pixel's uv, before the blend
   // layer, the lightmap and the lighting. This is the value the GPU read.
   if (envFeatures.x > 0.5 && envFeatures.x < 1.5) {
@@ -332,7 +338,17 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     lighting += 0.12 * pow(saturate(dot(n, halfDirection)), 32.0);
   }
   lighting = max(0.0, min(lighting, 2.0));
-  return float4(albedo * lighting, 1.0);
+  // T96: the world alpha output. The two keys ride `feature.x` (TEXCOORD6,
+  // written by the renderer from the material the tile belongs to): bit 16 is
+  // `$alphatest`, bit 8 is `$translucent`. A cutout has no blend state and draws
+  // in the opaque sub-batch; its hole comes from `discard`, the same rule the
+  // viewmodel pixel shader uses at its own `$alphatest` arm (line 802). A
+  // blended surface writes the texel's own alpha and is drawn by the separate
+  // blended sub-batch with SrcAlpha/InvSrcAlpha and depth writes off. Every
+  // vertex without bit 8 keeps 1.0, so the opaque frame is unchanged.
+  if ((featureMask & 16u) != 0u && sampledTexel.a < 0.5) discard;
+  const float outputAlpha = (featureMask & 8u) != 0u ? sampledTexel.a : 1.0f;
+  return float4(albedo * lighting, outputAlpha);
 }
 )HLSL";
 

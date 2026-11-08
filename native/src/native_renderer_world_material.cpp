@@ -393,6 +393,14 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.envMode = worldEnvMode();
   state.displacedTriangles = worldDisplacedTriangleCount_;
   state.waterTriangles = worldWaterTriangleCount_;
+  // T96: the alpha path, same rule: counted at upload from the vertices that
+  // carry the bit, so a material that declared but never reached the buffer
+  // cannot read as drawn.
+  state.blendedTriangles = worldBlendedTriangleCount_;
+  state.cutoutTriangles = worldCutoutTriangleCount_;
+  state.blendedBatches = worldBlendedBatchCount_;
+  state.alphaBlendState = worldAlphaBlendState_ != nullptr;
+  state.alphaDepthWriteOff = worldBlendedDepthStencilState_ != nullptr;
   // The skybox, as geometry rather than as files: `worldSkyVertexCount` is what
   // the pass draws, and `worldSkyDraws` is whether the Draw call ran this frame
   // -- not whether it would have, which is a condition the reading can restate

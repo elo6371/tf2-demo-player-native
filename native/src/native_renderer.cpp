@@ -572,6 +572,30 @@ bool Renderer::createPipeline() {
   skyDepthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
   if (FAILED(device_->CreateDepthStencilState(&skyDepthDescription,
       worldSkyDepthStencilState_.GetAddressOf()))) return false;
+  // T96: the world alpha pass's two device objects. The depth state is the
+  // world's own test with writes cleared -- a translucent surface must still be
+  // hidden by an opaque one in front of it, but must not hide a second
+  // translucent surface behind it. The blend state is the same SrcAlpha /
+  // InvSrcAlpha recipe the viewmodel pass uses for its `$translucent` ranges;
+  // created once here rather than lazily in the draw path, for the same reason
+  // that block states.
+  D3D11_DEPTH_STENCIL_DESC worldBlendedDepthDescription = depthDescription;
+  worldBlendedDepthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+  initStage_ = "createDepthState.worldBlended";
+  if (FAILED(device_->CreateDepthStencilState(&worldBlendedDepthDescription,
+      worldBlendedDepthStencilState_.GetAddressOf()))) return false;
+  D3D11_BLEND_DESC worldAlphaBlendDescription{};
+  worldAlphaBlendDescription.RenderTarget[0].BlendEnable = TRUE;
+  worldAlphaBlendDescription.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+  worldAlphaBlendDescription.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+  worldAlphaBlendDescription.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+  worldAlphaBlendDescription.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+  worldAlphaBlendDescription.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+  worldAlphaBlendDescription.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+  worldAlphaBlendDescription.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+  initStage_ = "createBlendState.world";
+  if (FAILED(device_->CreateBlendState(&worldAlphaBlendDescription,
+      worldAlphaBlendState_.GetAddressOf()))) return false;
   D3D11_RASTERIZER_DESC rasterDescription{};
   rasterDescription.FillMode = D3D11_FILL_SOLID;
   rasterDescription.CullMode = D3D11_CULL_BACK;
