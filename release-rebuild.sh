@@ -87,6 +87,10 @@ exe_of() { printf '%s/%s.exe\n' "$BUILD" "$1"; }
 # The inputs each binary is allowed to depend on. Restricted per target on
 # purpose: native/tools holds ~40 probe sources that no shipped binary links, so
 # a blanket "native/ is newer" check would fail on files that cannot stale it.
+# Inputs are the files git tracks, never "every file on disk": a build rewrites
+# its own ignored outputs (native/generated/tf2_build_stamp.*) while the gate is
+# running, and those must not look like a changed input. In a tree without git
+# the gate falls back to every file on disk (still correct, just blinder).
 sources_of() {
   if [ "$1" = "$PRIMARY" ]; then
     printf '%s\n' native/src native/include native/generated
@@ -96,10 +100,18 @@ sources_of() {
 }
 
 list_inputs() { # list_inputs <target> -- every existing input file, one per line
-  local t="$1" p
+  local t="$1" p tracked=""
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 && tracked=1
   while IFS= read -r p; do
     [ -z "$p" ] && continue
-    if [ -d "$p" ]; then find "$p" -type f 2>/dev/null; elif [ -f "$p" ]; then printf '%s\n' "$p"; fi
+    if [ -d "$p" ]; then
+      if [ -n "$tracked" ]; then git ls-files -z -- "$p" | tr '\0' '\n'
+      else find "$p" -type f 2>/dev/null; fi
+    elif [ -f "$p" ]; then
+      if [ -n "$tracked" ]; then
+        git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 && printf '%s\n' "$p"
+      else printf '%s\n' "$p"; fi
+    fi
   done <<< "$(sources_of "$t")"
 }
 

@@ -50,7 +50,10 @@ write_mock_build() { # write_mock_build <dir>
 set -uo pipefail
 BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
 mkdir -p "$BUILD"
-mock_sha() { find native/src native/include native/generated native/tools -type f 2>/dev/null | LC_ALL=C sort | xargs -d '\n' -r sha256sum | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }
+# The mock build hashes tracked inputs only, like the real gate: native/generated
+# is the build's own ignored output and must never feed the link identity.
+mock_sha() { find native/src native/include native/tools -type f 2>/dev/null | LC_ALL=C sort | xargs -d '\n' -r sha256sum | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }
+[ -n "${MOCK_WRITE_GENERATED:-}" ] && printf 'stamp:%s\n' "${RANDOM}" > native/generated/tf2_build_stamp.cpp
 h=$(mock_sha)
 for t in "$@"; do
   exe="$BUILD/$t.exe"
@@ -75,6 +78,9 @@ new_case() { # new_case <name> -> echoes the case dir, creates tree + exes
   done
   : > "$dir/native/build-nmake/Makefile"
   cp "$HERE/release-rebuild.sh" "$dir/release-rebuild.sh"
+  # The gate reads git-tracked inputs; give the mock tree a real index and make
+  # native/generated ignored exactly as it is in the product tree (.gitignore:6).
+  ( cd "$dir" && git init -q && printf 'native/generated\n' > .gitignore && git add -A ) >/dev/null 2>&1
   write_mock_build "$dir"
   printf '%s' "$dir"
 }
@@ -143,6 +149,16 @@ rm -f "$d6/native/build-nmake/Makefile"
 rc=$(run_gate "$d6" "$WORK/c6.log")
 expect_rc "C6 refuses without a build tree" "$rc" 2
 expect_has "C6 named reason" "$WORK/c6.log" "reason=no-build-tree"
+
+# --- C7: the build writes an ignored output while the gate runs --------------
+# The 2026-11-08 false red: native/generated/tf2_build_stamp.* is rewritten by
+# every build and is ignored by git. Hashing it as an input made the gate fail
+# on its own build output. Ignored files are not inputs; this case pins that.
+d7=$(new_case c7)
+rc=$(run_gate "$d7" "$WORK/c7.log" MOCK_WRITE_GENERATED=1)
+expect_rc "C7 a build that rewrites an ignored output passes" "$rc" 0
+expect_lacks "C7 no inputs-changed-during-run on an ignored output" "$WORK/c7.log" "inputs changed while the gate was running"
+expect_has "C7 verdict still names a basis" "$WORK/c7.log" "basis="
 
 echo
 if [ "$failures" -ne 0 ]; then
