@@ -90,14 +90,8 @@ ISO_UI="$ISO_DIR/ui.ini"
 # Chain any EXIT trap already installed instead of replacing it: an overwritten
 # trap would skip a mutation restore and leave a mutated build behind, which is
 # the "failure looks like success" shape this suite forbids.
-ISO_PREV_TRAP=$(trap -p EXIT)
-if [ -n "$ISO_PREV_TRAP" ]; then
-  ISO_PREV_TRAP=${ISO_PREV_TRAP#trap -- }
-  ISO_PREV_TRAP=${ISO_PREV_TRAP% EXIT}
-  trap "$ISO_PREV_TRAP; rm -rf \"$ISO_DIR\"" EXIT
-else
-  trap 'rm -rf "$ISO_DIR"' EXIT
-fi
+. "$(dirname "$0")/verify-iso.sh"
+iso_chain_exit "$ISO_DIR"
 
 
 MUTATION=0
