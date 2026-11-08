@@ -72,6 +72,15 @@ ISO_UI="$ISO_DIR/ui.ini"
 # the "failure looks like success" shape this suite forbids.
 . "$(dirname "$0")/verify-iso.sh"
 iso_chain_exit "$ISO_DIR"
+# An empty settings directory is not "the defaults": it means Performance, and
+# the frames this gate pins were captured with preset=standard (D-38). Seed the
+# isolate with the checked-in renderer fixture so the world this gate renders is
+# the world the pins describe.
+iso_seed_gate_settings "$ISO_DIR" || exit 2
+# The product reads this copy, while the capture identity records the fixture's
+# hash: they must be the same bytes or the evidence would name a configuration
+# the renderer never used.
+iso_assert_gate_settings "$ISO_DIR" || exit 2
 
 
 # ---- pins ----------------------------------------------------------------
@@ -672,7 +681,10 @@ echo "== 2. capture matrix =="
 if [ -d "$CAP/traces" ]; then
   echo "  cached matrix before this run: $(bash world-geometry-hole-capture.sh --validate "$CAP" 2>&1 | grep -c 'reason=ok') of $(ls "$CAP"/*.bmp 2>/dev/null | wc -l) frames reusable"
 fi
-bash world-geometry-hole-capture.sh "$CAP" > "$SCRATCH/capture.txt" 2>&1
+# The matrix has to render with the same isolated settings as this gate's own
+# captures, otherwise the frames it pins and the frames it compares against are
+# drawn by two different renderer configurations (that was D-38).
+CAPTURE_ISO_DIR="$ISO_DIR" bash world-geometry-hole-capture.sh "$CAP" > "$SCRATCH/capture.txt" 2>&1
 if [ $? -ne 0 ]; then
   echo "  FAIL capture"
   tail -20 "$SCRATCH/capture.txt" | sed 's/^/       /'

@@ -65,7 +65,9 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
 MAP=maps/pl_odyssey.bsp
 TICK=2000
-IDENTITY_VERSION=1
+# 2: the renderer settings became an identity field (settings=), so changing the
+#    fixture invalidates the frames captured under the old configuration.
+IDENTITY_VERSION=2
 
 RECAPTURE=0
 VALIDATE=0
@@ -81,6 +83,30 @@ done
 OUT="${OUT:-evidence/t26-world-holes/captures}"
 TRACE_DIR="$OUT/traces"
 mkdir -p "$OUT" "$TRACE_DIR"
+
+# ---- isolated settings (D-38) --------------------------------------------
+# Every frame this script writes is drawn with an explicit renderer
+# configuration: not the profile in %LOCALAPPDATA%, and not an empty file.
+# An empty [renderer] section means Performance (settings_store.cpp:56-58),
+# and Performance switches the sky pass off, which is 113,159 pixels of clear
+# colour against the frames this matrix pins. The directory is created here and
+# left alone if the caller passed one in; the gate passes CAPTURE_ISO_DIR so its
+# own run_capture_trace frames and this matrix share one configuration.
+CAP_ISO_DIR="${CAPTURE_ISO_DIR:-.scratch/capture-iso}"
+case "$CAP_ISO_DIR" in
+  /*) : ;;
+  *)  CAP_ISO_DIR="$PWD/$CAP_ISO_DIR" ;;
+esac
+CAP_ISO_SETTINGS="$CAP_ISO_DIR/settings.ini"
+CAP_ISO_UI="$CAP_ISO_DIR/ui.ini"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify-iso.sh"
+if [ "$VALIDATE" = 0 ]; then
+  # --validate only reads traces and identities; it must not create state.
+  iso_seed_gate_settings "$CAP_ISO_DIR" || exit 2
+  # Fail closed if the copy the product will read is not the fixture the
+  # identity records (settings= below is the fixture's hash).
+  iso_assert_gate_settings "$CAP_ISO_DIR" || exit 2
+fi
 
 # Which tick a captured frame belongs to. The product records it at the moment
 # the capture is armed. A trace written before that line existed falls back to
@@ -108,8 +134,12 @@ EXE_SHA=$(sha_of "$PRODUCT")
 DEMO_SHA=$(sha_of "$DEMO")
 MAP_SHA=$(sha_of "$TF/$MAP")
 CAPTURE_SCRIPT_SHA=$(sha_of "$0")
-if [ -z "$EXE_SHA" ] || [ -z "$DEMO_SHA" ] || [ -z "$MAP_SHA" ] || [ -z "$CAPTURE_SCRIPT_SHA" ]; then
-  echo "capture: an identity input is missing (product=$EXE_SHA demo=$DEMO_SHA map=$MAP_SHA script=$CAPTURE_SCRIPT_SHA)" >&2
+# The fixture itself, not the seeded copy: the two are byte-identical, and this
+# keeps --validate meaningful when the isolated directory was not seeded.
+CAP_SETTINGS_SHA=$(sha_of "$(iso_fixture_settings)")
+if [ -z "$EXE_SHA" ] || [ -z "$DEMO_SHA" ] || [ -z "$MAP_SHA" ] || [ -z "$CAPTURE_SCRIPT_SHA" ] \
+  || [ -z "$CAP_SETTINGS_SHA" ]; then
+  echo "capture: an identity input is missing (product=$EXE_SHA demo=$DEMO_SHA map=$MAP_SHA script=$CAPTURE_SCRIPT_SHA settings=$CAP_SETTINGS_SHA)" >&2
   exit 2
 fi
 # The flags are recorded as one line and compared as one line, so a switch whose
@@ -126,11 +156,15 @@ fi
 # --no-world-vis-clip/--world-geometry/--world-lightmap/--viewmodel*). A caller that
 # starts passing a new switch gets it recorded automatically, because identity_line
 # takes "$@" verbatim.
+# --settings-file / --ui-settings-file are not per-frame switches either: they
+# select the gate-owned renderer configuration, so they are recorded as
+# settings= (the fixture hash) instead of in flags=. A changed key in the
+# fixture changes the pixels, so it must invalidate the cache.
 identity_line() { # identity_line <name> <window> <flags...>
   local name="$1" window="$2"; shift 2
-  printf 'version=%s\nhead=%s\nexe=%s\ndemo=%s\nmap=%s\ntick=%s\nwindow=%s\nflags=%s\ncaptureScript=%s\n' \
+  printf 'version=%s\nhead=%s\nexe=%s\ndemo=%s\nmap=%s\ntick=%s\nwindow=%s\nflags=%s\ncaptureScript=%s\nsettings=%s\n' \
     "$IDENTITY_VERSION" "$HEAD_SHA" "$EXE_SHA" "$DEMO_SHA" "$MAP_SHA" "$TICK" \
-    "$window" "$*" "$CAPTURE_SCRIPT_SHA"
+    "$window" "$*" "$CAPTURE_SCRIPT_SHA" "$CAP_SETTINGS_SHA"
 }
 
 # ---- what makes a cached frame reusable -----------------------------------
@@ -217,6 +251,8 @@ capture() { # capture <name> [extra flags...]
     TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 120 "$PRODUCT" \
       --tf-root "$TF" --demo "$DEMO" \
       --capture-tick "$TICK" --capture-frame "$(cygpath -m "$PWD/$bmp")" \
+      --settings-file "$(cygpath -m "$CAP_ISO_SETTINGS")" \
+      --ui-settings-file "$(cygpath -m "$CAP_ISO_UI")" \
       --audio-disabled $window "$@" \
       > "$OUT/$name.log" 2>&1
     rc=$?
