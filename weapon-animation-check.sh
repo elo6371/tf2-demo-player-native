@@ -682,7 +682,11 @@ for tick in "${TICKS[@]}"; do
   # measured that adding them changes no pixel: the identity/control pair is
   # byte-identical under the flag pair and under the previous invocation (both
   # frame hashes recorded in T39-WEAPON-ANIMATION-2026-10-21.md).
-  TF2_NATIVE_TRACE="$ROOT/$TRACE" timeout "$RUN_TIMEOUT" "$EXE" \
+  case "$TRACE" in
+    /*) FULL_TRACE="$TRACE" ;;
+    *)  FULL_TRACE="$ROOT/$TRACE" ;;
+  esac
+  TF2_NATIVE_TRACE="$FULL_TRACE" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
     --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --demo "$DEMO" \
@@ -878,7 +882,12 @@ run_model() { # run_model <name> <model> <args...>
   local name="$1" model="$2"; shift 2
   local bmp="$RUN_DIR/model-$name.bmp"
   rm -f "$bmp"
-  TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/model-$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
+  local full_trace="$TRACE_DIR/model-$name.trace"
+  case "$full_trace" in
+    /*) ;;
+    *)  full_trace="$ROOT/$full_trace" ;;
+  esac
+  TF2_NATIVE_TRACE="$full_trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --hidden-window --audio-disabled \
     --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --model "$model" \
@@ -1072,10 +1081,20 @@ echo "=== 6/6 the probe's matrix-order mutation is caught ==="
 # The order mutation is the one the product readings cannot see (a wrong-but-live
 # pose still advances), and the probe is the instrument that owns it: skinLands
 # is the distance between a skinned bone and that bone's animated origin, so
-# swapping the multiply order moves it from ~1e-06 to ~36.
-PROBE_ORDER=$(timeout "$RUN_TIMEOUT" "$PROBE" --tf-root "$TF" --demo "$DEMO" --ticks 6 --mutation order 2>/dev/null | tail -1)
+# swapping the multiply order moves it from ~1e-06 to ~5 on a moving witness.
+#
+# The measurement rides the same --models witness as section 5. Without it the
+# probe falls back to its default class-name sample set, which on this demo lands
+# on static props: swapping a multiply order there cannot move anything, so the
+# run read 2.32458e-05 and called a working product broken (2026-11-08). The
+# mutationMoved check below makes a future static sample set a named failure
+# instead of a silent pass.
+PROBE_ORDER=$(timeout "$RUN_TIMEOUT" "$PROBE" --tf-root "$TF" --demo "$DEMO" \
+  --models "$WITNESS_FILTER" --ticks 6 --mutation order 2>/dev/null | tail -1)
 PROBE_LANDS=$(jfield "$PROBE_ORDER" skinLands)
-echo "probe skinLands under --mutation order = ${PROBE_LANDS:-<none>}"
+PROBE_ORDER_MOVED=$(jfield "$PROBE_ORDER" mutationMoved)
+echo "probe skinLands under --mutation order = ${PROBE_LANDS:-<none>} (moved=${PROBE_ORDER_MOVED:-<none>})"
+assert_eq "the order mutation reports itself moved" "${PROBE_ORDER_MOVED:-none}" "true"
 assert_gt "the order mutation moves skinLands off zero" "${PROBE_LANDS:-0}" 1.0
 
 # The summary and the failure text are the two things worth keeping from a run:
