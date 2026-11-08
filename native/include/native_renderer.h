@@ -165,6 +165,12 @@ struct WorldTexture {
   // weight rather than a tangent-space normal -- a refusal that is not a missing
   // resource and must not be counted as one.
   bool ssBump = false;
+  // T96: the material's own `$translucent` / `$alphatest`, copied from the VMT
+  // that produced this tile. The renderer turns these into featureMask bits 8
+  // and 16; neither key costs an upload because the pixels were always there
+  // (worldTileBlit memcpy's four channels per texel, world_tile_atlas.cpp:271).
+  bool translucent = false;
+  bool alphaTest = false;
 };
 
 // T12: what the terrain blend path actually did, as counts a gate can read.
@@ -362,6 +368,14 @@ struct WorldMaterialParams {
   float selfIllumR = 0.0f;
   float selfIllumG = 0.0f;
   float selfIllumB = 0.0f;
+  // T96: pass-level aggregate of the two alpha keys, true when ANY fetched
+  // material declares it. This is a reading, not the per-material truth: the
+  // world pass has no per-material constant, so the draw key rides the vertex
+  // (WorldVertex::featureMask bits 8/16) and one atlas batch can hold both an
+  // opaque and a translucent material. The aggregate exists so a trace can say
+  // "the map declared glass at all" next to the per-material lines.
+  bool translucent = false;
+  bool alphaTest = false;
 };
 
 enum class WorldLightmapStatus {
@@ -411,6 +425,17 @@ struct WorldTileReading {
   bool bump = false;
   bool bump2 = false;
   bool detail = false;
+  // T96: what the world pass consumed for this material, as a word rather than
+  // a flag: "opaque" (no alpha key), "cutout" ($alphatest -> pixel-shader
+  // discard), "blended" ($translucent -> blend state + depth writes off), or
+  // "refused" with `alphaReason` naming why. The declaration line says what the
+  // VMT asked for; these two are the consumption side, and a material that
+  // declares `$translucent` but reads mode=refused here is exactly the old
+  // silent drop made visible.
+  bool translucent = false;
+  bool alphaTest = false;
+  std::string alphaMode = "opaque";
+  std::string alphaReason;
   std::string reason;
 };
 
@@ -564,6 +589,17 @@ struct WorldMaterialSampleState {
   std::size_t weaponDrawsWithWorldAtlas = 0;
   std::size_t worldDrawsWithWeaponTexture = 0;
   std::size_t slot0Binds = 0;
+  // T96: the world alpha path, as the last upload left it. `blendedTriangles`
+  // and `cutoutTriangles` are counted off the triangles whose vertices carry
+  // featureMask bit 8 / bit 16, so they say what the shader was handed rather
+  // than what the VMTs declared. `alphaBlendState` / `alphaDepthWriteOff` are
+  // the device objects: the pair separates "the material asked" from "the pass
+  // can composite it".
+  std::uint32_t blendedTriangles = 0;
+  std::uint32_t cutoutTriangles = 0;
+  std::uint32_t blendedBatches = 0;
+  bool alphaBlendState = false;
+  bool alphaDepthWriteOff = false;
   // One row per material the upload was handed, in the order it was handed
   // them. The reason is "tiled" or the refusal's name, so a gate can assert on
   // the exact material that used to vanish into `capped=51`.
@@ -1866,6 +1902,11 @@ private:
     ID3D11ShaderResourceView* bumpView = nullptr;
     ID3D11ShaderResourceView* bump2View = nullptr;
     ID3D11ShaderResourceView* detailView = nullptr;
+    // T96: 0 = opaque (no blend state, depth writes on), 1 = blended (src-alpha
+    // blend, depth writes off). The atlas batch is not the same key as the alpha
+    // mode -- one atlas holds materials of both kinds -- so the index buffer is
+    // grouped by (batch, alphaMode) and blended ranges are emitted last.
+    int alphaMode = 0;
   };
   std::vector<WorldDrawBatch> worldDrawBatches_;
   // Per uploaded triangle, which batch it belongs to; -1 when the material got
@@ -2063,6 +2104,16 @@ private:
   ViewModelMaterialSampleState viewModelMaterialSample_{};
   UINT worldDisplacedTriangleCount_ = 0;
   UINT worldWaterTriangleCount_ = 0;
+  // T96: the world alpha path's own state and readings. The blend state is the
+  // same SrcAlpha / InvSrcAlpha recipe the viewmodel pass created for its
+  // `$translucent` ranges (native_renderer.cpp:444-458); the depth state is the
+  // world's own less-equal test with the write mask cleared, which is what lets
+  // a blended surface composite with what is behind it instead of occluding it.
+  Microsoft::WRL::ComPtr<ID3D11BlendState> worldAlphaBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> worldBlendedDepthStencilState_;
+  std::uint32_t worldBlendedTriangleCount_ = 0;
+  std::uint32_t worldCutoutTriangleCount_ = 0;
+  std::uint32_t worldBlendedBatchCount_ = 0;
   RenderSettings settings_{};
   float cameraYaw_ = 0.0f;
   float cameraPitch_ = 0.36f;

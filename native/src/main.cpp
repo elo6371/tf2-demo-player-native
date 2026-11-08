@@ -4864,6 +4864,10 @@ bool outlineVertexExtent = false;
       // name; drawing it axis-aligned would be a wrong picture, not a missing one.
       std::size_t fetchTransformRefused = 0;
       std::size_t fetchVtfMissing = 0, fetchVtfTooLarge = 0, fetchDecodeEmpty = 0, fetchTiled = 0;
+      // T96: the two alpha keys, declared and tiled. Declared is what the VMTs
+      // parsed; tiled is what reached an atlas and therefore the vertex buffer.
+      std::size_t fetchAlphaDeclared = 0, fetchTranslucentDeclared = 0, fetchAlphaTestDeclared = 0;
+      std::size_t fetchTranslucentTiled = 0, fetchAlphaTestTiled = 0;
       std::size_t fetchMaxWidth = 0, fetchMaxHeight = 0;
       std::size_t fetchFromPakfile = 0, fetchDownscaled = 0;
       // T12: the blend path's own counts. Declared is what the VMTs asked for;
@@ -5154,6 +5158,23 @@ bool outlineVertexExtent = false;
         // `$basetexture` still declares `$detail` or `$ssbump`, and the feature
         // scan's question is what the map's materials ask for.
         worldFetchedMaterials.emplace_back(materialName, material);
+        // T96: the declaration side. One line per material that declares either
+        // key, printed before the base-texture check so a material refused later
+        // still shows what it asked for. Until now the only evidence the parser
+        // read `$translucent` was a struct field nothing consumed.
+        if (material.translucent || material.alphaTest) {
+          ++fetchAlphaDeclared;
+          if (material.translucent) ++fetchTranslucentDeclared;
+          if (material.alphaTest) ++fetchAlphaTestDeclared;
+          traceFmt("gpu: world alpha material=%s stage=declared translucent=%d alphatest=%d source=%s",
+            materialName.c_str(), material.translucent ? 1 : 0, material.alphaTest ? 1 : 0,
+            materialPath.c_str());
+        }
+        // T96: the pass-level aggregate WorldMaterialParams carries. It is an
+        // OR over the materials, not the per-material truth -- see the field's
+        // comment in native_renderer.h.
+        mapMaterialParams.translucent = mapMaterialParams.translucent || material.translucent;
+        mapMaterialParams.alphaTest = mapMaterialParams.alphaTest || material.alphaTest;
         if (material.baseTexture.empty() && material.baseTexture2.empty()) {
           ++fetchVmtNoBase; chain.reason = "no-basetexture"; continue;
         }
@@ -5607,6 +5628,13 @@ bool outlineVertexExtent = false;
           tiled.detailFactor = material.detailBlendFactor;
           tiled.detailScale = material.detailScale;
           tiled.ssBump = material.ssBump;
+          // T96: the two alpha keys reach the renderer as material facts; this is
+          // the exit of the jump that used to drop them. The renderer turns them
+          // into featureMask bits 8/16 and reports mode=blended|cutout|refused.
+          tiled.translucent = material.translucent;
+          tiled.alphaTest = material.alphaTest;
+          if (material.translucent) ++fetchTranslucentTiled;
+          if (material.alphaTest) ++fetchAlphaTestTiled;
           worldTextures.push_back(std::move(tiled));
         }
       }
@@ -5614,6 +5642,13 @@ bool outlineVertexExtent = false;
         fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
         fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled,
         fetchBlendFirst, fetchBlendLastRank, fetchBlendCapped, fetchPatchDeclared, fetchPatchResolved, fetchPatchUnparsable, fetchTransformRefused);
+      // T96: the aggregate, in one line: what was declared, what got a tile, and
+      // the pass-level aggregate the renderer was handed. `declared=3 tiled=0`
+      // is the state that used to be invisible.
+      traceFmt("gpu: world alpha-fetch declared=%zu translucent=%zu alphatest=%zu tiledTranslucent=%zu tiledAlphatest=%zu aggregateTranslucent=%d aggregateAlphatest=%d",
+        fetchAlphaDeclared, fetchTranslucentDeclared, fetchAlphaTestDeclared,
+        fetchTranslucentTiled, fetchAlphaTestTiled,
+        mapMaterialParams.translucent ? 1 : 0, mapMaterialParams.alphaTest ? 1 : 0);
       traceFmt("gpu: world blend-fetch declared=%zu resolved=%zu refused=%zu disabled=%zu resampled=%zu modulateDeclared=%zu modulateResolved=%zu modulateRefused=%zu",
         fetchBlendDeclared, fetchBlendResolved, fetchBlendRefused, fetchBlendDisabled, fetchBlendResampled,
         fetchModulateDeclared, fetchModulateResolved, fetchModulateRefused);
@@ -7990,6 +8025,15 @@ bool outlineVertexExtent = false;
           trianglesByMaterial[row.material], visibleByMaterial[row.material],
           row.batch, row.tile, row.width, row.height, row.blend ? 1 : 0, row.modulate ? 1 : 0,
           row.reason.c_str());
+        // T96: the consumption side for the materials that declare an alpha key.
+        // "declared" above is the parser; mode= is what the pass will draw, and
+        // refused carries the reason. A gate that sees stage=declared with no
+        // mode=blended line has found the old bug's shape.
+        if (row.translucent || row.alphaTest) {
+          traceFmt("gpu: world alpha material=%s stage=consumed mode=%s reason=%s",
+            row.material.empty() ? "-" : row.material.c_str(),
+            row.alphaMode.c_str(), row.alphaReason.c_str());
+        }
       }
     }
     // The two cross-pass questions, read from the ledger the draws fill. A
@@ -7999,6 +8043,13 @@ bool outlineVertexExtent = false;
       " slot0Binds=%zu batchDraws=%zu texturedBatchDraws=%zu",
       sample.weaponDrawsWithWorldAtlas, sample.worldDrawsWithWeaponTexture,
       sample.slot0Binds, sample.worldBatchDrawCalls, sample.worldBatchTexturedDrawCalls);
+    // T96: the frame side, counted at upload: how many triangles carry the blend
+    // bit and the cutout bit, and whether the two device objects exist. The
+    // negative control (`$translucent 0`) asserts blendedTriangles == 0 here; the
+    // positive one asserts it is non-zero and that the pixels moved.
+    traceFmt("gpu: world alpha frame blendedTriangles=%u cutoutTriangles=%u blendedBatches=%u blendState=%d depthWriteOff=%d",
+      sample.blendedTriangles, sample.cutoutTriangles, sample.blendedBatches,
+      sample.alphaBlendState ? 1 : 0, sample.alphaDepthWriteOff ? 1 : 0);
     // ---- T19: what the materials ask the shader for ------------------------
     // Declared, visible and resolved per feature, with the refusal each one
     // gets. The scan is shared with the probe (world_material_features.cpp), so

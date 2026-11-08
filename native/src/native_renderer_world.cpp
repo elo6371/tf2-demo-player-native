@@ -200,6 +200,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldBumpFeature_ = WorldFeatureState{};
   worldBump2Feature_ = WorldFeatureState{};
   worldDetailFeature_ = WorldFeatureState{};
+  // T96: the alpha readings are per upload too, for the same reason.
+  worldBlendedTriangleCount_ = 0;
+  worldCutoutTriangleCount_ = 0;
+  worldBlendedBatchCount_ = 0;
   worldBumpFeature_.enabled = worldMaterialBumpEnabled_;
   worldBump2Feature_.enabled = worldMaterialBumpEnabled_ && worldBump2Enabled_;
   worldDetailFeature_.enabled = worldDetailEnabled_;
@@ -267,6 +271,27 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     }
     reading.blend = plan.slots[index].blend;
     reading.modulate = plan.slots[index].modulate;
+    // T96: the consumption side, decided here because this is the only place
+    // that knows both the material's keys and the plan's verdict.
+    reading.translucent = textures[index].translucent;
+    reading.alphaTest = textures[index].alphaTest;
+    if (plan.slots[index].batch < 0) {
+      reading.alphaMode = (reading.translucent || reading.alphaTest) ? "refused" : "opaque";
+      reading.alphaReason = reading.translucent || reading.alphaTest
+        ? "the material declares an alpha key but got no atlas tile" : "no alpha key";
+    } else if (reading.translucent && !worldAlphaBlendState_) {
+      reading.alphaMode = "refused";
+      reading.alphaReason = "the world pass has no alpha blend state";
+    } else if (reading.translucent) {
+      reading.alphaMode = "blended";
+      reading.alphaReason = "$translucent";
+    } else if (reading.alphaTest) {
+      reading.alphaMode = "cutout";
+      reading.alphaReason = "$alphatest";
+    } else {
+      reading.alphaMode = "opaque";
+      reading.alphaReason = "no alpha key";
+    }
     reading.reason = plan.slots[index].batch >= 0
       ? "tiled" : worldTileRefusalName(plan.refusals[index]);
     worldTileTable_.push_back(std::move(reading));
@@ -663,7 +688,22 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         const bool detailDrawn = worldDetailEnabled_
           && detailBlitMaterials.count(triangle.material) != 0;
         if (detailDrawn) mask |= 4;
+        // T96: the alpha keys, same per-vertex channel as the feature bits
+        // above. Bit 8 = `$translucent`, bit 16 = `$alphatest`, set from the
+        // VMT's own keys rather than from a global switch: the keys are per
+        // material and the shader is told per vertex. A translucent material
+        // whose blend state is missing keeps its bit and reads mode=refused on
+        // the consumption line, rather than silently drawing opaque.
+        const bool alphaBlended = material.translucent;
+        const bool alphaCutout = material.alphaTest;
+        if (alphaBlended) mask |= 8;
+        if (alphaCutout) mask |= 16;
         a.featureMask = b.featureMask = c.featureMask = static_cast<float>(mask);
+        // Counted off what reached the vertex buffer, the same rule the feature
+        // counters use: a declared material whose triangle never got here is
+        // not a drawn triangle.
+        if (alphaBlended) ++worldBlendedTriangleCount_;
+        else if (alphaCutout) ++worldCutoutTriangleCount_;
         a.detailMode = b.detailMode = c.detailMode = static_cast<float>(material.detailMode);
         a.detailFactor = b.detailFactor = c.detailFactor = material.detailFactor;
         a.featureDiag = b.featureDiag = c.featureDiag = layer2Diagnostic ? 1.0f : 0.0f;
@@ -705,7 +745,11 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
           detailVertexMaterials.insert(triangle.material);
         }
       }
-      worldTriangleBatch_[uploadedTriangle] = static_cast<std::int16_t>(t.batch);
+      // T96: the value is now the SUB-batch index, not the atlas batch: the
+      // index buffer and the pvs regrouping both key on this, and the blend
+      // state is a property of the draw call.
+      worldTriangleBatch_[uploadedTriangle] = static_cast<std::int16_t>(
+        static_cast<int>(t.batch) * 2 + (textures[tile->second].translucent ? 1 : 0));
     } else {
       const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(triangle.material));
       const float shade = 0.78f + static_cast<float>(hash % 23) / 100.0f;
@@ -830,7 +874,9 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   // draws with no clip at all, which is why it is built here rather than in
   // setWorldVisDrawList.
   {
-    std::vector<std::vector<std::uint32_t>> perBatch(plan.batches.size());
+    // T96: two sub-batches per atlas batch -- opaque (mode 0) and blended
+    // (mode 1). The texture is the same atlas; only the device state differs.
+    std::vector<std::vector<std::uint32_t>> perBatch(plan.batches.size() * 2u);
     for (std::size_t triangle = 0; triangle < worldTriangleBatch_.size(); ++triangle) {
       const int batch = worldTriangleBatch_[triangle];
       if (batch < 0) continue;
@@ -843,27 +889,46 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     std::vector<std::uint32_t> grouped;
     grouped.reserve(map.triangles.size() * 3u);
     worldDrawBatches_.clear();
-    for (std::size_t batch = 0; batch < perBatch.size(); ++batch) {
-      WorldDrawBatch draw;
-      draw.tiles = plan.batches[batch].tiles;
-      draw.firstIndex = static_cast<UINT>(grouped.size());
-      draw.indexCount = static_cast<UINT>(perBatch[batch].size());
-      draw.albedoView = worldAtlasTextures_[batch].view();
-      draw.blendView = batch < worldBlendAtlasTextures_.size()
-        ? worldBlendAtlasTextures_[batch].view() : nullptr;
-      draw.modulateView = batch < worldModulateAtlasTextures_.size()
-        ? worldModulateAtlasTextures_[batch].view() : nullptr;
-      // T27: the feature views are bound per batch for the same reason the
-      // blend atlas is: a batch that holds no bump tile must not sample the
-      // previous batch's normal map.
-      draw.bumpView = batch < worldBumpAtlasTextures_.size()
-        ? worldBumpAtlasTextures_[batch].view() : nullptr;
-      draw.bump2View = batch < worldBump2AtlasTextures_.size()
-        ? worldBump2AtlasTextures_[batch].view() : nullptr;
-      draw.detailView = batch < worldDetailAtlasTextures_.size()
-        ? worldDetailAtlasTextures_[batch].view() : nullptr;
-      if (draw.indexCount > 0) worldDrawBatches_.push_back(draw);
-      grouped.insert(grouped.end(), perBatch[batch].begin(), perBatch[batch].end());
+    // T96: opaque sub-batches first, blended last. `perBatch` is indexed by
+    // (batch, mode); the atlas views are the batch's, the mode is the only thing
+    // the draw call adds. This ordering is the minimum the blend equation needs:
+    // every blended range is drawn after every opaque one. Per-triangle
+    // back-to-front sorting is NOT done here (the pass has no per-triangle sort)
+    // and that limit is stated in docs/T96-ALPHA-PLAN.md.
+    for (int alphaMode = 0; alphaMode < 2; ++alphaMode) {
+      for (std::size_t batch = 0; batch < plan.batches.size(); ++batch) {
+        const std::size_t sub = batch * 2u + static_cast<std::size_t>(alphaMode);
+        if (sub >= perBatch.size() || perBatch[sub].empty()) continue;
+        WorldDrawBatch draw;
+        draw.alphaMode = alphaMode;
+        draw.tiles = plan.batches[batch].tiles;
+        draw.firstIndex = static_cast<UINT>(grouped.size());
+        draw.indexCount = static_cast<UINT>(perBatch[sub].size());
+        draw.albedoView = worldAtlasTextures_[batch].view();
+        draw.blendView = batch < worldBlendAtlasTextures_.size()
+          ? worldBlendAtlasTextures_[batch].view() : nullptr;
+        draw.modulateView = batch < worldModulateAtlasTextures_.size()
+          ? worldModulateAtlasTextures_[batch].view() : nullptr;
+        // T27: the feature views are bound per batch for the same reason the
+        // blend atlas is: a batch that holds no bump tile must not sample the
+        // previous batch's normal map.
+        draw.bumpView = batch < worldBumpAtlasTextures_.size()
+          ? worldBumpAtlasTextures_[batch].view() : nullptr;
+        draw.bump2View = batch < worldBump2AtlasTextures_.size()
+          ? worldBump2AtlasTextures_[batch].view() : nullptr;
+        draw.detailView = batch < worldDetailAtlasTextures_.size()
+          ? worldDetailAtlasTextures_[batch].view() : nullptr;
+        // Dense on purpose. `worldTriangleBatch_` stores the SUB-batch index
+        // (batch * 2 + mode) and setWorldVisDrawList() indexes this table with
+        // it, so an empty sub-batch must still occupy its slot -- otherwise a
+        // map with no blended tile (the common case) would leave every later
+        // batch's triangles pointing one entry early, or past the end of the
+        // table, and the pvs regroup would silently drop or mis-texture them.
+        // The draw loop skips a zero-length range anyway.
+        worldDrawBatches_.push_back(draw);
+        if (alphaMode == 1 && draw.indexCount > 0) ++worldBlendedBatchCount_;
+        grouped.insert(grouped.end(), perBatch[sub].begin(), perBatch[sub].end());
+      }
     }
     if (!grouped.empty()) {
       D3D11_BUFFER_DESC indexDescription{};
