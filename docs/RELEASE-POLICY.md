@@ -18,7 +18,7 @@ whenever a task finished or a date passed.
    `third-person-weapon-check.sh`, 7 `player-body-appearance-check.sh`, 8
    `class-pixels-check.sh`, 9 `build-identity-check.sh`, 10
    `world-geometry-budget-check.sh`, 11 `install-cli-contract-check.sh`, 12
-   `playback-error-paths-check.sh`, 13 `timeline-check.sh`. The rebuild step is
+   `playback-error-paths-check.sh`, 13 `timeline-check.sh`, 14 `pin-provenance-check.sh`. The rebuild step is
    load-bearing: `verify-all.sh` runs mutation/restore suites that refresh source
    mtimes, and `outline-check.sh` refuses a binary older than its sources -- without
    the rebuild the chain measures a pre-mutation product (observed in round 2,
@@ -37,7 +37,7 @@ whenever a task finished or a date passed.
    P0 gates named by the handoff among them -- so `VERIFY=PASS` from
    `verify-all.sh` alone is not "the chain ran" (debts D-19/D-21).
    `verify-release.sh` prints one line,
-   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=13`, and that line is the only
+   `VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=14`, and that line is the only
    citable whole-chain verdict. **The chain must also prove it did not rewrite the
    tester's real configuration.** Before the first step and after the last one it
    snapshots `%LOCALAPPDATA%/TF2 Demo Player/settings.ini` and `ui.ini`

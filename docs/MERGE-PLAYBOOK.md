@@ -255,7 +255,7 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t91-merge \
 
 ```bash
 VERIFY_RELEASE_DRY_RUN=1 bash verify-release.sh | tail -1
-# 期望形如：VERIFY-RELEASE=DRY-RUN steps_total=13
+# 期望形如：VERIFY-RELEASE=DRY-RUN steps_total=14
 ```
 
 （**顺带修一个欠账**：`attach-weapon-budget-check.sh` 无末行 token，导致它无法被 `debt-claim` 锚定、也不好在整链里判定；建议加末行 `ATTACH-WEAPON-BUDGET=PASS|FAIL`——这同时是 8.5-5 的补锚点路径，见 §6。）

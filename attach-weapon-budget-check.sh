@@ -47,6 +47,15 @@ TICK=30001
 # throwaway directory, never in evidence/ (a tracked/oracle path -- the launch-hygiene
 # gate fails a launch that points its configuration at one).
 ISO_DIR=${T85_ATTACH_ISO_DIR:-$(mktemp -d)}
+# The mktemp arm leaks a directory per run without an EXIT trap, and this gate
+# has an early "missing input" exit 2 below. Only the directory this gate
+# created is removed: T85_ATTACH_ISO_DIR is a diagnostic override and a
+# caller-supplied path is never deleted. The EXIT chain (verify-iso.sh) strips
+# the outer quoting "trap -p" adds instead of re-parsing it (0be5938).
+if [ -z "${T85_ATTACH_ISO_DIR:-}" ]; then
+  . "$(dirname "$0")/verify-iso.sh"
+  iso_chain_exit "$ISO_DIR"
+fi
 SETTINGS="$ISO_DIR/settings.ini"
 UI="$ISO_DIR/ui.ini"
 : > "$SETTINGS"
