@@ -1277,10 +1277,19 @@ ANIMATION_OK=$(grep -c '^  OK ' "$ANIMATION_OUT.txt" || true)
 #     entities silently. The encoder now refuses instead of clamping and the
 #     product exits 17 rather than report a merged frame; the encoder is unit
 #     tested because the scene cannot reach the ceiling (the draw budget is 96).
-if [ "$ANIMATION_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-CHECK=PASS' "$ANIMATION_OUT.txt" && [ "$ANIMATION_OK" = "232" ]; then
-  echo "PLAYER-ANIMATION-CHECK=PASS (232 assertions)"
+#
+# 233 since 2026-11-08: 931588b (2026-11-05) widened the matcher field loop from
+# five fields to six -- ordered / head / boundary / substringDefect / leading /
+# oneShot -- so section 1b/6 gained one assertion and the gate has printed 233
+# ever since. The pin was left at 232 because no full 30-step run happened
+# between that commit and this one (verify-all 2026-11-02 is the last recorded
+# chain), so the drift surfaced only now, as "ok=233 expected 232" on a gate
+# that was itself green.
+# Per-section on this tree: 233 = 213 + 12 matcher + 8 entity id.
+if [ "$ANIMATION_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-CHECK=PASS' "$ANIMATION_OUT.txt" && [ "$ANIMATION_OK" = "233" ]; then
+  echo "PLAYER-ANIMATION-CHECK=PASS (233 assertions)"
 else
-  echo "PLAYER-ANIMATION-CHECK=FAIL (rc=$ANIMATION_RC ok=$ANIMATION_OK expected 232)"; rc_all=1
+  echo "PLAYER-ANIMATION-CHECK=FAIL (rc=$ANIMATION_RC ok=$ANIMATION_OK expected 233)"; rc_all=1
 fi
 
 step "26/30 player animation pixels (the body is a shaded surface, and the drive moves it)"
