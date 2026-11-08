@@ -1,0 +1,44 @@
+{
+  "schema": "t62-class-pixels-provenance/1",
+  "class": "scout",
+  "captured_at": "2026-11-07T22:47:12+08:00",
+  "read_at": "2026-11-08T09:49:50+08:00",
+  "exe_sha256": "60fd00365db2717b37cadba52d1b9a451399a4b80ee8c210a086de97c0b1c041",
+  "exe_sha256_at_capture": "25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976",
+  "git_head": "dbdb00138dc75823c208fbe91fab382b6cca6ebf",
+  "native_tree_sha256": "0a9acd2d505692fe008b69def435a9cb6360be05f3e7aef81977fbef45c8f6f3",
+  "request": {
+    "demo": "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem",
+    "tick": 64161,
+    "speed": 8,
+    "camera": [
+      2492.7,
+      -1327.1,
+      -54.0,
+      4.1,
+      0.0
+    ],
+    "flags": "--player-animation --world-entity-id"
+  },
+  "expected_bmp_sha256": {
+    "animated": "3d2cc9bc5a13b71014412458dcd1ef3d2a5d7e0348b6737c73cb838c9fa9fe13",
+    "identity": "8b5b532d3c82818a348f1d989dc13b6a5a1ee12ba00287d57bed737d250c9b49",
+    "identity-2": "8b5b532d3c82818a348f1d989dc13b6a5a1ee12ba00287d57bed737d250c9b49",
+    "off": "ee0db9cc2f751c40efd5f4d043ae2519e5d640ca5dd3dfe7f5a4f26cbfceef36"
+  },
+  "identity": {
+    "ent": 15,
+    "model": "models/player/scout.mdl",
+    "capture_twice_byte_identical": true
+  },
+  "fields": {
+    "captured_at": "mtime of entity-id.txt in this directory",
+    "exe_sha256": "binary measured by the pin-provenance refresh; T4 re-ran the demo frame with it and reproduced these BMPs byte-for-byte",
+    "exe_sha256_at_capture": "value the capture log itself recorded; historical, asserted by nothing",
+    "git_head": "t91 HEAD when the pin was re-verified (see read_at)",
+    "native_tree_sha256": "sha256 of 'git ls-tree -r HEAD -- native' output at git_head, so a reader can tell which native/ tree the re-verification ran against",
+    "expected_bmp_sha256": "asserted against the files by pin-provenance-check.sh",
+    "identity": "the class body the identity frame was judged on"
+  },
+  "notes": "exe_sha256 is the binary that re-produced these pins at read_at, not the binary of the original capture; git_head/native_tree_sha256 are measured at the same moment. The pin bytes themselves are unchanged since the 2026-11-07 re-pin."
+}

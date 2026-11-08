@@ -121,4 +121,50 @@ native/build-nmake/tf2_demo_native.exe --tf-root "D:/SteamLibrary/steamapps/comm
   --debug-camera 5363.8 -1102.1 5.9 4.1 0.0 --player-animation
 ```
 
+## 6. Where the pin's bytes came from, and how that is now checked
+
+Two binaries are involved here, and confusing them is how a baseline stops being
+evidence:
+
+* **25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976** drew these frames when the pin was re-pinned on 2026-11-07
+  22:47. It is what the capture logs themselves record, as
+  `frame: product sha256=25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976` in every `<class>/entity-id.txt` and
+  `<class>/<frame>.summary`.
+* **60fd00365db2717b37cadba52d1b9a451399a4b80ee8c210a086de97c0b1c041** is the binary measured at 2026-11-08T09:49:50+08:00 (t91 HEAD `dbdb00138dc75823c208fbe91fab382b6cca6ebf`, `native/`
+  tree `0a9acd2d505692fe008b69def435a9cb6360be05f3e7aef81977fbef45c8f6f3`). It re-ran the demo frame and reproduced these BMPs
+  **byte-for-byte** (three controlled runs: `D:/_shared/EXEC-2026-11-07/T4-PIN-PROVENANCE.md`;
+  the frozen t79 product reproduces the *old* pin instead, which is what
+  attributes the drift to the merged map code, not to identity or playback).
+
+The capture logs are deliberately left byte-identical in this commit: they are
+the record of what ran at 22:47, and hand-editing their `product sha256` line
+would make a log claim a binary it never ran. The refreshed identity lives in
+`<class>/provenance.json` instead -- data with named fields, one file per class:
+`exe_sha256` (the refreshed reading above), `exe_sha256_at_capture` (what the log
+recorded, historical), `git_head`, `native_tree_sha256`, `read_at`, the exact
+`request` (demo / tick / speed / camera / flags), the `expected_bmp_sha256` of
+all four frames, and which class body the identity frame judges.
+
+`pin-provenance-check.sh` (new, static: it starts no process and reads files
+only) turns that data into an assertion: 72 assertions across the four classes --
+the four ledger keys exist and are shaped right (64-hex shas, 40-hex head), the
+request is legal (tick > 0, speed 1..64, five finite camera numbers in
+pitch/yaw range, a `.dem` path), every pinned BMP hashes to its recorded value,
+identity and identity-2 are byte-identical, and all four frames share one
+non-zero size.
+
+```bash
+bash pin-provenance-check.sh            # PIN-PROVENANCE=PASS (72 assertions), rc 0
+```
+
+It deliberately does **not** assert that `exe_sha256` equals the exe in this
+tree right now: a pin is a historical capture, a relink changes the tree's
+binary and not the pin, and the capture gates are what tie the pin to live
+rendering (they compare the BMPs, not this sha). The field answers "which
+binary produced these bytes, and when was that measured", which is exactly the
+question the free-text line could not answer safely.
+
+No BMP changed in this commit: `git show --stat` for it lists only the gate, the
+four `provenance.json` files and this note.
+
 # previous pin: demo e92bcfe04d4b/396ce6abc57a/148e244a2871, scout be6842bc5dba/616891ac1b79/7317b7a28afe, soldier f3aab78fbde1/3590ecd84ea5/b6497fe698ae, medic ac842f4d31de/077e2ac8816b/84e569c33dac (product 891bfd7a… at speed 32)
