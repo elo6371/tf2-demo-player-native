@@ -137,6 +137,23 @@ ISO_UI="$ISO_DIR/ui.ini"
 . "$(dirname "$0")/verify-iso.sh"
 iso_chain_exit "$ISO_DIR"
 
+# D-41: an empty settings directory is not "the defaults". loadSettings() reads
+# the preset key with a 0 fallback (native/src/settings_store.cpp:56-58) and 0 is
+# Performance, the preset that switches the sky pass off. Measured in RUN4's
+# step-29 trace (scratch/full.20261108173141-217062.trace): :68 renders
+# preset=performance and :404 reads "sky state=unavailable vertices=0
+# triangles=0 faces=0 draws=0 ... reason=skybox draw disabled by the caller",
+# while step 28's trace renders preset=standard and "sky state=active ...
+# draws=1". A fresh empty directory therefore renders a different world than the
+# matrix this gate is compared against. Seed it from the checked-in fixture and
+# refuse to run if the copy the product reads is not that fixture.
+iso_seed_gate_settings "$ISO_DIR" || {
+  echo "FATAL: cannot seed the isolated settings directory" >&2; exit 2; }
+iso_assert_gate_settings "$ISO_DIR" || exit 2
+# The reading that proves which configuration this run used; it matches the
+# settings= line in the step-28 capture identity.
+echo "ISO-SETTINGS sha=$(sha256sum "$ISO_SETTINGS" | cut -d' ' -f1)"
+
 
 RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 MUTATION=0
@@ -280,6 +297,18 @@ esac
 PAUSE=1  # 0 for a demo that has to run to the tick: --start-paused holds a pov
          # demo on tick 0, and --capture-tick 2000 then waits forever (measured:
          # rc=124 after 400s with the trace still counting `loop ... tick=0`).
+# D-40: "$PWD/$path" is only right for a relative path. A caller that redirects
+# MATERIAL_COVERAGE_SCRATCH to an absolute directory got "$PWD//d/_shared/..."
+# and every product call died with rc=15 -- the trace and the frame could not be
+# opened -- which measures nothing while the gate still reports assertion
+# counts. Absolute paths (POSIX /d/..., drive-letter D:/..., and UNC: untested)
+# are passed through; a relative path is still anchored at the repository root.
+abs_win_path() { # abs_win_path <path> -> Windows-form absolute path
+  case "$1" in
+    /*|[A-Za-z]:*) cygpath -m "$1" ;;
+    *)            cygpath -m "$PWD/$1" ;;
+  esac
+}
 run_product() { # run_product <name> <demo> <tick> [extra args...]
   local name="$1" demo="$2" tick="$3"; shift 3
   local trace="$SCRATCH/$name.$RUN_TAG.trace"
@@ -287,12 +316,12 @@ run_product() { # run_product <name> <demo> <tick> [extra args...]
   local log="$SCRATCH/$name.$RUN_TAG.log"
   local pause_args=()
   [ "$PAUSE" -eq 1 ] && pause_args=(--start-paused)
-  TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 400 "$PRODUCT" \
+  TF2_NATIVE_TRACE="$(abs_win_path "$trace")" timeout 400 "$PRODUCT" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
     --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --demo "$demo" "${pause_args[@]}" --capture-tick "$tick" \
-    --capture-frame "$(cygpath -m "$PWD/$bmp")" "$@" \
-    --metrics-file "$(cygpath -m "$PWD/$SCRATCH/$name.$RUN_TAG.csv")" \
+    --capture-frame "$(abs_win_path "$bmp")" "$@" \
+    --metrics-file "$(abs_win_path "$SCRATCH/$name.$RUN_TAG.csv")" \
     > "$log" 2>&1
   printf -v "RC_$name" '%s' "$?"
   printf -v "TRACE_$name" '%s' "$trace"
