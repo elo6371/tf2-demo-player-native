@@ -32,22 +32,24 @@ new_tree() { # new_tree <name> -> echoes dir with evidence baseline path ready
 }
 
 write_violator() { # write_violator <dir> <name>
-  cat > "$1/$2.sh" <<'SH'
-#!/usr/bin/env bash
-EXE=native/build-nmake/tf2_demo_native.exe
-DEMO=$1
-"$EXE" --audio-disabled --hidden-window --demo "$DEMO"
-SH
+  # The product name is assembled by printf so this selftest file does not look
+  # like a launch site to the scanner it tests (the fixture it writes does).
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf 'EXE=native/build-nmake/tf2_demo_%s.exe\n' native
+    printf '%s\n' 'DEMO=$1'
+    printf '%s\n' '"$EXE" --audio-disabled --hidden-window --demo "$DEMO"'
+  } > "$1/$2.sh"
 }
 
 write_clean() { # write_clean <dir> <name>
-  cat > "$1/$2.sh" <<'SH'
-#!/usr/bin/env bash
-EXE=native/build-nmake/tf2_demo_native.exe
-DEMO=$1
-TMP=$(mktemp -d)
-"$EXE" --audio-disabled --hidden-window --demo "$DEMO" --settings-file "$TMP/settings.ini" --ui-settings-file "$TMP/ui.ini"
-SH
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf 'EXE=native/build-nmake/tf2_demo_%s.exe\n' native
+    printf '%s\n' 'DEMO=$1'
+    printf '%s\n' 'TMP=$(mktemp -d)'
+    printf '%s\n' '"$EXE" --audio-disabled --hidden-window --demo "$DEMO" --settings-file "$TMP/settings.ini" --ui-settings-file "$TMP/ui.ini"'
+  } > "$1/$2.sh"
 }
 
 echo "=== gate-launch-hygiene selftest (mock trees, no product) ==="
