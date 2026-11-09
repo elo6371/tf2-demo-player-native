@@ -19,10 +19,13 @@
 #      says it would hide two thirds of the eye's first hits. The numbers are
 #      pinned so a later "fix" has to argue with them.
 #   6. The seam classification is not a cull artefact. Every measured seam
-#      direction resolves, 0 of the named seam faces are derived-back at the
-#      capture's own camera, and a POSITIVE control shows the product cull still
-#      removes a named non-seam face at the same pose. Mutation M6 disables the
-#      cull and must turn the positive control red while the seam answer stays.
+#      direction resolves, and the directions are pinned as a NAMED SET -- which
+#      face each probe answered, not just how many answered -- so a swap that
+#      keeps the count is a red (D-43). 0 of the named seam faces are
+#      derived-back at the capture's own camera, and a POSITIVE control shows the
+#      product cull still removes a named non-seam face at the same pose.
+#      Mutation M6 disables the cull and must turn the positive control red
+#      while the seam answer stays.
 #
 # WHAT IT DOES NOT CLAIM
 #   `drawn` is not `correct`. A pixel with a triangle is not a pixel with the
@@ -252,6 +255,13 @@ PIN_REF_SHA=b79d8840cc3b7e995a3623403aec6fc39470ed180203c94bfbf7061a698835e2
 # each, and all of them resolve.
 PIN_CAPTURE_EYE="815.5,-147.8,-194.3"
 PIN_SEAM_IDS="238,4173,9189"
+# D-43: the named members, not their number. One entry per probe point, in the
+# account's rank order: the face each of the four directions answered, a '^'
+# when only the cull-off frame saw it, '-' when nothing did. The ':N' distance
+# in the account row is a reading of the SAME member and is left out of the
+# identity, so a near-plane move that shifts a distance is not mistaken for a
+# different member -- but a different face, or a probe that stops resolving, is.
+PIN_SEAM_MEMBERS="785,92:left=9189,right=238,up=9189,down=4173;752,95:left=9189,right=238,up=9189,down=4173"
 PIN_SEAM_POINTS=2
 PIN_SEAM_PROBES=8
 PIN_SEAM_RESOLVED=8
@@ -1055,6 +1065,83 @@ fi
 # because its neighbour would then resolve only in the all-off frame.
 assert_eq "${SEAM_CULLED:-0}" "$PIN_SEAM_CULLED" "seam directions only the cull-off frame could name (a front seam neighbour was not culled)"
 assert_eq "$SEAM_IDS" "$PIN_SEAM_IDS" "the seam faces bracketing the enclosed population"
+
+# ---- D-43: the members, not only their count -------------------------------
+# The assertions above count: 2 points, 8 probes, 8 resolved, 3 named faces. A
+# count cannot tell one member from another -- if the left probe of one point
+# stops resolving while the up probe of the other starts, PROBES and RESOLVED
+# both stay at 8 and every assertion above stays green. The seam claim is a set
+# of NAMED members, so the set is pinned: for each probe point, which face each
+# of the four directions answered. The account row prints 'face:distance'; only
+# the face is the identity (see PIN_SEAM_MEMBERS), so ':N' is dropped here.
+seam_members() { # seam_members <rows-text> -> point:left=F,right=F,up=F,down=F;...
+  printf '%s\n' "$1" | awk '
+    /^HOLE seam rank=/ {
+      point = ""
+      out = ""
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^point=/) point = substr($i, 7)
+        if ($i ~ /^(left|right|up|down)=/) {
+          split($i, kv, "=")
+          face = kv[2]
+          sub(/:[0-9]+$/, "", face)
+          out = out (out == "" ? "" : ",") kv[1] "=" face
+        }
+      }
+      print point ":" out
+    }' | paste -sd';' -
+}
+seam_members_verdict() { # seam_members_verdict <members> <label> -> PASS/FAIL, exit status
+  if [ "$1" = "$PIN_SEAM_MEMBERS" ]; then
+    echo "  PASS $2"
+    return 0
+  fi
+  echo "  FAIL $2: members differ from the pinned set"
+  echo "       got: $1"
+  echo "       pin: $PIN_SEAM_MEMBERS"
+  return 1
+}
+SEAM_MEMBERS=$(seam_members "$SEAM_ROWS")
+echo "  seam members: ${SEAM_MEMBERS:-none}"
+if ! seam_members_verdict "$SEAM_MEMBERS" "the named seam direction members (which face each probe answered)"; then
+  fail=1
+fi
+
+# The negative control for the assertion above, on this run's OWN rows: swap the
+# two direction answers of the first probe point. No count moves -- PROBES and
+# RESOLVED still read exactly what the count assertions demand, which is the
+# shape D-43 names (count right, member wrong) -- and the member assertion must
+# refuse it. If this control ever goes green, the member pin has degenerated
+# into the count it replaced.
+SEAM_SWAPPED_ROWS=$(printf '%s\n' "$SEAM_ROWS" | awk '
+  /^HOLE seam rank=/ {
+    if (!swapped) {
+      n = 0
+      for (i = 1; i <= NF; i++) if ($i ~ /^(left|right|up|down)=/) tok[++n] = i
+      if (n >= 2) {
+        split($tok[1], first, "=")
+        split($tok[2], second, "=")
+        if (first[2] != second[2]) {
+          $tok[1] = first[1] "=" second[2]
+          $tok[2] = second[1] "=" first[2]
+          swapped = 1
+        }
+      }
+    }
+    print
+  }')
+SWAPPED_PROBES=$(printf '%s\n' "$SEAM_SWAPPED_ROWS" | grep -oE '(left|right|up|down)=[^[:space:]]+' | grep -c . || true)
+SWAPPED_RESOLVED=$(printf '%s\n' "$SEAM_SWAPPED_ROWS" | grep -oE '(left|right|up|down)=[0-9^]' | grep -c . || true)
+SWAPPED_MEMBERS=$(seam_members "$SEAM_SWAPPED_ROWS")
+echo "  seam member control: probes ${SWAPPED_RESOLVED}/${SWAPPED_PROBES} (unswapped ${RESOLVED}/${PROBES}), members ${SWAPPED_MEMBERS:-none}"
+if [ "$SWAPPED_PROBES" = "$PROBES" ] && [ "$SWAPPED_RESOLVED" = "$RESOLVED" ] \
+   && [ -n "$SWAPPED_MEMBERS" ] && [ "$SWAPPED_MEMBERS" != "$SEAM_MEMBERS" ] \
+   && ! seam_members_verdict "$SWAPPED_MEMBERS" "seam member control (must be refused)" >/dev/null 2>&1; then
+  echo "  PASS seam member negative control: the counts are unchanged and the swapped members are refused"
+else
+  echo "  FAIL seam member negative control: a count-preserving member change was not refused"
+  fail=1
+fi
 
 SKY_FACE_IDS=$(grep -o "sky=face=[0-9]*" "$ANA/point-trace.txt" 2>/dev/null \
   | sed 's/.*face=//' | sort -un | tr '\n' ',' | sed 's/,$//')
