@@ -124,7 +124,81 @@ ISO_DIR="$(mktemp -d)"
 ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
 ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
 ISO_UI="$ISO_DIR_WIN/ui.ini"
-trap 'rm -rf "${ISO_DIR:-}"' EXIT
+# --- source restore registry (D-58) -----------------------------------------
+# Only the files this run actually mutates are restored, from a per-run backup
+# directory, and every restore is checked with cmp. A stale .bak under OUT or
+# .scratch must never be the copy that gets put back: an early exit that never
+# applied a mutation has to leave the source byte-identical and print no
+# RESTORE line.
+mkdir -p .scratch
+RESTORE_DIR=$(mktemp -d "$PWD/.scratch/outline-restore.XXXXXX") || {
+  rm -rf "${ISO_DIR:-}"
+  echo "FATAL: cannot create a per-run restore directory" >&2; exit 2; }
+RESTORE_PATHS=()
+RESTORE_BAKS=()
+RESTORE_LAST_BAK=""
+register_source() { # register_source <path>
+  local src="$1" bak i
+  case "$src" in
+    native/*) ;;
+    *) return 0 ;;
+  esac
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      RESTORE_LAST_BAK="${RESTORE_BAKS[$i]}"
+      return 0
+    fi
+  done
+  [ -f "$src" ] || { echo "RESTORE-BACKUP-FAIL path=$src (not a file)"; return 1; }
+  bak="$RESTORE_DIR/$(( ${#RESTORE_PATHS[@]} + 1 ))-$(basename "$src")"
+  cp -p "$src" "$bak" || { echo "RESTORE-BACKUP-FAIL path=$src"; return 1; }
+  if ! cmp -s "$src" "$bak"; then
+    echo "RESTORE-BACKUP-FAIL path=$src (copy is not byte-identical)"
+    return 1
+  fi
+  RESTORE_PATHS+=("$src")
+  RESTORE_BAKS+=("$bak")
+  RESTORE_LAST_BAK="$bak"
+  return 0
+}
+restore_entry() { # restore_entry <path> <backup>
+  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1"
+    return 0
+  fi
+  echo "RESTORE-FAIL path=$1"
+  return 1
+}
+restore_one() { # restore_one <path>
+  local src="$1" i
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      restore_entry "$src" "${RESTORE_BAKS[$i]}"
+      return $?
+    fi
+  done
+  echo "RESTORE-FAIL path=$src (not registered)"
+  return 1
+}
+restore_registered() {
+  local i rc=0
+  for i in "${!RESTORE_PATHS[@]}"; do
+    restore_entry "${RESTORE_PATHS[$i]}" "${RESTORE_BAKS[$i]}" || rc=1
+  done
+  return "$rc"
+}
+on_exit() {
+  local rc=$?
+  trap - EXIT INT TERM HUP
+  restore_registered || rc=1
+  rm -rf "${ISO_DIR:-}" "${RESTORE_DIR:-}"
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
 
 mkdir -p "$SETTINGS_SEED_DIR"
 HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
@@ -1926,13 +2000,10 @@ if [ "$MUTATION" = "1" ]; then
   MUT_RENDERER="native/src/native_renderer.cpp"
   MUT_FRAME="native/src/native_renderer_frame.cpp"
   MUT_ENTITY="native/src/native_renderer_entity.cpp"
-  BACKUP_DIR="$OUT/mutation-backup"
-  mkdir -p "$BACKUP_DIR"
-  cp "$MUT_SRC" "$BACKUP_DIR/entity_overlay.cpp"
-  cp "$MUT_MAIN" "$BACKUP_DIR/main.cpp"
-  cp "$MUT_RENDERER" "$BACKUP_DIR/native_renderer.cpp"
-  cp "$MUT_FRAME" "$BACKUP_DIR/native_renderer_frame.cpp"
-  cp "$MUT_ENTITY" "$BACKUP_DIR/native_renderer_entity.cpp"
+  for restore_src in "$MUT_SRC" "$MUT_MAIN" "$MUT_RENDERER" "$MUT_FRAME" "$MUT_ENTITY"; do
+    register_source "$restore_src" || {
+      echo "  RESTORE-BACKUP=FAIL path=$restore_src"; exit 2; }
+  done
   mut_fail=0
   mut_invalid=0
 
@@ -1944,6 +2015,7 @@ if [ "$MUTATION" = "1" ]; then
   # section did not intend. The sources are checked for this before the run as
   # well; this is the in-run half of that rule.
   patch_in() { # patch_in <file> <find> <replace>
+    register_source "$1" || { echo "  RESTORE-BACKUP=FAIL path=$1"; exit 2; }
     "$PY" - "$1" "$2" "$3" <<'PYEOF'
 import io, sys
 path, find, repl = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -2000,25 +2072,14 @@ PYEOF
     return 0
   }
 
-  # The restore is a copy back plus a cmp, which is the same evidence
-  # `git checkout` would give (bytes for bytes) without depending on the
-  # tree's commit state.
+  # The restore copies back the per-run registered backups and checks each with
+  # cmp. It deliberately does not depend on git or on the tree's commit state.
   restore_all() {
-    cp "$BACKUP_DIR/entity_overlay.cpp" "$MUT_SRC"
-    cp "$BACKUP_DIR/main.cpp" "$MUT_MAIN"
-    cp "$BACKUP_DIR/native_renderer.cpp" "$MUT_RENDERER"
-    cp "$BACKUP_DIR/native_renderer_frame.cpp" "$MUT_FRAME"
-    cp "$BACKUP_DIR/native_renderer_entity.cpp" "$MUT_ENTITY"
-    local ok=1
-    for pair in "entity_overlay.cpp:$MUT_SRC" "main.cpp:$MUT_MAIN" "native_renderer.cpp:$MUT_RENDERER" "native_renderer_frame.cpp:$MUT_FRAME" "native_renderer_entity.cpp:$MUT_ENTITY"; do
-      local backup="${pair%%:*}" target="${pair##*:}"
-      if cmp -s "$BACKUP_DIR/$backup" "$target"; then
-        echo "  restored $(basename "$target") byte-identical (cmp)"
-      else
-        echo "  FAIL restore of $target is NOT byte-identical"; ok=0; mut_fail=1
-      fi
-    done
-    return $((1 - ok))
+    if ! restore_registered; then
+      echo "  RESTORE-ABORT: a registered source did not restore byte-identically"
+      echo "                 refusing to continue with a mixed tree"
+      exit 1
+    fi
   }
 
   rebuild_product() { # rebuild_product <label>
