@@ -131,6 +131,10 @@ function Invoke-Row {
   # fallbacks under test, so a row must not read another row's choice.
   $settings = Join-Path $dir 'settings.ini'
   if (Test-Path -LiteralPath $settings) { Remove-Item -LiteralPath $settings -Force }
+  # D-50: the GUI saves ui.ini on exit into the real %LOCALAPPDATA% profile unless
+  # it is told otherwise, so each row gets its own file next to settings.ini.
+  $uiSettings = Join-Path $dir 'ui.ini'
+  if (Test-Path -LiteralPath $uiSettings) { Remove-Item -LiteralPath $uiSettings -Force }
 
   $args = New-Object System.Collections.Generic.List[string]
   foreach ($a in $ProductArgs) { $args.Add($a) }
@@ -146,6 +150,7 @@ function Invoke-Row {
   # one instead of something read mid-load.
   $args.Add('--start-paused')
   $args.Add('--settings-file'); $args.Add($settings)
+  $args.Add('--ui-settings-file'); $args.Add($uiSettings)
 
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $exe

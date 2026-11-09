@@ -267,6 +267,11 @@ function Invoke-Case {
     AudioDevice = $AudioDevice
     ExtraArgs = $ExtraArgs
     ExePath = $installedExe
+    # D-50: the product writes ui.ini on exit; keep it inside this case's
+    # directory instead of the real %LOCALAPPDATA% profile. title-capture.ps1
+    # defaults to the same path, named here so the isolation is visible at the
+    # caller.
+    UiSettingsFile = (Join-Path $caseDir 'ui.ini')
   }
   if (-not [string]::IsNullOrEmpty($SettingsFile)) { $arguments['SettingsFile'] = $SettingsFile }
   $started = Get-Date

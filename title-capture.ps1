@@ -37,7 +37,13 @@ param(
   [string]$ExePath,
   # T32: a settings file a previous case wrote. Empty means a fresh file under
   # -OutDir, which is what every historical caller got.
-  [string]$SettingsFile
+  [string]$SettingsFile,
+  # D-50: the product also SAVES ui.ini on exit (recent demos, last ui state) to
+  # uiSettingsPath() -- the real %LOCALAPPDATA% profile unless an override is
+  # passed. Same rule as -SettingsFile: a caller may hand one over, otherwise a
+  # fresh file under -OutDir, so a capture never writes the operator profile.
+  # The launcher-hygiene scanner only reads .sh, so this path was invisible.
+  [string]$UiSettingsFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -104,6 +110,18 @@ if ([string]::IsNullOrEmpty($SettingsFile)) {
   if (-not (Test-Path -LiteralPath $settingsParent)) { New-Item -ItemType Directory -Path $settingsParent -Force | Out-Null }
 }
 
+# D-50: same shape for the ui profile. A stale ui.ini would resurrect the
+# previous case's recent-demo list, so an empty -UiSettingsFile always starts
+# from no file at all.
+if ([string]::IsNullOrEmpty($UiSettingsFile)) {
+  $uiSettings = Join-Path $OutDir 'ui.ini'
+  if (Test-Path -LiteralPath $uiSettings) { Remove-Item -LiteralPath $uiSettings -Force }
+} else {
+  $uiSettings = [System.IO.Path]::GetFullPath($UiSettingsFile)
+  $uiParent = Split-Path $uiSettings -Parent
+  if (-not (Test-Path -LiteralPath $uiParent)) { New-Item -ItemType Directory -Path $uiParent -Force | Out-Null }
+}
+
 $arguments = New-Object System.Collections.Generic.List[string]
 foreach ($a in $ExtraArgs) { $arguments.Add($a) }
 $arguments.Add('--demo'); $arguments.Add($Demo)
@@ -114,6 +132,7 @@ $arguments.Add('--audio-disabled')
 # capture cannot land mid-load on a title that was about to change.
 $arguments.Add('--start-paused')
 $arguments.Add('--settings-file'); $arguments.Add($settings)
+$arguments.Add('--ui-settings-file'); $arguments.Add($uiSettings)
 
 # The trace is where the map lookup reports itself ("map: lookup map=... store=
 # ... selected=... reason=..."), which is the other half of what this harness is

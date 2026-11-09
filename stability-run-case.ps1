@@ -108,6 +108,9 @@ foreach ($name in @('command.txt','env.txt','stdout.txt','stderr.txt','trace.txt
 }
 $env:TF2_NATIVE_TRACE = (Join-Path $dir 'trace.txt')
 $settingsFile = Join-Path $dir 'settings.ini'
+# D-50: the GUI saves ui.ini on exit into the real %LOCALAPPDATA% profile unless
+# it is told otherwise; this case owns a private one for the same reason.
+$uiSettingsFile = Join-Path $dir 'ui.ini'
 
 # ---------------------------------------------------------------- arguments
 $argList = New-Object System.Collections.Generic.List[string]
@@ -118,6 +121,7 @@ if ($AudioDisabled) { $argList.Add('--audio-disabled') }
 if ($AudioDevice -ge 0) { $argList.Add('--audio-device'); $argList.Add("$AudioDevice") }
 $argList.Add('--metrics-file'); $argList.Add((Join-Path $dir 'metrics.csv'))
 $argList.Add('--settings-file'); $argList.Add($settingsFile)
+$argList.Add('--ui-settings-file'); $argList.Add($uiSettingsFile)
 
 # The command file is written in a form a human can re-run; inner quotes are
 # escaped so the line survives a copy-paste into a shell.
