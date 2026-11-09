@@ -1,0 +1,3 @@
+0.0 trace open
+7.0 window: created outer=1280x720 client=1264x681 dpi=96 pinned=0
+22.6 args: unrecognized=1 first=--definitely-not-a-flag all=--definitely-not-a-flag
