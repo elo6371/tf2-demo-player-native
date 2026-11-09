@@ -92,6 +92,22 @@ PROBE_HUGE=4000000
 SHRINK="200000 100000"
 MAPS="cp_snakewater_final1 cp_sunshine koth_bagel_rc12 koth_bagel_rc11"
 READING_MAPS="pl_odyssey"
+# D-62: how many assertions judge_map must evaluate for each map, so that a map
+# whose judge skipped assertions cannot ride on the other maps' green. The 33
+# counter sites decompose as: 23 that every map reaches + 2 per shrink limit
+# (SHRINK has two) + 4 more per limit that actually truncates the map, i.e.
+# "limit < requested". snakewater (242361) truncates at both 200000 and 100000
+# -> 23 + 2*2 + 4*2 = 35; sunshine (82859), bagel rc12 (98066) and rc11 (98029)
+# truncate at neither -> 23 + 2*2 = 27. Adding a map means extending this table;
+# an unpinned map is a failure, not a silent pass.
+expected_checks() {
+  case $1 in
+    cp_snakewater_final1) echo 35 ;;
+    cp_sunshine|koth_bagel_rc12|koth_bagel_rc11) echo 27 ;;
+    *) echo "" ;;
+  esac
+}
+
 LOCK_OWNER=${LOCK_OWNER:-t88-budget}
 
 ONLY=""
@@ -756,10 +772,19 @@ for MAP in $CHECK_MAPS; do map_total=$((map_total + 1)); done
 judged=0
 for MAP in $CHECK_MAPS; do
   checks_before=$checks
-  judge_map "$MAP"
+  judge_map "$MAP"; judge_rc=$?
   map_checks=$((checks - checks_before))
   echo "  judged $MAP: checks=$map_checks"
   if (( map_checks > 0 )); then judged=$((judged + 1)); fi
+  # D-62: a judge that returns green without evaluating its assertions is the
+  # failure mode this count exists to catch. A judge that returns red already
+  # failed for a named reason, so only the green-but-short case is reported.
+  want_checks=$(expected_checks "$MAP")
+  if [[ -z $want_checks ]]; then
+    failure "V2 $MAP: no pinned assertion count -- add the map to expected_checks()"
+  elif (( judge_rc == 0 && map_checks != want_checks )); then
+    failure "V2 $MAP: judge returned green after $map_checks checks, pinned $want_checks -- assertions were skipped, not evaluated"
+  fi
   trace=$SCRATCH/$MAP/forward.trace
   if [[ -s $trace ]]; then
     load_line=$(grep -a "map: geometry budget " "$trace" | head -1)
