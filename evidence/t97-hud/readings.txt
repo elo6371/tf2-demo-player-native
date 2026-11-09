@@ -1,0 +1,16 @@
+exe=native/build-nmake/tf2_demo_native.exe
+exe_sha256=65533cb3e66704a560842677e3fabc321554d1b27dadafc00a7a493deadb6a51
+gate_sha256=d29bb95c7f63da7e8c8bf29a22123057d3e0c054dba32f5732834d76ddfc569f
+demo_sha256=308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f
+tick=0 advance_tick=9000
+reading1=TIME 10:00 PAUSED
+reading2=RED ?  BLU ?
+reading3=NAME ?  HP 1  ?  ?
+source=round-timer glyphs=47 region=24,24,288,60
+publishes=1
+advance_text1=TIME 4:00 advance_updates=2 advance_skips=423 advance_source=round-timer
+name=unavailable reason=no-userinfo
+resized_region=24,24,288,60
+pixels: outside=0 inside=3504 glyphBad=0
+hud_off: quads=0 primitives=0 drawn=0 rects=0
+mode=forced suppress_reason=evidence-run suppress_enabled_lines=0 suppress_frame=identical
