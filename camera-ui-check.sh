@@ -227,7 +227,7 @@ import subprocess
 import sys
 import time
 
-exe, timeout_s, bmp, tick, tf, demo, trace, settings, ui = sys.argv[1:10]
+exe, timeout_s, bmp, tick, tf, demo, settings, ui, trace = sys.argv[1:10]
 env = dict(os.environ)
 env["TF2_NATIVE_TRACE"] = trace
 safety = ["--hidden-window", "--audio-disabled"]
