@@ -4047,6 +4047,18 @@ bool outlineVertexExtent = false;
         // above only decides who is allowed to try): counted, so a budget with
         // fewer built than admitted is a reading rather than an arithmetic
         // surprise.
+        // D-63: the count alone is a number without an identity. Before this line,
+        // "failed=1" in the prepare ledger could not name the model, and meshError --
+        // the loader own reason -- was computed and then dropped. The overlay pass
+        // already prints this (gpu: overlay mesh unavailable); the world pass is the
+        // one place where a build failure had no name. One line, and the next window
+        // can either fix a loader rule or record that the model itself is broken.
+        if (meshError.empty()) meshError = "bind-pose LOD0 produced fewer than 3 vertices";
+        traceFmt("prepare: build failed key=%s path=%s priority=%s reason=%s lod0Budget=%zu skipped=%zu",
+          request.cacheKey.c_str(), request.modelPath.c_str(),
+          tf2::native::entityMeshPriorityName(prepareCandidates[candidateIndex].priority),
+          meshError.c_str(), request.inspection.metadata.bindPoseLod0Budget,
+          request.inspection.metadata.bindPoseLod0Skipped);
         ++prepareBuildFailed;
         {
           const std::string normalizedFailed = tf2::native::normalizeModelPath(request.modelPath);
