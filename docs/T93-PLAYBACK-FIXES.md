@@ -69,7 +69,7 @@
 | 轮次 | 二进制 | 结果 | 用时 |
 |---|---|---|---|
 | pre | t79-integration @ e15577b | 13 pass / 19 red | 556 s |
-| green | 本分支（bbf3559 + fa34382 断言校准后） | 25 pass / **0 red** | 225 s（校准前那轮 7 红全是断言自身写错，见 docs/T93-GATE-CALIBRATION.md） |
+| green | 本分支（bbf3559 + fa34382 断言校准后） | 25 pass / **7 red（该轮 FAIL）**；"0 red" 仅来自回放且不可复现 | 225 s（该轮 evidence/t93-playback/green-gate.log 自述 `pass=25 red=7` / `GATE-RESULT=FAIL`；用今天的判据回放同批产物得 31 pass / 4 red，见 D:/_shared/EXEC-2026-11-09/PLAYBACK-ERROR-PATHS-TRIAGE.md §8.5） |
 
 E 用例（不变量，修前修后都必须是这组数）：`scheduled=5323`、`mode: summary events_seen=759`、`audio_device_opened=0`、`audio_device_open_attempts=0`、无 `audio: seek reset`、`camera: summary modeApplies=0`（默认第一人称不变）。
 
