@@ -44,3 +44,14 @@ target_include_directories(demo_open_probe PRIVATE include third_party/lzma)
 target_link_libraries(demo_open_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(demo_open_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(demo_open_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# D-14 follow-up (2026-11-09): asks the demo whether a brush entity's "*N" dmodel
+# actually moves, so "skippedMoving=84" can be read as 84 doors or 84 trains
+# rather than taken on trust. Appended last on purpose: the T75 note at the top of
+# this file records that target creation order is NMAKE build order, and a failed
+# link truncates whatever follows it, so a new target goes at the end.
+add_executable(brush_entity_probe tools/brush_entity_probe.cpp ${TF2_DEMO_HEADER_SOURCES})
+target_include_directories(brush_entity_probe PRIVATE include third_party/lzma)
+target_link_libraries(brush_entity_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(brush_entity_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+set_target_properties(brush_entity_probe PROPERTIES WIN32_EXECUTABLE OFF)

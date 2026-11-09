@@ -348,11 +348,17 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   std::vector<std::array<float, 3>> modelOrigin(modelCount,
     std::array<float, 3>{{0.0f, 0.0f, 0.0f}});
   std::vector<char> modelHasOrigin(modelCount, 0);
-  for (const auto& entity : brushEntities) {
+  // D-14: which entity named each dmodel. -1 is "no entity did" -- worldspawn,
+  // or a dmodel the entity lump never mentions -- and a refused model's row
+  // carries this ordinal so the reader can find the entity in lump 0 directly.
+  std::vector<int> modelEntityIndex(modelCount, -1);
+  for (std::size_t entityIndex = 0; entityIndex < brushEntities.size(); ++entityIndex) {
+    const auto& entity = brushEntities[entityIndex];
     if (entity.model.size() < 2 || entity.model[0] != '*') continue;
     const long index = std::strtol(entity.model.c_str() + 1, nullptr, 10);
     if (index <= 0 || static_cast<std::size_t>(index) >= modelCount) continue;
     modelClassName[static_cast<std::size_t>(index)] = entity.className;
+    modelEntityIndex[static_cast<std::size_t>(index)] = static_cast<int>(entityIndex);
     if (entity.hasOrigin) {
       modelOrigin[static_cast<std::size_t>(index)] = entity.origin;
       modelHasOrigin[static_cast<std::size_t>(index)] = 1;
@@ -413,10 +419,25 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       } else {
         ++map.brushOriginNoOrigin;
       }
-    } else if (className.empty()) {
-      ++map.brushModelsSkippedUnknown;
     } else {
-      ++map.brushModelsSkippedMoving;
+      // D-14: name the refusal. The two counters keep their exact meaning and
+      // nothing below reads this vector -- no face, triangle or draw decision
+      // depends on it -- so this row adds to the reading instead of changing it.
+      // Without it "skippedMoving=84" cannot be checked against a map: the same
+      // 84 is produced by 84 doors and by 84 trains.
+      BspRefusedBrushModel refused;
+      refused.entityIndex = modelEntityIndex[index];
+      refused.className = className;
+      refused.modelIndex = static_cast<std::int32_t>(index);
+      refused.firstFace = modelFirst;
+      refused.faceCount = modelFaces;
+      refused.moving = !className.empty();
+      map.brushModelsRefused.push_back(refused);
+      if (className.empty()) {
+        ++map.brushModelsSkippedUnknown;
+      } else {
+        ++map.brushModelsSkippedMoving;
+      }
     }
   }
   const auto faceIsDrawable = [&](std::int32_t faceIndex) {

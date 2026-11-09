@@ -78,6 +78,21 @@ struct BspPlane { float normal[3] = {}; float dist = 0; };
 struct BspNode { int plane = 0; int child[2] = {}; };
 struct BspLeaf { int cluster = -1; int firstFace = 0; int faceCount = 0; };
 
+// D-14 (2026-11-09): a brush model this parser refuses to draw, named. The
+// counters in BspMap say how many; a count cannot say WHICH, and 84 refusals
+// read the same whether they are 84 doors or 84 trains. One row per refused
+// model carries the entity's position in lump 0, its classname, the `*N` dmodel
+// index and that model's face range (lump 14 firstface/face count), so a hole
+// in the frame can be traced back to a brush in the map.
+struct BspRefusedBrushModel {
+  int entityIndex = -1;          // 0-based position in lump 0, -1 if unnamed
+  std::string className;         // empty when the entity carried no classname
+  std::int32_t modelIndex = 0;   // the N in the entity's "model" key (*N)
+  std::int32_t firstFace = 0;    // dmodel firstface (lump 14)
+  std::int32_t faceCount = 0;    // dmodel face count (lump 14)
+  bool moving = false;           // true: skippedMoving; false: unknown classname
+};
+
 struct BspMap {
   int version = 0;
   int revision = 0;
@@ -110,6 +125,11 @@ struct BspMap {
   std::size_t brushModelsDrawn = 0;
   std::size_t brushModelsSkippedMoving = 0;
   std::size_t brushModelsSkippedUnknown = 0;
+  // D-14: the rows behind those two counts, in the order the dmodel index walks
+  // them. Additive by construction: every refused model is pushed here at the
+  // moment its counter is incremented, and no counter is derived from this
+  // vector, so a reader of the counts cannot be moved by it.
+  std::vector<BspRefusedBrushModel> brushModelsRefused;
   std::size_t brushFacesDrawn = 0;
   std::size_t brushFacesSkipped = 0;
   // N20: brush entities are compiled in MODEL space -- VBSP subtracts the

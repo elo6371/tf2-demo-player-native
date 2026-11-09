@@ -7444,6 +7444,18 @@ bool outlineVertexExtent = false;
         displayMap.brushOriginModels, displayMap.brushOriginFaces,
         displayMap.brushOriginLodExcluded, displayMap.brushOriginNoOrigin,
         static_cast<double>(displayMap.brushOriginMaxShift));
+      // D-14 (2026-11-09): name every refused brush model, one line each, so the
+      // counters below can be checked against a map instead of being taken on
+      // trust. These lines are additive: nothing reads them, no count above or
+      // below changes, and no draw decision depends on them. The summary line
+      // stays last and keeps its wording, so an existing reader of the trace
+      // still finds the same numbers in the same place.
+      for (const auto& refused : displayMap.brushModelsRefused) {
+        traceFmt("gpu: world brush model refused class=%s model=*%d entity=%d firstface=%d faces=%d reason=%s",
+          refused.className.empty() ? "(none)" : refused.className.c_str(),
+          refused.modelIndex, refused.entityIndex, refused.firstFace, refused.faceCount,
+          refused.moving ? "moving" : "unknown-class");
+      }
       traceFmt("gpu: world brush models total=%zu drawn=%zu skippedMoving=%zu skippedUnknown=%zu"
         " facesDrawn=%zu facesSkipped=%zu worldFaces=%zu brushFaces=%zu",
         displayMap.brushModelsTotal, displayMap.brushModelsDrawn,

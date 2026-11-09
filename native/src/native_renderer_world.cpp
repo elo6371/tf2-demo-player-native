@@ -97,6 +97,15 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   std::size_t lightmappedVertices = 0;
   std::size_t displacedTriangles = 0;
   std::size_t waterTriangles = 0;
+  // U-A1 (2026-11-09): these vertices are NOT map units. X/Y are multiplied by
+  // horizontalScale (1 box unit = 1/horizontalScale map units) and Z by 0.8/spanZ
+  // (1 box unit = spanZ/0.8 map units), so the box is anisotropic: only where
+  // horizontalScale == 0.8/spanZ is a box-space distance a map-space distance.
+  // The shaders inherit this -- native_renderer_shaders.cpp:36 sets
+  // worldPosition = input.position and the camera is written in the same box
+  // (native_renderer_frame.cpp:98-105) -- so a fog range quoted in map units has
+  // to be converted per axis, never by a single scalar. The atlas overload below
+  // (~:590) normalizes identically.
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
     return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 1.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
