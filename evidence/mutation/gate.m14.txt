@@ -2,7 +2,7 @@
   world fixture: map=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/maps/pl_upward_f12.bsp bytes=25252306
   OK   named world models: the upward fixture demo is the pinned file = 7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3
   OK   named world models: the upward map is the installed pl_upward_f12 BSP = 25252306
-  world rc=0 bmp=2582406 trace=5813792 bytes
+  world rc=0 bmp=2582406 trace=4379220 bytes
   OK   named world models: the upward multiply-held-weapons run rc = 0
   OK   named world models: the run captured a frame = 2582406 (>= 1)
   named world models supplied: flamethrower=1 warhorn=1 sapper=1; refused-naming-any=0; OOM-lines=0
@@ -20,10 +20,10 @@
   OK   named world models: the table never exceeds its bound = 96 (<= 96)
   OK   named world models: the table refused nothing at the shipped bound = 0
   FAIL named world models: no resident mesh was evicted at the shipped bound = 3, expected 0
-  world attach coverage: lines=555 requested=8219 resolvedFromWorld=8193 uploaded=26 refused=0 retrySkipped=0 unresolvedPath=0 balance-violations=0
-  OK   named world models: the attach reports its request accounting = 555 (>= 1)
+  world attach coverage: lines=414 requested=6184 resolvedFromWorld=6158 uploaded=26 refused=0 retrySkipped=0 unresolvedPath=0 balance-violations=0
+  OK   named world models: the attach reports its request accounting = 414 (>= 1)
   OK   named world models: every attach request left through a named exit (coverage balances) = 0
-  OK   named world models: the hand's weapon world models are covered (uploaded + resolved from prepare) = 8219 (>= 1)
+  OK   named world models: the hand's weapon world models are covered (uploaded + resolved from prepare) = 6184 (>= 1)
   OK   named world models: the coverage ledger agrees with the mesh-source ledger on uploads = 26
   world layer C: accepted=96 slots=207
   OK   named world models: the instance list has slots = 207 (>= 1)

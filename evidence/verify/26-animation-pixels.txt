@@ -26,14 +26,16 @@
 === F5: the per-entity chain ===
   LEDGER lines=96 distinct-ids=96
   PICKS  models=8
-  MASK   distinct-ids=3 pixels=5573
-  SUBJECT id=96 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=4383
-  VISIBLE players=1 props=2
+  MASK   distinct-ids=6 pixels=2705
+  SUBJECT id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=1711
+  VISIBLE players=1 props=5
   JOIN   subject matches its own pick: models/player/demo.mdl moving seq=147 label=run_PRIMARY
-  DRAWN  1 skinned player instance(s) report their own pick (0 not skinned, not judged)
+  DRAWN  2 skinned player instance(s) report their own pick (0 not skinned, not judged)
   SAMPLE 31 per-entity sample line(s), each matching its own model pick
-  MOTION subject=96 over-mask=4383 differ=3794 share=86.56%
-  DECODED id=96 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
+  MOTION subject=95 over-mask=1711 differ=1232 share=72.00%
+  BODIES drawn player bodies on screen:
+  BODY id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=1711 differ=1232 share=72.00%
+  DECODED id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY
   ENTITY-ID=PASS
   OK   the id frame decodes to a named body whose own pick, own samples and own pixels agree
   OK   coverage.bmp exists (2582406 bytes)
@@ -42,15 +44,15 @@
   OK   identity.bmp exists (2582406 bytes)
 
 === F3/F4: the pixel assertions themselves ===
-  MASK pixels=3497 of 860784 (0.41%) sentinel=(255,0,255)
-  MASK non-sentinel top=[((89, 158, 97), 668469), ((14, 18, 22), 188818)]
-  OK   mask size 3497 in [2000, 215196]
-  BODY over mask: distinct=841 mean_lum=100.6 pure_black=0.100 top=[((0, 0, 0), 196), ((7, 8, 10), 138), ((6, 7, 9), 111)]
-  OK   body distinct colours 841 >= 200 (not a flat fill)
-  OK   body mean luminance 100.6 >= 12.0
-  OK   body pure-black share 0.100 <= 0.35
-  animation-off vs animated over mask: differ=2268 (64.86%) differ_by_>=24=1625 (46.47%)
-  OK   animation-off moved 64.86% >= 5.0% of body pixels
+  MASK pixels=3156 of 860784 (0.37%) sentinel=(255,0,255)
+  MASK non-sentinel top=[((89, 158, 97), 707447), ((14, 18, 22), 150181)]
+  OK   mask size 3156 in [2000, 215196]
+  BODY over mask: distinct=1417 mean_lum=68.0 pure_black=0.082 top=[((0, 0, 0), 114), ((166, 170, 161), 64), ((19, 36, 67), 47)]
+  OK   body distinct colours 1417 >= 200 (not a flat fill)
+  OK   body mean luminance 68.0 >= 12.0
+  OK   body pure-black share 0.082 <= 0.35
+  animation-off vs animated over mask: differ=2146 (68.00%) differ_by_>=24=1316 (41.70%)
+  OK   animation-off moved 68.00% >= 5.0% of body pixels
   PIXEL-CHECK=PASS
   OK   t61-pixels.py printed PIXEL-CHECK=PASS
   OK   no FAIL lines from the pixel tool

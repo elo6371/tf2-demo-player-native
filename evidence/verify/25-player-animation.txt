@@ -1,5 +1,5 @@
 === 0/6 binary freshness: the probe is newer than every input it compiles ===
-  OK   BINARY-FRESH=1 probe=2026-11-02 18:45:21
+  OK   BINARY-FRESH=1 probe=2026-11-09 15:13:59
 
 === 1/6 negative controls: each must fail with its named reason ===
   OK   wrong-tf-root failed rc=2 with 'FAIL player-animation-test reason=tf-root-invalid'
@@ -13,6 +13,7 @@
   OK   matcher boundary = 1
   OK   matcher substringDefect = 1
   OK   matcher leading = 1
+  OK   matcher oneShot = 1
   OK   matcher ranked order = 0,3,1,4
   OK   matcher selector agrees with rank head = 0
   OK   matcher whole-token pick = 1
@@ -73,7 +74,7 @@
   OK   A heavy separate = 1
   OK   A heavy animSource contains _animations.mdl
   OK   A pyro probe exit = 0
-  pyro: animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=10 
+  pyro: animtable model=models/player/pyro.mdl animSource=models/player/pyro_animations.mdl separate=1 bones=76 bindBones=76 validBindBones=76 sequences=270 idleSeq=19 
   OK   A pyro sequences = 270 (>= 200)
   OK   A pyro bindBones==bones = 76
   OK   A pyro validBindBones = 76 (>= 1)
@@ -99,135 +100,135 @@
   OK   B scout boundDiag composed = 1
   OK   B scout boundDiag = 148.069992 (> 1)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.0000 = 80.123543 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.0000 = 86.777969 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.2500 = 80.981621 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.2500 = 86.777626 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.5000 = 80.250557 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.5000 = 86.778290 (<= 148.069992)
   OK   B scout pose finite = 1
-  OK   B scout maxDelta cycle=0.7500 = 80.329147 (<= 148.069992)
+  OK   B scout maxDelta cycle=0.7500 = 86.777443 (<= 148.069992)
   OK   B scout distinct pose checksums = 4
   OK   B sniper boundDiag composed = 1
   OK   B sniper boundDiag = 168.444580 (> 1)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.0000 = 94.478920 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.0000 = 89.135284 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.2500 = 97.381599 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.2500 = 89.810799 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.5000 = 94.874527 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.5000 = 88.079399 (<= 168.444580)
   OK   B sniper pose finite = 1
-  OK   B sniper maxDelta cycle=0.7500 = 97.487022 (<= 168.444580)
+  OK   B sniper maxDelta cycle=0.7500 = 90.471024 (<= 168.444580)
   OK   B sniper distinct pose checksums = 4
   OK   B soldier boundDiag composed = 1
   OK   B soldier boundDiag = 162.180664 (> 1)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.0000 = 59.035938 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.0000 = 63.724297 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.2500 = 64.011276 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.2500 = 61.755516 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.5000 = 57.399475 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.5000 = 61.966827 (<= 162.180664)
   OK   B soldier pose finite = 1
-  OK   B soldier maxDelta cycle=0.7500 = 64.649261 (<= 162.180664)
+  OK   B soldier maxDelta cycle=0.7500 = 61.125404 (<= 162.180664)
   OK   B soldier distinct pose checksums = 4
   OK   B demo boundDiag composed = 1
   OK   B demo boundDiag = 153.344421 (> 1)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.0000 = 66.777214 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.0000 = 72.018349 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.2500 = 72.604279 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.2500 = 71.803467 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.5000 = 66.529282 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.5000 = 66.509201 (<= 153.344421)
   OK   B demo pose finite = 1
-  OK   B demo maxDelta cycle=0.7500 = 74.243271 (<= 153.344421)
+  OK   B demo maxDelta cycle=0.7500 = 68.931107 (<= 153.344421)
   OK   B demo distinct pose checksums = 4
   OK   B medic boundDiag composed = 1
   OK   B medic boundDiag = 158.545471 (> 1)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.0000 = 97.196129 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.0000 = 97.402306 (<= 158.545471)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.2500 = 99.948143 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.2500 = 94.584938 (<= 158.545471)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.5000 = 97.550713 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.5000 = 96.721992 (<= 158.545471)
   OK   B medic pose finite = 1
-  OK   B medic maxDelta cycle=0.7500 = 100.189140 (<= 158.545471)
+  OK   B medic maxDelta cycle=0.7500 = 94.943954 (<= 158.545471)
   OK   B medic distinct pose checksums = 4
   OK   B heavy boundDiag composed = 1
   OK   B heavy boundDiag = 160.262329 (> 1)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.0000 = 57.628395 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.0000 = 67.776909 (<= 160.262329)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.2500 = 65.019592 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.2500 = 66.000389 (<= 160.262329)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.5000 = 61.150166 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.5000 = 64.999855 (<= 160.262329)
   OK   B heavy pose finite = 1
-  OK   B heavy maxDelta cycle=0.7500 = 63.762997 (<= 160.262329)
+  OK   B heavy maxDelta cycle=0.7500 = 69.527908 (<= 160.262329)
   OK   B heavy distinct pose checksums = 4
   OK   B pyro boundDiag composed = 1
   OK   B pyro boundDiag = 144.647598 (> 1)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.0000 = 82.310555 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.0000 = 76.084229 (<= 144.647598)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.2500 = 87.248924 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.2500 = 76.164749 (<= 144.647598)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.5000 = 82.593567 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.5000 = 77.781036 (<= 144.647598)
   OK   B pyro pose finite = 1
-  OK   B pyro maxDelta cycle=0.7500 = 88.807404 (<= 144.647598)
+  OK   B pyro maxDelta cycle=0.7500 = 75.309593 (<= 144.647598)
   OK   B pyro distinct pose checksums = 4
   OK   B spy boundDiag composed = 1
   OK   B spy boundDiag = 152.491623 (> 1)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.0000 = 91.206558 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.0000 = 84.076599 (<= 152.491623)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.2500 = 85.813347 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.2500 = 69.172203 (<= 152.491623)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.5000 = 95.650833 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.5000 = 86.867477 (<= 152.491623)
   OK   B spy pose finite = 1
-  OK   B spy maxDelta cycle=0.7500 = 88.291389 (<= 152.491623)
+  OK   B spy maxDelta cycle=0.7500 = 69.307457 (<= 152.491623)
   OK   B spy distinct pose checksums = 4
   OK   B engineer boundDiag composed = 1
   OK   B engineer boundDiag = 153.530396 (> 1)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.0000 = 77.884537 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.0000 = 73.651581 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.2500 = 83.335449 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.2500 = 80.141396 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.5000 = 77.438210 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.5000 = 75.818336 (<= 153.530396)
   OK   B engineer pose finite = 1
-  OK   B engineer maxDelta cycle=0.7500 = 82.237099 (<= 153.530396)
+  OK   B engineer maxDelta cycle=0.7500 = 73.973053 (<= 153.530396)
   OK   B engineer distinct pose checksums = 4
   OK   B scout repeat probe exit = 0
   OK   B scout repeat pose line count = 4
   OK   B scout pose lines to compare = 4 (>= 4)
-  OK   B scout pose digest repeatable = cf489aa9ea9bba842abc105d62670678
+  OK   B scout pose digest repeatable = fd42f3b3ceddba092f7478186c3fec18
 
 === 4/6 C: sixty 1/60 s steps never move a matrix element by more than boundDiag/4 ===
   OK   C scout animcont usable = 1
-  OK   C scout maxStepDelta (quarter=37.017498000) = 13.934902 (<= 37.017498000)
-  OK   C scout maxStepDelta = 13.934902 (> 0)
+  OK   C scout maxStepDelta (quarter=37.017498000) = 16.476936 (<= 37.017498000)
+  OK   C scout maxStepDelta = 16.476936 (> 0)
   OK   C sniper animcont usable = 1
-  OK   C sniper maxStepDelta (quarter=42.111145000) = 7.227989 (<= 42.111145000)
-  OK   C sniper maxStepDelta = 7.227989 (> 0)
+  OK   C sniper maxStepDelta (quarter=42.111145000) = 7.136417 (<= 42.111145000)
+  OK   C sniper maxStepDelta = 7.136417 (> 0)
   OK   C soldier animcont usable = 1
-  OK   C soldier maxStepDelta (quarter=40.545166000) = 7.921024 (<= 40.545166000)
-  OK   C soldier maxStepDelta = 7.921024 (> 0)
+  OK   C soldier maxStepDelta (quarter=40.545166000) = 12.663803 (<= 40.545166000)
+  OK   C soldier maxStepDelta = 12.663803 (> 0)
   OK   C demo animcont usable = 1
-  OK   C demo maxStepDelta (quarter=38.336105250) = 11.252254 (<= 38.336105250)
-  OK   C demo maxStepDelta = 11.252254 (> 0)
+  OK   C demo maxStepDelta (quarter=38.336105250) = 11.593300 (<= 38.336105250)
+  OK   C demo maxStepDelta = 11.593300 (> 0)
   OK   C medic animcont usable = 1
-  OK   C medic maxStepDelta (quarter=39.636367750) = 11.527103 (<= 39.636367750)
-  OK   C medic maxStepDelta = 11.527103 (> 0)
+  OK   C medic maxStepDelta (quarter=39.636367750) = 11.878127 (<= 39.636367750)
+  OK   C medic maxStepDelta = 11.878127 (> 0)
   OK   C heavy animcont usable = 1
-  OK   C heavy maxStepDelta (quarter=40.065582250) = 13.546520 (<= 40.065582250)
-  OK   C heavy maxStepDelta = 13.546520 (> 0)
+  OK   C heavy maxStepDelta (quarter=40.065582250) = 17.835003 (<= 40.065582250)
+  OK   C heavy maxStepDelta = 17.835003 (> 0)
   OK   C pyro animcont usable = 1
-  OK   C pyro maxStepDelta (quarter=36.161899500) = 32.513805 (<= 36.161899500)
-  OK   C pyro maxStepDelta = 32.513805 (> 0)
+  OK   C pyro maxStepDelta (quarter=36.161899500) = 30.637253 (<= 36.161899500)
+  OK   C pyro maxStepDelta = 30.637253 (> 0)
   OK   C spy animcont usable = 1
-  OK   C spy maxStepDelta (quarter=38.122905750) = 12.674725 (<= 38.122905750)
-  OK   C spy maxStepDelta = 12.674725 (> 0)
+  OK   C spy maxStepDelta (quarter=38.122905750) = 12.974876 (<= 38.122905750)
+  OK   C spy maxStepDelta = 12.974876 (> 0)
   OK   C engineer animcont usable = 1
-  OK   C engineer maxStepDelta (quarter=38.382599000) = 7.102366 (<= 38.382599000)
-  OK   C engineer maxStepDelta = 7.102366 (> 0)
+  OK   C engineer maxStepDelta (quarter=38.382599000) = 14.595675 (<= 38.382599000)
+  OK   C engineer maxStepDelta = 14.595675 (> 0)
 
 === 5/6 D: movingRate > idleRate, one moving second == expected, idle second == 0 ===
   animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000

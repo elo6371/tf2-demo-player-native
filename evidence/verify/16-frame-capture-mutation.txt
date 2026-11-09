@@ -19,18 +19,18 @@ distinct colours (capped at 9) = 9
 === 3/4 the same input twice gives the same bytes, and a different scene does not ===
 second paused capture rc=0 size=2582406
   OK   second paused capture rc = 0
-paused sha256 #1 = 37a4800430066afbf38d6ecc422a799f8abf32911eeea50418eaae6a19eceb8e
-paused sha256 #2 = 37a4800430066afbf38d6ecc422a799f8abf32911eeea50418eaae6a19eceb8e
+paused sha256 #1 = a1f9c13ac68e4cad2087c8e32f943b97c7ca5604d3a71632ffe635c6a5c0ca5a
+paused sha256 #2 = a1f9c13ac68e4cad2087c8e32f943b97c7ca5604d3a71632ffe635c6a5c0ca5a
   OK   two captures of the same static scene are byte-identical
 demo capture rc=0 size=2582406
 demo 1264x681 bpp=24 fileBytes=2582406 actual=2582406
 demo sha256 = fa1bb19484f466ce5f20eeaa25bdb4b1dd90e3cee72aaf02af36100b95ff7543
   OK   a demo scene and the paused scene are different pictures
 installed-map demo capture rc=0 size=2582406
-installed-map demo sha256 = 18fc3d18bfb0b38ed9aa3d8ad12fe4ed19335c37f068705705c4922f9b3c73c6
+installed-map demo sha256 = 9249aa079ed6bc7004995df38cbe7f196e22407fcd628949bfc49f8345661bbb
   OK   the installed-map demo scene differs from the paused scene
-installed-map distinct colours (full count) = 38667  [reading only]
-installed-map vs fallback-capture: differing 2539553 / 2582352 = 0.9834 (need >= 10%)
+installed-map distinct colours (full count) = 40838  [reading only]
+installed-map vs fallback-capture: differing 2553504 / 2582352 = 0.9888 (need >= 10%)
   OK   the installed-map frame is not the fallback picture
 
 === 4/4 a bad tick is refused instead of guessed ===

@@ -1,6 +1,5 @@
 === 0/11 binary freshness: both executables are newer than what they compile ===
-  FAIL STALE-BINARY=1 native/build-nmake/spectate_probe.exe<native/src/spectate_target.cpp native/build-nmake/spectate_probe.exe<native/tools/spectate_probe.cpp
-       run: bash build-target.sh spectate_probe && bash build-target.sh tf2_demo_native
+  OK   BINARY-FRESH=1
 === 1/11 negative controls: each must fail with a NAMED reason ===
   OK   missing demo: exit 1 and names the path
   OK   inverted window: exit 2 and names both ticks
@@ -24,47 +23,47 @@
   OK   a repeat replay of the same window is byte-identical
 === 4/11 the product: the same three deaths at 8x, a handover in progress, corpses removed ===
   OK   product run exit = 0
-  OK   product trace bytes = 10170651 (>= 1000000)
-  summary: 55882.5 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=9446 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19502
+  OK   product trace bytes = 7510482 (>= 1000000)
+  summary: 60945.5 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=5953 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19507
   OK   product deaths = 3
   OK   product handovers = 3
   OK   product frames with no target = 0
   OK   product seeks = 0
   OK   product manual picks = 0
   OK   the product never used the demo director handle either = 0
-  OK   instances the corpse rule removed = 9446 (>= 100)
-  OK   frames that published a corpse filter line = 21 (>= 3)
+  OK   instances the corpse rule removed = 5953 (>= 100)
+  OK   frames that published a corpse filter line = 24 (>= 3)
   OK   the last corpse filter names the dead player contains indices=
   OK   the first corpse filter names the first dead player (2) contains 2
 === 5/11 the handover shape: intermediate positions, monotone progress, no single jump ===
   OK   handover analysis exit = 0
-  handover n=1 tick0=13616 tick1=13782 samples=12 total=4495.3 largest=622.4 maxstep=0.138 monotone=1 startgap=0.0 endgap=0.0
-  handover n=2 tick0=15907 tick1=16068 samples=11 total=983.1 largest=142.8 maxstep=0.145 monotone=1 startgap=0.0 endgap=0.0
-  handover n=3 tick0=19502 tick1=19663 samples=12 total=776.8 largest=106.0 maxstep=0.136 monotone=1 startgap=0.0 endgap=0.0
+  handover n=1 tick0=13621 tick1=13784 samples=13 total=4495.3 largest=556.6 maxstep=0.124 monotone=1 startgap=0.0 endgap=0.0
+  handover n=2 tick0=15916 tick1=16079 samples=13 total=983.1 largest=136.8 maxstep=0.139 monotone=1 startgap=0.0 endgap=0.0
+  handover n=3 tick0=19507 tick1=19668 samples=11 total=776.8 largest=119.4 maxstep=0.154 monotone=1 startgap=0.0 endgap=0.0
   HANDOVERS=3
   OK   handovers analysed = 3
-  OK   handover 1 intermediate positions = 12 (>= 5)
-  OK   handover 1 largest step as a share of the move = 0.138 (<= 0.30)
+  OK   handover 1 intermediate positions = 13 (>= 5)
+  OK   handover 1 largest step as a share of the move = 0.124 (<= 0.30)
   OK   handover 1 progress never went backwards = 1
   OK   handover 1 settled exactly on the target = 0.0 (<= 1.0)
-  OK   handover 2 intermediate positions = 11 (>= 5)
-  OK   handover 2 largest step as a share of the move = 0.145 (<= 0.30)
+  OK   handover 2 intermediate positions = 13 (>= 5)
+  OK   handover 2 largest step as a share of the move = 0.139 (<= 0.30)
   OK   handover 2 progress never went backwards = 1
   OK   handover 2 settled exactly on the target = 0.0 (<= 1.0)
-  OK   handover 3 intermediate positions = 12 (>= 5)
-  OK   handover 3 largest step as a share of the move = 0.136 (<= 0.30)
+  OK   handover 3 intermediate positions = 11 (>= 5)
+  OK   handover 3 largest step as a share of the move = 0.154 (<= 0.30)
   OK   handover 3 progress never went backwards = 1
   OK   handover 3 settled exactly on the target = 0.0 (<= 1.0)
 === 6/11 the manual pick: same frame, no handover, not taken back ===
   OK   manual pick run exit = 0
-  summary: 41099.0 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=5937 target=15 src=stable tr=0 prog=0.000 focus=-1609.3,1083.6,150.0 deaths=3 handovers=3 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=3 hidden=7 lastdeath=19949
+  summary: 47288.3 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=3983 target=15 src=stable tr=0 prog=0.000 focus=-1609.3,1083.6,150.0 deaths=3 handovers=3 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=3 hidden=7 lastdeath=19957
   OK   manual pick accepted = 1
   OK   manual pick rejected = 0
   OK   the first product frame already carries the manual target contains target=6
   OK   the first product frame reports the pick as manual contains src=manual
   OK   the first product frame is not mid-handover contains tr=0
   OK   handovers that happened before the first death in the manual run = 0
-  OK   product frames printed by the manual run = 41 (>= 3)
+  OK   product frames printed by the manual run = 46 (>= 3)
   OK   out-of-range pick flagged = 1 (>= 1)
   OK   out-of-range pick was never handed to the relay as a target = 0
 === 7/11 the picture: the corpse rule does not touch a frame with nobody dead ===
@@ -77,10 +76,10 @@
   OK   instances removed with the rule disabled = 0
 === 8/11 the pause: the handover keeps moving while the demo clock is frozen ===
   OK   pause run exit = 0
-  OK   pause trace bytes = 10631568 (>= 1000000)
+  OK   pause trace bytes = 7380686 (>= 1000000)
   OK   pause windows opened = 1
   OK   pause windows resumed = 1
-  frozen window: 24711.5 title: TF2 Demo Player - TF2 DòÞ¥: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 200000 tris, lightmap: samples=2793687 faces=11527 tris=200174 bytes=4682900 state=source-equivalent tone=ldr-clamp atlas=4096x1156, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=
+  frozen window: 30568.6 scene: camera mode=first-person target=1 follows=268 holds=1 freeze=0 eye=3593.1,-1184.6,76.0 pitch=0.35 yaw=231.55 src=follow|30568.6 spectate: tick=13642 dead=1,2,6,7,11,12,14,16,17,18,19 corpses=0 target=3 src=stable tr=1 prog=0.169 focus=-304.1,246.2,-21.5 deaths=1 handovers=1 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=2 hidden=11 
   OK   handover lines printed while the clock was frozen = 16 (>= 2)
   OK   distinct demo ticks seen during the pause = 1
   OK   handovers that finished while the clock was frozen = 1 (>= 1)
@@ -92,7 +91,7 @@
   OK   seeks in the paused run = 0
 === 9/11 the pick: a manual target survives a pause, and nothing takes it back ===
   OK   pick-through-pause run exit = 0
-  summary: 57455.5 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=9822 target=15 src=stable tr=0 prog=0.000 focus=3563.9,-1458.9,120.8 deaths=3 handovers=3 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=3 hidden=8 lastdeath=19953
+  summary: 63754.9 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=5934 target=15 src=stable tr=0 prog=0.000 focus=3563.9,-1458.9,120.8 deaths=3 handovers=3 notarget=0 resync=0 manual=1 rejected=0 director=0 stable=3 hidden=8 lastdeath=19956
   OK   picks accepted in the pick run = 1
   OK   picks refused in the pick run = 0
   OK   frames with no target in the pick run = 0
@@ -108,19 +107,19 @@
   OK   seek run exit = 0
   OK   the product accepted the seek contains cmd=seek result=ok detail=tick=2500
   OK   the seek went through the jump path contains source=camera-script requestedTick=2500 
-  before_tick=13726 before_resync=0 after_tick=12820 after_resync=1
+  before_tick=13746 before_resync=0 after_tick=12820 after_resync=1
   OK   seeks the relay reported before the seek = 0
   OK   seeks the relay reported after the seek = 1 (>= 1)
-  OK   the tick of the first line published after the seek = 12820 (< 13726)
-  summary: 25198.9 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1436 target=3 src=stable tr=0 prog=0.000 focus=1028.6,363.3,168.4 deaths=1 handovers=1 notarget=0 resync=1 manual=0 rejected=0 director=0 stable=2 hidden=8 lastdeath=13615
+  OK   the tick of the first line published after the seek = 12820 (< 13746)
+  summary: 30233.3 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=818 target=3 src=stable tr=0 prog=0.000 focus=2632.6,-1146.0,-41.5 deaths=1 handovers=1 notarget=0 resync=1 manual=0 rejected=0 director=0 stable=2 hidden=11 lastdeath=13619
   OK   seeks counted in the whole seek run = 1
 === 11/11 the speed: a 16x replay is playback, not a seek on every frame ===
   OK   16x run exit = 0
-  summary: 36954.1 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=4877 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19511
+  summary: 42154.3 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=2827 target=6 src=stable tr=0 prog=0.000 focus=3435.5,-1305.4,67.6 deaths=3 handovers=3 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=4 hidden=8 lastdeath=19511
   OK   seeks reported during a 16x replay = 0
   OK   deaths seen at 16x = 3
   OK   handovers seen at 16x = 3
   OK   frames with no target at 16x = 0
-  OK   16x trace bytes = 5258046 (>= 1000000)
+  OK   16x trace bytes = 3564400 (>= 1000000)
 ==========================================================================
-SPECTATE-CHECK=FAIL
+SPECTATE-CHECK=PASS

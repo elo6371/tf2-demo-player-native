@@ -5,6 +5,7 @@ pov:     model_precache=1248 sound_precache=6720 from_precache=387 unresolved=0
 model:   requests=387 demoRenderable=244
 fixture: fixture_failures=0
 recording probe: "recording":true
+selftest: rc=0 ok=1 fixture=weapon-wiring-fixture refs=11 known=10 resolved=6
 
 --- m1: delete the svc_SetPause(11) dispatch arm
 MUTATION-RED   m1 svc_SetPause removed -> unknown_message_types         11,11 (fixed=<none>)
@@ -58,7 +59,7 @@ MUTATION-RED   m9 index-even thinning -> gate refuses                   exit=1 H
 MUTATION-RED   m9 index-even thinning -> bagel worst gap                51568 (> 10000)
 
 --- m10: world-model route unreachable again (weapons name their arms)
-MUTATION-GREEN m10 world route gone -> fixture self-test refuses        exit=1 missing: weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
+MUTATION-RED   m10 world route gone -> fixture self-test refuses        exit=1 weapon-wiring-fixture refs=11 known=0 resolved=0 zero=0 unresolved=0 outOfRange=0 unresolvedMax=-1 onlyWorld=0 fromWorld=0 agrees=0 viewZero=0 differs=0 armsWeapon=2
 MUTATION-RED   m10 world route gone -> protocol probe fromWorld         0 (fixed=69)
 MUTATION-RED   m10 world route gone -> protocol probe known             0 (fixed=71)
 MUTATION-RED   m10 world route gone -> view/model compare dies with the block 0 (fixed=2)
@@ -101,4 +102,4 @@ RESTORED-IDENTICAL model.fixed.txt
 RESTORED-IDENTICAL fixture.fixed.txt
 RESTORED-IDENTICAL recording.fixed.txt
 
-MUTATION-SUITE=FAIL
+MUTATION-SUITE=PASS

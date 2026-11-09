@@ -1,17 +1,18 @@
 === 1/3 wiring fixture (synthetic entities, every branch by construction) ===
-fixture refs= known= resolved= zero= unresolved= outOfRange= onlyWorld= fromWorld= agrees= viewZero= differs= armsWeapon=
-  FAIL fixture refs = <none>, expected 11
-  FAIL fixture known = <none>, expected 10
-  FAIL fixture resolved = <none>, expected 6
-  FAIL fixture zero = <none>, expected 2
-  FAIL fixture unresolved = <none>, expected 1
-  FAIL fixture outOfRange = <none>, expected 1
-  FAIL fixture onlyWorld = <none>, expected 2
-  FAIL fixture fromWorld = <none>, expected 6
-  FAIL fixture agrees = <none>, expected 6
-  FAIL fixture viewZero = <none>, expected 2
-  FAIL fixture differs = <none>, expected 1
-  FAIL fixture armsWeapon (the counter the demos must read 0 on) = <none>, expected 1
+weapon-wiring-fixture refs=11 known=10 resolved=6 zero=2 unresolved=1 outOfRange=1 unresolvedMax=99 onlyWorld=2 fromWorld=6 agrees=6 viewZero=2 differs=1 armsWeapon=1
+fixture refs=11 known=10 resolved=6 zero=2 unresolved=1 outOfRange=1 onlyWorld=2 fromWorld=6 agrees=6 viewZero=2 differs=1 armsWeapon=1
+  OK   fixture refs = 11
+  OK   fixture known = 10
+  OK   fixture resolved = 6
+  OK   fixture zero = 2
+  OK   fixture unresolved = 1
+  OK   fixture outOfRange = 1
+  OK   fixture onlyWorld = 2
+  OK   fixture fromWorld = 6
+  OK   fixture agrees = 6
+  OK   fixture viewZero = 2
+  OK   fixture differs = 1
+  OK   fixture armsWeapon (the counter the demos must read 0 on) = 1
 
 === 2/3 bagel and POV, end to end ===
 bagel refs=679 requests=505 withWorldIndex=33 known=33 resolved=32 zero=1 unresolved=0 outOfRange=0 pathFromWorld=32 onlyWorld=0 worldIndexNonZero=32 armsWeapon=0 armsNonWeapon=12 viewAgrees=33 viewZero=0 viewDiffers=0
@@ -48,4 +49,4 @@ live window [129210..129277]: packets checked=68 that carried m_iWorldModelIndex
        comparison exists -- the property rides the instance baseline, and
        this decoder is tick-exact only inside that window
 
-WEAPON-WORLD-MODEL=FAIL
+WEAPON-WORLD-MODEL=PASS
