@@ -81,6 +81,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     DirectX::XMFLOAT4 lightmapFeatures;
     DirectX::XMFLOAT4 envFeatures;
   };
+  // T101: the constant buffer's ByteWidth (native_renderer.cpp) must equal this
+  // size exactly -- UpdateSubresource copies ByteWidth bytes and says nothing
+  // about the rest. It was 160 against this 144-byte struct, so every frame read
+  // 16 bytes past the end. The comment that asked for the two to match was
+  // already beside that number and did not hold; this assertion does.
+  static_assert(sizeof(WorldConstantsData) == 144,
+    "WorldConstantsData must be exactly the world constant buffer's ByteWidth");
   WorldConstantsData frameConstants{};
   bool frameConstantsValid = false;
   if (worldConstants_) {
@@ -241,6 +248,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         XMFLOAT4 lightmapFeatures;
         XMFLOAT4 envFeatures;
       } skyConstants{};
+      // T101: the sky's copy is uploaded into the SAME buffer, so it has the same
+      // required size -- see the note beside WorldConstantsData.
+      static_assert(sizeof(SkyConstantsData) == 144,
+        "SkyConstantsData must be exactly the world constant buffer's ByteWidth");
       XMMATRIX skyView = view;
       skyView.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
       XMStoreFloat4x4(&skyConstants.mvp, skyView * projection);

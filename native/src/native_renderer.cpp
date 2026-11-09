@@ -632,13 +632,16 @@ bool Renderer::createPipeline() {
   if (FAILED(device_->CreateRasterizerState(&waterRasterDescription,
       worldWaterRasterizerState_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC constantsDescription{};
-  // Must cover every field of WorldConstantsData in drawFrame(): mvp (64 bytes)
-  // plus five float4 blocks (80) is 144, rounded up to 160 so the next block
-  // added does not quietly fall off the end. It did: the buffer was 128 while
-  // the struct grew to 144, UpdateSubresource copies ByteWidth bytes and says
-  // nothing about the rest, and envFeatures read as zero in the shader -- a
-  // whole capability that was wired, compiled, counted as bound and never ran.
-  constantsDescription.ByteWidth = 160;
+  // ByteWidth must equal sizeof(WorldConstantsData) in drawFrame(): mvp (64
+  // bytes) plus five float4 blocks (80) is 144. It was 160 -- "rounded up so
+  // the next block added does not quietly fall off the end" -- and that padding
+  // was never harmless: UpdateSubresource copies ByteWidth bytes out of a
+  // 144-byte struct, so every frame read 16 bytes past the end of it. The same
+  // comment was here when the buffer was 128 and the struct 144, and it did not
+  // stop *that* over-read either, which is why the invariant is now a
+  // static_assert beside the struct (native_renderer_frame.cpp) and this number
+  // is exactly the sizeof rather than a round number above it.
+  constantsDescription.ByteWidth = 144;
   constantsDescription.Usage = D3D11_USAGE_DEFAULT;
   constantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldConstants_.GetAddressOf()))) return false;
