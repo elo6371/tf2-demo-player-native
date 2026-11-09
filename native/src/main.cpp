@@ -4854,6 +4854,12 @@ bool outlineVertexExtent = false;
       // silence.
       constexpr std::size_t kMaxWorldMaterials = 256;
       std::size_t fetchDistinct = 0, fetchCapped = 0, fetchVmtMissing = 0, fetchVmtNoBase = 0;
+      // R3: two exits counted apart from "no base texture". A VMT that is present
+      // but does not parse, and a Water shader that names no $basetexture on
+      // purpose, used to be folded into fetchVmtNoBase -- so one number meant a
+      // broken file, a missing key and a shader that never had the key. Each is
+      // now its own number, named after what it actually measured.
+      std::size_t fetchVmtUnparsable = 0, fetchWaterShader = 0;
       // T59: patch wrappers, counted apart from a plain no-basetexture. Declared is
       // how many materials are wrappers, resolved is how many got their include merged
       // (and so reached the ordinary fetch), unparsable is how many could not. The
@@ -5145,7 +5151,7 @@ bool outlineVertexExtent = false;
         }
         chain.patchDeclared = material.patch.declared;
         if (!parsed) {
-          ++fetchVmtNoBase;
+          ++fetchVmtUnparsable;
           chain.reason = material.patch.declared ? "patch-unresolved" : "vmt-unparsable";
           if (material.patch.declared) {
             ++fetchPatchUnparsable;
@@ -5177,6 +5183,16 @@ bool outlineVertexExtent = false;
         // comment in native_renderer.h.
         mapMaterialParams.translucent = mapMaterialParams.translucent || material.translucent;
         mapMaterialParams.alphaTest = mapMaterialParams.alphaTest || material.alphaTest;
+        // R3: a Water shader names no $basetexture on purpose. In Source the water
+        // surface's colour is the refracted scene, not a texture the material
+        // carries, so "declares no base texture" is a reading about a key the
+        // shader deliberately leaves out -- not a defect. Counted apart, under its
+        // own reason, and the water pass (world water-upload) is what draws the
+        // surface. The test is the same pair the no-basetexture exit asks about,
+        // so no material that could have been painted is skipped here.
+        if (material.waterShader && material.baseTexture.empty() && material.baseTexture2.empty()) {
+          ++fetchWaterShader; chain.reason = "water-shader"; continue;
+        }
         if (material.baseTexture.empty() && material.baseTexture2.empty()) {
           ++fetchVmtNoBase; chain.reason = "no-basetexture"; continue;
         }
@@ -5667,8 +5683,9 @@ bool outlineVertexExtent = false;
           worldTextures.push_back(std::move(tiled));
         }
       }
-      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu patchDeclared=%zu patchResolved=%zu patchUnparsable=%zu transformRefused=%zu transformApplied=%zu",
-        fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVtfMissing,
+      traceFmt("gpu: world material-fetch distinct=%zu tiled=%zu capped=%zu vmtMissing=%zu vmtNoBase=%zu vmtUnparsable=%zu waterShader=%zu vtfMissing=%zu vtfTooLarge=%zu decodeEmpty=%zu maxWidth=%zu maxHeight=%zu fromPakfile=%zu downscaled=%zu blendFirst=%zu blendLastRank=%zu blendCapped=%zu patchDeclared=%zu patchResolved=%zu patchUnparsable=%zu transformRefused=%zu transformApplied=%zu",
+        fetchDistinct, fetchTiled, fetchCapped, fetchVmtMissing, fetchVmtNoBase, fetchVmtUnparsable,
+        fetchWaterShader, fetchVtfMissing,
         fetchVtfTooLarge, fetchDecodeEmpty, fetchMaxWidth, fetchMaxHeight, fetchFromPakfile, fetchDownscaled,
         fetchBlendFirst, fetchBlendLastRank, fetchBlendCapped, fetchPatchDeclared, fetchPatchResolved, fetchPatchUnparsable, fetchTransformRefused,
         fetchTransformApplied);
