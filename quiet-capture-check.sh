@@ -113,6 +113,24 @@ LIVE_CHECKS=45
 # live pair ~63 s end to end. 240 s is a generous multiple; a capture that needs
 # more than this is a step to re-measure, not a step to wait out.
 RUN_TIMEOUT=240
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists settings.ini and ui.ini under %LOCALAPPDATA%/TF Demo
+# Player, so a run that does not redirect them shares state with the desktop
+# player and with every other gate on the host -- and verify-release's machine
+# guard compares that pair at the end of the chain, where one stray write turns
+# the whole chain red. Each run gets a throwaway directory instead, seeded with
+# the tracked gate fixture: an empty settings file is NOT "the defaults"
+# (verify-iso.sh: preset falls back to 0 = Performance, which draws no sky), so a
+# gate pointed at nothing would measure a different renderer than the frames it
+# pins.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+. "$(dirname "$0")/verify-iso.sh"
+iso_chain_exit "$ISO_DIR"
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+iso_seed_gate_settings "$ISO_DIR" || {
+  echo "FATAL: cannot seed the isolated gate settings" >&2; exit 2; }
 # The default is the wrong device to make noise on, so every launch names one
 # explicitly, exactly as frame-capture-check.sh does.
 AUDIO_DEVICE=6
@@ -151,7 +169,8 @@ run_one() { # run_one <output-prefix> [args...]
   local trace
   trace="$(cygpath -m "$PWD/$prefix.trace")"
   TF2_NATIVE_TRACE="$trace" timeout "$RUN_TIMEOUT" "$EXE" \
-    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" "$@" \
+    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" "$@" \
     --capture-frame "$prefix.bmp" --metrics-file "$prefix.csv" > "$prefix.log" 2>&1
   echo "$?"
 }

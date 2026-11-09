@@ -60,6 +60,24 @@ AUDIO_DEVICE=${AUDIO_DEVICE:-6}
 LOCK=${HOSTLOCK:-/d/TF2_Native_Worktrees/_shared/hostlock.sh}
 OUT=$ROOT/evidence/t62-map-matrix
 SCRATCH=$ROOT/.scratch/t62-map-matrix
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists settings.ini and ui.ini under %LOCALAPPDATA%/TF Demo
+# Player, so a run that does not redirect them shares state with the desktop
+# player and with every other gate on the host -- and verify-release's machine
+# guard compares that pair at the end of the chain, where one stray write turns
+# the whole chain red. Each run gets a throwaway directory instead, seeded with
+# the tracked gate fixture: an empty settings file is NOT "the defaults"
+# (verify-iso.sh: preset falls back to 0 = Performance, which draws no sky), so a
+# gate pointed at nothing would measure a different renderer than the frames it
+# pins.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+. "$(dirname "$0")/verify-iso.sh"
+iso_chain_exit "$ISO_DIR"
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+iso_seed_gate_settings "$ISO_DIR" || {
+  echo "FATAL: cannot seed the isolated gate settings" >&2; exit 2; }
 CAPTURE_TICKS=(0 2000)
 CAPTURE_TIMEOUT=${CAPTURE_TIMEOUT:-400}
 # A pixel counts as changed when any RGB channel moves by MORE than this many
@@ -253,7 +271,8 @@ product_cmd() {
   local trace=$1 bmp=$2 metrics=$3 demo=$4 tick=$5; shift 5
   local -a args=( "TF2_NATIVE_TRACE=$trace" timeout "$CAPTURE_TIMEOUT" "$PRODUCT"
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window
-    --demo "$demo" )
+    --demo "$demo"
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" )
   [ "$tick" = "0" ] && args+=( --start-paused )
   args+=( --capture-tick "$tick" --capture-frame "$bmp" --metrics-file "$metrics" )
   args+=( "$@" )

@@ -190,7 +190,8 @@ run_product() {
   trace="$(cygpath -m "$PWD/$OUT/$label.trace")"
   local -a argv=(--tf-root "$TF" --demo "$BAGEL" --hidden-window --audio-disabled
                  --capture-frame "$OUT/$label.bmp" --capture-tick "$CAPTURE_TICK"
-                 --settings-file "$(cygpath -m "$PWD/$OUT/$label.settings")" "$@")
+                 --settings-file "$(cygpath -m "$PWD/$OUT/$label.settings")"
+                 --ui-settings-file "$(cygpath -m "$PWD/$OUT/$label.ui.ini")" "$@")
   if ! safety_check "${argv[@]}"; then
     echo "REFUSED: run_product builds an argv without the safety flags" >&2
        echo "99" > "$OUT/$label.rc"

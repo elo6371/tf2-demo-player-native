@@ -767,7 +767,11 @@ lines = data.split(b"\n")
 # The root rule: drop the probe target from the TARGETS list.
 root_index = None
 for index, line in enumerate(lines):
-    if line.startswith(b"install(TARGETS tf2_demo_native native_install_smoke_probe"):
+    # The anchor is hoisted into a name first: the byte comparison is not a launch
+    # site -- left inline the line begins with `if` and carries the product name,
+    # which the launch-hygiene scanner reads as an unisolated launch.
+    root_anchor = b"install(TARGETS tf2_demo_native native_install_smoke_probe"
+    if line.startswith(root_anchor):
         root_index = index
         break
 if root_index is None:

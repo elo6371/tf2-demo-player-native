@@ -104,6 +104,24 @@ PRODUCT_NAME="$(basename "$EXE" .exe)"
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
 PINNED_TICK=400
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists settings.ini and ui.ini under %LOCALAPPDATA%/TF Demo
+# Player, so a run that does not redirect them shares state with the desktop
+# player and with every other gate on the host -- and verify-release's machine
+# guard compares that pair at the end of the chain, where one stray write turns
+# the whole chain red. Each run gets a throwaway directory instead, seeded with
+# the tracked gate fixture: an empty settings file is NOT "the defaults"
+# (verify-iso.sh: preset falls back to 0 = Performance, which draws no sky), so a
+# gate pointed at nothing would measure a different renderer than the frames it
+# pins.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+. "$(dirname "$0")/verify-iso.sh"
+iso_chain_exit "$ISO_DIR"
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+iso_seed_gate_settings "$ISO_DIR" || {
+  echo "FATAL: cannot seed the isolated gate settings" >&2; exit 2; }
 RUN_TIMEOUT=180
 # 32 s, not 16. The product opens its archives for ~18 s before it creates and shows
 # its window (vpk: archives opened=4 at 18540.6 ms, mode: window_created at 19506.5 ms
@@ -219,6 +237,8 @@ run_product() { # run_product <prefix> [extra args...]
   # its timeout.
   TF2_NATIVE_TRACE="$trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --capture-tick "$PINNED_TICK" --demo "$BAGEL" \
+    --settings-file "$ISO_SETTINGS" \
+    --ui-settings-file "$ISO_UI" \
     --capture-frame "$prefix.bmp" --metrics-file "$prefix.csv" "$@" > "$prefix.log" 2>&1
   echo "$?"
 }

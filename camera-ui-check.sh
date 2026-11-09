@@ -97,6 +97,24 @@ absolute_out() { # absolute_out <shell path under OUT> -- native Windows path
 # patch-source.py is invoked by absolute path so a mutation runs from any cwd.
 ROOT="$(pwd)"
 RUN_TIMEOUT=240
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists settings.ini and ui.ini under %LOCALAPPDATA%/TF Demo
+# Player, so a run that does not redirect them shares state with the desktop
+# player and with every other gate on the host -- and verify-release's machine
+# guard compares that pair at the end of the chain, where one stray write turns
+# the whole chain red. Each run gets a throwaway directory instead, seeded with
+# the tracked gate fixture: an empty settings file is NOT "the defaults"
+# (verify-iso.sh: preset falls back to 0 = Performance, which draws no sky), so a
+# gate pointed at nothing would measure a different renderer than the frames it
+# pins.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+. "$(dirname "$0")/verify-iso.sh"
+iso_chain_exit "$ISO_DIR"
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+iso_seed_gate_settings "$ISO_DIR" || {
+  echo "FATAL: cannot seed the isolated gate settings" >&2; exit 2; }
 LIVE_TICK=600
 # The T50 scripted run does more than a capture: three scene ticks, several
 # pauses and two full-frame captures in one process.
@@ -189,6 +207,8 @@ run_t50_product() { # <trace-path> <args...>
     return 99
   fi
   TF2_NATIVE_TRACE="$trace" timeout -k 5 "$T50_RUN_TIMEOUT" "$EXE" \
+    --settings-file "$ISO_SETTINGS" \
+    --ui-settings-file "$ISO_UI" \
     --tf-root "$TF" --demo "$BAGEL" "$@"
 }
 
@@ -198,6 +218,7 @@ run_e2e() { # run_e2e <prefix> -- one quiet product run with title polling
   local trace
   trace="$(absolute_out "$prefix.trace")"
   "$PY" - "$EXE" "$RUN_TIMEOUT" "$prefix.bmp" "$LIVE_TICK" "$TF" "$BAGEL" \
+    "$ISO_SETTINGS" "$ISO_UI" \
     "$trace" > "$prefix.driver.txt" <<'PYEOF'
 import ctypes
 import ctypes.wintypes as wt
@@ -206,11 +227,12 @@ import subprocess
 import sys
 import time
 
-exe, timeout_s, bmp, tick, tf, demo, trace = sys.argv[1:8]
+exe, timeout_s, bmp, tick, tf, demo, trace, settings, ui = sys.argv[1:10]
 env = dict(os.environ)
 env["TF2_NATIVE_TRACE"] = trace
 safety = ["--hidden-window", "--audio-disabled"]
 args = [exe, "--tf-root", tf, "--demo", demo, *safety,
+        "--settings-file", settings, "--ui-settings-file", ui,
         "--capture-frame", bmp, "--capture-tick", tick]
 missing = [flag for flag in ("--hidden-window", "--audio-disabled") if flag not in args]
 if missing:

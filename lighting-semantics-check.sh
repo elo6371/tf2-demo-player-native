@@ -111,6 +111,8 @@ assert_ge() { # assert_ge <name> <got> <floor>
 # capture, so each one starts from the same file and none of them touch the
 # machine's. --settings-file is pre-scanned in main.cpp, so it covers the write.
 GATE_INI="$SCRATCH/settings.ini"
+# D-22-B: the same private directory holds the ui file the product also saves.
+GATE_UI="$SCRATCH/ui.ini"
 write_gate_ini() {
   {
     echo "[renderer]"
@@ -131,6 +133,7 @@ capture() { # capture <name> [extra flags...]
       --demo "$DEMO" --capture-tick 2000 --capture-frame "$(cygpath -m "$PWD/$bmp")" \
       --hidden-window --audio-disabled --viewmodel models/weapons/v_models/v_scattergun_scout.mdl \
       --viewmodel-render companion --settings-file "$(cygpath -m "$PWD/$GATE_INI")" \
+      --ui-settings-file "$(cygpath -m "$PWD/$GATE_UI")" \
       "$@" > "$SCRATCH/$name.log" 2>&1
     rc=$?
     # `--capture-tick N` means "first draw with tick >= N", so it lands on 2001

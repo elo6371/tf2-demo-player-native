@@ -95,6 +95,24 @@ OUT=evidence/t36-lighting-dark-account
 SCRATCH=".scratch/t36-account.$$"
 CAP="$OUT/captures"
 ACCOUNT="$SCRATCH/account"
+# --- isolated settings (D-22) ----------------------------------------------
+# The product persists settings.ini and ui.ini under %LOCALAPPDATA%/TF Demo
+# Player, so a run that does not redirect them shares state with the desktop
+# player and with every other gate on the host -- and verify-release's machine
+# guard compares that pair at the end of the chain, where one stray write turns
+# the whole chain red. Each run gets a throwaway directory instead, seeded with
+# the tracked gate fixture: an empty settings file is NOT "the defaults"
+# (verify-iso.sh: preset falls back to 0 = Performance, which draws no sky), so a
+# gate pointed at nothing would measure a different renderer than the frames it
+# pins.
+ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
+  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+. "$(dirname "$0")/verify-iso.sh"
+iso_chain_exit "$ISO_DIR"
+ISO_SETTINGS="$ISO_DIR/settings.ini"
+ISO_UI="$ISO_DIR/ui.ini"
+iso_seed_gate_settings "$ISO_DIR" || {
+  echo "FATAL: cannot seed the isolated gate settings" >&2; exit 2; }
 # The account writes its ledger, its masks and its own console log here, so the
 # directory has to exist before the first redirect or the tool fails with
 # "No such file or directory" and the gate reports a missing ledger instead of
@@ -129,6 +147,8 @@ capture() { # capture <name> [extra flags...]
     rm -f "$bmp"
     TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout -k 5 150 "$PRODUCT" \
       --tf-root "$TF" --demo "$DEMO" \
+      --settings-file "$ISO_SETTINGS" \
+      --ui-settings-file "$ISO_UI" \
       --capture-tick "$target" --capture-frame "$(cygpath -m "$PWD/$bmp")" \
       --hidden-window --audio-disabled --world-face-trace \
       --viewmodel "$VMODEL" --viewmodel-render companion \
