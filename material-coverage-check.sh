@@ -95,7 +95,9 @@
 # guarantee and a reading taken off another run's bytes looks exactly like a
 # reading taken off this one's.
 #
-# Usage: bash material-coverage-check.sh [--mutation]
+# Usage: bash material-coverage-check.sh [--mutation] [--m2-only] [--m2-selftest]
+#        --m2-only runs the probe-side forward and the single m2 case (no product).
+#        --m2-selftest runs the m2 judge negative controls (no build, no product).
 # Exit:  0 = every assertion held (or, with --mutation, went red).
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -157,7 +159,16 @@ echo "ISO-SETTINGS sha=$(sha256sum "$ISO_SETTINGS" | cut -d' ' -f1)"
 
 RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 MUTATION=0
-[ "${1:-}" = "--mutation" ] && MUTATION=1
+M2_ONLY=0
+M2_SELFTEST=0
+for arg in "$@"; do
+  case "$arg" in
+    --mutation) MUTATION=1 ;;
+    --m2-only) MUTATION=1; M2_ONLY=1 ;;
+    --m2-selftest) M2_SELFTEST=1 ;;
+    *) echo "FATAL: unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
 
 fail=0
 for path in "$PROBE" "$PRODUCT" "$TF/maps/$MAP.bsp" "$DEMO" "$POV_DEMO"; do
@@ -215,6 +226,188 @@ check_count() { # check_count <lines> <label> <minimum how many it must print>
   assert_ge "$2 check count" "$total" "$3"
 }
 
+# D-47: ckdetail returns "" when the probe never printed the check -- a crash, an
+# empty capture and a parser miss all look like that. The m2 judge used to read
+# "detail is not the forward value" as "the mutation moved it", so those three
+# endings were recorded as MUTATION-CAUGHT=PASS. A legal uv.origin is the decimal
+# number check() prints for that reading.
+uv_legal() { printf '%s' "${1:-}" | grep -qE '^-?[0-9]+(\.[0-9]+)?$'; }
+
+# judge_m2 <forward self-test text> <mutant rc> <mutant self-test text>
+# Prints exactly one MUTATION-* line and returns 0 only when the mutation is
+# CAUGHT: the forward run finished clean; the mutant run finished too, with the
+# code the probe uses for 'one of my own expectations failed' (probe :248), and a
+# report that reached its closing selfTest marker; and the uv.origin that run
+# printed moved away from the forward value. Every other ending is
+# MUTATION-BROKEN -- a measurement that did not happen is never evidence that the
+# defect was seen. rc=0 is the one non-broken negative: the mutant self-test still
+# passed, so the mutation was simply not observed.
+judge_m2() {
+  local forward="$1" rc="${2:-}" mutant="$3" fwd_uv mut_uv marker st
+  fwd_uv=$(ckdetail "$forward" uv.origin)
+  if ! uv_legal "$fwd_uv"; then
+    echo "  MUTATION-BROKEN (m2: the forward self-test printed no legal uv.origin: '${fwd_uv}')"; return 1
+  fi
+  if ! printf '%s' "$rc" | grep -qE '^[0-9]+$'; then
+    echo "  MUTATION-BROKEN (m2: the mutant run exited with a non-numeric rc='${rc:-<none>}' -- a crash or a missing probe is not 'caught')"; return 1
+  fi
+  if [ "$rc" -gt 125 ]; then
+    echo "  MUTATION-BROKEN (m2: the mutant run exited rc=$rc -- a crash is not 'caught')"; return 1
+  fi
+  # The probe prints every check first and closes the report with selfTest; a
+  # report without that marker was cut short (empty output, crash mid-run, a
+  # parser that stopped early), whatever rc claims.
+  marker=$(printf '%s' "$mutant" | grep -o '"selfTest":"[a-z]*"' | tail -1)
+  case "$marker" in
+    '"selfTest":"true"') st=true ;;
+    '"selfTest":"false"') st=false ;;
+    *) st= ;;
+  esac
+  if [ -z "$st" ]; then
+    echo "  MUTATION-BROKEN (m2: the mutant run printed no selfTest marker -- a truncated report is not 'caught')"; return 1
+  fi
+  if [ "$rc" -eq 0 ]; then
+    if [ "$st" != "true" ]; then
+      echo "  MUTATION-BROKEN (m2: the mutant exited 0 but its report says selfTest=false)"; return 1
+    fi
+    echo "  MUTATION-CAUGHT=FAIL (m2: the mutant self-test still passed rc=0 -- the mutation was not observed)"; return 1
+  fi
+  if [ "$rc" -ne 1 ]; then
+    echo "  MUTATION-BROKEN (m2: the mutant run exited rc=$rc -- only rc=1 is the probe's self-test-failed code)"; return 1
+  fi
+  if [ "$st" != "false" ]; then
+    echo "  MUTATION-BROKEN (m2: the mutant exited 1 but its report says selfTest=true -- inconsistent)"; return 1
+  fi
+  mut_uv=$(ckdetail "$mutant" uv.origin)
+  if ! uv_legal "$mut_uv"; then
+    echo "  MUTATION-BROKEN (m2: the mutant printed no legal uv.origin: '${mut_uv}')"; return 1
+  fi
+  if [ "$mut_uv" = "$fwd_uv" ]; then
+    echo "  MUTATION-CAUGHT=FAIL (m2: uv.origin=$mut_uv did not move away from the forward value)"; return 1
+  fi
+  echo "  MUTATION-CAUGHT=PASS (m2: uv.origin=$mut_uv against forward $fwd_uv, mutant rc=1 and selfTest=false)"
+  return 0
+}
+
+# Negative controls for the judge itself: the ways a reading can fail to exist
+# (empty output, crashed probe, truncated report, parser miss, never executed)
+# must all be BROKEN; rc=0 means the mutation went unnoticed (FAIL); only a run
+# that finished, said so, and moved the reading may be CAUGHT.
+if [ "$M2_SELFTEST" -eq 1 ]; then
+  echo "=== m2 judge self-test: a measurement that did not happen is not 'caught' ==="
+  st=0; st_cases=0
+  FWD_UU='{"check":"uv.origin","ok":true,"detail":"0.002918"}'
+  MUT_UU='{"check":"uv.origin","ok":false,"detail":"0.001946"}'
+  ST_TRUE='{"selfTest":"true"}'
+  ST_FALSE='{"selfTest":"false"}'
+  OTHER='{"check":"plan.148.batches","ok":true,"detail":"batches=3"}'
+  MUT_OK=$(printf '%s' "$MUT_UU"; echo; printf '%s' "$ST_FALSE")
+  MUT_SAME=$(printf '%s' "$FWD_UU"; echo; printf '%s' "$ST_FALSE")
+  MUT_PASSED=$(printf '%s' "$MUT_UU"; echo; printf '%s' "$ST_TRUE")
+  MUT_NOUV=$(printf '%s' "$OTHER"; echo; printf '%s' "$ST_FALSE")
+  ck_case() { # ck_case <label> <want-rc> <want-substring> <forward> <rc> <mutant>
+    local label="$1" want_rc="$2" want_text="$3" out got
+    out=$(judge_m2 "$4" "$5" "$6"); got=$?; st_cases=$((st_cases + 1))
+    if [ "$got" -eq "$want_rc" ] && printf '%s' "$out" | grep -qF -- "$want_text"; then
+      echo "  OK   $label"
+    else
+      echo "  FAIL $label: rc=$got want=$want_rc out=${out:-<none>}"; st=1
+    fi
+  }
+  ck_case "finished mutant, reading moved => CAUGHT" 0 "MUTATION-CAUGHT=PASS" "$FWD_UU" 1 "$MUT_OK"
+  ck_case "reading did not move => not caught (FAIL)" 1 "MUTATION-CAUGHT=FAIL" "$FWD_UU" 1 "$MUT_SAME"
+  ck_case "mutant self-test still passed rc=0 => FAIL" 1 "MUTATION-CAUGHT=FAIL" "$FWD_UU" 0 "$MUT_PASSED"
+  ck_case "rc=0 but report says selfTest=false => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 0 "$MUT_OK"
+  ck_case "empty mutant output => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 1 ""
+  ck_case "crashed probe, no output => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 139 ""
+  ck_case "crashed probe, complete report => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 139 "$MUT_OK"
+  ck_case "truncated report (no selfTest) => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 1 "$MUT_UU"
+  ck_case "not executed (rc=127) => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 127 ""
+  ck_case "probe refused (rc=2) => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 2 "$MUT_OK"
+  ck_case "parser miss (no uv.origin line) => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 1 "$MUT_NOUV"
+  ck_case "empty forward capture => BROKEN" 1 "MUTATION-BROKEN" "" 1 "$MUT_OK"
+  ck_case "non-numeric rc => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" "" "$MUT_OK"
+  if [ "$st" -eq 0 ]; then echo "M2-JUDGE-SELFTEST=PASS ($st_cases/$st_cases cases)"; exit 0
+  else echo "M2-JUDGE-SELFTEST=FAIL"; exit 1; fi
+fi
+
+restore_source() { # restore_source <backup> <live> <name> <expected-hash> [targets...]
+  local backup="$1" live="$2" name="$3" expected="$4"; shift 4
+  cp "$backup" "$live"
+  if [ "$(git hash-object "$live")" != "$expected" ]; then
+    echo "  RESTORE=FAIL ($name: the source did not come back byte-identical)"; return 1
+  fi
+  if ! bash build-target.sh "$@" > "$SCRATCH/restore-$name.$RUN_TAG.build" 2>&1; then
+    echo "  RESTORE-BUILD=FAIL ($name)"; return 1
+  fi
+  return 0
+}
+
+patch_in() { # patch_in <file> <find> <replace> -- CRLF-aware, refuses a no-op
+  python - "$1" "$2" "$3" <<'PY'
+import io, sys
+path, find, repl = sys.argv[1], sys.argv[2], sys.argv[3]
+raw = io.open(path, 'rb').read()
+crlf = b'\r\n' in raw
+data = raw.decode('utf-8')
+if crlf:
+    find = find.replace('\n', '\r\n')
+    repl = repl.replace('\n', '\r\n')
+if find not in data:
+    sys.exit('PATTERN NOT FOUND: ' + find[:70].replace('\r', '\\r').replace('\n', '\\n'))
+io.open(path, 'wb').write(data.replace(find, repl, 1).encode('utf-8'))
+PY
+}
+
+# ---- m2: the half-texel in the uv is dropped -----------------------------
+# The sampler sits at the texel centre; without the +0.5 every tile samples
+# its neighbour's last column and the seam between two materials moves by one
+# texel. No count moves, no draw call moves, and the tiles are all still
+# allocated -- the picture is the only thing that says so, which is why the
+# probe checks this on the uv rather than on a pixel.
+#
+# A function rather than inline code so --m2-only runs exactly the same case the
+# seven-case suite runs. It returns non-zero for every ending that is not "the
+# mutation was taken and the reading moved"; judge_m2 owns the verdict text.
+mutate_m2() {
+  echo "--- m2: worldTileCoord loses its half-texel (every tile samples its edge)"
+  local backup hash mutant rc
+  # A helper defined further down the file is not visible here: bash runs the
+  # body only when it is called, and --m2-only calls it before the control
+  # section that used to own patch_in. Catch that ordering bug here instead of
+  # letting it surface as "command not found" in the middle of a case.
+  local fn
+  for fn in patch_in judge_m2 restore_source; do
+    if ! declare -F "$fn" >/dev/null; then
+      echo "  MUTATION-BROKEN (m2: helper '$fn' is not defined at the call site -- definition order)"
+      return 1
+    fi
+  done
+  backup="$SCRATCH/world_tile_atlas.cpp.uv.backup"
+  cp native/src/world_tile_atlas.cpp "$backup"
+  hash=$(git hash-object native/src/world_tile_atlas.cpp)
+  if ! patch_in native/src/world_tile_atlas.cpp \
+      '  return (static_cast<float>(offset) + wrapped * static_cast<float>(extent) / size + 0.5f)' \
+      '  return (static_cast<float>(offset) + wrapped * static_cast<float>(extent) / size)'; then
+    echo "  MUTATION-SETUP=FAIL (m2: the patch did not apply)"
+    cp "$backup" native/src/world_tile_atlas.cpp
+    return 1
+  fi
+  if ! bash build-target.sh material_coverage_probe > "$SCRATCH/m2.build" 2>&1; then
+    echo "  MUTATION-SETUP=FAIL (m2: the rebuild failed)"
+    restore_source "$backup" native/src/world_tile_atlas.cpp m2 "$hash" material_coverage_probe || true
+    return 1
+  fi
+  mutant=$("$PROBE" --self-test 2>&1); rc=$?
+  if ! judge_m2 "$SELF" "$rc" "$mutant"; then
+    restore_source "$backup" native/src/world_tile_atlas.cpp m2 "$hash" material_coverage_probe || true
+    return 1
+  fi
+  echo "$mutant" > "$OUT/mutated-m2-no-half-texel.txt"
+  restore_source "$backup" native/src/world_tile_atlas.cpp m2 "$hash" material_coverage_probe || return 1
+  return 0
+}
+
 echo "=== 1/8 the probe's own plan, on synthetic inputs ==="
 SELF=$("$PROBE" --self-test 2>&1); SELF_RC=$?
 echo "$SELF" > "$OUT/self-test.txt"
@@ -227,6 +420,26 @@ assert_eq "148 materials, batches" "$(ckdetail "$SELF" plan.148.batches)" "batch
 assert_eq "148 materials, first atlas" "$(ckdetail "$SELF" plan.148.first)" "4112x4112"
 assert_eq "148 materials, last atlas" "$(ckdetail "$SELF" plan.148.last)" "20 tiles 2570x2056"
 assert_eq "budget refusal count" "$(ckdetail "$SELF" budget.refused)" "accepted=64 budget=84"
+
+# D-47: --m2-only runs the probe-side forward and this one case, and never
+# launches the product, so the m2 judge can be exercised without the 49-minute
+# full gate. It exits 0 only when the case was actually taken and seen.
+if [ "$M2_ONLY" -eq 1 ]; then
+  echo
+  echo "=== m2-only: the probe-side forward and the single m2 case, no product ==="
+  # The probe on disk has to be this tree's, not a leftover: rebuild (incremental)
+  # before reading the forward value the mutant is compared against.
+  if ! bash build-target.sh material_coverage_probe > "$SCRATCH/m2-forward.build" 2>&1; then
+    echo "  MUTATION-SETUP=FAIL (m2-only: the unmutated probe does not build)"; exit 1
+  fi
+  SELF=$("$PROBE" --self-test 2>&1); SELF_RC=$?
+  if [ "$SELF_RC" -ne 0 ]; then
+    echo "  MUTATION-BROKEN (m2-only: the forward self-test exited rc=$SELF_RC -- nothing to compare)"; exit 1
+  fi
+  mutate_m2 || { echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
+  echo "MATERIAL-COVERAGE-MUTATION=PASS (m2-only)"
+  exit 0
+fi
 
 echo
 echo "=== 2/8 the fixture: 16 materials, each sampling its own block ==="
@@ -481,32 +694,6 @@ echo "=== 7/8 the control: one batch, and the picture it has to reproduce ==="
 CONTROL_BACKUP="$SCRATCH/world_tile_atlas.h.control.backup"
 cp native/include/world_tile_atlas.h "$CONTROL_BACKUP"
 CONTROL_HASH=$(git hash-object native/include/world_tile_atlas.h)
-patch_in() { # patch_in <file> <find> <replace> -- CRLF-aware, refuses a no-op
-  python - "$1" "$2" "$3" <<'PY'
-import io, sys
-path, find, repl = sys.argv[1], sys.argv[2], sys.argv[3]
-raw = io.open(path, 'rb').read()
-crlf = b'\r\n' in raw
-data = raw.decode('utf-8')
-if crlf:
-    find = find.replace('\n', '\r\n')
-    repl = repl.replace('\n', '\r\n')
-if find not in data:
-    sys.exit('PATTERN NOT FOUND: ' + find[:70].replace('\r', '\\r').replace('\n', '\\n'))
-io.open(path, 'wb').write(data.replace(find, repl, 1).encode('utf-8'))
-PY
-}
-restore_source() { # restore_source <backup> <live> <name> <expected-hash> [targets...]
-  local backup="$1" live="$2" name="$3" expected="$4"; shift 4
-  cp "$backup" "$live"
-  if [ "$(git hash-object "$live")" != "$expected" ]; then
-    echo "  RESTORE=FAIL ($name: the source did not come back byte-identical)"; return 1
-  fi
-  if ! bash build-target.sh "$@" > "$SCRATCH/restore-$name.$RUN_TAG.build" 2>&1; then
-    echo "  RESTORE-BUILD=FAIL ($name)"; return 1
-  fi
-  return 0
-}
 if ! patch_in native/include/world_tile_atlas.h \
     '  std::uint64_t budgetBytes = 384ull * 1024ull * 1024ull;' \
     '  std::uint64_t budgetBytes = 210ull * 1024ull * 1024ull;  // control: one batch only'; then
@@ -713,40 +900,8 @@ if [ "$MUTATION" -eq 1 ]; then
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
 
-  # ---- m2: the half-texel in the uv is dropped -----------------------------
-  # The sampler sits at the texel centre; without the +0.5 every tile samples
-  # its neighbour's last column and the seam between two materials moves by one
-  # texel. No count moves, no draw call moves, and the tiles are all still
-  # allocated -- the picture is the only thing that says so, which is why the
-  # probe checks this on the uv rather than on a pixel.
-  echo "--- m2: worldTileCoord loses its half-texel (every tile samples its edge)"
-  M2_BACKUP="$SCRATCH/world_tile_atlas.cpp.uv.backup"
-  cp native/src/world_tile_atlas.cpp "$M2_BACKUP"
-  M2_HASH=$(git hash-object native/src/world_tile_atlas.cpp)
-  if ! patch_in native/src/world_tile_atlas.cpp \
-      '  return (static_cast<float>(offset) + wrapped * static_cast<float>(extent) / size + 0.5f)' \
-      '  return (static_cast<float>(offset) + wrapped * static_cast<float>(extent) / size)'; then
-    echo "  MUTATION-SETUP=FAIL (m2: the patch did not apply)"; cp "$M2_BACKUP" native/src/world_tile_atlas.cpp
-    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
-  fi
-  if ! bash build-target.sh material_coverage_probe > "$SCRATCH/m2.build" 2>&1; then
-    echo "  MUTATION-SETUP=FAIL (m2: the rebuild failed)"
-    restore_source "$M2_BACKUP" native/src/world_tile_atlas.cpp m2 "$M2_HASH" material_coverage_probe || true
-    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
-  fi
-  M2=$("$PROBE" --self-test 2>&1); M2_RC=$?
-  M2_UV=$(ckdetail "$M2" uv.origin)
-  SELF_UV=$(ckdetail "$SELF" uv.origin)
-  if [ "$M2_RC" != "0" ] && [ "$M2_UV" != "$SELF_UV" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m2: self-test rc=$M2_RC, uv.origin=$M2_UV against $SELF_UV)"
-  else
-    echo "  MUTATION-CAUGHT=FAIL (m2: self-test rc=$M2_RC, uv.origin=$M2_UV)"
-    restore_source "$M2_BACKUP" native/src/world_tile_atlas.cpp m2 "$M2_HASH" material_coverage_probe || true
-    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
-  fi
-  echo "$M2" > "$OUT/mutated-m2-no-half-texel.txt"
-  restore_source "$M2_BACKUP" native/src/world_tile_atlas.cpp m2 "$M2_HASH" material_coverage_probe || {
-    echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
+  # ---- m2: the half-texel in the uv is dropped (judge_m2 owns the verdict)
+  mutate_m2 || { echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1; }
 
   # ---- m3: a weapon range is drawn with the world's atlas ------------------
   # The bleed this round's isolation counter exists for: the weapon pass binds
