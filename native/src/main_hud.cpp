@@ -14,6 +14,9 @@
 #include <objbase.h>
 #include <shlobj.h>
 
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -27,6 +30,22 @@
 #include "native_ui.h"
 
 namespace tf2::native::main_internal {
+
+namespace {
+
+// T97: whether the live readout has primitives in the renderer right now. It is
+// declared up here because hudApplyRects -- which comes first in this file -- needs
+// it for the pass-enable rule; the rest of the readout's state is defined with the
+// readout itself, further down.
+bool g_hudLiveActive = false;
+// T97: the readout's own primitive list, kept here for the same reason: the
+// capture path (main.cpp, right before the frame it writes) and every WM_SIZE
+// re-run the layout pass, and setHudRects REPLACES the renderer's list. Without a
+// copy the text would be deleted on exactly the frame a gate captures, so the
+// layout pass merges this list back in instead of overwriting it.
+std::vector<tf2::native::Renderer::HudPrimitive> g_hudLivePrimitives;
+
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // T51: the custom HUD, at the product level.
@@ -272,10 +291,34 @@ void hudApplyRects(HWND window) {
     rects.push_back(draw);
     ++index;
   }
-  g_renderer->setHudRects(rects);
-  // The pass draws only when the user enabled the HUD AND there is something to
-  // draw. Both conditions are visible in the trace above.
-  g_renderer->setHudEnabled(g_hud.settings().enabled && !rects.empty());
+  if (g_hudLiveActive) {
+    // setHudRects() replaces the whole primitive list, so publishing the layout
+    // alone would delete the readout. Build the same Rect primitives it would and
+    // append the readout's text after them: layout blocks underneath, text on top.
+    std::vector<tf2::native::Renderer::HudPrimitive> merged;
+    merged.reserve(rects.size() + g_hudLivePrimitives.size());
+    for (const auto& rect : rects) {
+      tf2::native::Renderer::HudPrimitive primitive;
+      primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Rect;
+      primitive.x = rect.left;
+      primitive.y = rect.top;
+      primitive.w = rect.right - rect.left;
+      primitive.h = rect.bottom - rect.top;
+      for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = rect.colour[channel];
+      primitive.filled = false;
+      merged.push_back(primitive);
+    }
+    merged.insert(merged.end(), g_hudLivePrimitives.begin(), g_hudLivePrimitives.end());
+    g_renderer->setHudPrimitives(merged);
+  } else {
+    g_renderer->setHudRects(rects);
+  }
+  // The pass draws only when there is something to draw: the user enabled the
+  // imported layout AND the document produced rectangles, or the live readout has
+  // primitives in the renderer. Both terms are readings, not assumptions -- the
+  // trace above prints enabled= and the last hud: live line prints the readout, so
+  // "the pass was on" can be checked against the numbers that asked for it.
+  g_renderer->setHudEnabled((g_hud.settings().enabled && !rects.empty()) || g_hudLiveActive);
 }
 
 void hudUpdateStatus(HWND window) {
@@ -365,6 +408,382 @@ void hudResetToDefault(HWND window) {
   }
   hudUpdateStatus(window);
   hudPublishTrace(window);
+}
+
+// ------------------------------------------------------------- T97: live readout
+//
+// WHY THIS EXISTS. Every number the product drew before this was a probe: the
+// --hud-text-test list is constants, and the panels come from a .res document a
+// user has to import by hand. A player who just launches the demo sees a picture
+// and no readings at all. This is the frame-loop half of the answer: it turns the
+// state main.cpp already computes into three lines of text and hands them to the
+// renderer as HUD primitives.
+//
+// EVERY VALUE IS READ, NONE IS CHOSEN. The clock comes from the CTeamRoundTimer
+// entity when the demo carries one and from the transport (tick / tickRate) when
+// it does not, and the source is published so "8:42" is never ambiguous. The
+// score comes from the two CTeam entities (classId 125 on this build; the class is
+// matched by schema NAME, not by that number, because a hard-coded id is exactly
+// the sort of accidental constant this project keeps having to retire). The
+// target's health/class/team come from readPlaybackHud, which is the same reader
+// the rest of the product uses.
+//
+// WHAT IS NOT KNOWN IS SAID OUT LOUD. A player name is userinfo (svc_UserInfo),
+// and nothing in this decoder reads userinfo -- evidence/t63-sourcetv/FIELD_TABLE.md:43
+// records it as gap G7, evidence/t68-events/GAME-EVENT-SPEC.md:435 as T64 G5, and
+// evidence/t70-t72/DESIGN.md:1126 states the name is not obtainable. The third
+// line therefore carries "NAME ?" and the trace carries
+// name=unavailable reason=no-userinfo, with a counter. A placeholder that looked
+// like a name would be worse than the question mark.
+namespace {
+
+constexpr float kHudLiveX = 24.0f;
+constexpr float kHudLiveY = 24.0f;
+constexpr float kHudLiveLineHeight = 22.0f;
+constexpr float kHudLiveScale = 2.0f;
+constexpr float kHudLiveCell = 8.0f * kHudLiveScale;
+
+// g_hudLiveActive is defined near the top of the file (hudApplyRects reads it).
+// g_hudLiveOffReported covers both ways of being off (a switch or an evidence run):
+// one process has one of them, and each is published exactly once.
+bool g_hudLiveOffReported = false;
+std::string g_hudLiveLastKey;
+std::size_t g_hudLiveUpdates = 0;
+std::size_t g_hudLiveSkips = 0;
+std::size_t g_hudLiveNameMissing = 0;
+std::size_t g_hudLiveTargetAbsent = 0;
+std::size_t g_hudLiveScoreMissing = 0;
+std::size_t g_hudLiveTimerFallback = 0;
+// T97: the counters above are read off the PUBLISH line, and that line is only
+// written when the reading changes. So a run that publishes once publishes
+// skips=0 even if it called this function a thousand times: the number is a
+// snapshot taken at the first publish, not a tally. The skip half of the rule
+// ("an unchanged frame is not re-uploaded") therefore needs a reading written at
+// the END of the run, which is what hudLiveSummaryAtExit is for -- registered
+// once, on the first call, and written from std::atexit so the trace file
+// (never closed by openTrace) is still open.
+std::size_t g_hudLiveCalls = 0;
+std::size_t g_hudLivePublished = 0;
+bool g_hudLiveSummaryRegistered = false;
+std::string g_hudLiveLastSource;
+std::string g_hudLiveLastLines[3];
+
+void hudLiveSummaryAtExit();
+
+void hudLiveRegisterSummary() {
+  if (g_hudLiveSummaryRegistered) return;
+  g_hudLiveSummaryRegistered = true;
+  std::atexit(&hudLiveSummaryAtExit);
+}
+
+// Written once, at process exit. Every number is a tally over the whole run, so
+// "updates" and "skips" here cannot be a snapshot of one frame, and the last
+// reading is repeated so a run whose text never changed still says what it showed.
+void hudLiveSummaryAtExit() {
+  traceFmt("hud: live summary calls=%zu updates=%zu skips=%zu published=%zu"
+    " nameMissing=%zu targetAbsent=%zu scoreMissing=%zu timerFallback=%zu"
+    " lastSource=%s lastText1=\"%s\" lastText2=\"%s\" lastText3=\"%s\"",
+    g_hudLiveCalls, g_hudLiveUpdates, g_hudLiveSkips, g_hudLivePublished,
+    g_hudLiveNameMissing, g_hudLiveTargetAbsent, g_hudLiveScoreMissing,
+    g_hudLiveTimerFallback, g_hudLiveLastSource.c_str(),
+    g_hudLiveLastLines[0].c_str(), g_hudLiveLastLines[1].c_str(),
+    g_hudLiveLastLines[2].c_str());
+}
+
+struct HudLiveReading {
+  bool roundTimerKnown = false;
+  double roundTimerSeconds = 0.0;
+  bool roundTimerPaused = false;
+  bool redKnown = false;
+  std::int32_t red = 0;
+  bool bluKnown = false;
+  std::int32_t blu = 0;
+};
+
+struct HudLiveText {
+  std::string time;
+  std::string score;
+  std::string target;
+  std::string source;
+};
+
+// The property lookup rule is the one playback_hud.cpp already uses: an exact
+// name, else a name that is the dotted tail of the stored one (a flattened
+// table stores "DT_Team.m_iScore", not "m_iScore"). It is repeated here, and not
+// shared, because the original lives in that file's anonymous namespace; a
+// second copy of four lines is a smaller risk than exporting a helper that only
+// two call sites want. The gate cross-checks the numbers this picks against the
+// ones readPlaybackHud reports for the same frame, so the two rules cannot drift
+// without a red assertion.
+const tf2::native::EntityPropertyValue* hudLiveFind(const tf2::native::EntityState& state,
+    const char* key) {
+  const std::string token = key;
+  const tf2::native::EntityPropertyValue* exact = nullptr;
+  const tf2::native::EntityPropertyValue* dotted = nullptr;
+  for (const auto& entry : state.properties) {
+    if (entry.first == token) {
+      exact = &entry.second;
+    } else if (entry.first.size() > token.size()
+        && entry.first[entry.first.size() - token.size() - 1] == '.'
+        && entry.first.compare(entry.first.size() - token.size(), token.size(), token) == 0) {
+      dotted = &entry.second;
+    }
+  }
+  return exact ? exact : dotted;
+}
+
+bool hudLiveInt(const tf2::native::EntityState& state, const char* key, std::int32_t& out) {
+  const tf2::native::EntityPropertyValue* value = hudLiveFind(state, key);
+  if (!value || value->type != tf2::native::SendPropType::Int) return false;
+  out = static_cast<std::int32_t>(value->intValue);
+  return true;
+}
+
+bool hudLiveFloat(const tf2::native::EntityState& state, const char* key, float& out) {
+  const tf2::native::EntityPropertyValue* value = hudLiveFind(state, key);
+  if (!value || value->type != tf2::native::SendPropType::Float) return false;
+  if (!std::isfinite(value->x)) return false;
+  out = value->x;
+  return true;
+}
+
+// classId -> schema name, by id. The vector is indexed by class id on every
+// corpus this product has read, but the lookup compares ids anyway: an index that
+// happens to line up today is not a contract.
+const std::string* hudLiveSchemaName(const tf2::native::DemoNetworkSummary& summary,
+    std::int32_t classId) {
+  if (classId < 0) return nullptr;
+  const auto wanted = static_cast<std::uint16_t>(classId);
+  for (const auto& schema : summary.serverClassSchemas) {
+    if (schema.id == wanted) return &schema.name;
+  }
+  return nullptr;
+}
+
+const char* hudLiveClassName(std::int32_t playerClass) {
+  switch (playerClass) {
+    case 1: return "SCOUT";
+    case 2: return "SNIPER";
+    case 3: return "SOLDIER";
+    case 4: return "DEMOMAN";
+    case 5: return "MEDIC";
+    case 6: return "ENGINEER";
+    case 7: return "HEAVY";
+    case 8: return "PYRO";
+    case 9: return "SPY";
+    default: return "?";
+  }
+}
+
+const char* hudLiveTeamName(std::int32_t team) {
+  if (team == 2) return "RED";
+  if (team == 3) return "BLU";
+  return "?";
+}
+
+// M:SS. A clock is the one number where rounding has to be decided once: 0.5s
+// rounds up so a countdown never displays the second it has already left.
+std::string hudLiveClock(double seconds) {
+  if (!(seconds > 0.0)) seconds = 0.0;
+  const long total = static_cast<long>(seconds + 0.5);
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%ld:%02ld", total / 60, total % 60);
+  return buffer;
+}
+
+HudLiveReading hudLiveRead(const std::vector<tf2::native::EntityState>& states,
+    const tf2::native::DemoNetworkSummary& summary) {
+  HudLiveReading reading;
+  for (const auto& state : states) {
+    const std::string* name = hudLiveSchemaName(summary, state.classId);
+    if (!name) continue;
+    if (*name == "CTeamRoundTimer") {
+      float remaining = 0.0f;
+      if (!hudLiveFloat(state, "m_flTimeRemaining", remaining)) continue;
+      std::int32_t paused = 0;
+      reading.roundTimerKnown = true;
+      reading.roundTimerSeconds = static_cast<double>(remaining);
+      reading.roundTimerPaused = hudLiveInt(state, "m_bTimerPaused", paused) && paused != 0;
+    } else if (*name == "CTeam") {
+      std::int32_t team = 0;
+      std::int32_t score = 0;
+      if (!hudLiveInt(state, "m_iTeamNum", team)) continue;
+      if (!hudLiveInt(state, "m_iScore", score)) continue;
+      if (team == 2) {
+        reading.redKnown = true;
+        reading.red = score;
+      } else if (team == 3) {
+        reading.bluKnown = true;
+        reading.blu = score;
+      }
+    }
+  }
+  return reading;
+}
+
+HudLiveText hudLiveCompose(const tf2::native::main_internal::PlaybackState& playback,
+    const tf2::native::PlaybackHudState& target, const HudLiveReading& reading) {
+  HudLiveText text;
+  if (reading.roundTimerKnown) {
+    text.source = "round-timer";
+    text.time = "TIME ";
+    text.time += hudLiveClock(reading.roundTimerSeconds);
+    if (reading.roundTimerPaused) text.time += " PAUSED";
+  } else if (playback.tickRate > 0.0 && playback.endTick > 0) {
+    // The transport fallback is the same arithmetic the title bar uses. It is
+    // labelled "playback-clock" in the trace precisely because it is NOT the
+    // round clock: it counts the recording down, not the round.
+    text.source = "playback-clock";
+    text.time = "TIME ";
+    text.time += hudLiveClock((static_cast<double>(playback.endTick - playback.tick))
+      / playback.tickRate);
+    if (playback.paused) text.time += " PAUSED";
+  } else {
+    text.source = "none";
+    text.time = "TIME ?";
+  }
+  text.score = "RED ";
+  text.score += reading.redKnown ? std::to_string(reading.red) : "?";
+  text.score += "  BLU ";
+  text.score += reading.bluKnown ? std::to_string(reading.blu) : "?";
+  text.target = "NAME ?";  // userinfo is not decoded: see the block comment above
+  text.target += "  HP ";
+  text.target += target.healthKnown ? std::to_string(target.health) : "?";
+  text.target += "  ";
+  text.target += target.classKnown ? hudLiveClassName(target.playerClass) : "?";
+  text.target += "  ";
+  text.target += target.teamKnown ? hudLiveTeamName(target.team) : "?";
+  return text;
+}
+
+}  // namespace
+
+// T97, lead ruling 2026-11-09: a readout that is on by default must not deform the
+// frames this tree treats as evidence. Every pixel gate here launches the product
+// with --capture-frame and compares the captured bitmap byte-for-byte against a pin
+// committed in the repository; three lines of white text on one of those frames
+// would turn gates red that are measuring world geometry, weapons or materials --
+// and the alternative, teaching twenty-odd scripts a new switch, would mean editing
+// files that two other lanes are editing in this same window. So the readout has
+// three states, and the mode is decided from PARSED flags only:
+//
+//   --hud-off    never draw. reason=cli-hud-off. The strongest switch wins.
+//   --hud-live   always draw, mode=forced. This is how a gate asks for the pixels
+//                on purpose; hud-live-check.sh runs its whole positive half so.
+//   neither      an evidence run (--capture-frame armed) suppresses the readout and
+//                publishes reason=evidence-run once; a plain interactive launch
+//                draws it with mode=interactive.
+//
+// --hud-text-test outranks all three: the T67 probe owns the primitive list.
+void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
+    const tf2::native::main_internal::PlaybackState& playback,
+    const tf2::native::PlaybackHudState& target,
+    const std::vector<tf2::native::EntityState>& states,
+    const tf2::native::DemoNetworkSummary& summary) {
+  (void)window;
+  if (!g_renderer) return;
+  // While the T67 probe runs it owns the primitive list. Two writers would make
+  // the probe's pixel assertions depend on whether this build also has a readout.
+  if (g_hudTextTest) return;
+  hudLiveRegisterSummary();
+  ++g_hudLiveCalls;
+  // The suppression is decided by the run's mode, never by "the last frame drew
+  // something": a capture run has exactly one sampled frame, so a readout that was
+  // painted on frame N-1 and cleared on frame N would still leave nothing on the
+  // frame under comparison -- but only by accident. Here it is never painted.
+  const bool suppressed = hudOff || (!hudLive && evidenceRun);
+  if (suppressed) {
+    if (!g_hudLiveOffReported) {
+      g_hudLiveOffReported = true;
+      traceFmt("hud: live enabled=0 reason=%s drawn=0",
+        hudOff ? "cli-hud-off" : "evidence-run");
+    }
+    if (g_hudLiveActive) {
+      g_hudLiveActive = false;
+      g_hudLivePrimitives.clear();
+      g_renderer->setHudPrimitives({});
+    }
+    return;
+  }
+  const HudLiveReading reading = hudLiveRead(states, summary);
+  // Four counters, one per thing that can be missing from a frame. A frame that
+  // shows "?" must be countable, or the question mark is decoration.
+  if (!reading.roundTimerKnown) ++g_hudLiveTimerFallback;
+  if (!reading.redKnown || !reading.bluKnown) ++g_hudLiveScoreMissing;
+  if (!target.healthKnown && !target.teamKnown && !target.classKnown) ++g_hudLiveTargetAbsent;
+  ++g_hudLiveNameMissing;  // every frame that asks for a name and cannot have one
+  const HudLiveText text = hudLiveCompose(playback, target, reading);
+  std::string key = text.time;
+  key += '\n';
+  key += text.score;
+  key += '\n';
+  key += text.target;
+  key += '\n';
+  key += text.source;
+  if (key == g_hudLiveLastKey) {
+    ++g_hudLiveSkips;
+    return;
+  }
+  g_hudLiveLastKey = key;
+  ++g_hudLiveUpdates;
+  ++g_hudLivePublished;
+  g_hudLiveLastSource = text.source;
+  g_hudLiveLastLines[0] = text.time;
+  g_hudLiveLastLines[1] = text.score;
+  g_hudLiveLastLines[2] = text.target;
+
+  const std::string lines[3] = { text.time, text.score, text.target };
+  std::vector<tf2::native::Renderer::HudPrimitive> primitives;
+  std::size_t glyphs = 0;
+  float widest = 0.0f;
+  for (std::size_t index = 0; index < 3; ++index) {
+    tf2::native::Renderer::HudPrimitive primitive;
+    primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
+    primitive.x = kHudLiveX;
+    primitive.y = kHudLiveY + kHudLiveLineHeight * static_cast<float>(index);
+    // Only printable ASCII is composed, so bytes == codepoints here. The renderer
+    // still walks the UTF-8 properly; this arithmetic is for the region and the
+    // expected glyph count the trace publishes.
+    primitive.w = static_cast<float>(lines[index].size()) * kHudLiveCell;
+    primitive.h = kHudLiveCell;
+    primitive.scale = kHudLiveScale;
+    primitive.colour[0] = 1.0f;
+    primitive.colour[1] = 1.0f;
+    primitive.colour[2] = 1.0f;
+    primitive.colour[3] = 1.0f;
+    primitive.text = lines[index];
+    glyphs += lines[index].size();
+    if (primitive.w > widest) widest = primitive.w;
+    primitives.push_back(primitive);
+  }
+  g_hudLivePrimitives = primitives;
+  g_renderer->setHudPrimitives(primitives);
+  g_hudLiveActive = true;
+  // The pass is enabled by the readout itself: a plain launch has no imported
+  // layout, so hudApplyRects' "panels AND enabled" rule would otherwise leave the
+  // readout invisible until somebody imported a .res file. hudApplyRects was
+  // taught the same fact (it ORs g_hudLiveActive in), so a resize mid-run cannot
+  // switch the readout off.
+  g_renderer->setHudEnabled(true);
+  const int regionX = static_cast<int>(kHudLiveX);
+  const int regionY = static_cast<int>(kHudLiveY);
+  const int regionW = static_cast<int>(widest);
+  const int regionH = static_cast<int>(kHudLiveLineHeight * 2.0f + kHudLiveCell);
+  // reason= says why this line exists (the reading changed); nameReason= says why
+  // the name field is a question mark. Two different questions, so two fields --
+  // folding them into one "reason" would have made either one unreadable.
+  traceFmt("hud: live tick=%d enabled=1 mode=%s source=%s"
+    " text1=\"%s\" text2=\"%s\" text3=\"%s\""
+    " glyphs=%zu region=%d,%d,%d,%d updates=%zu skips=%zu name=unavailable"
+    " reason=text-changed nameReason=no-userinfo nameMissing=%zu targetAbsent=%zu scoreMissing=%zu"
+    " timerFallback=%zu red=%d blu=%d paused=%d",
+    playback.tick, hudLive ? "forced" : "interactive", text.source.c_str(),
+    text.time.c_str(), text.score.c_str(),
+    text.target.c_str(), glyphs, regionX, regionY, regionW, regionH,
+    g_hudLiveUpdates, g_hudLiveSkips, g_hudLiveNameMissing, g_hudLiveTargetAbsent,
+    g_hudLiveScoreMissing, g_hudLiveTimerFallback,
+    reading.redKnown ? reading.red : -1, reading.bluKnown ? reading.blu : -1,
+    playback.paused ? 1 : 0);
 }
 
 }  // namespace tf2::native::main_internal

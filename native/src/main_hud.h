@@ -27,9 +27,12 @@
 #include <filesystem>
 #include <string>
 
+#include "demo_header.h"
 #include "hud_state.h"
 #include "keybinds.h"
 #include "native_renderer.h"
+#include "playback_hud.h"
+#include "playback_state.h"
 
 namespace tf2::native::main_internal {
 
@@ -62,6 +65,28 @@ std::filesystem::path uiSettingsFilePath(std::string& status);
 
 void hudApplyTextTest();
 void hudApplyRects(HWND window);
+
+// T97: the live readout the frame loop calls once per frame (main.cpp).
+//
+// The four arguments are the frame's own state, handed over rather than reached for
+// through globals: the transport, the viewed entity's readout, the entity array and
+// the network summary are all main() locals except g_playback, and a function that
+// quietly read a stale copy of any of them would publish numbers from another frame.
+//
+// The function rebuilds the primitive list ONLY when the text changes; every other
+// frame compares four strings and returns. That comparison is what keeps the cost of
+// "a readout on every frame" off the per-frame path, and g_hudLiveSkips is the
+// counter that makes it visible instead of assumed.
+// evidenceRun: this process was started with --capture-frame, i.e. it is producing
+// a frame that a gate will compare against a committed pin. hudOff / hudLive are
+// the two documented switches. Passed in rather than read from the command line a
+// second time: a substring search for "--hud-off" also matches a path operand that
+// happens to contain it, and an unregistered flag is invisible to --strict-args.
+void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
+  const tf2::native::main_internal::PlaybackState& playback,
+  const tf2::native::PlaybackHudState& target,
+  const std::vector<tf2::native::EntityState>& states,
+  const tf2::native::DemoNetworkSummary& summary);
 void hudUpdateStatus(HWND window);
 void hudImportInteractive(HWND window);
 void hudTogglePreview(HWND window);

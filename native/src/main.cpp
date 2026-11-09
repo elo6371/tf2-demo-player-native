@@ -2052,6 +2052,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   bool hudApplyRequested = false;
   bool hudArgumentRejected = false;
   bool hudConfigRequested = false;
+  // T97: the live readout's two switches, parsed like every other flag so that
+  // --strict-args can reject a misspelling and D-23's unrecognized counter sees
+  // them. --hud-off is ALSO handled above (it drives the preview checkbox); the
+  // boolean here is the one the readout gates on, so "off" means off for both.
+  bool hudOffCli = false;
+  bool hudLiveCli = false;
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
@@ -2571,6 +2577,13 @@ bool outlineVertexExtent = false;
         return true;
       } else if (wcscmp(arguments[i], L"--hud-off") == 0) {
         hudOnGiven = true; hudOn = false; hudConfigRequested = true;
+        hudOffCli = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-live") == 0) {
+        // T97: draw the live readout on an evidence frame too. The capture path
+        // suppresses it by default so that twenty-odd pixel gates keep measuring
+        // what they were written to measure; this flag is how a gate asks for it.
+        hudLiveCli = true;
         return true;
       } else if (wcscmp(arguments[i], L"--hud-reset") == 0) {
         hudResetRequested = true;
@@ -11987,6 +12000,13 @@ bool outlineVertexExtent = false;
     tf2::native::logsPanelPump(window);
     if (updateNativeUiControls(window)) ++uiUpdateCalls;
     if (refreshWindowTitle()) ++titleUpdateCalls;
+    // T97: the live readout. The one line this task adds to main.cpp, placed here
+    // because the frame state above is final and the draw below has not happened.
+    // The first three arguments are the run's mode, decided from parsed flags only:
+    // evidenceRun (a --capture-frame run), --hud-off, --hud-live. main_hud.cpp holds
+    // the three-state rule and the reason an evidence frame is suppressed by default.
+    hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
+      g_playback, hudState, currentEntityStates, demoNetworkSummary);
     writeMetrics(now, false);
     // T50: the acceptance script runs one step per drawn frame, AFTER the scene
     // and HUD updates for that frame and BEFORE the draw, so a step that changes
