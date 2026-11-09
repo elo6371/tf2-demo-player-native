@@ -146,15 +146,19 @@ recorded, historical), `git_head`, `native_tree_sha256`, `read_at`, the exact
 all four frames, and which class body the identity frame judges.
 
 `pin-provenance-check.sh` (new, static: it starts no process and reads files
-only) turns that data into an assertion: 72 assertions across the four classes --
+only) turns that data into an assertion: 84 assertions across the four classes --
 the four ledger keys exist and are shaped right (64-hex shas, 40-hex head), the
 request is legal (tick > 0, speed 1..64, five finite camera numbers in
 pitch/yaw range, a `.dem` path), every pinned BMP hashes to its recorded value,
 identity and identity-2 are byte-identical, and all four frames share one
-non-zero size.
+non-zero size. Since D-35/D-36 the assertion set is pinned by name (A1..A20) and
+the pin must be corroborated from independent records: the capture receipt
+(`entity-id.txt`), the four `<tag>.summary` files, and the repository itself
+(`git cat-file -e <git_head>` plus `sha256(git ls-tree -r <git_head> -- native)`
+equal to `native_tree_sha256`). Deleting an assertion is a failure, not a pass.
 
 ```bash
-bash pin-provenance-check.sh            # PIN-PROVENANCE=PASS (72 assertions), rc 0
+bash pin-provenance-check.sh            # PIN-PROVENANCE=PASS (84 assertions), rc 0
 ```
 
 It deliberately does **not** assert that `exe_sha256` equals the exe in this
