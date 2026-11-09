@@ -704,8 +704,13 @@ echo "== 2. capture matrix =="
 # right tick, which is not provenance: the T49 release run reused an 18-frame
 # matrix whose traces had no `scene: camera` line, so this gate could not name
 # the pose behind the pixels and went red on cached evidence. The capture script
-# now requires the armed line, a pose line with eye= and src= before it, and a
-# matching identity (HEAD, exe, demo, map, tick, window, flags, capture script).
+# now requires the armed line, a pose line with eye= and src= before it, and an
+# identity that describes the files on disk (frame and trace checksum, size, pose).
+# Since D-45 that identity has three jobs kept apart: a reuse key of CONTENT (exe,
+# shaders, demo, map, assets, tick, window, flags, script, settings, capture mode,
+# GPU -- the commit is not one of them, because a docs-only commit cannot move a
+# pixel), provenance that is recorded and never compared, and the artifact block
+# checked before the key is trusted.
 # This section proves the rule rejects exactly that stale shape -- on a copy, so
 # the real matrix is not disturbed -- and then runs the matrix.
 if [ -d "$CAP/traces" ]; then
