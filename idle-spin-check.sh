@@ -140,19 +140,15 @@ on_exit() {
   trap - EXIT INT TERM HUP
   if ! restore_registered; then rc=1; fi
   if [ "${MUTATION:-0}" = "1" ] && [ "${#RESTORE_PATHS[@]}" -gt 0 ]; then
-    case "$rc" in
-      130|143|129)
-        echo "RESTORE-BUILD=SKIPPED-ON-SIGNAL (source restored; rebuild $EXE before the next run)"
-        ;;
-      *)
-        if bash build-target.sh tf2_demo_native >/dev/null 2>&1; then
-          echo "RESTORE-BUILD=OK"
-        else
-          echo "RESTORE-BUILD=FAIL"
-          rc=1
-        fi
-        ;;
-    esac
+    # Rebuild on every exit, including a signal: the mutated binary must not be
+    # left behind for the next straight run to read. The old EXIT trap rebuilt
+    # here too; only the source restore itself moved to the registry.
+    if bash build-target.sh tf2_demo_native >/dev/null 2>&1; then
+      echo "RESTORE-BUILD=OK"
+    else
+      echo "RESTORE-BUILD=FAIL"
+      rc=1
+    fi
   fi
   rm -rf "${ISO_DIR:-}" "${RESTORE_DIR:-}"
   exit "$rc"
