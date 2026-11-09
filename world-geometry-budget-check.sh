@@ -143,6 +143,10 @@ locked() {
   bash "$LOCK" run "$LOCK_OWNER" bash -c "$1"
 }
 
+# D-62: every assertion evaluated by judge_map increments checks. A PASS that
+# says checks=0 is not a verdict, it is a judge that returned early -- the
+# guard after the map loop refuses it by name.
+checks=0
 failures=0
 failure() { echo "  FAIL $*"; failures=$((failures + 1)); }
 pass() { echo "  ok   $*"; }
@@ -229,20 +233,20 @@ judge_map() { # judge_map <map> -> 0 when every assertion held
   echo "== $map =="
   bsp_rel=$(map_bsp_rel "$map")
   cam_file=$MATRIX/$map/camera.txt
-  if [[ -z $bsp_rel || ! -s $cam_file ]]; then
+  checks=$((checks + 1)); if [[ -z $bsp_rel || ! -s $cam_file ]]; then
     failure "$map: missing camera file or bsp mapping"; return 1
   fi
-  if [[ ! -f $TF/$bsp_rel ]]; then
+  checks=$((checks + 1)); if [[ ! -f $TF/$bsp_rel ]]; then
     failure "$map: missing BSP $TF/$bsp_rel"; return 1
   fi
 
-  trace=$(capture_budget "$map" forward) || { failure "$map: no capture"; return 1; }
+  checks=$((checks + 1)); trace=$(capture_budget "$map" forward) || { failure "$map: no capture"; return 1; }
   # Trace lines carry a leading timestamp ("42610.9 map: geometry budget ..."),
   # so these patterns must not be anchored to the start of the line.
   load_line=$(grep -a "map: geometry budget " "$trace" | head -1)
   frame_line=$(grep -a "gpu: world geometry budget " "$trace" | head -1)
   brush_line=$(grep -a "gpu: world brush models " "$trace" | head -1)
-  if [[ -z $load_line ]]; then
+  checks=$((checks + 1)); if [[ -z $load_line ]]; then
     failure "B1 $map: no map: geometry budget line in the capture trace"; return 1
   fi
   cap=$(field "$load_line" capacity); req=$(field "$load_line" requested)
@@ -253,22 +257,22 @@ judge_map() { # judge_map <map> -> 0 when every assertion held
   echo "  reading brush: $brush_line"
 
   # B1: the capture trace must carry the budget on the drawn frame as well.
-  if [[ -z $frame_line ]]; then
+  checks=$((checks + 1)); if [[ -z $frame_line ]]; then
     failure "B1 $map: no gpu: world geometry budget line in the capture trace"
   else
     echo "  reading frame: $frame_line"
-    [[ $(field "$frame_line" requested) == "$req" ]] || \
+    checks=$((checks + 1));     [[ $(field "$frame_line" requested) == "$req" ]] || \
       failure "B1 $map: frame requested=$(field "$frame_line" requested), load requested=$req"
-    [[ $(field "$frame_line" dropped) == "$dropped" ]] || \
+    checks=$((checks + 1));     [[ $(field "$frame_line" dropped) == "$dropped" ]] || \
       failure "B1 $map: frame dropped=$(field "$frame_line" dropped), load dropped=$dropped"
   fi
 
   # B2: the capacity pin, and no loss at all.
-  [[ $cap == "$CAPACITY" ]] || failure "B2 $map: capacity=$cap, expected $CAPACITY"
-  if [[ $dropped != "0" || $state != "within" ]]; then
+  checks=$((checks + 1)); [[ $cap == "$CAPACITY" ]] || failure "B2 $map: capacity=$cap, expected $CAPACITY"
+  checks=$((checks + 1)); if [[ $dropped != "0" || $state != "within" ]]; then
     failure "B2 $map: dropped=$dropped state=$state firstFace=$first_face -- the map lost geometry to the budget"
   fi
-  if [[ -n $req && -n $cap ]] && (( req > cap )); then
+  checks=$((checks + 1)); if [[ -n $req && -n $cap ]] && (( req > cap )); then
     failure "B2 $map: requested=$req > capacity=$cap"
   fi
 
@@ -278,21 +282,21 @@ judge_map() { # judge_map <map> -> 0 when every assertion held
   read -r pmap pcap preq pdropped pdrawn pskipped pwfaces pbfaces <<< "$(pin_line "$map")"
   wfaces=$(field "$brush_line" worldFaces); bfaces=$(field "$brush_line" brushFaces)
   # B3: the demand, pinned. A parser change that stops reading faces moves it.
-  if [[ -n $preq ]]; then
-    [[ $req == "$preq" ]] || failure "B3 $map: requested=$req, pin=$preq"
-    [[ $cap == "$pcap" ]] || failure "B3 $map: capacity=$cap, pin=$pcap"
+  checks=$((checks + 1)); if [[ -n $preq ]]; then
+    checks=$((checks + 1)); [[ $req == "$preq" ]] || failure "B3 $map: requested=$req, pin=$preq"
+    checks=$((checks + 1)); [[ $cap == "$pcap" ]] || failure "B3 $map: capacity=$cap, pin=$pcap"
   elif [[ $REPIN -eq 1 ]]; then
     echo "  re-pin: no earlier pin for $map, this run becomes the reference"
   else
-    failure "B3 $map: no pin row (run once with --re-pin=<why>)"
+    checks=$((checks + 1)); failure "B3 $map: no pin row (run once with --re-pin=<why>)"
   fi
   # B4: brush faces, pinned -- the surface a whitelist rollback moves.
-  if [[ -n $pdrawn ]]; then
-    [[ $drawn == "$pdrawn" ]] || failure "B4 $map: facesDrawn=$drawn, pin=$pdrawn"
-    [[ $skipped == "$pskipped" ]] || failure "B4 $map: facesSkipped=$skipped, pin=$pskipped"
+  checks=$((checks + 1)); if [[ -n $pdrawn ]]; then
+    checks=$((checks + 1)); [[ $drawn == "$pdrawn" ]] || failure "B4 $map: facesDrawn=$drawn, pin=$pdrawn"
+    checks=$((checks + 1)); [[ $skipped == "$pskipped" ]] || failure "B4 $map: facesSkipped=$skipped, pin=$pskipped"
   elif [[ $REPIN -eq 1 ]]; then
     echo "  re-pin: no earlier brush-face pin for $map, this run becomes the reference"
-  elif [[ -z $drawn ]]; then
+  elif [[ -z $drawn ]]; then checks=$((checks + 1));
     failure "B4 $map: no gpu: world brush models line in the capture trace"
   fi
   # B4b: the face partition, as an accounting identity rather than a pin. Every
@@ -301,45 +305,45 @@ judge_map() { # judge_map <map> -> 0 when every assertion held
   # without inventing or losing any (worldFaces + brushFaces is a property of the
   # map). A face that vanishes from both sides is exactly the silent loss this
   # gate exists for, so this one is checked even when a pin exists.
-  if [[ -n $wfaces && -n $bfaces ]]; then
+  checks=$((checks + 1)); if [[ -n $wfaces && -n $bfaces ]]; then
     part_gap=$((bfaces - drawn - skipped))
     echo "  reading $map: face partition world=$wfaces brush=$bfaces drawn=$drawn skipped=$skipped unattributed=$part_gap"
-    if [[ -n $pwfaces && -n $pbfaces ]]; then
-      [[ $((wfaces + bfaces)) -eq $((pwfaces + pbfaces)) ]] ||         failure "B4b $map: worldFaces($wfaces) + brushFaces($bfaces) = $((wfaces + bfaces)), pin=$((pwfaces + pbfaces)) -- faces entered or left the map, not just the whitelist"
+    checks=$((checks + 1)); if [[ -n $pwfaces && -n $pbfaces ]]; then
+      checks=$((checks + 1)); [[ $((wfaces + bfaces)) -eq $((pwfaces + pbfaces)) ]] ||         failure "B4b $map: worldFaces($wfaces) + brushFaces($bfaces) = $((wfaces + bfaces)), pin=$((pwfaces + pbfaces)) -- faces entered or left the map, not just the whitelist"
       pin_gap=$((pbfaces - pdrawn - pskipped))
-      [[ $part_gap -eq $pin_gap ]] ||         failure "B4c $map: $part_gap brush faces are accounted for by neither pass (pin $pin_gap) -- a face was dropped without being counted"
+      checks=$((checks + 1)); [[ $part_gap -eq $pin_gap ]] ||         failure "B4c $map: $part_gap brush faces are accounted for by neither pass (pin $pin_gap) -- a face was dropped without being counted"
     fi
   else
-    failure "B4b $map: no worldFaces/brushFaces on the gpu: world brush models line"
+    checks=$((checks + 1)); failure "B4b $map: no worldFaces/brushFaces on the gpu: world brush models line"
   fi
 
   # B5: the probe agrees about the demand.
   huge_line=$(probe_budget "$bsp_rel" "$PROBE_HUGE")
-  if [[ -z $huge_line ]]; then
+  checks=$((checks + 1)); if [[ -z $huge_line ]]; then
     failure "B5 $map: probe at $PROBE_HUGE printed no budget line"
   else
     huge_req=$(field "$huge_line" requested); huge_dropped=$(field "$huge_line" dropped)
-    [[ $huge_req == "$req" ]] || failure "B5 $map: probe requested=$huge_req, product requested=$req"
-    [[ $huge_dropped == "0" ]] || failure "B5 $map: probe at $PROBE_HUGE dropped=$huge_dropped"
+    checks=$((checks + 1)); [[ $huge_req == "$req" ]] || failure "B5 $map: probe requested=$huge_req, product requested=$req"
+    checks=$((checks + 1)); [[ $huge_dropped == "0" ]] || failure "B5 $map: probe at $PROBE_HUGE dropped=$huge_dropped"
   fi
 
   # B6: the demand does not move with the capacity, and a shrink is detected.
   for limit in $SHRINK; do
     line=$(probe_budget "$bsp_rel" "$limit")
-    if [[ -z $line ]]; then failure "B6 $map: probe at $limit printed no budget line"; continue; fi
+    if [[ -z $line ]]; then checks=$((checks + 1)); failure "B6 $map: probe at $limit printed no budget line"; continue; fi
     s_req=$(field "$line" requested); s_drop=$(field "$line" dropped)
     s_faces=$(field "$line" facesDropped); s_first=$(field "$line" firstFace)
     echo "  reading shrink $limit: $line"
-    [[ $s_req == "$req" ]] || \
+    checks=$((checks + 1));     [[ $s_req == "$req" ]] || \
       failure "B6 $map: at $limit requested=$s_req, demand is $req (the ask must not move with the capacity)"
     if [[ -z $s_faces ]]; then s_faces=0; fi
-    if (( limit < req )); then
+    checks=$((checks + 1)); if (( limit < req )); then
       # Not an equality: a refused displacement grid leaves a fallback fan that
       # occupies slots too, so the refused count is never below the shortfall.
-      (( s_drop >= req - limit )) || failure "B6 $map: at $limit dropped=$s_drop, expected at least $((req - limit))"
-      (( s_drop <= req )) || failure "B6 $map: at $limit dropped=$s_drop, more than the whole demand $req"
-      (( s_faces > 0 )) || failure "B6 $map: at $limit facesDropped=$s_faces, expected > 0"
-      if [[ -z $s_first ]] || (( s_first < 0 )); then
+      checks=$((checks + 1)); (( s_drop >= req - limit )) || failure "B6 $map: at $limit dropped=$s_drop, expected at least $((req - limit))"
+      checks=$((checks + 1)); (( s_drop <= req )) || failure "B6 $map: at $limit dropped=$s_drop, more than the whole demand $req"
+      checks=$((checks + 1)); (( s_faces > 0 )) || failure "B6 $map: at $limit facesDropped=$s_faces, expected > 0"
+      checks=$((checks + 1)); if [[ -z $s_first ]] || (( s_first < 0 )); then
         failure "B6 $map: at $limit firstFace=$s_first, expected a face index"
       fi
     fi
@@ -744,8 +748,18 @@ if [[ $REPIN -eq 0 && ! -s $PINS ]]; then
 fi
 
 : > "$SCRATCH/pin-rows.txt"
+# D-62: how many maps this run is supposed to judge, and how many actually
+# evaluated an assertion. "judged 4 of 4 with 128 checks" is a verdict;
+# "PASS" alone could be a judge that returned before reading anything.
+map_total=0
+for MAP in $CHECK_MAPS; do map_total=$((map_total + 1)); done
+judged=0
 for MAP in $CHECK_MAPS; do
+  checks_before=$checks
   judge_map "$MAP"
+  map_checks=$((checks - checks_before))
+  echo "  judged $MAP: checks=$map_checks"
+  if (( map_checks > 0 )); then judged=$((judged + 1)); fi
   trace=$SCRATCH/$MAP/forward.trace
   if [[ -s $trace ]]; then
     load_line=$(grep -a "map: geometry budget " "$trace" | head -1)
@@ -754,6 +768,13 @@ for MAP in $CHECK_MAPS; do
     cp "$trace" "$OUT/trace-$MAP-forward.trace" 2>/dev/null || true
   fi
 done
+
+# D-62 anti-vacuity: a map that evaluated no assertion did not get judged,
+# whatever the reason for the early return. Without this, a judge_map that
+# returned at its first line would look exactly like four green maps.
+if (( judged != map_total )); then
+  failure "V1 $judged of $map_total maps were judged; a map that evaluates no assertion has no verdict"
+fi
 
 # Reading-only maps: measured here, asserted nowhere.
 for MAP in $READING_MAPS; do
@@ -790,5 +811,9 @@ else
 fi
 
 echo ""
-if [[ $failures -eq 0 ]]; then echo "WORLD-GEOMETRY-BUDGET=PASS"; exit 0; fi
-echo "WORLD-GEOMETRY-BUDGET=FAIL ($failures assertions)"; exit 1
+if [[ $failures -eq 0 ]]; then
+  echo "WORLD-GEOMETRY-BUDGET=PASS (maps=$judged maps checks=$checks)"
+  exit 0
+fi
+echo "WORLD-GEOMETRY-BUDGET=FAIL ($failures assertions, maps=$judged of $map_total, checks=$checks)"
+exit 1
