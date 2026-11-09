@@ -1,0 +1,68 @@
+# pin-provenance-check.sh hardening: D-35 (pinned assertion set/count) and
+# D-36 (independent capture receipt + build record). Run on 2026-11-09T19:07:29+08:00.
+#
+# repo:      /d/TF2_Native_Worktrees/t91-integration
+# HEAD:      dea34d193ad595f047047713f60c4ec6bc452724
+# script:    06de1cb812e0919d352f956b999965e85427bf5e1beb4af322f6a5264500bd21  (486 lines, 21 assertions/class)
+# script@HEAD: 5c32c276bef938a2b278acfc21847424d83cce5e2daf72185a066aefc8a721ed  (291 lines, 18 assertions/class)
+# pin:       /d/TF2_Native_Worktrees/t91-integration/evidence/t62-matrix/class-pixels
+# hostlock:  not used (this gate starts no product and takes seconds)
+
+## A. before: the HEAD version of this gate, same pin
+  demo     PASS 18 assertions  exe=abb56698 git=4a8aaff
+  scout    PASS 18 assertions  exe=abb56698 git=4a8aaff
+  soldier  PASS 18 assertions  exe=abb56698 git=4a8aaff
+  medic    PASS 18 assertions  exe=abb56698 git=4a8aaff
+PIN-PROVENANCE=PASS (72 assertions)
+OLD_RC=0
+
+## B. after: the hardened gate, same pin
+  demo     PASS 21 assertions  exe=abb56698 git=4a8aaff
+  scout    PASS 21 assertions  exe=abb56698 git=4a8aaff
+  soldier  PASS 21 assertions  exe=abb56698 git=4a8aaff
+  medic    PASS 21 assertions  exe=abb56698 git=4a8aaff
+PIN-PROVENANCE=PASS (84 assertions)
+NEW_RC=0
+
+## C. NC1 / D-35: one check() call (A15) deleted from a copy
+  demo     PASS 20 assertions  exe=abb56698 git=4a8aaff
+  scout    PASS 20 assertions  exe=abb56698 git=4a8aaff
+  soldier  PASS 20 assertions  exe=abb56698 git=4a8aaff
+  medic    PASS 20 assertions  exe=abb56698 git=4a8aaff
+  assertion-set (D-35): demo missing 1: A15; scout missing 1: A15; soldier missing 1: A15; medic missing 1: A15; count 80 != pinned 84
+  0 of 80 assertions failed
+PIN-PROVENANCE=FAIL (80 of 84 pinned assertions)
+NC1_RC=1
+
+## D. NC2 / D-36: capture receipt product sha corrupted (demo/entity-id.txt)
+  demo     FAIL 21 assertions  exe=abb56698 git=4a8aaff
+  scout    PASS 21 assertions  exe=abb56698 git=4a8aaff
+  soldier  PASS 21 assertions  exe=abb56698 git=4a8aaff
+  medic    PASS 21 assertions  exe=abb56698 git=4a8aaff
+  demo A18: capture receipt does not corroborate the pin: receipt product=1bb56698cd87 ledger capture-exe=abb56698cd87
+  1 of 84 assertions failed
+PIN-PROVENANCE=FAIL (84 of 84 pinned assertions)
+NC2_RC=1
+
+## E. NC3 / D-36: per-tag capture summary bmp sha corrupted (demo/identity.summary)
+  demo     FAIL 21 assertions  exe=abb56698 git=4a8aaff
+  scout    PASS 21 assertions  exe=abb56698 git=4a8aaff
+  soldier  PASS 21 assertions  exe=abb56698 git=4a8aaff
+  medic    PASS 21 assertions  exe=abb56698 git=4a8aaff
+  demo A19: capture receipt/summaries disagree with the ledger: identity.summary bmp=248e244a2871 file=148e244a2871
+  1 of 84 assertions failed
+PIN-PROVENANCE=FAIL (84 of 84 pinned assertions)
+NC3_RC=1
+
+## F. NC4 / D-36: ledger capture-exe field corrupted (demo/provenance.json)
+  demo     FAIL 21 assertions  exe=abb56698 git=4a8aaff
+  scout    PASS 21 assertions  exe=abb56698 git=4a8aaff
+  soldier  PASS 21 assertions  exe=abb56698 git=4a8aaff
+  medic    PASS 21 assertions  exe=abb56698 git=4a8aaff
+  demo A18: capture receipt does not corroborate the pin: receipt product=abb56698cd87 ledger capture-exe=1bb56698cd87
+  demo A19: capture receipt/summaries disagree with the ledger: animated.summary product=abb56698cd87 capture-exe=1bb56698cd87; identity.summary product=abb56698cd87 capture-exe=1bb56698cd87; identity-2.summary product=abb56698cd87 capture-exe=1bb56698cd87; off.summary product=abb56698cd87 capture-exe=1bb56698cd87
+  2 of 84 assertions failed
+PIN-PROVENANCE=FAIL (84 of 84 pinned assertions)
+NC4_RC=1
+
+# temp dir: /tmp/pp-nc2-d3G7Ib (copies only; no file in the repo was modified by NC2-NC4)
