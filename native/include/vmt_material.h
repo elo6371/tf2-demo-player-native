@@ -92,6 +92,20 @@ struct VmtMaterial {
   // texture where TF2 would. Refused by name rather than drawn axis-aligned.
   bool baseTextureTransform = false;
   std::string baseTextureTransformText;
+  // R2: the same declaration, parsed into the five numbers the uv walk needs.
+  // A transform this parser CAN read is no longer a refusal: the world pass
+  // applies it in the vertex stage instead of giving the face a flat shade.
+  // `baseTextureTransformParsed` false means the declaration was an object
+  // block or a word this parser does not understand -- that stays a named
+  // refusal, because guessing the identity is how a rotated texture gets drawn
+  // axis-aligned without anyone noticing (the T59 rule).
+  bool baseTextureTransformParsed = false;
+  float baseTextureTransformCenter[2] = {0.5f, 0.5f};
+  float baseTextureTransformScale[2] = {1.0f, 1.0f};
+  // Degrees. Source documents a positive `rotate` as turning the texture
+  // counter-clockwise; see the matrix note in vmt_material.cpp.
+  float baseTextureTransformRotate = 0.0f;
+  float baseTextureTransformTranslate[2] = {0.0f, 0.0f};
   bool valid = false;
   std::string error;
 };
