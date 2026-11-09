@@ -38,6 +38,9 @@
 #   install-cli-contract  2400   VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT
 #   playback-error-paths  1800   VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS
 #   timeline              1800   VERIFY_RELEASE_TIMEOUT_TIMELINE
+#   hud-live              2400   VERIFY_RELEASE_TIMEOUT_HUD_LIVE      (forward + three
+#                               mutation rebuilds; the readout is drawn, so this one
+#                               is a pixel gate with a build per negative control)
 #   pin-provenance         600   VERIFY_RELEASE_TIMEOUT_PIN_PROVENANCE  (static: hashes files, starts no process)
 #
 # Step 2 is debt-claim-check.sh (task-20): it is static (no build, no product,
@@ -46,7 +49,7 @@
 # because the mutation suites inside verify-all restore sources with a new mtime:
 # without it the capture steps read a binary the tree no longer vouches for.
 #
-# Every one of the fourteen steps has a script in this tree. A step whose script
+# Every one of the fifteen steps has a script in this tree. A step whose script
 # is missing still records STUB-ABSENT=FAIL and fails the chain: a chain that
 # silently omits a step is the defect this file is meant to end.
 #
@@ -63,7 +66,7 @@
 #
 # ARTEFACTS: evidence/release/<utc>-<step>.log, <utc>-summary.txt,
 #            <utc>-machine-before.txt, <utc>-machine-after.txt
-# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=14  (last stdout line)
+# VERDICT:   VERIFY-RELEASE=PASS|FAIL steps_ok=N steps_total=15  (last stdout line)
 #
 # Exit: 0 PASS, 1 FAIL, 9 refused (not under the host lock / owner mismatch).
 #
@@ -83,7 +86,7 @@ DRY=${VERIFY_RELEASE_DRY_RUN:-0}
 # body-appearance -- this chain redirects them to its own OUT, but the order must
 # not depend on that) all run before it, and nothing runs after it, so its pass
 # describes the tree at the end of the chain, not a state a later step can disturb.
-STEPS=(launch-hygiene debt-claim verify-all rebuild outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget install-cli-contract playback-error-paths timeline pin-provenance)
+STEPS=(launch-hygiene debt-claim verify-all rebuild outline third-person-weapon body-appearance class-pixels build-identity world-geometry-budget install-cli-contract playback-error-paths timeline hud-live pin-provenance)
 TOTAL=${#STEPS[@]}
 
 step_file() {
@@ -101,6 +104,7 @@ step_file() {
     install-cli-contract)  echo install-cli-contract-check.sh ;;
     playback-error-paths)  echo playback-error-paths-check.sh ;;
     timeline)              echo timeline-check.sh ;;
+    hud-live)              echo hud-live-check.sh ;;
     pin-provenance)        echo pin-provenance-check.sh ;;
     *)                     echo "" ;;
   esac
@@ -126,6 +130,9 @@ step_timeout() {
     install-cli-contract)  echo "${VERIFY_RELEASE_TIMEOUT_INSTALL_CLI_CONTRACT:-2400}" ;;
     playback-error-paths)  echo "${VERIFY_RELEASE_TIMEOUT_PLAYBACK_ERROR_PATHS:-1800}" ;;
     timeline)              echo "${VERIFY_RELEASE_TIMEOUT_TIMELINE:-1800}" ;;
+    # Forward plus three mutation rebuilds; each mutation recompiles main_hud and
+    # relaunches the product, and the forward run captures five times.
+    hud-live)              echo "${VERIFY_RELEASE_TIMEOUT_HUD_LIVE:-2400}" ;;
     # Static: it reads four provenance.json files and hashes the pinned BMPs; no
     # build, no product, no lock. 600 s bounds a pathological filesystem, not work.
     pin-provenance)        echo "${VERIFY_RELEASE_TIMEOUT_PIN_PROVENANCE:-600}" ;;
@@ -151,6 +158,7 @@ step_verdict() {
     install-cli-contract)  echo INSTALL-CLI-CONTRACT ;;
     playback-error-paths)  echo PLAYBACK-ERROR-PATHS ;;
     timeline)              echo TIMELINE-CHECK ;;
+    hud-live)              echo HUD-LIVE-CHECK ;;
     pin-provenance)        echo PIN-PROVENANCE ;;
     *)                     echo "" ;;
   esac
@@ -373,6 +381,9 @@ for step in "${STEPS[@]}"; do
       third-person-weapon) step_env=(env T83_WEAPON_OUT="$OUT/$STAMP-third-person") ;;
       body-appearance) step_env=(env T62_BODY_OUT="$OUT/$STAMP-body-appearance") ;;
       class-pixels) step_env=(env T62_CLASS_OUT="$OUT/$STAMP-class-pixels") ;;
+      # the readout gate writes its frames and readings into evidence/t97-hud by
+      # default; a chain run must not rewrite that checked-in directory.
+      hud-live) step_env=(env HUD_LIVE_CHECK_OUT="$OUT/$STAMP-hud-live") ;;
     esac
     if command -v timeout >/dev/null 2>&1; then
       "${step_env[@]}" timeout --kill-after=30s "${timeout_s}s" bash "$ROOT/$script" >> "$log" 2>&1
