@@ -816,8 +816,8 @@ if [ "$MUTATION" -eq 1 ]; then
 
   # ---- m5: the batch index is built from triangles, not vertices -----------
   # The refactor's own failure mode: `triangle * 3` becomes `triangle`, so every
-  # index points into the middle of some other triangle. All 125 tiles are still
-  # allocated, all 2 batches are still drawn, the plan is unchanged, and the map
+  # index points into the middle of some other triangle. All 141 tiles are still
+  # allocated, all 3 batches are still drawn, the plan is unchanged, and the map
   # turns into a hash of stretched polygons. Only the frame says so.
   echo "--- m5: the index buffer is built from triangle numbers (geometry tears)"
   M5_BACKUP="$SCRATCH/native_renderer.cpp.index.backup"
@@ -855,15 +855,16 @@ if [ "$MUTATION" -eq 1 ]; then
   # ---- m6: the clip ignores the batch table --------------------------------
   # The other half of the same question. The frame is clipped, so the indices
   # come from `setWorldVisDrawList`; putting every surviving index in batch 0
-  # leaves the plan at 125 tiles / 2 batches, keeps every tile allocated, and
+  # leaves the plan at 141 tiles / 3 batches, keeps every tile allocated, and
   # paints batch 1's materials with batch 0's atlas. Texture selection and
   # index grouping have to agree, and only the picture says whether they do.
   #
   # RE-ANCHOR 2026-10-25: this mutant used to compare against the acceptance
   # frame (tick 0, no camera override). At that pose batch 1 owns zero pixels --
-  # measured, not assumed: section 7's control refuses all 61 batch-1 materials
-  # and its frame comes back byte-identical to the full frame, and that was
-  # already true on ea97815 before T59. Regrouping batch-1 indices into batch 0
+  # measured, not assumed: section 7's control refuses every material outside the
+  # one batch it keeps (61 when this note was written; 77 since R2 split the atlas
+  # into three), and its frame comes back byte-identical to the full frame -- true
+  # already on ea97815 before T59. Regrouping batch-1 indices into batch 0
   # therefore could not move one pixel, and the mutant was vacuous -- last green
   # before the map's material set drifted (the same drift that dropped
   # WOOD/WOOD_WALL007A from >=100 to 67 visible triangles). It is now anchored
