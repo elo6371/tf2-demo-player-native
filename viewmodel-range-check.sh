@@ -93,6 +93,16 @@ RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 # evidence file -- the same rule the other ViewModel gates follow.
 EVIDENCE="${VIEWMODEL_RANGE_EVIDENCE_DIR:-evidence/viewmodel/range}"
 SCRATCH=.scratch
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+
 mkdir -p "$EVIDENCE" "$SCRATCH"
 # The product is a native binary: Git-Bash does not translate an MSYS `/d/...`
 # path on its way to it, so the trace file is named in Windows form.
@@ -146,6 +156,7 @@ restore_mutation() {
 }
 
 cleanup() {
+  rm -rf "${ISO_DIR:-}" 2>/dev/null || true
   restore_mutation
   rmdir "$LOCK_DIR" 2>/dev/null
 }
@@ -480,7 +491,7 @@ run_product() { # run_product <name> [extra...]
   #   paused frame is a fixed input; a playing one is a race with the scheduler.
   TF2_NATIVE_TRACE="$ROOT/$base.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$DEMO_POV" --start-paused \
-    --settings-file "$base.ini" --capture-frame "$base.bmp" --capture-tick "$TICK" \
+    --settings-file "$base.ini" --ui-settings-file "$ISO_UI" --capture-frame "$base.bmp" --capture-tick "$TICK" \
     --metrics-file "$base.csv" --viewmodel "$VM_MODEL" --viewmodel-fov 90 "$@" \
     > "$base.log" 2>&1
   LAST_RC=$?

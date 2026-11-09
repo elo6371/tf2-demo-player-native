@@ -56,6 +56,20 @@ cd "$(dirname "$0")"
 
 EXE=native/build-nmake/world_material_probe.exe
 PRODUCT=native/build-nmake/tf2_demo_native.exe
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
+if [ -f "$HOST_PROFILE_DIR/settings.ini" ]; then cp "$HOST_PROFILE_DIR/settings.ini" "$ISO_DIR/settings.ini"; else : > "$ISO_DIR/settings.ini"; echo "  ISO SEED absent: host profile settings.ini (product starts from defaults)" >&2; fi
+if [ -f "$HOST_PROFILE_DIR/ui.ini" ]; then cp "$HOST_PROFILE_DIR/ui.ini" "$ISO_DIR/ui.ini"; else : > "$ISO_DIR/ui.ini"; fi
+
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 MAP="cp_snakewater_final1"
 DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
@@ -312,7 +326,7 @@ rm -f "$PRODUCT_TRACE" "$PRODUCT_BMP" "$PRODUCT_CSV" "$PRODUCT_LOG"
 # backslashes the MSYS layer rewrites. --hidden-window and --audio-disabled keep
 # the run quiet, exactly as quiet-capture-check.sh established they may.
 TRACE_WIN="$(cygpath -m "$PWD/$PRODUCT_TRACE")"
-PRODUCT_RC=$(TF2_NATIVE_TRACE="$TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" \
+PRODUCT_RC=$(TF2_NATIVE_TRACE="$TRACE_WIN" timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" \
   --audio-disabled --hidden-window --demo "$DEMO" --world-sky --capture-tick 0 \
   --capture-frame "$PRODUCT_BMP" --metrics-file "$PRODUCT_CSV" > "$PRODUCT_LOG" 2>&1; echo $?)
 echo "product run rc=$PRODUCT_RC trace=$(stat -c%s "$PRODUCT_TRACE" 2>/dev/null || echo 0)"
@@ -436,10 +450,10 @@ ENV_TRACE_WIN="$(cygpath -m "$PWD/$ENV_TRACE")"
 ENV_BMP_WIN="$(cygpath -m "$PWD/$ENV_BMP")"
 ENV_FORCED_TRACE_WIN="$(cygpath -m "$PWD/$ENV_FORCED_TRACE")"
 ENV_FORCED_BMP_WIN="$(cygpath -m "$PWD/$ENV_FORCED_BMP")"
-ENV_RC=$(TF2_NATIVE_TRACE="$ENV_TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" \
+ENV_RC=$(TF2_NATIVE_TRACE="$ENV_TRACE_WIN" timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" \
   --quality standard --audio-disabled --hidden-window --capture-tick 0 \
   --capture-frame "$ENV_BMP_WIN" --metrics-file "$SCRATCH/render-cubemap-plain.csv" > "$SCRATCH/render-cubemap-plain.log" 2>&1; echo $?)
-ENV_FORCED_RC=$(TF2_NATIVE_TRACE="$ENV_FORCED_TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" \
+ENV_FORCED_RC=$(TF2_NATIVE_TRACE="$ENV_FORCED_TRACE_WIN" timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" \
   --quality standard --world-env-force --audio-disabled --hidden-window --capture-tick 0 \
   --capture-frame "$ENV_FORCED_BMP_WIN" --metrics-file "$SCRATCH/render-cubemap-forced.csv" > "$SCRATCH/render-cubemap-forced.log" 2>&1; echo $?)
 assert_eq "cubemap run rc" "$ENV_RC" "0"
@@ -498,7 +512,7 @@ OFF_BMP="$SCRATCH/render-off.$RUN_TAG.bmp"
 rm -f "$OFF_TRACE" "$OFF_BMP"
 OFF_TRACE_WIN="$(cygpath -m "$PWD/$OFF_TRACE")"
 OFF_BMP_WIN="$(cygpath -m "$PWD/$OFF_BMP")"
-OFF_RC=$(TF2_NATIVE_TRACE="$OFF_TRACE_WIN" timeout 300 "$PRODUCT" --tf-root "$TF" \
+OFF_RC=$(TF2_NATIVE_TRACE="$OFF_TRACE_WIN" timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" \
   --audio-disabled --hidden-window --demo "$DEMO" --no-world-sky --no-world-vis-clip \
   --capture-tick 0 --capture-frame "$OFF_BMP_WIN" \
   --metrics-file "$SCRATCH/render-off.$RUN_TAG.csv" > "$SCRATCH/render-off.$RUN_TAG.log" 2>&1; echo $?)
@@ -630,7 +644,7 @@ if [ "$MUTATION" -eq 1 ]; then
     MUT_TRACE="$SCRATCH/$name.$RUN_TAG.trace"
     rm -f "$MUT_TRACE" "$SCRATCH/$name.$RUN_TAG.bmp" "$SCRATCH/$name.$RUN_TAG.csv"
     TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$MUT_TRACE")" \
-      timeout 300 "$PRODUCT" --tf-root "$TF" --audio-disabled --hidden-window --demo "$DEMO" \
+      timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" --audio-disabled --hidden-window --demo "$DEMO" \
       --world-sky --capture-tick 0 --capture-frame "$SCRATCH/$name.$RUN_TAG.bmp" \
       --metrics-file "$SCRATCH/$name.$RUN_TAG.csv" > "$SCRATCH/$name.$RUN_TAG.log" 2>&1
     MUT_RC=$?

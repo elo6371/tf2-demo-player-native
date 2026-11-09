@@ -106,6 +106,16 @@ RUN_TIMEOUT=300
 RUN_TAG=$(date +%Y%m%d%H%M%S)-$$
 EVIDENCE=${VIEWMODEL_ROBUSTNESS_EVIDENCE_DIR:-evidence/t30}
 RUN_DIR=.scratch/t30/run-$RUN_TAG
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+
 mkdir -p "$EVIDENCE" "$RUN_DIR"
 ROOT=$(cygpath -m "$(pwd)" 2>/dev/null || pwd)
 LOCK_DIR=.scratch/viewmodel-robustness.lock
@@ -196,7 +206,7 @@ restore_mutation() {
   rm -f "$MUTATION_BAK" 2>/dev/null
   MUTATION_ACTIVE=0
 }
-cleanup() { restore_mutation; release_lock; }
+cleanup() { rm -rf "${ISO_DIR:-}" 2>/dev/null || true; restore_mutation; release_lock; }
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
@@ -292,7 +302,7 @@ run_product() { # run_product <name> [extra args...]
   TF2_NATIVE_TRACE="$ROOT/$RUN_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "" --demo "$DEMO" \
     --hidden-window --audio-disabled \
-    --settings-file "$RUN_DIR/$name-settings.ini" \
+    --settings-file "$RUN_DIR/$name-settings.ini" --ui-settings-file "$ISO_UI" \
     --capture-frame "$RUN_DIR/$name.bmp" --capture-tick "$TICK" \
     --metrics-file "$RUN_DIR/$name.csv" --viewmodel-fov 90 --start-paused "$@" > "$RUN_DIR/$name.log" 2>&1
   LAST_RC=$?
@@ -306,7 +316,7 @@ run_fixture_product() { # run_fixture_product <name> <root> <model>
   rm -f "$RUN_DIR/$name.bmp" "$RUN_DIR/$name.trace"
   TF2_NATIVE_TRACE="$ROOT/$RUN_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$root" --audio-device "" --start-paused --hidden-window --audio-disabled \
-    --settings-file "$RUN_DIR/$name-settings.ini" \
+    --settings-file "$RUN_DIR/$name-settings.ini" --ui-settings-file "$ISO_UI" \
     --viewmodel "$model" --viewmodel-fov 90 \
     --capture-frame "$RUN_DIR/$name.bmp" --capture-tick "$TICK" \
     --metrics-file "$RUN_DIR/$name.csv" > "$RUN_DIR/$name.log" 2>&1

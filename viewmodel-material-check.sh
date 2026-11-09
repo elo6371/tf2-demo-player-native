@@ -165,7 +165,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "VIEWMODEL-MATERIAL=FAIL (another viewmodel-material-check run owns $LOCK_DIR)"
   exit 2
 fi
-cleanup_lock() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
+cleanup_lock() { rm -rf "${ISO_DIR:-}" 2>/dev/null || true; rmdir "$LOCK_DIR" 2>/dev/null || true; }
 trap cleanup_lock EXIT
 
 # Missing input is a failure, not a skip.
@@ -547,6 +547,17 @@ assert_eq "missing model summary complete" "$(jfield "$summary" complete)" "0"
 PRODUCT_TICK="${VIEWMODEL_MATERIAL_TICK:-200}"
 PRODUCT_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
 PRODUCT_EXE=native/build-nmake/tf2_demo_native.exe
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+PRODUCT_TARGET=tf2_demo_native
+
 # The model the `--viewmodel` switch names for the long run. It is not the model
 # the pass draws -- on this recording the entity's own companion wins -- and that
 # is the point: whose materials are bound is decided by what is DRAWN, not by what
@@ -577,10 +588,13 @@ rval() {
 
 product_launch() { # product_launch <name> <model> <tick> [extra...]
   local name="$1" model="$2" tick="$3"; shift 3
+  local iso_cfg="$ISO_DIR/material-$name-settings.ini"
+  rm -f "$iso_cfg"
+  if [ -f "$TRACE_DIR/$name-settings.ini" ]; then cp "$TRACE_DIR/$name-settings.ini" "$iso_cfg"; fi
   [ -s "$TRACE_DIR/$name.bmp" ] && return 0
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$PRODUCT_RUN_TIMEOUT" "$PRODUCT_EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$PRODUCT_DEMO" \
-    --settings-file "$TRACE_DIR/$name-settings.ini" \
+    --settings-file "$(cygpath -m "$iso_cfg")" --ui-settings-file "$ISO_UI" \
     --capture-frame "$ROOT/$TRACE_DIR/$name.bmp" --capture-tick "$tick" \
     --metrics-file "$TRACE_DIR/$name.csv" \
     --viewmodel "$model" --viewmodel-fov 90 "$@" \
@@ -885,6 +899,7 @@ restore_fixtures() {
   "$PY" "$GEN" "$FIXTURE_DIR" > "$TRACE_DIR/fixture-restore.txt" 2>&1
 }
 restore_if_patched() {
+  rm -rf "${ISO_DIR:-}" 2>/dev/null || true
   if [ -n "${SOURCE:-}" ] && [ -f "${BACKUP:-/nonexistent}" ]; then
     cp "$BACKUP" "$SOURCE"
   fi
@@ -1236,10 +1251,10 @@ declare -A MUTATION_TARGETS=(
   [cdmaterials-broken]=""
   [texture-size-tampered]=""
   [probe-fakes-decode]="viewmodel_material_probe"
-  [range-key-dropped]="tf2_demo_native"
-  [material-flag-ignored]="tf2_demo_native"
-  [injection-dropped]="tf2_demo_native"
-  [texture-rebuilt-every-frame]="tf2_demo_native"
+  [range-key-dropped]="$PRODUCT_TARGET"
+  [material-flag-ignored]="$PRODUCT_TARGET"
+  [injection-dropped]="$PRODUCT_TARGET"
+  [texture-rebuilt-every-frame]="$PRODUCT_TARGET"
 )
 HASHES_BEFORE=$(sha256sum native/tools/viewmodel_material_probe.cpp \
   evidence/viewmodel/fixtures/viewmodel-material-fixture-gen.py \

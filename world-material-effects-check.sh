@@ -38,6 +38,20 @@ cd "$(dirname "$0")"
 EXE=native/build-nmake/world_material_probe.exe
 VMEXE=native/build-nmake/viewmodel_material_probe.exe
 PRODUCT=native/build-nmake/tf2_demo_native.exe
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
+if [ -f "$HOST_PROFILE_DIR/settings.ini" ]; then cp "$HOST_PROFILE_DIR/settings.ini" "$ISO_DIR/settings.ini"; else : > "$ISO_DIR/settings.ini"; echo "  ISO SEED absent: host profile settings.ini (product starts from defaults)" >&2; fi
+if [ -f "$HOST_PROFILE_DIR/ui.ini" ]; then cp "$HOST_PROFILE_DIR/ui.ini" "$ISO_DIR/ui.ini"; else : > "$ISO_DIR/ui.ini"; fi
+
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 MAP="cp_snakewater_final1"
 DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
@@ -176,7 +190,7 @@ run_product() { # run_product <name> <demo> [extra args...]
   # cygpath -m gives the Windows form without the doubled backslashes the MSYS
   # layer rewrites; the trace path is read with GetEnvironmentVariableW.
   local rc
-  rc=$(TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 400 "$PRODUCT" \
+  rc=$(TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 400 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
     --demo "$demo" --capture-tick 0 --capture-frame "$(cygpath -m "$PWD/$bmp")" \
     --metrics-file "$csv" "$@" > "$log" 2>&1; echo $?)
@@ -463,7 +477,7 @@ if [ "$MUTATION" -eq 1 ]; then
     local trace="$SCRATCH/$name.$RUN_TAG.trace"
     rm -f "$trace" "$SCRATCH/$name.$RUN_TAG.bmp" "$SCRATCH/$name.$RUN_TAG.csv"
     TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" \
-      timeout 400 "$PRODUCT" --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
+      timeout 400 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
       --audio-disabled --hidden-window --demo "$demo" --capture-tick 0 \
       --capture-frame "$SCRATCH/$name.$RUN_TAG.bmp" \
       --metrics-file "$SCRATCH/$name.$RUN_TAG.csv" "$@" \

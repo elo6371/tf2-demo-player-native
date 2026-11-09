@@ -58,6 +58,20 @@ OUT="${1:-evidence/t23-world-geometry/captures}"
 TRACE_DIR="$OUT/traces"
 mkdir -p "$OUT" "$TRACE_DIR"
 
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
+if [ -f "$HOST_PROFILE_DIR/settings.ini" ]; then cp "$HOST_PROFILE_DIR/settings.ini" "$ISO_DIR/settings.ini"; else : > "$ISO_DIR/settings.ini"; echo "  ISO SEED absent: host profile settings.ini (product starts from defaults)" >&2; fi
+if [ -f "$HOST_PROFILE_DIR/ui.ini" ]; then cp "$HOST_PROFILE_DIR/ui.ini" "$ISO_DIR/ui.ini"; else : > "$ISO_DIR/ui.ini"; fi
+
+
 # The task plan serialises every product launch on this host: a second capture
 # or mutation run shares the GPU, the window and the evidence paths. This
 # worktree cannot enforce that for other tasks, so it takes a clean gap when one
@@ -101,8 +115,8 @@ capture() { # capture <name> [extra flags...]
   fi
   for attempt in 1 2 3 4 5 6; do
     rm -f "$bmp" "$trace"
-    TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 120 "$PRODUCT" \
-      --tf-root "$TF" --demo "$DEMO" \
+    TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 120 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
+        --tf-root "$TF" --demo "$DEMO" \
       --capture-tick 2000 --capture-frame "$(cygpath -m "$PWD/$bmp")" \
       --audio-disabled $window "$@" \
       > "$OUT/$name.log" 2>&1

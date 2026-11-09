@@ -77,6 +77,20 @@ done
 
 B=native/build-nmake
 
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
+if [ -f "$HOST_PROFILE_DIR/settings.ini" ]; then cp "$HOST_PROFILE_DIR/settings.ini" "$ISO_DIR/settings.ini"; else : > "$ISO_DIR/settings.ini"; echo "  ISO SEED absent: host profile settings.ini (product starts from defaults)" >&2; fi
+if [ -f "$HOST_PROFILE_DIR/ui.ini" ]; then cp "$HOST_PROFILE_DIR/ui.ini" "$ISO_DIR/ui.ini"; else : > "$ISO_DIR/ui.ini"; fi
+
+
 if [ "$BUILD" -eq 1 ]; then
   echo "=== 1/6 incremental build ==="
   bash build-target.sh audio_effects_probe audio_scheduler_probe winmm_sink_probe sound_timeline_census_probe sound_content_map_probe sound_corpus_scan_probe tf2_demo_native
@@ -978,7 +992,7 @@ else
   # the gate hung instead of failing, which is worse than a red, because a hung
   # gate looks like a slow one. 124 is the timeout exit code and is reported as
   # itself rather than folded into "run failed".
-  TF2_NATIVE_TRACE="$TRACE" timeout 180 "$B/tf2_demo_native.exe" --demo "$DEMO_POV" \
+  TF2_NATIVE_TRACE="$TRACE" timeout 180 "$B/tf2_demo_native.exe" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --demo "$DEMO_POV" \
     --audio-disabled --audio-device 6 --capture-tick 120 \
     --capture-frame "$OUT/player-frame.bmp" > "$OUT/player-stdout.txt" 2>&1
   rc_player=$?
@@ -1067,7 +1081,7 @@ if [ "$DEVICE" -eq 1 ]; then
     fi
 
     rm -f "$DEV_NULL_TRACE" "$DEV6_TRACE"
-    TF2_NATIVE_TRACE="$DEV_NULL_TRACE" timeout 180 "$B/tf2_demo_native.exe" --demo "$DEMO_POV" \
+    TF2_NATIVE_TRACE="$DEV_NULL_TRACE" timeout 180 "$B/tf2_demo_native.exe" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --demo "$DEMO_POV" \
       --audio-disabled --audio-device 6 --capture-tick 2000 \
       --capture-frame "$OUT/device-null.bmp" > "$OUT/device-null-stdout.txt" 2>&1
     rc_null=$?
@@ -1080,7 +1094,7 @@ if [ "$DEVICE" -eq 1 ]; then
       device_checks "device-null" "$DEV_NULL_TRACE" null
     fi
 
-    TF2_NATIVE_TRACE="$DEV6_TRACE" timeout 180 "$B/tf2_demo_native.exe" --demo "$DEMO_POV" \
+    TF2_NATIVE_TRACE="$DEV6_TRACE" timeout 180 "$B/tf2_demo_native.exe" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --demo "$DEMO_POV" \
       --audio-device 6 --capture-tick 2000 \
       --capture-frame "$OUT/device-6.bmp" > "$OUT/device-6-stdout.txt" 2>&1
     rc_dev=$?

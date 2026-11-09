@@ -107,6 +107,19 @@ CAMERA_PITCH=4.1
 CAMERA_YAW=0.0
 MIN_BODY_PIXELS=200
 
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+if [ -f "$OUT/settings.json" ]; then cp "$OUT/settings.json" "$ISO_DIR/settings.ini"; else echo "  ISO SEED absent: settings=$OUT/settings.json (product starts from defaults)" >&2; fi
+if [ -f "$OUT/ui.json" ]; then cp "$OUT/ui.json" "$ISO_DIR/ui.ini"; else echo "  ISO SEED absent: ui=$OUT/ui.json (product starts from defaults)" >&2; fi
+
+
 fail=0
 say_fail() { echo "  FAIL $*"; fail=1; }
 
@@ -188,7 +201,7 @@ run_frame() {
   rm -f "$bmp" "$trace"
   TF2_NATIVE_TRACE="$trace" timeout 1200 "$PRODUCT" \
     --tf-root "$TF" --hidden-window --audio-disabled \
-    --settings-file "$OUT/settings.json" --ui-settings-file "$OUT/ui.json" \
+    --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --demo "$DEMO" --capture-tick "$TICK" --playback-speed "$SPEED" \
     --capture-frame "$bmp" \
     --debug-camera "$eyeX" "$eyeY" "$eyeZ" "$CAMERA_PITCH" "$CAMERA_YAW" \

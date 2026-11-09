@@ -115,6 +115,17 @@ mkdir -p "$OUT"
 # pinned pixel fixtures keep exactly the renderer settings they were measured on,
 # and the product writes the copies instead of the user's files.
 SETTINGS_SEED_DIR="$OUT/inputs"
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+
 mkdir -p "$SETTINGS_SEED_DIR"
 HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
 [ -f "$HOST_PROFILE_DIR/settings.ini" ] && cp "$HOST_PROFILE_DIR/settings.ini" "$SETTINGS_SEED_DIR/host-settings.ini" 2>/dev/null
@@ -240,6 +251,41 @@ T85_WORLD_EYE="1707.0 -125.1 152.8 4.1 0.0"
 # at every call site, so coverage was not per-site correctness).
 launch_product() { # launch_product <prefix> <final argv...>
   local prefix="$1"; shift
+  # D-22: a caller may name a settings pair (the world fixture names tracked
+  # evidence). Copy whatever it named into this run's private directory, strip
+  # the pair from the argv, and hand the product the copies -- the product writes
+  # on exit, so the path it exits with must never be a tracked file.
+  local stem src_settings="" src_ui=""
+  stem=$(printf '%s' "$prefix" | tr -c 'A-Za-z0-9._-' '_')
+  local -a kept=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --settings-file)
+        src_settings=""
+        [ "$#" -ge 2 ] && src_settings="$2"
+        shift 1; [ "$#" -ge 1 ] && shift 1 ;;
+      --ui-settings-file)
+        src_ui=""
+        [ "$#" -ge 2 ] && src_ui="$2"
+        shift 1; [ "$#" -ge 1 ] && shift 1 ;;
+      *) kept+=("$1"); shift ;;
+    esac
+  done
+  ISO_RUN_SETTINGS="$ISO_DIR_WIN/$stem.settings.ini"
+  ISO_RUN_UI="$ISO_DIR_WIN/$stem.ui.ini"
+  if [ -n "$src_settings" ] && [ -f "$src_settings" ]; then
+    cp "$src_settings" "$ISO_DIR/$stem.settings.ini"
+  else
+    echo "  ISO SEED absent: settings=$src_settings (product starts from defaults)" >&2
+    : > "$ISO_DIR/$stem.settings.ini"
+  fi
+  if [ -n "$src_ui" ] && [ -f "$src_ui" ]; then
+    cp "$src_ui" "$ISO_DIR/$stem.ui.ini"
+  else
+    echo "  ISO SEED absent: ui=$src_ui (product starts from defaults)" >&2
+    : > "$ISO_DIR/$stem.ui.ini"
+  fi
+  set -- "${kept[@]}"
   case " $* " in
     *" --audio-disabled "*) : ;;
     *) echo "REFUSED: launch_product was handed an argv without --audio-disabled" >&2
@@ -247,7 +293,7 @@ launch_product() { # launch_product <prefix> <final argv...>
        return 0 ;;
   esac
   TF2_NATIVE_TRACE="$(absolute_out "$prefix.trace")" \
-    timeout "${PRODUCT_TIMEOUT:-600}" "$EXE" "$@" > "$prefix.log" 2>&1
+    timeout "${PRODUCT_TIMEOUT:-600}" "$EXE" --settings-file "$ISO_RUN_SETTINGS" --ui-settings-file "$ISO_RUN_UI" "$@" > "$prefix.log" 2>&1
   echo "$?"
 }
 run_world_fixture() { # run_world_fixture <prefix>

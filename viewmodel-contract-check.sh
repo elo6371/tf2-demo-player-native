@@ -127,6 +127,17 @@ set -uo pipefail
 cd "$(dirname "$0")"
 
 EXE=native/build-nmake/tf2_demo_native.exe
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+PRODUCT_TARGET=tf2_demo_native
+
 PROBE=native/build-nmake/viewmodel_contract_probe.exe
 FOV_PROBE=native/build-nmake/viewmodel_fov_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
@@ -234,6 +245,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   exit 2
 fi
 cleanup_lock() {
+  rm -rf "${ISO_DIR:-}" 2>/dev/null || true
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 trap cleanup_lock EXIT
@@ -393,6 +405,9 @@ load_reading() {
 run_product() {
   local name="$1"; shift
   local bmp="$TRACE_DIR/$name.bmp"
+  local iso_cfg="$ISO_DIR/contract-$name-settings.ini"
+  rm -f "$iso_cfg"
+  if [ -f "$TRACE_DIR/$name-settings.ini" ]; then cp "$TRACE_DIR/$name-settings.ini" "$iso_cfg"; fi
   rm -f "$bmp" "$TRACE_DIR/$name.csv"
   # `--settings-file` gives every frame a settings file of its own under the trace
   # directory, which is machine output and is cleared above. Two things follow: the
@@ -403,7 +418,7 @@ run_product() {
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$DEMO" \
     --start-paused --hidden-window --audio-disabled \
-    --settings-file "$TRACE_DIR/$name-settings.ini" \
+    --settings-file "$(cygpath -m "$iso_cfg")" --ui-settings-file "$ISO_UI" \
     --capture-frame "$bmp" --capture-tick "$CAPTURE_TICK" \
     --metrics-file "$TRACE_DIR/$name.csv" "$@" > "$TRACE_DIR/$name.log" 2>&1
   LAST_RC=$?
@@ -449,11 +464,14 @@ ensure_product() {
 run_fixture_product() {
   local name="$1" model="$2"
   local bmp="$TRACE_DIR/$name.bmp"
+  local iso_cfg="$ISO_DIR/contract-$name-settings.ini"
+  rm -f "$iso_cfg"
+  if [ -f "$TRACE_DIR/$name-settings.ini" ]; then cp "$TRACE_DIR/$name-settings.ini" "$iso_cfg"; fi
   rm -f "$bmp" "$TRACE_DIR/$name.csv"
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$FIXTURE_ROOT" --audio-device "$AUDIO_DEVICE" \
     --start-paused --hidden-window --audio-disabled \
-    --settings-file "$TRACE_DIR/$name-settings.ini" \
+    --settings-file "$(cygpath -m "$iso_cfg")" --ui-settings-file "$ISO_UI" \
     --viewmodel "$model" \
     --capture-frame "$bmp" --capture-tick "$CAPTURE_TICK" \
     --metrics-file "$TRACE_DIR/$name.csv" > "$TRACE_DIR/$name.log" 2>&1
@@ -939,6 +957,7 @@ restore_sources() {
   done
 }
 restore_if_patched() {
+  rm -rf "${ISO_DIR:-}" 2>/dev/null || true
   if [ -n "${SOURCE:-}" ] && [ -n "${BACKUP:-}" ] && [ -d "${BACKUP:-/nonexistent}" ]; then
     restore_sources
   fi
@@ -1090,10 +1109,10 @@ declare -A MUTATION_SECTIONS=(
 )
 declare -A MUTATION_TARGETS=(
   [attachment-bone]="viewmodel_contract_probe"
-  [fov-default]="tf2_demo_native viewmodel_contract_probe viewmodel_fov_probe"
-  [hand-matrix]="viewmodel_contract_probe tf2_demo_native"
-  [companion-missing]="viewmodel_contract_probe tf2_demo_native"
-  [draw-skipped]="tf2_demo_native"
+  [fov-default]="$PRODUCT_TARGET viewmodel_contract_probe viewmodel_fov_probe"
+  [hand-matrix]="viewmodel_contract_probe $PRODUCT_TARGET"
+  [companion-missing]="viewmodel_contract_probe $PRODUCT_TARGET"
+  [draw-skipped]="$PRODUCT_TARGET"
 )
 HASHES_BEFORE=$(sha256sum $MUTATION_SOURCES 2>/dev/null)
 MUTATION_RESULTS=()

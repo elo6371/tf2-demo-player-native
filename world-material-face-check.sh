@@ -77,6 +77,20 @@ PYTHON="${PYTHON:-python}"
 RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 MODE="${1:-}"
 SCRATCH=".scratch/world-material-face.$RUN_TAG"
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
+if [ -f "$HOST_PROFILE_DIR/settings.ini" ]; then cp "$HOST_PROFILE_DIR/settings.ini" "$ISO_DIR/settings.ini"; else : > "$ISO_DIR/settings.ini"; echo "  ISO SEED absent: host profile settings.ini (product starts from defaults)" >&2; fi
+if [ -f "$HOST_PROFILE_DIR/ui.ini" ]; then cp "$HOST_PROFILE_DIR/ui.ini" "$ISO_DIR/ui.ini"; else : > "$ISO_DIR/ui.ini"; fi
+
 OUT="evidence/world-material-face"
 mkdir -p "$SCRATCH" "$OUT"
 
@@ -99,7 +113,7 @@ capture() { # capture <bmp> <trace> [extra flags...]
   for attempt in 1 2 3 4 5 6 7 8; do
     rm -f "$bmp"
     # T29: force-killable, for the load-time deadlock measured on this host.
-    TF2_NATIVE_TRACE="$traceWin" timeout -k 5 150 "$PRODUCT" --tf-root "$TF" --demo "$DEMO" \
+    TF2_NATIVE_TRACE="$traceWin" timeout -k 5 150 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" --demo "$DEMO" \
       --hidden-window --capture-tick 2000 --capture-frame "$bmpWin" --audio-disabled \
       --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render companion \
       --world-water off --world-face-trace "$@" > "$SCRATCH/capture.$RUN_TAG.log" 2>&1

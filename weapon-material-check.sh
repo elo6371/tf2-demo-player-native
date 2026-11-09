@@ -69,6 +69,16 @@ while [ $# -gt 0 ]; do
 done
 
 EXE=native/build-nmake/tf2_demo_native.exe
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+
 PROBE=native/build-nmake/weapon_body_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 # The POV recording viewmodel-animation-check.sh, viewmodel-companion-check.sh and
@@ -160,6 +170,7 @@ restore_mutation() {
   fi
 }
 on_exit() {
+  rm -rf "${ISO_DIR:-}" 2>/dev/null || true
   restore_mutation
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
@@ -259,11 +270,14 @@ QUIET_FLAGS="--hidden-window --audio-disabled"
 run_product() { # run_product <name> [extra...]
   local name="$1"; shift
   local bmp="$TRACE_DIR/$name.bmp"
+  local iso_cfg="$ISO_DIR/weapon-material-$name-settings.ini"
+  rm -f "$iso_cfg"
+  if [ -f "$TRACE_DIR/$name-settings.ini" ]; then cp "$TRACE_DIR/$name-settings.ini" "$iso_cfg"; fi
   rm -f "$bmp" "$TRACE_DIR/$name.csv"
   TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" $QUIET_FLAGS \
     --demo "$POV_DEMO" \
-    --settings-file "$TRACE_DIR/$name-settings.ini" \
+    --settings-file "$(cygpath -m "$iso_cfg")" --ui-settings-file "$ISO_UI" \
     --capture-frame "$bmp" --capture-tick "$CAPTURE_TICK" \
     --metrics-file "$TRACE_DIR/$name.csv" \
     --viewmodel "$VM_MODEL" --viewmodel-fov 90 "$@" > "$TRACE_DIR/$name.log" 2>&1

@@ -69,6 +69,16 @@ RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
 EVIDENCE="${VIEWMODEL_PRESENTATION_EVIDENCE_DIR:-evidence/viewmodel/presentation}"
 SCRATCH=.scratch
 RUN_DIR="$SCRATCH/viewmodel-presentation-$RUN_TAG"
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+
 mkdir -p "$EVIDENCE" "$SCRATCH" "$RUN_DIR"
 ROOT=$(cygpath -m "$(pwd)" 2>/dev/null || pwd)
 
@@ -234,7 +244,7 @@ run_product() { # run_product <name> [extra args...]
   TF2_NATIVE_TRACE="$ROOT/$RUN_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "" --demo "$DEMO" \
     --hidden-window --audio-disabled \
-    --settings-file "$RUN_DIR/$name-settings.ini" \
+    --settings-file "$RUN_DIR/$name-settings.ini" --ui-settings-file "$ISO_UI" \
     --capture-frame "$RUN_DIR/$name.bmp" --capture-tick "$TICK" \
     --metrics-file "$RUN_DIR/$name.csv" \
     --viewmodel-fov 90 --start-paused "$@" > "$RUN_DIR/$name.log" 2>&1
@@ -662,6 +672,7 @@ restore_mutation() {
 }
 
 cleanup() {
+  rm -rf "${ISO_DIR:-}" 2>/dev/null || true
   restore_mutation
   release_lock
 }
