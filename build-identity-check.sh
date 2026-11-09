@@ -105,10 +105,14 @@ esac
 # The default output lives under .scratch/ (gitignored) so the run cannot dirty
 # the very tree whose dirty count it is measuring.
 if [ -n "$OUT_ARG" ]; then
-  mkdir -p "$OUT_ARG" || exit 2
+  mkdir -p "$OUT_ARG" || { echo "READ-FAILED cannot create the output directory $OUT_ARG" >&2; exit 2; }
 else
-  OUT_ARG="$REPO/.scratch/build-identity/forward"
-  mkdir -p "$OUT_ARG" || exit 2
+  # NOT under .scratch/build-identity: SCRATCH (below) is deleted wholesale by
+  # this run, and an OUT inside it was created here and then deleted there --
+  # RUN19 (2026-11-09) lost all eleven evidence files that way while still
+  # printing PASS. The run output lives beside SCRATCH, never inside it.
+  OUT_ARG="$REPO/.scratch/build-identity-run/forward"
+  mkdir -p "$OUT_ARG" || { echo "READ-FAILED cannot create the output directory $OUT_ARG" >&2; exit 2; }
 fi
 OUT="$(cd "$OUT_ARG" && pwd)"
 
@@ -123,8 +127,43 @@ STAMP="native/generated/tf2_build_stamp.cpp"
 # intermediate copy goes to .scratch/ (git-ignored), never to $OUT, and $OUT is
 # written only after the last reading.
 SCRATCH="$REPO/.scratch/build-identity"
+# The next line deletes SCRATCH. Anything the run promises to leave behind must
+# not live there, so an OUT that would be swept away is refused loudly instead
+# of being silently recreated after the sweep (that silent recreate is what made
+# a red gate print PASS).
+case "$OUT/" in
+  "$SCRATCH"/*)
+    echo "READ-FAILED out=$OUT is inside the scratch directory $SCRATCH, which this run deletes" >&2
+    echo "  give an output directory outside $SCRATCH; the default is $REPO/.scratch/build-identity-run/forward" >&2
+    exit 2 ;;
+esac
 rm -rf "$SCRATCH"
 mkdir -p "$SCRATCH"
+
+# Evidence copies. A bare "cp ... 2>/dev/null" hides exactly the failure this
+# gate suffered in RUN19: eleven copies failed and nothing said so. Every copy
+# below goes through copy_out, which counts, and each mode asserts the promised
+# files are on disk and non-empty before it prints a verdict.
+COPY_N=0
+COPY_FAIL=0
+copy_out() { # copy_out <src> <name>
+  COPY_N=$((COPY_N + 1))
+  if ! cp "$1" "$OUT/$2"; then
+    COPY_FAIL=$((COPY_FAIL + 1))
+    echo "  COPY-FAILED $2 <- $1"
+  fi
+}
+evidence_missing() { # evidence_missing <name>...: promised files that are absent or empty
+  local missing=0
+  local f
+  for f in "$@"; do
+    if [ ! -s "$OUT/$f" ]; then
+      missing=$((missing + 1))
+      echo "  MISSING $f" >&2
+    fi
+  done
+  printf '%s' "$missing"
+}
 
 # HERMETIC SETTINGS, FOR EVERY LAUNCH (2026-11-07 hygiene rule).
 #   The product writes settings unconditionally on exit: main.cpp:11613-11625
@@ -467,12 +506,16 @@ if [ "$MODE" = "--reproducible" ]; then
     "$(sed -n 's/^native_tree_sha256=//p' "$REPRO_RECORD")" "$REPRO_TREE_SHA"
 
   mkdir -p "$OUT"
-  cp "$SCRATCH/reproducible.txt" "$OUT/reproducible.txt" 2>/dev/null
-  cp "$SCRATCH/repro-build1.log" "$OUT/repro-build1.log" 2>/dev/null
-  cp "$SCRATCH/repro-build2.log" "$OUT/repro-build2.log" 2>/dev/null
-  cp "$SCRATCH/repro1.version" "$OUT/version-repro-build1.txt" 2>/dev/null
-  cp "$SCRATCH/repro2.version" "$OUT/version-repro-build2.txt" 2>/dev/null
-  [ -f "$SCRATCH/repro-diff.txt" ] && cp "$SCRATCH/repro-diff.txt" "$OUT/repro-diff.txt" 2>/dev/null
+  copy_out "$SCRATCH/reproducible.txt" reproducible.txt
+  copy_out "$SCRATCH/repro-build1.log" repro-build1.log
+  copy_out "$SCRATCH/repro-build2.log" repro-build2.log
+  copy_out "$SCRATCH/repro1.version" version-repro-build1.txt
+  copy_out "$SCRATCH/repro2.version" version-repro-build2.txt
+  if [ -f "$SCRATCH/repro-diff.txt" ]; then copy_out "$SCRATCH/repro-diff.txt" repro-diff.txt; fi
+  eq "evidence: every copy reached the output directory" "$COPY_FAIL" 0
+  eq "evidence: the output directory holds the readings this run promises" \
+    "$(evidence_missing reproducible.txt repro-build1.log repro-build2.log \
+        version-repro-build1.txt version-repro-build2.txt)" 0
   if [ "$FAIL" -ne 0 ]; then
     echo "BUILD-REPRODUCIBLE=FAIL ($FAIL of $CHECKS assertions red; build1 sha=$SHA1 pe=$PE1, build2 sha=$SHA2 pe=$PE2)"
     exit 1
@@ -734,24 +777,23 @@ echo "  NOT-PROVEN the manifest/VERSION.txt agree with --version (install-lifecy
 echo "  NOT-PROVEN that a dirty build can be rebuilt from the dirty tree (it is not recorded, only counted)"
 echo "  assertions=$CHECKS failed=$FAIL"
 
-if [ "$FAIL" -ne 0 ]; then
-  echo "BUILD-IDENTITY=FAIL assertions=$CHECKS red=$FAIL"
-  exit 1
-fi
 if [ "$MODE" = "--forward" ]; then
-  # Evidence is copied out only now, after the last reading, so the gate never
-  # dirties the tree it measured.
-  cp "$SCRATCH/baseline.version" "$OUT/version-baseline.txt"
-  cp "$SCRATCH/dirty.version" "$OUT/version-dirty-probe.txt"
-  cp "$SCRATCH/restored.version" "$OUT/version-restored.txt"
-  cp "$SCRATCH/probe.version" "$OUT/probe-version.txt"
-  cp "$SCRATCH/args-unknown.trace" "$OUT/args-unknown.trace"
-  cp "$SCRATCH/args-unknown.log" "$OUT/args-unknown.log"
-  cp "$SCRATCH/args-strict.err" "$OUT/args-strict.err"
-  cp "$SCRATCH/args-strict.trace" "$OUT/args-strict.trace"
-  cp "$SCRATCH/args-clean.trace" "$OUT/args-clean.trace"
-  cp "$SCRATCH/quit.camera" "$OUT/quit.camera"
-  cp "$SCRATCH/source-identity.txt" "$OUT/source-identity.txt"
+  # Evidence is copied out now, after the last reading, so the gate never dirties
+  # the tree it measured -- and it is copied whether the suite is green or red:
+  # a red run is exactly the run whose readings someone will want to read, and
+  # the 2026-11-09 RUN19 loss showed what "PASS with no files" costs. The OUT
+  # directory is outside SCRATCH by construction (see the guard above).
+  copy_out "$SCRATCH/baseline.version" version-baseline.txt
+  copy_out "$SCRATCH/dirty.version" version-dirty-probe.txt
+  copy_out "$SCRATCH/restored.version" version-restored.txt
+  copy_out "$SCRATCH/probe.version" probe-version.txt
+  copy_out "$SCRATCH/args-unknown.trace" args-unknown.trace
+  copy_out "$SCRATCH/args-unknown.log" args-unknown.log
+  copy_out "$SCRATCH/args-strict.err" args-strict.err
+  copy_out "$SCRATCH/args-strict.trace" args-strict.trace
+  copy_out "$SCRATCH/args-clean.trace" args-clean.trace
+  copy_out "$SCRATCH/quit.camera" quit.camera
+  copy_out "$SCRATCH/source-identity.txt" source-identity.txt
   { echo "exe=$EXE"; echo "exe_sha256=$BASE_SHA"; echo "stamp_sha256=$BASE_STAMP_SHA"
     echo "records_at_baseline=$BASE_TOTAL"; echo "head=$(git rev-parse HEAD)"
     echo "head_full=$HEAD_FULL"; echo "native_tree_sha256=$NATIVE_TREE_SHA"
@@ -761,8 +803,30 @@ if [ "$MODE" = "--forward" ]; then
     echo "args_strict_stderr=$OUT/args-strict.err"
     echo "args_clean=$OUT/args-clean.trace"
   } > "$OUT/readings.txt"
-  echo "BUILD-IDENTITY=PASS assertions=$CHECKS identity=exe-sha+HEAD+native-tree-sha head=$HEAD_SHORT"
+  # The verdict is only allowed to be PASS if the evidence it names is really on
+  # disk. COPY_FAIL counts failed copies (the 2026-11-09 failure mode: OUT was
+  # deleted, every cp failed, the gate printed PASS); the second assertion checks
+  # the twelve promised files exist and are non-empty, so a missing directory
+  # cannot pass through this either.
+  eq "evidence: every copy reached the output directory" "$COPY_FAIL" 0
+  eq "evidence: the output directory holds the twelve readings this run promises" \
+    "$(evidence_missing version-baseline.txt version-dirty-probe.txt version-restored.txt \
+        probe-version.txt args-unknown.trace args-unknown.log args-strict.err \
+        args-strict.trace args-clean.trace quit.camera source-identity.txt readings.txt)" 0
+  ge "evidence: the run copied as many files as the verdict names" "$COPY_N" 11
+  if [ "$FAIL" -ne 0 ]; then
+    echo "BUILD-IDENTITY=FAIL assertions=$CHECKS red=$FAIL (evidence: $OUT)"
+    exit 1
+  fi
+  echo "BUILD-IDENTITY=PASS assertions=$CHECKS identity=exe-sha+HEAD+native-tree-sha head=$HEAD_SHORT evidence=$OUT"
   exit 0
+fi
+
+# A mode that did not exit above (--mutation) still has to answer for a red
+# forward suite before it scores mutants against it.
+if [ "$FAIL" -ne 0 ]; then
+  echo "BUILD-IDENTITY=FAIL assertions=$CHECKS red=$FAIL"
+  exit 1
 fi
 
 # --- mutations --------------------------------------------------------------
@@ -966,11 +1030,15 @@ eq "the mutated C++ source is back to its original bytes at the end" "$(shasum "
   echo "reference_exe_sha256=$REFERENCE_SHA"; echo "m1_exe_sha256=$M1_SHA"
   echo "m2_exe_sha256=$M2_SHA"; echo "m3_exe_sha256=$M3_SHA"
 } > "$OUT/mutation-readings.txt"
-cp "$SCRATCH/mut1.version" "$OUT/version-mut1-fake-tree.txt" 2>/dev/null
-cp "$SCRATCH/mut2-red.version" "$OUT/version-mut2-claims-clean.txt" 2>/dev/null
-cp "$SCRATCH/args-mut3.trace" "$OUT/args-mut3.trace" 2>/dev/null
-cp "$SCRATCH/args-mut3.log" "$OUT/args-mut3.log" 2>/dev/null
-cp "$SCRATCH/args-restored.trace" "$OUT/args-restored.trace" 2>/dev/null
+copy_out "$SCRATCH/mut1.version" version-mut1-fake-tree.txt
+copy_out "$SCRATCH/mut2-red.version" version-mut2-claims-clean.txt
+copy_out "$SCRATCH/args-mut3.trace" args-mut3.trace
+copy_out "$SCRATCH/args-mut3.log" args-mut3.log
+copy_out "$SCRATCH/args-restored.trace" args-restored.trace
+eq "evidence: every copy reached the output directory" "$COPY_FAIL" 0
+eq "evidence: the output directory holds the readings this run promises" \
+  "$(evidence_missing mutation-readings.txt version-mut1-fake-tree.txt \
+      version-mut2-claims-clean.txt args-mut3.trace args-mut3.log args-restored.trace)" 0
 if [ "$FAIL" -ne 0 ]; then
   echo "BUILD-IDENTITY-MUTATION=FAIL ($FAIL of $CHECKS assertions red, $MUTATIONS mutations attempted)"
   exit 1
