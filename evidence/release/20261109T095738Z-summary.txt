@@ -1,0 +1,18 @@
+verify-release summary
+started_utc=20261109T095738Z
+host=DESKTOP-9U1GAU8
+owner=t91-release
+worktree=/d/TF2_Native_Worktrees/t91-integration
+commit=dea34d193ad595f047047713f60c4ec6bc452724
+branch=integration/t91
+exe=/d/TF2_Native_Worktrees/t91-integration/native/build-nmake/tf2_demo_native.exe
+exe_sha256=ad8395ed676a27f94d27f5a3dba6eb9146805e1562f98ddb57d66f77084a4e73
+hostlock_before=LOCKED owner=t91-release heartbeat_age=1s|queue=head=|reservation=none|product_processes=0
+note: ok_lines counts output lines starting with two-spaces-OK or OK-space -- a lower
+note: bound on assertions, not the per-gate pinned totals (verify-all.sh prints those itself).
+
+machine_before=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261109T095738Z-machine-before.txt
+machine_after=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261109T095738Z-machine-after.txt
+step=launch-hygiene rc=0 dur=1s status=PASS ok_lines=0 key=GATE-LAUNCH-HYGIENE=PASS violations=59 baseline=59 warnings=25 lifecycle=1 log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261109T095738Z-launch-hygiene.log
+step=debt-claim rc=0 dur=0s status=PASS ok_lines=0 key=DEBT-CLAIM=PASS claims=51 anchored=27 cannot=21 unanchored=3 log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261109T095738Z-debt-claim.log
+step=verify-all rc=0 dur=3185s status=NO-VERDICT ok_lines=0 key=MUTATION=PASS log=/d/TF2_Native_Worktrees/t91-integration/evidence/release/20261109T095738Z-verify-all.log

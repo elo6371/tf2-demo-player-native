@@ -1,0 +1,21 @@
+verify-release step: rebuild (release-rebuild.sh)
+cmd: timeout 3600s bash release-rebuild.sh
+owner: t91-release
+commit: dea34d193ad595f047047713f60c4ec6bc452724
+
+=== build (pass 1 of 2) ===
+=== build entity_overlay_probe entity_model_probe entity_protocol_probe world_geometry_probe tf2_demo_native ===
+rc=0
+=== build (pass 2 of 2, must be a no-op) ===
+=== build entity_overlay_probe entity_model_probe entity_protocol_probe world_geometry_probe tf2_demo_native ===
+rc=0
+REBUILD-FRESH=FAIL exe=native/build-nmake/entity_overlay_probe.exe is older than its inputs and two build passes did not rebuild it:
+REBUILD-FRESH=FAIL reason=inputs-changed-binary-not-rebuilt target=entity_overlay_probe inputs_sha256_was=5bb2e4c51849 now=744505b4c6e6 binary_sha256=652f376d7a15
+rebuild: target=entity_model_probe state=rebuilt exe=native/build-nmake/entity_model_probe.exe sha256=79c0c198b5750314d87a07cb00ab69d4d532027063060313c124c4831a001e2c (inputs ec873810ef26->a4b8b8c6b1af) mtime_newer=1
+REBUILD-FRESH=FAIL exe=native/build-nmake/entity_protocol_probe.exe is older than its inputs and two build passes did not rebuild it:
+  native/src/entity_model.cpp
+  native/src/main.cpp
+REBUILD-FRESH=FAIL reason=inputs-changed-binary-not-rebuilt target=entity_protocol_probe inputs_sha256_was=4edcbc8df914 now=7f87cf1c0233 binary_sha256=a0f0eceae256
+rebuild: target=world_geometry_probe state=rebuilt exe=native/build-nmake/world_geometry_probe.exe sha256=8f1f4eff9a712b0acf1e14295793c7299648fcc1f412a368cda7c0b0024f398d (inputs ee3d63a8a673->fcf60db221ca) mtime_newer=8
+rebuild: target=tf2_demo_native state=rebuilt exe=native/build-nmake/tf2_demo_native.exe sha256=03fde15de615e32bb7feb098364600ea49cb836c0ef09596e6a14170bc8bb949 (inputs 698c52f3ed0c->a059aab8f787) mtime_newer=0
+REBUILD=FAIL reason=source-newer-than-binary targets=5 (see REBUILD-FRESH=FAIL above)

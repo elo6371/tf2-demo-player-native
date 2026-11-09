@@ -1,0 +1,58 @@
+verify-release step: debt-claim (debt-claim-check.sh)
+cmd: timeout 120s bash debt-claim-check.sh
+owner: t91-release
+commit: dea34d193ad595f047047713f60c4ec6bc452724
+
+CLAIM 8.1-1 PASS anchored demo-clock-check.sh#DEMO-CLOCK-CHECK=PASS
+CLAIM 8.1-2 PASS anchored playback-control-check.sh#PLAYBACK-CONTROL-CHECK=PASS
+CLAIM 8.1-3 PASS anchored frame-capture-check.sh#FRAME-CAPTURE=PASS
+CLAIM 8.1-4 PASS anchored class-pixels-check.sh#CLASS-PIXELS=PASS
+CLAIM 8.2-1 PASS cannot 地图授权集是文档冻结（SUPPORT-SCOPE §3），无门禁断言集合成员
+CLAIM 8.2-2 PASS cannot BSP 查找路径/trace 字段只有 MATRIX 记录，无门禁断言
+CLAIM 8.2-3 PASS anchored map-geometry-lighting-check.sh#MAP-GEOMETRY-LIGHTING=PASS
+CLAIM 8.2-4 PASS anchored world-render-reliability-check.sh#WORLD-RENDER-RELIABILITY=PASS
+CLAIM 8.2-5 PASS anchored map-material-matrix.sh#MAP-MATERIAL-MATRIX=PASS
+CLAIM 8.2-6 PASS anchored world-material-effects-check.sh#WORLD-MATERIAL-EFFECTS=PASS
+CLAIM 8.2-7 PASS unanchored 光照数值 oracle 无门禁；帧级 pin 只存在证据文档
+CLAIM 8.2-8 PASS cannot LOD1+ 未实现，只有“不宣称”的文档约束，无 LOD 门禁
+CLAIM 8.2-9 PASS cannot 矩阵格数口径是文档约定，无门禁断言行数
+CLAIM 8.3-1 PASS anchored player-body-appearance-check.sh#BODY-APPEARANCE=PASS
+CLAIM 8.3-2 PASS unanchored 身份 vs 回退只有产品代码与矩阵记录，无专门断言
+CLAIM 8.3-3 PASS cannot cosmetic catalogue 未定义，无门禁可断言
+CLAIM 8.3-4 PASS anchored bone-mismatch-semantics-check.sh#BONE-MISMATCH-SEMANTICS=PASS
+CLAIM 8.3-5 PASS anchored outline-check.sh#OUTLINE-CHECK=PASS
+CLAIM 8.4-1 PASS anchored player-animation-check.sh#PLAYER-ANIMATION-CHECK=PASS
+CLAIM 8.4-2 PASS cannot 缺字段是数据事实，无门禁断言“不得外推”
+CLAIM 8.4-3 PASS cannot 无可靠性分级表，门禁不表达推断 vs 还原
+CLAIM 8.4-4 PASS anchored spectate-check.sh#SPECTATE-CHECK=PASS
+CLAIM 8.4-5 PASS anchored class-pixels-check.sh#CLASS-PIXELS=PASS
+CLAIM 8.4-6 PASS cannot 政策条文由 SUPPORT-SCOPE 冻结，无门禁
+CLAIM 8.5-1 PASS anchored third-person-weapon-check.sh#THIRD-PERSON-WEAPON=PASS
+CLAIM 8.5-2 PASS cannot 槽位轴无实现也无门禁（N09）
+CLAIM 8.5-3 PASS anchored weapon-animation-check.sh#WEAPON-ANIMATION=PASS
+CLAIM 8.5-4 PASS anchored viewmodel-apply-check.sh#VIEWMODEL-APPLY=PASS
+CLAIM 8.5-5 PASS anchored attach-weapon-budget-check.sh#ATTACH-WEAPON-BUDGET=PASS
+CLAIM 8.6-1 PASS anchored verify-audio.sh#VERIFY-AUDIO=PASS
+CLAIM 8.6-2 PASS anchored hud-check.sh#HUD=PASS
+CLAIM 8.6-3 PASS anchored camera-ui-check.sh#CAMERA-UI=PASS
+CLAIM 8.6-4 PASS cannot 产品内无小地图通路且无 UI 能力表（N17/N13）
+CLAIM 8.6-5 PASS anchored install-readiness-check.sh#INSTALL-READINESS=PASS
+CLAIM 8.6-6 PASS cannot 明确不做（B4），门禁不为不做的事变红
+CLAIM 8.7-1 PASS cannot 无支持环境文档，也无探测门禁
+CLAIM 8.7-2 PASS anchored install-lifecycle-check.sh#INSTALL-LIFECYCLE=PASS
+CLAIM 8.7-3 PASS anchored verify-fast.sh#VERIFY-FAST=PASS
+CLAIM 8.7-4 PASS cannot 文档一致性无门禁断言；本次已实测两处过期段落
+CLAIM D-13 PASS cannot 文档修补已合入，无门禁断言文档段落（本行已关闭）
+CLAIM D-14 PASS cannot 产品 0 实现，无门禁可红（N05）
+CLAIM D-15 PASS cannot 产品 HUD 无文字通路，门禁只验矩形路径（N18）
+CLAIM D-16 PASS cannot 明确收窄为 UNSUPPORTED，门禁不应为不做的事变红
+CLAIM D-17 PASS unanchored 夹具分布只有 CSV/矩阵记录，无门禁断言角色轴覆盖四图
+CLAIM D-18 PASS cannot 无门禁断言跑完门禁后 evidence 零改动
+CLAIM D-19 PASS cannot 注册缺口是静态事实，链 PASS 不检查注册完备性
+CLAIM D-20 PASS anchored build-identity-check.sh#sourceTree is the commit this build was made from
+CLAIM D-21 PASS cannot 缺整链 PASS 产物属缺证据，不是可断言项
+CLAIM D-22 PASS anchored gate-launch-hygiene-check.sh#FAIL: new unisolated launch
+CLAIM D-26 PASS cannot 产品有意不保证后退 seek 与正向同帧（main.cpp:9339-9346 取舍），无判据可红
+CLAIM D-27 PASS anchored timeline-check.sh#captured frame drawn at the requested tick
+UNANCHORED: 8.2-7 8.3-2 D-17
+DEBT-CLAIM=PASS claims=51 anchored=27 cannot=21 unanchored=3
