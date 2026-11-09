@@ -357,9 +357,10 @@ assert_eq "atlas state" "$(rval "$ATLAS" state)" "bound"
 assert_ge "largest atlas bytes" "$(rval "$ATLAS" bytes)" "67000000"
 assert_eq "atlases bound" "$(rval "$ATLAS" atlases)" "3"
 assert_ge "atlas bytes in total" "$(rval "$ATLAS" totalBytes)" "119000000"
-# The tile table: 123 materials, 59 of them in the batch the old ceiling could
-# not have reached. The fetch order is coverage order, so batch 0 is the 64
-# largest surfaces and batch 1 the 59 smallest -- the opposite of what the old
+# The tile table: all 141 materials, in three batches -- the old 64-tile ceiling
+# could not reach past the first. The fetch order is coverage order, so
+# batch 0 is the 64 largest surfaces and the 77 smallest follow it -- the
+# opposite of what the old
 # comparator did, which sorted by name and put the map's largest material at
 # index 71 (measured: MEDIEVAL/PLASTERWALL002A, 80256 triangles, behind the
 # ceiling). Both halves of that are asserted below, because "no silent drop"
@@ -370,6 +371,11 @@ echo "$TILES" > "$OUT/tile-table-$MAP.txt"
 assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "141"
 assert_eq "tiles in batch 0" "$(printf '%s\n' "$TILES" | awk '$2==0' | grep -c .)" "64"
 assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "64"
+# 141 tiles do not fit in two 64-tile batches, so the planner opens a third atlas
+# for the last 13. Pinning the split -- not just the total -- is what makes the
+# set-based refusal count below (64 in batch 0, 13 in batch 2, 77 refused) a
+# claim rather than an arithmetic remark.
+assert_eq "tiles in batch 2" "$(printf '%s\n' "$TILES" | awk '$2==2' | grep -c .)" "13"
 VISIBLE_B1=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" | grep -c "visible=0 ")
 # 9 of the 59 batch-1 materials reach no triangle at this pose (6 before the
 # camera moved; see the 2026-11-01 RE-PIN note). The bound stays a ceiling on
@@ -690,10 +696,10 @@ if [ "$MUTATION" -eq 1 ]; then
 
   # ---- m1: the budget stops the batching after one batch --------------------
   # This is the old ceiling, rebuilt out of new parts: one atlas, 64 tiles, the
-  # other 61 materials untextured. Every count that existed before this round
+  # other 77 materials untextured. Every count that existed before this round
   # stays green -- the atlas is bound, the fetch reports no cap -- and the
   # coverage claim is what goes red. Already run above as the control; the
-  # defect is the *forward* assertion that tiled=125, which the control's 64
+  # defect is the *forward* assertion that tiled=141, which the control's 64
   # fails.
   echo "--- m1: the budget admits one batch (the old 64-tile ceiling, rebuilt)"
   if [ "$(rval "$CONTROL_LINE" tiled)" = "141" ]; then
@@ -868,7 +874,7 @@ if [ "$MUTATION" -eq 1 ]; then
   cp native/src/native_renderer_world.cpp "$M6_BACKUP"
   M6_HASH=$(git hash-object native/src/native_renderer_world.cpp)
   if ! patch_in native/src/native_renderer_world.cpp \
-      '    perBatch[static_cast<std::size_t>(batch)].push_back(index);' \
+      '    perBatch[entry].push_back(index);' \
       '    perBatch[0].push_back(index);  // mutation: the clip ignores the batch table'; then
     echo "  MUTATION-SETUP=FAIL (m6: the patch did not apply)"; cp "$M6_BACKUP" native/src/native_renderer_world.cpp
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1

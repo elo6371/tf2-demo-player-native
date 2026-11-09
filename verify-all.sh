@@ -1464,6 +1464,11 @@ step "29/30 world materials: a patch wrapper's include reaches the pixels"
 # log .scratch/covpin.log). It was 87 on c06e82c+T59 (owner t59-covfwd) and moved
 # because T59b added one assertion: the wrapper-ledger closure that replaces the
 # tautological resolved==declared (86 assert_ calls in the gate, was 85).
+# Re-pinned 2026-11-09: 89, not 88. Every value in the gate was re-pinned to the
+# three-batch plan (125 tiles in 2 batches -> 141 in 3, control refusals 61 -> 77),
+# and the batch split is now asserted (batch 2 = 13), which is the one assertion
+# this round added. The count moved by exactly that one; none was removed or
+# loosened.
 # Pinned for the same reason as the other steps: a gate that prints PASS while
 # its assertions quietly disappear is not a gate. Do not re-pin to make this
 # chain green; a re-pin must name the reading that moved and why.
@@ -1476,10 +1481,10 @@ COV_RC=$?
 tail -10 "$COV_LOG"
 COV_OK=$(grep -c '^  OK' "$COV_LOG" || true)
 if [ "$COV_RC" -eq 0 ] && grep -q '^MATERIAL-COVERAGE=PASS' "$COV_LOG" \
-    && [ "$COV_OK" = "88" ]; then
-  echo "MATERIAL-COVERAGE-CHECK=PASS (88 assertions)"
+    && [ "$COV_OK" = "89" ]; then
+  echo "MATERIAL-COVERAGE-CHECK=PASS (89 assertions)"
 else
-  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 88)"; rc_all=1
+  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 89)"; rc_all=1
 fi
 # 30. the review workspace, driven by the product ---------------------------------
 # T71/T72 shipped as a store plus a probe. Every assertion passed while the only
