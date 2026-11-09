@@ -26,3 +26,11 @@ evidence/t68-events/** -text
 # checks out, the file --update-baseline rewrites, and the file the ratchet
 # compares all agree on a fresh clone.
 evidence/gate-launch-hygiene/baseline.txt text eol=lf
+
+# D-64: evidence/t91-merge/RUN22-* carries a SHA256SUMS whose every line names a
+# file in the same directory. core.autocrlf=true normalises text on the way into
+# the index, so eight of the twelve payload blobs were stored with LF while the
+# manifest lists the CRLF bytes the gate wrote -- the receipt verified on this
+# host only because checkout puts the CR bytes back, and would fail 8 of 12 on a
+# fresh clone. Byte for byte, like the evidence directories above.
+evidence/t91-merge/** -text
