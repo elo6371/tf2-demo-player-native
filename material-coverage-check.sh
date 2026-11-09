@@ -254,13 +254,19 @@ judge_m2() {
   if [ "$rc" -gt 125 ]; then
     echo "  MUTATION-BROKEN (m2: the mutant run exited rc=$rc -- a crash is not 'caught')"; return 1
   fi
-  # The probe prints every check first and closes the report with selfTest; a
-  # report without that marker was cut short (empty output, crash mid-run, a
-  # parser that stopped early), whatever rc claims.
-  marker=$(printf '%s' "$mutant" | grep -o '"selfTest":"[a-z]*"' | tail -1)
+  # The probe prints every check first and closes the report with the line
+  #   {"reading":"selfTest","value":"true"}
+  # That shape is what native/build-nmake/material_coverage_probe.exe --self-test
+  # actually printed when this was written (the last line of its output, checked
+  # by running the binary -- see the probe's emit() at probe :56-58); a report
+  # without that marker was cut short (empty output, crash mid-run, a parser that
+  # stopped early), whatever rc claims. Do NOT also accept an invented
+  # {"selfTest":"true"} shape: a fixture written in the wrong shape is exactly how
+  # a parser that reads nothing can look green (see the selftest case at the end).
+  marker=$(printf '%s' "$mutant" | grep -F '"reading":"selfTest"' | tail -1)
   case "$marker" in
-    '"selfTest":"true"') st=true ;;
-    '"selfTest":"false"') st=false ;;
+    *'"value":"true"'*) st=true ;;
+    *'"value":"false"'*) st=false ;;
     *) st= ;;
   esac
   if [ -z "$st" ]; then
@@ -298,13 +304,17 @@ if [ "$M2_SELFTEST" -eq 1 ]; then
   st=0; st_cases=0
   FWD_UU='{"check":"uv.origin","ok":true,"detail":"0.002918"}'
   MUT_UU='{"check":"uv.origin","ok":false,"detail":"0.001946"}'
-  ST_TRUE='{"selfTest":"true"}'
-  ST_FALSE='{"selfTest":"false"}'
+  # Fixtures are in the probe's own shape, byte for byte: if the producer's
+  # format changes, this selftest goes red instead of quietly passing.
+  ST_TRUE='{"reading":"selfTest","value":"true"}'
+  ST_FALSE='{"reading":"selfTest","value":"false"}'
+  NOT_A_MARKER='{"selfTest":"true"}'
   OTHER='{"check":"plan.148.batches","ok":true,"detail":"batches=3"}'
   MUT_OK=$(printf '%s' "$MUT_UU"; echo; printf '%s' "$ST_FALSE")
   MUT_SAME=$(printf '%s' "$FWD_UU"; echo; printf '%s' "$ST_FALSE")
   MUT_PASSED=$(printf '%s' "$MUT_UU"; echo; printf '%s' "$ST_TRUE")
   MUT_NOUV=$(printf '%s' "$OTHER"; echo; printf '%s' "$ST_FALSE")
+  MUT_BARE=$(printf '%s' "$MUT_UU"; echo; printf '%s' "$NOT_A_MARKER")
   ck_case() { # ck_case <label> <want-rc> <want-substring> <forward> <rc> <mutant>
     local label="$1" want_rc="$2" want_text="$3" out got
     out=$(judge_m2 "$4" "$5" "$6"); got=$?; st_cases=$((st_cases + 1))
@@ -327,6 +337,7 @@ if [ "$M2_SELFTEST" -eq 1 ]; then
   ck_case "parser miss (no uv.origin line) => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 1 "$MUT_NOUV"
   ck_case "empty forward capture => BROKEN" 1 "MUTATION-BROKEN" "" 1 "$MUT_OK"
   ck_case "non-numeric rc => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" "" "$MUT_OK"
+  ck_case "invented marker shape, not the probe's => BROKEN" 1 "MUTATION-BROKEN" "$FWD_UU" 1 "$MUT_BARE"
   if [ "$st" -eq 0 ]; then echo "M2-JUDGE-SELFTEST=PASS ($st_cases/$st_cases cases)"; exit 0
   else echo "M2-JUDGE-SELFTEST=FAIL"; exit 1; fi
 fi
