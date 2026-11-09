@@ -46,8 +46,6 @@ weapon-body-check.sh|--ui-settings-file
 weapon-material-check.sh|--ui-settings-file
 world-geometry-completeness-capture.sh|--settings-file
 world-geometry-completeness-capture.sh|--ui-settings-file
-world-geometry-hole-capture.sh|--settings-file
-world-geometry-hole-capture.sh|--ui-settings-file
 world-material-check.sh|--settings-file
 world-material-check.sh|--ui-settings-file
 world-material-effects-check.sh|--settings-file
