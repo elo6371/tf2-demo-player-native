@@ -1,13 +1,13 @@
 tag=animated rc=0 view=textured frameTick=64161 sceneTick=74481
-143683.1 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
-23436.5 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
-23472.1 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
-23505.3 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
-23541.2 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
-23572.1 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
-36456.4 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
-54452.8 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
-119755.3 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
+148545.0 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+28186.7 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+28227.8 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+28266.3 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+28307.0 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+28342.0 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+41336.8 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
+59317.5 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
+124628.9 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
 anim: ent=10 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
 anim: ent=10 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
 anim: ent=11 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
@@ -39,9 +39,9 @@ anim: ent=8 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_
 anim: ent=8 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
 anim: ent=9 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
 anim: ent=9 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
-23648.5 gpu: world debug view=textured
-143686.5 capture: armed requested=64161 frame_tick=64161 frames=4658
-143683.3 scene: anim skinned=89 bindPose=7 matrices=364 gpuSkin=88/364 boneMismatch=22658 poseChanges=4681 targetInstances=3 targetPose=3 advances=4480 targetAdv=3 cycle=57181/46710 tick=74481 status=ok reason=run_PRIMARY
-frame: bmp=animated.bmp sha256=3d2cc9bc5a13b71014412458dcd1ef3d2a5d7e0348b6737c73cb838c9fa9fe13
-frame: product sha256=25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976
+28434.8 gpu: world debug view=textured
+148550.2 capture: armed requested=64161 frame_tick=64161 frames=4464
+148545.3 scene: anim skinned=89 bindPose=7 matrices=364 gpuSkin=88/364 boneMismatch=21603 poseChanges=4681 targetInstances=3 targetPose=3 advances=4480 targetAdv=3 cycle=54753/44680 tick=74481 status=ok reason=run_PRIMARY
+frame: bmp=animated.bmp sha256=4cf6098c37fa8761a20fa55e0c333fcfb50fc75a7b2b7538f1d4071249df2800
+frame: product sha256=abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=64161 speed=8 camera=2492.7,-1327.1,-54.0,4.1,0.0 flags=--player-animation

@@ -1,6 +1,6 @@
 LEDGER lines=96 distinct-ids=96
 PICKS  models=8
-MASK   distinct-ids=7 pixels=5359
+MASK   distinct-ids=7 pixels=5025
 SUBJECT id=95 ent=13 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY pixels=1400
 VISIBLE players=3 props=4
 JOIN   subject matches its own pick: models/player/medic.mdl idle seq=9 label=AttackStand_PRIMARY
@@ -14,13 +14,13 @@ BODY id=96 ent=15 model=models/player/scout.mdl state=idle seq=9 label=AttackSta
 DECODED id=95 ent=13 model=models/player/medic.mdl state=idle seq=9 label=AttackStand_PRIMARY
 ENTITY-ID=PASS
 frame: class=medic ent=13 tick=64000
-frame: bmp animated sha256=4d286124a2ae2ade21fe8deb59207fe28cc7ec7601be597a5c3a34f184d2de26
-frame: bmp identity sha256=e538f1ff8c0b6ddec608fbd27cd8e68261e0881013600fe6a714f7e15b20e90c
-frame: bmp identity-2 sha256=e538f1ff8c0b6ddec608fbd27cd8e68261e0881013600fe6a714f7e15b20e90c
-frame: bmp off sha256=a1155429e18aa5c62bffcc2ccab08c27f59d178a67bdcc617637401c1a35ba08
+frame: bmp animated sha256=290724233f12fba8b77f59a16f991b97950f73a53d661a7918142a22c5fc79bb
+frame: bmp identity sha256=ecd578e7a5f516268d0184c0e45b7ef14ed6baa991923a4a6c103f00b146580e
+frame: bmp identity-2 sha256=ecd578e7a5f516268d0184c0e45b7ef14ed6baa991923a4a6c103f00b146580e
+frame: bmp off sha256=a7f46f9625115b385af7212a76f96a93b2f2ea7c868b25b866849b3af3ce5945
 frame: identity capture twice byte-identical=yes
 frame: phase identity=maxDeltaCycle=0.000000 identity-2=maxDeltaCycle=0.000000 animated=maxDeltaCycle=0.000000 off=n/a
-frame: product sha256=25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976
+frame: product sha256=abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
 frame: request tick=64000 speed=8
 frame: request camera=4529.4,-2001.4,-30.0,4.1,0.0

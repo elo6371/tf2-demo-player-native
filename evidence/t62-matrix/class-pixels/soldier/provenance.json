@@ -1,12 +1,12 @@
 {
   "schema": "t62-class-pixels-provenance/1",
   "class": "soldier",
-  "captured_at": "2026-11-07T22:47:12+08:00",
-  "read_at": "2026-11-08T09:49:50+08:00",
-  "exe_sha256": "60fd00365db2717b37cadba52d1b9a451399a4b80ee8c210a086de97c0b1c041",
-  "exe_sha256_at_capture": "25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976",
-  "git_head": "dbdb00138dc75823c208fbe91fab382b6cca6ebf",
-  "native_tree_sha256": "0a9acd2d505692fe008b69def435a9cb6360be05f3e7aef81977fbef45c8f6f3",
+  "captured_at": "2026-11-09T16:43:43+08:00",
+  "read_at": "2026-11-09T16:58:40+08:00",
+  "exe_sha256": "abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807",
+  "exe_sha256_at_capture": "abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807",
+  "git_head": "4a8aaff7b01b78ad673299d29752ec3ea216b60b",
+  "native_tree_sha256": "cbf16fc8f8ac7f210a342f33b5c7aa9ba3e8836894542fb58ff734afbe66f063",
   "request": {
     "demo": "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem",
     "tick": 63000,
@@ -21,10 +21,10 @@
     "flags": "--player-animation --world-entity-id"
   },
   "expected_bmp_sha256": {
-    "animated": "8b0910adbb528a57a70e0ff39413b71c5e6093d90b2e863db558dca37fb48ae0",
-    "identity": "fc9df91d17028325364dfa744317636e5fe9d63075ff2700d5bf317797f9eece",
-    "identity-2": "fc9df91d17028325364dfa744317636e5fe9d63075ff2700d5bf317797f9eece",
-    "off": "52fff44aeecaf5f8165c3ec8ff93464eb79be2cdf5e8d81de576371f021cc171"
+    "animated": "3b0dcba565ae4efa54a6b6c00a99f301f5ee7c068f6a03795b2036dcd0c17565",
+    "identity": "4e54b73ce17392fbf3a69c2c74e685b1128c7bbfba4afc7b7cb7d59ecbc0037e",
+    "identity-2": "4e54b73ce17392fbf3a69c2c74e685b1128c7bbfba4afc7b7cb7d59ecbc0037e",
+    "off": "2bba3903b47131a91a5c95be2b3a75158f48a244acfacd0da5ad839676b6c85c"
   },
   "identity": {
     "ent": 2,
@@ -40,5 +40,5 @@
     "expected_bmp_sha256": "asserted against the files by pin-provenance-check.sh",
     "identity": "the class body the identity frame was judged on"
   },
-  "notes": "exe_sha256 is the binary that re-produced these pins at read_at, not the binary of the original capture; git_head/native_tree_sha256 are measured at the same moment. The pin bytes themselves are unchanged since the 2026-11-07 re-pin."
+  "notes": "exe_sha256 is the binary that produced these pins at read_at and is the binary pin-provenance re-measures; git_head/native_tree_sha256 are measured at the same moment. The pin bytes were re-captured by class-pixels-check.sh at captured_at; the 2026-11-07 bytes no longer match after the world-drawing changes merged on 2026-11-09 (see the re-pin commit message)."
 }

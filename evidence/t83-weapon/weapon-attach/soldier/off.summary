@@ -1,7 +1,7 @@
 tag=off rc=0 frameTick=63000 sceneTick=73320
-49937.4 scene: begin tick=63000 sceneTick=73320
-49951.5 scene: setInstances draws=96 markers=32 playerDraws=11 propDraws=85 playerBudget=11 propBudget=85
-49951.5 animsum: tick=72374 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
-frame: bmp=off.bmp sha256=f3aab78fbde16131a82efcfa0075e4ecb6a7eeae6540636a98f8371bf4d13ddb
-frame: product sha256=a3c93d5755fd331351766dfb991fe17f90c4dfb753ad7ef9f53391f0303724e9
-frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=63000 speed=32 camera=3390.0,-1764.5,-254.0,4.1,0.0 flags=--player-animation
+141620.3 scene: begin tick=63000 sceneTick=73320
+141642.5 scene: setInstances draws=96 markers=32 playerDraws=11 propDraws=85 playerBudget=11 propBudget=85
+141642.5 animsum: tick=72374 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
+frame: bmp=off.bmp sha256=3b0dcba565ae4efa54a6b6c00a99f301f5ee7c068f6a03795b2036dcd0c17565
+frame: product sha256=abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807
+frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=63000 speed=8 camera=3390.0,-1764.5,-254.0,4.1,0.0 flags=--player-animation

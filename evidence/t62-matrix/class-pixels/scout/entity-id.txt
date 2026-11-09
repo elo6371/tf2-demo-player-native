@@ -12,13 +12,13 @@ BODY id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_P
 DECODED id=96 ent=15 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
 ENTITY-ID=PASS
 frame: class=scout ent=15 tick=64161
-frame: bmp animated sha256=3d2cc9bc5a13b71014412458dcd1ef3d2a5d7e0348b6737c73cb838c9fa9fe13
-frame: bmp identity sha256=8b5b532d3c82818a348f1d989dc13b6a5a1ee12ba00287d57bed737d250c9b49
-frame: bmp identity-2 sha256=8b5b532d3c82818a348f1d989dc13b6a5a1ee12ba00287d57bed737d250c9b49
-frame: bmp off sha256=ee0db9cc2f751c40efd5f4d043ae2519e5d640ca5dd3dfe7f5a4f26cbfceef36
+frame: bmp animated sha256=4cf6098c37fa8761a20fa55e0c333fcfb50fc75a7b2b7538f1d4071249df2800
+frame: bmp identity sha256=1c573a986b991e99bb19b3cbda9bcf7924781204f34ab9a684114d956315f460
+frame: bmp identity-2 sha256=1c573a986b991e99bb19b3cbda9bcf7924781204f34ab9a684114d956315f460
+frame: bmp off sha256=3253033c012113489e8286dd76a12685f8e1530676df0282b5c6605d589d3677
 frame: identity capture twice byte-identical=yes
 frame: phase identity=maxDeltaCycle=0.838676 identity-2=maxDeltaCycle=0.838676 animated=maxDeltaCycle=0.838676 off=n/a
-frame: product sha256=25d55f0ee541577da55504d26ba1a790f22544d3069b3e44a05467288415e976
+frame: product sha256=abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
 frame: request tick=64161 speed=8
 frame: request camera=2492.7,-1327.1,-54.0,4.1,0.0

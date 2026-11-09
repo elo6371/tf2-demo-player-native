@@ -1,7 +1,7 @@
 tag=off rc=0 frameTick=64161 sceneTick=74481
-141669.3 scene: begin tick=64161 sceneTick=74481
-141684.5 scene: setInstances draws=96 markers=32 playerDraws=2 propDraws=94 playerBudget=2 propBudget=94
-141684.5 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
-frame: bmp=off.bmp sha256=00fd8776862ddb46f461b3781f25f81520d6f2bc77c9e775841c2f474dd933cd
-frame: product sha256=ec48b6e6b111dad9762150098047fa4f289a8add4e333bdee42ae825915edc2b
+150500.1 scene: begin tick=64161 sceneTick=74481
+150525.7 scene: setInstances draws=96 markers=32 playerDraws=2 propDraws=94 playerBudget=2 propBudget=94
+150525.7 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+frame: bmp=off.bmp sha256=68a0e9d97ad182b0a96db08af35e7595c01f39a8264e3bab613a4975ce57aa36
+frame: product sha256=abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=64161 speed=8 camera=5363.8,-1102.1,5.9,4.1,0.0 flags=--player-animation
