@@ -327,11 +327,83 @@ ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
   echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
 ISO_SETTINGS="$ISO_DIR/settings.ini"
 ISO_UI="$ISO_DIR/ui.ini"
-# Chain any EXIT trap already installed instead of replacing it: an overwritten
-# trap would skip a mutation restore and leave a mutated build behind, which is
-# the "failure looks like success" shape this suite forbids.
 . "$(dirname "$0")/verify-iso.sh"
-iso_chain_exit "$ISO_DIR"
+
+# --- source restore registry (D-58) -----------------------------------------
+# Only the files this run actually mutates are restored, from a per-run backup
+# directory, and every restore is checked with cmp. A stale .bak under OUT or
+# .scratch must never be the copy that gets put back: an early exit that never
+# applied a mutation has to leave the source byte-identical and print no
+# RESTORE line.
+mkdir -p .scratch
+RESTORE_DIR=$(mktemp -d "$PWD/.scratch/weapon-animation-restore.XXXXXX") || {
+  rm -rf "${ISO_DIR:-}"
+  echo "FATAL: cannot create a per-run restore directory" >&2; exit 2; }
+RESTORE_PATHS=()
+RESTORE_BAKS=()
+RESTORE_LAST_BAK=""
+register_source() { # register_source <path>
+  local src="$1" bak i
+  case "$src" in
+    native/*) ;;
+    *) return 0 ;;
+  esac
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      RESTORE_LAST_BAK="${RESTORE_BAKS[$i]}"
+      return 0
+    fi
+  done
+  [ -f "$src" ] || { echo "RESTORE-BACKUP-FAIL path=$src (not a file)"; return 1; }
+  bak="$RESTORE_DIR/$(( ${#RESTORE_PATHS[@]} + 1 ))-$(basename "$src")"
+  cp -p "$src" "$bak" || { echo "RESTORE-BACKUP-FAIL path=$src"; return 1; }
+  if ! cmp -s "$src" "$bak"; then
+    echo "RESTORE-BACKUP-FAIL path=$src (copy is not byte-identical)"
+    return 1
+  fi
+  RESTORE_PATHS+=("$src")
+  RESTORE_BAKS+=("$bak")
+  RESTORE_LAST_BAK="$bak"
+  return 0
+}
+restore_entry() { # restore_entry <path> <backup>
+  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1"
+    return 0
+  fi
+  echo "RESTORE-FAIL path=$1"
+  return 1
+}
+restore_one() { # restore_one <path>
+  local src="$1" i
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      restore_entry "$src" "${RESTORE_BAKS[$i]}"
+      return $?
+    fi
+  done
+  echo "RESTORE-FAIL path=$src (not registered)"
+  return 1
+}
+restore_registered() {
+  local i rc=0
+  for i in "${!RESTORE_PATHS[@]}"; do
+    restore_entry "${RESTORE_PATHS[$i]}" "${RESTORE_BAKS[$i]}" || rc=1
+  done
+  return "$rc"
+}
+on_exit() {
+  local rc=$?
+  trap - EXIT INT TERM HUP
+  restore_registered || rc=1
+  rm -rf "${LOCK_DIR:-}" "${ISO_DIR:-}" "${RESTORE_DIR:-}"
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
 
 
 # A mutation run writes into its own directory. It produces the same filenames
@@ -462,8 +534,9 @@ if [ "$MUTATION" -eq 1 ]; then
   if [ "$MUTATION_TARGET" = "entity" ]; then
     echo "=== mutation: buildAnimationSkinMatrices is forced to the bind pose ==="
     SOURCE=native/src/animation_binding.cpp
-    BACKUP=".scratch/weapon-animation-mutation.bak"
-    cp "$SOURCE" "$BACKUP"
+    register_source "$SOURCE" || {
+      echo "FATAL: cannot register $SOURCE for restore"; exit 1; }
+    BACKUP="$RESTORE_LAST_BAK"
     if ! "$PY" - "$SOURCE" <<'PYEOF'
 import io, sys
 # The source files are checked out with CRLF on this machine
@@ -495,14 +568,16 @@ print("MUTATION-PATCHED")
 PYEOF
     then
       echo "FATAL: the mutation did not apply; the mutated build would prove nothing"
-      cp "$BACKUP" "$SOURCE"
+      restore_one "$SOURCE" || {
+      echo "FATAL: restore of $SOURCE failed"; exit 1; }
       exit 1
     fi
   elif [ "$MUTATION_TARGET" = "model" ]; then
     echo "=== mutation: the --model identity matrices become the inverse bind matrices ==="
     SOURCE=native/src/main.cpp
-    BACKUP=".scratch/weapon-animation-mutation-model.bak"
-    cp "$SOURCE" "$BACKUP"
+    register_source "$SOURCE" || {
+      echo "FATAL: cannot register $SOURCE for restore"; exit 1; }
+    BACKUP="$RESTORE_LAST_BAK"
     if ! "$PY" - "$SOURCE" <<'PYEOF'
 import io, sys
 path = sys.argv[1]
@@ -539,14 +614,16 @@ print("MUTATION-PATCHED")
 PYEOF
     then
       echo "FATAL: the mutation did not apply; the mutated build would prove nothing"
-      cp "$BACKUP" "$SOURCE"
+      restore_one "$SOURCE" || {
+      echo "FATAL: restore of $SOURCE failed"; exit 1; }
       exit 1
     fi
   elif [ "$MUTATION_TARGET" = "pose" ]; then
     echo "=== mutation: the --model identity matrices displace the pose by 0.001 of the box ==="
     SOURCE=native/src/main.cpp
-    BACKUP=".scratch/weapon-animation-mutation-pose.bak"
-    cp "$SOURCE" "$BACKUP"
+    register_source "$SOURCE" || {
+      echo "FATAL: cannot register $SOURCE for restore"; exit 1; }
+    BACKUP="$RESTORE_LAST_BAK"
     if ! "$PY" - "$SOURCE" <<'PYEOF'
 import io, sys
 path = sys.argv[1]
@@ -581,14 +658,16 @@ print("MUTATION-PATCHED")
 PYEOF
     then
       echo "FATAL: the mutation did not apply; the mutated build would prove nothing"
-      cp "$BACKUP" "$SOURCE"
+      restore_one "$SOURCE" || {
+      echo "FATAL: restore of $SOURCE failed"; exit 1; }
       exit 1
     fi
   else
     echo "=== mutation: the --model identity matrices move the model transform ==="
     SOURCE=native/src/main.cpp
-    BACKUP=".scratch/weapon-animation-mutation-identity.bak"
-    cp "$SOURCE" "$BACKUP"
+    register_source "$SOURCE" || {
+      echo "FATAL: cannot register $SOURCE for restore"; exit 1; }
+    BACKUP="$RESTORE_LAST_BAK"
     if ! "$PY" - "$SOURCE" <<'PYEOF'
 import io, sys
 path = sys.argv[1]
@@ -622,7 +701,8 @@ print("MUTATION-PATCHED")
 PYEOF
     then
       echo "FATAL: the mutation did not apply; the mutated build would prove nothing"
-      cp "$BACKUP" "$SOURCE"
+      restore_one "$SOURCE" || {
+      echo "FATAL: restore of $SOURCE failed"; exit 1; }
       exit 1
     fi
   fi
@@ -631,7 +711,8 @@ PYEOF
   echo "mutation build rc=$BUILD_RC"
   if [ "$BUILD_RC" -ne 0 ]; then
     echo "FATAL: the mutated build did not compile; the mutation proves nothing"
-    cp "$BACKUP" "$SOURCE"
+    restore_one "$SOURCE" || {
+      echo "FATAL: restore of $SOURCE failed"; exit 1; }
     exit 1
   fi
 fi
@@ -1119,7 +1200,8 @@ assert_gt "the order mutation moves skinLands off zero" "${PROBE_LANDS:-0}" 1.0
 } > "$RUN_DIR/readings.txt"
 
 if [ "$MUTATION" -eq 1 ]; then
-  cp "$BACKUP" "$SOURCE"
+  restore_one "$SOURCE" || {
+    echo "FATAL: restore of $SOURCE failed"; exit 1; }
   bash build-target.sh tf2_demo_native > "$RUN_DIR/mutation-restore-build.txt" 2>&1
   echo "restore build rc=$?"
   if [ "$fail" -eq 1 ]; then

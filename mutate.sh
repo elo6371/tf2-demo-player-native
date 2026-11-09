@@ -5,10 +5,12 @@
 # has never been seen to fail is not evidence.
 # Each case reintroduces one defect the P0/P1 fixes removed (or an equivalent),
 # rebuilds, runs the affected reading, and asserts the reading moved away from
-# the fixed-build value. Then it restores the tree with `git checkout` and
-# rebuilds clean, and finally checks the restored readings are byte-identical.
+# the fixed-build value. Each mutated file is registered before its first patch;
+# the restore copies exactly those files back and checks each one with cmp, then
+# rebuilds clean and verifies the restored readings are byte-identical.
 #
-# The tree MUST be committed first: `git checkout --` is the restore mechanism.
+# The tree MUST be committed first: the dirty check below refuses a native/ tree
+# with uncommitted changes, so a failed mutation cannot be mistaken for a fix.
 #
 # Usage: bash mutate.sh [m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14]
 set -uo pipefail
@@ -18,13 +20,96 @@ cd "$(dirname "$0")"
 # therefore share verify-all's filesystem lock; the parent chain sets the
 # environment marker so its step 8 does not try to acquire the lock twice.
 LOCK_DIR=.scratch/verify-all.lock
+LOCK_OWNED=0
 if [ "${VERIFY_ALL_LOCK_HELD:-0}" != "1" ]; then
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
     echo "MUTATION-LOCK=FAIL (another build or mutation owns $LOCK_DIR)"
     exit 2
   fi
+  LOCK_OWNED=1
+  # Keep the lock cleanup installed before the registry exists: a failure while
+  # creating the per-run backup directory would otherwise leak the lock.
   trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 fi
+
+# --- source restore registry (D-58) -----------------------------------------
+# Only the files this run actually mutates are restored, from a per-run backup
+# directory, and every restore is checked with cmp. A stale .bak under OUT or
+# .scratch must never be the copy that gets put back: an early exit that never
+# applied a mutation has to leave the source byte-identical and print no
+# RESTORE line.
+mkdir -p .scratch
+RESTORE_DIR=$(mktemp -d "$PWD/.scratch/mutate-restore.XXXXXX") || {
+  rm -rf "${ISO_DIR:-}"
+  echo "FATAL: cannot create a per-run restore directory" >&2; exit 2; }
+RESTORE_PATHS=()
+RESTORE_BAKS=()
+RESTORE_LAST_BAK=""
+register_source() { # register_source <path>
+  local src="$1" bak i
+  case "$src" in
+    native/*) ;;
+    *) return 0 ;;
+  esac
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      RESTORE_LAST_BAK="${RESTORE_BAKS[$i]}"
+      return 0
+    fi
+  done
+  [ -f "$src" ] || { echo "RESTORE-BACKUP-FAIL path=$src (not a file)"; return 1; }
+  bak="$RESTORE_DIR/$(( ${#RESTORE_PATHS[@]} + 1 ))-$(basename "$src")"
+  cp -p "$src" "$bak" || { echo "RESTORE-BACKUP-FAIL path=$src"; return 1; }
+  if ! cmp -s "$src" "$bak"; then
+    echo "RESTORE-BACKUP-FAIL path=$src (copy is not byte-identical)"
+    return 1
+  fi
+  RESTORE_PATHS+=("$src")
+  RESTORE_BAKS+=("$bak")
+  RESTORE_LAST_BAK="$bak"
+  return 0
+}
+restore_entry() { # restore_entry <path> <backup>
+  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1"
+    return 0
+  fi
+  echo "RESTORE-FAIL path=$1"
+  return 1
+}
+restore_one() { # restore_one <path>
+  local src="$1" i
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      restore_entry "$src" "${RESTORE_BAKS[$i]}"
+      return $?
+    fi
+  done
+  echo "RESTORE-FAIL path=$src (not registered)"
+  return 1
+}
+restore_registered() {
+  local i rc=0
+  for i in "${!RESTORE_PATHS[@]}"; do
+    restore_entry "${RESTORE_PATHS[$i]}" "${RESTORE_BAKS[$i]}" || rc=1
+  done
+  return "$rc"
+}
+on_exit() {
+  local rc=$?
+  trap - EXIT INT TERM HUP
+  restore_registered || rc=1
+  if [ "${LOCK_OWNED:-0}" = "1" ]; then
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+  rm -rf "${RESTORE_DIR:-}"
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
 
 SRC=native/src/demo_header.cpp
 # The split moved the demo_header.cpp helpers into one translation unit per concern;
@@ -57,13 +142,14 @@ CASES="${*:-m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14}"
 rc_all=0
 
 if ! git diff --quiet -- native/; then
-  echo "refusing to run: native/ has uncommitted changes, git checkout would lose them" >&2
+  echo "refusing to run: native/ has uncommitted changes, restore would hide them" >&2
   exit 2
 fi
 
 # Applies one textual replacement. The source tree is CRLF, so the patterns are
 # written with LF and converted before matching.
 patch_in() { # patch_in <file> <find> <replace>
+  register_source "$1" || { echo "PATCH-REFUSED: cannot register $1 for restore"; return 1; }
   python - "$1" "$2" "$3" <<'PY'
 import io, sys
 path, find, repl = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -80,7 +166,10 @@ PY
 }
 
 restore() {
-  git checkout -- native/ >/dev/null 2>&1
+  if ! restore_registered; then
+    echo "RESTORE-ABORT: a registered source did not restore byte-identically"
+    return 1
+  fi
   # Rebuild every target any case touched, or the next case would read a stale
   # binary left over from the previous mutation. tf2_demo_native is in the list
   # because m12 mutates main.cpp: without it the restore would put the source back
@@ -746,7 +835,11 @@ for case_id in $CASES; do
       ;;
     *) echo "unknown case $case_id"; rc_all=1 ;;
   esac
-  restore
+  if ! restore; then
+    rc_all=1
+    echo "MUTATION-SUITE=FAIL (source restore failed; stopping before the next case)"
+    exit 1
+  fi
 done
 
 echo

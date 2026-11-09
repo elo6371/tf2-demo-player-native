@@ -46,9 +46,10 @@
 #
 # Usage: bash idle-spin-check.sh [--mutation]
 #   --mutation reintroduces the exact defect, rebuilds, and requires
-#   mean_wait_ms to go red. It needs a committed tree, since `git checkout` is
-#   the restore mechanism, and it rebuilds the binary on the way out -- leaving
-#   the mutated exe in place would make the next straight run read the defect.
+#   mean_wait_ms to go red. It needs a committed tree as a precondition; the
+#   per-run registry restores only the file it mutated and checks it with cmp,
+#   and it rebuilds the binary on the way out -- leaving the mutated exe in place
+#   would make the next straight run read the defect.
 # Exit: 0 = every assertion held (or, with --mutation, went red).
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -69,11 +70,98 @@ ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
   echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
 ISO_SETTINGS="$ISO_DIR/settings.ini"
 ISO_UI="$ISO_DIR/ui.ini"
-# Chain any EXIT trap already installed instead of replacing it: an overwritten
-# trap would skip a mutation restore and leave a mutated build behind, which is
-# the "failure looks like success" shape this suite forbids.
 . "$(dirname "$0")/verify-iso.sh"
-iso_chain_exit "$ISO_DIR"
+
+# --- source restore registry (D-58) -----------------------------------------
+# Only the files this run actually mutates are restored, from a per-run backup
+# directory, and every restore is checked with cmp. A stale .bak under OUT or
+# .scratch must never be the copy that gets put back: an early exit that never
+# applied a mutation has to leave the source byte-identical and print no
+# RESTORE line.
+mkdir -p .scratch
+RESTORE_DIR=$(mktemp -d "$PWD/.scratch/idle-spin-restore.XXXXXX") || {
+  rm -rf "${ISO_DIR:-}"
+  echo "FATAL: cannot create a per-run restore directory" >&2; exit 2; }
+RESTORE_PATHS=()
+RESTORE_BAKS=()
+RESTORE_LAST_BAK=""
+register_source() { # register_source <path>
+  local src="$1" bak i
+  case "$src" in
+    native/*) ;;
+    *) return 0 ;;
+  esac
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      RESTORE_LAST_BAK="${RESTORE_BAKS[$i]}"
+      return 0
+    fi
+  done
+  [ -f "$src" ] || { echo "RESTORE-BACKUP-FAIL path=$src (not a file)"; return 1; }
+  bak="$RESTORE_DIR/$(( ${#RESTORE_PATHS[@]} + 1 ))-$(basename "$src")"
+  cp -p "$src" "$bak" || { echo "RESTORE-BACKUP-FAIL path=$src"; return 1; }
+  if ! cmp -s "$src" "$bak"; then
+    echo "RESTORE-BACKUP-FAIL path=$src (copy is not byte-identical)"
+    return 1
+  fi
+  RESTORE_PATHS+=("$src")
+  RESTORE_BAKS+=("$bak")
+  RESTORE_LAST_BAK="$bak"
+  return 0
+}
+restore_entry() { # restore_entry <path> <backup>
+  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1"
+    return 0
+  fi
+  echo "RESTORE-FAIL path=$1"
+  return 1
+}
+restore_one() { # restore_one <path>
+  local src="$1" i
+  for i in "${!RESTORE_PATHS[@]}"; do
+    if [ "${RESTORE_PATHS[$i]}" = "$src" ]; then
+      restore_entry "$src" "${RESTORE_BAKS[$i]}"
+      return $?
+    fi
+  done
+  echo "RESTORE-FAIL path=$src (not registered)"
+  return 1
+}
+restore_registered() {
+  local i rc=0
+  for i in "${!RESTORE_PATHS[@]}"; do
+    restore_entry "${RESTORE_PATHS[$i]}" "${RESTORE_BAKS[$i]}" || rc=1
+  done
+  return "$rc"
+}
+on_exit() {
+  local rc=$?
+  trap - EXIT INT TERM HUP
+  if ! restore_registered; then rc=1; fi
+  if [ "${MUTATION:-0}" = "1" ] && [ "${#RESTORE_PATHS[@]}" -gt 0 ]; then
+    case "$rc" in
+      130|143|129)
+        echo "RESTORE-BUILD=SKIPPED-ON-SIGNAL (source restored; rebuild $EXE before the next run)"
+        ;;
+      *)
+        if bash build-target.sh tf2_demo_native >/dev/null 2>&1; then
+          echo "RESTORE-BUILD=OK"
+        else
+          echo "RESTORE-BUILD=FAIL"
+          rc=1
+        fi
+        ;;
+    esac
+  fi
+  rm -rf "${ISO_DIR:-}" "${RESTORE_DIR:-}"
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
 
 
 MUTATION=0
@@ -242,12 +330,14 @@ done
 echo
 if [ "$MUTATION" -eq 1 ]; then
   # Source-level counterfactual: put the defect back, rebuild, re-measure, and
-  # require the mean-wait assertion to fail. The tree must be committed first
-  # because the restore is `git checkout --`.
+  # require the mean-wait assertion to fail. The dirty check is a precondition;
+  # the restore is the per-run registry installed above.
   if ! git diff --quiet -- native/; then
     echo "refusing to run --mutation: native/ has uncommitted changes" >&2
     exit 2
   fi
+  register_source "$MAINSRC" || {
+    echo "FATAL: cannot register $MAINSRC for restore" >&2; exit 2; }
   echo "=== mutation: main.cpp waits at most 1 ms again ==="
   "$PY" - "$MAINSRC" <<'PYEOF'
 import io, sys
@@ -263,13 +353,9 @@ if find not in data:
     sys.exit('PATTERN NOT FOUND: the wait clamp is not where this script expects')
 io.open(path, 'wb').write(data.replace(find, repl, 1).encode('utf-8'))
 PYEOF
-  # Restore both the source and the rebuilt binary: leaving the mutated exe would
-  # make the next straight run read the defect and fail for the wrong reason.
-  restore() {
-    git checkout -- native/ >/dev/null 2>&1
-    bash build-target.sh tf2_demo_native >/dev/null 2>&1
-  }
-  trap restore EXIT
+  # The EXIT trap installed above restores the registered source and rebuilds;
+  # a second restore function here would make the old directory-wide checkout
+  # the one that wins.
   bash build-target.sh tf2_demo_native >/dev/null 2>&1
   [ -x "$EXE" ] || { echo "  FAIL the mutated build produced no $EXE"; exit 1; }
   MUT_CSV="$OUT/idle-mutated.csv"
