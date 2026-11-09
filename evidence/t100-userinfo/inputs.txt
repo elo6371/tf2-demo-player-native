@@ -1,0 +1,36 @@
+== worktree ==
+dea34d193ad595f047047713f60c4ec6bc452724
+task/t100-userinfo
+
+== demos (input identity) ==
+69f9a864c88c6cf885cf46068f0be590e2fbd47b8d8ef9bbb2e6c71bccebccce *73.dem
+6df7d9305a474af4164907b6383781d807dccf18defac9e9fba9ddeea39b1783 *gullyscout.dem
+6f1d13dc3b44b919d918457000bb5bf0fed8d9df3f37ea337e61a250e3704e3b *proc2.dem
+4817706b76b7ef4fb1741aeefab064ba5ae43826595bff08906471a3c02e8f9f *processdemo.dem
+378734bc25bb4d3746503b36f9602489b195a58ecb2932e01436bc670d63557e *prodcutscout.dem
+bf36a2b0dd7a433d30d59a561d1f7ba5a1db3749b783b9f2e35c7353d8575def *review1.dem
+f1e91c6cb2e8abd20d45107be86e0b0227ef7e841cd74486e498c820bc361974 *review12.dem
+63140d64e483de396f393a1d79adc6a5a2a993bc2387e0a4a0eddee928049c02 *review44.dem
+7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08 *SUNSHINE.dem
+-rw-r--r-- 1 Administrator 197121 106397681 Jul  2 22:28 73.dem
+-rw-r--r-- 1 Administrator 197121  82759239 May 30 22:57 SUNSHINE.dem
+-rw-r--r-- 1 Administrator 197121  76066801 May 22 19:45 gullyscout.dem
+-rw-r--r-- 1 Administrator 197121  38541519 Oct  3 21:36 proc2.dem
+-rw-r--r-- 1 Administrator 197121  81960416 May 22 19:45 processdemo.dem
+-rw-r--r-- 1 Administrator 197121  62389932 May 22 19:45 prodcutscout.dem
+-rw-r--r-- 1 Administrator 197121  82903524 Jun 14 22:08 review1.dem
+-rw-r--r-- 1 Administrator 197121  80261474 Jun 26 00:14 review12.dem
+-rw-r--r-- 1 Administrator 197121  53569778 Jun 26 00:33 review44.dem
+
+== before: no userinfo anywhere in the frozen tree ==
+git show HEAD:native/tools/demo_open_probe.cpp | grep -c userinfo = 0
+git show HEAD:native/src/demo_header_strtab.cpp | grep -c userinfo = 0
+git show HEAD:native/include/demo_header.h | grep -c userinfo = 0
+
+== change size ==
+ native/include/demo_header.h      |  97 ++++++++
+ native/src/demo_header.cpp        |   6 +-
+ native/src/demo_header_internal.h |   6 +-
+ native/src/demo_header_strtab.cpp | 471 +++++++++++++++++++++++++++++---------
+ native/tools/demo_open_probe.cpp  | 217 +++++++++++++++++-
+ 5 files changed, 683 insertions(+), 114 deletions(-)

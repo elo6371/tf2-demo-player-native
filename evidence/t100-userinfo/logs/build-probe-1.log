@@ -1,0 +1,4 @@
+=== configure ===
+=== build demo_open_probe ===
+note: fresh build tree; header stamp guard not needed
+rc=0

@@ -505,6 +505,64 @@ struct DemoGameEvent {
   std::uint32_t messageBit = 0;
 };
 
+// A decoded entry of the "userinfo" network string table: the only place a Source
+// demo carries a player's name, userid and Steam identity.
+//
+// WHY A STRING TABLE AND NOT svc_UserInfo
+//   The 6-bit svc_ space this decoder walks has no user-info message: the local
+//   Rust reference decodes every type TF2 emits (Empty..CmdKeyValues) and none of
+//   them carries player identity, and the corpus confirms it -- no demo emits a
+//   type outside that list (unknown_message_packets = 0 on all nine). Identity
+//   instead arrives as a string table named "userinfo", one entry per client
+//   slot, whose entry USER DATA is a player_info_t. Reading that table is what
+//   turns every "NAME ?" placeholder into a real name.
+//
+// SLOT -> ENTITY
+//   Source gives each client slot exactly one player entity, in slot order, with
+//   entity index == slot + 1. entityIndex records that derivation; the gate
+//   cross-checks it against the userid/entity pairs the game events carry.
+struct DemoUserInfoEntry {
+  std::uint32_t entryIndex = 0;
+  std::uint32_t entityIndex = 0;
+  std::uint32_t userId = 0;
+  std::string name;
+  // The entry's text on the wire. Kept as a cross-check against the name inside
+  // the user data: a layout that decodes to a different string than the table
+  // text is a layout that misread the struct, not a player who renamed.
+  std::string tableText;
+  std::string guid;
+  std::uint32_t friendsId = 0;
+  std::string friendsName;
+  bool fakePlayer = false;
+  bool isHltv = false;
+  bool isReplay = false;
+  std::int32_t firstTick = -1;
+  std::int32_t lastTick = -1;
+  std::uint32_t updateCount = 0;
+  std::uint32_t userDataBytes = 0;
+  // The raw player_info_t bytes, kept so a caller can show what was decoded
+  // instead of asking the reader to trust the parse.
+  std::vector<std::uint8_t> userData;
+  // 0 = unversioned player_info_t (name[32] at byte 0), 1 = versioned layout
+  // (version/xuid prefix, name[32] at byte 16), 0xff = user data present but no
+  // layout satisfied every invariant. The id is a reading, never a guess from
+  // the payload length: both layouts fit inside 132..148 bytes.
+  std::uint32_t layoutId = 0xffu;
+  bool parsed = false;
+};
+
+// One name observation, stamped with the server tick of the packet that carried
+// it. The server re-sends a userinfo entry when a player changes their name, so
+// this is the history a seek has to respect: resolving at tick T must use the
+// observation with the greatest tick <= T, and must not depend on the order the
+// seeks happen in.
+struct DemoUserInfoSample {
+  std::int32_t tick = -1;
+  std::uint32_t entryIndex = 0;
+  std::uint32_t userId = 0;
+  std::string name;
+};
+
 struct DemoNetworkSummary {
   std::size_t packetsScanned = 0;
   std::size_t malformedPackets = 0;
@@ -920,8 +978,47 @@ struct DemoNetworkSummary {
   bool sourceTv = false;
   std::string serverName;
   std::string serverMap;
+  // "userinfo" string table (player identity). See DemoUserInfoEntry for why the
+  // name lives here and not in an svc_ message.
+  std::vector<DemoUserInfoEntry> userInfos;
+  std::vector<DemoUserInfoSample> userInfoSamples;
+  std::uint32_t userInfoTableId = 0xffffffffu;
+  std::uint32_t userInfoMaxEntries = 0;
+  std::uint32_t userInfoFixedUserDataBits = 0;
+  bool userInfoFixedUserData = false;
+  std::size_t userInfoCreateCount = 0;
+  std::size_t userInfoUpdateCount = 0;
+  std::size_t userInfoEntryCount = 0;
+  std::size_t userInfoDecodeFailures = 0;
+  // Entry carried no user data at all (only text). Not a decode failure -- it is
+  // the shape a table takes before the server fills it in -- but it must be a
+  // reading, because "0 names" and "no user data anywhere" are different bugs.
+  std::size_t userInfoMissingUserDataCount = 0;
+  // User data present, but no candidate layout satisfied every invariant.
+  std::size_t userInfoUnparsedCount = 0;
+  std::size_t userInfoEmptyNameCount = 0;
+  std::size_t userInfoTextSlotMismatchCount = 0;
+  std::size_t userInfoTableResetCount = 0;
+  std::uint32_t userInfoMaxUserDataBits = 0;
+  // Bit set of the layouts that ever satisfied every invariant (bit 0 = the
+  // unversioned player_info_t, bit 1 = the versioned one). A demo that reports
+  // two layouts is a demo whose tables changed shape mid-recording.
+  std::uint32_t userInfoLayoutMask = 0;
 };
 bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& index, DemoNetworkSummary& summary);
+
+// Resolve the player identity that was current for `entryIndex` (client slot) at
+// `tick`. Returns false when the demo carries no userinfo entry for that slot,
+// or only observations recorded after the tick. `out.name` is UTF-8 exactly as
+// the server sent it. The lookup is a pure function of (summary, tick): a seek
+// backwards returns the same name that scanning forwards to that tick would,
+// which is the property the HUD's "NAME ?" placeholder needs.
+bool findUserInfoAtTick(const DemoNetworkSummary& summary, std::int32_t tick, std::uint32_t entryIndex, DemoUserInfoEntry& out);
+
+// Every slot's identity as of `tick`, ordered by entryIndex. Slots with no
+// observation at or before the tick are omitted rather than reported empty --
+// "this player was not in the demo yet" is not "this player has no name".
+std::vector<DemoUserInfoEntry> userInfosAtTick(const DemoNetworkSummary& summary, std::int32_t tick);
 
 // The tick that a playback-relative timeline is measured from: the tick of the
 // first recorded packet (dem_packet, command 2).

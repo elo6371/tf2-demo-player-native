@@ -96,7 +96,7 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
     std::int32_t entityIndex = -1, const char* stage = "entity",
     std::vector<EntityPropChange>* changes = nullptr);
 bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick);
-bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary);
+bool readUpdateStringTable(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick);
 bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick);
 bool readTempEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick);
 bool readSetConVar(MessageBits& bits, DemoNetworkSummary& summary);
@@ -106,7 +106,7 @@ bool readSignonState(MessageBits& bits, DemoNetworkSummary& summary);
 bool readServerInfo(MessageBits& bits, DemoNetworkSummary& summary);
 bool decodeLzss(const std::vector<std::uint8_t>& input, std::size_t offset, std::size_t length, std::size_t expectedSize, std::vector<std::uint8_t>& output);
 bool decodeSnappyRaw(const std::vector<std::uint8_t>& input, std::size_t offset, std::size_t length, std::size_t expectedSize, std::vector<std::uint8_t>& output);
-bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoNetworkSummary& summary);
-bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary);
+bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload, DemoNetworkSummary& summary, std::int32_t packetTick);
+bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick);
 
 } // namespace tf2::native

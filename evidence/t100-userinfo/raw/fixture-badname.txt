@@ -1,0 +1,3 @@
+userinfo_fixture_bytes=288 userinfo_fixture_stream_ok=1 userinfo_fixture_decoded_any=1 userinfo_fixture_packet_valid=1 userinfo_fixture_hit_unknown=0 userinfo_table_id=0 userinfo_create=1 userinfo_entries=2 userinfo_slots=2 userinfo_samples=0 userinfo_named=0 userinfo_failures=0 userinfo_unparsed=2 userinfo_missing_userdata=0 userinfo_empty_names=2 userinfo_text_slot_mismatches=0 userinfo_duplicate_userids=0 userinfo_max_userdata_bits=1056 userinfo_layout_mask=0
+0	1	0		255	0
+1	2	0		255	1

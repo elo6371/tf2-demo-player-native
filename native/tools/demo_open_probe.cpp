@@ -1,8 +1,11 @@
 #include "demo_header.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <set>
 #include <string>
@@ -10,8 +13,80 @@
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+                  L"       demo_open_probe --userinfo-fixture <file>\n";
     return 2;
+  }
+  // A synthetic message stream, decoded through the same entry point the demo
+  // scan uses. The gate builds these bytes (a good svc_CreateStringTable for
+  // "userinfo" and deliberately damaged copies of it), so the decoder is tested
+  // against layouts no local demo isolates -- truncated messages among them,
+  // which is the case that used to be indistinguishable from "no players".
+  if (std::wstring(argv[1]) == L"--userinfo-fixture") {
+    if (argc < 3) {
+      std::wcerr << L"usage: demo_open_probe --userinfo-fixture <file>\n";
+      return 2;
+    }
+    std::ifstream fixture(argv[2], std::ios::binary);
+    if (!fixture) {
+      std::wcerr << L"cannot open fixture: " << argv[2] << L"\n";
+      return 2;
+    }
+    const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(fixture)),
+                                          std::istreambuf_iterator<char>());
+    tf2::native::DemoNetworkSummary summary;
+    // Above 23 the payload length is a varint rather than a 20-bit field; the
+    // gate writes its fixtures that way, and so does every modern demo.
+    summary.networkProtocol = 24;
+    tf2::native::DemoMessageStreamResult result;
+    const bool streamOk = tf2::native::decodeDemoMessageStream(
+      bytes, bytes.size() * 8u, 0, -1, summary, result, 0);
+    std::size_t named = 0;
+    std::size_t duplicateUserIds = 0;
+    std::set<std::uint32_t> userIds;
+    for (const auto& entry : summary.userInfos) {
+      if (!entry.name.empty()) ++named;
+      if (entry.userId != 0u && !userIds.insert(entry.userId).second) ++duplicateUserIds;
+    }
+    std::wcout << L"userinfo_fixture_bytes=" << bytes.size()
+               << L" userinfo_fixture_stream_ok=" << (streamOk ? 1 : 0)
+               << L" userinfo_fixture_decoded_any=" << (result.decodedAny ? 1 : 0)
+               << L" userinfo_fixture_packet_valid=" << (result.packetValid ? 1 : 0)
+               << L" userinfo_fixture_hit_unknown=" << (result.hitUnknownType ? 1 : 0)
+               << L" userinfo_table_id=" << summary.userInfoTableId
+               << L" userinfo_create=" << summary.userInfoCreateCount
+               << L" userinfo_entries=" << summary.userInfoEntryCount
+               << L" userinfo_slots=" << summary.userInfos.size()
+               << L" userinfo_samples=" << summary.userInfoSamples.size()
+               << L" userinfo_named=" << named
+               << L" userinfo_failures=" << summary.userInfoDecodeFailures
+               << L" userinfo_unparsed=" << summary.userInfoUnparsedCount
+               << L" userinfo_missing_userdata=" << summary.userInfoMissingUserDataCount
+               << L" userinfo_empty_names=" << summary.userInfoEmptyNameCount
+               << L" userinfo_text_slot_mismatches=" << summary.userInfoTextSlotMismatchCount
+               << L" userinfo_duplicate_userids=" << duplicateUserIds
+               << L" userinfo_max_userdata_bits=" << summary.userInfoMaxUserDataBits
+               << L" userinfo_layout_mask=" << summary.userInfoLayoutMask
+               << L'\n';
+    for (const auto& entry : summary.userInfos) {
+      std::string row;
+      row += std::to_string(entry.entryIndex);
+      row += '\t';
+      row += std::to_string(entry.entityIndex);
+      row += '\t';
+      row += std::to_string(entry.userId);
+      row += '\t';
+      row += entry.name;
+      row += '\t';
+      row += std::to_string(entry.layoutId);
+      row += '\t';
+      row += entry.tableText;
+      row += '\n';
+      std::wcout.flush();
+      std::cout.write(row.data(), static_cast<std::streamsize>(row.size()));
+    }
+    std::cout.flush();
+    return 0;
   }
   bool scan = false;
   std::int32_t snapshotTick = -1;
@@ -74,8 +149,50 @@ int wmain(int argc, wchar_t** argv) {
     eventLimit = static_cast<int>(parsed);
     firstPath += 2;
   }
+  // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
+  // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
+  // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
+  // slot's name at those ticks, in the order given -- repeating a tick in one
+  // process is the cheap form of "seek back and forth and get the same answer".
+  bool userInfo = false;
+  int userInfoDumpLimit = -1;
+  std::vector<std::int32_t> userInfoAtTicks;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--userinfo") {
+    userInfo = true;
+    ++firstPath;
+  }
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--userinfo-dump") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0 || parsed > std::numeric_limits<int>::max()) {
+      std::wcerr << L"invalid userinfo dump limit\n";
+      return 2;
+    }
+    userInfoDumpLimit = static_cast<int>(parsed);
+    firstPath += 2;
+  }
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--userinfo-at") {
+    const std::wstring list(argv[firstPath + 1]);
+    std::size_t start = 0;
+    while (start <= list.size()) {
+      const std::size_t comma = list.find(L',', start);
+      const std::wstring item = list.substr(start, comma == std::wstring::npos ? std::wstring::npos : comma - start);
+      if (!item.empty()) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(item.c_str(), &end, 10);
+        if (end == item.c_str() || *end != L'\0' || parsed < 0 || parsed > std::numeric_limits<std::int32_t>::max()) {
+          std::wcerr << L"invalid userinfo tick\n";
+          return 2;
+        }
+        userInfoAtTicks.push_back(static_cast<std::int32_t>(parsed));
+      }
+      if (comma == std::wstring::npos) break;
+      start = comma + 1;
+    }
+    firstPath += 2;
+  }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   for (int i = firstPath; i < argc; ++i) {
@@ -84,6 +201,7 @@ int wmain(int argc, wchar_t** argv) {
     // line: wcout would convert these bytes through the active C locale and
     // mangle the UTF-8 player names that golden rows contain.
     std::string eventDump;
+    std::string userInfoDumpText;
     std::size_t eventRows = 0;
     std::size_t eventDupes = 0;
     tf2::native::DemoHeader header;
@@ -367,11 +485,104 @@ int wmain(int argc, wchar_t** argv) {
                    << L" snapshot_resolved_tick=" << resolvedTick
                    << L" snapshot_stale=" << (snapshotTick - resolvedTick);
       }
+      if (userInfo || userInfoDumpLimit >= 0 || !userInfoAtTicks.empty()) {
+        std::size_t named = 0;
+        std::size_t duplicateUserIds = 0;
+        std::set<std::uint32_t> userIds;
+        for (const auto& entry : summary.userInfos) {
+          if (!entry.name.empty()) ++named;
+          // userId 0 means "slot has no player yet" and is not a duplicate.
+          // Anything else appears on exactly one slot, so a second sighting is a
+          // misread slot index or a misread struct -- which is why this is a
+          // counter the gate can demand at zero rather than a comment.
+          if (entry.userId != 0u && !userIds.insert(entry.userId).second) ++duplicateUserIds;
+        }
+        std::wcout << L" userinfo_table_id=" << summary.userInfoTableId
+                   << L" userinfo_create=" << summary.userInfoCreateCount
+                   << L" userinfo_updates=" << summary.userInfoUpdateCount
+                   << L" userinfo_entries=" << summary.userInfoEntryCount
+                   << L" userinfo_slots=" << summary.userInfos.size()
+                   << L" userinfo_samples=" << summary.userInfoSamples.size()
+                   << L" userinfo_named=" << named
+                   << L" userinfo_failures=" << summary.userInfoDecodeFailures
+                   << L" userinfo_unparsed=" << summary.userInfoUnparsedCount
+                   << L" userinfo_missing_userdata=" << summary.userInfoMissingUserDataCount
+                   << L" userinfo_empty_names=" << summary.userInfoEmptyNameCount
+                   << L" userinfo_text_slot_mismatches=" << summary.userInfoTextSlotMismatchCount
+                   << L" userinfo_duplicate_userids=" << duplicateUserIds
+                   << L" userinfo_table_resets=" << summary.userInfoTableResetCount
+                   << L" userinfo_fixed=" << (summary.userInfoFixedUserData ? 1 : 0)
+                   << L" userinfo_fixed_bits=" << summary.userInfoFixedUserDataBits
+                   << L" userinfo_max_entries=" << summary.userInfoMaxEntries
+                   << L" userinfo_max_userdata_bits=" << summary.userInfoMaxUserDataBits
+                   << L" userinfo_layout_mask=" << summary.userInfoLayoutMask;
+        if (userInfo) {
+          for (const auto& entry : summary.userInfos) {
+            userInfoDumpText += std::to_string(entry.entryIndex);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.entityIndex);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.userId);
+            userInfoDumpText += '\t';
+            userInfoDumpText += entry.name;
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.firstTick);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.lastTick);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.updateCount);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.layoutId);
+            userInfoDumpText += '\t';
+            userInfoDumpText += entry.tableText;
+            userInfoDumpText += '\t';
+            userInfoDumpText += entry.guid;
+            userInfoDumpText += '\n';
+          }
+        }
+        if (userInfoDumpLimit > 0) {
+          char hex[4];
+          int dumped = 0;
+          for (const auto& entry : summary.userInfos) {
+            if (dumped >= userInfoDumpLimit) break;
+            ++dumped;
+            userInfoDumpText += "userinfo_raw\t";
+            userInfoDumpText += std::to_string(entry.entryIndex);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.userDataBytes * 8u);
+            userInfoDumpText += '\t';
+            for (const std::uint8_t byte : entry.userData) {
+              std::snprintf(hex, sizeof(hex), "%02x", static_cast<unsigned>(byte));
+              userInfoDumpText += hex;
+            }
+            userInfoDumpText += '\n';
+          }
+        }
+        for (const std::int32_t tick : userInfoAtTicks) {
+          const auto resolved = tf2::native::userInfosAtTick(summary, tick);
+          for (const auto& entry : resolved) {
+            userInfoDumpText += "userinfo_at\t";
+            userInfoDumpText += std::to_string(tick);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.entryIndex);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.entityIndex);
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.userId);
+            userInfoDumpText += '\t';
+            userInfoDumpText += entry.name;
+            userInfoDumpText += '\t';
+            userInfoDumpText += std::to_string(entry.layoutId);
+            userInfoDumpText += '\n';
+          }
+        }
+      }
     }
     std::wcout << L'\n';
-    if (!eventDump.empty()) {
+    if (!eventDump.empty() || !userInfoDumpText.empty()) {
       std::wcout.flush();
       std::cout.write(eventDump.data(), static_cast<std::streamsize>(eventDump.size()));
+      std::cout.write(userInfoDumpText.data(), static_cast<std::streamsize>(userInfoDumpText.size()));
       std::cout.flush();
     }
   }

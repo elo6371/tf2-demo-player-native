@@ -148,8 +148,8 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
     else if (type == 8) { if (!readServerInfo(bits, summary)) result.packetValid = false; else { ++summary.serverInfoCount; result.decodedAny = true; } }
     else if (type == 9) { if (!readSendTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 10) { if (!readClassInfo(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
-    else if (type == 12) { if (!readCreateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
-    else if (type == 13) { if (!readUpdateStringTable(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 12) { if (!readCreateStringTable(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 13) { if (!readUpdateStringTable(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 14) { if (!readVoiceInit(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 15) { if (!readVoiceData(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 18) { if (!readSetView(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
@@ -226,7 +226,7 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
     if (entry.command == 8) {
       std::vector<std::uint8_t> stringTablesPayload;
       if (!readEntryPayload(file, entry, stringTablesPayload, 128u * 1024u * 1024u)
-          || !readDemoStringTablesPayload(stringTablesPayload, summary)) {
+          || !readDemoStringTablesPayload(stringTablesPayload, summary, entry.tick)) {
         ++summary.malformedPackets;
       }
       continue;
