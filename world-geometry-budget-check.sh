@@ -351,7 +351,19 @@ judge_map() { # judge_map <map> -> 0 when every assertion held
 # Each mutation edits one line of the source, rebuilds, and requires the gate to
 # go red AT A NAMED ASSERTION. Then the source is restored byte-identically, the
 # product is rebuilt, and the gate must come back green with the same pins.
-source_backup() { mkdir -p "$SCRATCH/mut"; cp "$1" "$SCRATCH/mut/$(basename "$1").bak"; }
+# D-57 (2026-11-09): this used to restore EVERY *.bak under $SCRATCH/mut at
+# exit, including files an earlier window had left there. A run that stopped
+# before taking any mutation (missing pins, rc=2) therefore copied 2026-11-08
+# backups from .scratch/t88-budget/mut over native/src/main.cpp and
+# native/src/bsp_map.cpp and silently reverted N20/R3/T97 in the worktree, while
+# printing "a mutation was still applied at exit". The list below is the only
+# thing the exit trap may touch: what THIS run backed up.
+BACKED_UP=()
+source_backup() {
+  mkdir -p "$SCRATCH/mut"
+  cp "$1" "$SCRATCH/mut/$(basename "$1").bak"
+  BACKED_UP+=("$1")
+}
 source_restore() {
   cp "$SCRATCH/mut/$(basename "$1").bak" "$1"
   if ! cmp -s "$1" "$SCRATCH/mut/$(basename "$1").bak"; then
@@ -366,21 +378,15 @@ source_restore() {
 # cannot be trapped; anything that can be, is. The compare makes it a no-op
 # after a successful restore.
 restore_all_backups() {
-  local bak
-  for bak in "$SCRATCH"/mut/*.bak; do
+  local path bak
+  (( ${#BACKED_UP[@]} )) || return 0
+  for path in "${BACKED_UP[@]}"; do
+    bak="$SCRATCH/mut/$(basename "$path").bak"
     [[ -e $bak ]] || continue
-    case $(basename "$bak") in
-      main.cpp.bak)
-        if ! cmp -s "$bak" native/src/main.cpp; then
-          cp "$bak" native/src/main.cpp
-          echo "  EXIT-RESTORE main.cpp (a mutation was still applied at exit)" >&2
-        fi ;;
-      bsp_map.cpp.bak)
-        if ! cmp -s "$bak" native/src/bsp_map.cpp; then
-          cp "$bak" native/src/bsp_map.cpp
-          echo "  EXIT-RESTORE bsp_map.cpp (a mutation was still applied at exit)" >&2
-        fi ;;
-    esac
+    if ! cmp -s "$bak" "$path"; then
+      cp "$bak" "$path"
+      echo "  EXIT-RESTORE $path (this window edited it and did not restore it)" >&2
+    fi
   done
 }
 cleanup_run_inputs() { [[ -n ${ISO_DIR:-} ]] && rm -rf "$ISO_DIR"; return 0; }

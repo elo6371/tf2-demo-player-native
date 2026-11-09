@@ -106,6 +106,18 @@ OUT="$(printenv HUD_LIVE_CHECK_OUT)"
 [ -z "$OUT" ] && OUT=evidence/t97-hud
 SCRATCH="$(printenv HUD_LIVE_CHECK_SCRATCH)"
 [ -z "$SCRATCH" ] && SCRATCH=".scratch/t97-hudlive/$RUN_TAG"
+# The product is handed every path through cygpath -m, and run_capture builds
+# them by joining $PWD. That join only means anything while SCRATCH is relative:
+# an absolute one used to produce "<repo>//d/_shared/..." and the product wrote
+# its frames into <repo>/d/_shared/... while the readings were looked for in the
+# directory this gate prints (measured 2026-11-09 21:57: a 29-file d/ tree
+# appeared in the worktree and fourteen readings came back "<none>"). Make
+# SCRATCH absolute once, here, so the path printed and the path written are one
+# string, and drop the $PWD join below.
+case "$SCRATCH" in
+  /*) ;;
+  *) SCRATCH="$PWD/$SCRATCH" ;;
+esac
 RUN_TIMEOUT=400
 # Tick 0 + a frozen camera: the paused frames are compared pixel by pixel, so a
 # moving camera would make every frame differ everywhere.
@@ -213,12 +225,12 @@ run_capture() { # run_capture <name> [extra args...]
   # and the suppression control, which is the same command minus this flag.
   local liveArgs="--hud-live"
   if [ "${NO_LIVE:-0}" = "1" ]; then liveArgs=""; fi
-  TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout "$RUN_TIMEOUT" "$EXE" \
+  TF2_NATIVE_TRACE="$(cygpath -m "$trace")" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
-    --settings-file "$(cygpath -m "$PWD/$settings")" \
-    --ui-settings-file "$(cygpath -m "$PWD/$uisettings")" \
-    --demo "$DEMO" --capture-frame "$(cygpath -m "$PWD/$bmp")" \
-    --metrics-file "$(cygpath -m "$PWD/$csv")" \
+    --settings-file "$(cygpath -m "$settings")" \
+    --ui-settings-file "$(cygpath -m "$uisettings")" \
+    --demo "$DEMO" --capture-frame "$(cygpath -m "$bmp")" \
+    --metrics-file "$(cygpath -m "$csv")" \
     $liveArgs $CAMERA_ARGS "$@" > "$log" 2>&1
   printf -v "RC_$name" '%s' "$?"
 }
