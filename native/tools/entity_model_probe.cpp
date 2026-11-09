@@ -282,6 +282,100 @@ bool runSelfTest() {
   if (std::string(refs[10].modelPath) != kArmsPath || !refs[10].modelPathFromWorldModelIndex) return false;
 
   // -------------------------------------------------------------------------
+  // T85 8.3-2 player-model precedence fixture.
+  //
+  // The claim: when a player entity carries its own m_nModelIndex, that named
+  // model is what gets drawn -- the m_iClass class fallback must not override it
+  // even though both signals are present and they name different classes. This
+  // is the case the snakewater green run cannot supply: at its captured tick all
+  // eleven player bodies read no m_nModelIndex at all, so indexResolved was 0.
+  //
+  // Nothing here re-implements the route. The synthetic snapshot goes through
+  // buildAssetReferenceList -> ModelLoader::buildRenderRequests ->
+  // EntityModelResolver::buildInstances, the same three calls the world pass
+  // makes; only the inputs are synthetic.
+  //
+  //   19  no m_nModelIndex, m_iClass 3  -> class fallback, soldier.mdl
+  //   20  m_nModelIndex 12, m_iClass 3  -> index route, scout.mdl (NOT soldier)
+  //
+  // Entity 20 is the precedence case. The two routes name different models on
+  // purpose: a resolver that let the class fallback win would draw soldier.mdl
+  // and fail the path assertion instead of quietly agreeing.
+  {
+    tf2::native::DemoNetworkSummary precedence;
+    tf2::native::ServerClassSchema playerSchema;
+    playerSchema.id = 0;
+    playerSchema.name = "CTFPlayer";
+    precedence.serverClassSchemas.push_back(playerSchema);
+    precedence.modelPrecache[12] = "models/player/scout.mdl";
+    precedence.entityStates.resize(21);
+    for (auto& state : precedence.entityStates) state.classId = 0;
+    const auto setPrecedenceInt = [&precedence](std::size_t entity, const char* name, std::int64_t value) {
+      tf2::native::EntityPropertyValue prop;
+      prop.type = tf2::native::SendPropType::Int;
+      prop.intValue = value;
+      precedence.entityStates[entity].properties[name] = prop;
+    };
+    const auto setPrecedenceOrigin = [&precedence](std::size_t entity, float x) {
+      tf2::native::EntityPropertyValue origin;
+      origin.type = tf2::native::SendPropType::Vector;
+      origin.x = x;
+      origin.y = 200.0f;
+      origin.z = 32.0f;
+      precedence.entityStates[entity].properties["DT_BaseEntity.m_vecOrigin"] = origin;
+    };
+    // Entity 19: the class fallback half. No model index anywhere.
+    setPrecedenceInt(19, "DT_TFPlayer.m_iClass", 3);
+    setPrecedenceOrigin(19, 100.0f);
+    // Entity 20: both signals; the index names scout (12), the class names
+    // soldier (3). Whichever wins is visible in the drawn path.
+    setPrecedenceInt(20, "DT_TFPlayer.m_iClass", 3);
+    setPrecedenceInt(20, "DT_BaseEntity.m_nModelIndex", 12);
+    setPrecedenceOrigin(20, 300.0f);
+    tf2::native::buildAssetReferenceList(precedence, precedence.assetReferences);
+    tf2::native::AssetRoot noAssets;
+    const auto precedenceRequests =
+      tf2::native::ModelLoader::buildRenderRequests(noAssets, precedence.assetReferences, nullptr);
+    const auto precedenceInstances = tf2::native::EntityModelResolver::buildInstances(
+      precedenceRequests, precedence.entityStates, precedence.serverClassSchemas);
+    const tf2::native::ModelInstance* indexInstance = nullptr;
+    const tf2::native::ModelInstance* classInstance = nullptr;
+    for (const auto& instance : precedenceInstances) {
+      if (instance.entityIndex == 20) indexInstance = &instance;
+      if (instance.entityIndex == 19) classInstance = &instance;
+    }
+    std::fprintf(stderr,
+                 "player-model-precedence-fixture refs=%zu requests=%zu instances=%zu\n",
+                 precedence.assetReferences.size(), precedenceRequests.size(),
+                 precedenceInstances.size());
+    for (const auto& instance : precedenceInstances) {
+      std::fprintf(stderr,
+                   "  fixture entity=%u class=%lld path=%s classFallback=%d\n",
+                   static_cast<unsigned>(instance.entityIndex),
+                   static_cast<long long>(instance.transform.playerClass),
+                   instance.modelPath.empty() ? "<none>" : instance.modelPath.c_str(),
+                   instance.playerClassFallback ? 1 : 0);
+    }
+    std::fflush(stderr);
+    // One draw request, and it is the one the model index named. Two instances:
+    // the indexed entity plus the one the fallback sweep had to fill.
+    if (precedence.assetReferences.size() != precedence.entityStates.size()) return false;
+    if (precedenceRequests.size() != 1) return false;
+    if (precedenceRequests[0].entityIndex != 20) return false;
+    if (precedenceInstances.size() != 2) return false;
+    if (indexInstance == nullptr || classInstance == nullptr) return false;
+    // The named entity path wins: drawn from the index, not the class fallback.
+    if (indexInstance->playerClassFallback) return false;
+    if (indexInstance->modelPath != "models/player/scout.mdl") return false;
+    // The class signal was present the whole time, so the fallback half must
+    // independently still work -- otherwise "index wins" could just mean "no
+    // fallback exists".
+    if (indexInstance->transform.playerClass != 3) return false;
+    if (!classInstance->playerClassFallback) return false;
+    if (classInstance->modelPath != "models/player/soldier.mdl") return false;
+  }
+
+  // -------------------------------------------------------------------------
   // Observer-focus fixture.
   //
   // resolveObserverFocus has one job: say whether the camera belongs on

@@ -10199,6 +10199,14 @@ bool outlineVertexExtent = false;
         std::size_t propBudget = kDrawBudget - playerBudget;
         std::size_t playerDraws = 0;
         std::size_t propDraws = 0;
+        // T85 8.3-2: the world pass now proves the identity it is about to draw.
+        std::size_t playerModelChecked = 0;
+        std::size_t playerModelIndexResolved = 0;
+        std::size_t playerModelNoIndex = 0;
+        std::size_t playerModelClassFallback = 0;
+        std::size_t playerModelMismatched = 0;
+        std::size_t playerModelUnresolved = 0;
+        std::string playerModelFirstMismatch;
         // T85 P0: layer D's refusals. "has a mesh, gets no slot" used to be the
         // end of the story for that entity -- a hole in the frame with no
         // counter behind it. The two counters are what let a gate say which kind
@@ -10361,6 +10369,71 @@ bool outlineVertexExtent = false;
           }
           if (hasMesh && hasDrawSlot) {
             if (player) { ++playerDraws; } else { ++propDraws; }
+            if (player) {
+              // T85 8.3-2: a player body is drawn from ONE of two named sources,
+              // never from an untraceable default. Either the entity carried
+              // m_nModelIndex and the precache names the same path the pass drew,
+              // or it carried no index and the class fallback named the class's
+              // own model. "drawn, but neither proven" counts as unresolved, not
+              // as a pass.
+              ++playerModelChecked;
+              bool hasOwnModelIndex = false;
+              std::int64_t ownModelIndex = 0;
+              if (static_cast<std::size_t>(instance.entityIndex) < currentEntityStates.size()) {
+                const auto& entityState =
+                  currentEntityStates[static_cast<std::size_t>(instance.entityIndex)];
+                const auto modelIndexCandidates =
+                  tf2::native::rankPropertyCandidates(entityState, "m_nModelIndex");
+                if (!modelIndexCandidates.empty()) {
+                  const auto modelIndexProperty =
+                    entityState.properties.find(modelIndexCandidates.front().name);
+                  if (modelIndexProperty != entityState.properties.end()) {
+                    ownModelIndex =
+                      modelIndexProperty->second.type == tf2::native::SendPropType::Float
+                        ? static_cast<std::int64_t>(modelIndexProperty->second.x)
+                        : modelIndexProperty->second.intValue;
+                    hasOwnModelIndex = true;
+                  }
+                }
+              }
+              if (!hasOwnModelIndex) ++playerModelNoIndex;
+              const std::string drawnModel = tf2::native::normalizeModelPath(instance.modelPath);
+              std::string expectedModel;
+              std::string statusText = "unresolved";
+              if (hasOwnModelIndex) {
+                const auto cachedModel = demoNetworkSummary.modelPrecache.find(
+                  static_cast<std::uint16_t>(ownModelIndex));
+                if (cachedModel == demoNetworkSummary.modelPrecache.end()) {
+                  statusText = "index-missing-from-precache";
+                } else {
+                  expectedModel = tf2::native::normalizeModelPath(cachedModel->second);
+                  statusText = expectedModel == drawnModel ? "index" : "index-mismatch";
+                }
+              } else if (instance.playerClassFallback && instance.transform.hasPlayerClass) {
+                expectedModel = tf2::native::normalizeModelPath(
+                  tf2::native::EntityModelResolver::defaultPlayerModelPath(
+                    instance.transform.playerClass));
+                statusText = expectedModel == drawnModel ? "class-fallback" : "class-mismatch";
+              }
+              if (statusText == "index") {
+                ++playerModelIndexResolved;
+              } else if (statusText == "class-fallback") {
+                ++playerModelClassFallback;
+              } else if (statusText == "unresolved") {
+                ++playerModelUnresolved;
+              } else {
+                ++playerModelMismatched;
+              }
+              if (playerModelFirstMismatch.empty()
+                  && (statusText == "unresolved" || statusText == "class-mismatch"
+                      || statusText == "index-mismatch"
+                      || statusText == "index-missing-from-precache")) {
+                playerModelFirstMismatch = "ent=" + std::to_string(instance.entityIndex)
+                  + " status=" + statusText
+                  + " expected=" + (expectedModel.empty() ? std::string("-") : expectedModel)
+                  + " drawn=" + (drawnModel.empty() ? std::string("-") : drawnModel);
+              }
+            }
             tf2::native::EntityModelDrawInstance draw;
             draw.cacheKey = cacheKey;
             draw.budgetDeferred = budgetDeferred;
@@ -10987,6 +11060,19 @@ bool outlineVertexExtent = false;
             marker.color[0] = 0.95f; marker.color[1] = 0.75f; marker.color[2] = 0.15f; marker.color[3] = 0.0f;
             fallbackMarkers.push_back(marker);
           }
+        }
+        {
+          // T85 8.3-2: the gate anchor. PASS requires at least one player body to
+          // have been checked and ZERO bodies whose drawn model had no provable
+          // source; a frame that checks nothing cannot pass silently.
+          const bool playerModelAssertPass = playerModelChecked > 0
+            && playerModelMismatched == 0 && playerModelUnresolved == 0;
+          traceFmt("scene: PLAYER-MODEL-ASSERT=%s tick=%d checked=%zu indexResolved=%zu noIndex=%zu classFallback=%zu mismatched=%zu unresolved=%zu firstMismatch=%s",
+            playerModelAssertPass ? "PASS" : "FAIL",
+            static_cast<int>(resolvedSceneTick),
+            playerModelChecked, playerModelIndexResolved, playerModelNoIndex,
+            playerModelClassFallback, playerModelMismatched, playerModelUnresolved,
+            playerModelFirstMismatch.empty() ? "-" : playerModelFirstMismatch.c_str());
         }
         if (playerAnimationEnabled) {
           traceFmt("animsum: tick=%d players=%zu moving=%zu idle=%zu advanced=%zu skipped=%zu maxDeltaCycle=%.6f",
