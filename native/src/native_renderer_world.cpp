@@ -940,7 +940,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     for (int alphaMode = 0; alphaMode < 2; ++alphaMode) {
       for (std::size_t batch = 0; batch < plan.batches.size(); ++batch) {
         const std::size_t sub = batch * 2u + static_cast<std::size_t>(alphaMode);
-        if (sub >= perBatch.size() || perBatch[sub].empty()) continue;
+        if (sub >= perBatch.size()) continue;
         WorldDrawBatch draw;
         draw.alphaMode = alphaMode;
         draw.tiles = plan.batches[batch].tiles;
@@ -960,16 +960,22 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
           ? worldBump2AtlasTextures_[batch].view() : nullptr;
         draw.detailView = batch < worldDetailAtlasTextures_.size()
           ? worldDetailAtlasTextures_[batch].view() : nullptr;
-        // Dense on purpose. `worldTriangleBatch_` stores the SUB-batch index
-        // (batch * 2 + mode) and setWorldVisDrawList() indexes this table with
-        // it, so an empty sub-batch must still occupy its slot -- otherwise a
-        // map with no blended tile (the common case) would leave every later
-        // batch's triangles pointing one entry early, or past the end of the
-        // table, and the pvs regroup would silently drop or mis-texture them.
+        // Dense on purpose: this table gets one entry per (mode, batch) pair
+        // even when the sub-batch holds no triangle, so its size is exactly
+        // 2 * plan.batches.size() and the entry for a sub index is a closed
+        // form instead of a search (setWorldVisDrawList maps it back).
+        // Emitting only the non-empty pairs made the table a different
+        // length AND a different order from the sub index, and the pvs
+        // regroup then read entry N for sub-batch N -- a permutation of the
+        // atlas views, so a batch drew against another batch's atlas and
+        // its uv landed on the filler (measured: the include-pose
+        // --world-albedo frame collapsed to a single colour, 88,88,88).
         // The draw loop skips a zero-length range anyway.
         worldDrawBatches_.push_back(draw);
         if (alphaMode == 1 && draw.indexCount > 0) ++worldBlendedBatchCount_;
-        grouped.insert(grouped.end(), perBatch[sub].begin(), perBatch[sub].end());
+        if (!perBatch[sub].empty()) {
+          grouped.insert(grouped.end(), perBatch[sub].begin(), perBatch[sub].end());
+        }
       }
     }
     if (!grouped.empty()) {
@@ -1148,13 +1154,26 @@ bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
     worldVisDrawnTriangles_ = worldVertexCount_ / 3u;
     return true;
   }
-  std::vector<std::vector<std::uint32_t>> perBatch(worldDrawBatches_.size());
+  // Entry index for a sub-batch index. The table is dense and ordered by
+  // DRAW order -- every opaque sub-batch first, then every blended one --
+  // while `worldTriangleBatch_` stores `batch * 2 + mode`. Reading the table
+  // with the sub index directly is therefore a permutation once there is
+  // more than one atlas batch: the entry carries another batch's atlas view
+  // and the triangle's uv, which addresses its OWN batch's rectangles,
+  // lands on the filler. Measured before this mapping existed: the
+  // include-pose --world-albedo frame was one colour (88,88,88).
+  const std::size_t entryCount = worldDrawBatches_.size();
+  const std::size_t atlasBatches = entryCount / 2u;
+  std::vector<std::vector<std::uint32_t>> perBatch(entryCount);
   for (const std::uint32_t index : drawList.indices) {
     const std::size_t triangle = static_cast<std::size_t>(index) / 3u;
-    const int batch = triangle < worldTriangleBatch_.size()
+    const int sub = triangle < worldTriangleBatch_.size()
       ? worldTriangleBatch_[triangle] : (worldDrawBatches_.empty() ? -1 : 0);
-    if (batch < 0 || static_cast<std::size_t>(batch) >= perBatch.size()) continue;
-    perBatch[static_cast<std::size_t>(batch)].push_back(index);
+    if (sub < 0) continue;
+    const std::size_t at = static_cast<std::size_t>(sub);
+    const std::size_t entry = (at % 2u) * atlasBatches + at / 2u;
+    if (entry >= entryCount) continue;
+    perBatch[entry].push_back(index);
   }
   std::vector<std::uint32_t> regrouped;
   regrouped.reserve(drawList.indices.size());
