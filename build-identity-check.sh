@@ -153,14 +153,27 @@ copy_out() { # copy_out <src> <name>
     echo "  COPY-FAILED $2 <- $1"
   fi
 }
-evidence_missing() { # evidence_missing <name>...: promised files that are absent or empty
+# Two kinds of promised file, and they are judged differently on purpose:
+#   present  -- the product's own stdout/stderr capture for a refusal path. The
+#               product prints NOTHING for an unknown argument (it exits 13 with
+#               an empty stdout), so a 0-byte args-unknown.log is the expected
+#               result and not a lost file. Judging it with -s would call a
+#               healthy run red (it did, 2026-11-09 23:59, RUN22: 11 of 12 files
+#               non-empty and the gate failed on the twelfth).
+#   nonempty -- anything that carries a reading (--version text, identity record,
+#               trace, readings.txt). An empty reading IS a missing reading.
+evidence_missing() { # evidence_missing <present|nonempty> <name>...
+  local kind="$1"
+  shift
   local missing=0
   local f
   for f in "$@"; do
-    if [ ! -s "$OUT/$f" ]; then
-      missing=$((missing + 1))
-      echo "  MISSING $f" >&2
-    fi
+    case "$kind" in
+      present) [ -f "$OUT/$f" ] || missing=$((missing + 1)) ;;
+      *)       [ -s "$OUT/$f" ] || missing=$((missing + 1)) ;;
+    esac
+    [ -e "$OUT/$f" ] || echo "  MISSING $f" >&2
+    [ -e "$OUT/$f" ] && [ ! -s "$OUT/$f" ] && [ "$kind" = "nonempty" ] && echo "  EMPTY $f" >&2
   done
   printf '%s' "$missing"
 }
@@ -775,7 +788,9 @@ echo "  NOT-PROVEN cross-machine reproducibility: --reproducible measured two cl
 echo "  NOT-PROVEN a content hash: sourceTree+dirty name a commit and a count, not the dirty content"
 echo "  NOT-PROVEN the manifest/VERSION.txt agree with --version (install-lifecycle-check.sh's subject)"
 echo "  NOT-PROVEN that a dirty build can be rebuilt from the dirty tree (it is not recorded, only counted)"
-echo "  assertions=$CHECKS failed=$FAIL"
+# Counted before the evidence-copy assertions, which run below on purpose (a red
+# run must still leave its readings). The verdict line carries the total.
+echo "  assertions_so_far=$CHECKS failed_so_far=$FAIL (the evidence assertions below are counted after this line; the verdict line carries the total)"
 
 if [ "$MODE" = "--forward" ]; then
   # Evidence is copied out now, after the last reading, so the gate never dirties
@@ -810,9 +825,10 @@ if [ "$MODE" = "--forward" ]; then
   # cannot pass through this either.
   eq "evidence: every copy reached the output directory" "$COPY_FAIL" 0
   eq "evidence: the output directory holds the twelve readings this run promises" \
-    "$(evidence_missing version-baseline.txt version-dirty-probe.txt version-restored.txt \
-        probe-version.txt args-unknown.trace args-unknown.log args-strict.err \
-        args-strict.trace args-clean.trace quit.camera source-identity.txt readings.txt)" 0
+    "$(( $(evidence_missing present args-unknown.log args-strict.err) \
+       + $(evidence_missing nonempty version-baseline.txt version-dirty-probe.txt \
+           version-restored.txt probe-version.txt args-unknown.trace args-strict.trace \
+           args-clean.trace quit.camera source-identity.txt readings.txt) ))" 0
   ge "evidence: the run copied as many files as the verdict names" "$COPY_N" 11
   if [ "$FAIL" -ne 0 ]; then
     echo "BUILD-IDENTITY=FAIL assertions=$CHECKS red=$FAIL (evidence: $OUT)"
@@ -1037,8 +1053,9 @@ copy_out "$SCRATCH/args-mut3.log" args-mut3.log
 copy_out "$SCRATCH/args-restored.trace" args-restored.trace
 eq "evidence: every copy reached the output directory" "$COPY_FAIL" 0
 eq "evidence: the output directory holds the readings this run promises" \
-  "$(evidence_missing mutation-readings.txt version-mut1-fake-tree.txt \
-      version-mut2-claims-clean.txt args-mut3.trace args-mut3.log args-restored.trace)" 0
+  "$(( $(evidence_missing present args-mut3.log) \
+     + $(evidence_missing nonempty mutation-readings.txt version-mut1-fake-tree.txt \
+         version-mut2-claims-clean.txt args-mut3.trace args-restored.trace) ))" 0
 if [ "$FAIL" -ne 0 ]; then
   echo "BUILD-IDENTITY-MUTATION=FAIL ($FAIL of $CHECKS assertions red, $MUTATIONS mutations attempted)"
   exit 1
