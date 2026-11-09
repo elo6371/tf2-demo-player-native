@@ -62,7 +62,7 @@
 | M3 | `if (seekRequests != lastAudioSeeks) {` → `if (false) {` | C（seek 后峰值 ≤60） |
 | M4 | `lastTick_ = lastTick_ >= 0 ? …` → `lastTick_ = initialized_ ? tick : tick - 1;` | D（首条 advance `seen>=700 && dup=0`） |
 
-**状态**：M1..M4 尚未跑（门禁整链先由合并窗口代打，见 §7）。跑完后本表会补上 `MUTATION-KILLED/SURVIVED` 实测行。
+**状态**：M1–M4 未实现（D-55：门禁不自己施加产品侧变异）；断言已具名化 35 条，首次实跑见 evidence/t93-playback/green-20261109/readings.txt。实现后本表会补上 `MUTATION-KILLED/SURVIVED` 实测行。
 
 ## 6. 修前/修后整轮数字
 
@@ -70,6 +70,7 @@
 |---|---|---|---|
 | pre | t79-integration @ e15577b | 13 pass / 19 red | 556 s |
 | green | 本分支（bbf3559 + fa34382 断言校准后） | 25 pass / **7 red（该轮 FAIL）**；"0 red" 仅来自回放且不可复现 | 225 s（该轮 evidence/t93-playback/green-gate.log 自述 `pass=25 red=7` / `GATE-RESULT=FAIL`；用今天的判据回放同批产物得 31 pass / 4 red，见 D:/_shared/EXEC-2026-11-09/PLAYBACK-ERROR-PATHS-TRIAGE.md §8.5） |
+| green (2026-11-09，首次对构建产物) | 3510f72 @ exe da3aee8f… | 35 pass / 0 red | 230 s |
 
 E 用例（不变量，修前修后都必须是这组数）：`scheduled=5323`、`mode: summary events_seen=759`、`audio_device_opened=0`、`audio_device_open_attempts=0`、无 `audio: seek reset`、`camera: summary modeApplies=0`（默认第一人称不变）。
 

@@ -1,0 +1,113 @@
+playback-error-paths green round -- readings
+=============================================
+collected=workflow-auditor (recorded these readings; the run itself was executed by the
+  lead inside the t91-keypath lock window, one build + one gate in the same session)
+captured=2026-11-09 (window start 20261109T135242Z; gate wall 230 s)
+
+## provenance
+commit=3510f724ab6ab2018398e52f6b0620ce3912b882
+commit_subject=fix(gate): judge the m2 mutation by what it must show, and stop losing verdicts
+branch=integration/t91
+worktree_dirty=0
+native_tree_sha256=7378ca192be9684e5aa6ee851910f06c7db0e6a2074f5f4545cdf157ecef8192 (from the window header)
+exe=native/build-nmake/tf2_demo_native.exe
+exe_sha256=da3aee8f885c2e59693fef2c33dbfc7d5bd826c634fc2fb12d1f5a7a56da340c
+exe_bytes=2838528
+gate=playback-error-paths-check.sh
+gate_sha256=e1c4c14eb487c699357e6ee1f6872c27e480b319f41627499c7ca0e440930557
+gate_lines=532
+hostlock_owner=t91-keypath (ACQUIRED 2026-11-09 21:52:41, one window: build + gates)
+build_rc=0 (build-target.sh, 6 targets incl. tf2_demo_native; exe above)
+
+## command
+bash playback-error-paths-check.sh --tag green --out /d/_shared/EXEC-2026-11-09/RUN17-KEYPATH/playback
+(the gate adds --hidden-window --audio-disabled and a mktemp -d settings/ui pair per case;
+ it refuses an argv without the first two -> return 99)
+
+## raw artefacts (NOT in the repo; this host only, kept for re-inspection)
+dir=/d/_shared/EXEC-2026-11-09/RUN17-KEYPATH/playback/
+  6 traces (A1 250 B, A2 114870 B, B 1029890 B, C 245673 B, D 253354 B, E 2101372 B),
+  B before/after BMP 2582406 B each, green-e.bmp 2582406 B, per-case .out/.err/.rc,
+  scripts green-{a2,b,c,d}.script, results.tsv
+window_log=/d/_shared/EXEC-2026-11-09/RUN17-KEYPATH-window.log
+window_log_sha256=22c6aa5b2c92ad6ce4857445242dec90ea7439f10c805531f21afa1de0eb2679
+  (367 lines; contains the build, the hud gate and later chain steps of the same window)
+
+## result (verbatim from the gate)
+GATE tag=green cases=6 pass=35 red=0 seconds=230
+GATE-RESULT=PASS
+PLAYBACK-ERROR-PATHS=PASS
+
+case  green/A1-missing-demo rc=2 0s
+case  green/A2-default-map rc=0 9s
+case  green/B-freefly-paused rc=0 60s
+case  green/C-forward-seek rc=0 46s
+case  green/D-start-paused rc=0 45s
+case  green/E-baseline rc=0 59s
+
+PASS  A1-exit
+PASS  A1-stderr
+PASS  A1-trace
+PASS  A1-window
+PASS  A1-map
+PASS  A1-time
+PASS  A2-exit
+PASS  A2-window
+PASS  A2-map
+PASS  B-exit
+PASS  B-step
+PASS  B-applied
+PASS  B-paused
+PASS  B-mark
+PASS  B-summary
+PASS  B-pixels
+PASS  B-script
+PASS  B-clock
+PASS  B-frozen
+PASS  C-exit
+PASS  C-trace
+PASS  C-target
+PASS  C-window
+PASS  C-burst
+PASS  C-landing
+PASS  D-exit
+PASS  D-first
+PASS  D-dup
+PASS  E-exit
+PASS  E-timeline
+PASS  E-events
+PASS  E-device
+PASS  E-noseek
+PASS  E-modeapplies
+PASS  E-capture
+
+## the readings behind the assertions (what a later run can be compared against)
+A1  rc=2; stderr "demo open failed: .../no-such.dem: demo file cannot be opened";
+    no "mode: window_created=1" and no "map: lookup" in the trace.
+A2  rc=0; "mode: window_created=1"; "map: lookup" present (no --demo is a normal start).
+B   "camera: mode applied=free-look tick=403 paused=1";
+    "camera: mark tick=403"; "camera: expect what=same-tick marked=403 actual=403 match=1";
+    "camera: summary mode=free-look modeChanges=1 ... modeApplies=1";
+    "camera: accept ... failures=0" (16 steps accepted);
+    before BMP 66ca5a6e7118ff5a927d2a018fa385f33f239f44c7ae6dfe0aa2b76c7c3bf31e,
+    after  BMP 6d58a4af047e30519936cefc1e909fa4a3125aeb5c67d189e49076d073fd0652 (differ).
+    NOTE: B-pixels is a liveness check only -- the 2026-11-07 pre-fix run produced
+    identical BMPs, so this assertion does not separate fixed from broken.
+C   "audio: seek reset from=34 to=3000"; 28 "audio: advance" lines after the reset;
+    max seen= after the reset = 36 (limit 60); an advance at tick=3000 exists.
+D   first advance after the resume: tick=16 seen=750 (>=700) dup=0.
+E   "audio: timeline scheduled=5323"; "mode: summary events_seen=759
+    audio_device_opened=0"; "camera: summary ... modeApplies=0"; green-e.bmp
+    b29fa900be046dba512353d9e4cb7e29fdc2f419c801dc9346c7d29801c4801a (2582406 B).
+    All four pinned readings are unchanged from the 2026-11-07 expectations: no drift.
+
+## what this does not say
+- This is the first time this gate has PASSED against a built binary. The earlier
+  "green 25 pass / 0 red" row in docs/T93-PLAYBACK-FIXES.md was a replay over the
+  committed trace of the 2026-11-07 run, not an execution; 364464c corrected that row
+  to 25 pass / 7 red (the run in evidence/t93-playback/green-gate.log).
+- Product-side mutations M1-M4 are still unimplemented (D-55; gate header :35-44):
+  a PASS shows the current binary satisfies the readings, it does not show the
+  assertions would catch a regression.
+- Traces and BMPs are not committed: .gitignore keeps .trace out of the repo and the
+  BMPs here are 2.5 MB each. The paths above are the only handle on them.
