@@ -119,7 +119,9 @@ names exe `95aff0db…` and is therefore a reading of this round, not of RUN19.
    (:763) and the restored run with `…/restored-out` (:788). So the per-case
    readings exist only under `.scratch` (gitignored, .gitignore:35), and the tracked
    `evidence/t97-hud/mutation/readings.txt` — exe `65533cb3…`, gate `d29bb95c…` —
-   predates this round and must not be read as its reading.
+   predates this round and must not be read as its reading. The lead registered the gap as **D-65**
+   (2026-11-10): making the suite write its own reading needs a fresh mutation
+   round to prove the change, so it is deliberately not done in this round.
 2. **The chain proves the forward half only.** `verify-release.sh:89` lists
    `hud-live` as step 14 of 15 and runs `bash hud-live-check.sh` with no
    `--mutation`; :386 only redirects `HUD_LIVE_CHECK_OUT`. A green chain says
