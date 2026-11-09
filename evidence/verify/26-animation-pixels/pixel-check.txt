@@ -1,0 +1,10 @@
+MASK pixels=3156 of 860784 (0.37%) sentinel=(255,0,255)
+MASK non-sentinel top=[((89, 158, 97), 707447), ((14, 18, 22), 150181)]
+OK   mask size 3156 in [2000, 215196]
+BODY over mask: distinct=1417 mean_lum=68.0 pure_black=0.082 top=[((0, 0, 0), 114), ((166, 170, 161), 64), ((19, 36, 67), 47)]
+OK   body distinct colours 1417 >= 200 (not a flat fill)
+OK   body mean luminance 68.0 >= 12.0
+OK   body pure-black share 0.082 <= 0.35
+animation-off vs animated over mask: differ=2146 (68.00%) differ_by_>=24=1316 (41.70%)
+OK   animation-off moved 68.00% >= 5.0% of body pixels
+PIXEL-CHECK=PASS

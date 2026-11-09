@@ -1,0 +1,119 @@
+ISO-SETTINGS sha=8a19760d6036cf31a0425b0304077e304158cb5f7daacbe76f25c37cceea6a51
+=== 1/8 the probe's own plan, on synthetic inputs ===
+  OK   self-test rc = 0
+  OK   self-test checks held = 26 (>= 26)
+  OK   self-test check count = 26 (>= 20)
+  OK   148 materials, batches = batches=3
+  OK   148 materials, first atlas = 4112x4112
+  OK   148 materials, last atlas = 20 tiles 2570x2056
+  OK   budget refusal count = accepted=64 budget=84
+
+=== 2/8 the fixture: 16 materials, each sampling its own block ===
+  OK   fixture rc = 0
+  OK   fixture checks held = 2 (>= 2)
+  OK   fixture check count = 2 (>= 2)
+  OK   fixture tiled = 16
+  OK   fixture refused = 0
+  OK   fixture uv matches tile = 16
+  OK   fixture malformed refused = 1
+
+=== 3/8 the real map, read off the BSP ===
+  OK   probe rc = 0
+  OK   distinct materials = 148
+  OK   materials with pixels = 112
+  OK   materials refused by the planner = 0
+  OK   batches = 2
+  OK   budget refusals = 0
+  OK   malformed refusals = 0
+  OK   duplicate refusals = 0
+  OK   materials beyond the old ceiling = 48
+  OK   expected material is tiled = tiled
+  OK   expected material is in batch 0 = 0
+  OK   features: $bumpmap declared = 50
+  OK   features: $bumpmap2 declared = 1
+  OK   features: $ssbump declared = 41
+  OK   features: $detail declared = 51 (>= 40)
+  OK   $bumpmap2 is refused by name
+  OK   $ssbump is refused by name
+
+=== 4/8 the product's own reading of the reference frame ===
+  OK   full rc = 0
+  OK   materials tiled = 141
+  OK   materials dropped by a ceiling = 0
+  OK   the planner refused nothing = 0
+  OK   batches bound = 3
+  OK   budget refusals = 0
+  OK   atlas state = bound
+  OK   largest atlas bytes = 67634176 (>= 67000000)
+  OK   atlases bound = 3
+  OK   atlas bytes in total = 152176896 (>= 119000000)
+  OK   tile table rows = 141
+  OK   tiles in batch 0 = 64
+  OK   tiles in batch 1 = 64
+  OK   tiles in batch 2 = 13
+  OK   batch-1 tiles with no visible triangle = 6 (<= 9)
+  OK   MEDIEVAL/PLASTERWALL002A batch = 0
+  OK   MEDIEVAL/PLASTERWALL002A visible triangles = 80256 (>= 10000)
+  OK   WOOD/WOOD_WALL007A batch = 0
+  OK   WOOD/WOOD_WALL007A visible triangles = 1317 (>= 39)
+  OK   batch-1 visible triangles = 1830 (>= 1500)
+  OK   weapon draws holding a world atlas = 0
+  OK   world draws holding a weapon texture = 0
+  OK   batch draws = 6
+  OK   batch draws with a texture = 6
+  OK   slot-0 binds = 6 (>= 2)
+  OK   triangles drawn = 227070
+  OK   two runs produced the same frame byte for byte
+  ..   0e4b15b6034b74fe5c9d9652bf5ae86525b9fc97b936dfb030b8b38581861526 *full.20261109155821-21251.bmp
+  OK   unclipped rc = 0
+  OK   unclipped frame is unclipped = 0
+  OK   unclipped tiles = 141
+  OK   unclipped batches = 3
+
+=== 5/8 the blend switch off: the albedo batching must not move ===
+  OK   blend off rc = 0
+  OK   blend off batches = 3
+  OK   blend off tiles = 141
+  OK   blend off blend batches = 0
+
+=== 6/8 a frame that draws the weapon as well ===
+  OK   weapon frame rc = 0
+  OK   weapon drew after the world = 1
+  OK   weapon draw calls = 1812 (>= 1)
+  OK   weapon frame: weapon draws holding a world atlas = 0
+  OK   weapon frame: world draws holding a weapon texture = 0
+  OK   weapon frame: slot-0 binds = 7 (>= 2)
+
+=== 7/8 the control: one batch, and the picture it has to reproduce ===
+  OK   control rc = 0
+  OK   control tiles = 64
+  OK   control refused = 77
+  OK   control refusals are budget refusals = 77
+  OK   control batches = 1
+  OK   materials the control refused = 77
+  OK   control rows that name a refusal = 77
+  OK   control rows refused for budget = 77
+  pixels=860784
+  changed=90127
+  max_channel_delta=245
+  OK   pixels the control frame changes = 90127
+  pixels=860784
+  changed=59220
+  max_channel_delta=53
+  OK   pixels the blend switch moves = 59220 (>= 50000)
+  OK   largest channel delta = 53 (>= 32)
+
+=== 8/8 an include-only material owns the screen: the parse reaches the pixels ===
+  OK   include-pose rc = 0
+  OK   face-trace points at the include pose = 28
+  OK   points that resolve to the include-only material = 28
+  OK   distinct materials the include pose names = 1
+  pixels=860784
+  distinct=236
+  modal=62,53,49
+  modal_share_ppm=275106
+  OK   albedo colours where the include-only material covers the screen = 236 (>= 100)
+  OK   share of the most common albedo colour (ppm) = 275106 (<= 500000)
+
+
+MATERIAL-COVERAGE=PASS

@@ -1,0 +1,4 @@
+tick 3400
+seek 2500
+frames 24
+quit

@@ -170,12 +170,26 @@ evidence/t66-sourcetv/**/*.bmp
 # committed live in evidence/outline/*.log and evidence/t52-a3/; a run's working set is
 # machine output, so it stays out of the index.
 evidence/outline/run-*/
-evidence/verify/25-player-animation/
-evidence/verify/26-animation-pixels/
-evidence/verify/27-sourceTV-relay/
-evidence/verify/28-world-geometry/
-evidence/verify/29-world-materials/
-evidence/verify/30-review-workspace/
+# Steps 25-30 write their verdicts and readings as text and their frames/traces as
+# binaries. Ignoring the whole directory hid the verdicts too: RUN13 (a5ebd8c, 30/30
+# PASS) had no committable evidence for steps 25-30, so a reader could only trust the
+# chain's own log. The text artifacts are now tracked (about 400 KB in total) and the
+# bitmaps, traces and workspaces stay out -- they are what made the directories large.
+evidence/verify/25-player-animation/*
+!evidence/verify/25-player-animation/*.txt
+evidence/verify/26-animation-pixels/*
+!evidence/verify/26-animation-pixels/*.summary
+!evidence/verify/26-animation-pixels/*.txt
+evidence/verify/27-sourceTV-relay/*
+!evidence/verify/27-sourceTV-relay/*.txt
+evidence/verify/28-world-geometry/*
+!evidence/verify/28-world-geometry/*.txt
+evidence/verify/29-world-materials/*
+!evidence/verify/29-world-materials/*.txt
+!evidence/verify/29-world-materials/*.csv
+evidence/verify/30-review-workspace/*
+!evidence/verify/30-review-workspace/*.txt
+!evidence/verify/30-review-workspace/*.script
 evidence/verify-27-rerun/
 # T62 body appearance, both teams (2026-11-04): the gate captures two 2.5 MB BMPs per body
 # (identity mask + painted frame) and the selection survey captured 26 more, 222 MB in all.
