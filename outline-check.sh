@@ -68,7 +68,7 @@
 # All product runs go through the host lock and carry --hidden-window
 # --audio-disabled: builds, launches and captures are single-instance here.
 #
-# Usage: bash outline-check.sh [--mutation] [--skip-live]
+# Usage: bash outline-check.sh [--mutation] [--skip-live] [--layer-a-selftest]
 #   --skip-live  run only the probe layer (no product launch); the gate says so
 #                in its verdict rather than reporting a silent pass.
 # Exit: 0 = every asserted criterion held.
@@ -212,6 +212,7 @@ seed_run_files() { # seed_run_files <prefix>: per-run copies, so two runs never 
 }
 
 MUTATION=0
+LAYER_A_SELFTEST=0
 SKIP_LIVE=0
 # WORLD_ONLY is set here and read down at the "T85 P0" section below. It was read
 # there but never set here until 2026-11-07: the flag was documented in the
@@ -226,6 +227,7 @@ for arg in "$@"; do
   case "$arg" in
     --mutation) MUTATION=1 ;;
     --skip-live) SKIP_LIVE=1 ;;
+    --layer-a-selftest) LAYER_A_SELFTEST=1 ;;
     --world-only) WORLD_ONLY=1 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
@@ -268,6 +270,102 @@ assert_contains() { # assert_contains <label> <haystack> <needle>
     *) echo "  FAIL $1 (wanted: ${3:-<none>})"; fail=1 ;;
   esac
 }
+
+# ---------------------------------------------------------------------------
+# LAYER A (D-63, lead m05341): ALLOW PROP FAILURES, BUT EVERY FAILURE MUST BE
+# NAMED. The single equality this replaces ("failed == 0") treated an admitted
+# but unbuildable model as a product defect. It is not one when the model has no
+# geometry at all: models/props_ui/comp_stage_cam.mdl -- the stock winner-stage
+# camera mover that 24 of the 260 maps installed on this machine place as a
+# prop_dynamic with solid=0, driven only by SetAnimation -- is admitted because
+# its mdl/vvd/vtx are structurally valid, and cannot be built because it has ZERO
+# vertices (vvd is a 64-byte header, lod0Vertices=0; the dx90.vtx carries a single
+# lod[1] entry; textures=0). Nothing is underdrawn: that model draws nowhere.
+# What remains a contract, and what these three assertions say:
+#   A-1 every failure in the ledger is named in the trace. A count without names
+#       is a number the next window cannot act on; a name without a count means
+#       the ledger lost a failure.
+#   A-2 only props may fail. A player, weapon or overlay model that fails is still
+#       a defect, because those are the models this frame is FOR. A line that lost
+#       its priority field fails A-2 too, so a malformed line cannot pass by
+#       omission.
+#   A-3 every named line carries the loader's own reason, because that string is
+#       what decides "fix a loader rule" vs "this asset has no geometry".
+layer_a_named_failure_checks() { # layer_a_named_failure_checks <trace> <prep_failed>
+  local trace="${1:-}"
+  local failed="${2:-<none>}"
+  local named prop withprio nonprop unparsed reasonful dist note
+  if [ ! -r "$trace" ]; then
+    assert_eq "layer A: every build failure is named in the trace" "<no-trace>" "$failed"
+    assert_eq "layer A: no player, weapon or overlay model failed to build (only props may be invisible)" "<no-trace>" "0"
+    assert_eq "layer A: every named failure carries the loader reason" "<no-trace>" "0"
+    return
+  fi
+  named=$(grep -a -c "prepare: build failed" "$trace" || true); named="${named:-0}"
+  prop=$(grep -a -c "prepare: build failed .* priority=prop " "$trace" || true); prop="${prop:-0}"
+  withprio=$(grep -a -c "prepare: build failed .* priority=" "$trace" || true); withprio="${withprio:-0}"
+  nonprop=$(( named - prop ))
+  unparsed=$(( named - withprio ))
+  reasonful=$(grep -a -E "prepare: build failed .* reason=[^ ]" "$trace" | wc -l || true)
+  reasonful="${reasonful//[^0-9]/}"; reasonful="${reasonful:-0}"
+  assert_eq "layer A: every build failure is named in the trace" "$named" "$failed"
+  dist=$(grep -a -o "priority=[a-zA-Z]*" "$trace" | sed "s/priority=//" | sort | uniq -c | awk '{printf "%s%s=%s", sep, $2, $1; sep=","}')
+  note=""
+  if [ "$unparsed" -gt 0 ]; then note=" (unparsed missing priority=$unparsed)"; fi
+  echo "  named failures by priority: ${dist:-<none>}$note"
+  assert_eq "layer A: no player, weapon or overlay model failed to build (only props may be invisible)" "$(( nonprop + unparsed ))" "0"
+  assert_eq "layer A: every named failure carries the loader reason" "$reasonful" "$named"
+}
+
+# --layer-a-selftest: the three assertions above must answer BOTH ways before they
+# are trusted on a live run. Offline by construction: synthetic traces, no product
+# launch, no host lock, no build. Each negative turns exactly the assertion it is
+# aimed at red, and the red line is printed with its original text.
+layer_a_selftest() {
+  local dir rc=0
+  dir="$(mktemp -d)"
+  printf '%s\n' '30000.0 budget: prepare capacity=64 candidates=60 admitted=60 built=60 deferred=0 failed=0' > "$dir/none.trace"
+  printf '%s\n' '26783.4 prepare: build failed key=models/props_ui/comp_stage_cam.mdl#428621864 path=models/props_ui/comp_stage_cam.mdl priority=prop reason=model has no decoded bind-pose indices lod0Budget=0 skipped=0' > "$dir/prop.trace"
+  printf '%s\n' '26783.4 prepare: build failed key=models/player/sniper.mdl#7 path=models/player/sniper.mdl priority=player reason=bind-pose LOD0 produced fewer than 3 vertices lod0Budget=9 skipped=9' > "$dir/player.trace"
+  printf '%s\n' '26783.4 prepare: build failed key=models/props_ui/x.mdl#3 path=models/props_ui/x.mdl priority=prop reason= lod0Budget=0 skipped=0' > "$dir/noreason.trace"
+  printf '%s\n' '26783.4 prepare: build failed key=models/props_ui/x.mdl#4 path=models/props_ui/x.mdl reason=bind-pose LOD0 produced fewer than 3 vertices lod0Budget=0 skipped=0' > "$dir/noprio.trace"
+  run_case() { # run_case <label> <trace> <ledger failed> <expected reds> <expected red label substring>
+    local label="$1" trace="$2" failed="$3" want="$4" want_label="$5"
+    local out reds verdict
+    out=$( fail=0; layer_a_named_failure_checks "$trace" "$failed"; echo "CASE-FAIL=$fail" )
+    reds=$(printf "%s\n" "$out" | grep -c "^  FAIL" || true)
+    verdict="ok"
+    if [ "$reds" != "$want" ]; then verdict="COUNT MISMATCH"; rc=1; fi
+    if [ "$want" = "0" ]; then
+      if printf "%s\n" "$out" | grep -q "^  FAIL"; then verdict="UNEXPECTED RED"; rc=1; fi
+    else
+      if ! printf "%s\n" "$out" | grep -q "FAIL .*$want_label"; then verdict="WRONG ASSERTION WENT RED"; rc=1; fi
+    fi
+    echo "  case $label: red=$reds, expected $want -- $verdict"
+    printf "%s\n" "$out" | grep "^  FAIL" | sed "s/^/      /"
+  }
+  run_case "1 nothing failed, nothing named" "$dir/none.trace" 0 0 ""
+  run_case "2 one prop failure, named with a reason" "$dir/prop.trace" 1 0 ""
+  run_case "3 one failure, NO named line" "$dir/none.trace" 1 1 "every build failure is named in the trace"
+  run_case "4 one named line with priority=player" "$dir/player.trace" 1 1 "no player, weapon or overlay model failed to build"
+  run_case "5 named line with an empty reason" "$dir/noreason.trace" 1 1 "every named failure carries the loader reason"
+  run_case "6 malformed line without priority (omission guard)" "$dir/noprio.trace" 1 1 "no player, weapon or overlay model failed to build"
+  rm -rf "$dir"
+  echo "  coverage: A-1 red in case 3; A-2 red in cases 4 and 6; A-3 red in case 5"
+  if [ "$rc" = "0" ]; then
+    echo "LAYER-A-SELFTEST=PASS"
+  else
+    echo "LAYER-A-SELFTEST=FAIL"
+  fi
+  return "$rc"
+}
+
+# D-63 --layer-a-selftest: run the offline self-test and stop before anything
+# launches, so the assertions can be re-checked on a busy machine.
+if [ "${LAYER_A_SELFTEST:-0}" = "1" ]; then
+  layer_a_selftest
+  exit $?
+fi
 
 # ---------------------------------------------------------------------------
 # T85 P0 (lead m00816, option a): THE THREE NAMED WEAPON WORLD MODELS.
@@ -1077,7 +1175,12 @@ trim_trace() { # trim_trace <prefix>
   # "budget: prepare" = 0 occurrences after trimming, so seven layer-A assertions
   # read <none> and failed against a product that was working. Same for the frame's
   # own size reading, which the speed block compares.
-  { grep -aE "budget:|capture:|attach: |scene: weaponAttach" "$raw" || true; } >> "$kept"
+  # D-63: the layer A named-failure account ("prepare: build failed ...", one
+  # line per admitted-but-unbuildable model) is read by layer_a_named_failure_checks.
+  # Without this pattern the name is trimmed away while the ledger line survives,
+  # so the account reads 0 against a ledger that says failed=1. Measured on the
+  # first run of this change: A-1 red, "named failures by priority: <none>".
+  { grep -aE "budget:|prepare: |capture:|attach: |scene: weaponAttach" "$raw" || true; } >> "$kept"
   { grep -a "scene: begin tick=" "$raw" | tail -n 5 || true; } >> "$kept"
   { grep -a "outline: item" "$raw" | tail -n 200 || true; } >> "$kept"
   { grep -a "title: " "$raw" | tail -n 5 || true; } >> "$kept"
@@ -1350,7 +1453,10 @@ assert_le "layer A: admitted never exceeds the budget" "${PREP_ADMITTED:-<none>}
 # replaced by the account that can actually fail: every admitted model is either
 # built or its build failure is counted, and nothing is admitted and then lost.
 assert_eq "layer A: every admitted model is built or its failure is counted (no admission vanishes)" "$(( ${PREP_BUILT:-0} + ${PREP_FAILED:-0} ))" "${PREP_ADMITTED:-<none>}"
-assert_eq "layer A: no admitted world model failed to build" "${PREP_FAILED:-<none>}" "0"
+# D-63: "failed == 0" was too wide. See layer_a_named_failure_checks above for
+# why an admitted UI prop with zero vertices is not a defect, and what replaced it:
+# named failures counted against the ledger, only props allowed, reason required.
+layer_a_named_failure_checks "$OUT/on.trace" "${PREP_FAILED:-<none>}"
 assert_eq "layer A -> B: every prepared world model is uploaded (nothing silently dropped)" "${WORLD_MODELS_UPLOADED:-<none>}" "${WORLD_MODELS_PREPARED:-<none>}"
 # LAYERS B, C AND D EACH GET THEIR OWN BOUND AND THEIR OWN LINE.
 # Before this task the chain read as one number (96) in three different places and
