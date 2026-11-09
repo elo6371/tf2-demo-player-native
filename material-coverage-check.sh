@@ -345,17 +345,17 @@ ATLAS=$(grep -ao "gpu: world atlas .*" "$TRACE_full" 2>/dev/null | head -1)
 VIS=$(grep -ao "gpu: world vis .*" "$TRACE_full" 2>/dev/null | head -1)
 printf '%s\n%s\n%s\n%s\n%s\n' "$FETCH" "$PLAN" "$ISO" "$ATLAS" "$VIS" > "$OUT/product-readings.txt"
 # The ceiling, as the reading it should have been all along.
-assert_eq "materials tiled" "$(rval "$FETCH" tiled)" "125"
+assert_eq "materials tiled" "$(rval "$FETCH" tiled)" "141"
 assert_eq "materials dropped by a ceiling" "$(rval "$FETCH" capped)" "0"
 assert_eq "the planner refused nothing" "$(rval "$PLAN" refused)" "0"
-assert_eq "batches bound" "$(rval "$PLAN" batches)" "2"
+assert_eq "batches bound" "$(rval "$PLAN" batches)" "3"
 assert_eq "budget refusals" "$(rval "$PLAN" budget)" "0"
 assert_eq "atlas state" "$(rval "$ATLAS" state)" "bound"
 # `bytes` is still the largest single atlas (the 67.6 MiB texture the terrain
 # gate has always asserted); the batching shows up in `atlases` and `totalBytes`
 # so neither reading has to be reinterpreted.
 assert_ge "largest atlas bytes" "$(rval "$ATLAS" bytes)" "67000000"
-assert_eq "atlases bound" "$(rval "$ATLAS" atlases)" "2"
+assert_eq "atlases bound" "$(rval "$ATLAS" atlases)" "3"
 assert_ge "atlas bytes in total" "$(rval "$ATLAS" totalBytes)" "119000000"
 # The tile table: 123 materials, 59 of them in the batch the old ceiling could
 # not have reached. The fetch order is coverage order, so batch 0 is the 64
@@ -367,9 +367,9 @@ assert_ge "atlas bytes in total" "$(rval "$ATLAS" totalBytes)" "119000000"
 # one the old order would have thrown away first.
 TILES=$(tiles_of "$TRACE_full")
 echo "$TILES" > "$OUT/tile-table-$MAP.txt"
-assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "125"
+assert_eq "tile table rows" "$(printf '%s\n' "$TILES" | grep -c .)" "141"
 assert_eq "tiles in batch 0" "$(printf '%s\n' "$TILES" | awk '$2==0' | grep -c .)" "64"
-assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "61"
+assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .)" "64"
 VISIBLE_B1=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" | grep -c "visible=0 ")
 # 9 of the 59 batch-1 materials reach no triangle at this pose (6 before the
 # camera moved; see the 2026-11-01 RE-PIN note). The bound stays a ceiling on
@@ -400,8 +400,8 @@ assert_ge "batch-1 visible triangles" "$B1_VISIBLE_SUM" "1500"
 # the previous pass's view in t0 and moves the number.
 assert_eq "weapon draws holding a world atlas" "$(rval "$ISO" weaponDrawsWithWorldAtlas)" "0"
 assert_eq "world draws holding a weapon texture" "$(rval "$ISO" worldDrawsWithWeaponTexture)" "0"
-assert_eq "batch draws" "$(rval "$ISO" batchDraws)" "2"
-assert_eq "batch draws with a texture" "$(rval "$ISO" texturedBatchDraws)" "2"
+assert_eq "batch draws" "$(rval "$ISO" batchDraws)" "6"
+assert_eq "batch draws with a texture" "$(rval "$ISO" texturedBatchDraws)" "6"
 assert_ge "slot-0 binds" "$(rval "$ISO" slot0Binds)" "2"
 # The batching round did not change this number; the camera did. 193508 was the
 # orbit camera's reading on ea97815 before T80 moved the held camera off the
@@ -425,16 +425,16 @@ assert_eq "unclipped rc" "$RC_noclip" "0"
 NOCLIP_VIS=$(grep -ao "gpu: world vis .*" "$TRACE_noclip" 2>/dev/null | head -1)
 NOCLIP_PLAN=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_noclip" 2>/dev/null | head -1)
 assert_eq "unclipped frame is unclipped" "$(rval "$NOCLIP_VIS" clipApplied)" "0"
-assert_eq "unclipped tiles" "$(rval "$NOCLIP_PLAN" tiled)" "125"
-assert_eq "unclipped batches" "$(rval "$NOCLIP_PLAN" batches)" "2"
+assert_eq "unclipped tiles" "$(rval "$NOCLIP_PLAN" tiled)" "141"
+assert_eq "unclipped batches" "$(rval "$NOCLIP_PLAN" batches)" "3"
 
 echo
 echo "=== 5/8 the blend switch off: the albedo batching must not move ==="
 run_product noblend "$DEMO" "$TICK" --world-blend off
 assert_eq "blend off rc" "$RC_noblend" "0"
 PLAN_OFF=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_noblend" 2>/dev/null | head -1)
-assert_eq "blend off batches" "$(rval "$PLAN_OFF" batches)" "2"
-assert_eq "blend off tiles" "$(rval "$PLAN_OFF" tiled)" "125"
+assert_eq "blend off batches" "$(rval "$PLAN_OFF" batches)" "3"
+assert_eq "blend off tiles" "$(rval "$PLAN_OFF" tiled)" "141"
 assert_eq "blend off blend batches" "$(rval "$PLAN_OFF" blendBatches)" "0"
 
 echo
@@ -518,8 +518,8 @@ run_product control "$DEMO" "$TICK"
 CONTROL_LINE=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_control" 2>/dev/null | head -1)
 assert_eq "control rc" "$RC_control" "0"
 assert_eq "control tiles" "$(rval "$CONTROL_LINE" tiled)" "64"
-assert_eq "control refused" "$(rval "$CONTROL_LINE" refused)" "61"
-assert_eq "control refusals are budget refusals" "$(rval "$CONTROL_LINE" budget)" "61"
+assert_eq "control refused" "$(rval "$CONTROL_LINE" refused)" "77"
+assert_eq "control refusals are budget refusals" "$(rval "$CONTROL_LINE" budget)" "77"
 assert_eq "control batches" "$(rval "$CONTROL_LINE" batches)" "1"
 # The refusal has to name, by SET, every material the control could not admit --
 # not merely the ones the second atlas happened to hold. `comm -23` is a set
@@ -536,12 +536,12 @@ printf '%s\n' "$TILES" | awk '$2>=1 {print $1}' | sort > "$SCRATCH/beyond-cap.$R
 tiles_of "$TRACE_control" | awk '{print $1}' | sort > "$SCRATCH/control-tiles.$RUN_TAG.txt"
 comm -23 "$SCRATCH/beyond-cap.$RUN_TAG.txt" "$SCRATCH/control-tiles.$RUN_TAG.txt" \
   > "$SCRATCH/control-refused.$RUN_TAG.txt"
-assert_eq "materials the control refused" "$(grep -c . "$SCRATCH/control-refused.$RUN_TAG.txt")" "61"
+assert_eq "materials the control refused" "$(grep -c . "$SCRATCH/control-refused.$RUN_TAG.txt")" "77"
 # ...and every one of them is a named refusal in the table, not a missing row.
 CONTROL_REFUSED_ROWS=$(refused_of "$TRACE_control" | grep -c .)
 CONTROL_BUDGET_ROWS=$(grep -ao "gpu: world tile .*" "$TRACE_control" | grep -c "reason=atlas-budget")
-assert_eq "control rows that name a refusal" "$CONTROL_REFUSED_ROWS" "61"
-assert_eq "control rows refused for budget" "$CONTROL_BUDGET_ROWS" "61"
+assert_eq "control rows that name a refusal" "$CONTROL_REFUSED_ROWS" "77"
+assert_eq "control rows refused for budget" "$CONTROL_BUDGET_ROWS" "77"
 # And the picture. Two separate facts, because they are no longer the same one.
 #   - the control frame equals the full frame BYTE FOR BYTE at this pose. With 59
 #     materials refused to the flat fallback that is only possible because none of
@@ -603,7 +603,14 @@ printf '%s\n' "$DELTA" | sed 's/^/  /'
 # (2026-11-03) published the pose the followed frame is DRAWN with. The draw pose
 # moved, so 31 of the pixels the second batch's wall owned at the reference pose
 # now resolve elsewhere. The structural assertions above are unchanged. Re-pinned 2026-11-08: the tree now reads 90109. 90157 was the pin this line carried since the T59 wave and 90188 above is the 2026-11-01 measurement; the pixels moved when fc884cd restored 45 func_illusionary faces (input/drawn 200000->242109 / 184961->227070).
-assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90109"
+# Re-pinned 2026-11-09 on ff8eb8f: 90127. The 2026-11-08 pin was 90109, measured
+# before R2. R2 applies 16 glass VMTs' $basetexturetransform instead of refusing
+# them, and the control refusal set moved 61 -> 77 by exactly those 16, so the pair
+# moves with the picture: 63,912 px change in the full frame, 63,920 in the control,
+# +56 in and -38 out, a net +21. ff8eb8f's sub-batch regroup (the same frame that
+# filled 88,88,88 across the include pose) moves the last 3. Measured on this tree:
+# 90127.
+assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90127"
 DELTA_BLEND=$(frame_diff "$BMP_full" "$BMP_noblend")
 echo "$DELTA_BLEND" > "$OUT/coverage-delta-blend-off.txt"
 printf '%s\n' "$DELTA_BLEND" | sed 's/^/  /'
@@ -689,12 +696,12 @@ if [ "$MUTATION" -eq 1 ]; then
   # defect is the *forward* assertion that tiled=125, which the control's 64
   # fails.
   echo "--- m1: the budget admits one batch (the old 64-tile ceiling, rebuilt)"
-  if [ "$(rval "$CONTROL_LINE" tiled)" = "125" ]; then
+  if [ "$(rval "$CONTROL_LINE" tiled)" = "141" ]; then
     echo "  MUTATION-CAUGHT=FAIL (m1: the control still tiled every material)"
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$CONTROL_LINE" tiled)" = "64" ] && [ "$(rval "$CONTROL_LINE" refused)" = "61" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m1: tiled=64 refused=61 while the forward run read 125/0)"
+  if [ "$(rval "$CONTROL_LINE" tiled)" = "64" ] && [ "$(rval "$CONTROL_LINE" refused)" = "77" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m1: tiled=64 refused=77 while the forward run read 141/0)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m1: tiled=$(rval "$CONTROL_LINE" tiled) refused=$(rval "$CONTROL_LINE" refused))"
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
@@ -828,8 +835,8 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$M5_PLAN" tiled)" = "125" ] && [ "$(rval "$M5_PLAN" batches)" = "2" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m5: tiled=125 batches=2 unchanged, the frame moved)"
+  if [ "$(rval "$M5_PLAN" tiled)" = "141" ] && [ "$(rval "$M5_PLAN" batches)" = "3" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m5: tiled=141 batches=3 unchanged, the frame moved)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m5: the plan moved too, so this did not isolate the index)"
     restore_source "$M5_BACKUP" native/src/native_renderer_world.cpp m5 "$M5_HASH" tf2_demo_native || true
@@ -879,8 +886,8 @@ if [ "$MUTATION" -eq 1 ]; then
     restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || true
     echo "MATERIAL-COVERAGE-MUTATION=FAIL"; exit 1
   fi
-  if [ "$(rval "$M6_PLAN" tiled)" = "125" ] && [ "$(rval "$M6_PLAN" batches)" = "2" ]; then
-    echo "  MUTATION-CAUGHT=PASS (m6: tiled=125 batches=2 unchanged, the include-pose frame moved: $M6_STATS)"
+  if [ "$(rval "$M6_PLAN" tiled)" = "141" ] && [ "$(rval "$M6_PLAN" batches)" = "3" ]; then
+    echo "  MUTATION-CAUGHT=PASS (m6: tiled=141 batches=3 unchanged, the include-pose frame moved: $M6_STATS)"
   else
     echo "  MUTATION-CAUGHT=FAIL (m6: the plan moved too, so this did not isolate the regroup)"
     restore_source "$M6_BACKUP" native/src/native_renderer_world.cpp m6 "$M6_HASH" tf2_demo_native || true

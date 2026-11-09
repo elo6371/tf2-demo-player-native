@@ -1,4 +1,4 @@
-geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=105400 faces=21119 displaced=46912 water=300 lightmapped=104868 degenerate=4871 maxEdge=2560.0 over256=13905 over1024=381 over4096=0 bounds=(-5266,-13264,-2593)..(4048,8704,1893)
+geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=105400 faces=21119 displaced=46912 water=300 lightmapped=104868 degenerate=4877 maxEdge=2560.0 over256=13903 over1024=381 over4096=0 bounds=(-5266,-13264,-2593)..(4048,8704,2178)
 geometry faces total=21119 rendered=19845 sky=731 skippedNoDraw=0 skippedInvalid=0 skippedBrushModel=543 worldFaces=18052 brushFaces=3067
 geometry budget capacity=4000000 requested=105486 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
 geometry sky faces=731 triangles=1842 bufferTriangles=105400

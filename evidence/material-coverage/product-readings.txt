@@ -1,5 +1,5 @@
-gpu: world material-fetch distinct=151 tiled=125 capped=0 vmtMissing=5 vmtNoBase=4 vtfMissing=1 vtfTooLarge=113 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=32 downscaled=113 blendFirst=3 blendLastRank=3 blendCapped=0 patchDeclared=30 patchResolved=30 patchUnparsable=0 transformRefused=16
-gpu: world atlas-plan batches=2 blendBatches=1 tiled=125 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=270536704 reason=125 of 125 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=129+64+64+0+0 MiB
-gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=2 batchDraws=2 texturedBatchDraws=2
-gpu: world atlas size=4112 bytes=67634176 atlases=2 totalBytes=135268352 state=bound
+gpu: world material-fetch distinct=151 tiled=141 capped=0 vmtMissing=5 vmtNoBase=0 vmtUnparsable=0 waterShader=4 vtfMissing=1 vtfTooLarge=113 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=32 downscaled=113 blendFirst=3 blendLastRank=3 blendCapped=0 patchDeclared=30 patchResolved=30 patchUnparsable=0 transformRefused=0 transformApplied=16
+gpu: world atlas-plan batches=3 blendBatches=1 tiled=141 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=287445248 reason=141 of 141 materials tiled in 3 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=145+64+64+0+0 MiB
+gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=6 batchDraws=6 texturedBatchDraws=6
+gpu: world atlas size=4112 bytes=67634176 atlases=3 totalBytes=152176896 state=bound
 gpu: world vis cameraCluster=2108 visibleFromCamera=1481 clusters=2940 clusteredTriangles=34517 hiddenTriangles=15039 withoutCluster=207592 inputTriangles=242109 drawnTriangles=227070 clipApplied=1 state=active eyeMap=(1359.6,-538.8,73.9) reason=hid 15039 of 242109 triangles from cluster 2108 (2276 kept by a cluster past the first)

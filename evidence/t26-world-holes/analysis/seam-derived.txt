@@ -1,6 +1,4 @@
 CLASS face=238 kind=brush side=1 disp=0 plane=85 planeSD=464.500 emittedDot=464.500 derived=front
 CLASS face=4173 kind=brush side=1 disp=0 plane=3959 planeSD=784.500 emittedDot=784.500 derived=front
-CLASS face=9186 kind=brush side=1 disp=0 plane=3179 planeSD=274.300 emittedDot=274.300 derived=front
 CLASS face=9189 kind=brush side=1 disp=0 plane=3179 planeSD=274.300 emittedDot=274.300 derived=front
-CLASS face=19043 kind=brush side=0 disp=0 plane=15494 planeSD=840.707 emittedDot=840.706 derived=front
-CLASS-SUMMARY faces=5 parsed=5 derivedFront=5 derivedBack=0
+CLASS-SUMMARY faces=3 parsed=3 derivedFront=3 derivedBack=0

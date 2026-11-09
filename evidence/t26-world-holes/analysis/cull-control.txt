@@ -1,3 +1,3 @@
-CULL state=ok frames=1264x681 kept=713844 removed=50765 onlyInCull=0 distinctRemoved=1
-CULL face=17560 pixels=50765 kind=disp side=1 derived=back planeSD=470.500 seam=0
-CULL-SUMMARY removed=50765 onlyInCull=0 distinct=1 nonSeam=1 seamFacesRemoved=0 topNonSeam=17560 topNonSeamPixels=50765 topNonSeamKind=disp topNonSeamSide=1 topNonSeamDerived=back
+CULL state=ok frames=1264x681 kept=715815 removed=49077 onlyInCull=0 distinctRemoved=1
+CULL face=17560 pixels=49077 kind=disp side=1 derived=back planeSD=470.500 seam=0
+CULL-SUMMARY removed=49077 onlyInCull=0 distinct=1 nonSeam=1 seamFacesRemoved=0 topNonSeam=17560 topNonSeamPixels=49077 topNonSeamKind=disp topNonSeamSide=1 topNonSeamDerived=back

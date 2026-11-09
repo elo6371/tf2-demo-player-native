@@ -1,4 +1,4 @@
-geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=105400 faces=21119 displaced=46912 water=300 lightmapped=104868 degenerate=4871 maxEdge=2560.0 over256=13905 over1024=381 over4096=0 bounds=(-5266,-13264,-2593)..(4048,8704,1893)
+geometry status=ok map=maps/pl_odyssey.bsp version=20 triangles=105400 faces=21119 displaced=46912 water=300 lightmapped=104868 degenerate=4877 maxEdge=2560.0 over256=13903 over1024=381 over4096=0 bounds=(-5266,-13264,-2593)..(4048,8704,2178)
 geometry faces total=21119 rendered=19845 sky=731 skippedNoDraw=0 skippedInvalid=0 skippedBrushModel=543 worldFaces=18052 brushFaces=3067
 geometry budget capacity=4000000 requested=105486 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
 geometry sky faces=731 triangles=1842 bufferTriangles=105400
@@ -30,12 +30,12 @@ geometry stored-winding class=displacement alongPlane=0 againstPlane=1392
 geometry grid-vs-polygon keeps=5 reverses=1381 of 1382 displacement faces
 geometry pre-rule class=brush alongPlane=47542 againstPlane=408 alongOutward=30729 againstOutward=17221
 geometry pre-rule class=displacement alongPlane=46856 againstPlane=142 alongOutward=38484 againstOutward=8514
-geometry ray-down cells=9216 hits=5381 misses=3835 drawnByShippedRule=3808 of 5381 (0.708)
-geometry ray-down first-hit class=brush storedUp=1597 storedDown=1484
-geometry ray-down first-hit class=displacement storedUp=2226 storedDown=74
-geometry ray-down first-hit brush planeSide=0 storedUp=1579 storedDown=0
-geometry ray-down first-hit displacement planeSide=0 storedUp=2199 storedDown=63
-geometry ray-down first-hit brush planeSide=1 storedUp=18 storedDown=1484
+geometry ray-down cells=9216 hits=5381 misses=3835 drawnByShippedRule=3809 of 5381 (0.708)
+geometry ray-down first-hit class=brush storedUp=1608 storedDown=1483
+geometry ray-down first-hit class=displacement storedUp=2216 storedDown=74
+geometry ray-down first-hit brush planeSide=0 storedUp=1590 storedDown=0
+geometry ray-down first-hit displacement planeSide=0 storedUp=2189 storedDown=63
+geometry ray-down first-hit brush planeSide=1 storedUp=18 storedDown=1483
 geometry ray-down first-hit displacement planeSide=1 storedUp=27 storedDown=11
 geometry materials distinct=127 atlasCap=64 trianglesCoveredByCap=103871 of 105400 (98.5%)
 geometry material rank=0 triangles=18743 name=WOOD/WALL007A
@@ -127,19 +127,19 @@ geometry ray-eye first-hit displacement planeSide=0 towardEye=9 away=38
 geometry ray-eye first-hit brush planeSide=1 towardEye=308 away=43
 geometry ray-eye first-hit displacement planeSide=1 towardEye=0 away=25
 geometry rule-table cells=5381 (top) 594 (eye) -- keep means the stored order already faces the observer
-geometry rule-table mask=00 brushSide0=flip brushSide1=flip dispSide0=flip dispSide1=flip top=0.290 eye=0.271 worst=0.271
-geometry rule-table mask=01 brushSide0=keep brushSide1=flip dispSide0=flip dispSide1=flip top=0.583 eye=0.374 worst=0.374
+geometry rule-table mask=00 brushSide0=flip brushSide1=flip dispSide0=flip dispSide1=flip top=0.289 eye=0.271 worst=0.271
+geometry rule-table mask=01 brushSide0=keep brushSide1=flip dispSide0=flip dispSide1=flip top=0.585 eye=0.374 worst=0.374
 geometry rule-table mask=02 brushSide0=flip brushSide1=keep dispSide0=flip dispSide1=flip top=0.017 eye=0.717 worst=0.017
-geometry rule-table mask=03 brushSide0=keep brushSide1=keep dispSide0=flip dispSide1=flip top=0.311 eye=0.820 worst=0.311
-geometry rule-table mask=04 brushSide0=flip brushSide1=flip dispSide0=keep dispSide1=flip top=0.686 eye=0.222 worst=0.222
+geometry rule-table mask=03 brushSide0=keep brushSide1=keep dispSide0=flip dispSide1=flip top=0.313 eye=0.820 worst=0.313
+geometry rule-table mask=04 brushSide0=flip brushSide1=flip dispSide0=keep dispSide1=flip top=0.684 eye=0.222 worst=0.222
 geometry rule-table mask=05 brushSide0=keep brushSide1=flip dispSide0=keep dispSide1=flip top=0.980 eye=0.325 worst=0.325
-geometry rule-table mask=06 brushSide0=flip brushSide1=keep dispSide0=keep dispSide1=flip top=0.414 eye=0.668 worst=0.414
-geometry rule-table mask=07 brushSide0=keep brushSide1=keep dispSide0=keep dispSide1=flip top=0.707 eye=0.771 worst=0.707
-geometry rule-table mask=08 brushSide0=flip brushSide1=flip dispSide0=flip dispSide1=keep top=0.293 eye=0.229 worst=0.229
-geometry rule-table mask=09 brushSide0=keep brushSide1=flip dispSide0=flip dispSide1=keep top=0.586 eye=0.332 worst=0.332
+geometry rule-table mask=06 brushSide0=flip brushSide1=keep dispSide0=keep dispSide1=flip top=0.412 eye=0.668 worst=0.412
+geometry rule-table mask=07 brushSide0=keep brushSide1=keep dispSide0=keep dispSide1=flip top=0.708 eye=0.771 worst=0.708
+geometry rule-table mask=08 brushSide0=flip brushSide1=flip dispSide0=flip dispSide1=keep top=0.292 eye=0.229 worst=0.229
+geometry rule-table mask=09 brushSide0=keep brushSide1=flip dispSide0=flip dispSide1=keep top=0.588 eye=0.332 worst=0.332
 geometry rule-table mask=10 brushSide0=flip brushSide1=keep dispSide0=flip dispSide1=keep top=0.020 eye=0.675 worst=0.020
-geometry rule-table mask=11 brushSide0=keep brushSide1=keep dispSide0=flip dispSide1=keep top=0.314 eye=0.778 worst=0.314
-geometry rule-table mask=12 brushSide0=flip brushSide1=flip dispSide0=keep dispSide1=keep top=0.689 eye=0.180 worst=0.180
+geometry rule-table mask=11 brushSide0=keep brushSide1=keep dispSide0=flip dispSide1=keep top=0.316 eye=0.778 worst=0.316
+geometry rule-table mask=12 brushSide0=flip brushSide1=flip dispSide0=keep dispSide1=keep top=0.687 eye=0.180 worst=0.180
 geometry rule-table mask=13 brushSide0=keep brushSide1=flip dispSide0=keep dispSide1=keep top=0.983 eye=0.283 worst=0.283
-geometry rule-table mask=14 brushSide0=flip brushSide1=keep dispSide0=keep dispSide1=keep top=0.417 eye=0.626 worst=0.417
-geometry rule-table mask=15 brushSide0=keep brushSide1=keep dispSide0=keep dispSide1=keep top=0.710 eye=0.729 worst=0.710
+geometry rule-table mask=14 brushSide0=flip brushSide1=keep dispSide0=keep dispSide1=keep top=0.415 eye=0.626 worst=0.415
+geometry rule-table mask=15 brushSide0=keep brushSide1=keep dispSide0=keep dispSide1=keep top=0.711 eye=0.729 worst=0.711

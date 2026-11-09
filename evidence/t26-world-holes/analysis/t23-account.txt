@@ -1,15 +1,14 @@
 ACCOUNTING status=ok dir=evidence/t26-world-holes/captures size=1264x681 flat_colour=(97,158,89)
 ACCOUNTING background clear_colour=(22,18,14) overlay_pixels=0
-ACCOUNTING totals pixels=860784 drawn=747625 backface=50765 visibility=0 both=0 missing=62394 other=0 overlay=0
-ACCOUNTING shares drawn=0.8685 backface=0.0590 visibility=0.0000 both=0.0000 missing=0.0725 other=0.0000 overlay=0.0000
-ACCOUNTING rejected backface_empty=50765 backface_swapped=0 visibility_empty=0 visibility_swapped=0
-ACCOUNTING dark drawn_dark=12475 of 747625 (0.0167) lightmap_driven=12475 albedo_driven=0 limit=16
-ACCOUNTING region W1 x=0,y=0,w=420,h=200 pixels=84000 drawn=84000 backface=0 visibility=0 both=0 missing=0 other=0 overlay=0 drawn_share=1.0000 missing_share=0.0000 dark=0 dark_share=0.0000 dark_lightmap=0 dark_albedo=0
+ACCOUNTING totals pixels=860784 drawn=715815 backface=49077 visibility=0 both=0 missing=95892 other=0 overlay=0
+ACCOUNTING shares drawn=0.8316 backface=0.0570 visibility=0.0000 both=0.0000 missing=0.1114 other=0.0000 overlay=0.0000
+ACCOUNTING rejected backface_empty=49077 backface_swapped=0 visibility_empty=0 visibility_swapped=0
+ACCOUNTING dark drawn_dark=11878 of 715815 (0.0166) lightmap_driven=11877 albedo_driven=1 limit=16
+ACCOUNTING region W1 x=0,y=0,w=420,h=200 pixels=84000 drawn=83910 backface=0 visibility=0 both=0 missing=90 other=0 overlay=0 drawn_share=0.9989 missing_share=0.0011 dark=0 dark_share=0.0000 dark_lightmap=0 dark_albedo=0
 ACCOUNTING region W2 x=0,y=560,w=420,h=121 pixels=50820 drawn=50820 backface=0 visibility=0 both=0 missing=0 other=0 overlay=0 drawn_share=1.0000 missing_share=0.0000 dark=0 dark_share=0.0000 dark_lightmap=0 dark_albedo=0
-ACCOUNTING region W3 x=1100,y=100,w=164,h=200 pixels=32800 drawn=28673 backface=3779 visibility=0 both=0 missing=348 other=0 overlay=0 drawn_share=0.8742 missing_share=0.0106 dark=3440 dark_share=0.1049 dark_lightmap=3440 dark_albedo=0
-ACCOUNTING region W4 x=600,y=0,w=64,h=60 pixels=3840 drawn=1162 backface=0 visibility=0 both=0 missing=2678 other=0 overlay=0 drawn_share=0.3026 missing_share=0.6974 dark=0 dark_share=0.0000 dark_lightmap=0 dark_albedo=0
-ACCOUNTING missing-component rank=0 area=50343 bbox=(x=602..845,y=91..407) edge=0 fill=0.651
-ACCOUNTING missing-component rank=1 area=4634 bbox=(x=702..806,y=45..138) edge=0 fill=0.470
-ACCOUNTING missing-component rank=2 area=4292 bbox=(x=1203..1263,y=0..138) edge=1 fill=0.506
-ACCOUNTING missing-component rank=3 area=3125 bbox=(x=606..694,y=0..66) edge=1 fill=0.524
+ACCOUNTING region W3 x=1100,y=100,w=164,h=200 pixels=32800 drawn=29054 backface=3633 visibility=0 both=0 missing=113 other=0 overlay=0 drawn_share=0.8858 missing_share=0.0034 dark=3486 dark_share=0.1063 dark_lightmap=3485 dark_albedo=1
+ACCOUNTING region W4 x=600,y=0,w=64,h=60 pixels=3840 drawn=313 backface=0 visibility=0 both=0 missing=3527 other=0 overlay=0 drawn_share=0.0815 missing_share=0.9185 dark=0 dark_share=0.0000 dark_lightmap=0 dark_albedo=0
+ACCOUNTING missing-component rank=0 area=88109 bbox=(x=406..844,y=0..403) edge=1 fill=0.497
+ACCOUNTING missing-component rank=1 area=4634 bbox=(x=704..809,y=55..147) edge=0 fill=0.470
+ACCOUNTING missing-component rank=2 area=3149 bbox=(x=1213..1263,y=0..121) edge=1 fill=0.506
 ACCOUNTING mask=evidence/t26-world-holes/analysis\accounting-mask.bmp

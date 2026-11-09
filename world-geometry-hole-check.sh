@@ -208,21 +208,41 @@ iso_assert_gate_settings "$ISO_DIR" || exit 2
 #     attributed: the accounting got wider, not worse, and unexplainable pixels
 #     stayed at zero.
 #   * The cull's control face pixels moved with the picture: 52788 -> 50765.
+# RE-PIN 2026-11-09 (owner lead): N20 (855bca1) puts the map's brush models back
+# where the mapper placed them. Measured on ff8eb8f, same capture pose and the same
+# switches; the two frame pins are the RUN11 captures.
+#   * 104 models / 2,502 faces on pl_odyssey no longer draw at the map origin, so the
+#     33,781-pixel face-19043 blob is gone: missing pixels 62394 -> 95892 (+33498,
+#     the blob turning from drawn into sky, every pixel still covered by sky), the
+#     enclosed population collapses from two components (50343 + 4634) to one
+#     (4634, and it moved with the picture), seam ids drop 9186 and 19043, and the
+#     seam points / probes / resolved counts follow.
+#   * The cull's control face pixels: 50765 -> 49077. A bisect settles the owner:
+#     bdca3e2 (R1 only, before N20) reads 50765 and its two id frames ARE the old
+#     pin, while 855bca1 (R1 + N20) reads 49077 and its two id frames are these
+#     captures byte for byte (world-ids 69c35483..., ids-nocull 1a3f8632...). So the
+#     1,688 px belong to N20's brush placement; R1, R2 and the sub-batch fix move
+#     none of them. It is not a hole: with the cull on, that band showed brush
+#     geometry, and after N20 moved the models 1,688 px of it show a world face
+#     instead (no removed pixel turns sky in the no-cull frame). The count is per
+#     face range (in_nocull & ~in_cull over first_face / face_count), not the
+#     difference of one face's pixel counts -- those two routes are not the same
+#     measurement and only the first one is pinned.
 # Every pin below keeps its meaning and its direction; none was loosened, and the
 # frame pins are still byte equality against the stored captures.
-PIN_MISSING=62394
-PIN_SKY_MISSING=62394
+PIN_MISSING=95892
+PIN_SKY_MISSING=95892
 PIN_UNEXPLAINED=0
-PIN_ENCLOSED=54977
+PIN_ENCLOSED=4634
 PIN_ENCLOSED_MIN_COMPONENT=200
-PIN_ENCLOSED_COMPONENTS=2
-PIN_ENCLOSED_POP="rank=0 area=50343 sky=50343 unexplained=0 bbox=(x=602..845,y=91..407) edge=0 fill=0.651 | rank=1 area=4634 sky=4634 unexplained=0 bbox=(x=702..806,y=45..138) edge=0 fill=0.470"
+PIN_ENCLOSED_COMPONENTS=1
+PIN_ENCLOSED_POP="rank=1 area=4634 sky=4634 unexplained=0 bbox=(x=704..809,y=55..147) edge=0 fill=0.470"
 PIN_SKY_FACES=731
 PIN_SKY_TRIANGLES=1842
 PIN_WORLD_TRIANGLES=105400
-PIN_BACKFACE=50765
-PIN_TEXTURED_SHA=3a178e8a138b4b0fb19171bdcb809bfd57f041385a30ead789d135fa3ff0d0f9
-PIN_REF_SHA=93fe13eac855167c51938b1963d77a7561520892cac98a2130b8ba28e0cd92d6
+PIN_BACKFACE=49077
+PIN_TEXTURED_SHA=9f4421e97e8a3810162a31bc2d23f913ba2bf18ce3fbd85c3c86949325fc2ed4
+PIN_REF_SHA=b79d8840cc3b7e995a3623403aec6fc39470ed180203c94bfbf7061a698835e2
 
 # T58 pins, measured with the same trace and the same playback tick as the frame
 # pins above (captures/traces/world-ids.trace, last 'scene: camera' before
@@ -231,17 +251,17 @@ PIN_REF_SHA=93fe13eac855167c51938b1963d77a7561520892cac98a2130b8ba28e0cd92d6
 # representative points of every enclosed component >= 200 px, four directions
 # each, and all of them resolve.
 PIN_CAPTURE_EYE="815.5,-147.8,-194.3"
-PIN_SEAM_IDS="238,4173,9186,9189,19043"
-PIN_SEAM_POINTS=4
-PIN_SEAM_PROBES=16
-PIN_SEAM_RESOLVED=10
+PIN_SEAM_IDS="238,4173,9189"
+PIN_SEAM_POINTS=2
+PIN_SEAM_PROBES=8
+PIN_SEAM_RESOLVED=8
 PIN_SEAM_CULLED=0
 PIN_SEAM_DERIVED_BACK=0
 PIN_SEAM_DISPLACED=0
 PIN_CULL_TOP_FACE=17560
 PIN_CULL_TOP_SIDE=1
 PIN_CULL_TOP_DERIVED=back
-PIN_CULL_TOP_PIXELS=50765
+PIN_CULL_TOP_PIXELS=49077
 
 fail=0
 assert_in() { # assert_in <file> <fixed string> <label>
