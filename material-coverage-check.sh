@@ -521,11 +521,18 @@ assert_eq "control tiles" "$(rval "$CONTROL_LINE" tiled)" "64"
 assert_eq "control refused" "$(rval "$CONTROL_LINE" refused)" "61"
 assert_eq "control refusals are budget refusals" "$(rval "$CONTROL_LINE" budget)" "61"
 assert_eq "control batches" "$(rval "$CONTROL_LINE" batches)" "1"
-# The refusal has to name the same 59 materials the second batch admitted, or
-# "bounded batching added these" is a claim about a total rather than about a
-# set. `comm -23` is a set difference: in the full run's batch 1, not in the
-# control's tile table.
-printf '%s\n' "$TILES" | awk '$2==1 {print $1}' | sort > "$SCRATCH/beyond-cap.$RUN_TAG.txt"
+# The refusal has to name, by SET, every material the control could not admit --
+# not merely the ones the second atlas happened to hold. `comm -23` is a set
+# difference: in the full run, not in the control's tile table.
+#
+# The selector is `>= 1`, not `== 1`. With one atlas past the cap the two
+# select the same set and the mistake is invisible. With three (bounded
+# batching admits 64 + 64 + 13 here) `== 1` drops the third atlas' materials
+# from the left side of the difference, so the assertion compares "the
+# refusal named 64" against a trace line that says 77 -- red for a reason that
+# is not a regression. The claim under test is about the refused set, so the
+# selector has to mean "any atlas batch past the first".
+printf '%s\n' "$TILES" | awk '$2>=1 {print $1}' | sort > "$SCRATCH/beyond-cap.$RUN_TAG.txt"
 tiles_of "$TRACE_control" | awk '{print $1}' | sort > "$SCRATCH/control-tiles.$RUN_TAG.txt"
 comm -23 "$SCRATCH/beyond-cap.$RUN_TAG.txt" "$SCRATCH/control-tiles.$RUN_TAG.txt" \
   > "$SCRATCH/control-refused.$RUN_TAG.txt"
