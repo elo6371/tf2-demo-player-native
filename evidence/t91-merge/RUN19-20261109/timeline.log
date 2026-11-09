@@ -1,0 +1,47 @@
+=== timeline-check: playback clock instrument ===
+exe     = native/build-nmake/tf2_demo_native.exe
+sha256  = 37388f4ad5bd82c699529c828b09c78b12d628b77ddbbb17d267b24d6d410aff
+demo    = D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+demo sha256 = 308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f
+git     = f2c4fbd89193969729a7155aae2c798af37b0902 integration/t91
+sections= 1,2,3,4
+out     = evidence/t85-timeline/gate
+
+=== 1/4 --capture-tick lands on the requested tick, exactly ===
+  OK   seek 12000: product exit code = 0
+  OK   seek 12000: capture armed for the requested tick = 12000
+  OK   seek 12000: captured frame drawn at the requested tick = 12000
+  OK   seek 20001: product exit code = 0
+  OK   seek 20001: capture armed for the requested tick = 20001
+  OK   seek 20001: captured frame drawn at the requested tick = 20001
+  OK   seek 24001: product exit code = 0
+  OK   seek 24001: capture armed for the requested tick = 24001
+  OK   seek 24001: captured frame drawn at the requested tick = 24001
+
+=== 2/4 the same tick is the same picture at 1x, 8x and 32x ===
+  OK   speed 1x: product exit code = 0
+  OK   speed 1x: capture lands on tick 600 = 600
+  OK   speed 1x: the run really used the requested speed = 1.000000
+  OK   speed 8x: product exit code = 0
+  OK   speed 8x: capture lands on tick 600 = 600
+  OK   speed 8x: the run really used the requested speed = 8.000000
+  OK   speed 32x: product exit code = 0
+  OK   speed 32x: capture lands on tick 600 = 600
+  OK   speed 32x: the run really used the requested speed = 32.000000
+  OK   same tick 600 at 1x vs 8x: payload bytes identical (0/2582352)
+  OK   same tick 600 at 1x vs 32x: payload bytes identical (0/2582352)
+  OK   same tick 600 at 8x vs 32x: payload bytes identical (0/2582352)
+
+=== 3/4 pause freezes the cursor; resume advances without repaying wall time ===
+  OK   pause/resume: product exit code = 0
+  OK   pause freezes the cursor: expect-same-tick match = 1
+  OK   pause freeze read the marked tick = 0
+  OK   resume advances the cursor past the pause tick (delta=1 after sample 1/20)
+  OK   resume does not replay paused wall time (delta=1, wall time allowed 5 ticks)
+
+=== 4/4 out-of-range seeks clamp to the demo's own ends ===
+  OK   clamp: product exit code = 0
+  OK   seek -1 clamps to tick 0 = 0
+  OK   seek 999999 clamps to the demo's last tick = 64352
+
+TIMELINE-CHECK=PASS assertions=29

@@ -1,0 +1,135 @@
+ACQUIRED owner=t91-lead at 2026-11-09 23:44:58
+=== T97 HUD live-reading gate: forward ===
+  exe: 2026-11-09 23:44:21.642696900 +0800 2838528 bytes
+  out: evidence/t97-hud
+  scratch: /d/TF2_Native_Worktrees/t91-integration/.scratch/t97-hudlive/20261109234459-279962
+
+=== 1 the live reading is published ===
+  OK   live exit code = 0
+  OK   hud-off exit code = 0
+  OK   a --hud-live run declares the forced mode = forced
+  reading: text1="TIME 10:00 PAUSED" text2="RED ?  BLU ?" text3="NAME ?  HP 1  ?  ?" source=round-timer
+  OK   an ordinary run publishes at least one live reading = 1 (>= 1)
+  OK   the live reading is enabled = 1
+  OK   the reading declares the name unavailable = unavailable
+  OK   the reading names the reason it has no name = no-userinfo
+  OK   every publish says why it was published = text-changed
+  OK   text3 prints 'NAME ?' rather than a made-up name
+  OK   the clock line is not empty = 17 (>= 6)
+  OK   text1 has the published clock shape
+  OK   text2 has the published score shape
+  OK   text3 has the published target shape
+  OK   the clock names its source = yes
+  OK   the published glyph count matches the published text = 47
+  OK   the published region is the panel anchored at 24,24 = 24,24,288,60
+=== 2 the product draws exactly the text it published ===
+  OK   the live frame draws every primitive it published = 3
+  OK   the HUD pass runs after the world = 8 (>= 1)
+  OK   the text primitives exist = 3 (>= 1)
+  OK   the readout publishes three text primitives = 3
+  OK   every drawn primitive is a text primitive = 3
+  OK   the hudtext glyph count matches the publish line = 47
+  OK   every published codepoint has a glyph = 0
+=== 3 the captured pixels are the published text and nothing else ===
+  | frame=1264x681
+  | region=24,24,288,60
+  | outsideDiff=0
+  | insideDiff=3504
+  | diffBBox=24,24,307,81
+  | glyphCells=47
+  | glyphBad=0
+  | verifyOk=1
+  OK   the pixel verifier exits clean = 0
+  OK   nothing is painted outside the published region = 0
+  OK   the published text paints pixels = 3504 (>= 100)
+  OK   every lit and unlit pixel matches the font table = 0
+  OK   the pixel verifier's verdict = 1
+  negative control (a): rc=1 insideDiff=0 verifyOk=0
+  OK   the verifier rejects a frame that paints no text = 1 ( != 0 )
+  OK   the verifier still counts zero text pixels on that frame = 0
+  negative control (b): rc=1 glyphBad=364 outsideDiff=0
+  OK   the verifier rejects a frame that disagrees with its expectation = 1 ( != 0 )
+  OK   the disagreement is counted as mismatched glyph pixels = 364 (>= 1)
+  OK   the disagreement stays inside the published region = 0
+=== 4 --hud-off removes the feature and nothing else ===
+  OK   a --hud-off run publishes no enabled reading = 0
+  OK   a --hud-off run says why it is off = cli-hud-off
+  OK   a --hud-off run draws no text quads = 0
+  OK   a --hud-off run draws no HUD primitives = 0
+  OK   a --hud-off run draws no primitives at all = 0
+  OK   a --hud-off run draws no layout rects = 0
+  OK   the hud-off frame is readable and differs from the live frame = different
+  OK   suppressed run exit code = 0
+  OK   an evidence run without --hud-live publishes no enabled reading = 0
+  OK   an evidence run says why the readout is off = evidence-run
+  OK   the suppression is announced once, with a drawn=0 = 1
+  OK   a suppressed evidence frame is byte-identical to a --hud-off frame = identical
+=== 5 the reading refreshes as the demo advances, and only then ===
+  OK   advancing run exit code = 0
+  clock: paused=TIME 10:00 PAUSED advancing=TIME 4:00
+  OK   the clock reading changes when the demo advances = TIME 4:00 ( != TIME 10:00 PAUSED )
+  OK   the advancing clock is smaller (240 < 600)
+  OK   the advancing run published an exit tally = 1
+  OK   the tally counts every frame the readout ran on = 608 (>= 100)
+  OK   every call is either an update or a skip = 608
+  OK   every rebuilt line is a published line = 2
+  OK   each published line is one update = 2
+  OK   every published line says why it was published = 2
+  OK   the text is rebuilt when a reading changes = 2 (>= 2)
+  OK   unchanged frames are skipped instead of re-uploaded = 606 (>= 1)
+  first/last published clock: first=TIME 10:00 PAUSED last=TIME 4:00
+  OK   the clock text differs between the first and the last publish = TIME 10:00 PAUSED ( != TIME 4:00 )
+=== 6 the panel is anchored in pixels, not in window fractions ===
+  OK   resized run exit code = 0
+  capture size: default=1264x681 resized=784x561
+  OK   the resized run captured at a different window size = 784x561 ( != 1264x681 )
+  OK   the region does not move when the window is resized = 24,24,288,60
+  OK   the clock text does not change with the window size = TIME 10:00 PAUSED
+  OK   the target text does not change with the window size = NAME ?  HP 1  ?  ?
+=== 7 two independent processes write the same frame ===
+  OK   second process exit code = 0
+  OK   the two processes wrote byte-identical frames
+  OK   the second process publishes the same clock = TIME 10:00 PAUSED
+
+  readings written to evidence/t97-hud/readings.txt
+
+=== mutation suite ===
+
+--- mutation m1-drop-text ---
+  pre-mutation source sha=5475791bace9525328361afa5dd948380c30710cc34a7f921c998abfef01c33f
+patched m1-drop-text
+  MUTATION-RED m1-drop-text: rc=1, 13 named assertion(s) red
+      FAIL text3 does not print an honest unknown name: "<none>"
+      FAIL the clock line is not empty = 0, expected >= 6
+      FAIL text1 has no clock shape: "<none>"
+      FAIL text2 has no score shape: "<none>"
+      FAIL text3 has no target shape: "<none>"
+      FAIL the live frame draws every primitive it published = 0, expected 3
+      FAIL the HUD pass runs after the world = 0, expected >= 1
+      FAIL the readout publishes three text primitives = 0, expected 3
+  RESTORED-IDENTICAL native/src/main_hud.cpp (5475791bace9525328361afa5dd948380c30710cc34a7f921c998abfef01c33f)
+
+--- mutation m2-freeze ---
+  pre-mutation source sha=5475791bace9525328361afa5dd948380c30710cc34a7f921c998abfef01c33f
+patched m2-freeze
+  MUTATION-RED m2-freeze: rc=1, 4 named assertion(s) red
+      FAIL the clock reading changes when the demo advances = TIME 10:00 PAUSED, expected something else than TIME 10:00 PAUSED
+      FAIL the advancing clock did not count down (600 vs 600)
+      FAIL the text is rebuilt when a reading changes = 1, expected >= 2
+      FAIL the clock text differs between the first and the last publish = TIME 10:00 PAUSED, expected something else than TIME 10:00 PAUSED
+  RESTORED-IDENTICAL native/src/main_hud.cpp (5475791bace9525328361afa5dd948380c30710cc34a7f921c998abfef01c33f)
+
+--- mutation m3-fake-name ---
+  pre-mutation source sha=5475791bace9525328361afa5dd948380c30710cc34a7f921c998abfef01c33f
+patched m3-fake-name
+  MUTATION-RED m3-fake-name: rc=1, 2 named assertion(s) red
+      FAIL the reading declares the name unavailable = Player, expected unavailable
+      FAIL text3 does not print an honest unknown name: "NAME Player  HP 1  ?  ?"
+  RESTORED-IDENTICAL native/src/main_hud.cpp (5475791bace9525328361afa5dd948380c30710cc34a7f921c998abfef01c33f)
+
+--- restored build ---
+  OK   the restored build reproduces the forward reading
+MUTATION-SUITE=PASS
+HUD-LIVE-CHECK=PASS
+  source restored sha=5475791bace9525328361afa5dd948380c30710cc34a7f921c998abfef01c33f
+LOCKED-COMMAND-EXIT rc=0 owner=t91-lead

@@ -1,0 +1,171 @@
+
+=== 1/5 build the product and the probe, then read what the binary says about itself ===
+  OK   baseline build exit code = 0
+  OK   the build produced native/build-nmake/tf2_demo_native.exe = present
+  OK   the build produced native/build-nmake/install_cli_probe.exe = present
+  OK   product --version exit code = 0
+  --- baseline --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-11-09T15:37:27Z sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193
+    dirty=1 dirtyFiles=27 dirtyTracked=2 dirtyUntracked=25
+  OK   baseline: the --version answer printed a line 1 = 1
+  OK   baseline: the --version answer printed a line 2 = 1
+  OK   baseline: the --version answer printed a line 3 = 1
+  OK   baseline: the answer carries buildUtc= = 1
+  OK   baseline: the answer carries sourceDateEpoch= = 1
+  OK   baseline: the answer carries sourceTree= = 1
+  OK   baseline: the answer carries dirty= = 1
+  OK   baseline: the answer carries dirtyFiles= = 1
+  OK   baseline: the answer carries dirtyTracked= = 1
+  OK   baseline: the answer carries dirtyUntracked= = 1
+  OK   baseline: buildUtc is an ISO-8601 UTC stamp = 1
+  OK   baseline: the answer is not the configure-time placeholder = absent
+  OK   baseline: sourceTree is not the placeholder = real
+  --- tree now: HEAD=f2c4fbd89193 records=27 tracked=2 untracked=25
+  --- baseline answers: buildUtc=2026-11-09T15:37:27Z sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193 dirty=1 dirtyFiles=27 dirtyTracked=2 dirtyUntracked=25 
+  OK   baseline: sourceTree is the commit this build was made from = f2c4fbd89193
+  OK   baseline: sourceDateEpoch is that commit's committer epoch = 1794233922
+  OK   baseline: dirty is 1 exactly when the worktree has uncommitted changes = 1
+  OK   baseline: dirtyFiles is the porcelain record count git reports now = 27
+  OK   baseline: dirtyTracked is the tracked share of that count = 2
+  OK   baseline: dirtyUntracked is the untracked share of that count = 25
+  OK   baseline: buildUtc parses as a UTC instant = yes
+  OK   baseline: buildUtc is not earlier than the commit it names = 1794238647
+  OK   baseline: buildUtc is not later than the executable's own mtime = 1794238647
+  OK   baseline: line 1 keeps the shape install-lifecycle-check.sh parses = package=tf2_demo_native version=0.1.0
+  OK   baseline: line 1 ends in a numeric versionCode = 1
+  --- baseline exe sha256=84a6ed1d913e13140c010e56d27799b6886480aef3775199bf6649eee74e45fd stamp sha256=4271117408998af42111dbb451537062f63f04727a4eef79332e70896c2c1e00 records=27
+  OK   the stamp file is where the build put it = present
+
+=== 1b/5 the probe reports the same identity as the product ===
+  OK   install_cli_probe --version exit code = 0
+  OK   the probe printed a line 1 = 1
+  OK   the probe printed dirty= = 1
+  OK   install_cli_probe agrees with the product on line 1 = package=tf2_demo_native version=0.1.0
+  OK   install_cli_probe reports the same sourceTree = f2c4fbd89193
+  OK   install_cli_probe reports the same dirty state = 1
+
+=== 1c/5 an argument the product does not know is a reading, not silence ===
+  OK   arg surface: an unknown argument is still ignored, rc=13 is the value refusal = 13
+  OK   arg surface: the run wrote a trace file with lines = 3
+  OK   arg surface: the trace has exactly one args: line = 1
+  OK   arg surface: the unknown argument is counted (args: unrecognized=1) = 1
+  OK   arg surface: that line names the argument in first= and all= = 1
+  OK   arg surface: --strict-args refuses the unknown argument (rc 2) = 2
+  OK   arg surface: the refusal reached stderr = 1
+  OK   arg surface: the refusal names the argument the caller wrote = 1
+  OK   arg surface: the strict run still printed its args: line = 1
+  OK   arg surface: the strict exit happens before startup resolves assets = absent
+  OK   arg surface: a command line the product understands is not refused (rc 0) = 0
+  OK   arg surface: that run counts zero unrecognised arguments = 1
+  OK   arg surface: with nothing to list, first= and all= say so (-) = 1
+
+=== 2/5 a rebuild with no source change must neither relink nor move buildUtc ===
+  OK   no-op build exit code = 0
+  OK   no-op --version exit code = 0
+  OK   a no-op rebuild does not relink the product (same exe sha256) = 84a6ed1d913e13140c010e56d27799b6886480aef3775199bf6649eee74e45fd
+  OK   a no-op rebuild does not rewrite the stamp (same stamp sha256) = 4271117408998af42111dbb451537062f63f04727a4eef79332e70896c2c1e00
+  OK   a no-op rebuild answers with the same bytes = package=tf2_demo_native version=0.1.0 versionCode=100
+buildUtc=2026-11-09T15:37:27Z sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193
+dirty=1 dirtyFiles=27 dirtyTracked=2 dirtyUntracked=25
+
+=== 3/5 a dirty tree must be reported as dirty, with the count git reports ===
+  --- probe added 1 tracked change (docs/RELEASE-POLICY.md) and 1 untracked file
+  OK   the probe added exactly two records to the tree = 2
+  OK   dirty build exit code = 0
+  OK   dirty --version exit code = 0
+  --- dirty --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-11-09T15:37:44Z sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193
+    dirty=1 dirtyFiles=29 dirtyTracked=3 dirtyUntracked=26
+  OK   dirty: the --version answer printed a line 1 = 1
+  OK   dirty: the --version answer printed a line 2 = 1
+  OK   dirty: the --version answer printed a line 3 = 1
+  OK   dirty: the answer carries buildUtc= = 1
+  OK   dirty: the answer carries sourceDateEpoch= = 1
+  OK   dirty: the answer carries sourceTree= = 1
+  OK   dirty: the answer carries dirty= = 1
+  OK   dirty: the answer carries dirtyFiles= = 1
+  OK   dirty: the answer carries dirtyTracked= = 1
+  OK   dirty: the answer carries dirtyUntracked= = 1
+  OK   dirty: buildUtc is an ISO-8601 UTC stamp = 1
+  OK   dirty: the answer is not the configure-time placeholder = absent
+  OK   dirty: sourceTree is not the placeholder = real
+  --- tree now: HEAD=f2c4fbd89193 records=29 tracked=3 untracked=26
+  --- dirty answers: buildUtc=2026-11-09T15:37:44Z sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193 dirty=1 dirtyFiles=29 dirtyTracked=3 dirtyUntracked=26 
+  OK   dirty: sourceTree is the commit this build was made from = f2c4fbd89193
+  OK   dirty: sourceDateEpoch is that commit's committer epoch = 1794233922
+  OK   dirty: dirty is 1 exactly when the worktree has uncommitted changes = 1
+  OK   dirty: dirtyFiles is the porcelain record count git reports now = 29
+  OK   dirty: dirtyTracked is the tracked share of that count = 3
+  OK   dirty: dirtyUntracked is the untracked share of that count = 26
+  OK   the dirty rebuild relinked the product (exe sha256 moved) = moved
+  OK   the dirty build answers differently from the clean one = differs
+  OK   the dirty build still names the same commit as sourceTree = f2c4fbd89193
+
+=== 4/5 restoring the tree must restore the identity ===
+  OK   the probe's tracked file is restored byte-identically = 0
+  OK   the restored tracked file has its original sha256 = d87f6c3230ce2163081ebab2a69b63df271871dd72c0433e83fadface893e3d0
+  OK   restored build exit code = 0
+  OK   restored --version exit code = 0
+  --- restored --version ---
+    package=tf2_demo_native version=0.1.0 versionCode=100
+    buildUtc=2026-11-09T15:37:50Z sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193
+    dirty=1 dirtyFiles=27 dirtyTracked=2 dirtyUntracked=25
+  OK   restored: the --version answer printed a line 1 = 1
+  OK   restored: the --version answer printed a line 2 = 1
+  OK   restored: the --version answer printed a line 3 = 1
+  OK   restored: the answer carries buildUtc= = 1
+  OK   restored: the answer carries sourceDateEpoch= = 1
+  OK   restored: the answer carries sourceTree= = 1
+  OK   restored: the answer carries dirty= = 1
+  OK   restored: the answer carries dirtyFiles= = 1
+  OK   restored: the answer carries dirtyTracked= = 1
+  OK   restored: the answer carries dirtyUntracked= = 1
+  OK   restored: buildUtc is an ISO-8601 UTC stamp = 1
+  OK   restored: the answer is not the configure-time placeholder = absent
+  OK   restored: sourceTree is not the placeholder = real
+  --- tree now: HEAD=f2c4fbd89193 records=27 tracked=2 untracked=25
+  --- restored answers: buildUtc=2026-11-09T15:37:50Z sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193 dirty=1 dirtyFiles=27 dirtyTracked=2 dirtyUntracked=25 
+  OK   restored: sourceTree is the commit this build was made from = f2c4fbd89193
+  OK   restored: sourceDateEpoch is that commit's committer epoch = 1794233922
+  OK   restored: dirty is 1 exactly when the worktree has uncommitted changes = 1
+  OK   restored: dirtyFiles is the porcelain record count git reports now = 27
+  OK   restored: dirtyTracked is the tracked share of that count = 2
+  OK   restored: dirtyUntracked is the untracked share of that count = 25
+  OK   the gate left the tree with the record count it found = 27
+  OK   the gate left the tree with the tracked/untracked split it found = 2/25
+  OK   the restored identity fields match the pre-probe identity = sourceDateEpoch=1794233922 sourceTree=f2c4fbd89193 dirty=1 dirtyFiles=27 dirtyTracked=2 dirtyUntracked=25 
+  OK   the restored build's buildUtc did not move backwards = 1794238670
+  OK   the restored stamp carries a dirtyFiles reading at all = 1
+  OK   the restored stamp carries the pre-probe record count (27) = 1
+  OK   the stamp is not left carrying the probe's record count = 0
+
+=== 4b/5 the identity record: exe sha + HEAD + native/ tree hash, never the sha alone ===
+  OK   identity: the record has the fields it promises = 10
+  OK   identity: the record pairs the exe sha256 with a full git HEAD = 1
+  OK   identity: the record pairs it with a native/ tree sha256 = 1
+  OK   identity: the recorded exe sha256 is the executable on disk = 9f2053b37fc5696408128bc47c256cc2ed83edbd0336800254b1dec488d60201
+  OK   identity: the recorded HEAD is the live HEAD = f2c4fbd89193969729a7155aae2c798af37b0902
+  OK   identity: the recorded native/ hash is what git hashes now = 7378ca192be9684e5aa6ee851910f06c7db0e6a2074f5f4545cdf157ecef8192
+  OK   identity: the version's sourceTree is the short form of that same HEAD = f2c4fbd89193
+
+=== 5/5 what the assertions above established, and what they did not ===
+  NOT-PROVEN cross-machine reproducibility: --reproducible measured two clean full builds on THIS machine only
+  NOT-PROVEN a content hash: sourceTree+dirty name a commit and a count, not the dirty content
+  NOT-PROVEN the manifest/VERSION.txt agree with --version (install-lifecycle-check.sh's subject)
+  NOT-PROVEN that a dirty build can be rebuilt from the dirty tree (it is not recorded, only counted)
+  assertions=115 failed=0
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/version-baseline.txt': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/version-dirty-probe.txt': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/version-restored.txt': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/probe-version.txt': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/args-unknown.trace': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/args-unknown.log': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/args-strict.err': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/args-strict.trace': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/args-clean.trace': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/quit.camera': No such file or directory
+cp: cannot create regular file '/d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/source-identity.txt': No such file or directory
+build-identity-check.sh: line 766: /d/TF2_Native_Worktrees/t91-integration/.scratch/build-identity/forward/readings.txt: No such file or directory
+BUILD-IDENTITY=PASS assertions=115 identity=exe-sha+HEAD+native-tree-sha head=f2c4fbd89193

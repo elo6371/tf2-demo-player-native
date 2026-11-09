@@ -1,0 +1,38 @@
+seeded /tmp/tmp.7ppXkGFAfn/settings.ini from the real profile (read only)
+seeded /tmp/tmp.7ppXkGFAfn/ui.ini from the real profile (read only)
+
+== cp_snakewater_final1 ==
+  reading load: 25451.3 map: geometry budget capacity=400000 requested=242361 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading brush: 28386.6 gpu: world brush models total=153 drawn=86 skippedMoving=67 skippedUnknown=0 facesDrawn=3246 facesSkipped=386 worldFaces=12471 brushFaces=3632
+  reading frame: 30542.4 gpu: world geometry budget capacity=400000 requested=242361 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 drawTriangles=242109 state=within
+  reading cp_snakewater_final1: face partition world=12471 brush=3632 drawn=3246 skipped=386 unattributed=0
+  reading shrink 200000: geometry budget capacity=200000 requested=242361 dropped=42643 facesDropped=3513 brushFacesDropped=3246 brushModelsDropped=86 firstFace=12204 firstBrush=worldspawn state=truncated
+  reading shrink 100000: geometry budget capacity=100000 requested=242361 dropped=144209 facesDropped=4296 brushFacesDropped=3246 brushModelsDropped=86 firstFace=11421 firstBrush=worldspawn state=truncated
+
+== cp_sunshine ==
+  reading load: 59671.9 map: geometry budget capacity=400000 requested=82859 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading brush: 62125.5 gpu: world brush models total=229 drawn=137 skippedMoving=92 skippedUnknown=0 facesDrawn=3129 facesSkipped=533 worldFaces=16787 brushFaces=3662
+  reading frame: 63664.5 gpu: world geometry budget capacity=400000 requested=82859 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 drawTriangles=82859 state=within
+  reading cp_sunshine: face partition world=16787 brush=3662 drawn=3129 skipped=533 unattributed=0
+  reading shrink 200000: geometry budget capacity=200000 requested=82859 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading shrink 100000: geometry budget capacity=100000 requested=82859 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+
+== koth_bagel_rc12 ==
+  reading load: 74489.4 map: geometry budget capacity=400000 requested=98066 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading brush: 76638.5 gpu: world brush models total=290 drawn=256 skippedMoving=34 skippedUnknown=0 facesDrawn=6761 facesSkipped=317 worldFaces=11157 brushFaces=7078
+  reading frame: 77861.4 gpu: world geometry budget capacity=400000 requested=98066 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 drawTriangles=97806 state=within
+  reading koth_bagel_rc12: face partition world=11157 brush=7078 drawn=6761 skipped=317 unattributed=0
+  reading shrink 200000: geometry budget capacity=200000 requested=98066 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading shrink 100000: geometry budget capacity=100000 requested=98066 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+
+== koth_bagel_rc11 ==
+  reading load: 39984.3 map: geometry budget capacity=400000 requested=98029 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading brush: 42104.8 gpu: world brush models total=290 drawn=256 skippedMoving=34 skippedUnknown=0 facesDrawn=6757 facesSkipped=317 worldFaces=11157 brushFaces=7074
+  reading frame: 44066.5 gpu: world geometry budget capacity=400000 requested=98029 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 drawTriangles=97769 state=within
+  reading koth_bagel_rc11: face partition world=11157 brush=7074 drawn=6757 skipped=317 unattributed=0
+  reading shrink 200000: geometry budget capacity=200000 requested=98029 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading shrink 100000: geometry budget capacity=100000 requested=98029 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+  reading pl_odyssey (not asserted): probe demand=105486 at 4000000
+  ok   H1 real profile untouched by this run: /c/Users/Administrator/AppData/Local/TF2 Demo Player/settings.ini 2786 1794220925 /c/Users/Administrator/AppData/Local/TF2 Demo Player/ui.ini 978 1794220845 
+
+WORLD-GEOMETRY-BUDGET=PASS

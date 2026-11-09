@@ -1,0 +1,818 @@
+0.0 trace open
+11.6 window: created outer=1280x720 client=1264x681 dpi=96 pinned=0
+26.2 args: unrecognized=0 first=- all=-
+209.1 resources: requested=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf tf_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf valid=1
+23236.1 budget: prepare capacity=64 candidates=60 admitted=60 built=59 deferred=0 failed=1 admittedByPriority=player:9,weapon:20,overlay:0,prop:25,firstPersonOnly:6 deferredByPriority=player:0,weapon:0,overlay:0,prop:0,firstPersonOnly:0
+23240.7 gpu: overlay meshes prepared=9 of 9
+23478.4 vpk: archives opened=4 refused=0
+23548.4 map: lookup map=cp_snakewater_final1 store=maps selected=maps/cp_snakewater_final1.bsp bytes=59590420 reason=found
+23750.9 map: geometry budget capacity=400000 requested=242361 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 firstFace=-1 firstBrush=- state=within
+23798.0 gpu: world blend material=NATURE/BLENDGROUNDTOGRASS008 first=materials/Nature/dirtground010.vtf second=materials/Nature/grass_08.vtf source=1024x1024 tile=512x512 modulate=Nature/grass_blendmask
+23808.7 gpu: world blend-modulate material=NATURE/BLENDGROUNDTOGRASS008 path=materials/Nature/grass_blendmask.vtf source=1024x1024 tile=512x512
+23828.6 gpu: world blend material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL first=materials/Nature/dirtground010.vtf second=materials/Nature/grass_08.vtf source=1024x1024 tile=512x512 modulate=Nature/grass_blendmask
+23839.3 gpu: world blend-modulate material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL path=materials/Nature/grass_blendmask.vtf source=1024x1024 tile=512x512
+23859.6 gpu: world blend material=COALMINES/BLENDGROUNDTOGRASS_COALMINES first=materials/coalmines/dirtground003.vtf second=materials/coalmines/dirtground004.vtf source=1024x1024 tile=512x512 modulate=
+23880.3 gpu: world alpha material=METAL/CHICKEN_WIRE001 stage=declared translucent=0 alphatest=1 source=materials/METAL/CHICKEN_WIRE001.vmt
+23981.2 gpu: world alpha material=METAL/METALGRATE013A2 stage=declared translucent=1 alphatest=0 source=materials/METAL/METALGRATE013A2.vmt
+24722.8 gpu: world alpha material=OVERLAYS/DUST_GRADIENT01 stage=declared translucent=1 alphatest=0 source=materials/OVERLAYS/DUST_GRADIENT01.vmt
+24776.0 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_5934_-1624_-24 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_5934_-1624_-24.vmt
+24776.0 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_5934_-1624_-24 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24796.6 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-4771_2021_-15 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-4771_2021_-15.vmt
+24796.6 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-4771_2021_-15 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24806.4 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-3950_1281_-16 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-3950_1281_-16.vmt
+24806.4 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-3950_1281_-16 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24806.7 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_5000_-865_-16 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_5000_-865_-16.vmt
+24806.7 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_5000_-865_-16 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24827.0 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-5135_2022_-15 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-5135_2022_-15.vmt
+24827.0 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-5135_2022_-15 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24836.8 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-692_723_48 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-692_723_48.vmt
+24836.8 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-692_723_48 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24837.2 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_1743_-308_48 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_1743_-308_48.vmt
+24837.2 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_1743_-308_48 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24857.9 gpu: world alpha material=OVERLAYS/DUST_GRADIENT02 stage=declared translucent=1 alphatest=0 source=materials/OVERLAYS/DUST_GRADIENT02.vmt
+24881.6 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-2569_1587_80 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-2569_1587_80.vmt
+24881.6 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-2569_1587_80 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24881.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-3223_2571_-16 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-3223_2571_-16.vmt
+24881.9 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-3223_2571_-16 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24882.2 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-675_2321_-112 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-675_2321_-112.vmt
+24882.2 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-675_2321_-112 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24882.5 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_3619_-1171_80 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_3619_-1171_80.vmt
+24882.5 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_3619_-1171_80 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24902.1 gpu: world alpha material=PROPS/COBWEB001 stage=declared translucent=1 alphatest=0 source=materials/PROPS/COBWEB001.vmt
+24915.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-1985_1664_-240 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_-1985_1664_-240.vmt
+24915.9 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_-1985_1664_-240 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24916.3 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_1235_-3530_-160 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_1235_-3530_-160.vmt
+24916.4 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_1235_-3530_-160 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24916.7 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_1726_-1905_-112 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_1726_-1905_-112.vmt
+24916.7 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_1726_-1905_-112 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24917.3 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_3035_-1249_-240 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_3035_-1249_-240.vmt
+24917.4 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_3035_-1249_-240 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24917.7 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_4273_-2156_-16 stage=declared translucent=1 alphatest=0 source=materials/maps/cp_snakewater_final1/glass/glasswindow001a_4273_-2156_-16.vmt
+24917.7 gpu: world transform-applied material=maps/cp_snakewater_final1/glass/glasswindow001a_4273_-2156_-16 transform=center .5 .5 scale 4 4 rotate 45 translate 0 0 center=0.5000 0.5000 scale=4.0000 4.0000 rotate=45.0000 translate=0.0000 0.0000
+24919.3 gpu: world material-fetch distinct=151 tiled=141 capped=0 vmtMissing=5 vmtNoBase=0 vmtUnparsable=0 waterShader=4 vtfMissing=1 vtfTooLarge=113 decodeEmpty=0 maxWidth=1024 maxHeight=2048 fromPakfile=32 downscaled=113 blendFirst=3 blendLastRank=3 blendCapped=0 patchDeclared=30 patchResolved=30 patchUnparsable=0 transformRefused=0 transformApplied=16
+24919.3 gpu: world alpha-fetch declared=21 translucent=20 alphatest=1 tiledTranslucent=20 tiledAlphatest=1 aggregateTranslucent=1 aggregateAlphatest=1
+24919.3 gpu: world blend-fetch declared=3 resolved=3 refused=0 disabled=0 resampled=3 modulateDeclared=2 modulateResolved=2 modulateRefused=0
+24919.3 gpu: world feature-fetch bumpSwitch=0 bumpDeclared=0 bumpResolved=0 bumpMissing=0 bumpSsBump=0 bump2Switch=0 bump2Declared=0 bump2Resolved=0 bump2Missing=0 bump2SsBump=0 bump2Forced=0 detailSwitch=0 detailDeclared=0 detailResolved=0 detailNoVmt=0 detailNoBase=0 detailVtfMissing=0 detailModeRefused=0 detailForced=0 detailModes=-
+25259.2 playback: request id=1 kind=set-speed source=cli requestedTick=0 requestedSeconds=0.000000 appliedTick=0 appliedSeconds=0.000000 deltaTicks=0 deltaSeconds=0.000000 speedBefore=1.000000 speedAfter=32.000000 strict=0 status=applied reason=
+25279.2 audio: timeline firstPacketTick=1 soundOriginTick=1 originFound=1 read=5292 scheduled=5229 unresolved=63 unplaceable=0 refused=0 kinds=w2953/f5/u14/o1620/v633/a4/m0
+25281.1 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 242109 tris, lightmap: samples=2793687 faces=14988 tris=242283 bytes=5053536 state=source-equivalent tone=ldr-clamp atlas=4096x1331, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=0/64352 req=0 act=0 frame=pending fdelta=na speed=32.000000 rate=66.666669 anchorAbs=10252@8670565 forward playing HUD[tick=0 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=32.000000 entity=no-history stale=0 audio=0/0 health=? team=? class=? clip=? uber=? snd=2953/5/14 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=0 entityModels=0 entitySlots=0 entityModelVerts=0 entityMaterials=0/0 entityMaterialRanges=0/0 entityMaterialModels=0/59 entityPaintedSlots=0 animSkinned=0/0 animBones=0 animSeq=-1 animFrame=0/0 animSource=none animBindings=0/0 animCache=0 animAdv=0 animWitness=- gpuSkin=0/0 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 weaponKnown=50 itemKnown=81 paintKnown=0 sk...[TRUNCATED]
+25872.3 hud: settings-file path=C:/Users/ADMINI~1/AppData/Local/Temp/tmp.sHRbGyueio/speed-32/ui.ini status=ok loaded=1 repaired=0
+25872.3 hud: cli import=0 reset=0 scale=-1 enabled=-1 result=nothing-to-do discover=-
+25872.5 hud: keys action=hud.toggle chord=H bound=1
+25872.5 hud: keys action=hud.preview chord=Ctrl+P bound=1
+25872.5 hud: keys action=hud.reset chord=Ctrl+Shift+H bound=1
+25872.5 hudpanel: cases=11 pass=11 fail=0
+25872.8 hud: settings enabled=0 scale=100 preview=1 root=- layout=- imported=0
+25872.8 hud: layout ok=0 document=- panels=0 refused=0 nesting=0 unknownKeys=0 duplicates=0 includes=0
+25872.8 hud: rects resolved=0 visible=0 invalid=0 union=0,0,0,0 empty=1
+25872.8 hud: refuse accepted=0 refused=0 lastReason=none detail=-
+25872.8 hud: draw drawn=0 rects=0 ordinal=0 scissor=0 region=0,0,0,0
+25872.8 gpu: reload begin
+25887.5 gpu: reload-stage stage=texture lastError=0x00000000
+25887.6 gpu: reload-stage stage=aux lastError=0x00000000
+25896.0 gpu: reload-stage stage=lightmap lastError=0x00000000
+25896.2 gpu: reload-stage stage=cubemap lastError=0x00000000
+25913.1 gpu: reload-stage stage=sky lastError=0x00000000
+25913.1 gpu: world sky-upload state=unavailable vertices=0 triangles=0 faces=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+25913.1 gpu: world sky-face index=0 dir=+X suffix=rt vmt=materials/skybox/sky_well_01rt.vmt vtf=materials/skybox/sky_well_01rt.vtf rgba=107,95,121,255
+25913.1 gpu: world sky-face index=1 dir=-X suffix=lf vmt=materials/skybox/sky_well_01lf.vmt vtf=materials/skybox/sky_well_01lf.vtf rgba=104,100,135,255
+25913.1 gpu: world sky-face index=2 dir=+Y suffix=bk vmt=materials/skybox/sky_well_01bk.vmt vtf=materials/skybox/sky_well_01bk.vtf rgba=104,100,135,255
+25913.1 gpu: world sky-face index=3 dir=-Y suffix=ft vmt=materials/skybox/sky_well_01ft.vmt vtf=materials/skybox/sky_well_01ft.vtf rgba=104,100,135,255
+25913.1 gpu: world sky-face index=4 dir=+Z suffix=up vmt=materials/skybox/sky_well_01up.vmt vtf=materials/skybox/sky_well_01up.vtf rgba=89,91,137,255
+25913.2 gpu: world sky-face index=5 dir=-Z suffix=dn vmt=materials/skybox/sky_well_01dn.vmt vtf=materials/skybox/sky_well_01dn.vtf rgba=29,57,90,255
+26193.2 gpu: world geometry=all blend=on
+26196.7 gpu: reload-stage stage=water lastError=0x00000000
+26197.0 gpu: world water-upload state=unavailable faces=0 triangles=0 warpPlanned=0 textureBound=1 textureSource=shipped-water-colour texture=water/water_hydro_base uvSpan=0.0000,0.0000 uvOrigin=0.0000,0.0000 bumpBound=1 bumpTexture=- rippleBaked=0 waterMap=-637.0,-4220.0,-188.0..1721.0,4024.0,-188.0 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+26197.1 gpu: world lightmap status=active intensity=0.427 atlas=1 bump=0 env=0 vertices=726327 lightmapped=726093 bounds=(-0.90,-0.84,0.10)..(0.90,0.84,0.90) lightmapEnabled=1
+26197.1 gpu: world geometry displacedTriangles=199360 waterTriangles=36
+26197.1 gpu: world blend enabled=1 terrainOnly=0 textures=141 layers=3 accepted=141 acceptedLayers=3 tiles=3 modulateTiles=2 malformedLayers=0 weightedVertices=33888 modulatedVertices=30816 weightMin=0.000 weightMax=1.000 distinctWeights=9
+26197.2 gpu: world atlas size=4112 bytes=67634176 atlases=3 totalBytes=152176896 state=bound
+26197.2 gpu: world brush origin applied models=86 faces=3246 skipped=0 noOrigin=0 maxShift=6267.6
+26197.2 gpu: world brush model refused class=func_regenerate model=*1 entity=44 firstface=12471 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*2 entity=128 firstface=12477 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*3 entity=129 firstface=12483 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*4 entity=222 firstface=12489 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*5 entity=223 firstface=12495 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*6 entity=246 firstface=12501 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*7 entity=247 firstface=12507 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*8 entity=249 firstface=12513 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*9 entity=250 firstface=12519 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*11 entity=283 firstface=12547 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*12 entity=284 firstface=12553 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*13 entity=286 firstface=12559 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*14 entity=287 firstface=12565 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*15 entity=295 firstface=12571 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*16 entity=296 firstface=12577 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_regenerate model=*17 entity=298 firstface=12583 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_regenerate model=*18 entity=300 firstface=12589 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=trigger_multiple model=*19 entity=308 firstface=12595 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_door model=*20 entity=309 firstface=12601 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_regenerate model=*21 entity=317 firstface=12607 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_regenerate model=*22 entity=323 firstface=12613 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_regenerate model=*24 entity=350 firstface=12625 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_regenerate model=*25 entity=356 firstface=12631 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_respawnroom model=*26 entity=357 firstface=12637 faces=6 reason=moving
+26197.2 gpu: world brush model refused class=func_respawnroom model=*27 entity=358 firstface=12643 faces=12 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*28 entity=359 firstface=12655 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*29 entity=360 firstface=12661 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*33 entity=369 firstface=12667 faces=12 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*44 entity=386 firstface=12703 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_nobuild model=*45 entity=393 firstface=12709 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroomvisualizer model=*48 entity=397 firstface=12826 faces=1 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*49 entity=398 firstface=12827 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*50 entity=399 firstface=12833 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=trigger_hurt model=*51 entity=400 firstface=12839 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_dustmotes model=*54 entity=415 firstface=12889 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_door model=*66 entity=462 firstface=13228 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=trigger_multiple model=*67 entity=463 firstface=13234 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroomvisualizer model=*68 entity=464 firstface=13240 faces=1 reason=moving
+26197.3 gpu: world brush model refused class=func_nobuild model=*70 entity=467 firstface=13241 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_nobuild model=*71 entity=469 firstface=13247 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroomvisualizer model=*73 entity=473 firstface=13253 faces=1 reason=moving
+26197.3 gpu: world brush model refused class=func_door model=*74 entity=475 firstface=13254 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=trigger_multiple model=*75 entity=476 firstface=13260 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_nobuild model=*76 entity=477 firstface=13266 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroomvisualizer model=*78 entity=480 firstface=13272 faces=1 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroomvisualizer model=*79 entity=481 firstface=13273 faces=1 reason=moving
+26197.3 gpu: world brush model refused class=func_nobuild model=*81 entity=484 firstface=13274 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*84 entity=487 firstface=13304 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*85 entity=488 firstface=13310 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=func_respawnroom model=*116 entity=543 firstface=15044 faces=6 reason=moving
+26197.3 gpu: world brush model refused class=trigger_capture_area model=*117 entity=545 firstface=15050 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=trigger_capture_area model=*118 entity=547 firstface=15056 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=trigger_capture_area model=*119 entity=550 firstface=15062 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroom model=*120 entity=557 firstface=15068 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=trigger_capture_area model=*121 entity=558 firstface=15074 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=trigger_capture_area model=*122 entity=561 firstface=15080 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroomvisualizer model=*124 entity=688 firstface=15102 faces=1 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroomvisualizer model=*125 entity=689 firstface=15103 faces=1 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroom model=*126 entity=690 firstface=15104 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroom model=*133 entity=807 firstface=15234 faces=18 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroomvisualizer model=*137 entity=821 firstface=15303 faces=1 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroom model=*138 entity=822 firstface=15304 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_respawnroom model=*139 entity=825 firstface=15310 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_nobuild model=*140 entity=828 firstface=15316 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_nobuild model=*141 entity=829 firstface=15322 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_nobuild model=*142 entity=830 firstface=15328 faces=6 reason=moving
+26197.4 gpu: world brush model refused class=func_achievement model=*143 entity=840 firstface=15334 faces=6 reason=moving
+26197.4 gpu: world brush models total=153 drawn=86 skippedMoving=67 skippedUnknown=0 facesDrawn=3246 facesSkipped=386 worldFaces=12471 brushFaces=3632
+26197.4 gpu: world cubemap status=six-face mode=0 preset=performance declared=0 faces=6 size=32 source=materials/maps/cp_snakewater_final1/c-5135_2022_-15.vtf reason=all six faces decoded
+26233.0 gpu: model 0/59 slots=4 painted=4 35.6ms
+26253.2 gpu: model 1/59 slots=2 painted=2 20.2ms
+26256.1 gpu: model 2/59 slots=2 painted=2 2.9ms
+26258.9 gpu: model 3/59 slots=2 painted=2 2.8ms
+26303.8 gpu: model 4/59 slots=2 painted=2 44.8ms
+26373.7 gpu: model 5/59 slots=2 painted=2 69.8ms
+26378.4 gpu: model 6/59 slots=4 painted=4 4.7ms
+26382.3 gpu: model 7/59 slots=2 painted=2 3.8ms
+26386.3 gpu: model 8/59 slots=2 painted=2 4.0ms
+26400.0 gpu: model 9/59 slots=2 painted=2 13.7ms
+26410.6 gpu: model 10/59 slots=2 painted=2 10.5ms
+26420.2 gpu: model 11/59 slots=2 painted=2 9.5ms
+26461.7 gpu: model 12/59 slots=1 painted=1 41.3ms
+26532.1 gpu: model 13/59 slots=2 painted=2 70.4ms
+26571.4 gpu: model 14/59 slots=1 painted=1 39.2ms
+26574.4 gpu: model 15/59 slots=1 painted=1 3.0ms
+26584.9 gpu: model 16/59 slots=1 painted=1 10.4ms
+26597.3 gpu: model 17/59 slots=2 painted=2 12.4ms
+26608.7 gpu: model 18/59 slots=1 painted=1 11.3ms
+26616.5 gpu: model 19/59 slots=1 painted=1 7.8ms
+26624.4 gpu: model 20/59 slots=1 painted=1 7.9ms
+26634.3 gpu: model 21/59 slots=2 painted=2 9.8ms
+26666.6 gpu: model 22/59 slots=4 painted=4 32.2ms
+26674.4 gpu: model 23/59 slots=1 painted=1 7.8ms
+26682.1 gpu: model 24/59 slots=1 painted=1 7.7ms
+26690.4 gpu: model 25/59 slots=1 painted=1 8.3ms
+26701.2 gpu: model 26/59 slots=2 painted=2 10.8ms
+26710.3 gpu: model 27/59 slots=9 painted=9 9.0ms
+26726.3 gpu: model 28/59 slots=4 painted=4 15.9ms
+26749.3 gpu: model 29/59 slots=4 painted=4 23.0ms
+26759.1 gpu: model 30/59 slots=2 painted=2 9.7ms
+26760.9 gpu: model 31/59 slots=1 painted=1 1.8ms
+26795.6 gpu: model 32/59 slots=6 painted=6 34.7ms
+26796.7 gpu: model 33/59 slots=1 painted=1 1.0ms
+26799.3 gpu: model 34/59 slots=1 painted=1 2.6ms
+26871.5 gpu: model 35/59 slots=2 painted=2 72.1ms
+26881.9 gpu: model 36/59 slots=1 painted=1 10.3ms
+26917.3 gpu: model 37/59 slots=4 painted=4 35.4ms
+26998.7 gpu: model 38/59 slots=2 painted=2 81.3ms
+27026.0 gpu: model 39/59 slots=6 painted=6 27.2ms
+27031.2 gpu: model 40/59 slots=2 painted=2 5.2ms
+27104.3 gpu: model 41/59 slots=2 painted=2 73.1ms
+27109.5 gpu: model 42/59 slots=2 painted=2 5.1ms
+27193.9 gpu: model 43/59 slots=2 painted=2 84.4ms
+27268.2 gpu: model 44/59 slots=2 painted=2 74.2ms
+27270.1 gpu: model 45/59 slots=1 painted=1 1.9ms
+27272.8 gpu: model 46/59 slots=1 painted=1 2.6ms
+27286.4 gpu: model 47/59 slots=6 painted=6 13.6ms
+27289.2 gpu: model 48/59 slots=1 painted=1 2.8ms
+27294.7 gpu: model 49/59 slots=1 painted=1 5.4ms
+27327.3 gpu: model 50/59 slots=8 painted=8 32.6ms
+27349.3 gpu: model 51/59 slots=12 painted=12 22.0ms
+27369.0 gpu: model 52/59 slots=12 painted=12 19.6ms
+27384.4 gpu: model 53/59 slots=8 painted=8 15.4ms
+27426.6 gpu: model 54/59 slots=10 painted=10 42.1ms
+27481.1 gpu: model 55/59 slots=10 painted=10 54.4ms
+27507.0 gpu: model 56/59 slots=2 painted=2 25.9ms
+27526.9 gpu: model 57/59 slots=10 painted=10 19.9ms
+27573.7 gpu: model 58/59 slots=6 painted=6 46.8ms
+27573.7 gpu: models done 59 uploaded=59
+27574.7 gpu: overlay uv key=models/player/scout.mdl#class-fallback verts=23442 uvMin=0.0038,0.0028 uvMax=0.9967,0.9995 nonFinite=0
+27583.3 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=0 family=0 size=2048x1024 uploaded=1 meanRGBA=110.1,64.5,58.6,255.0 samples=513 vtf=materials/models/player/scout/scout_red.vtf
+27583.3 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=0 family=0 uv=0.0873,0.4797 rgba=90,80,82,255
+27583.3 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=0 family=0 runs=2 verts=1060 black=0 blackPct=0.0 meshVerts=23442
+27588.4 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=1 family=0 size=1024x1024 uploaded=1 meanRGBA=117.2,75.0,58.5,255.0 samples=257 vtf=materials/models/player/scout/scout_head.vtf
+27588.5 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=1 family=0 uv=0.0873,0.4797 rgba=133,81,57,255
+27588.5 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=1 family=0 runs=1 verts=531 black=0 blackPct=0.0 meshVerts=23442
+27588.8 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=2 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27588.8 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=2 family=0 uv=0.0873,0.4797 rgba=174,147,120,255
+27588.8 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=2 family=0 runs=1 verts=60 black=0 blackPct=0.0 meshVerts=23442
+27588.8 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=3 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27588.8 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=3 family=0 uv=0.0873,0.4797 rgba=174,147,120,255
+27588.9 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=3 family=0 runs=1 verts=60 black=0 blackPct=0.0 meshVerts=23442
+27598.2 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=0 family=1 size=2048x1024 uploaded=1 meanRGBA=79.7,80.6,84.0,255.0 samples=513 vtf=materials/models/player/scout/scout_blue.vtf
+27598.2 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=0 family=1 uv=0.0873,0.4797 rgba=90,80,82,255
+27598.2 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=0 family=1 runs=2 verts=1060 black=0 blackPct=0.0 meshVerts=23442
+27603.4 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=1 family=1 size=1024x1024 uploaded=1 meanRGBA=117.2,75.0,58.5,255.0 samples=257 vtf=materials/models/player/scout/scout_head.vtf
+27603.5 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=1 family=1 uv=0.0873,0.4797 rgba=133,81,57,255
+27603.5 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=1 family=1 runs=1 verts=531 black=0 blackPct=0.0 meshVerts=23442
+27603.8 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=2 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27603.8 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=2 family=1 uv=0.0873,0.4797 rgba=174,147,120,255
+27603.8 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=2 family=1 runs=1 verts=60 black=0 blackPct=0.0 meshVerts=23442
+27603.9 gpu: overlay texture key=models/player/scout.mdl#class-fallback slot=3 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27603.9 gpu: overlay texel key=models/player/scout.mdl#class-fallback slot=3 family=1 uv=0.0873,0.4797 rgba=174,147,120,255
+27603.9 gpu: overlay runscan key=models/player/scout.mdl#class-fallback slot=3 family=1 runs=1 verts=60 black=0 blackPct=0.0 meshVerts=23442
+27604.9 gpu: overlay uv key=models/player/sniper.mdl#class-fallback verts=23595 uvMin=-0.9879,0.0002 uvMax=1.9879,0.9988 nonFinite=0
+27607.3 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=0 family=0 size=1024x512 uploaded=1 meanRGBA=34.7,29.1,24.6,255.0 samples=129 vtf=materials/models/player/sniper/sniper_red.vtf
+27607.3 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=0 family=0 uv=0.6263,0.6483 rgba=32,16,16,255
+27607.4 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=0 family=0 runs=2 verts=1071 black=91 blackPct=8.5 meshVerts=23595
+27608.1 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=1 family=0 size=256x256 uploaded=1 meanRGBA=29.0,20.8,12.4,139.6 samples=17 vtf=materials/models/player/sniper/sniper_lens.vtf
+27608.1 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=1 family=0 uv=0.6263,0.6483 rgba=62,46,29,141
+27608.1 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=1 family=0 runs=1 verts=240 black=6 blackPct=2.5 meshVerts=23595
+27608.1 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=2 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27608.1 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=2 family=0 uv=0.6263,0.6483 rgba=174,147,120,255
+27608.1 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=2 family=0 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=23595
+27612.6 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=3 family=0 size=1024x1024 uploaded=1 meanRGBA=77.6,50.9,39.3,255.0 samples=257 vtf=materials/models/player/sniper/sniper_head.vtf
+27612.6 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=3 family=0 uv=0.6263,0.6483 rgba=109,73,57,255
+27612.6 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=3 family=0 runs=1 verts=523 black=0 blackPct=0.0 meshVerts=23595
+27612.9 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=4 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27612.9 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=4 family=0 uv=0.6263,0.6483 rgba=174,147,120,255
+27612.9 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=4 family=0 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=23595
+27615.0 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=5 family=0 size=1024x256 uploaded=1 meanRGBA=36.4,31.2,25.4,10.2 samples=65 vtf=materials/models/weapons/c_items/c_arrow.vtf
+27615.0 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=5 family=0 uv=0.6263,0.6483 rgba=68,56,43,15
+27615.0 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=5 family=0 runs=1 verts=517 black=0 blackPct=0.0 meshVerts=23595
+27617.3 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=0 family=1 size=1024x512 uploaded=1 meanRGBA=29.6,27.1,27.1,255.0 samples=129 vtf=materials/models/player/sniper/sniper_blue.vtf
+27617.4 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=0 family=1 uv=0.6263,0.6483 rgba=32,16,16,255
+27617.4 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=0 family=1 runs=2 verts=1071 black=92 blackPct=8.6 meshVerts=23595
+27618.0 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=1 family=1 size=256x256 uploaded=1 meanRGBA=29.0,20.8,12.4,139.6 samples=17 vtf=materials/models/player/sniper/sniper_lens.vtf
+27618.0 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=1 family=1 uv=0.6263,0.6483 rgba=62,46,29,141
+27618.0 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=1 family=1 runs=1 verts=240 black=6 blackPct=2.5 meshVerts=23595
+27618.1 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=2 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27618.1 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=2 family=1 uv=0.6263,0.6483 rgba=174,147,120,255
+27618.2 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=2 family=1 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=23595
+27622.3 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=3 family=1 size=1024x1024 uploaded=1 meanRGBA=77.6,50.9,39.3,255.0 samples=257 vtf=materials/models/player/sniper/sniper_head.vtf
+27622.3 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=3 family=1 uv=0.6263,0.6483 rgba=109,73,57,255
+27622.3 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=3 family=1 runs=1 verts=523 black=0 blackPct=0.0 meshVerts=23595
+27622.7 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=4 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27622.7 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=4 family=1 uv=0.6263,0.6483 rgba=174,147,120,255
+27622.7 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=4 family=1 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=23595
+27624.7 gpu: overlay texture key=models/player/sniper.mdl#class-fallback slot=5 family=1 size=1024x256 uploaded=1 meanRGBA=36.4,31.2,25.4,10.2 samples=65 vtf=materials/models/weapons/c_items/c_arrow.vtf
+27624.7 gpu: overlay texel key=models/player/sniper.mdl#class-fallback slot=5 family=1 uv=0.6263,0.6483 rgba=68,56,43,15
+27624.8 gpu: overlay runscan key=models/player/sniper.mdl#class-fallback slot=5 family=1 runs=1 verts=517 black=0 blackPct=0.0 meshVerts=23595
+27626.0 gpu: overlay uv key=models/player/soldier.mdl#class-fallback verts=26922 uvMin=-0.9591,0.0017 uvMax=1.9591,0.9976 nonFinite=0
+27628.3 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=0 family=0 size=1024x512 uploaded=1 meanRGBA=102.5,34.4,33.8,255.0 samples=129 vtf=materials/models/player/soldier/soldier_red.vtf
+27628.3 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=0 family=0 uv=0.6042,0.3079 rgba=57,49,43,255
+27628.3 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=0 family=0 runs=3 verts=1553 black=49 blackPct=3.2 meshVerts=26922
+27628.4 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=1 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27628.4 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=1 family=0 uv=0.6042,0.3079 rgba=174,147,120,255
+27628.4 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=1 family=0 runs=1 verts=102 black=0 blackPct=0.0 meshVerts=26922
+27632.8 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=2 family=0 size=1024x1024 uploaded=1 meanRGBA=120.5,79.6,64.3,255.0 samples=257 vtf=materials/models/player/soldier/soldier_head.vtf
+27632.9 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=2 family=0 uv=0.6042,0.3079 rgba=180,117,82,255
+27632.9 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=2 family=0 runs=1 verts=514 black=0 blackPct=0.0 meshVerts=26922
+27633.1 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=3 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27633.1 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=3 family=0 uv=0.6042,0.3079 rgba=174,147,120,255
+27633.1 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=3 family=0 runs=1 verts=102 black=0 blackPct=0.0 meshVerts=26922
+27633.7 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=4 family=0 size=256x256 uploaded=1 meanRGBA=31.6,30.1,30.2,16.8 samples=17 vtf=materials/models/weapons/w_rocketlauncher/w_rocket01.vtf
+27633.7 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=4 family=0 uv=0.6042,0.3079 rgba=68,65,65,43
+27633.7 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=4 family=0 runs=1 verts=540 black=10 blackPct=1.9 meshVerts=26922
+27634.2 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=5 family=0 size=256x256 uploaded=1 meanRGBA=64.8,17.8,13.5,12.1 samples=17 vtf=materials/models/player/items/soldier/medals.vtf
+27634.2 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=5 family=0 uv=0.6042,0.3079 rgba=0,0,0,0
+27634.2 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=5 family=0 runs=1 verts=912 black=12 blackPct=1.3 meshVerts=26922
+27636.4 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=0 family=1 size=1024x512 uploaded=1 meanRGBA=66.4,83.6,90.1,255.0 samples=129 vtf=materials/models/player/soldier/soldier_blue.vtf
+27636.4 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=0 family=1 uv=0.6042,0.3079 rgba=57,49,43,255
+27636.4 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=0 family=1 runs=3 verts=1553 black=52 blackPct=3.3 meshVerts=26922
+27636.6 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=1 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27636.6 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=1 family=1 uv=0.6042,0.3079 rgba=174,147,120,255
+27636.6 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=1 family=1 runs=1 verts=102 black=0 blackPct=0.0 meshVerts=26922
+27640.9 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=2 family=1 size=1024x1024 uploaded=1 meanRGBA=120.5,79.6,64.3,255.0 samples=257 vtf=materials/models/player/soldier/soldier_head.vtf
+27641.0 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=2 family=1 uv=0.6042,0.3079 rgba=180,117,82,255
+27641.0 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=2 family=1 runs=1 verts=514 black=0 blackPct=0.0 meshVerts=26922
+27641.2 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=3 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27641.2 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=3 family=1 uv=0.6042,0.3079 rgba=174,147,120,255
+27641.2 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=3 family=1 runs=1 verts=102 black=0 blackPct=0.0 meshVerts=26922
+27641.9 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=4 family=1 size=256x256 uploaded=1 meanRGBA=31.6,30.1,30.2,16.8 samples=17 vtf=materials/models/weapons/w_rocketlauncher/w_rocket01.vtf
+27641.9 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=4 family=1 uv=0.6042,0.3079 rgba=68,65,65,43
+27641.9 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=4 family=1 runs=1 verts=540 black=10 blackPct=1.9 meshVerts=26922
+27642.8 gpu: overlay texture key=models/player/soldier.mdl#class-fallback slot=5 family=1 size=256x256 uploaded=1 meanRGBA=30.5,41.8,46.7,12.1 samples=17 vtf=materials/models/player/items/soldier/medals_blue.vtf
+27642.8 gpu: overlay texel key=models/player/soldier.mdl#class-fallback slot=5 family=1 uv=0.6042,0.3079 rgba=0,0,0,0
+27642.8 gpu: overlay runscan key=models/player/soldier.mdl#class-fallback slot=5 family=1 runs=1 verts=912 black=12 blackPct=1.3 meshVerts=26922
+27644.1 gpu: overlay uv key=models/player/demo.mdl#class-fallback verts=25755 uvMin=-0.9786,0.0000 uvMax=1.0000,1.0015 nonFinite=0
+27646.6 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=0 family=0 size=1024x512 uploaded=1 meanRGBA=63.5,33.5,32.6,255.0 samples=129 vtf=materials/models/player/demo/demoman_red.vtf
+27646.7 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=0 family=0 uv=0.5541,0.6801 rgba=49,48,49,255
+27646.7 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=0 family=0 runs=2 verts=1041 black=37 blackPct=3.6 meshVerts=25755
+27651.7 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=1 family=0 size=1024x1024 uploaded=1 meanRGBA=49.3,35.1,30.5,255.0 samples=257 vtf=materials/models/player/demo/demoman_head.vtf
+27651.7 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=1 family=0 uv=0.5541,0.6801 rgba=81,53,43,255
+27651.7 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=1 family=0 runs=1 verts=530 black=1 blackPct=0.2 meshVerts=25755
+27652.0 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=2 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27652.0 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=2 family=0 uv=0.5541,0.6801 rgba=174,147,120,255
+27652.1 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=2 family=0 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=25755
+27652.2 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=3 family=0 size=64x64 uploaded=1 meanRGBA=78.0,78.5,78.0,255.0 samples=2 vtf=materials/models/effects/smiley.vtf
+27652.2 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=3 family=0 uv=0.5541,0.6801 rgba=197,198,197,255
+27652.2 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=3 family=0 runs=1 verts=429 black=6 blackPct=1.4 meshVerts=25755
+27654.5 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=0 family=1 size=1024x512 uploaded=1 meanRGBA=32.7,37.0,40.0,255.0 samples=129 vtf=materials/models/player/demo/demoman_blue.vtf
+27654.5 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=0 family=1 uv=0.5541,0.6801 rgba=41,44,41,255
+27654.5 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=0 family=1 runs=2 verts=1041 black=40 blackPct=3.8 meshVerts=25755
+27659.1 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=1 family=1 size=1024x1024 uploaded=1 meanRGBA=49.3,35.1,30.5,255.0 samples=257 vtf=materials/models/player/demo/demoman_head.vtf
+27659.1 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=1 family=1 uv=0.5541,0.6801 rgba=81,53,43,255
+27659.1 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=1 family=1 runs=1 verts=530 black=1 blackPct=0.2 meshVerts=25755
+27659.4 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=2 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27659.4 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=2 family=1 uv=0.5541,0.6801 rgba=174,147,120,255
+27659.4 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=2 family=1 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=25755
+27659.4 gpu: overlay texture key=models/player/demo.mdl#class-fallback slot=3 family=1 size=64x64 uploaded=1 meanRGBA=78.0,78.5,78.0,255.0 samples=2 vtf=materials/models/effects/smiley.vtf
+27659.5 gpu: overlay texel key=models/player/demo.mdl#class-fallback slot=3 family=1 uv=0.5541,0.6801 rgba=197,198,197,255
+27659.5 gpu: overlay runscan key=models/player/demo.mdl#class-fallback slot=3 family=1 runs=1 verts=429 black=6 blackPct=1.4 meshVerts=25755
+27660.4 gpu: overlay uv key=models/player/medic.mdl#class-fallback verts=24864 uvMin=0.0008,0.0032 uvMax=0.9985,0.9924 nonFinite=0
+27669.1 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=0 family=0 size=2048x1024 uploaded=1 meanRGBA=108.5,83.9,73.0,255.0 samples=513 vtf=materials/models/player/medic/medic_red.vtf
+27669.1 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=0 family=0 uv=0.3084,0.0663 rgba=246,232,230,255
+27669.1 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=0 family=0 runs=1 verts=514 black=21 blackPct=4.1 meshVerts=24864
+27674.4 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=1 family=0 size=1024x1024 uploaded=1 meanRGBA=77.3,46.6,34.3,255.0 samples=257 vtf=materials/models/player/medic/medic_head.vtf
+27674.4 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=1 family=0 uv=0.3084,0.0663 rgba=32,22,16,255
+27674.4 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=1 family=0 runs=1 verts=532 black=0 blackPct=0.0 meshVerts=24864
+27674.7 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=2 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27674.7 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=2 family=0 uv=0.3084,0.0663 rgba=174,147,120,255
+27674.7 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=2 family=0 runs=1 verts=72 black=0 blackPct=0.0 meshVerts=24864
+27674.7 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=3 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27674.7 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=3 family=0 uv=0.3084,0.0663 rgba=174,147,120,255
+27674.7 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=3 family=0 runs=1 verts=72 black=0 blackPct=0.0 meshVerts=24864
+27679.2 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=4 family=0 size=1024x1024 uploaded=1 meanRGBA=57.5,51.9,50.6,255.0 samples=257 vtf=materials/models/player/medic/medic_backpack_red.vtf
+27679.2 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=4 family=0 uv=0.3084,0.0663 rgba=100,95,95,255
+27679.2 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=4 family=0 runs=1 verts=544 black=18 blackPct=3.3 meshVerts=24864
+27688.4 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=0 family=1 size=2048x1024 uploaded=1 meanRGBA=92.5,85.0,81.8,255.0 samples=513 vtf=materials/models/player/medic/medic_blue.vtf
+27688.4 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=0 family=1 uv=0.3084,0.0663 rgba=235,230,205,255
+27688.4 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=0 family=1 runs=1 verts=514 black=21 blackPct=4.1 meshVerts=24864
+27692.6 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=1 family=1 size=1024x1024 uploaded=1 meanRGBA=77.3,46.6,34.3,255.0 samples=257 vtf=materials/models/player/medic/medic_head.vtf
+27692.7 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=1 family=1 uv=0.3084,0.0663 rgba=32,22,16,255
+27692.7 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=1 family=1 runs=1 verts=532 black=0 blackPct=0.0 meshVerts=24864
+27692.9 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=2 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27692.9 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=2 family=1 uv=0.3084,0.0663 rgba=174,147,120,255
+27692.9 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=2 family=1 runs=1 verts=72 black=0 blackPct=0.0 meshVerts=24864
+27693.0 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=3 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27693.0 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=3 family=1 uv=0.3084,0.0663 rgba=174,147,120,255
+27693.0 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=3 family=1 runs=1 verts=72 black=0 blackPct=0.0 meshVerts=24864
+27697.8 gpu: overlay texture key=models/player/medic.mdl#class-fallback slot=4 family=1 size=1024x1024 uploaded=1 meanRGBA=50.9,55.1,59.4,255.0 samples=257 vtf=materials/models/player/medic/medic_backpack_blue.vtf
+27697.8 gpu: overlay texel key=models/player/medic.mdl#class-fallback slot=4 family=1 uv=0.3084,0.0663 rgba=95,91,98,255
+27697.8 gpu: overlay runscan key=models/player/medic.mdl#class-fallback slot=4 family=1 runs=1 verts=544 black=23 blackPct=4.2 meshVerts=24864
+27699.4 gpu: overlay uv key=models/player/heavy.mdl#class-fallback verts=28944 uvMin=0.0009,0.0021 uvMax=0.9980,0.9971 nonFinite=0
+27704.2 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=0 family=0 size=1024x1024 uploaded=1 meanRGBA=126.4,75.8,61.8,255.0 samples=257 vtf=materials/models/player/hvyweapon/heavy_head.vtf
+27704.2 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=0 family=0 uv=0.4497,0.1768 rgba=38,6,5,255
+27704.3 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=0 family=0 runs=1 verts=527 black=0 blackPct=0.0 meshVerts=28944
+27704.5 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=1 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27704.5 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=1 family=0 uv=0.4497,0.1768 rgba=174,147,120,255
+27704.5 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=1 family=0 runs=1 verts=57 black=0 blackPct=0.0 meshVerts=28944
+27704.5 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=2 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27704.5 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=2 family=0 uv=0.4497,0.1768 rgba=174,147,120,255
+27704.5 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=2 family=0 runs=1 verts=57 black=0 blackPct=0.0 meshVerts=28944
+27719.4 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=3 family=0 size=2048x1024 uploaded=1 meanRGBA=78.7,49.3,39.2,255.0 samples=513 vtf=materials/models/player/hvyweapon/hvyweapon_red.vtf
+27719.5 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=3 family=0 uv=0.4497,0.1768 rgba=18,14,13,255
+27719.5 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=3 family=0 runs=2 verts=1032 black=76 blackPct=7.4 meshVerts=28944
+27729.1 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=4 family=0 size=2048x1024 uploaded=1 meanRGBA=78.7,49.3,39.2,255.0 samples=513 vtf=materials/models/player/hvyweapon/hvyweapon_red.vtf
+27729.1 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=4 family=0 uv=0.4497,0.1768 rgba=18,14,13,255
+27729.1 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=4 family=0 runs=1 verts=528 black=45 blackPct=8.5 meshVerts=28944
+27734.1 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=0 family=1 size=1024x1024 uploaded=1 meanRGBA=126.4,75.8,61.8,255.0 samples=257 vtf=materials/models/player/hvyweapon/heavy_head.vtf
+27734.1 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=0 family=1 uv=0.4497,0.1768 rgba=38,6,5,255
+27734.1 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=0 family=1 runs=1 verts=527 black=0 blackPct=0.0 meshVerts=28944
+27734.4 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=1 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27734.4 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=1 family=1 uv=0.4497,0.1768 rgba=174,147,120,255
+27734.4 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=1 family=1 runs=1 verts=57 black=0 blackPct=0.0 meshVerts=28944
+27734.4 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=2 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27734.4 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=2 family=1 uv=0.4497,0.1768 rgba=174,147,120,255
+27734.4 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=2 family=1 runs=1 verts=57 black=0 blackPct=0.0 meshVerts=28944
+27743.3 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=3 family=1 size=2048x1024 uploaded=1 meanRGBA=70.0,55.6,47.8,255.0 samples=513 vtf=materials/models/player/hvyweapon/hvyweapon_blue.vtf
+27743.3 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=3 family=1 uv=0.4497,0.1768 rgba=18,14,13,255
+27743.3 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=3 family=1 runs=2 verts=1032 black=76 blackPct=7.4 meshVerts=28944
+27752.6 gpu: overlay texture key=models/player/heavy.mdl#class-fallback slot=4 family=1 size=2048x1024 uploaded=1 meanRGBA=70.0,55.6,47.8,255.0 samples=513 vtf=materials/models/player/hvyweapon/hvyweapon_blue.vtf
+27752.7 gpu: overlay texel key=models/player/heavy.mdl#class-fallback slot=4 family=1 uv=0.4497,0.1768 rgba=18,14,13,255
+27752.7 gpu: overlay runscan key=models/player/heavy.mdl#class-fallback slot=4 family=1 runs=1 verts=528 black=45 blackPct=8.5 meshVerts=28944
+27753.8 gpu: overlay uv key=models/player/pyro.mdl#class-fallback verts=12603 uvMin=0.0012,0.0008 uvMax=0.9993,0.9990 nonFinite=0
+27762.9 gpu: overlay texture key=models/player/pyro.mdl#class-fallback slot=0 family=0 size=2048x1024 uploaded=1 meanRGBA=71.8,43.5,40.2,255.0 samples=513 vtf=materials/models/player/pyro/pyro_red.vtf
+27762.9 gpu: overlay texel key=models/player/pyro.mdl#class-fallback slot=0 family=0 uv=0.2293,0.4424 rgba=26,26,26,255
+27762.9 gpu: overlay runscan key=models/player/pyro.mdl#class-fallback slot=0 family=0 runs=1 verts=526 black=5 blackPct=1.0 meshVerts=12603
+27771.8 gpu: overlay texture key=models/player/pyro.mdl#class-fallback slot=0 family=1 size=2048x1024 uploaded=1 meanRGBA=45.5,53.1,58.4,255.0 samples=513 vtf=materials/models/player/pyro/pyro_blue.vtf
+27771.8 gpu: overlay texel key=models/player/pyro.mdl#class-fallback slot=0 family=1 uv=0.2293,0.4424 rgba=26,26,26,255
+27771.9 gpu: overlay runscan key=models/player/pyro.mdl#class-fallback slot=0 family=1 runs=1 verts=526 black=0 blackPct=0.0 meshVerts=12603
+27773.2 gpu: overlay uv key=models/player/spy.mdl#class-fallback verts=16980 uvMin=-0.9548,-0.0001 uvMax=1.9548,1.0000 nonFinite=0
+27778.0 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=0 family=0 size=1024x1024 uploaded=1 meanRGBA=71.4,41.8,41.0,255.0 samples=257 vtf=materials/models/player/spy/spy_head_red.vtf
+27778.0 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=0 family=0 uv=0.6284,0.2580 rgba=70,34,26,255
+27778.0 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=0 family=0 runs=1 verts=527 black=0 blackPct=0.0 meshVerts=16980
+27778.4 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=1 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27778.4 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=1 family=0 uv=0.6284,0.2580 rgba=174,147,120,255
+27778.4 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=1 family=0 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=16980
+27778.4 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=2 family=0 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27778.4 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=2 family=0 uv=0.6284,0.2580 rgba=174,147,120,255
+27778.4 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=2 family=0 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=16980
+27780.5 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=3 family=0 size=1024x512 uploaded=1 meanRGBA=82.7,58.2,53.6,255.0 samples=129 vtf=materials/models/player/spy/spy_red.vtf
+27780.5 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=3 family=0 uv=0.6284,0.2580 rgba=51,34,32,255
+27780.5 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=3 family=0 runs=1 verts=528 black=24 blackPct=4.5 meshVerts=16980
+27781.0 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=4 family=0 size=256x256 uploaded=1 meanRGBA=209.1,207.0,207.2,255.0 samples=17 vtf=materials/models/player/spy/mask_spy.vtf
+27781.0 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=4 family=0 uv=0.6284,0.2580 rgba=98,90,90,255
+27781.0 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=4 family=0 runs=1 verts=900 black=0 blackPct=0.0 meshVerts=16980
+27785.0 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=0 family=1 size=1024x1024 uploaded=1 meanRGBA=52.4,42.9,53.8,255.0 samples=257 vtf=materials/models/player/spy/spy_head_blue.vtf
+27785.0 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=0 family=1 uv=0.6284,0.2580 rgba=70,34,26,255
+27785.0 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=0 family=1 runs=1 verts=527 black=0 blackPct=0.0 meshVerts=16980
+27785.3 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=1 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_l.vtf
+27785.3 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=1 family=1 uv=0.6284,0.2580 rgba=174,147,120,255
+27785.3 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=1 family=1 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=16980
+27785.3 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=2 family=1 size=64x32 uploaded=1 meanRGBA=174.0,147.0,120.0,255.0 samples=1 vtf=materials/models/player/shared/dxlevel80/eyeball_r.vtf
+27785.3 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=2 family=1 uv=0.6284,0.2580 rgba=174,147,120,255
+27785.3 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=2 family=1 runs=1 verts=132 black=0 blackPct=0.0 meshVerts=16980
+27787.5 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=3 family=1 size=1024x512 uploaded=1 meanRGBA=41.2,52.1,70.8,255.0 samples=129 vtf=materials/models/player/spy/spy_blue.vtf
+27787.5 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=3 family=1 uv=0.6284,0.2580 rgba=24,34,51,255
+27787.5 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=3 family=1 runs=1 verts=528 black=21 blackPct=4.0 meshVerts=16980
+27787.9 gpu: overlay texture key=models/player/spy.mdl#class-fallback slot=4 family=1 size=256x256 uploaded=1 meanRGBA=209.1,207.0,207.2,255.0 samples=17 vtf=materials/models/player/spy/mask_spy.vtf
+27787.9 gpu: overlay texel key=models/player/spy.mdl#class-fallback slot=4 family=1 uv=0.6284,0.2580 rgba=98,90,90,255
+27787.9 gpu: overlay runscan key=models/player/spy.mdl#class-fallback slot=4 family=1 runs=1 verts=900 black=0 blackPct=0.0 meshVerts=16980
+27789.1 gpu: overlay uv key=models/player/engineer.mdl#class-fallback verts=32724 uvMin=0.0000,0.0002 uvMax=1.0000,0.9985 nonFinite=0
+27797.5 gpu: overlay texture key=models/player/engineer.mdl#class-fallback slot=0 family=0 size=2048x1024 uploaded=1 meanRGBA=72.5,36.1,31.8,255.0 samples=513 vtf=materials/models/player/engineer/engineer_red.vtf
+27797.5 gpu: overlay texel key=models/player/engineer.mdl#class-fallback slot=0 family=0 uv=0.5751,0.5858 rgba=87,60,46,255
+27797.6 gpu: overlay runscan key=models/player/engineer.mdl#class-fallback slot=0 family=0 runs=2 verts=1035 black=1 blackPct=0.1 meshVerts=32724
+27802.0 gpu: overlay texture key=models/player/engineer.mdl#class-fallback slot=1 family=0 size=1024x1024 uploaded=1 meanRGBA=111.4,73.6,56.8,255.0 samples=257 vtf=materials/models/player/engineer/engineer_head.vtf
+27802.1 gpu: overlay texel key=models/player/engineer.mdl#class-fallback slot=1 family=0 uv=0.5751,0.5858 rgba=169,110,79,255
+27802.1 gpu: overlay runscan key=models/player/engineer.mdl#class-fallback slot=1 family=0 runs=1 verts=518 black=4 blackPct=0.8 meshVerts=32724
+27806.2 gpu: overlay texture key=models/player/engineer.mdl#class-fallback slot=2 family=0 size=1024x1024 uploaded=1 meanRGBA=56.2,51.3,47.8,255.0 samples=257 vtf=materials/models/player/engineer/engineer_mech_hand.vtf
+27806.3 gpu: overlay texel key=models/player/engineer.mdl#class-fallback slot=2 family=0 uv=0.5751,0.5858 rgba=46,46,43,255
+27806.3 gpu: overlay runscan key=models/player/engineer.mdl#class-fallback slot=2 family=0 runs=1 verts=521 black=9 blackPct=1.7 meshVerts=32724
+27814.8 gpu: overlay texture key=models/player/engineer.mdl#class-fallback slot=0 family=1 size=2048x1024 uploaded=1 meanRGBA=50.6,52.7,52.5,255.0 samples=513 vtf=materials/models/player/engineer/engineer_blue.vtf
+27814.9 gpu: overlay texel key=models/player/engineer.mdl#class-fallback slot=0 family=1 uv=0.5751,0.5858 rgba=87,60,46,255
+27814.9 gpu: overlay runscan key=models/player/engineer.mdl#class-fallback slot=0 family=1 runs=2 verts=1035 black=5 blackPct=0.5 meshVerts=32724
+27819.0 gpu: overlay texture key=models/player/engineer.mdl#class-fallback slot=1 family=1 size=1024x1024 uploaded=1 meanRGBA=111.4,73.6,56.8,255.0 samples=257 vtf=materials/models/player/engineer/engineer_head.vtf
+27819.0 gpu: overlay texel key=models/player/engineer.mdl#class-fallback slot=1 family=1 uv=0.5751,0.5858 rgba=169,110,79,255
+27819.0 gpu: overlay runscan key=models/player/engineer.mdl#class-fallback slot=1 family=1 runs=1 verts=518 black=4 blackPct=0.8 meshVerts=32724
+27823.6 gpu: overlay texture key=models/player/engineer.mdl#class-fallback slot=2 family=1 size=1024x1024 uploaded=1 meanRGBA=54.1,52.7,50.0,255.0 samples=257 vtf=materials/models/player/engineer/engineer_mech_hand_blue.vtf
+27823.6 gpu: overlay texel key=models/player/engineer.mdl#class-fallback slot=2 family=1 uv=0.5751,0.5858 rgba=46,46,43,255
+27823.7 gpu: overlay runscan key=models/player/engineer.mdl#class-fallback slot=2 family=1 runs=1 verts=521 black=9 blackPct=1.7 meshVerts=32724
+27823.8 gpu: overlay meshes prepared=9 uploaded=9 rejected=0 painted=9 paintedSlots=78
+27823.9 budget: meshTable capacity=96 resident=68 evictions=0 capacityRefusals=0 reuploads=0 residentByPriority=player:9,weapon:20,overlay:9,prop:24,firstPersonOnly:6
+27823.9 gpu: reload-stage stage=models lastError=0x00000000
+27823.9 gpu: reload end
+27823.9 gpu: post-reload lastError=0x00000000
+27838.0 mode: window_created=1 window_visible=0 hidden=1 audio_mode=disabled
+27838.5 camera: accept result=loaded steps=2
+27838.5 loop n=1 tick=0
+27838.6 audio: advance tick=1 cursor=1 seen=0 played=0 skippedVoice=0 missing=0 dup=0
+27838.6 scene: begin tick=1 sceneTick=10321
+27838.7 scene: clock tick=1 entryTick=2 serverTick=10321 serverTickKnown=1
+27851.3 scene: snapshot status=1 stale=1 states=2048
+27851.3 scene: observer done
+27851.4 scene: hud fxDue=0 drawable=1
+27857.2 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+27866.7 scene: corpseFilter removed=2 indices=16,17 candidates=466 submitted=468
+28112.3 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+28112.3 anim: ent=2 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1359.6,-538.8,5.9
+28155.9 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+28156.0 anim: ent=3 model=models/player/sniper.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=11 label=AttackStand_PRIMARY advanced=0 origin=1231.4,-1101.7,-136.0
+28195.4 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+28195.4 anim: ent=4 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=-1517.7,1572.6,25.9
+28195.5 anim: ent=5 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=1429.2,-39.4,13.0
+28234.1 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+28234.1 anim: ent=6 model=models/player/medic.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=755.2,269.0,64.0
+28270.4 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+28270.5 anim: ent=7 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=1263.9,-385.5,-35.5
+28270.6 anim: ent=8 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1239.9,-36.5,69.5
+28270.7 anim: ent=9 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1085.6,-50.4,28.5
+28271.1 scene: PLAYER-MODEL-ASSERT=PASS tick=10320 checked=12 indexResolved=0 noIndex=12 classFallback=12 mismatched=0 unresolved=0 firstMismatch=-
+28271.1 animsum: tick=10320 players=12 moving=0 idle=12 advanced=0 skipped=0 maxDeltaCycle=0.000000
+28271.1 scene: setInstances draws=96 markers=32 playerDraws=12 propDraws=84 playerBudget=12 propBudget=84
+28271.2 budget: draw capacity=96 playerBudget=12 propBudgetAfterAttach=84 playerDrawn=12 propDrawn=84 attachReserved=0 attachDrawn=0 droppedPlayers=0 droppedProps=37
+28271.9 budget: instances capacity=96 submitted=96 accepted=95 slots=217 rejected=missingMesh:0,deferredNotResident:1,badMesh:0,nonFinite:0,budget:0
+28271.9 budget: meshTable capacity=96 resident=68 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:20,overlay:9,prop:24,firstPersonOnly:6
+28272.1 scene: entityRanges ranges=101 texturedRanges=101 texturedInstances=95 skinnedInstances=73 meshes=68 textures=269
+28272.1 scene: anim skinned=74 bindPose=22 matrices=1127 gpuSkin=73/1127 boneMismatch=5 poseChanges=0 targetInstances=3 targetPose=0 advances=0 targetAdv=0 cycle=17/0 tick=10320 status=ok reason=AttackStand_PRIMARY
+28272.1 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+28272.1 scene: instances set
+28274.6 overlay: corpseFilter removed=7 samples=19 kept=12
+28274.9 scene: done
+28275.0 spectate: camera relay target=2 eye=1359.6,-538.8,73.9 pitch=20.12 yaw=92.55 behind=0
+28275.0 scene: camera mode=first-person target=1 follows=1 holds=1 freeze=0 eye=1359.6,-538.8,73.9 pitch=20.12 yaw=92.55 src=follow
+28275.0 spectate: tick=10321 dead=1,12,14,16,17,18,19 corpses=0 target=2 src=stable tr=0 prog=0.000 focus=1359.6,-538.8,5.9 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1
+28275.8 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 242109 tris, lightmap: samples=2793687 faces=14988 tris=242283 bytes=5053536 state=source-equivalent tone=ldr-clamp atlas=4096x1331, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=1/64352 req=0 act=0 frame=pending fdelta=na speed=32.000000 rate=66.666669 anchorAbs=10252@8670565 forward playing HUD[tick=1 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=32.000000 entity=checkpoint stale=1 audio=0/0 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=0 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=217 entityModelVerts=453609 entityMaterials=95/95 entityMaterialRanges=101/101 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=74/96 animBones=1127 animSeq=9 animFrame=0/21 animSource=ok animBindings=96/96 animCache=59 animAdv=0 animWitness=- gpuSkin=73/1127 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 weaponKnown=50 ...[TRUNCATED]
+28275.9 hud: live enabled=0 reason=evidence-run drawn=0
+28288.2 loop n=2 tick=1
+28299.3 audio: advance tick=534 cursor=534 seen=185 played=0 skippedVoice=14 missing=100 dup=0
+28299.4 scene: begin tick=534 sceneTick=10854
+28299.4 scene: clock tick=534 entryTick=535 serverTick=10854 serverTickKnown=1
+28305.8 scene: snapshot status=1 stale=534 states=2048
+28305.8 scene: observer done
+28305.9 scene: hud fxDue=30 drawable=1
+28312.3 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+28321.4 scene: cameraFilter removed=1 indices=2 candidates=465 submitted=468
+28328.4 anim: ent=3 model=models/player/sniper.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=11 label=AttackStand_PRIMARY advanced=0 origin=1231.4,-1101.7,-136.0
+28328.5 anim: ent=4 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=-1517.7,1572.6,25.9
+28328.6 anim: ent=5 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=1429.2,-39.4,13.0
+28328.7 anim: ent=6 model=models/player/medic.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=755.2,269.0,64.0
+28328.8 anim: ent=7 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=1263.9,-385.5,-35.5
+28328.9 anim: ent=8 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1239.9,-36.5,69.5
+28329.0 anim: ent=9 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1085.6,-50.4,28.5
+28329.1 anim: ent=10 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=765.1,-190.9,88.2
+28329.4 scene: PLAYER-MODEL-ASSERT=PASS tick=10320 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+28329.4 animsum: tick=10320 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
+28329.4 scene: setInstances draws=96 markers=32 playerDraws=11 propDraws=85 playerBudget=11 propBudget=85
+28329.4 budget: draw capacity=96 playerBudget=11 propBudgetAfterAttach=85 playerDrawn=11 propDrawn=85 attachReserved=0 attachDrawn=0 droppedPlayers=0 droppedProps=36
+28329.9 budget: instances capacity=96 submitted=96 accepted=95 slots=210 rejected=missingMesh:0,deferredNotResident:1,badMesh:0,nonFinite:0,budget:0
+28329.9 budget: meshTable capacity=96 resident=68 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:20,overlay:9,prop:24,firstPersonOnly:6
+28329.9 scene: entityRanges ranges=102 texturedRanges=102 texturedInstances=95 skinnedInstances=72 meshes=68 textures=269
+28329.9 scene: anim skinned=73 bindPose=23 matrices=1041 gpuSkin=72/1041 boneMismatch=10 poseChanges=0 targetInstances=3 targetPose=0 advances=0 targetAdv=0 cycle=33/0 tick=10320 status=ok reason=AttackStand_PRIMARY
+28329.9 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+28329.9 scene: instances set
+28332.9 overlay: corpseFilter removed=8 samples=19 kept=11
+28333.3 scene: done
+28333.4 scene: camera mode=first-person target=1 follows=2 holds=1 freeze=0 eye=1359.6,-538.8,73.9 pitch=20.12 yaw=92.55 src=follow
+28334.3 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 242109 tris, lightmap: samples=2793687 faces=14988 tris=242283 bytes=5053536 state=source-equivalent tone=ldr-clamp atlas=4096x1331, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=534/64352 req=0 act=0 frame=pending fdelta=na speed=32.000000 rate=66.666669 anchorAbs=10786@8980162 forward playing HUD[tick=534 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=32.000000 entity=checkpoint stale=534 audio=0/100 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=30 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=210 entityModelVerts=462456 entityMaterials=95/95 entityMaterialRanges=102/102 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=73/96 animBones=1041 animSeq=9 animFrame=0/21 animSource=ok animBindings=96/192 animCache=154 animAdv=0 animWitness=- gpuSkin=72/1041 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 weap...[TRUNCATED]
+28334.4 playback: state phase=playing cursor=534 end=64352 paused=0 reverse=0 speed=32.000000 rate=66.666669 firstPacketTick=1 origin=1 pending=0 lastRequest=1 lastStatus=applied lastFrameRequest=0 boundary=0 requests=1 landings=0 rejected=0
+28334.4 camera: accept step=0 cmd=playback-state result=ok detail=cursor=534
+28334.4 draw: begin tick=534 frames=0
+28355.9 gpu: world geometry budget capacity=400000 requested=242361 dropped=0 facesDropped=0 brushFacesDropped=0 brushModelsDropped=0 drawTriangles=242109 state=within
+28356.0 gpu: world sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 side=512 resampled=1 reason=skybox draw disabled by the caller
+28356.0 gpu: world clip near=0.00033180 far=100.000000 nearMapUnits=4.00 farMapUnits=1205556 horizontalScale=0.00008295 state=published
+28356.0 gpu: world water state=unavailable faces=0 triangles=0 draws=0 visible=0 warp=0 textureBound=1 fallback=0 reflection=unavailable refraction=unavailable reason=water draw disabled by the caller
+28356.0 gpu: world vis cameraCluster=2108 visibleFromCamera=1481 clusters=2940 clusteredTriangles=34517 hiddenTriangles=15039 withoutCluster=207592 inputTriangles=242109 drawnTriangles=227070 clipApplied=1 state=active eyeMap=(1359.6,-538.8,73.9) reason=hid 15039 of 242109 triangles from cluster 2108 (2276 kept by a cluster past the first)
+28356.0 gpu: world cull backfaces=1 mode=cull-back
+28356.0 gpu: world debug view=textured
+28356.0 gpu: world atlas-plan batches=3 blendBatches=1 tiled=141 refused=0 malformed=0 duplicate=0 budget=0 layerBytes=287445248 reason=141 of 141 materials tiled in 3 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=145+64+64+0+0 MiB
+28373.2 gpu: world tile material=NATURE/BLENDGROUNDTOGRASS008 tris=6336 visible=6336 batch=0 tile=0 size=512x512 blend=1 modulate=1 reason=tiled
+28373.2 gpu: world tile material=NATURE/BLENDGROUNDTOGRASS008_NODETAIL tris=3940 visible=3940 batch=0 tile=1 size=512x512 blend=1 modulate=1 reason=tiled
+28373.3 gpu: world tile material=COALMINES/BLENDGROUNDTOGRASS_COALMINES tris=1024 visible=1024 batch=0 tile=2 size=512x512 blend=1 modulate=0 reason=tiled
+28373.3 gpu: world tile material=MEDIEVAL/PLASTERWALL002A tris=80256 visible=80256 batch=0 tile=3 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=TOOLS/TOOLSBLACK tris=15714 visible=15706 batch=0 tile=4 size=64x64 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=WOOD/WOOD_BEAM02 tris=14472 visible=13636 batch=0 tile=5 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/CHICKEN_WIRE001 tris=14092 visible=14090 batch=0 tile=6 size=128x128 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world alpha material=METAL/CHICKEN_WIRE001 stage=consumed mode=cutout reason=$alphatest
+28373.3 gpu: world tile material=METAL/WALL015 tris=11859 visible=11830 batch=0 tile=7 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/WALL028 tris=11846 visible=11827 batch=0 tile=8 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/WALL027B tris=10311 visible=10279 batch=0 tile=9 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=WOOD/WOOD_BRIDGE001 tris=9442 visible=8057 batch=0 tile=10 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/WALL011G tris=8330 visible=8213 batch=0 tile=11 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/METALTRIM02 tris=4589 visible=4584 batch=0 tile=12 size=512x32 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=WINTER/ROCKWALL014 tris=4378 visible=4368 batch=0 tile=13 size=256x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=WOOD/WOOD_FLOOR002 tris=3564 visible=2380 batch=0 tile=14 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/WALL027 tris=3022 visible=2966 batch=0 tile=15 size=512x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/IBEAM001B tris=2909 visible=2357 batch=0 tile=16 size=256x512 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/METALTRIM01 tris=2466 visible=2360 batch=0 tile=17 size=512x32 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world tile material=METAL/METALGRATE013A2 tris=2056 visible=2056 batch=0 tile=18 size=256x256 blend=0 modulate=0 reason=tiled
+28373.3 gpu: world alpha material=METAL/METALGRATE013A2 stage=consumed mode=blended reason=$translucent
+28373.3 gpu: world tile material=METAL/WALL021 tris=1614 visible=1564 batch=0 tile=19 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=CONCRETE/CONCRETEFLOOR007 tris=1494 visible=1035 batch=0 tile=20 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/WOOD_WALL007A tris=1411 visible=1317 batch=0 tile=21 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=NATURE/GROUND_04 tris=1242 visible=714 batch=0 tile=22 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/GRAIN_ELEVATOR_SILO_10A tris=1171 visible=857 batch=0 tile=23 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=CONCRETE/CONCRETEWALL014B tris=1161 visible=668 batch=0 tile=24 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/WALL007A tris=1097 visible=748 batch=0 tile=25 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=METAL/WALL025 tris=1062 visible=1048 batch=0 tile=26 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/WALL020B tris=1054 visible=487 batch=0 tile=27 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=CONCRETE/CONCRETEFLOOR003 tris=1012 visible=612 batch=0 tile=28 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=BRICK/WALL028 tris=930 visible=637 batch=0 tile=29 size=256x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/WOOD_WALL006 tris=812 visible=446 batch=0 tile=30 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=CONCRETE/COMPUTERWALL_BLUE_STAINED tris=788 visible=241 batch=0 tile=31 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=PROPS/METALDOOR01_192_NOENTRY tris=768 visible=768 batch=0 tile=32 size=512x256 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=BRICK/BRICKWALL002 tris=758 visible=647 batch=0 tile=33 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/WOOD_BEAM03 tris=719 visible=475 batch=0 tile=34 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=METAL/METALDOOR001 tris=698 visible=491 batch=0 tile=35 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=CONCRETE/CONCRETEWALL009 tris=641 visible=418 batch=0 tile=36 size=512x128 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=CONCRETE/COMPUTERWALL_RED_STAINED tris=618 visible=438 batch=0 tile=37 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/WOOD_WALL001 tris=608 visible=90 batch=0 tile=38 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=CONCRETE/CONCRETEWALL012 tris=607 visible=401 batch=0 tile=39 size=512x512 blend=0 modulate=0 reason=tiled
+28373.4 gpu: world tile material=WOOD/WOOD_WALL003 tris=595 visible=321 batch=0 tile=40 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=METAL/IBEAM001 tris=528 visible=412 batch=0 tile=41 size=128x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=WOOD/WOOD_WALL005A tris=513 visible=474 batch=0 tile=42 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL014 tris=493 visible=223 batch=0 tile=43 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=WOOD/WOOD_BRIDGE002 tris=451 visible=369 batch=0 tile=44 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=METAL/WALL014 tris=432 visible=309 batch=0 tile=45 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=METAL/WALL011F tris=423 visible=323 batch=0 tile=46 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=BRICK/COBBLEWALL001 tris=407 visible=407 batch=0 tile=47 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL007 tris=403 visible=108 batch=0 tile=48 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL013A tris=295 visible=193 batch=0 tile=49 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=METAL/WALL011D tris=294 visible=191 batch=0 tile=50 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=BRICK/BRICKWALL004E tris=287 visible=120 batch=0 tile=51 size=512x256 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL013B tris=284 visible=141 batch=0 tile=52 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL013 tris=260 visible=97 batch=0 tile=53 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL014A tris=222 visible=90 batch=0 tile=54 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=BRICK/BRICKWALL002B tris=211 visible=114 batch=0 tile=55 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=METAL/WALL012 tris=211 visible=189 batch=0 tile=56 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=METAL/IMETAL005 tris=210 visible=171 batch=0 tile=57 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=WOOD/WOOD_WALL007 tris=208 visible=54 batch=0 tile=58 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL001A tris=175 visible=163 batch=0 tile=59 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=WOOD/GRAIN_ELEVATOR_FACADE_09 tris=174 visible=122 batch=0 tile=60 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=TILE/FLOOR_TILE_006A tris=172 visible=85 batch=0 tile=61 size=512x512 blend=0 modulate=0 reason=tiled
+28373.5 gpu: world tile material=CONCRETE/CONCRETEWALL002 tris=169 visible=8 batch=0 tile=62 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=METAL/WALL016D tris=156 visible=59 batch=0 tile=63 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=BRICK/BRICKWALL004C tris=153 visible=71 batch=1 tile=0 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=WOOD/GRAIN_ELEVATOR_FACADE_12 tris=150 visible=73 batch=1 tile=1 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=BRICK/BRICKWALL004D tris=144 visible=48 batch=1 tile=2 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=METAL/WALL011E tris=144 visible=50 batch=1 tile=3 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=MEDIEVAL/STONEWALL001A tris=128 visible=128 batch=1 tile=4 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=BRICK/BRICKWALL001D tris=121 visible=64 batch=1 tile=5 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=METAL/WALL014A tris=120 visible=44 batch=1 tile=6 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=CONCRETE/CONCRETEWALL011 tris=119 visible=86 batch=1 tile=7 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=maps/cp_snakewater_final1/nature/blendgroundtograss008_wvt_patch tris=117 visible=64 batch=1 tile=8 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=CONCRETE/CONCRETEWALL002E tris=115 visible=7 batch=1 tile=9 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=CONCRETE/CONCRETEWALL011B tris=114 visible=89 batch=1 tile=10 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=COALMINES/RED_BEAM1 tris=112 visible=56 batch=1 tile=11 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=WOOD/GRAIN_ELEVATOR_SILO_05 tris=101 visible=57 batch=1 tile=12 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=CONCRETE/CONCRETEWALL011C tris=94 visible=77 batch=1 tile=13 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=METAL/WALL015E tris=91 visible=72 batch=1 tile=14 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_004a_5934_-1624_-24 tris=89 visible=64 batch=1 tile=15 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=WOOD/WOOD_FLOOR001 tris=85 visible=85 batch=1 tile=16 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=CONCRETE/CONCRETEWALL001E tris=80 visible=44 batch=1 tile=17 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=BRICK/BRICKWALL001C tris=72 visible=22 batch=1 tile=18 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=METAL/WALL011 tris=72 visible=56 batch=1 tile=19 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=PROPS/METALDOOR01_96_NOENTRY tris=64 visible=64 batch=1 tile=20 size=512x512 blend=0 modulate=0 reason=tiled
+28373.6 gpu: world tile material=COALMINES/RED_WALL4_MIDDLE tris=63 visible=29 batch=1 tile=21 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=BRICK/BRICKWALL004 tris=59 visible=38 batch=1 tile=22 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=WOOD/WOOD_TRACK001 tris=52 visible=26 batch=1 tile=23 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_-5135_2022_-15 tris=52 visible=15 batch=1 tile=24 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=BRICK/BRICKWALL001 tris=49 visible=43 batch=1 tile=25 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=METAL/WALL014B tris=46 visible=28 batch=1 tile=26 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=METAL/FLOORPLATE01 tris=44 visible=22 batch=1 tile=27 size=32x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=METAL/WALL017 tris=44 visible=22 batch=1 tile=28 size=256x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=METAL/STEELDOOR001 tris=43 visible=27 batch=1 tile=29 size=256x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=CONCRETE/CONCRETEFLOOR005 tris=42 visible=36 batch=1 tile=30 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=CONCRETE/CONCRETEWALL015A tris=42 visible=3 batch=1 tile=31 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=WOOD/WALL007C tris=33 visible=13 batch=1 tile=32 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=CONCRETE/CONCRETEFLOOR002 tris=30 visible=0 batch=1 tile=33 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=WOOD/WALL020 tris=30 visible=30 batch=1 tile=34 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=METAL/IMETAL001B tris=28 visible=24 batch=1 tile=35 size=256x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=OVERLAYS/DUST_GRADIENT01 tris=26 visible=26 batch=1 tile=36 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world alpha material=OVERLAYS/DUST_GRADIENT01 stage=consumed mode=blended reason=$translucent
+28373.7 gpu: world tile material=METAL/WALL016 tris=24 visible=0 batch=1 tile=37 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_-4771_2021_-15 tris=23 visible=8 batch=1 tile=38 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=CONCRETE/CONCRETEWALL015 tris=21 visible=2 batch=1 tile=39 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=PL_BARNBLITZ/WOODWALL_REDWORN001B tris=21 visible=7 batch=1 tile=40 size=512x512 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_5934_-1624_-24 tris=19 visible=13 batch=1 tile=41 size=128x128 blend=0 modulate=0 reason=tiled
+28373.7 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_5934_-1624_-24 stage=consumed mode=blended reason=$translucent
+28373.8 gpu: world tile material=BRICK/BRICKWALL002C tris=16 visible=6 batch=1 tile=42 size=512x512 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=METAL/OFFICEDOOR002 tris=16 visible=6 batch=1 tile=43 size=256x512 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=METAL/WALL019D tris=16 visible=14 batch=1 tile=44 size=512x512 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-4771_2021_-15 tris=13 visible=8 batch=1 tile=45 size=128x128 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-4771_2021_-15 stage=consumed mode=blended reason=$translucent
+28373.8 gpu: world tile material=WOOD/WOOD_WALL005D tris=12 visible=0 batch=1 tile=46 size=512x512 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-3950_1281_-16 tris=9 visible=4 batch=1 tile=47 size=128x128 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-3950_1281_-16 stage=consumed mode=blended reason=$translucent
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_5000_-865_-16 tris=9 visible=7 batch=1 tile=48 size=128x128 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_5000_-865_-16 stage=consumed mode=blended reason=$translucent
+28373.8 gpu: world tile material=METAL/METALSTAIR001A tris=8 visible=8 batch=1 tile=49 size=512x128 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=METAL/WALL019E tris=8 visible=5 batch=1 tile=50 size=512x512 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/concrete/concretefloor006_2573_-1928_-51 tris=8 visible=8 batch=1 tile=51 size=512x512 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-5135_2022_-15 tris=8 visible=2 batch=1 tile=52 size=128x128 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-5135_2022_-15 stage=consumed mode=blended reason=$translucent
+28373.8 gpu: world tile material=CONCRETE/CONCRETEWALL002C tris=7 visible=0 batch=1 tile=53 size=512x512 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-692_723_48 tris=6 visible=2 batch=1 tile=54 size=128x128 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-692_723_48 stage=consumed mode=blended reason=$translucent
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_1743_-308_48 tris=6 visible=2 batch=1 tile=55 size=128x128 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_1743_-308_48 stage=consumed mode=blended reason=$translucent
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_-3950_1281_-16 tris=6 visible=4 batch=1 tile=56 size=256x256 blend=0 modulate=0 reason=tiled
+28373.8 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_5000_-865_-16 tris=6 visible=0 batch=1 tile=57 size=256x256 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_-2444_2301_152 tris=6 visible=6 batch=1 tile=58 size=512x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/tile/floor_tile_005a_3494_-1886_152 tris=5 visible=5 batch=1 tile=59 size=512x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world tile material=OVERLAYS/DUST_GRADIENT02 tris=4 visible=4 batch=1 tile=60 size=512x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=OVERLAYS/DUST_GRADIENT02 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/concrete/concretefloor006_-1479_2397_-64 tris=4 visible=4 batch=1 tile=61 size=512x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-2569_1587_80 tris=4 visible=0 batch=1 tile=62 size=128x128 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-2569_1587_80 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-3223_2571_-16 tris=4 visible=2 batch=1 tile=63 size=128x128 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-3223_2571_-16 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-675_2321_-112 tris=4 visible=2 batch=2 tile=0 size=128x128 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-675_2321_-112 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_3619_-1171_80 tris=4 visible=4 batch=2 tile=1 size=128x128 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_3619_-1171_80 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=METAL/WALL015F tris=3 visible=0 batch=2 tile=2 size=512x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world tile material=METAL/IBEAM002 tris=2 visible=0 batch=2 tile=3 size=32x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world tile material=METAL/IMETAL001 tris=2 visible=0 batch=2 tile=4 size=512x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world tile material=PROPS/COBWEB001 tris=2 visible=2 batch=2 tile=5 size=512x512 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=PROPS/COBWEB001 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_-1985_1664_-240 tris=2 visible=2 batch=2 tile=6 size=128x128 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_-1985_1664_-240 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_1235_-3530_-160 tris=2 visible=2 batch=2 tile=7 size=128x128 blend=0 modulate=0 reason=tiled
+28373.9 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_1235_-3530_-160 stage=consumed mode=blended reason=$translucent
+28373.9 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_1726_-1905_-112 tris=2 visible=0 batch=2 tile=8 size=128x128 blend=0 modulate=0 reason=tiled
+28374.0 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_1726_-1905_-112 stage=consumed mode=blended reason=$translucent
+28374.0 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_3035_-1249_-240 tris=2 visible=0 batch=2 tile=9 size=128x128 blend=0 modulate=0 reason=tiled
+28374.0 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_3035_-1249_-240 stage=consumed mode=blended reason=$translucent
+28374.0 gpu: world tile material=maps/cp_snakewater_final1/glass/glasswindow001a_4273_-2156_-16 tris=2 visible=2 batch=2 tile=10 size=128x128 blend=0 modulate=0 reason=tiled
+28374.0 gpu: world alpha material=maps/cp_snakewater_final1/glass/glasswindow001a_4273_-2156_-16 stage=consumed mode=blended reason=$translucent
+28374.0 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_-3223_2571_-16 tris=2 visible=0 batch=2 tile=11 size=256x256 blend=0 modulate=0 reason=tiled
+28374.0 gpu: world tile material=maps/cp_snakewater_final1/metal/metalchrome001_4273_-2156_-16 tris=2 visible=2 batch=2 tile=12 size=256x256 blend=0 modulate=0 reason=tiled
+28374.0 gpu: world isolation weaponDrawsWithWorldAtlas=0 worldDrawsWithWeaponTexture=0 slot0Binds=6 batchDraws=6 texturedBatchDraws=6
+28374.0 gpu: world alpha frame blendedTriangles=2184 cutoutTriangles=14092 blendedBatches=3 blendState=1 depthWriteOff=1
+28486.7 gpu: world features materials=146 bumpmap=57(visible 52, resolved 57, missing 0, distinct 31) bumpmap2=1(visible 1) ssbump=41(visible 38) detail=53(visible 50, resolved 0, types 1)
+28486.7 gpu: world feature feature=bumpmap declared=57 visible=52 resolved=57 missing=0 first=NATURE/BLENDGROUNDTOGRASS008 resource=materials/Nature/dirtground001_height-ssbump.vtf reason=the materials name 31 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 16 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 41 that do stay refused (see the $ssbump row)
+28486.7 gpu: world feature feature=bumpmap2 declared=1 visible=1 resolved=1 missing=0 first=COALMINES/BLENDGROUNDTOGRASS_COALMINES resource=materials/Nature/dirtground003_height-ssbump.vtf reason=$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's; 1/1 of those materials also declare $ssbump, so their second-layer texel is a bumpBasis weight and stays refused even with both switches on (--world-bump2-texture measures the layer with a diagnostic normal map instead)
+28486.7 gpu: world feature feature=ssbump declared=41 visible=38 resolved=41 missing=0 first=NATURE/BLENDGROUNDTOGRASS008 resource=Nature/dirtground001_height-ssbump reason=$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on
+28486.8 gpu: world feature feature=detail declared=53 visible=50 resolved=0 missing=53 first=WOOD/WOOD_BEAM02 resource=materials/overlays/detail006.vmt reason=detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused
+28486.8 gpu: world feature-detail distinctBumpPaths=31 detailTypesRead=1 firstDetailType=tf_forest_grass
+28567.7 gpu: world lighting dynamic=0 specular=0 bump=0 requestedDynamic=0 requestedSpecular=0 requestedBump=0 bumpOwner=WOOD/WOOD_BRIDGE002 bumpTexture=- bumpTextureSource=none bumpOwnerDeclared=0
+28567.7 gpu: world lighting-summary controls=6 applied=0 refused=4 disabled=2 notDeclared=0 phong=0(visible 0, exponents 0/0) bumpOwner=WOOD/WOOD_BRIDGE002
+28567.7 gpu: world feature-apply bump enabled=0 tiles=0 materials=0 vertices=0 bump2 enabled=0 tiles=0 materials=0 vertices=0 weights=0(-1.000..-1.000) detail enabled=0 tiles=0 materials=0 vertices=0
+28567.7 gpu: world lighting-control control=dynamicLighting kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=133 triangles=226992 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant, not a material key: the pixel shader replaces the lightmap-only factor with 0.62+0.38*dot(normal, lightDirection) for 133 visible materials / 226992 visible triangles; no VMT declares it, so every surface is shaded by the same guessed direction and the baked lightmap's own direct light is counted twice; off
+28567.7 gpu: world lighting-control control=specular kind=pass-switch state=disabled declared=0 visible=0 resolved=0 missing=0 materials=133 triangles=226992 requested=0 effective=0 parsed=0 first=- resource=- reason=a pass constant: one lobe (boost 0.12, exponent 32) for 133 visible materials / 226992 visible triangles; no visible material declares $phong, so the lobe is added to materials that never asked for one; off
+28567.7 gpu: world lighting-control control=bump kind=pass-switch state=refused declared=57 visible=52 resolved=57 missing=0 materials=52 triangles=45175 requested=0 effective=0 parsed=1 first=NATURE/BLENDGROUNDTOGRASS008 resource=materials/Nature/dirtground001_height-ssbump.vtf reason=off: the world pass has one bump sampler slot (--world-bump) and the per-material path is off too (--world-material-bump), so the 52 visible materials that name one of 31 distinct $bumpmap textures are drawn with no normal map at all
+28567.7 gpu: world lighting-control control=$bumpmap2 kind=material-key state=refused declared=1 visible=1 resolved=1 missing=0 materials=1 triangles=1024 requested=0 effective=0 parsed=1 first=COALMINES/BLENDGROUNDTOGRASS_COALMINES resource=materials/Nature/dirtground003_height-ssbump.vtf reason=$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's; 1/1 of those materials also declare $ssbump, so their second-layer texel is a bumpBasis weight and stays refused even with both switches on (--world-bump2-texture measures the layer with a diagnostic normal map instead)
+28567.7 gpu: world lighting-control control=%detailtype kind=material-key state=refused declared=53 visible=50 resolved=0 missing=53 materials=50 triangles=41646 requested=0 effective=0 parsed=1 first=WOOD/WOOD_BEAM02 resource=materials/overlays/detail006.vmt reason=detail layers are the --world-detail switch: the detail material's $basetexture is sampled at the atlas uv scaled by $detailscale and combined with the albedo by $detailblendmode; with the switch off the layer is refused; 53 of 53 referenced detail VMTs are absent from this install, so the layer's own texture and blend mode cannot be resolved here; %detailtype is a key in the material that names the layer, not in the detail VMT, and is read above; 1 material names a %detailtype group (first=tf_forest_grass); %detailtype names a detail-prop group that VBSP consumes at map compile time (it emits prop_detail sprites and models there), so the key never reaches a runtime shader and has no consumer here
+28567.8 gpu: world lighting-control control=$ssbump kind=material-key state=refused declared=41 visible=38 resolved=41 missing=0 materials=38 triangles=43288 requested=0 effective=0 parsed=1 first=NATURE/BLENDGROUNDTOGRASS008 resource=Nature/dirtground001_height-ssbump reason=$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on
+28567.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=11 poseWorld=0 poseBind=0 poseJoinMissed=0 samples=11 sampledTicks=2 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+28567.9 draw: end frames=1 pending=0
+28567.9 loop n=3 tick=534
+28569.5 audio: advance tick=600 cursor=600 seen=213 played=0 skippedVoice=18 missing=124 dup=0
+28569.5 scene: begin tick=600 sceneTick=10920
+28569.5 scene: clock tick=600 entryTick=601 serverTick=10920 serverTickKnown=1
+28575.4 scene: snapshot status=1 stale=600 states=2048
+28575.5 scene: observer done
+28575.5 scene: hud fxDue=32 drawable=1
+28581.9 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+28591.8 anim: ent=3 model=models/player/sniper.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=11 label=AttackStand_PRIMARY advanced=0 origin=1231.4,-1101.7,-136.0
+28591.9 anim: ent=4 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=-1517.7,1572.6,25.9
+28592.1 anim: ent=5 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=1429.2,-39.4,13.0
+28592.2 anim: ent=6 model=models/player/medic.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=755.2,269.0,64.0
+28592.3 anim: ent=7 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=1263.9,-385.5,-35.5
+28592.3 anim: ent=8 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1239.9,-36.5,69.5
+28592.4 anim: ent=9 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1085.6,-50.4,28.5
+28592.5 anim: ent=10 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.000000 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=765.1,-190.9,88.2
+28592.8 scene: PLAYER-MODEL-ASSERT=PASS tick=10320 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+28592.8 animsum: tick=10320 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
+28592.8 scene: setInstances draws=96 markers=32 playerDraws=11 propDraws=85 playerBudget=11 propBudget=85
+28592.8 budget: draw capacity=96 playerBudget=11 propBudgetAfterAttach=85 playerDrawn=11 propDrawn=85 attachReserved=0 attachDrawn=0 droppedPlayers=0 droppedProps=36
+28593.0 budget: instances capacity=96 submitted=96 accepted=95 slots=210 rejected=missingMesh:0,deferredNotResident:1,badMesh:0,nonFinite:0,budget:0
+28593.0 budget: meshTable capacity=96 resident=68 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:20,overlay:9,prop:24,firstPersonOnly:6
+28593.0 scene: entityRanges ranges=102 texturedRanges=102 texturedInstances=95 skinnedInstances=72 meshes=68 textures=269
+28593.0 scene: anim skinned=73 bindPose=23 matrices=1041 gpuSkin=72/1041 boneMismatch=15 poseChanges=0 targetInstances=3 targetPose=0 advances=0 targetAdv=0 cycle=49/0 tick=10320 status=ok reason=AttackStand_PRIMARY
+28593.0 scene: animwitness any=- ent=-1 seq=-1 frame=0/0 lf=0/0 poseChanges=0 seen=0 target=- ent=-1 seq=-1 frame=0/0 lf=0/0 seen=0
+28593.0 scene: instances set
+28595.2 overlay: corpseFilter removed=8 samples=19 kept=11
+28595.4 scene: done
+28595.5 scene: camera mode=first-person target=1 follows=3 holds=1 freeze=0 eye=1359.6,-538.8,73.9 pitch=20.12 yaw=92.55 src=follow
+28596.4 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 242109 tris, lightmap: samples=2793687 faces=14988 tris=242283 bytes=5053536 state=source-equivalent tone=ldr-clamp atlas=4096x1331, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=600/64352 req=0 act=0 frame=pending fdelta=na speed=32.000000 rate=66.666669 anchorAbs=10852@9030561 forward playing HUD[tick=600 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=32.000000 entity=checkpoint stale=600 audio=0/124 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=32 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=68 entityModels=95 entitySlots=210 entityModelVerts=462456 entityMaterials=95/95 entityMaterialRanges=102/102 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=73/96 animBones=1041 animSeq=9 animFrame=0/21 animSource=ok animBindings=96/288 animCache=250 animAdv=0 animWitness=- gpuSkin=72/1041 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=2029 assetRefs=626 modelKnown=514 weap...[TRUNCATED]
+28596.5 draw: begin tick=600 frames=1
+28596.5 capture: armed requested=600 frame_tick=600 frames=1
+28610.9 outline: draw enabled=0 depth=xray depthTest=0 depthWrite=0 drew=0 ordinal=7 vmOrdinal=0 orderOk=0 silhouettes=0 lines=0 markers=0 vertexCount=0 drawCalls=0 submitted=0 red=0 blue=0 unknown=0 noMesh=0 noOrigin=0 disabled=11 poseWorld=0 poseBind=0 poseJoinMissed=0 samples=11 sampledTicks=3 presses=0 stateChanges=0 refused=0 owner=outline stateTest=0 stateWrite=0 stateBound=0 stateEnable=0 stateMask=1 stateCreated=0 agree=1
+28610.9 capture: frame width=1264 height=681 dpi=96
+28610.9 hud: draw drawn=0 rects=0 ordinal=0 scissor=0 region=0,0,0,0 union=0,0,0,0
+28610.9 hudtext: primitives=0 drawn=0 textQuads=0 glyphs=0 unmapped=0 region=0,0,0,0 passOrdinal=0
+28610.9 draw: end frames=2 pending=0
+28610.9 loop n=4 tick=600
+28611.0 metrics t=0.77 tick=600 iter=4
+28611.0 mode: summary window_created=1 window_visible=0 audio_mode=disabled audio_device_opened=0 audio_device_open_attempts=0 audio_device_opens_ok=0 events_seen=213 events_played=0 events_skipped=89 events_missing=124 drawn=2 capture_written=1 capture_depth_written=0 capture_depth_bytes=0 metrics_written=1 exit=0
+28611.0 audio: summary soundEventsRead=5292 soundEventsScheduled=5229 soundEventsPlayed=0 soundEventsSkippedVoice=18 soundEventsMissingResource=124 firstPacketTick=1 soundOriginTick=1 reverseRecoveries=0 duplicateTicks=0 soundEventsMp3Seen=0 soundEventsMp3Played=0 soundEventsMp3Skipped=0 soundEventsMp3Failed=0 soundEventsMp3Inaudible=0 soundEventsInaudible=59
+28611.0 camera: summary mode=first-person modeChanges=0 spacePresses=0 spaceSingles=0 spaceDoubles=0 doubleWindowMs=300 pauseToggles=0 follows=3 holdsNoTarget=1 freezeFrames=0 modeApplies=0
+28611.1 spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=6 target=2 src=stable tr=0 prog=0.000 focus=1359.6,-538.8,5.9 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=0 stable=1 hidden=7 lastdeath=-1
+28611.1 camera: director frozen=0 advanced=2 violations=0 tick=600 moves=0 movesWhilePaused=0 freeFlySteps=0 bookmarkApplies=0 resetToPlayer=0/0 resetView=0 focusSuppressed=0 captures=0
+28611.1 camera: bookmarks saved=0 of=8 saves=0 deletes=0 jumps=0 refusals=0
+28611.1 playback: summary requests=1 landings=0 rejected=0 clampedStart=0 clampedEnd=0 interruptedSeeks=0 superseded=0 staleLandings=0 sameTick=0 speedChanges=1 advanceTicks=1067 stepsForward=0 stepsBackward=0 jumps1s=0 jumps5s=0 exact=0 checkpoint=0 unavailable=0 focusSuppressed=0 elapsedSeconds=0.500543 maxFrameDelta=0 lastRequestedTick=0 lastLandedTick=0 lastStatus=applied lastFrameStatus=pending
+28611.1 keys: table actions=27 sets=0 conflicts=0 resets=0 dispatched=0 unbound=0 suppressed=0 last=-
+28611.1 keys: bind action=camera.bookmark.delete1 chord=Ctrl+Shift+F1
+28611.1 keys: bind action=camera.bookmark.delete2 chord=Ctrl+Shift+F2
+28611.1 keys: bind action=camera.bookmark.delete3 chord=Ctrl+Shift+F3
+28611.1 keys: bind action=camera.bookmark.delete4 chord=Ctrl+Shift+F4
+28611.1 keys: bind action=camera.bookmark.delete5 chord=Ctrl+Shift+F5
+28611.1 keys: bind action=camera.bookmark.delete6 chord=Ctrl+Shift+F6
+28611.1 keys: bind action=camera.bookmark.delete7 chord=Ctrl+Shift+F7
+28611.1 keys: bind action=camera.bookmark.delete8 chord=Ctrl+Shift+F8
+28611.1 keys: bind action=camera.bookmark.jump1 chord=F1
+28611.1 keys: bind action=camera.bookmark.jump2 chord=F2
+28611.1 keys: bind action=camera.bookmark.jump3 chord=F3
+28611.1 keys: bind action=camera.bookmark.jump4 chord=F4
+28611.1 keys: bind action=camera.bookmark.jump5 chord=F5
+28611.1 keys: bind action=camera.bookmark.jump6 chord=F6
+28611.1 keys: bind action=camera.bookmark.jump7 chord=F7
+28611.1 keys: bind action=camera.bookmark.jump8 chord=F8
+28611.1 keys: bind action=camera.bookmark.save1 chord=Ctrl+F1
+28611.2 keys: bind action=camera.bookmark.save2 chord=Ctrl+F2
+28611.2 keys: bind action=camera.bookmark.save3 chord=Ctrl+F3
+28611.2 keys: bind action=camera.bookmark.save4 chord=Ctrl+F4
+28611.2 keys: bind action=camera.bookmark.save5 chord=Ctrl+F5
+28611.2 keys: bind action=camera.bookmark.save6 chord=Ctrl+F6
+28611.2 keys: bind action=camera.bookmark.save7 chord=Ctrl+F7
+28611.2 keys: bind action=camera.bookmark.save8 chord=Ctrl+F8
+28611.2 keys: bind action=camera.freeFly chord=F9
+28611.2 keys: bind action=camera.resetToPlayer chord=F10
+28611.2 keys: bind action=camera.resetView chord=F11
+28611.2 camera: bookmark slot=1 saved=0
+28611.2 camera: bookmark slot=2 saved=0
+28611.2 camera: bookmark slot=3 saved=0
+28611.2 camera: bookmark slot=4 saved=0
+28611.2 camera: bookmark slot=5 saved=0
+28611.2 camera: bookmark slot=6 saved=0
+28611.2 camera: bookmark slot=7 saved=0
+28611.2 camera: bookmark slot=8 saved=0
+28823.5 logstf: summary attached=1 script=- state=closed host=none panel=0 content=0 client=1264,681 dpiScale=1.00 url=- navigations=0 accepted=0 refused=0 opens=0 closes=0 hostStarts=0 hostFailures=0 scrollCalls=0 scriptFailures=0 canBack=0 canForward=0 refusal=- refusalReason=- unavailable=- scrollOffset=0 scrollRaw=none scrollPage=0 scrollViewport=0 urlBeforeHistory=- urlAfterHistory=- historyMoved=0
+28824.1 logstf: runtime kind=webview2 available=1 source=registry version=157.0.4341.42 loader=present
+29101.8 hud: keys actions=30 registered=1 dispatched=0 suppressed=0 conflicts=0
+29101.8 hud: summary imported=0 accepted=0 refused=0 panels=0 visible=0 invalid=0 scale=100 enabled=0 lastReason=none
+30281.7 hud: live summary calls=3 updates=0 skips=0 published=0 nameMissing=0 targetAbsent=0 scoreMissing=0 timerFallback=0 lastSource= lastText1="" lastText2="" lastText3=""
