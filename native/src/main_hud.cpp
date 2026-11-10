@@ -428,13 +428,16 @@ void hudResetToDefault(HWND window) {
 // target's health/class/team come from readPlaybackHud, which is the same reader
 // the rest of the product uses.
 //
-// WHAT IS NOT KNOWN IS SAID OUT LOUD. A player name is userinfo (svc_UserInfo),
-// and nothing in this decoder reads userinfo -- evidence/t63-sourcetv/FIELD_TABLE.md:43
-// records it as gap G7, evidence/t68-events/GAME-EVENT-SPEC.md:435 as T64 G5, and
-// evidence/t70-t72/DESIGN.md:1126 states the name is not obtainable. The third
-// line therefore carries "NAME ?" and the trace carries
-// name=unavailable reason=no-userinfo, with a counter. A placeholder that looked
-// like a name would be worse than the question mark.
+// WHAT IS NOT KNOWN IS SAID OUT LOUD. The player name now comes from the demo's
+// own userinfo string table (T100: one verbatim player_info_t per client slot,
+// slot -> entity index == slot + 1, gated by userinfo-check.sh), so the third
+// line carries the server's name for the entity the camera is watching -- at the
+// tick being played, not at the tick the demo was decoded to. When that table has
+// no observation for the slot at or before that tick (or the camera is not on a
+// player, or no userinfo arrived at all) the line carries "NAME ?" and the trace
+// carries name=unavailable with nameReason=no-userinfo-slot | no-userinfo-tick |
+// no-userinfo-empty | no-tick, plus a counter. A placeholder that looked like a
+// name would be worse than the question mark; so would a name from a later tick.
 namespace {
 
 constexpr float kHudLiveX = 24.0f;
@@ -621,8 +624,119 @@ HudLiveReading hudLiveRead(const std::vector<tf2::native::EntityState>& states,
   return reading;
 }
 
+// T100 WIRING: the player's name is userinfo -- the demo carries it as the
+// 'userinfo' string table, one verbatim player_info_t per client slot -- so the
+// readout can say a name instead of a question mark. What it must never do is
+// invent one: every way of having no name still ends in '?', and the trace says
+// which way it was. The block comment above the readout has the long version.
+struct HudLiveName {
+  bool known = false;
+  const char* reason = "no-userinfo-slot";
+  std::int32_t tick = -1;
+  std::int32_t entity = -1;
+  std::int32_t slot = -1;
+  std::string display;
+  std::string slug;
+  std::string rawHex;
+};
+
+// The font is ASCII (hud_font.h covers U+0020..U+007E; anything else takes the
+// hollow fallback cell and the gate counts it as an unmapped glyph), and a name
+// is whatever the server sent -- UTF-8, control bytes and colour codes included.
+// So the display form keeps printable ASCII, maps everything else to '?',
+// collapses runs of spaces (two spaces are the field separator on that line) and
+// caps the length so one long name cannot push the panel across the frame. The
+// exact bytes survive in the trace as hex, so the projection loses nothing.
+constexpr std::size_t kHudLiveMaxNameChars = 24;
+
+void hudLiveProjectName(const std::string& raw, HudLiveName& name) {
+  for (const char ch : raw) {
+    if (name.display.size() >= kHudLiveMaxNameChars) break;
+    const unsigned char byte = static_cast<unsigned char>(ch);
+    const char out = (byte >= 0x20u && byte <= 0x7eu) ? static_cast<char>(byte) : '?';
+    if (out == ' ' && !name.display.empty() && name.display.back() == ' ') continue;
+    name.display.push_back(out);
+  }
+  while (!name.display.empty() && name.display.back() == ' ') name.display.pop_back();
+  // The trace field the gate greps is [A-Za-z0-9._-]+, which a name generally is
+  // not; the slug is that same name folded into the charset, the display form is
+  // what the frame carries.
+  for (const char ch : name.display) {
+    const bool safe = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+      || (ch >= '0' && ch <= '9') || ch == '.' || ch == '_' || ch == '-';
+    name.slug.push_back(safe ? ch : '_');
+  }
+  if (name.slug.empty()) name.slug = "unnamed";
+  char hex[3];
+  for (const char ch : raw) {
+    std::snprintf(hex, sizeof(hex), "%02x", static_cast<unsigned>(static_cast<unsigned char>(ch)));
+    name.rawHex += hex;
+  }
+}
+
+// entity -> slot -> (slot, tick) -> name. No userid anywhere: the demo's own
+// table is keyed by client slot, DemoUserInfoEntry::entityIndex is the decoder's
+// derivation of the entity that slot drives (slot + 1 -- an engine convention the
+// demo cannot confirm, since userid is a different namespace), and
+// findUserInfoAtTick is a pure function of (summary, tick) so a seek backwards
+// returns the name the tick really had. Recomputing the slot as entity - 1 here
+// would be a second copy of an assumption; reading the decoder's field is not.
+HudLiveName hudLiveResolveName(const tf2::native::DemoNetworkSummary& summary,
+    std::int32_t viewEntity, std::int32_t playbackTick) {
+  HudLiveName name;
+  name.entity = viewEntity;
+  if (viewEntity < 1) return name;
+  if (summary.firstDataEntryTick < 0) {
+    name.reason = "no-tick";
+    return name;
+  }
+  const tf2::native::DemoUserInfoEntry* slot = nullptr;
+  for (const auto& entry : summary.userInfos) {
+    if (entry.entityIndex == static_cast<std::uint32_t>(viewEntity)) {
+      slot = &entry;
+      break;
+    }
+  }
+  if (slot == nullptr) return name;
+  name.slot = static_cast<std::int32_t>(slot->entryIndex);
+  // The samples are stamped with the *server* tick that was in force when their
+  // packet was decoded (svc_NetTick), not with the demo's entry tick: on the nine
+  // demos T100 measured, entry ticks run 1..N while a slot's first observation
+  // lands at server tick 16349/25595/35176, and this gate's own demo puts its
+  // first observation at 10319 (D73 window step 2)
+  // (evidence/t100-userinfo/MEASURED.md:137-142). Asking in firstDataEntryTick +
+  // playback tick answers '?' for the first net_minus_entry ticks of every demo
+  // -- about 10318 of snakewater's 64352 -- and then goes stale. packetServerTicks
+  // is already indexed by playback tick (demo_header.h:609-621) and main.cpp:
+  // 9788-9805 resolves the scene tick through the same table and the same ladder.
+  if (playbackTick < 0
+      || static_cast<std::size_t>(playbackTick) >= summary.packetServerTicks.size()) {
+    name.reason = "no-tick";  // no data packet at this playback tick
+    return name;
+  }
+  if (summary.packetServerTickKnown[playbackTick] == 0) {
+    name.reason = "no-tick";  // before the first recorded packet: not inferred
+    return name;
+  }
+  name.tick = summary.packetServerTicks[playbackTick];
+  tf2::native::DemoUserInfoEntry resolved;
+  if (!tf2::native::findUserInfoAtTick(summary, name.tick, slot->entryIndex, resolved)) {
+    name.reason = "no-userinfo-tick";
+    return name;
+  }
+  if (resolved.name.empty()) {
+    name.reason = "no-userinfo-empty";
+    return name;
+  }
+  name.known = true;
+  name.reason = "ok";
+  hudLiveProjectName(resolved.name, name);
+  return name;
+}
+
 HudLiveText hudLiveCompose(const tf2::native::main_internal::PlaybackState& playback,
-    const tf2::native::PlaybackHudState& target, const HudLiveReading& reading) {
+    const tf2::native::PlaybackHudState& target, const HudLiveReading& reading,
+    const HudLiveName& name) {
   HudLiveText text;
   if (reading.roundTimerKnown) {
     text.source = "round-timer";
@@ -646,7 +760,11 @@ HudLiveText hudLiveCompose(const tf2::native::main_internal::PlaybackState& play
   text.score += reading.redKnown ? std::to_string(reading.red) : "?";
   text.score += "  BLU ";
   text.score += reading.bluKnown ? std::to_string(reading.blu) : "?";
-  text.target = "NAME ?";  // userinfo is not decoded: see the block comment above
+  // The name is the one field on this line that is text, so it is the one field
+  // that can be wrong in a way no counter notices: it is either the demo's name
+  // for this slot at this tick or a question mark, never a placeholder.
+  text.target = "NAME ";
+  text.target += name.known ? name.display.c_str() : "?";
   text.target += "  HP ";
   text.target += target.healthKnown ? std::to_string(target.health) : "?";
   text.target += "  ";
@@ -711,8 +829,9 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   if (!reading.roundTimerKnown) ++g_hudLiveTimerFallback;
   if (!reading.redKnown || !reading.bluKnown) ++g_hudLiveScoreMissing;
   if (!target.healthKnown && !target.teamKnown && !target.classKnown) ++g_hudLiveTargetAbsent;
-  ++g_hudLiveNameMissing;  // every frame that asks for a name and cannot have one
-  const HudLiveText text = hudLiveCompose(playback, target, reading);
+  const HudLiveName name = hudLiveResolveName(summary, summary.lastViewEntity, playback.tick);
+  if (!name.known) ++g_hudLiveNameMissing;  // every frame that asks for a name and cannot have one
+  const HudLiveText text = hudLiveCompose(playback, target, reading, name);
   std::string key = text.time;
   key += '\n';
   key += text.score;
@@ -772,16 +891,26 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // reason= says why this line exists (the reading changed); nameReason= says why
   // the name field is a question mark. Two different questions, so two fields --
   // folding them into one "reason" would have made either one unreadable.
+  // name= is the gate-facing slug (a name is not in [A-Za-z0-9._-], the field is),
+  // nameRawHex is the exact bytes and nameReason is why it is '?' when it is.
+  // The nameTick/nameBaseTick/nameEntity/nameSlot fields are what make the reading
+  // checkable from outside: the gate compares the sample clock (nameTick) with the
+  // entry clock (nameBaseTick + tick) and looks the same slot up in
+  // demo_open_probe.
   traceFmt("hud: live tick=%d enabled=1 mode=%s source=%s"
     " text1=\"%s\" text2=\"%s\" text3=\"%s\""
-    " glyphs=%zu region=%d,%d,%d,%d updates=%zu skips=%zu name=unavailable"
-    " reason=text-changed nameReason=no-userinfo nameMissing=%zu targetAbsent=%zu scoreMissing=%zu"
-    " timerFallback=%zu red=%d blu=%d paused=%d",
+    " glyphs=%zu region=%d,%d,%d,%d updates=%zu skips=%zu name=%s"
+    " reason=text-changed nameReason=%s nameMissing=%zu"
+    " nameTick=%d nameBaseTick=%d nameEntity=%d nameSlot=%d nameRawHex=%s"
+    " targetAbsent=%zu scoreMissing=%zu timerFallback=%zu red=%d blu=%d paused=%d",
     playback.tick, hudLive ? "forced" : "interactive", text.source.c_str(),
     text.time.c_str(), text.score.c_str(),
     text.target.c_str(), glyphs, regionX, regionY, regionW, regionH,
-    g_hudLiveUpdates, g_hudLiveSkips, g_hudLiveNameMissing, g_hudLiveTargetAbsent,
-    g_hudLiveScoreMissing, g_hudLiveTimerFallback,
+    g_hudLiveUpdates, g_hudLiveSkips,
+    name.known ? name.slug.c_str() : "unavailable", name.reason,
+    g_hudLiveNameMissing, name.tick, summary.firstDataEntryTick, name.entity, name.slot,
+    name.rawHex.c_str(),
+    g_hudLiveTargetAbsent, g_hudLiveScoreMissing, g_hudLiveTimerFallback,
     reading.redKnown ? reading.red : -1, reading.bluKnown ? reading.blu : -1,
     playback.paused ? 1 : 0);
 }
