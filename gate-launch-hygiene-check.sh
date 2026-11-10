@@ -330,6 +330,25 @@ STAT=$(grep '^STAT|' "$TMP/scan.txt" | head -1)
 W=$(echo "$STAT" | sed -n 's/.*warnings=\([0-9]*\).*/\1/p')
 K=$(echo "$STAT" | sed -n 's/.*lifecycle=\([0-9]*\).*/\1/p')
 N=$(wc -l < "$TMP/now.txt" | tr -d ' ')
+# D-71: nothing above this line noticed what the scan had actually read. An
+# empty or wrong --root, or a scanner that stopped recognising launch sites,
+# printed "STAT|scripts=0|launchers=0|sites=0", matched an empty baseline, and
+# exited 0 with GATE-LAUNCH-HYGIENE=PASS: a clean bill of health for a tree it
+# never looked at. Measured on 2026-11-10: scripts=123 launchers=54 sites=77
+# (6973484, the commit that introduced this file, recorded 121/54/76). The
+# floors sit about 20% below those readings -- high enough that a wrong root or
+# a broken scanner fails, low enough that deleting a few scripts does not.
+SC=$(echo "$STAT" | sed -n 's/.*scripts=\([0-9]*\).*/\1/p')
+LN=$(echo "$STAT" | sed -n 's/.*launchers=\([0-9]*\).*/\1/p')
+ST=$(echo "$STAT" | sed -n 's/.*sites=\([0-9]*\).*/\1/p')
+FLOORFAIL=0
+for SPEC in "scripts:${SC:-0}:100" "launchers:${LN:-0}:40" "sites:${ST:-0}:60"; do
+  WHAT=${SPEC%%:*}; REST=${SPEC#*:}; GOT=${REST%%:*}; FLOOR=${REST#*:}
+  if [ "${GOT:-0}" -lt "$FLOOR" ]; then
+    echo "   FAIL: the scan read $WHAT=${GOT:-0}, below the floor $FLOOR -- a wrong --root or a scanner that no longer recognises launch sites reads exactly like a clean tree, which is why this floor exists (D-71)"
+    FLOORFAIL=1
+  fi
+done
 echo "== launch hygiene (D-22): static scan of $SCAN_ROOT"
 echo "   $STAT"
 if [ "$K" -gt 0 ]; then
@@ -366,6 +385,9 @@ fi
 # stays as git delivered it.
 tr -d '\r' < "$BASELINE" | sort > "$TMP/base.txt"
 FB=0
+if [ "$FLOORFAIL" -eq 1 ]; then
+  FB=1
+fi
 NEW=$(comm -23 "$TMP/now.txt" "$TMP/base.txt")
 if [ -n "$NEW" ]; then
   FB=1
