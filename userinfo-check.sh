@@ -33,8 +33,8 @@ DEMO_DIR="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos"
 DEMOS="review1 prodcutscout 73"
 # The last tick is far beyond any demo's end: every slot that ever had a name must
 # resolve there. 60000 is after signon in this corpus, 2000 is before it.
-AT_FORWARD="0,2000,60000,99999999"
-AT_REVERSE="99999999,60000,2000,0"
+AT_FORWARD="0,2000,60000,600000,99999999"
+AT_REVERSE="99999999,600000,60000,2000,0"
 # Repeat asks for a tick that resolves names twice, so the two printed blocks can
 # be compared. A tick before signon resolves nothing and would make the check
 # vacuous, which is why 2000 is not used here.
@@ -332,7 +332,16 @@ for demo in $DEMOS; do
         "$OUT/$demo-at-$tick-rev.txt" "$OUT/$demo-at-$tick-fwd.txt"
     fi
   done
-  awk -F'\t' '$1 == "userinfo_at" && $2 == "2000"' "$OUT/$demo-repeat.txt" > "$OUT/$demo-at-repeat.txt"
+  # D-70: this block reads the probe that asked $AT_REPEAT, and the tick it asked
+  # twice is the first field of that list. It used to filter on "2000" -- copied
+  # from the early-tick assertion above, where 2000 is exactly right -- so it
+  # selected no rows for any demo and then reported the empty selection as the
+  # failure. Derive the tick instead of restating it, and prove the probe really
+  # asked it twice so the pair comparison cannot go vacuous.
+  repeat_tick=$(printf '%s' "$AT_REPEAT" | cut -d, -f1)
+  repeat_asks=$(printf '%s' "$AT_REPEAT" | tr ',' '\n' | grep -c -x -- "$repeat_tick" || true)
+  assert_eq "$demo: the repeat probe asks one tick twice" "$repeat_asks" "2"
+  awk -F'\t' -v t="$repeat_tick" '$1 == "userinfo_at" && $2 == t' "$OUT/$demo-repeat.txt" > "$OUT/$demo-at-repeat.txt"
   half=$(wc -l < "$OUT/$demo-at-repeat.txt" | tr -d ' ')
   if [ "$half" -ge 2 ] && [ $((half % 2)) -eq 0 ]; then
     half=$((half / 2))
@@ -341,7 +350,7 @@ for demo in $DEMOS; do
     assert_same_file "$demo: the same tick twice gives the same names" \
       "$OUT/$demo-at-repeat-a.txt" "$OUT/$demo-at-repeat-b.txt"
   else
-    bad "$demo: repeated tick produced an even, non-empty pair of blocks ($half rows)"
+    bad "$demo: repeated tick $repeat_tick produced an even, non-empty pair of blocks ($half rows)"
   fi
 done
 # Two separate processes on the same demo must print the same bytes.
