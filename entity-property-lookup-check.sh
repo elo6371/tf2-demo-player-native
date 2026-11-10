@@ -215,6 +215,14 @@ if [ "$MUTATION" -eq 1 ]; then
 fi
 
 echo
+# D-72 (D68-SCAN K3): the PASS line named assertions_ok=$ok but nothing required
+# it to be non-zero, so a run whose property table read empty still printed PASS.
+# Floor = 8, i.e. 80% of the measured 10 (2026-11-09, RUN13-VERIFY-ALL/verify-all.log).
+# Reading taken with: grep -o 'ENTITY-PROPERTY-LOOKUP=PASS (assertions_ok=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN13-VERIFY-ALL/verify-all.log | tail -1  ->  assertions_ok=10
+if [ "$ok" -lt 8 ]; then
+  echo "  FAIL assertions: only $ok assertions ran, below the floor 8 -- an empty property table reads exactly like a green run (D-72)"
+  fail=1
+fi
 if [ "$fail" -eq 0 ]; then
   echo "ENTITY-PROPERTY-LOOKUP=PASS (assertions_ok=$ok)"
 else
