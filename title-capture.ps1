@@ -17,15 +17,19 @@
 #   scanner, this picks the change up.
 #
 # USAGE
-#   powershell -File title-capture.ps1 -Demo <path.dem> -OutDir <dir> [-Seconds 45]
-# Writes title-last.txt, exit-code.txt and command.txt into -OutDir. Exit 0 when
-# a title was captured, 1 when the window never reported one.
+#   powershell -File title-capture.ps1 -Demo <path.dem> -OutDir <dir> [-Seconds 60]
+# Writes title-last.txt, exit-code.txt and command.txt into -OutDir. Exit 0 when a
+# title was captured AND it carried the VPK bracket; 1 when the window never
+# reported a title at all; 3 when a title was read but it never settled (D-89).
 
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$Demo,
   [Parameter(Mandatory = $true)][string]$OutDir,
-  [int]$Seconds = 45,
+  # D-89: 45 s was too close to the observed settle time on a polluted window
+  # (29.5-31.6 s); 60 s keeps a 1.9x margin without costing a connected run
+  # anything, because the loop still breaks the moment the bracket appears.
+  [int]$Seconds = 60,
   # The rule for this machine: any invocation that could open the device names
   # it, because the default device is not the one the operator is listening on.
   [int]$AudioDevice = 6,
@@ -193,6 +197,15 @@ Set-Content -LiteralPath (Join-Path $OutDir 'child-pid.txt') -Value "$($proc.Id)
 Set-Content -LiteralPath (Join-Path $OutDir 'window-pid.txt') -Value "$(if ($ownedHwnd -ne [IntPtr]::Zero) { $proc.Id } else { 0 })" -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $OutDir 'foreign-windows-seen.txt') -Value "$foreignSeen" -Encoding UTF8
 
+# D-89: a title can be non-empty and still not be the title. A polluted window
+# shows a bare caption first and grows the VPK bracket 29.5-31.6 s in, so a 30 s
+# deadline captured "len=30 brackets=no" and this harness exited 0 -- the gate
+# then compared a settled-only bracket against an unsettled reading. A title that
+# never grew its bracket is a failed reading, not a passing one with fewer words.
+if ((-not [string]::IsNullOrEmpty($title)) -and ($title -notmatch '\[VPK entries:')) {
+  Write-Output ("TITLE-CAPTURE=FAIL (title did not settle in {0}s: no [VPK entries:] bracket; len={1})" -f $Seconds, $title.Length)
+  exit 3
+}
 if ([string]::IsNullOrEmpty($title)) {
   if ($foreignSeen -gt 0) {
     Write-Output 'TITLE-CAPTURE=FAIL (no title from this process; a foreign window of this class was present and left untouched)'

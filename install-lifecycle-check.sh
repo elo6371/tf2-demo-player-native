@@ -257,7 +257,10 @@ param(
   [string]$TfRoot = '',
   [string]$SettingsFile = ''
 )
-$arguments = @{ Demo = $Demo; OutDir = $OutDir; Seconds = 30; AudioDevice = 6; ExePath = $Exe }
+# D-89: the deadline must outlast a polluted window's settle time (29.5-31.6 s
+# measured); title-capture exits 3 if a title never grew its VPK bracket, so a
+# short deadline can no longer pass as a successful capture.
+$arguments = @{ Demo = $Demo; OutDir = $OutDir; Seconds = 60; AudioDevice = 6; ExePath = $Exe }
 if (-not [string]::IsNullOrEmpty($TfRoot)) { $arguments['ExtraArgs'] = @('--tf-root', $TfRoot) }
 if (-not [string]::IsNullOrEmpty($SettingsFile)) { $arguments['SettingsFile'] = $SettingsFile }
 & $Capture @arguments
@@ -748,6 +751,11 @@ LAUNCH_CASE="$OUT/cases/first-launch"
 LR="$(run_product "$LAUNCH/tf2_demo_native.exe" "$FIX/demo/t32_marker.dem" "$LAUNCH_CASE" "$FIX_ROOT" -)"
 eq "first launch exit code" "$LR" "0"
 has "the capture harness read a title from its own process" "$(cat "$LAUNCH_CASE/capture.log")" "TITLE-CAPTURE=PASS"
+# D-89: PASS alone accepted a bare caption. The reading this gate compares later
+# only exists once the title carries the archive bracket, so the bracket is
+# asserted here rather than inferred from the title further down.
+has "and the title had settled before the harness stopped reading" \
+  "$(cat "$LAUNCH_CASE/capture.log")" "brackets=yes"
 FIX_ROOT_WIN="$(cygpath -w "$FIX_ROOT")"
 eq "first launch root valid" "$(resources_valid "$LAUNCH_CASE/trace.txt")" "1"
 eq "first launch connected to the fixture root it was given" \
