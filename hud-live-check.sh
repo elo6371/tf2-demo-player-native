@@ -404,6 +404,13 @@ PYEOF
 A_T1=""; A_SRC=""; A_UPDATES=""; A_SKIPS=""; A_LINES=""
 R_T1=""; R_T3=""; R_REGION=""; LIVE2_T1=""
 L_MODE=""; SUP_ENABLED=""; SUP_REASON=""; SUP_LINE=""; SUP_FRAME=""
+# Section 8's readings. Empty so --sections=1,2 stays valid under set -u and the
+# evidence block prints <none> instead of crashing.
+N_NAME=""; N_REASON=""; N_TICK=""; N_BASE=""; N_ENTITY=""; N_SLOT=""; N_RAW=""
+# A negative control that cannot run must be counted, not silently skipped: the
+# evidence block prints this number, so "0 skipped" and "1 skipped" are different
+# claims and neither of them is dressed up as a green.
+SKIPPED_CONTROLS=0
 
 echo "=== T97 HUD live-reading gate: forward ==="
 echo "  exe: $(stat -c '%y %s bytes' "$EXE" 2>/dev/null || echo '<missing>')"
@@ -434,15 +441,18 @@ L_PUBREASON=$(live_field "$SCRATCH/live.trace" reason)
 echo "  reading: text1=\"$(val "$L_T1")\" text2=\"$(val "$L_T2")\" text3=\"$(val "$L_T3")\" source=$(val "$L_SRC")"
 assert_ge "an ordinary run publishes at least one live reading" "$LIVE_N" "1"
 assert_eq "the live reading is enabled" "$L_ENABLED" "1"
-# G: the name is never invented. A name here would be a fabrication.
-assert_eq "the reading declares the name unavailable" "$L_NAME" "unavailable"
-assert_eq "the reading names the reason it has no name" "$L_REASON" "no-userinfo"
+# G: THE NAME IS THE DEMO'S, OR IT IS A QUESTION MARK THAT SAYS WHY. It is never
+# invented: nameReason names the path that produced it, section 8 re-reads the
+# same slot out of the decoder probe and compares the bytes, and a fallback path
+# that cannot be reached with this fixture is counted rather than assumed.
+assert_ne "the reading publishes a name, not the placeholder" "$L_NAME" "unavailable"
+assert_eq "the reading says why the name is known" "$L_REASON" "ok"
 # Why the line exists, as opposed to why the name is a question mark: the publish
 # line exists because the reading changed, and it says so in its own field.
 assert_eq "every publish says why it was published" "$L_PUBREASON" "text-changed"
-echo "$L_T3" | grep -qE '^NAME \?  ' \
-  && echo "  OK   text3 prints 'NAME ?' rather than a made-up name" \
-  || { echo "  FAIL text3 does not print an honest unknown name: \"$(val "$L_T3")\""; fail=1; }
+echo "$L_T3" | grep -qE '^NAME [^?][^ ]*  HP ' \
+  && echo "  OK   text3 prints the demo's name rather than the placeholder" \
+  || { echo "  FAIL text3 does not print the demo's name: \"$(val "$L_T3")\""; fail=1; }
 # The clock is either a real M:SS or an honest '?': never a blank or a zero stand-in.
 assert_ge "the clock line is not empty" "$(slen "$L_T1")" "6"
 echo "$L_T1" | grep -qE '^TIME ([0-9]+:[0-9][0-9]|\?)( PAUSED)?$' \
@@ -657,6 +667,167 @@ assert_eq "the second process publishes the same clock" "$LIVE2_T1" "$L_T1"
 fi
 
 # ---------------------------------------------------------------------------
+if want 8; then
+echo "=== 8 the name is the demo's name, at the tick being played ==="
+if [ ! -f "$SCRATCH/live.trace" ]; then
+  echo "  FAIL section 8 needs section 1 (no live.trace under $SCRATCH)"; fail=1
+else
+PROBE=native/build-nmake/demo_open_probe.exe
+PROBE_DUMP="$SCRATCH/userinfo-dump.txt"
+N_T3=$(live_text "$SCRATCH/live.trace" 3)
+N_NAME=$(live_field "$SCRATCH/live.trace" name)
+N_REASON=$(live_field "$SCRATCH/live.trace" nameReason)
+N_TICK=$(live_field "$SCRATCH/live.trace" nameTick)
+N_BASE=$(live_field "$SCRATCH/live.trace" nameBaseTick)
+N_ENTITY=$(live_field "$SCRATCH/live.trace" nameEntity)
+N_SLOT=$(live_field "$SCRATCH/live.trace" nameSlot)
+N_RAW=$(live_field "$SCRATCH/live.trace" nameRawHex)
+echo "  reading: name=$(val "$N_NAME") reason=$(val "$N_REASON") tick=$(val "$N_TICK") base=$(val "$N_BASE") entity=$(val "$N_ENTITY") slot=$(val "$N_SLOT") rawhex=$(val "$N_RAW")"
+# 8.0 THE SECOND OPINION MUST BE A REAL ONE. Everything below compares the
+# product against demo_open_probe, so a missing or stale probe would turn the
+# section into a comparison with an old binary -- the same class as the
+# 2026-10-06 stale-binary incident.
+assert_eq "the decoder probe is built" "$([ -x "$PROBE" ] && echo yes)" "yes"
+if [ -x "$PROBE" ]; then
+  NEWEST_SRC=$(ls -t native/src/demo_header.cpp native/src/demo_header_strtab.cpp native/include/demo_header.h | head -1)
+  if [ "$NEWEST_SRC" -nt "$PROBE" ]; then
+    echo "  FAIL the decoder probe is older than $NEWEST_SRC (STALE-BINARY)"; fail=1
+  else
+    echo "  OK   the decoder probe is not older than $NEWEST_SRC"
+  fi
+  timeout 600 "$PROBE" --scan --userinfo "$DEMO" > "$PROBE_DUMP" 2>&1
+  assert_eq "the decoder probe exits 0 on the gate's demo" "$?" "0"
+  # The dump prints one tab-separated row per client slot. The columns are
+  # entryIndex entityIndex userId name firstTick lastTick updateCount layoutId
+  # tableText guid (native/tools/demo_open_probe.cpp:515-521).
+  ROW=$(awk -F'\t' -v e="$N_ENTITY" 'NF>=10 && $1 ~ /^[0-9]+$/ && $2 == e {print; exit}' "$PROBE_DUMP")
+  ROW_SLOT=$(printf '%s' "$ROW" | cut -f1)
+  ROW_NAME=$(printf '%s' "$ROW" | cut -f4)
+  ROW_FIRST=$(printf '%s' "$ROW" | cut -f5)
+  echo "  probe row: slot=$(val "$ROW_SLOT") entity=$(val "$N_ENTITY") firstTick=$(val "$ROW_FIRST") name=\"$(val "$ROW_NAME")\""
+  assert_eq "the dump carries a userinfo slot for the watched entity" "$([ -n "$ROW" ] && echo yes)" "yes"
+  # 8.1 the slot is the decoder's, not one this code recomputed as entity-1.
+  if [ -n "$N_SLOT" ]; then SLOT_PLUS=$(( N_SLOT + 1 )); else SLOT_PLUS=no-slot; fi
+  assert_eq "the HUD read the slot the decoder assigned to that entity" "$SLOT_PLUS" "$N_ENTITY"
+  assert_eq "the dump and the reading name the same slot" "$ROW_SLOT" "$N_SLOT"
+  # 8.2 THE CLOCK. The samples are stamped with the server tick that was in force
+  # when their packet was decoded, not with the demo's entry tick: T100 measured
+  # entry ticks running 1..N next to first observations at server tick 10319
+  # (snakewater, this gate's own demo, measured by step 2 of the D73 window) and
+  # 16349/25595/35176 (evidence/t100-userinfo/MEASURED.md:137-142). A readout
+  # that asks in firstDataEntryTick + playback tick is therefore net_minus_entry
+  # ticks late on every demo: it prints '?' for minutes and then carries a stale
+  # sample. Both wrong clocks are named below so a mutation cannot hide behind the
+  # other one.
+  if [ -n "$N_BASE" ]; then ENTRY_CLOCK=$(( N_BASE + TICK )); else ENTRY_CLOCK=no-tick; fi
+  if [ "$N_TICK" != "-1" ] && [ "$ENTRY_CLOCK" != "no-tick" ]; then
+    assert_ne "the HUD asked in the server-tick space, not the entry-tick space" "$N_TICK" "$ENTRY_CLOCK"
+    assert_ne "the HUD asked in the server-tick space, not in raw playback ticks" "$N_TICK" "$TICK"
+  else
+    # No skip here. With no nameTick there is nothing to compare, but the reading
+    # is already red in 8.4, and silently skipping the clock check would let a
+    # future wiring that stops publishing the tick leave this section green while
+    # it checks nothing. Name the two values and go red instead.
+    echo "  FAIL the clock-space checks cannot run: nameTick=$(val "$N_TICK") base=$(val "$N_BASE") reason=$(val "$N_REASON")"; fail=1
+  fi
+  # 8.3 THE HARD ONE: the published name is the demo's name for that slot, byte
+  # for byte. Nothing is hard-coded: the expected bytes come from the probe.
+  WANT_HEX=$(printf '%s' "$ROW_NAME" | od -An -v -tx1 | tr -d ' \n')
+  assert_eq "the HUD name is the demo's name for that slot" "$N_RAW" "$WANT_HEX"
+  # 8.4 a reading that is right in the trace and absent on screen is not a
+  # readout. The name is the first token of line 3, and it is not '?'.
+  assert_ne "the reading publishes a name, not the placeholder" "$N_NAME" "unavailable"
+  echo "$N_T3" | grep -qE '^NAME [^?][^ ]*  HP ' \
+    && echo "  OK   text3 prints the demo's name" \
+    || { echo "  FAIL text3 does not print the demo's name: \"$(val "$N_T3")\""; fail=1; }
+  # 8.4b THE DISPLAY FORM IS THE RAW NAME, PROJECTED. hudLiveProjectName keeps
+  # 0x20..0x7E, maps every other byte to '?', folds runs of spaces and caps at 24
+  # bytes (native/src/main_hud.cpp:647-673). 8.3 pins the exact bytes; this pins
+  # the mapping between those bytes and what the frame carries, so a projection
+  # that dropped or invented characters splits the two apart. On this demo the
+  # name is ASCII and the two coincide -- but the demo's own slots carry a
+  # non-ASCII name (slot 3 is UTF-8 CJK), so the wiring that surfaces one is a
+  # decision away and this is what would make it checkable.
+  # LIMIT: the name is taken as the first whitespace-delimited token of line 3,
+  # because a space is the separator 8.4's shape check relies on; a projected name
+  # with an internal single space would be mis-parsed here (this demo's is not).
+  WANT_DISPLAY=$(printf '%s' "$WANT_HEX" | xxd -r -p | od -An -v -tu1 - | tr -s ' ' '\n' | awk '
+    { if (NF < 1) next; b = $1 + 0;
+      c = (b >= 32 && b <= 126) ? sprintf("%c", b) : "?";
+      if (c == " " && n > 0 && last == " ") next;
+      if (n >= 24) next;
+      s = s c; last = c; n++ }
+    END { sub(/ +$/, "", s); printf "%s", s }')
+  T3_NAME=$(printf '%s' "$N_T3" | sed -n 's/^NAME \([^ ][^ ]*\)  HP .*/\1/p')
+  assert_eq "the displayed name is the raw name projected onto the font" "$T3_NAME" "$WANT_DISPLAY"
+  # 8.5 the font is ASCII and the glyph/region arithmetic is byte arithmetic: a
+  # non-ASCII byte here would break both, so the line is required to be ASCII.
+  if printf '%s' "$N_T3" | LC_ALL=C grep -q '[^ -~]'; then
+    echo "  FAIL text3 carries a byte outside printable ASCII"; fail=1
+  else
+    echo "  OK   text3 is printable ASCII only"
+  fi
+  # 8.6 the name came from a sample at or after the slot's first observation.
+  if [ -n "$ROW_FIRST" ] && [ -n "$N_TICK" ]; then
+    assert_ge "the name came from a tick at or after the first observation" "$N_TICK" "$ROW_FIRST"
+  fi
+  # 8.7 A SERVER TICK IS NOT AN ENTRY TICK. The entry tick at row 0 is
+  # firstDataEntryTick (1 on every measured demo) while the samples start in the
+  # thousands: snakewater's first userinfo observation is at server tick 10319
+  # (measured in this window, step 2) and T100 measured 16349/25595/35176 on the
+  # other demos (evidence/t100-userinfo/MEASURED.md:137-142). A floor of 1000
+  # separates the two clocks on this
+  # corpus without hard-coding this recording's own number; a lookup that adds an
+  # entry-tick offset instead of reading the table lands at 1 and goes red here
+  # exactly as it does in 8.2.
+  if [ "$N_TICK" != "-1" ]; then
+    assert_ge "the sample tick is a server tick, not an entry tick" "$N_TICK" 1000
+  else
+    echo "  FAIL the reading published no nameTick at all"; fail=1
+  fi
+  # 8.7b NATURAL NEGATIVE CONTROL, and why it is not here: it needs a playback row
+  # whose packet predates the slot's first observation. Row 0 is the earliest row
+  # this gate captures, and its sample tick is at or after ROW_FIRST (8.6), so no
+  # such row exists on this demo. The skip is COUNTED rather than passing silently,
+  # because a control that does not run is a green that means nothing.
+  SKIPPED_CONTROLS=$(( SKIPPED_CONTROLS + 1 ))
+  echo "  SKIP the pre-observation control: row 0 is the earliest playback row, sample tick $(val "$N_TICK"), first observation $(val "$ROW_FIRST") (SKIPPED_CONTROLS=$SKIPPED_CONTROLS)"
+  # 8.8 TWO INDEPENDENT CODE PATHS MUST LAND ON THE SAME NUMBER. The HUD resolves
+  # the name through the decoder table indexed by playback tick; the scene clock
+  # resolves the same row through DemoNetworkSummary on its own path and prints it
+  # as "scene: begin tick=<row> sceneTick=<server tick>" (main.cpp:9812). If both
+  # are right they print the same number for the same row, and that agreement is
+  # stronger than any shape assertion: a lookup that adds an offset, or one that
+  # reads the table a row late, disagrees here even if it looks plausible.
+  LIVE_ROW=$(grep -a "hud: live " "$SCRATCH/live.trace" 2>/dev/null | grep -av "hud: live summary " | tail -1 | grep -oE " tick=-?[0-9]+" | head -1 | cut -d= -f2)
+  SCENE_TICK=""
+  if [ -n "$LIVE_ROW" ]; then
+    SCENE_TICK=$(grep -a "scene: begin tick=$LIVE_ROW " "$SCRATCH/live.trace" 2>/dev/null | head -1 | grep -oE "sceneTick=[0-9-]+" | head -1 | cut -d= -f2)
+  fi
+  record_sep=; : "$record_sep"
+  if [ -n "$SCENE_TICK" ] && [ "$N_TICK" != "-1" ]; then
+    assert_eq "the HUD sample tick is the scene clock's tick for the same row" "$N_TICK" "$SCENE_TICK"
+  else
+    # Same rule as 8.2: a cross-check that cannot run is red, not skipped. With no
+    # "scene: begin tick=" line for the published row the two code paths never got
+    # compared, and calling that green is how a gate stops meaning anything. This
+    # leaves 8.7b as the only incremented skip, which is what 8.9 asserts.
+    echo "  FAIL the scene-clock cross-check cannot run: publish row $(val "$LIVE_ROW"), scene tick=$(val "$SCENE_TICK"), nameTick=$(val "$N_TICK")"; fail=1
+  fi
+else
+  echo "  FAIL no decoder probe to compare against, section 8 is vacuous"; fail=1
+fi
+# 8.9 A CONTROL THAT DOES NOT RUN IS NOT A GREEN. Section 8 has exactly one
+# legitimate skip: 8.7b, whose control would need a playback row whose packet
+# predates the first observation, and row 0 is the oldest row this gate captures.
+# Any second skip means part of section 8 did not execute -- and a section that
+# can quietly shrink is how a gate stays green while checking nothing (D-62).
+# The expected count is a number here, not a comment.
+assert_eq "section 8 skipped exactly its one documented control" "$SKIPPED_CONTROLS" "1"
+fi
+fi
+
+# ---------------------------------------------------------------------------
 # Evidence: keep the readings, not the 2.5 MB bitmaps.
 {
   echo "exe=$EXE"
@@ -670,7 +841,8 @@ fi
   echo "source=$L_SRC glyphs=$L_GLYPHS region=$L_REGION"
   echo "publishes=$LIVE_N"
   echo "advance_text1=$A_T1 advance_updates=$A_UPDATES advance_skips=$A_SKIPS advance_source=$A_SRC"
-  echo "name=$L_NAME reason=$L_REASON"
+  echo "name=$L_NAME nameReason=$L_REASON nameTick=$N_TICK nameBaseTick=$N_BASE"
+  echo "nameEntity=$N_ENTITY nameSlot=$N_SLOT nameRawHex=$N_RAW name_skipped_controls=$SKIPPED_CONTROLS"
   echo "resized_region=$R_REGION"
   echo "pixels: outside=$V_OUTSIDE inside=$V_INSIDE glyphBad=$V_BAD"
   echo "hud_off: quads=$OFF_QUADS primitives=$OFF_PRIM drawn=$OFF_DRAWN rects=$OFF_RECTS"
@@ -713,16 +885,24 @@ import sys
 path, case = sys.argv[1], sys.argv[2]
 edits = {
     'm1-drop-text': [(
-        '  const HudLiveText text = hudLiveCompose(playback, target, reading);',
-        '  HudLiveText text = hudLiveCompose(playback, target, reading);\n'
+        '  const HudLiveText text = hudLiveCompose(playback, target, reading, name);',
+        '  HudLiveText text = hudLiveCompose(playback, target, reading, name);\n'
         '  text.time.clear(); text.score.clear(); text.target.clear();  // MUTATION m1')],
     'm2-freeze': [(
         '  if (key == g_hudLiveLastKey) {',
         '  if (g_hudLiveLastKey.size() > 0) {  // MUTATION m2: first reading frozen')],
+    # m3 poisons the name at its source, so every downstream reading (slug, hex
+    # and the drawn text) inherits the lie and section 8.3 can catch it.
     'm3-fake-name': [(
-        '  text.target = "NAME ?";',
-        '  text.target = "NAME Player";  // MUTATION m3: an invented name'),
-        ('name=unavailable"', 'name=Player"')],
+        '  hudLiveProjectName(resolved.name, name);',
+        '  resolved.name = "Player";  // MUTATION m3: an invented name\n'
+        '  hudLiveProjectName(resolved.name, name);')],
+    'm4-name-slot': [(
+        '    if (entry.entityIndex == static_cast<std::uint32_t>(viewEntity)) {',
+        '    if (entry.entityIndex == static_cast<std::uint32_t>(viewEntity) + 1u) {  // MUTATION m4')],
+    'm5-name-tick': [(
+        '  name.tick = summary.packetServerTicks[playbackTick];',
+        '  name.tick = summary.firstDataEntryTick + playbackTick;  // MUTATION m5: the entry-tick clock')],
 }
 if case not in edits:
     raise SystemExit('unknown mutation case: ' + case)
@@ -737,7 +917,7 @@ print('patched', case)
 PYEOF
   }
 
-  for case in m1-drop-text m2-freeze m3-fake-name; do
+  for case in m1-drop-text m2-freeze m3-fake-name m4-name-slot m5-name-tick; do
     echo
     echo "--- mutation $case ---"
     cp "$ORIG" "$SRC"
@@ -756,8 +936,12 @@ PYEOF
                     expect="FAIL text1 has no clock shape" ;;
       m2-freeze)    mut_sections="--sections=1,2,5"
                     expect="FAIL the clock reading changes when the demo advances" ;;
-      m3-fake-name) mut_sections="--sections=1"
-                    expect="FAIL the reading declares the name unavailable" ;;
+      m3-fake-name) mut_sections="--sections=1,8"
+                    expect="FAIL the HUD name is the demo's name for that slot" ;;
+      m4-name-slot) mut_sections="--sections=1,8"
+                    expect="FAIL the HUD name is the demo's name for that slot" ;;
+      m5-name-tick) mut_sections="--sections=1,8"
+                    expect="FAIL the HUD asked in the server-tick space, not the entry-tick space" ;;
     esac
     mout="$SCRATCH/mut-$case.txt"
     HUD_LIVE_CHECK_OUT="$SCRATCH/mut-$case-out" \
