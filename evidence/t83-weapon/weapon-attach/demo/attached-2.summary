@@ -1,11 +1,11 @@
 tag=attached-2 rc=0 frameTick=64161 sceneTick=74481
-144242.5 scene: begin tick=64161 sceneTick=74481
-144257.0 scene: setInstances draws=96 markers=32 playerDraws=2 propDraws=92 playerBudget=2 propBudget=92
-144257.0 scene: weaponAttach on=1 held=2 drawn=2 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=2 firstRefusal=-
-144257.0 attach: meshSource supplied=1 refused=0 meshes=1 resupply=0
-144257.0 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
-144257.0 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=-13.5,55.6,4.1 holdAt=-13.5,55.6,4.1
-144257.0 weaponAttach: class=CTFPlayer ent=15 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=188 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=1 boneAt=-3.1,49.9,4.1 holdAt=-3.1,49.9,4.1
+139845.5 scene: begin tick=64161 sceneTick=74481
+139863.4 scene: setInstances draws=96 markers=32 playerDraws=2 propDraws=92 playerBudget=2 propBudget=92
+139863.4 scene: weaponAttach on=1 held=2 drawn=2 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=2 firstRefusal=-
+139863.4 attach: meshSource supplied=1 refused=0 meshes=1 resupply=0
+139863.4 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+139863.3 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=-13.5,55.6,4.1 holdAt=-13.5,55.6,4.1
+139863.4 weaponAttach: class=CTFPlayer ent=15 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=188 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=1 boneAt=-3.1,49.9,4.1 holdAt=-3.1,49.9,4.1
 frame: bmp=attached-2.bmp sha256=33f1b839f02806ffdc68ecda9daf592f6c48597895916015f6998e5c48b24b68
-frame: product sha256=ff49beac4fe2830361ce846f6434c84816f78d81b4442ad9aa83cf43d7b4499a
+frame: product sha256=c59157617ed1e9d64e4cebc020178e189f761121254308774385d502aea8639a
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=64161 speed=8 camera=5363.8,-1102.1,5.9,4.1,0.0 flags=--player-animation --player-weapon-attach on
