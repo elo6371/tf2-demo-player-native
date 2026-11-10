@@ -1,0 +1,4 @@
+good	288	2298
+truncated	248	1978
+shortpayload	156	1242
+badname	288	2298

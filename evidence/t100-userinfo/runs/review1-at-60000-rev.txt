@@ -1,0 +1,18 @@
+userinfo_at	60000	0	1	2	MatchaTV	0
+userinfo_at	60000	1	2	3	22HOSHINA	0
+userinfo_at	60000	2	3	23	皮革god	0
+userinfo_at	60000	3	4	5	jay	0
+userinfo_at	60000	4	5	6	Lchfkthy	0
+userinfo_at	60000	5	6	7	Xvl	0
+userinfo_at	60000	6	7	24	Brian D. Mage	0
+userinfo_at	60000	7	8	10	rain	0
+userinfo_at	60000	8	9	11	perfectkiller(real)	0
+userinfo_at	60000	9	10	12	raisin	0
+userinfo_at	60000	10	11	16	5 ping handicapped	0
+userinfo_at	60000	11	12	14	ska	0
+userinfo_at	60000	12	13	17	皮革warrior	0
+userinfo_at	60000	13	14	18	Jiff	0
+userinfo_at	60000	14	15	19	BiYoou	0
+userinfo_at	60000	15	16	26	桃井恨莉	0
+userinfo_at	60000	16	17	21	SYJ	0
+userinfo_at	60000	17	18	22	皮革tank	0

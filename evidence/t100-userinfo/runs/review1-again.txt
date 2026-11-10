@@ -1,0 +1,80 @@
+path=<wide-path> header=1 header_error= index=1 index_error= recording=SourceTV map=koth_ashville_final1 malformed_offset=0 commands=91251 packets=91247 ticks=91265 frames=91244 scan=1 source_tv=1 server_name=MatchaTV server_map=koth_ashville_final1 setview_count=1 last_view_entity=1 signon_states=3 last_signon=5 classes=363 class_info=1 datatable_packets=1 datatable_defs=518 datatable_classes=363 packets_scanned=91247 malformed_packets=0 temp_events=71938 temp_failures=0 particles=812 explosions=2114 firebullets=4941 projectiles=1838 sounds=34613 sound_failures=21548 sound_matches=5444 sound_misses=113 entities=2377284 entity_failures=0 entity_header_failures=0 entity_unknown_state_failures=0 entity_missing_table_failures=0 entity_prop_index_failures=0 entity_prop_value_failures=0 entity_history_gap=0 entity_history_delta_misses=290 entity_history_packets=216 entity_history_events=5265 entity_history_checkpoints=2 entity_history_first_tick=126226 entity_history_last_tick=126354 entity_delta_count=91243 entity_delta_base_unavailable=0 first_delta_tick=35180 first_delta_from=35177 first_unavailable_tick=-1 first_unavailable_from=-1 first_unknown_tick=-1 first_unknown_entity=-1 first_unknown_update=-1 first_unknown_max=-1 first_unknown_entries=-1 first_unknown_payload=-1 first_unknown_diff=-1 first_entities_tick=35177 first_entities_max=633 first_entities_entries=534 first_entities_payload=288524 first_entities_delta=0 first_enter_tick=35177 first_preserve_tick=35180 first_entity_update_bit=153 first_entity_update_diff=1 first_entities_message_bit=70 first_entity_failure_stage= first_entity_failure_tick=-1 first_entity_failure_name= first_entity_failure_class=-1 first_entity_failure_index=-1 first_entity_failure_entity=-1 first_entity_failure_type=-1 first_entity_failure_flags=-1 first_entity_failure_bits=-1 first_entity_failure_class_name= first_entity_failure_prop_count=0 first_temp_failure_stage= first_temp_failure_name= first_temp_failure_class=-1 first_temp_failure_class_name= first_temp_failure_type=-1 first_temp_failure_flags=-1 first_temp_failure_bits=-1 first_temp_failure_tick=-1 unknown_packets=0 eventlists=1 events=22644 eventdefs=414 eventdecoded=22644 eventfail=0 eventunknown=0 event_rows=0 event_dupes=0 fixangle_valid=0 fixangle_relative=0 fixangle=0,0,0 camera_track=91244 camera_track_dropped=0 view_signon_samples=3 view_out_of_order=3 view_out_of_order_after_repair=0 view_duplicates=0 view_strictly_increasing=1 first_signon_entry_tick=35109 first_data_entry_tick=1 last_data_entry_tick=91265 first_data_net_tick=35177 net_minus_entry=35176 view_ordered=1 packet_server_ticks=91265 data_packets=91244 server_tick_held=21 server_tick_known_count=91244 server_tick_gaps=9 server_tick_stalls=0 fixangle_samples=0 packets_with_own_net_tick=91244 first_data_packet_own_net_tick=1 view_first5=1,4,5,6,7 view_last5=91261,91262,91263,91264,91265 packet_server_first5=35177,35177,35177,35180,35181 packet_server_last5=126437,126438,126439,126440,126441 entity_history_checkpoints=2 entity_history_gap_max=128 entity_history_archive=96 entity_history_archive_gap_max=1297 userinfo_table_id=27 userinfo_create=1 userinfo_updates=0 userinfo_entries=43 userinfo_slots=25 userinfo_samples=18 userinfo_named=18 userinfo_failures=0 userinfo_unparsed=0 userinfo_missing_userdata=7 userinfo_empty_names=7 userinfo_text_slot_mismatches=0 userinfo_duplicate_userids=0 userinfo_table_resets=0 userinfo_fixed=0 userinfo_fixed_bits=0 userinfo_max_entries=25 userinfo_max_userdata_bits=1056 userinfo_layout_mask=1
+0	1	2	MatchaTV	35176	35109	2	0	0	BOT
+1	2	3	22HOSHINA	35176	35109	2	0	1	[U:1:452063944]
+2	3	23	皮革god	35176	35109	2	0	2	[U:1:439692210]
+3	4	5	jay	35176	35109	2	0	3	[U:1:895883384]
+4	5	6	Lchfkthy	35176	35109	2	0	4	[U:1:379320588]
+5	6	7	Xvl	35176	35109	2	0	5	[U:1:209538950]
+6	7	24	Brian D. Mage	35176	35109	2	0	6	[U:1:892459153]
+7	8	10	rain	35176	35109	2	0	7	[U:1:111099765]
+8	9	11	perfectkiller(real)	35176	35109	2	0	8	[U:1:935223419]
+9	10	12	raisin	35176	35109	2	0	9	[U:1:1208621983]
+10	11	16	5 ping handicapped	35176	35109	2	0	10	[U:1:315580741]
+11	12	14	ska	35176	35109	2	0	11	[U:1:1245054023]
+12	13	17	皮革warrior	35176	35109	2	0	12	[U:1:339582557]
+13	14	18	Jiff	35176	35109	2	0	13	[U:1:1097184647]
+14	15	19	BiYoou	35176	35109	2	0	14	[U:1:1149722555]
+15	16	26	桃井恨莉	35176	35109	2	0	15	[U:1:246848941]
+16	17	21	SYJ	35176	35109	2	0	16	[U:1:207594603]
+17	18	22	皮革tank	35176	35109	2	0	17	[U:1:1266398149]
+18	19	0		35176	35176	1	255	18	
+19	20	0		35176	35176	1	255	19	
+20	21	0		35176	35176	1	255	20	
+21	22	0		35176	35176	1	255	21	
+22	23	0		35176	35176	1	255	22	
+23	24	0		35176	35176	1	255	23	
+24	25	0		35176	35176	1	255	24	
+userinfo_at	60000	0	1	2	MatchaTV	0
+userinfo_at	60000	1	2	3	22HOSHINA	0
+userinfo_at	60000	2	3	23	皮革god	0
+userinfo_at	60000	3	4	5	jay	0
+userinfo_at	60000	4	5	6	Lchfkthy	0
+userinfo_at	60000	5	6	7	Xvl	0
+userinfo_at	60000	6	7	24	Brian D. Mage	0
+userinfo_at	60000	7	8	10	rain	0
+userinfo_at	60000	8	9	11	perfectkiller(real)	0
+userinfo_at	60000	9	10	12	raisin	0
+userinfo_at	60000	10	11	16	5 ping handicapped	0
+userinfo_at	60000	11	12	14	ska	0
+userinfo_at	60000	12	13	17	皮革warrior	0
+userinfo_at	60000	13	14	18	Jiff	0
+userinfo_at	60000	14	15	19	BiYoou	0
+userinfo_at	60000	15	16	26	桃井恨莉	0
+userinfo_at	60000	16	17	21	SYJ	0
+userinfo_at	60000	17	18	22	皮革tank	0
+userinfo_at	600000	0	1	2	MatchaTV	0
+userinfo_at	600000	1	2	3	22HOSHINA	0
+userinfo_at	600000	2	3	23	皮革god	0
+userinfo_at	600000	3	4	5	jay	0
+userinfo_at	600000	4	5	6	Lchfkthy	0
+userinfo_at	600000	5	6	7	Xvl	0
+userinfo_at	600000	6	7	24	Brian D. Mage	0
+userinfo_at	600000	7	8	10	rain	0
+userinfo_at	600000	8	9	11	perfectkiller(real)	0
+userinfo_at	600000	9	10	12	raisin	0
+userinfo_at	600000	10	11	16	5 ping handicapped	0
+userinfo_at	600000	11	12	14	ska	0
+userinfo_at	600000	12	13	17	皮革warrior	0
+userinfo_at	600000	13	14	18	Jiff	0
+userinfo_at	600000	14	15	19	BiYoou	0
+userinfo_at	600000	15	16	26	桃井恨莉	0
+userinfo_at	600000	16	17	21	SYJ	0
+userinfo_at	600000	17	18	22	皮革tank	0
+userinfo_at	99999999	0	1	2	MatchaTV	0
+userinfo_at	99999999	1	2	3	22HOSHINA	0
+userinfo_at	99999999	2	3	23	皮革god	0
+userinfo_at	99999999	3	4	5	jay	0
+userinfo_at	99999999	4	5	6	Lchfkthy	0
+userinfo_at	99999999	5	6	7	Xvl	0
+userinfo_at	99999999	6	7	24	Brian D. Mage	0
+userinfo_at	99999999	7	8	10	rain	0
+userinfo_at	99999999	8	9	11	perfectkiller(real)	0
+userinfo_at	99999999	9	10	12	raisin	0
+userinfo_at	99999999	10	11	16	5 ping handicapped	0
+userinfo_at	99999999	11	12	14	ska	0
+userinfo_at	99999999	12	13	17	皮革warrior	0
+userinfo_at	99999999	13	14	18	Jiff	0
+userinfo_at	99999999	14	15	19	BiYoou	0
+userinfo_at	99999999	15	16	26	桃井恨莉	0
+userinfo_at	99999999	16	17	21	SYJ	0
+userinfo_at	99999999	17	18	22	皮革tank	0
