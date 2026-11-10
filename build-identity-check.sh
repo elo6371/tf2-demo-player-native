@@ -838,6 +838,16 @@ if [ "$MODE" = "--forward" ]; then
            version-restored.txt probe-version.txt args-unknown.trace args-strict.trace \
            args-clean.trace quit.camera source-identity.txt readings.txt) ))" 0
   ge "evidence: the run copied as many files as the verdict names" "$COPY_N" 11
+  # D-72 (D68-SCAN K3): the verdict printed $CHECKS but nothing tied it to a
+  # floor, so a forward run in which whole sections were skipped -- or in which
+  # eq() quietly stopped being called -- printed "assertions=3" and exited 0.
+  # Floor = 100, i.e. 85% of the measured 118 on the integrated tree
+  # (measured 2026-11-10 from /d/_shared/EXEC-2026-11-09/t46-buildid/run-20261109T160357Z.log).
+  # Reading taken with: grep -o 'BUILD-IDENTITY=PASS assertions=[0-9]*' /d/_shared/EXEC-2026-11-09/t46-buildid/run-20261109T160357Z.log | tail -1  ->  assertions=118
+  if [ "$CHECKS" -lt 100 ]; then
+    echo "  FAIL assertions: only $CHECKS assertions ran, below the floor 100 -- sections that stopped running read exactly like a green run (D-72)"
+    FAIL=$((FAIL + 1))
+  fi
   if [ "$FAIL" -ne 0 ]; then
     echo "BUILD-IDENTITY=FAIL assertions=$CHECKS red=$FAIL (evidence: $OUT)"
     exit 1
