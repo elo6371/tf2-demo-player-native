@@ -632,6 +632,14 @@ eq "arg surface: the unknown argument is counted (args: unrecognized=1)" \
 # red lines printed the correct trace line right under the failure.
 eq "arg surface: that line names the argument in first= and all=" \
   "$(trace_text "$ARGS_UNKNOWN_TRACE" | grep -c "args: unrecognized=1 first=$UNKNOWN_FLAG all=$UNKNOWN_FLAG$" || true)" "1"
+# D-67 (AUDIT-GATE-DIFFS W2): the four evidence files around this run are copied
+# under the "present" rule (a refusal path may print nothing), so an empty log
+# alone could not tell a healthy run from a truncated one. The reading lives in
+# the trace, asserted above; what the log itself must prove is that it is EMPTY.
+# A product that started printing here would be a different product, and this
+# line is what makes "present" honest instead of merely lenient.
+eq "arg surface: the default run prints nothing (an empty capture is the expectation)" \
+  "$([ -s "$SCRATCH/args-unknown.log" ] && echo 1 || echo 0)" "0"
 
 # (b) --strict-args refuses it, by name, before the startup work that the trace
 # would otherwise record (the "resources: requested=" line is emitted after the
@@ -1019,6 +1027,11 @@ TF2_NATIVE_TRACE="$SCRATCH/args-mut3.trace" "$EXE" "${SETTINGS_ARGS[@]}" \
   > "$SCRATCH/args-mut3.log" 2>&1
 M3_RUN_RC=$?
 eq "M3 mutant still ends at the value refusal (the mutation is not a crash)" "$M3_RUN_RC" "13"
+# Same compensation as the forward run's args-unknown.log (D-67): the capture is
+# allowed to be empty, and this assertion says so, while the trace line below
+# carries the reading that must go red under the mutant.
+eq "M3: the mutant's capture is empty too, the reading lives in the trace" \
+  "$([ -s "$SCRATCH/args-mut3.log" ] && echo 1 || echo 0)" "0"
 echo "  --- under M3: $(trace_text "$SCRATCH/args-mut3.trace" | grep ' args: ' | head -1)"
 eq "M3 is caught: the args: unrecognized=1 assertion is red under the mutant" \
   "$([ "$(trace_text "$SCRATCH/args-mut3.trace" | grep -c 'args: unrecognized=1 ' || true)" = "1" ] && echo green || echo red)" "red"
