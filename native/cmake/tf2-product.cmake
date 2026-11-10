@@ -183,6 +183,9 @@ add_executable(tf2_demo_native WIN32
 
 # T90: regenerate the build-identity stamp before this target compiles it.
 add_dependencies(tf2_demo_native tf2_build_stamp)
+# D-54: and refresh <build>/tf2_demo_native.identity after every link of this
+# target, so the sidecar always describes the bytes that were just produced.
+tf2_identity_sidecar(tf2_demo_native)
 
 target_include_directories(tf2_demo_native PRIVATE include third_party/lzma)
 # T54: the WebView2 SDK headers, vendored under third_party/webview2/include

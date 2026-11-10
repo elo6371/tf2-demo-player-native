@@ -51,3 +51,6 @@ include(cmake/tf2-probes-install-cli.cmake)
 include(cmake/tf2-probes-minimap.cmake)
 include(cmake/tf2-probes-review.cmake)
 include(cmake/tf2-package.cmake)
+# D-54: the identity refresh target, last because it depends on both executables
+# that compile install_lifecycle.cpp and has to be created after them.
+include(cmake/tf2-identity.cmake)

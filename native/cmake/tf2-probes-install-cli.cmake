@@ -27,6 +27,10 @@ add_executable(install_cli_probe tools/install_cli_probe.cpp
   ${TF2_BUILD_STAMP_SOURCE})
 # T90: generate the stamp before this target compiles it.
 add_dependencies(install_cli_probe tf2_build_stamp)
+# D-54: its own sidecar, named after this executable. install-lifecycle-check.sh
+# compares the probe's --version with the product's, and both now read their
+# provenance from beside themselves, so the two cannot silently share one file.
+tf2_identity_sidecar(install_cli_probe)
 
 # T37: the VPK readiness probe. vpk_query answers "OPEN FAILED" and stops, which
 # conflates absent, unreadable and refused; this one reads the header

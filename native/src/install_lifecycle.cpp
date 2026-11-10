@@ -11,22 +11,24 @@
 #include <set>
 #include <sstream>
 
-// T90: the build identity, compiled in from native/generated/tf2_build_stamp.cpp.
-// That translation unit is generated at BUILD time by the tf2_build_stamp target
-// (native/cmake/gen-build-stamp.cmake) and is a translation unit rather than a
-// generated header because NMAKE has no header dependencies in this tree -- a
+// T90: the build identity is measured at BUILD time, from the generated
+// translation unit native/generated/tf2_build_stamp.cpp (tf2_build_stamp ->
+// native/cmake/gen-build-stamp.cmake). A translation unit rather than a
+// generated header because NMAKE has no header dependencies in this tree: a
 // rewritten header would leave this object stale and the binary would keep the
-// previous identity, which is the defect T90 removed in its other form. The
-// values used to be TF2_BUILD_UTC / TF2_SOURCE_DATE_EPOCH / TF2_SOURCE_TREE
-// compile definitions, evaluated once per configure.
+// previous identity. The values used to be compile definitions evaluated once
+// per configure.
+//
+// D-54: only the CONTENT hash is compiled in. HEAD, the dirty counts, the epoch
+// and the build time describe the worktree the bytes were made from, not the
+// bytes themselves, and they moved every time a commit touched a file nobody
+// compiled -- which relinked both executables and invalidated every artifact
+// keyed on their hash for nothing. They are read from the .identity sidecar
+// beside the executable instead (see readIdentitySidecar), so a docs-only commit
+// changes the reading without changing a single byte of this image.
 namespace tf2_build_identity {
-extern const char kSourceTree[];
-extern const char kSourceDateEpoch[];
-extern const char kBuildUtc[];
-extern const char kDirty[];
-extern const char kDirtyFiles[];
-extern const char kDirtyTracked[];
-extern const char kDirtyUntracked[];
+extern const char kSourceContent[];
+extern const char kContentMethod[];
 }  // namespace tf2_build_identity
 
 namespace tf2::native::installer {
@@ -53,12 +55,67 @@ std::string trimText(std::string value) {
   return value.substr(first, last - first + 1);
 }
 
+// D-54: the two words a missing or unreadable measurement answers with. They are
+// not empty strings -- an empty value compares equal to another empty value and
+// lets a "did anything change?" check pass on nothing.
+constexpr const char* kUnknown = "unknown";
+constexpr const char* kUnmeasured = "-1";
+constexpr const char* kIdentitySidecar = "sidecar";
+constexpr const char* kIdentityMissing = "missing";
+
 std::string readTextFile(const std::filesystem::path& file) {
   std::ifstream stream(file, std::ios::binary);
   if (!stream) return {};
   std::ostringstream buffer;
   buffer << stream.rdbuf();
   return buffer.str();
+}
+
+// D-54: key=value files. Used for the .identity sidecar; VERSION.txt parses in
+// place below because it only ever wanted three of its keys.
+std::map<std::string, std::string> readKeyValues(const std::filesystem::path& file) {
+  std::map<std::string, std::string> values;
+  const std::string text = readTextFile(file);
+  if (text.empty()) return values;
+  std::istringstream stream(text);
+  std::string line;
+  while (std::getline(stream, line)) {
+    const auto equals = line.find('=');
+    if (equals == std::string::npos) continue;
+    values[trimText(line.substr(0, equals))] = trimText(line.substr(equals + 1));
+  }
+  return values;
+}
+
+// D-54: read the provenance of this image from the sidecar beside it --
+// <exe name>.identity, written by the build after the link (native/cmake/
+// write-identity-sidecar.cmake). The exe's own name gives the file's name, so
+// the product and install_cli_probe cannot read each other's identity.
+//
+// Absent, or recognisably not one of these files, is a READING: the caller keeps
+// the unmeasured defaults and reports identity=missing. What must never happen
+// is the previous build's HEAD being reported as if it described this binary,
+// which is exactly what a compiled-in constant does when it goes stale.
+bool readIdentitySidecar(const std::filesystem::path& exe, PackageInfo* info) {
+  std::filesystem::path sidecar = exe;
+  sidecar.replace_extension(".identity");
+  const auto values = readKeyValues(sidecar);
+  const auto format = values.find("format");
+  if (format == values.end() || format->second != "tf2-build-identity-sidecar") {
+    return false;
+  }
+  const auto pick = [&values](const char* key, const char* fallback) {
+    const auto it = values.find(key);
+    return (it == values.end() || it->second.empty()) ? std::string(fallback) : it->second;
+  };
+  info->sourceTree = pick("sourceTree", kUnknown);
+  info->sourceDateEpoch = pick("sourceDateEpoch", kUnmeasured);
+  info->dirty = pick("dirty", kUnmeasured);
+  info->dirtyFiles = pick("dirtyFiles", kUnmeasured);
+  info->dirtyTracked = pick("dirtyTracked", kUnmeasured);
+  info->dirtyUntracked = pick("dirtyUntracked", kUnmeasured);
+  info->buildUtc = pick("buildUtc", kUnknown);
+  return true;
 }
 
 bool copyFileRaw(const std::filesystem::path& from, const std::filesystem::path& to) {
@@ -626,18 +683,31 @@ PackageInfo packageInfo() {
   PackageInfo info;
   info.version = TF2_PACKAGE_VERSION;
   info.versionCode = TF2_PACKAGE_VERSION_CODE;
-  info.buildUtc = tf2_build_identity::kBuildUtc;
-  info.sourceDateEpoch = tf2_build_identity::kSourceDateEpoch;
-  info.sourceTree = tf2_build_identity::kSourceTree;
-  info.dirty = tf2_build_identity::kDirty;
-  info.dirtyFiles = tf2_build_identity::kDirtyFiles;
-  info.dirtyTracked = tf2_build_identity::kDirtyTracked;
-  info.dirtyUntracked = tf2_build_identity::kDirtyUntracked;
-  // A VERSION.txt beside the executable, or in the state directory, wins over the
-  // compiled default so a packaged release can be re-stamped without a rebuild.
+  // D-54: the one compiled identity value, and the defaults for the eight that
+  // are not compiled any more. The defaults are the "not measured" reading, not
+  // an empty string: if the sidecar is missing, --version says so instead of
+  // printing blanks that compare equal to blanks.
+  info.sourceContent = tf2_build_identity::kSourceContent;
+  info.contentMethod = tf2_build_identity::kContentMethod;
+  info.identitySource = kIdentityMissing;
+  info.buildUtc = kUnknown;
+  info.sourceDateEpoch = kUnmeasured;
+  info.sourceTree = kUnknown;
+  info.dirty = kUnmeasured;
+  info.dirtyFiles = kUnmeasured;
+  info.dirtyTracked = kUnmeasured;
+  info.dirtyUntracked = kUnmeasured;
   wchar_t self[MAX_PATH]{};
   if (GetModuleFileNameW(nullptr, self, MAX_PATH) != 0) {
-    const auto directory = std::filesystem::path(self).parent_path();
+    const auto image = std::filesystem::path(self);
+    readIdentitySidecar(image, &info);  // sets the fields it can read
+    if (info.sourceTree != kUnknown) info.identitySource = kIdentitySidecar;
+    // A VERSION.txt beside the executable, or in the state directory, still
+    // wins over the defaults so a packaged release can be re-stamped without a
+    // rebuild. It re-stamps the version and buildUtc only; HEAD and the dirty
+    // counts keep coming from the sidecar, because a text file shipped next to
+    // the binary cannot know which tree the binary was compiled from.
+    const auto directory = image.parent_path();
     applyVersionOverrides(directory / kStateDirectory / kVersionFileName, &info);
     applyVersionOverrides(directory / kVersionFileName, &info);
   }
@@ -656,7 +726,9 @@ Result version(const Options&) {
   emit(result, "package=tf2_demo_native version=" + info.version + " versionCode="
     + std::to_string(info.versionCode));
   // Line 2 keeps its exact shape: install-lifecycle-check.sh:262-281 greps
-  // sourceTree= out of it and compares line 1 against install_cli_probe.
+  // sourceTree= out of it and compares line 1 against install_cli_probe. Since
+  // D-54 these three come from the sidecar; a missing sidecar makes them
+  // unknown/-1 rather than the tree of whatever build happened to be compiled.
   emit(result, "buildUtc=" + info.buildUtc + " sourceDateEpoch=" + info.sourceDateEpoch
     + " sourceTree=" + info.sourceTree);
   // Line 3 (T90): whether the source tree this binary was built from was clean,
@@ -664,6 +736,14 @@ Result version(const Options&) {
   // indistinguishable from one built from the commit it named.
   emit(result, "dirty=" + info.dirty + " dirtyFiles=" + info.dirtyFiles
     + " dirtyTracked=" + info.dirtyTracked + " dirtyUntracked=" + info.dirtyUntracked);
+  // Line 4 (D-54): which sources this image was compiled from, and where the
+  // three lines above came from. This is the line that has teeth -- it names a
+  // hash of the compiled inputs (not of HEAD), so "the binary matches this
+  // tree" is a comparison of content, and docs-only commits do not move it.
+  // identity=missing says the sidecar was not found: the fields on lines 2 and 3
+  // are then the unmeasured defaults, not a reading.
+  emit(result, "sourceContent=" + info.sourceContent + " contentMethod=" + info.contentMethod
+    + " identity=" + info.identitySource);
   return result;
 }
 

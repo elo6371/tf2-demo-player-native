@@ -59,6 +59,17 @@ endif()
 install(FILES "$<TARGET_FILE:tf2_demo_native>"
               "$<TARGET_FILE:native_install_smoke_probe>"
   DESTINATION .uninstall/payload)
+# D-54: the identity sidecar travels with the executable, in the build tree, the
+# package root and the payload. Without it the installed product reports
+# identity=missing and unknown/-1 -- technically honest, but the release would
+# have less to say about itself than the build directory it came from. It is one
+# more file in the payload, so the file counts asserted by
+# install-lifecycle-check.sh (payload / installed files) move by one when this
+# lands: the counts are readings, and this is the change that moves them.
+install(FILES "${CMAKE_BINARY_DIR}/tf2_demo_native.identity"
+  DESTINATION .)
+install(FILES "${CMAKE_BINARY_DIR}/tf2_demo_native.identity"
+  DESTINATION .uninstall/payload)
 install(PROGRAMS tools/install_smoke_probe.ps1 DESTINATION .uninstall/payload)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION.txt" DESTINATION . OPTIONAL)
 

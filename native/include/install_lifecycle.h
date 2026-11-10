@@ -48,11 +48,26 @@ inline constexpr const char* kVersionFileName = "VERSION.txt";
 struct PackageInfo {
   std::string version;         // e.g. "0.1.0"
   int versionCode = 0;         // monotonic, for an upgrade comparison to use
+  // D-54: the content hash of the compiled inputs, compiled in from the
+  // generated translation unit (native/generated/tf2_build_stamp.cpp) because
+  // it IS a statement about the code. contentMethod says how it was computed
+  // (git-clean-v1 = git blob ids of the tracked inputs, raw-v1 = sha256 of the
+  // bytes when git could not answer, none = the configure placeholder); two
+  // hashes are only comparable when the method matches.
+  std::string sourceContent;
+  std::string contentMethod;
+  // D-54: where the provenance below came from -- "sidecar" when the .identity
+  // file beside the executable was read, "missing" when it was not (the fields
+  // are then the unmeasured defaults, not a reading of this binary's tree).
+  std::string identitySource;
   // T90: measured at BUILD time (native/cmake/gen-build-stamp.cmake), not at
   // configure time -- an incremental build never re-runs configure, so the
   // configure-time values described the last configure rather than the sources
   // this executable was compiled from. buildUtc is when that identity was
   // captured; sourceTree/sourceDateEpoch are HEAD at the same moment.
+  // D-54: these four are no longer compiled in; they are read from the sidecar
+  // (see readIdentitySidecar in install_lifecycle.cpp) so a HEAD that moved
+  // without any compiled byte moving does not relink the product.
   std::string buildUtc;
   std::string sourceDateEpoch;
   std::string sourceTree;

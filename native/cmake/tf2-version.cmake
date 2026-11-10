@@ -56,55 +56,95 @@ set(TF2_PACKAGE_VERSION_CODE "100" CACHE STRING "Monotonic package version code"
 # neither recompiles nor relinks, and buildUtc means "when this identity was
 # first captured".
 #
-# What this does NOT provide: a content hash (the tree is not hashed, only
-# HEAD and the dirtiness counts), a reproducible build (compiler/paths/times
-# still vary), or a guarantee that a dirty tree is dirty in the same way --
-# see docs/BUILD-IDENTITY.md in the evidence for the full boundary.
+# What this does NOT provide: a reproducible build (compiler/paths/times still
+# vary), or a guarantee that a dirty tree is dirty in the same way -- see
+# docs/BUILD-IDENTITY.md in the evidence for the full boundary. The content hash
+# that answers "which sources" arrived with D-54, below.
+# D-54 (2026-11-10): WHAT IS COMPILED AND WHAT IS NOT.
+#
+# T90 fixed the moment of measurement; this split fixes its subject. The commit
+# hash and the dirty counts were still C++ constants, so a commit that touched
+# no compiled input -- docs/, evidence/, a re-worded comment in a file nobody
+# links -- changed the bytes of both executables. Everything keyed on the
+# executable then assumed the CODE had changed: the world-geometry capture
+# cache re-took 18 frames after a docs commit, and release-rebuild.sh reported
+# "inputs changed, binary not rebuilt" for a build that had only rewritten its
+# own stamp.
+#
+# Only the content hash describes the code, so only the content hash is
+# compiled (kSourceContent in the generated translation unit). HEAD, the dirty
+# counts, the epoch and the build time are provenance: they describe the
+# WORKTREE the bytes were made from, they can change without any byte changing,
+# and they are written to generated/tf2_build_stamp.identity -- a file, not a
+# constant -- then copied beside the executable by write-identity-sidecar.cmake.
+# --version reads lines 2 and 3 from that sidecar and reports the content hash
+# on a new line 4. A sidecar that is missing answers unknown/-1 rather than
+# guessing, and identity=missing says so.
 set(TF2_BUILD_STAMP_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/generated/tf2_build_stamp.cpp")
-set(TF2_BUILD_STAMP_CACHE "${CMAKE_CURRENT_SOURCE_DIR}/generated/tf2_build_stamp.identity")
+set(TF2_BUILD_STAMP_PROVENANCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/tf2_build_stamp.identity")
 # The same file, named for the role it plays in the two add_executable() source
 # lists: add_executable() requires its sources to exist at configure time.
 set(TF2_BUILD_STAMP_SOURCE "${TF2_BUILD_STAMP_OUTPUT}")
 
 # The file has to exist before add_executable() looks at it. On a fresh clone it
 # does not, so configure writes a placeholder that is impossible to mistake for
-# a reading (sourceTree=configure-placeholder, dirty=-1 = "not measured"). The
+# a reading (sourceContent=configure-placeholder, contentMethod=none). The
 # tf2_build_stamp target below rewrites it before anything can compile it; if
-# that ever stopped happening, the word "configure-placeholder" would appear in
-# `--version` and build-identity-check.sh fails on it, rather than a stale
-# commit being reported as if it were current.
+# that ever stopped happening, the word "configure-placeholder" would appear on
+# line 4 of `--version` and build-identity-check.sh fails on it, rather than a
+# stale content hash being reported as if it described the binary.
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if (NOT EXISTS "${TF2_BUILD_STAMP_OUTPUT}")
   file(WRITE "${TF2_BUILD_STAMP_OUTPUT}"
     "// PLACEHOLDER written by configure: the real stamp is generated at build time.\n"
     "// If these values ever reach a binary, tf2_build_stamp did not run first.\n"
     "namespace tf2_build_identity {\n"
-    "extern const char kSourceTree[] = \"configure-placeholder\";\n"
-    "extern const char kSourceDateEpoch[] = \"0\";\n"
-    "extern const char kBuildUtc[] = \"1970-01-01T00:00:00Z\";\n"
-    "extern const char kDirty[] = \"-1\";\n"
-    "extern const char kDirtyFiles[] = \"-1\";\n"
-    "extern const char kDirtyTracked[] = \"-1\";\n"
-    "extern const char kDirtyUntracked[] = \"-1\";\n"
+    "extern const char kSourceContent[] = \"configure-placeholder\";\n"
+    "extern const char kContentMethod[] = \"none\";\n"
     "}  // namespace tf2_build_identity\n")
 endif()
 
 # Runs on every build (ALL), before the targets that compile the stamp. The
-# work is a handful of git calls plus a copy-if-different, and it is the only
-# step whose answer is allowed to depend on the tree's current state.
+# work is one git ls-files, one git hash-object over the input list, three small
+# git queries plus two copy-if-different, and it is the only step whose answer
+# is allowed to depend on the tree's current state.
 add_custom_target(tf2_build_stamp ALL
   COMMAND "${CMAKE_COMMAND}"
     "-DTF2_REPO_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
     "-DTF2_STAMP_OUTPUT=${TF2_BUILD_STAMP_OUTPUT}"
-    "-DTF2_STAMP_CACHE=${TF2_BUILD_STAMP_CACHE}"
+    "-DTF2_PROVENANCE_OUTPUT=${TF2_BUILD_STAMP_PROVENANCE}"
     -P "${CMAKE_CURRENT_LIST_DIR}/gen-build-stamp.cmake"
-  COMMENT "build identity stamp: git HEAD + dirty state -> generated/tf2_build_stamp.cpp"
+  COMMENT "build identity: content hash -> generated/tf2_build_stamp.cpp, provenance -> generated/tf2_build_stamp.identity"
   VERBATIM)
 
-# Only the package version stays a compile definition. The three identity
-# fields are declared by the generated translation unit instead; their names
-# still start with TF2_ in the C++ (see install_lifecycle.cpp) so the origin of
-# each value stays obvious at the read site.
+# Every target that compiles install_lifecycle.cpp gets a sidecar beside it:
+# <build>/<target>.identity. The file name is derived from the executable's own
+# name rather than from a target property, because install_lifecycle.cpp is also
+# compiled into the installed product, where the target name does not exist.
+#
+# This is the POST_BUILD half (a relink always refreshes its own sidecar). The
+# other half is the tf2_identity target in tf2-identity.cmake, which is ALL and
+# refreshes both sidecars on builds that relink nothing -- otherwise a commit
+# that changes only the provenance would leave --version naming the old tree.
+function(tf2_identity_sidecar target)
+  set(sidecar "${CMAKE_BINARY_DIR}/${target}.identity")
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTF2_PROVENANCE=${TF2_BUILD_STAMP_PROVENANCE}"
+      "-DTF2_STAMP_SOURCE=${TF2_BUILD_STAMP_OUTPUT}"
+      "-DTF2_EXE=$<TARGET_FILE:${target}>"
+      "-DTF2_TARGET=${target}"
+      "-DTF2_OUTPUT=${sidecar}"
+      -P "${CMAKE_CURRENT_LIST_DIR}/write-identity-sidecar.cmake"
+    COMMENT "build identity sidecar: ${target}.identity beside ${target}.exe"
+    VERBATIM)
+endfunction()
+
+# Only the package version stays a compile definition. The content hash is
+# declared by the generated translation unit instead; its name still starts with
+# TF2_ in the C++ (see install_lifecycle.cpp) so the origin of the value stays
+# obvious at the read site. Everything else -- HEAD, the dirty counts, the epoch,
+# the build time -- is not compiled at all: it is read from the sidecar.
 set(TF2_VERSION_DEFINES
   TF2_PACKAGE_VERSION="${TF2_PACKAGE_VERSION}"
   TF2_PACKAGE_VERSION_CODE=${TF2_PACKAGE_VERSION_CODE})
