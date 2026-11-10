@@ -48,7 +48,17 @@
 #   method is written into contentMethod= so no reader can mistake one method's
 #   digest for the other's; the two are not comparable.
 #
-# WHAT THIS DOES NOT PROVIDE (stated where it is produced, not only in a doc)
+# WHAT COUNTS AS A COMPILE INPUT (D-90)
+#   git-clean-v1 enumerates INDEX entries, so a file that is present in the
+#   worktree but not tracked cannot appear in the digest while the compiler still
+#   reads it (the source lists are globs). Section 1b below therefore enumerates
+#   the untracked and ignored files under the same roots, classifies them by name,
+#   and REFUSES the build when one of them is a compile input: an identity that
+#   silently omits an input must not be produced, let alone pinned. The override
+#   TF2_IDENTITY_ALLOW_UNTRACKED=1 writes contentMethod=git-untracked-v1, which no
+#   gate accepts as pinnable. native/generated (this generator's own output) is
+#   counted and excluded by design, never hashed.
+## WHAT THIS DOES NOT PROVIDE (stated where it is produced, not only in a doc)
 #   * no compiler, linker, SDK, flag or environment hash: a different toolchain
 #     from the same sources produces the same content hash;
 #   * no cross-machine claim unless the checkout produced the same blob ids;
@@ -151,6 +161,174 @@ if (TF2_INDEX_RC EQUAL 0)
     endif()
   endif()
 endif()
+
+# ---------------------------------------------------------------------------
+# 1b. The worktree is not the index (D-90).
+#
+# git-clean-v1 above enumerates index entries. A file that is present in the
+# worktree but not tracked is not an index entry, so it cannot appear in the
+# digest -- while the compiler and the configure step will still read it, because
+# the source lists are globs, not manifests. The first D-54 build hashed
+# 53f14a19 with two untracked cmake files driving it: a "content hash" that
+# described a smaller tree than the one being built, and nothing said so.
+#
+# The files git does NOT track under the same roots are enumerated here too, in
+# two categories, and classified by name (tf2_split_inputs):
+#
+#   untracked, not ignored   git would track it the moment someone adds it, and
+#       the compiler reads it now. If it is named like a compile input it is
+#       FATAL: a build must not produce a pinnable identity that silently omits
+#       an input. The only way past it is TF2_IDENTITY_ALLOW_UNTRACKED=1, and that
+#       path writes contentMethod=git-untracked-v1 -- a method no gate accepts as
+#       pinnable, so a degraded build cannot be mistaken for a clean one. An
+#       untracked file that is NOT an input (a stray note under src/) is counted
+#       and reported, not refused: it cannot change the bytes.
+#   ignored, under a root    .gitignore says "not source", the extension says
+#       "compile input"; the two disagree, and a build must not guess. Same FATAL,
+#       same override. In a normal tree this category is empty.
+#
+# native/generated is counted separately and never hashed: it is this generator's
+# own output directory, outside the hashed roots, and expected to fill up during a
+# build. The count is reported so an ignored file appearing there is visibly a
+# build product rather than silently a missing input (D-90's control puts a .cpp
+# there and expects the build to pass unchanged).
+# ---------------------------------------------------------------------------
+set(TF2_INPUT_EXTS "c;cc;cpp;cxx;h;hh;hpp;hxx;inl;i;ii;ipp;tpp;inc;s;asm;glsl;hlsl;vert;frag;comp;rc;def;lib;a")
+
+# Sorts a git ls-files listing (paths relative to native/) into compile inputs and
+# everything else. Anything under cmake/ or named CMakeLists.txt is configure-time
+# input for both executables whatever its extension; anything else counts when its
+# extension is one a compiler, assembler, resource compiler or archiver reads.
+function(tf2_split_inputs listing out_inputs out_other)
+  set(inputs "")
+  set(other "")
+  foreach(path IN LISTS listing)
+    if (path STREQUAL "")
+      continue()
+    endif()
+    get_filename_component(name "${path}" NAME)
+    get_filename_component(ext "${path}" EXT)
+    string(TOLOWER "${ext}" ext_lc)
+    set(is_input FALSE)
+    if (name STREQUAL "CMakeLists.txt" OR path MATCHES "(^|/)cmake/")
+      set(is_input TRUE)
+    elseif (NOT ext_lc STREQUAL "")
+      string(SUBSTRING "${ext_lc}" 1 -1 ext_bare)
+      if (ext_bare IN_LIST TF2_INPUT_EXTS)
+        set(is_input TRUE)
+      endif()
+    endif()
+    if (is_input)
+      list(APPEND inputs "${path}")
+    else()
+      list(APPEND other "${path}")
+    endif()
+  endforeach()
+  set(${out_inputs} "${inputs}" PARENT_SCOPE)
+  set(${out_other} "${other}" PARENT_SCOPE)
+endfunction()
+
+set(TF2_UNTRACKED_INPUTS "")
+set(TF2_UNTRACKED_OTHER "")
+set(TF2_IGNORED_INPUTS "")
+set(TF2_IGNORED_OTHER "")
+set(TF2_GENERATED_COUNT 0)
+if (IS_DIRECTORY "${TF2_REPO_DIR}/generated")
+  file(GLOB_RECURSE TF2_GENERATED_FILES RELATIVE "${TF2_REPO_DIR}" "${TF2_REPO_DIR}/generated/*")
+  list(LENGTH TF2_GENERATED_FILES TF2_GENERATED_COUNT)
+endif()
+
+if (TF2_CONTENT_METHOD STREQUAL "git-clean-v1")
+  # If git cannot even enumerate, the claim "every input is in the digest" is
+  # unproven: refuse rather than guess.
+  execute_process(
+    COMMAND git ls-files --others --exclude-standard -- ${TF2_CONTENT_ROOTS} ${TF2_CONTENT_FILES}
+    WORKING_DIRECTORY "${TF2_REPO_DIR}"
+    OUTPUT_VARIABLE TF2_UNTRACKED_RAW
+    ERROR_VARIABLE TF2_UNTRACKED_ERR
+    RESULT_VARIABLE TF2_UNTRACKED_RC
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (NOT TF2_UNTRACKED_RC EQUAL 0)
+    message(FATAL_ERROR
+      "build identity: D-90 cannot enumerate untracked files (git rc=${TF2_UNTRACKED_RC}):\n"
+      "  ${TF2_UNTRACKED_ERR}\n"
+      "  Without that listing the content hash cannot be shown to cover every input.")
+  endif()
+  string(REPLACE "\r\n" "\n" TF2_UNTRACKED_RAW "${TF2_UNTRACKED_RAW}")
+  string(REPLACE "\n" ";" TF2_UNTRACKED_LIST "${TF2_UNTRACKED_RAW}")
+  tf2_split_inputs("${TF2_UNTRACKED_LIST}" TF2_UNTRACKED_INPUTS TF2_UNTRACKED_OTHER)
+
+  execute_process(
+    COMMAND git ls-files --others --ignored --exclude-standard -- ${TF2_CONTENT_ROOTS} ${TF2_CONTENT_FILES}
+    WORKING_DIRECTORY "${TF2_REPO_DIR}"
+    OUTPUT_VARIABLE TF2_IGNORED_RAW
+    ERROR_VARIABLE TF2_IGNORED_ERR
+    RESULT_VARIABLE TF2_IGNORED_RC
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (NOT TF2_IGNORED_RC EQUAL 0)
+    message(FATAL_ERROR
+      "build identity: D-90 cannot enumerate ignored files (git rc=${TF2_IGNORED_RC}):\n"
+      "  ${TF2_IGNORED_ERR}\n"
+      "  Without that listing the content hash cannot be shown to cover every input.")
+  endif()
+  string(REPLACE "\r\n" "\n" TF2_IGNORED_RAW "${TF2_IGNORED_RAW}")
+  string(REPLACE "\n" ";" TF2_IGNORED_LIST "${TF2_IGNORED_RAW}")
+  tf2_split_inputs("${TF2_IGNORED_LIST}" TF2_IGNORED_INPUTS TF2_IGNORED_OTHER)
+
+  set(TF2_D90_ALLOW "$ENV{TF2_IDENTITY_ALLOW_UNTRACKED}")
+  if (DEFINED TF2_IDENTITY_ALLOW_UNTRACKED AND NOT "x${TF2_IDENTITY_ALLOW_UNTRACKED}" STREQUAL "x")
+    set(TF2_D90_ALLOW "${TF2_IDENTITY_ALLOW_UNTRACKED}")
+  endif()
+
+  if (TF2_UNTRACKED_INPUTS)
+    string(REPLACE ";" "\n    " TF2_D90_PRETTY "${TF2_UNTRACKED_INPUTS}")
+    if (TF2_D90_ALLOW STREQUAL "1")
+      message(WARNING
+        "build identity: D-90 OVERRIDDEN by TF2_IDENTITY_ALLOW_UNTRACKED=1.\n"
+        "  These compile inputs are untracked, so they are NOT in the digest:\n"
+        "    ${TF2_D90_PRETTY}\n"
+        "  contentMethod is written as git-untracked-v1; no gate accepts it as pinnable.")
+      set(TF2_CONTENT_METHOD "git-untracked-v1")
+    else()
+      message(FATAL_ERROR
+        "build identity: D-90 REFUSED -- untracked compile inputs are not in the content hash.\n"
+        "  These files are under the hashed roots, are not ignored, and are named like compile\n"
+        "  inputs, but git does not track them, so git-clean-v1 cannot name them:\n"
+        "    ${TF2_D90_PRETTY}\n"
+        "  The digest would describe a smaller tree than the one this build compiles, so no\n"
+        "  identity is written. Add them to the index (git add) or move them out of the roots.\n"
+        "  To build anyway with a deliberately incomplete identity set\n"
+        "  TF2_IDENTITY_ALLOW_UNTRACKED=1: the build then writes contentMethod=git-untracked-v1,\n"
+        "  which no gate accepts as a pinnable identity.")
+    endif()
+  endif()
+
+  if (TF2_IGNORED_INPUTS)
+    string(REPLACE ";" "\n    " TF2_D90_PRETTY "${TF2_IGNORED_INPUTS}")
+    if (TF2_D90_ALLOW STREQUAL "1")
+      message(WARNING
+        "build identity: D-90 OVERRIDDEN by TF2_IDENTITY_ALLOW_UNTRACKED=1.\n"
+        "  These files are ignored by .gitignore yet named like compile inputs, and are NOT\n"
+        "  in the digest:\n"
+        "    ${TF2_D90_PRETTY}\n"
+        "  contentMethod is written as git-untracked-v1; no gate accepts it as pinnable.")
+      set(TF2_CONTENT_METHOD "git-untracked-v1")
+    else()
+      message(FATAL_ERROR
+        "build identity: D-90 REFUSED -- ignored compile inputs are not in the content hash.\n"
+        "  .gitignore says these are not source, their extension says they are compile inputs:\n"
+        "    ${TF2_D90_PRETTY}\n"
+        "  The build must not guess which one is right, so no identity is written. Either\n"
+        "  remove them, un-ignore them and add them to the index, or override deliberately with\n"
+        "  TF2_IDENTITY_ALLOW_UNTRACKED=1 (contentMethod becomes git-untracked-v1, not pinnable).")
+    endif()
+  endif()
+endif()
+
+list(LENGTH TF2_UNTRACKED_INPUTS TF2_UNTRACKED_INPUT_COUNT)
+list(LENGTH TF2_UNTRACKED_OTHER TF2_UNTRACKED_OTHER_COUNT)
+list(LENGTH TF2_IGNORED_INPUTS TF2_IGNORED_INPUT_COUNT)
+list(LENGTH TF2_IGNORED_OTHER TF2_IGNORED_OTHER_COUNT)
 
 if (TF2_CONTENT_METHOD STREQUAL "unavailable")
   # raw-v1: no git, no index. Still a content hash of the same roots, but of the
@@ -361,5 +539,6 @@ file(REMOVE "${TF2_PROVENANCE_OUTPUT}.tmp")
 
 message(STATUS
   "build identity: content=${TF2_CONTENT} method=${TF2_CONTENT_METHOD} "
+  "inputs untracked=${TF2_UNTRACKED_INPUT_COUNT}/${TF2_UNTRACKED_OTHER_COUNT} ignored=${TF2_IGNORED_INPUT_COUNT}/${TF2_IGNORED_OTHER_COUNT} generated=${TF2_GENERATED_COUNT} "
   "tree=${TF2_SOURCE_TREE} epoch=${TF2_SOURCE_EPOCH} dirty=${TF2_DIRTY}/${TF2_DIRTY_FILES} "
   "stamp=${TF2_STAMP_STATE}")
