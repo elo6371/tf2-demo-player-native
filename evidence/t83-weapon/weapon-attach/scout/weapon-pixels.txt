@@ -10,4 +10,4 @@ frame: bmp attached sha256=e707fb02a5c16ad5cef50a0e8c9c0dd5b6ed3ac464a217aa4bbca
 frame: bmp identity sha256=1c573a986b991e99bb19b3cbda9bcf7924781204f34ab9a684114d956315f460 baseline=1c573a986b991e99bb19b3cbda9bcf7924781204f34ab9a684114d956315f460
 frame: bmp identity-attached sha256=853dfdc7516038f90623cd6fff3839433b78e9d07061f61dc59eeafd274b0fc0
 frame: attach held=2 drawn=2 skipped=2 pixels_rc=0 n1_rc=1 n2_rc=1
-frame: product sha256=abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807
+frame: product sha256=ff49beac4fe2830361ce846f6434c84816f78d81b4442ad9aa83cf43d7b4499a

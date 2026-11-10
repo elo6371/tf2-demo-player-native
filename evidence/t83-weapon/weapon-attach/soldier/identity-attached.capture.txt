@@ -1,137 +1,138 @@
-141496.4 scene: begin tick=63000 sceneTick=73320
-141496.4 scene: clock tick=63000 entryTick=63001 serverTick=73320 serverTickKnown=1
-141501.7 scene: snapshot status=1 stale=946 states=2048
-141501.8 scene: observer done
-141501.8 scene: hud fxDue=2029 drawable=1
-141505.8 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
-141514.9 entity: id=1 ent=40 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-5048.0,1800.4,-87.8 frame_tick=63000
-141515.0 entity: id=2 ent=45 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-0.7,0.0,-65.5 frame_tick=63000
-141515.0 entity: id=3 ent=49 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2688.0,-1615.5,-223.2 frame_tick=63000
-141515.0 entity: id=4 ent=51 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2424.0,-1360.4,-223.2 frame_tick=63000
-141515.0 entity: id=5 ent=53 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1664.0,2031.5,-223.2 frame_tick=63000
-141515.1 entity: id=6 ent=55 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1400.0,1776.4,-223.2 frame_tick=63000
-141515.1 entity: id=7 ent=62 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1464.0,-911.5,157.7 frame_tick=63000
-141515.1 entity: id=8 ent=64 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-408.6,1327.5,157.7 frame_tick=63000
-141515.1 entity: id=9 ent=66 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-964.6,593.5,35.7 frame_tick=63000
-141515.1 entity: id=10 ent=68 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2020.6,-177.5,35.7 frame_tick=63000
-141515.1 entity: id=11 ent=70 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3096.0,-1040.4,-215.2 frame_tick=63000
-141515.1 entity: id=12 ent=72 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-2040.0,1456.4,-215.2 frame_tick=63000
-141515.2 entity: id=13 ent=73 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=0.6,0.0,-64.0 frame_tick=63000
-141515.2 entity: id=14 ent=80 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=19.4,19.4,5.5 frame_tick=63000
-141515.2 entity: id=15 ent=89 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,27.4,0.0 frame_tick=63000
-141515.2 entity: id=16 ent=93 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=439.7,-560.8,-59.8 frame_tick=63000
-141515.2 entity: id=17 ent=95 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=594.4,944.9,-59.8 frame_tick=63000
-141515.2 entity: id=18 ent=96 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=1.8,0.0,-64.0 frame_tick=63000
-141515.2 entity: id=19 ent=99 model=models/ambulance.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-5455.0,2045.0,-87.8 frame_tick=63000
-141515.2 entity: id=20 ent=101 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-5048.0,2271.6,-87.8 frame_tick=63000
-141515.3 entity: id=21 ent=105 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1854.2,949.0,112.2 frame_tick=63000
-141515.3 entity: id=22 ent=106 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=6104.0,-1384.4,-87.8 frame_tick=63000
-141515.3 entity: id=23 ent=109 model=models/weapons/c_models/c_ubersaw/c_ubersaw.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-4251.2,1806.2,-29.0 frame_tick=63000
-141515.3 entity: id=24 ent=110 model=models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-4251.0,1806.0,-29.0 frame_tick=63000
-141515.3 entity: id=25 ent=111 model=models/ambulance.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6511.0,-1631.0,-87.8 frame_tick=63000
-141515.4 entity: id=26 ent=118 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-19.2,-19.6,5.5 frame_tick=63000
-141515.4 entity: id=27 ent=121 model=models/props_training/target_medic.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.8,1.8,0.0 frame_tick=63000
-141515.4 entity: id=28 ent=122 model=models/props_training/target_scout.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-0.3,0.4,-1.2 frame_tick=63000
-141515.4 entity: id=29 ent=123 model=models/props_training/target_scout.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-0.3,0.6,-1.9 frame_tick=63000
-141515.4 entity: id=30 ent=124 model=models/props_doomsday/cap_point_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-4357.0,1949.5,-88.0 frame_tick=63000
-141515.4 entity: id=31 ent=134 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-0.2,2.0,-68.5 frame_tick=63000
-141515.4 entity: id=32 ent=136 model=models/props_ui/bannerflag_comp_l.mdl team=0 family=0 state=- seq=1 label=wave skinned=1 origin=-14588.0,14281.0,-14506.0 frame_tick=63000
-141515.5 entity: id=33 ent=138 model=models/props_ui/comp_stage_cam.mdl team=0 family=0 state=- seq=1 label=winner_stage_intro skinned=1 origin=-14476.0,14526.0,-14568.0 frame_tick=63000
-141515.5 entity: id=34 ent=139 model=models/props_ui/comp_win_banner_scaled.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-14483.0,14242.0,-14475.0 frame_tick=63000
-141515.5 entity: id=35 ent=153 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6104.0,-1855.6,-87.8 frame_tick=63000
-141515.5 entity: id=36 ent=159 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=25.7,1.0,0.0 frame_tick=63000
-141515.5 entity: id=37 ent=163 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1.0,-25.7,0.0 frame_tick=63000
-141515.5 entity: id=38 ent=165 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,-26.7,0.0 frame_tick=63000
-141515.6 entity: id=39 ent=167 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-27.4,0.0,0.0 frame_tick=63000
-141515.6 entity: id=40 ent=171 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-44.4,3968.8,-217.6 frame_tick=63000
-141515.6 entity: id=41 ent=190 model=models/weapons/c_models/c_pistol/c_pistol.mdl team=3 family=0 state=- seq=18 label=sequence 18 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=63000
-141515.6 entity: id=42 ent=193 model=models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl team=3 family=0 state=- seq=3 label=sequence 3 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=63000
-141515.6 entity: id=43 ent=223 model=models/props_gameplay/cap_point_base.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2568.0,-1896.0,-112.0 frame_tick=63000
-141515.6 entity: id=44 ent=226 model=models/items/medkit_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6375.0,-1618.0,-56.0 frame_tick=63000
-141515.7 entity: id=45 ent=227 model=models/items/ammopack_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6419.0,-1624.0,-56.0 frame_tick=63000
-141515.7 entity: id=46 ent=228 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-496.0,472.0,-14.7 frame_tick=63000
-141515.7 entity: id=47 ent=235 model=models/props_ui/bannerflag_comp_r.mdl team=0 family=0 state=- seq=1 label=wave skinned=1 origin=-14364.0,14281.0,-14506.0 frame_tick=63000
-141515.7 entity: id=48 ent=239 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=314.0,776.0,72.2 frame_tick=63000
-141515.7 entity: id=49 ent=240 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1881.0,1064.0,120.2 frame_tick=63000
-141515.7 entity: id=50 ent=241 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1934.0,1065.0,120.2 frame_tick=63000
-141515.8 entity: id=51 ent=244 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-2852.0,1764.0,16.2 frame_tick=63000
-141515.8 entity: id=52 ent=251 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1416.0,-906.0,-128.0 frame_tick=63000
-141515.8 entity: id=53 ent=252 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1362.0,-908.0,-128.0 frame_tick=63000
-141515.8 entity: id=54 ent=253 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=532.0,-85.1,73.8 frame_tick=63000
-141515.8 entity: id=55 ent=254 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=739.0,-364.0,72.2 frame_tick=63000
-141515.8 entity: id=56 ent=255 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2932.0,-652.0,120.2 frame_tick=63000
-141515.8 entity: id=57 ent=256 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2990.0,-649.0,120.2 frame_tick=63000
-141515.8 entity: id=58 ent=259 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3908.0,-1348.0,16.2 frame_tick=63000
-141515.9 entity: id=59 ent=268 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2792.0,-818.0,-102.7 frame_tick=63000
-141515.9 entity: id=60 ent=269 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2792.0,-751.0,-102.8 frame_tick=63000
-141515.9 entity: id=61 ent=275 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=26.7,0.0,0.0 frame_tick=63000
-141515.9 entity: id=62 ent=279 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-26.4,0.0,0.0 frame_tick=63000
-141515.9 entity: id=63 ent=284 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,26.4,0.0 frame_tick=63000
-141515.9 entity: id=64 ent=303 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1548.0,0.0,-14.8 frame_tick=63000
-141515.9 entity: id=65 ent=311 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1546.0,-56.0,-14.7 frame_tick=63000
-141516.0 entity: id=66 ent=312 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1743.0,1234.0,-102.7 frame_tick=63000
-141516.0 entity: id=67 ent=321 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3896.0,-1307.0,-291.5 frame_tick=63000
-141516.0 entity: id=68 ent=322 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3898.0,-1342.0,-291.6 frame_tick=63000
-141516.0 entity: id=69 ent=326 model=models/effects/cappoint_hologram.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=528.0,208.0,67.8 frame_tick=63000
-141516.0 entity: id=70 ent=328 model=models/effects/cappoint_hologram.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=2568.0,-1896.0,-108.0 frame_tick=63000
-141516.0 entity: id=71 ent=331 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=5060.0,-1632.0,-148.0 frame_tick=63000
-141516.1 entity: id=72 ent=332 model=models/props_gameplay/cap_point_base.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=5060.0,-1632.0,-152.0 frame_tick=63000
-141516.1 entity: id=73 ent=333 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-496.0,415.5,-14.8 frame_tick=63000
-141516.1 entity: id=74 ent=334 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1743.0,1167.0,-102.8 frame_tick=63000
-141516.2 anim: ent=2 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.632076 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=3640.0,-1764.5,-312.0
-141516.3 weaponAttach: class=CTFPlayer ent=2 source=attachment bone=24 body=models/player/soldier.mdl weaponEnt=573 weaponClass=CTFRocketLauncher weapon=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl worldIndex=206 family=0 boneAt=23.8,53.3,7.8 holdAt=23.8,53.3,7.8
-141516.3 entity: id=75 ent=2 model=models/player/soldier.mdl team=2 family=0 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=3640.0,-1764.5,-312.0 frame_tick=63000
-141516.4 entity: id=76 ent=573 model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl#3353683628 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=3640.0,-1764.5,-312.0 attach=1 heldEnt=2 source=attachment bone=24 frame_tick=63000
-141516.4 anim: ent=3 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.985559 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=4457.3,-791.8,-54.2
-141516.4 weaponAttach: class=CTFPlayer ent=3 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=523 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=0 boneAt=21.2,60.8,-6.0 holdAt=21.2,60.8,-6.0
-141516.4 entity: id=77 ent=3 model=models/player/scout.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4457.3,-791.8,-54.2 frame_tick=63000
-141516.4 entity: id=78 ent=523 model=models/weapons/c_models/c_scattergun.mdl#4127930877 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=4457.3,-791.8,-54.2 attach=1 heldEnt=3 source=attachment bone=23 frame_tick=63000
-141516.4 anim: ent=4 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.375913 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=4336.8,-704.3,-39.9
-141516.5 weaponAttach: class=CTFPlayer ent=4 source=bone bone=21 body=models/player/demo.mdl weaponEnt=509 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=0 boneAt=26.1,58.3,0.9 holdAt=26.1,58.3,0.9
-141516.5 entity: id=79 ent=4 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4336.8,-704.3,-39.9 frame_tick=63000
-141516.5 entity: id=80 ent=509 model=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl#1360354901 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=4336.8,-704.3,-39.9 attach=1 heldEnt=4 source=bone bone=21 frame_tick=63000
-141516.5 anim: ent=5 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.095862 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=3759.9,-1163.8,8.0
-141516.5 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=23.6,53.7,4.3 holdAt=23.6,53.7,4.3
-141516.5 entity: id=81 ent=5 model=models/player/demo.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3759.9,-1163.8,8.0 frame_tick=63000
-141516.5 entity: id=82 ent=744 model=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl#1360354901 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3759.9,-1163.8,8.0 attach=1 heldEnt=5 source=bone bone=21 frame_tick=63000
-141516.5 anim: ent=6 model=models/player/medic.mdl state=idle speed=0.000 rate=0.000000 cycle=0.754945 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=3835.2,-1302.1,8.0
-141516.5 weaponAttach: class=CTFPlayer ent=6 source=bone bone=19 body=models/player/medic.mdl weaponEnt=760 weaponClass=CWeaponMedigun weapon=models/weapons/c_models/c_medigun/c_medigun.mdl worldIndex=217 family=1 boneAt=-5.6,41.6,2.2 holdAt=-5.6,41.6,2.2
-141516.5 entity: id=83 ent=6 model=models/player/medic.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3835.2,-1302.1,8.0 frame_tick=63000
-141516.6 entity: id=84 ent=760 model=models/weapons/c_models/c_medigun/c_medigun.mdl#922244099 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3835.2,-1302.1,8.0 attach=1 heldEnt=6 source=bone bone=19 frame_tick=63000
-141516.6 anim: ent=7 model=models/player/heavy.mdl state=idle speed=0.000 rate=0.000000 cycle=0.708545 delta=0.000000 seq=16 label=AttackStand_SECONDARY advanced=0 origin=5046.5,-1737.6,40.0
-141516.6 weaponAttach: class=CTFPlayer ent=7 source=bone bone=19 body=models/player/heavy.mdl weaponEnt=428 weaponClass=CTFMinigun weapon=models/weapons/c_models/c_minigun/c_minigun.mdl worldIndex=203 family=0 boneAt=35.0,52.1,-1.5 holdAt=35.0,52.1,-1.5
-141516.6 entity: id=85 ent=7 model=models/player/heavy.mdl team=2 family=0 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=5046.5,-1737.6,40.0 frame_tick=63000
-141516.6 entity: id=86 ent=428 model=models/weapons/c_models/c_minigun/c_minigun.mdl#1798327882 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=5046.5,-1737.6,40.0 attach=1 heldEnt=7 source=bone bone=19 frame_tick=63000
-141516.6 anim: ent=8 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.797948 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=-951.4,94.6,-24.0
-141516.7 weaponAttach: class=CTFPlayer ent=8 source=attachment bone=24 body=models/player/soldier.mdl weaponEnt=300 weaponClass=CTFRocketLauncher weapon=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl worldIndex=432 family=0 boneAt=24.4,50.3,4.7 holdAt=24.4,50.3,4.7
-141516.7 entity: id=87 ent=8 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=-951.4,94.6,-24.0 frame_tick=63000
-141516.7 entity: id=88 ent=300 model=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl#3035680321 team=3 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=-951.4,94.6,-24.0 attach=1 heldEnt=8 source=attachment bone=24 frame_tick=63000
-141516.7 anim: ent=9 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.438757 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1703.6,75.2,-24.0
-141516.7 weaponAttach: class=CTFPlayer ent=9 source=attachment bone=24 body=models/player/soldier.mdl weaponEnt=214 weaponClass=CTFRocketLauncher weapon=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl worldIndex=432 family=0 boneAt=24.1,51.0,8.3 holdAt=24.1,51.0,8.3
-141516.7 entity: id=89 ent=9 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=1703.6,75.2,-24.0 frame_tick=63000
-141516.7 entity: id=90 ent=214 model=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl#3035680321 team=3 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=1703.6,75.2,-24.0 attach=1 heldEnt=9 source=attachment bone=24 frame_tick=63000
-141516.8 entity: id=91 ent=10 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3643.9,-1302.8,8.0 frame_tick=63000
-141516.8 entity: id=92 ent=329 model=models/weapons/c_models/c_scattergun.mdl#4127930877 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3643.9,-1302.8,8.0 attach=1 heldEnt=10 source=attachment bone=23 frame_tick=63000
-141516.8 weaponAttach: class=CTFPlayer ent=13 source=bone bone=19 body=models/player/medic.mdl weaponEnt=535 weaponClass=CWeaponMedigun weapon=models/weapons/c_models/c_medigun/c_medigun.mdl worldIndex=217 family=0 boneAt=-5.8,41.5,2.2 holdAt=-5.8,41.5,2.2
-141516.8 entity: id=93 ent=13 model=models/player/medic.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4823.8,-678.9,-80.9 frame_tick=63000
-141516.8 entity: id=94 ent=535 model=models/weapons/c_models/c_medigun/c_medigun.mdl#922244099 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=4823.8,-678.9,-80.9 attach=1 heldEnt=13 source=bone bone=19 frame_tick=63000
-141516.8 entity: id=95 ent=15 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3724.3,-1261.9,8.0 frame_tick=63000
-141516.9 entity: id=96 ent=188 model=models/weapons/c_models/c_scattergun.mdl#4127930877 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3724.3,-1261.9,8.0 attach=1 heldEnt=15 source=attachment bone=23 frame_tick=63000
-141516.9 animsum: tick=72374 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
-141516.9 scene: setInstances draws=96 markers=32 playerDraws=11 propDraws=74 playerBudget=11 propBudget=74
-141516.9 budget: draw capacity=96 playerBudget=11 propBudgetAfterAttach=74 playerDrawn=11 propDrawn=74 attachReserved=11 attachDrawn=11 droppedPlayers=0 droppedProps=62
-141516.9 scene: weaponAttach on=1 held=11 drawn=11 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=10 firstRefusal=-
-141516.9 attach: meshSource supplied=1 refused=0 meshes=1 resupply=0
-141516.9 attach: coverage requested=51723 resolvedFromWorld=51722 uploaded=1 refused=0 retrySkipped=0 unresolvedPath=0 meshes=1
-141517.0 budget: instances capacity=96 submitted=96 accepted=95 slots=206 rejected=missingMesh:0,deferredNotResident:1,badMesh:0,nonFinite:0,budget:0
-141517.0 budget: meshTable capacity=96 resident=69 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:21,overlay:9,prop:24,firstPersonOnly:6
-141517.0 scene: entityRanges ranges=98 texturedRanges=98 texturedInstances=95 skinnedInstances=82 meshes=69 textures=271
-141517.0 scene: anim skinned=83 bindPose=2 matrices=1093 gpuSkin=82/1093 boneMismatch=25476 poseChanges=4218 targetInstances=2 targetPose=3 advances=4020 targetAdv=3 cycle=56954/52858 tick=72374 status=ok reason=AttackStand_PRIMARY
-141517.0 scene: animwitness any=models/player/scout.mdl ent=15 seq=9 frame=0/21 lf=0/0 poseChanges=184 seen=5176 target=models/weapons/c_models/c_spy_arms.mdl ent=289 seq=19 frame=10/11 lf=10/0 seen=377
-141517.0 scene: instances set
-141518.3 overlay: corpseFilter removed=9 samples=20 kept=11
-141518.5 scene: done
-141518.5 scene: camera mode=free-look target=0 follows=0 holds=0 freeze=5244 eye=3463.2,-1941.3,-254.0 pitch=4.10 yaw=45.00 src=debug
-141519.0 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 242109 tris, lightmap: samples=2793687 faces=14988 tris=242283 bytes=5053536 state=source-equivalent tone=ldr-clamp atlas=4096x1331, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=63000/64352 req=0 act=0 frame=pending fdelta=na speed=8.000000 rate=66.666669 anchorAbs=64352@51830590 forward playing HUD[tick=63000 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=8.000000 entity=checkpoint stale=946 audio=0/3513 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=2029 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=69 entityModels=95 entitySlots=206 entityModelVerts=525858 entityMaterials=95/95 entityMaterialRanges=98/98 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=83/85 animBones=1093 animSeq=9 animFrame=0/21 animSource=ok animBindings=85/451701 animCache=451662 animAdv=4020 animWitness=models/player/scout.mdl gpuSkin=82/1093 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=202...[TRUNCATED]
-141519.1 draw: begin tick=63000 frames=5242
-141519.1 capture: armed requested=63000 frame_tick=63000 frames=5242
+136848.9 scene: begin tick=63000 sceneTick=73320
+136848.9 scene: clock tick=63000 entryTick=63001 serverTick=73320 serverTickKnown=1
+136851.3 scene: snapshot status=1 stale=946 states=2048
+136851.3 scene: observer done
+136851.4 scene: hud fxDue=2029 drawable=1
+136854.5 scene: buildInstances=468 requests=454 states=2048 scanned=1594 classLookups=14 cap=256
+136859.8 entity: id=1 ent=40 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=-5048.0,1800.4,-87.8 frame_tick=63000
+136859.8 entity: id=2 ent=45 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-0.7,0.0,-65.5 frame_tick=63000
+136859.9 entity: id=3 ent=49 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2688.0,-1615.5,-223.2 frame_tick=63000
+136859.9 entity: id=4 ent=51 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2424.0,-1360.4,-223.2 frame_tick=63000
+136859.9 entity: id=5 ent=53 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1664.0,2031.5,-223.2 frame_tick=63000
+136859.9 entity: id=6 ent=55 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1400.0,1776.4,-223.2 frame_tick=63000
+136859.9 entity: id=7 ent=62 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1464.0,-911.5,157.7 frame_tick=63000
+136859.9 entity: id=8 ent=64 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-408.6,1327.5,157.7 frame_tick=63000
+136859.9 entity: id=9 ent=66 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-964.6,593.5,35.7 frame_tick=63000
+136859.9 entity: id=10 ent=68 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2020.6,-177.5,35.7 frame_tick=63000
+136859.9 entity: id=11 ent=70 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3096.0,-1040.4,-215.2 frame_tick=63000
+136859.9 entity: id=12 ent=72 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-2040.0,1456.4,-215.2 frame_tick=63000
+136859.9 entity: id=13 ent=73 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=0.6,0.0,-64.0 frame_tick=63000
+136859.9 entity: id=14 ent=80 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=19.4,19.4,5.5 frame_tick=63000
+136859.9 entity: id=15 ent=89 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,27.4,0.0 frame_tick=63000
+136860.0 entity: id=16 ent=93 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=439.7,-560.8,-59.8 frame_tick=63000
+136860.0 entity: id=17 ent=95 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=594.4,944.9,-59.8 frame_tick=63000
+136860.0 entity: id=18 ent=96 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=1.8,0.0,-64.0 frame_tick=63000
+136860.0 entity: id=19 ent=99 model=models/ambulance.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-5455.0,2045.0,-87.8 frame_tick=63000
+136860.0 entity: id=20 ent=101 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-5048.0,2271.6,-87.8 frame_tick=63000
+136860.0 entity: id=21 ent=105 model=models/props_2fort/lantern001.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1854.2,949.0,112.2 frame_tick=63000
+136860.0 entity: id=22 ent=106 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=2 label=close skinned=1 origin=6104.0,-1384.4,-87.8 frame_tick=63000
+136860.0 entity: id=23 ent=109 model=models/weapons/c_models/c_ubersaw/c_ubersaw.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-4251.2,1806.2,-29.0 frame_tick=63000
+136860.0 entity: id=24 ent=110 model=models/weapons/c_models/c_ubersaw/c_ubersaw_festivizer.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-4251.0,1806.0,-29.0 frame_tick=63000
+136860.0 entity: id=25 ent=111 model=models/ambulance.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6511.0,-1631.0,-87.8 frame_tick=63000
+136860.0 entity: id=26 ent=118 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-19.2,-19.6,5.5 frame_tick=63000
+136860.0 entity: id=27 ent=121 model=models/props_training/target_medic.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.8,1.8,0.0 frame_tick=63000
+136860.0 entity: id=28 ent=122 model=models/props_training/target_scout.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-0.3,0.4,-1.2 frame_tick=63000
+136860.0 entity: id=29 ent=123 model=models/props_training/target_scout.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-0.3,0.6,-1.9 frame_tick=63000
+136860.1 entity: id=30 ent=124 model=models/props_doomsday/cap_point_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-4357.0,1949.5,-88.0 frame_tick=63000
+136860.1 entity: id=31 ent=134 model=models/props_gameplay/windowed_door.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-0.2,2.0,-68.5 frame_tick=63000
+136860.1 entity: id=32 ent=136 model=models/props_ui/bannerflag_comp_l.mdl team=0 family=0 state=- seq=1 label=wave skinned=1 origin=-14588.0,14281.0,-14506.0 frame_tick=63000
+136860.1 entity: id=33 ent=138 model=models/props_ui/comp_stage_cam.mdl team=0 family=0 state=- seq=1 label=winner_stage_intro skinned=1 origin=-14476.0,14526.0,-14568.0 frame_tick=63000
+136860.1 entity: id=34 ent=139 model=models/props_ui/comp_win_banner_scaled.mdl team=0 family=0 state=- seq=0 label=ref skinned=1 origin=-14483.0,14242.0,-14475.0 frame_tick=63000
+136860.1 entity: id=35 ent=153 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6104.0,-1855.6,-87.8 frame_tick=63000
+136860.1 entity: id=36 ent=159 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=25.7,1.0,0.0 frame_tick=63000
+136860.1 entity: id=37 ent=163 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1.0,-25.7,0.0 frame_tick=63000
+136860.1 entity: id=38 ent=165 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,-26.7,0.0 frame_tick=63000
+136860.1 entity: id=39 ent=167 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-27.4,0.0,0.0 frame_tick=63000
+136860.1 entity: id=40 ent=171 model=models/props_gameplay/resupply_locker.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-44.4,3968.8,-217.6 frame_tick=63000
+136860.1 entity: id=41 ent=190 model=models/weapons/c_models/c_pistol/c_pistol.mdl team=3 family=0 state=- seq=18 label=sequence 18 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=63000
+136860.1 entity: id=42 ent=193 model=models/workshop/weapons/c_models/c_boston_basher/c_boston_basher.mdl team=3 family=0 state=- seq=3 label=sequence 3 is past the model's 1 sequences skinned=0 origin=0.0,0.0,0.0 frame_tick=63000
+136860.2 entity: id=43 ent=223 model=models/props_gameplay/cap_point_base.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2568.0,-1896.0,-112.0 frame_tick=63000
+136860.2 entity: id=44 ent=226 model=models/items/medkit_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6375.0,-1618.0,-56.0 frame_tick=63000
+136860.2 entity: id=45 ent=227 model=models/items/ammopack_large.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=6419.0,-1624.0,-56.0 frame_tick=63000
+136860.2 entity: id=46 ent=228 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-496.0,472.0,-14.7 frame_tick=63000
+136860.2 entity: id=47 ent=235 model=models/props_ui/bannerflag_comp_r.mdl team=0 family=0 state=- seq=1 label=wave skinned=1 origin=-14364.0,14281.0,-14506.0 frame_tick=63000
+136860.2 entity: id=48 ent=239 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=314.0,776.0,72.2 frame_tick=63000
+136860.2 entity: id=49 ent=240 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1881.0,1064.0,120.2 frame_tick=63000
+136860.2 entity: id=50 ent=241 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1934.0,1065.0,120.2 frame_tick=63000
+136860.2 entity: id=51 ent=244 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-2852.0,1764.0,16.2 frame_tick=63000
+136860.2 entity: id=52 ent=251 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1416.0,-906.0,-128.0 frame_tick=63000
+136860.2 entity: id=53 ent=252 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1362.0,-908.0,-128.0 frame_tick=63000
+136860.2 entity: id=54 ent=253 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=532.0,-85.1,73.8 frame_tick=63000
+136860.2 entity: id=55 ent=254 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=739.0,-364.0,72.2 frame_tick=63000
+136860.2 entity: id=56 ent=255 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2932.0,-652.0,120.2 frame_tick=63000
+136860.3 entity: id=57 ent=256 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2990.0,-649.0,120.2 frame_tick=63000
+136860.3 entity: id=58 ent=259 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3908.0,-1348.0,16.2 frame_tick=63000
+136860.3 entity: id=59 ent=268 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2792.0,-818.0,-102.7 frame_tick=63000
+136860.3 entity: id=60 ent=269 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=2792.0,-751.0,-102.8 frame_tick=63000
+136860.3 entity: id=61 ent=275 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=26.7,0.0,0.0 frame_tick=63000
+136860.3 entity: id=62 ent=279 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-26.4,0.0,0.0 frame_tick=63000
+136860.3 entity: id=63 ent=284 model=models/props_gameplay/door_slide_large_door.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=0.0,26.4,0.0 frame_tick=63000
+136860.3 entity: id=64 ent=303 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1548.0,0.0,-14.8 frame_tick=63000
+136860.3 entity: id=65 ent=311 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=1546.0,-56.0,-14.7 frame_tick=63000
+136860.3 entity: id=66 ent=312 model=models/items/ammopack_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1743.0,1234.0,-102.7 frame_tick=63000
+136860.3 entity: id=67 ent=321 model=models/items/ammopack_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3896.0,-1307.0,-291.5 frame_tick=63000
+136860.3 entity: id=68 ent=322 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=3898.0,-1342.0,-291.6 frame_tick=63000
+136860.3 entity: id=69 ent=326 model=models/effects/cappoint_hologram.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=528.0,208.0,67.8 frame_tick=63000
+136860.3 entity: id=70 ent=328 model=models/effects/cappoint_hologram.mdl team=3 family=0 state=- seq=0 label=idle skinned=1 origin=2568.0,-1896.0,-108.0 frame_tick=63000
+136860.3 entity: id=71 ent=331 model=models/effects/cappoint_hologram.mdl team=2 family=0 state=- seq=0 label=idle skinned=1 origin=5060.0,-1632.0,-148.0 frame_tick=63000
+136860.3 entity: id=72 ent=332 model=models/props_gameplay/cap_point_base.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=5060.0,-1632.0,-152.0 frame_tick=63000
+136860.4 entity: id=73 ent=333 model=models/items/medkit_medium.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-496.0,415.5,-14.8 frame_tick=63000
+136860.4 entity: id=74 ent=334 model=models/items/medkit_small.mdl team=0 family=0 state=- seq=0 label=idle skinned=1 origin=-1743.0,1167.0,-102.8 frame_tick=63000
+136860.4 anim: ent=2 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.632076 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=3640.0,-1764.5,-312.0
+136860.4 weaponAttach: class=CTFPlayer ent=2 source=attachment bone=24 body=models/player/soldier.mdl weaponEnt=573 weaponClass=CTFRocketLauncher weapon=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl worldIndex=206 family=0 boneAt=23.8,53.3,7.8 holdAt=23.8,53.3,7.8
+136860.4 entity: id=75 ent=2 model=models/player/soldier.mdl team=2 family=0 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=3640.0,-1764.5,-312.0 frame_tick=63000
+136860.5 entity: id=76 ent=573 model=models/weapons/c_models/c_rocketlauncher/c_rocketlauncher.mdl#3353683628 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=3640.0,-1764.5,-312.0 attach=1 heldEnt=2 source=attachment bone=24 frame_tick=63000
+136860.5 anim: ent=3 model=models/player/scout.mdl state=idle speed=0.000 rate=0.000000 cycle=0.985559 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=4457.3,-791.8,-54.2
+136860.5 weaponAttach: class=CTFPlayer ent=3 source=attachment bone=23 body=models/player/scout.mdl weaponEnt=523 weaponClass=CTFScatterGun weapon=models/weapons/c_models/c_scattergun.mdl worldIndex=201 family=0 boneAt=21.2,60.8,-6.0 holdAt=21.2,60.8,-6.0
+136860.5 entity: id=77 ent=3 model=models/player/scout.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4457.3,-791.8,-54.2 frame_tick=63000
+136860.5 entity: id=78 ent=523 model=models/weapons/c_models/c_scattergun.mdl#4127930877 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=4457.3,-791.8,-54.2 attach=1 heldEnt=3 source=attachment bone=23 frame_tick=63000
+136860.5 anim: ent=4 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.375913 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=4336.8,-704.3,-39.9
+136860.6 weaponAttach: class=CTFPlayer ent=4 source=bone bone=21 body=models/player/demo.mdl weaponEnt=509 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=0 boneAt=26.1,58.3,0.9 holdAt=26.1,58.3,0.9
+136860.6 entity: id=79 ent=4 model=models/player/demo.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4336.8,-704.3,-39.9 frame_tick=63000
+136860.6 entity: id=80 ent=509 model=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl#1360354901 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=4336.8,-704.3,-39.9 attach=1 heldEnt=4 source=bone bone=21 frame_tick=63000
+136860.6 anim: ent=5 model=models/player/demo.mdl state=idle speed=0.000 rate=0.000000 cycle=0.095862 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=3759.9,-1163.8,8.0
+136860.6 weaponAttach: class=CTFPlayer ent=5 source=bone bone=21 body=models/player/demo.mdl weaponEnt=744 weaponClass=CTFPipebombLauncher weapon=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl worldIndex=208 family=1 boneAt=23.6,53.7,4.3 holdAt=23.6,53.7,4.3
+136860.6 entity: id=81 ent=5 model=models/player/demo.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3759.9,-1163.8,8.0 frame_tick=63000
+136860.6 entity: id=82 ent=744 model=models/weapons/c_models/c_stickybomb_launcher/c_stickybomb_launcher.mdl#1360354901 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3759.9,-1163.8,8.0 attach=1 heldEnt=5 source=bone bone=21 frame_tick=63000
+136860.6 anim: ent=6 model=models/player/medic.mdl state=idle speed=0.000 rate=0.000000 cycle=0.754945 delta=0.000000 seq=9 label=AttackStand_PRIMARY advanced=0 origin=3835.2,-1302.1,8.0
+136860.6 weaponAttach: class=CTFPlayer ent=6 source=bone bone=19 body=models/player/medic.mdl weaponEnt=760 weaponClass=CWeaponMedigun weapon=models/weapons/c_models/c_medigun/c_medigun.mdl worldIndex=217 family=1 boneAt=-5.6,41.6,2.2 holdAt=-5.6,41.6,2.2
+136860.6 entity: id=83 ent=6 model=models/player/medic.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3835.2,-1302.1,8.0 frame_tick=63000
+136860.6 entity: id=84 ent=760 model=models/weapons/c_models/c_medigun/c_medigun.mdl#922244099 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3835.2,-1302.1,8.0 attach=1 heldEnt=6 source=bone bone=19 frame_tick=63000
+136860.7 anim: ent=7 model=models/player/heavy.mdl state=idle speed=0.000 rate=0.000000 cycle=0.708545 delta=0.000000 seq=16 label=AttackStand_SECONDARY advanced=0 origin=5046.5,-1737.6,40.0
+136860.7 weaponAttach: class=CTFPlayer ent=7 source=bone bone=19 body=models/player/heavy.mdl weaponEnt=428 weaponClass=CTFMinigun weapon=models/weapons/c_models/c_minigun/c_minigun.mdl worldIndex=203 family=0 boneAt=35.0,52.1,-1.5 holdAt=35.0,52.1,-1.5
+136860.7 entity: id=85 ent=7 model=models/player/heavy.mdl team=2 family=0 state=idle seq=16 label=AttackStand_SECONDARY skinned=1 origin=5046.5,-1737.6,40.0 frame_tick=63000
+136860.7 entity: id=86 ent=428 model=models/weapons/c_models/c_minigun/c_minigun.mdl#1798327882 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=5046.5,-1737.6,40.0 attach=1 heldEnt=7 source=bone bone=19 frame_tick=63000
+136860.7 anim: ent=8 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.797948 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=-951.4,94.6,-24.0
+136860.7 weaponAttach: class=CTFPlayer ent=8 source=attachment bone=24 body=models/player/soldier.mdl weaponEnt=300 weaponClass=CTFRocketLauncher weapon=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl worldIndex=432 family=0 boneAt=24.4,50.3,4.7 holdAt=24.4,50.3,4.7
+136860.7 entity: id=87 ent=8 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=-951.4,94.6,-24.0 frame_tick=63000
+136860.7 entity: id=88 ent=300 model=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl#3035680321 team=3 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=-951.4,94.6,-24.0 attach=1 heldEnt=8 source=attachment bone=24 frame_tick=63000
+136860.8 anim: ent=9 model=models/player/soldier.mdl state=idle speed=0.000 rate=0.000000 cycle=0.438757 delta=0.000000 seq=10 label=AttackStand_PRIMARY advanced=0 origin=1703.6,75.2,-24.0
+136860.8 weaponAttach: class=CTFPlayer ent=9 source=attachment bone=24 body=models/player/soldier.mdl weaponEnt=214 weaponClass=CTFRocketLauncher weapon=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl worldIndex=432 family=0 boneAt=24.1,51.0,8.3 holdAt=24.1,51.0,8.3
+136860.8 entity: id=89 ent=9 model=models/player/soldier.mdl team=3 family=1 state=idle seq=10 label=AttackStand_PRIMARY skinned=1 origin=1703.6,75.2,-24.0 frame_tick=63000
+136860.8 entity: id=90 ent=214 model=models/workshop_partner/weapons/c_models/c_bet_rocketlauncher/c_bet_rocketlauncher.mdl#3035680321 team=3 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=1703.6,75.2,-24.0 attach=1 heldEnt=9 source=attachment bone=24 frame_tick=63000
+136860.8 entity: id=91 ent=10 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3643.9,-1302.8,8.0 frame_tick=63000
+136860.8 entity: id=92 ent=329 model=models/weapons/c_models/c_scattergun.mdl#4127930877 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3643.9,-1302.8,8.0 attach=1 heldEnt=10 source=attachment bone=23 frame_tick=63000
+136860.8 weaponAttach: class=CTFPlayer ent=13 source=bone bone=19 body=models/player/medic.mdl weaponEnt=535 weaponClass=CWeaponMedigun weapon=models/weapons/c_models/c_medigun/c_medigun.mdl worldIndex=217 family=0 boneAt=-5.8,41.5,2.2 holdAt=-5.8,41.5,2.2
+136860.8 entity: id=93 ent=13 model=models/player/medic.mdl team=2 family=0 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=4823.8,-678.9,-80.9 frame_tick=63000
+136860.9 entity: id=94 ent=535 model=models/weapons/c_models/c_medigun/c_medigun.mdl#922244099 team=2 family=0 state=attached seq=-1 label=weaponAttach skinned=0 origin=4823.8,-678.9,-80.9 attach=1 heldEnt=13 source=bone bone=19 frame_tick=63000
+136860.9 entity: id=95 ent=15 model=models/player/scout.mdl team=3 family=1 state=idle seq=9 label=AttackStand_PRIMARY skinned=1 origin=3724.3,-1261.9,8.0 frame_tick=63000
+136860.9 entity: id=96 ent=188 model=models/weapons/c_models/c_scattergun.mdl#4127930877 team=3 family=1 state=attached seq=-1 label=weaponAttach skinned=0 origin=3724.3,-1261.9,8.0 attach=1 heldEnt=15 source=attachment bone=23 frame_tick=63000
+136860.9 scene: PLAYER-MODEL-ASSERT=PASS tick=72374 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+136860.9 animsum: tick=72374 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
+136860.9 scene: setInstances draws=96 markers=32 playerDraws=11 propDraws=74 playerBudget=11 propBudget=74
+136860.9 budget: draw capacity=96 playerBudget=11 propBudgetAfterAttach=74 playerDrawn=11 propDrawn=74 attachReserved=11 attachDrawn=11 droppedPlayers=0 droppedProps=62
+136860.9 scene: weaponAttach on=1 held=11 drawn=11 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=10 firstRefusal=-
+136860.9 attach: meshSource supplied=1 refused=0 meshes=1 resupply=0
+136860.9 attach: coverage requested=84192 resolvedFromWorld=84191 uploaded=1 refused=0 retrySkipped=0 unresolvedPath=0 meshes=1
+136861.0 budget: instances capacity=96 submitted=96 accepted=95 slots=206 rejected=missingMesh:0,deferredNotResident:1,badMesh:0,nonFinite:0,budget:0
+136861.0 budget: meshTable capacity=96 resident=69 evictions=0 capacityRefusals=0 reuploads=0 resupply=0 residentByPriority=player:9,weapon:21,overlay:9,prop:24,firstPersonOnly:6
+136861.0 scene: entityRanges ranges=98 texturedRanges=98 texturedInstances=95 skinnedInstances=82 meshes=69 textures=271
+136861.0 scene: anim skinned=83 bindPose=2 matrices=1093 gpuSkin=82/1093 boneMismatch=41524 poseChanges=4218 targetInstances=2 targetPose=3 advances=4020 targetAdv=3 cycle=92789/85946 tick=72374 status=ok reason=AttackStand_PRIMARY
+136861.0 scene: animwitness any=models/player/scout.mdl ent=15 seq=9 frame=0/21 lf=0/0 poseChanges=184 seen=8431 target=models/weapons/c_models/c_spy_arms.mdl ent=289 seq=19 frame=10/11 lf=10/0 seen=641
+136861.0 scene: instances set
+136862.4 overlay: corpseFilter removed=9 samples=20 kept=11
+136862.5 scene: done
+136862.5 scene: camera mode=free-look target=0 follows=0 holds=0 freeze=8548 eye=3463.2,-1941.3,-254.0 pitch=4.10 yaw=45.00 src=debug
+136862.8 title: TF2 Demo Player - TF2 DêÚﬁ•: D:\SteamLibrary\steamapps\common\Team Fortress 2\tf [VPK entries: 104343, VTF: 256x256, VMT: UnlitGeneric/vgui\logos\11111111, BSP: 242109 tris, lightmap: samples=2793687 faces=14988 tris=242283 bytes=5053536 state=source-equivalent tone=ldr-clamp atlas=4096x1331, mapmat: WOOD/WOOD_BRIDGE002, deps: base2=none bump=none, maptex: 1024x1024] playback=63000/64352 req=0 act=0 frame=pending fdelta=na speed=8.000000 rate=66.666669 anchorAbs=64352@51830590 forward playing HUD[tick=63000 demo=bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem state=playing camera=first-person error=none speed=8.000000 entity=checkpoint stale=946 audio=0/3513 health=1 team=1 class=0 clip=? uber=? snd=2953/5/14 fxDue=2029 trailVerts=0/1024 trackVerts=0 trackPoints=0 trackRows=0 trackFiltered=0 trackLifetimes=0 trackOwners=0 trackLinger=0 cache=ready@C:\Users\Administrator\AppData\Local\TF2 Demo Player\cache hash=ready:308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f modelMissing=0 vpkHits=177 attachment=unknown bodygroup=unknown viewmodel=unknown entityMeshes=69 entityModels=95 entitySlots=206 entityModelVerts=525858 entityMaterials=95/95 entityMaterialRanges=98/98 entityMaterialModels=59/59 entityPaintedSlots=191 animSkinned=83/85 animBones=1093 animSeq=9 animFrame=0/21 animSource=ok animBindings=85/736416 animCache=736377 animAdv=4020 animWitness=models/player/scout.mdl gpuSkin=82/1093 posePreflight=unknown modelSkin=none modelSeq=-1 modelFrame=0/0 modelBones=0/0 bones=0 attachments=0 bodyParts=0 resources=missing] export=unavailable(native-encoder-missing) | Demo: cp_snakewater_final1 SourceTV ticks=64352 commands=64337 packets=64333 serverinfo=1 signon=3 state=5 classes=363 setview=1 viewent=1 nettick=64331 print=0 setconvar=10 convars=56 temp=14441 teheaders=26921 tefail=0 teprops=79320 teproj=0 teparticle=93 teexplosion=1841 tebullets=1418 teanim=17444 tefbhits=3512 tepehits=2 teexhits=0 teanimhits=15654 tecached=16384 projectileTimeline=202...[TRUNCATED]
+136862.8 draw: begin tick=63000 frames=8546
+136862.8 capture: armed requested=63000 frame_tick=63000 frames=8546
