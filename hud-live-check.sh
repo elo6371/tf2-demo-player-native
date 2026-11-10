@@ -89,7 +89,18 @@
 #   take the host lock (a gate that did would deadlock inside a locked run); the
 #   caller holds it. --mutation rebuilds, so it needs the lock too.
 #
-# Usage: bash hud-live-check.sh [--mutation]
+# TRACKED EVIDENCE AND --mutation (D-65)
+#   The forward run writes readings.txt into $OUT, which defaults to the tracked
+#   evidence/t97-hud. That default is right for a green run (the file IS the record)
+#   and wrong for --mutation (the scoring happens on stdout; the file is a side
+#   effect that dirties the tree). So:
+#     --mutation, HUD_LIVE_CHECK_OUT unset   $OUT moves under $SCRATCH, printed
+#     --mutation, explicit evidence/ OUT     honoured, announced with a WARN
+#   --print-out resolves the paths, prints HUD-LIVE-OUT, and exits 0 without
+#   creating a directory, building, or launching anything -- so the rule above can
+#   be checked offline under the host lock rules.
+#
+# Usage: bash hud-live-check.sh [--mutation] [--sections=1,2] [--print-out]
 # Exit:  0 = every assertion held.
 
 set -uo pipefail
@@ -152,14 +163,53 @@ MUTATION_CASE=""
 # --sections=1,2,5 limits the forward run: the mutation driver only needs the
 # sections whose assertions the injected defect is supposed to red.
 SECTIONS=""
+# D-65: --print-out resolves and prints where the readings would land, then exits
+# without touching the disk or launching the product. It exists so the path rules
+# below can be judged offline (no lock, no build, no window).
+PRINT_OUT=0
 for arg in "$@"; do
   case "$arg" in
     --mutation) MUTATION=1 ;;
     --case=*) MUTATION_CASE="$(echo "$arg" | cut -d= -f2)" ;;
     --sections=*) SECTIONS="$(echo "$arg" | cut -d= -f2)" ;;
+    --print-out) PRINT_OUT=1 ;;
     *) echo "unknown argument: $arg"; exit 2 ;;
   esac
 done
+
+# ---------------------------------------------------------------------------
+# D-65: a --mutation run must not leave a tracked file modified.
+#
+# The mutation driver below already isolates the sub-runs it spawns, but the
+# FORWARD run that scores them is this same script, and its :850 writes
+# readings.txt into $OUT -- which defaults to evidence/t97-hud, a tracked
+# directory. So "bash hud-live-check.sh --mutation" used to dirty the tree with a
+# file nobody read (evidence/t97-hud/RUN21-MUTATION-PROVENANCE.md:112 records the
+# write; the run's own payload is not evidence of anything, the scoring is).
+#
+# Rule: --mutation without an explicit HUD_LIVE_CHECK_OUT keeps everything under
+# $SCRATCH (gitignored, .gitignore:35) and says so. An explicit OUT is honoured
+# even when it names evidence/ -- some audits do want the file -- but then it is
+# announced, because that run WILL dirty the tree and the caller should be the one
+# who decided that.
+OUT_EXPLICIT=0
+if [ -n "$(printenv HUD_LIVE_CHECK_OUT)" ]; then OUT_EXPLICIT=1; fi
+MUTATION_OUT_REDIRECTED=0
+if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 0 ]; then
+  OUT="$SCRATCH/out"
+  MUTATION_OUT_REDIRECTED=1
+fi
+if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 1 ]; then
+  case "$OUT" in
+    evidence/*|*/evidence/*)
+      echo "WARN: --mutation with an explicit evidence/ OUT writes tracked files: $OUT" ;;
+  esac
+fi
+
+if [ "$PRINT_OUT" -eq 1 ]; then
+  echo "HUD-LIVE-OUT out=$OUT scratch=$SCRATCH mutation=$MUTATION out_explicit=$OUT_EXPLICIT mutation_out_redirected=$MUTATION_OUT_REDIRECTED"
+  exit 0
+fi
 
 fail=0
 for path in "$EXE_ABS" "$DEMO" "$TF" "$FONT"; do
@@ -415,6 +465,9 @@ SKIPPED_CONTROLS=0
 echo "=== T97 HUD live-reading gate: forward ==="
 echo "  exe: $(stat -c '%y %s bytes' "$EXE" 2>/dev/null || echo '<missing>')"
 echo "  out: $OUT"
+if [ "$MUTATION_OUT_REDIRECTED" -eq 1 ]; then
+  echo "  out redirected: --mutation without HUD_LIVE_CHECK_OUT, so the readings stay out of tracked evidence/ (D-65)"
+fi
 echo "  scratch: $SCRATCH"
 echo
 
