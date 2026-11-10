@@ -69,6 +69,7 @@
 # --audio-disabled: builds, launches and captures are single-instance here.
 #
 # Usage: bash outline-check.sh [--mutation] [--skip-live] [--layer-a-selftest]
+#                            [--floor-selftest] [--world-only]
 #   --skip-live  run only the probe layer (no product launch); the gate says so
 #                in its verdict rather than reporting a silent pass.
 # Exit: 0 = every asserted criterion held.
@@ -228,6 +229,7 @@ for arg in "$@"; do
     --mutation) MUTATION=1 ;;
     --skip-live) SKIP_LIVE=1 ;;
     --layer-a-selftest) LAYER_A_SELFTEST=1 ;;
+    --floor-selftest) FLOOR_SELFTEST=1 ;;
     --world-only) WORLD_ONLY=1 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
@@ -235,38 +237,60 @@ done
 
 PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
 
+# ledger-recon AUDIT-GATE-DIFFS-3 (2026-11-10): the shell runs with set -u (:76),
+# so every "$fail" expansion below needs this line to have run first. The D-72
+# floor patch deleted the file's original initialisation and the all-green path
+# then died at the verdict with "fail: unbound variable" (rc 127): no
+# OUTLINE-CHECK=PASS token and no PARTIAL token were reachable at all. F5 below
+# pins this line down.
 fail=0
+NASSERT=0
+# D-72 (D68-SCAN K3): outline-check.sh counted reds but never counted greens,
+# so a run whose loops stopped iterating (empty runs/raw, a helper that stopped
+# being called) still printed OUTLINE-CHECK=PASS.
+ok() { NASSERT=$((NASSERT + 1)); printf '%s\n' "$*"; }
+# D-72: the floor is a function rather than an inline comparison at the end of
+# the file, so --floor-selftest can exercise the SHIPPED threshold instead of a
+# copy of it. The terminal calls this right before printing the verdict.
+OUTLINE_ASSERTION_FLOOR=150
+assertion_floor() { # assertion_floor <count-of-OK-lines>
+  local count=${1:-0}
+  if [ "$count" -lt "$OUTLINE_ASSERTION_FLOOR" ]; then
+    echo "  FAIL assertions: only $count assertions reported OK, below the floor $OUTLINE_ASSERTION_FLOOR -- loops that stopped iterating read exactly like a green run (D-72)"
+    fail=1
+  fi
+}
 assert_eq() { # assert_eq <label> <actual> <expected>
   if [ "${2:-<none>}" = "$3" ]; then
-    echo "  OK   $1 = $3"
+    ok "  OK   $1 = $3"
   else
     echo "  FAIL $1 = ${2:-<none>}, expected $3"; fail=1
   fi
 }
 assert_ge() { # assert_ge <label> <actual> <minimum>
   if [ -n "${2:-}" ] && [ "$2" -ge "$3" ] 2>/dev/null; then
-    echo "  OK   $1 = $2 (>= $3)"
+    ok "  OK   $1 = $2 (>= $3)"
   else
     echo "  FAIL $1 = ${2:-<none>}, expected >= $3"; fail=1
   fi
 }
 assert_le() { # assert_le <label> <actual> <maximum>
   if [ -n "${2:-}" ] && [ "$2" -le "$3" ] 2>/dev/null; then
-    echo "  OK   $1 = $2 (<= $3)"
+    ok "  OK   $1 = $2 (<= $3)"
   else
     echo "  FAIL $1 = ${2:-<none>}, expected <= $3"; fail=1
   fi
 }
 assert_lt() { # assert_lt <label> <actual> <maximum, exclusive>
   if [ -n "${2:-}" ] && [ "$2" -lt "$3" ] 2>/dev/null; then
-    echo "  OK   $1 = $2 (< $3)"
+    ok "  OK   $1 = $2 (< $3)"
   else
     echo "  FAIL $1 = ${2:-<none>}, expected < $3"; fail=1
   fi
 }
 assert_contains() { # assert_contains <label> <haystack> <needle>
   case "${2:-}" in
-    *"${3:-}"*) echo "  OK   $1" ;;
+    *"${3:-}"*) ok "  OK   $1" ;;
     *) echo "  FAIL $1 (wanted: ${3:-<none>})"; fail=1 ;;
   esac
 }
@@ -360,10 +384,137 @@ layer_a_selftest() {
   return "$rc"
 }
 
+# --floor-selftest: the floor is bookkeeping, and bookkeeping has to answer both
+# ways before a full run is allowed to lean on it. Offline: no product launch, no
+# host lock, no build.
+#   F1/F2  assertion_floor() must red at 149 and stay quiet at 150. This calls the
+#          function the terminal calls, not a re-implementation.
+#   F3     ok() must count exactly one assertion per call and print its argument
+#          unchanged, so NASSERT cannot drift away from the OK lines in a log.
+#   F4     every OK line in this file must come out of ok(). A green line
+#          printed by any other echo/printf would never reach the counter.
+#   F5     the green verdict must not expand an uninitialised fail under set -u:
+#          the shipped init line and verdict block are run, and the init line is
+#          removed again as the negative control.
+floor_selftest() {
+  local rc=0 out reds n tf lines first oklines strays
+  out=$( fail=0; assertion_floor 149; echo "AFTER=$fail" )
+  reds=$(echo "$out" | grep -c "^  FAIL assertions:" || true)
+  if [ "$reds" = "1" ] && echo "$out" | grep -q "below the floor $OUTLINE_ASSERTION_FLOOR"      && echo "$out" | grep -q "AFTER=1"; then
+    echo "  case F1 149 assertions (one below the floor): one named red -- ok"
+  else
+    echo "  case F1 149 assertions (one below the floor): NOT RED -- FAIL"
+    echo "$out" | sed "s/^/      /"; rc=1
+  fi
+  out=$( fail=0; assertion_floor "$OUTLINE_ASSERTION_FLOOR"; echo "AFTER=$fail" )
+  if [ "$out" = "AFTER=0" ]; then
+    echo "  case F2 $OUTLINE_ASSERTION_FLOOR assertions (exactly the floor): no red -- ok"
+  else
+    echo "  case F2 $OUTLINE_ASSERTION_FLOOR assertions (exactly the floor): RED WHERE IT MUST NOT BE -- FAIL"
+    echo "$out" | sed "s/^/      /"; rc=1
+  fi
+  tf=$(mktemp)
+  # The counter and the printed lines are read from the SAME subshell: NASSERT is
+  # incremented by ok() itself, so a copy would prove nothing.
+  ( NASSERT=0
+    ok "  OK   sentence A = 3" > "$tf"
+    ok "  OK   sentence B" >> "$tf"
+    echo "$NASSERT" > "$tf.n" )
+  n=$(cat "$tf.n")
+  lines=$(wc -l < "$tf")
+  first=$(head -1 "$tf")
+  oklines=$(grep -c "^  OK " "$tf" || true)
+  rm -f "$tf" "$tf.n"
+  if [ "$n" = "2" ] && [ "$lines" = "2" ] && [ "$oklines" = "2" ] && [ "$first" = "  OK   sentence A = 3" ]; then
+    echo "  case F3 ok() counts once per call and prints its argument unchanged -- ok"
+  else
+    echo "  case F3 ok() accounting disagrees with its own output -- FAIL"
+    echo "      NASSERT=$n lines=$lines ok-lines=$oklines first=<$first>"; rc=1
+  fi
+  # The scan names command-position echoes only: it must not match this line,
+  # a comment, or the counter it feeds.
+  strays=$(grep -c '^ *\(echo\|printf\) .*  OK' "$0" || true)
+  if [ "$strays" = "0" ]; then
+    echo "  case F4 every OK line comes from ok() (no stray echo/printf) -- ok"
+  else
+    echo "  case F4 $strays OK line(s) bypass ok(), so NASSERT undercounts -- FAIL"; rc=1
+  fi
+
+  # F5 (ledger-recon AUDIT-GATE-DIFFS-3, 2026-11-10): the verdict expands "$fail"
+  # under set -u, and F1-F4 all ran their snippets with fail=0 already set, so
+  # none of them could see a deleted initialisation. F5 runs the SHIPPED bytes:
+  # the shipped fail=0 line, the shipped OUTLINE_ASSERTION_FLOOR value, the
+  # shipped assertion_floor() body and the shipped verdict block are assembled
+  # into one snippet and run with set -u and NASSERT at the floor, where a green
+  # verdict has to print OUTLINE-CHECK=PASS. The same snippet WITHOUT the init
+  # line is the negative control: it must die with "unbound variable", or this
+  # test would pass on the exact defect it exists for.
+  local init_at first_emit floor_at verdict_at snip neg
+  local green_out green_rc neg_out neg_rc f5ok
+  init_at=$(grep -n '^fail=0$' "$0" | head -1 | cut -d: -f1)
+  first_emit=$(grep -n -m1 -E 'ok "  OK|echo "  FAIL' "$0" | cut -d: -f1)
+  floor_at=$(grep -n '^OUTLINE_ASSERTION_FLOOR=' "$0" | head -1 | cut -d: -f1)
+  verdict_at=$(grep -n '^assertion_floor "\$NASSERT"$' "$0" | head -1 | cut -d: -f1)
+  snip=$(mktemp); neg=$(mktemp)
+  {
+    echo 'set -u'
+    echo 'NASSERT=150'
+    [ -n "$init_at" ] && sed -n "${init_at}p" "$0"
+    [ -n "$floor_at" ] && sed -n "${floor_at}p" "$0"
+    sed -n '/^assertion_floor() {/,/^}$/p' "$0"
+    [ -n "$verdict_at" ] && tail -n +"$verdict_at" "$0"
+  } > "$snip"
+  {
+    echo 'set -u'
+    echo 'NASSERT=150'
+    [ -n "$floor_at" ] && sed -n "${floor_at}p" "$0"
+    sed -n '/^assertion_floor() {/,/^}$/p' "$0"
+    [ -n "$verdict_at" ] && tail -n +"$verdict_at" "$0"
+  } > "$neg"
+  green_out=$(bash "$snip" 2>&1); green_rc=$?
+  neg_out=$(bash "$neg" 2>&1); neg_rc=$?
+  f5ok=0
+  [ -n "$init_at" ] || { echo "      init line: ABSENT"; f5ok=1; }
+  [ -n "$first_emit" ] || { echo "      first OK/FAIL emitter: not found"; f5ok=1; }
+  if [ -n "$init_at" ] && [ -n "$first_emit" ] && [ "$init_at" -ge "$first_emit" ]; then
+    echo "      init line at :$init_at is not before the first OK/FAIL emitter at :$first_emit"; f5ok=1
+  fi
+  [ -n "$verdict_at" ] || { echo "      verdict block: not found"; f5ok=1; }
+  if [ "$green_rc" != "0" ] || ! echo "$green_out" | grep -q 'OUTLINE-CHECK=PASS'; then
+    echo "      green verdict did not print PASS (rc=$green_rc)"; f5ok=1
+  fi
+  if [ "$neg_rc" = "0" ] || ! echo "$neg_out" | grep -q 'unbound variable'; then
+    echo "      negative control (init line removed) did not die on an unbound fail (rc=$neg_rc)"; f5ok=1
+  fi
+  rm -f "$snip" "$neg"
+  if [ "$f5ok" = "0" ]; then
+    echo "  case F5 a green verdict prints PASS under set -u (init at :$init_at before the first emitter at :$first_emit; init removed dies unbound) -- ok"
+  else
+    echo "  case F5 the green verdict can expand an uninitialised fail -- FAIL"
+    echo "      init_at=${init_at:-<none>} first_emit=${first_emit:-<none>} verdict_at=${verdict_at:-<none>} green_rc=$green_rc neg_rc=$neg_rc"
+    echo "$green_out" | tail -3 | sed "s/^/      green: /"
+    echo "$neg_out" | tail -2 | sed "s/^/      neg: /"; rc=1
+  fi
+  if [ "$rc" = "0" ]; then
+    echo "FLOOR-SELFTEST=PASS cases=5 floor=$OUTLINE_ASSERTION_FLOOR"
+  else
+    echo "FLOOR-SELFTEST=FAIL"
+  fi
+  return "$rc"
+}
+
 # D-63 --layer-a-selftest: run the offline self-test and stop before anything
 # launches, so the assertions can be re-checked on a busy machine.
 if [ "${LAYER_A_SELFTEST:-0}" = "1" ]; then
   layer_a_selftest
+  exit $?
+fi
+
+# D-72 --floor-selftest: offline, so it can run before any build or lock. It is
+# the only place the threshold is exercised both ways; a full run only ever
+# exercises the green side.
+if [ "${FLOOR_SELFTEST:-0}" = "1" ]; then
+  floor_selftest
   exit $?
 fi
 
@@ -621,6 +772,7 @@ fi
 if [ "${WORLD_ONLY:-0}" = "1" ]; then
   assert_world_fixture "$OUT/world-only"
   echo
+  echo "  assertions=$NASSERT (--world-only: the $OUTLINE_ASSERTION_FLOOR floor is a full-run floor and is not applied to this evidence mode)"
   if [ "$fail" = "1" ]; then
     echo "OUTLINE-CHECK=FAIL (--world-only: the named world-model section)"
     exit 1
@@ -711,7 +863,7 @@ harness_broken=0
 # 2026-10-29 while the suite printed PASS.
 for _fn in $(grep -oE '\bassert_[a-z_]+' "$0" | sort -u); do
   if declare -F "$_fn" >/dev/null 2>&1; then
-    echo "  OK   the harness defines $_fn"
+    ok "  OK   the harness defines $_fn"
   else
     echo "  FAIL the harness calls $_fn but never defines it, so that reading is not taken"
     fail=1; harness_broken=1
@@ -724,24 +876,24 @@ done
 # comment (2026-10-22 audio incident).
 _lp_refuse=$( launch_product "$OUT/launch-guard-selftest" --tf-root "$TF" --hidden-window 2>"$OUT/launch-guard-selftest.stderr" )
 case "$_lp_refuse" in
-  99) echo "  OK   launch_product refuses an argv without --audio-disabled (returns 99)" ;;
+  99) ok "  OK   launch_product refuses an argv without --audio-disabled (returns 99)" ;;
   *) echo "  FAIL launch_product accepted an argv without --audio-disabled (returned ${_lp_refuse:-<none>})"
      fail=1; harness_broken=1 ;;
 esac
 if grep -q 'REFUSED: launch_product' "$OUT/launch-guard-selftest.stderr" 2>/dev/null; then
-  echo "  OK   launch_product prints why it refused (not a silent drop)"
+  ok "  OK   launch_product prints why it refused (not a silent drop)"
 else
   echo "  FAIL launch_product refused without printing a reason"; fail=1; harness_broken=1
 fi
 _self_red=$( ( fail=0; assert_contains "self-test, absent sentence" "alpha beta" "gamma"; echo "fail=$fail" ) )
 case "$_self_red" in
-  *"fail=1") echo "  OK   assert_contains goes red when the sentence is absent" ;;
+  *"fail=1") ok "  OK   assert_contains goes red when the sentence is absent" ;;
   *) echo "  FAIL assert_contains stayed green on an absent sentence"
      fail=1; harness_broken=1 ;;
 esac
 _self_green=$( ( fail=0; assert_contains "self-test, present sentence" "alpha beta gamma" "beta"; echo "fail=$fail" ) )
 case "$_self_green" in
-  *"fail=0") echo "  OK   assert_contains goes green when the sentence is present" ;;
+  *"fail=0") ok "  OK   assert_contains goes green when the sentence is present" ;;
   *) echo "  FAIL assert_contains rejected a sentence that is present"
      fail=1; harness_broken=1 ;;
 esac
@@ -751,7 +903,7 @@ _before_unknown=$(wc -l < "$HARNESS_UNKNOWN_LOG" 2>/dev/null || echo 0)
 ( outline_harness_never_defines_this_command ) >/dev/null 2>&1
 _after_unknown=$(wc -l < "$HARNESS_UNKNOWN_LOG" 2>/dev/null || echo 0)
 if [ "${_after_unknown:-0}" -gt "${_before_unknown:-0}" ] 2>/dev/null; then
-  echo "  OK   an undefined command leaves the trace that reddens the verdict"
+  ok "  OK   an undefined command leaves the trace that reddens the verdict"
 else
   echo "  FAIL an undefined command left no trace, so the verdict could stay green"
   fail=1; harness_broken=1
@@ -768,14 +920,14 @@ _st_dir=$(mktemp -d "${TMPDIR:-/tmp}/outline-stale.XXXXXX")
 : > "$_st_dir/fake.exe"; : > "$_st_dir/new.cpp"
 touch -t 202001010000 "$_st_dir/fake.exe" 2>/dev/null
 if [ -n "$(newer_than "$_st_dir/fake.exe" "$_st_dir")" ]; then
-  echo "  OK   a source newer than the binary is reported as stale"
+  ok "  OK   a source newer than the binary is reported as stale"
 else
   echo "  FAIL a newer source went unreported, so a stale binary would be measured"
   fail=1; harness_broken=1
 fi
 touch -t 209901010000 "$_st_dir/fake.exe" 2>/dev/null
 if [ -z "$(newer_than "$_st_dir/fake.exe" "$_st_dir")" ]; then
-  echo "  OK   a binary at least as new as its sources passes the same guard"
+  ok "  OK   a binary at least as new as its sources passes the same guard"
 else
   echo "  FAIL a fresh binary was called stale, so the guard would redden an honest run"
   fail=1; harness_broken=1
@@ -795,10 +947,10 @@ else
     echo "  FAIL the list read for entity_overlay_probe names projectile_track_probe.cpp, a source of another target"
     fail=1; harness_broken=1
   else
-    echo "  OK   the dependency list is scoped to its target: entity_overlay_probe does not compile projectile_track_probe.cpp"
+    ok "  OK   the dependency list is scoped to its target: entity_overlay_probe does not compile projectile_track_probe.cpp"
   fi
   if printf '%s\n' "$_probe_deps" | grep -q 'native/src/demo_header\.cpp$'; then
-    echo "  OK   the same list names demo_header.cpp, a source that target does compile"
+    ok "  OK   the same list names demo_header.cpp, a source that target does compile"
   else
     echo "  FAIL the list read for entity_overlay_probe does not name demo_header.cpp, so it is not that target's list"
     fail=1; harness_broken=1
@@ -807,7 +959,7 @@ fi
 for _pair in "$EXE:tf2_demo_native" "$PROBE:entity_overlay_probe"; do
   _why=$(stale_reason "${_pair%:*}" "${_pair##*:}")
   if [ -z "$_why" ]; then
-    echo "  OK   ${_pair%:*} is not older than the sources its target compiles"
+    ok "  OK   ${_pair%:*} is not older than the sources its target compiles"
   else
     echo "  FAIL ${_pair%:*} cannot be trusted for this tree, so this run would measure a binary the tree does not describe:"
     printf '%s\n' "$_why"
@@ -817,6 +969,7 @@ for _pair in "$EXE:tf2_demo_native" "$PROBE:entity_overlay_probe"; do
 done
 if [ "$harness_broken" != "0" ]; then
   echo
+  echo "  assertions=$NASSERT (floor $OUTLINE_ASSERTION_FLOOR not evaluated: the harness is broken)"
   echo "OUTLINE-CHECK=FAIL"
   echo "  the harness is broken, so nothing measured below this line can be believed."
   exit 1
@@ -915,6 +1068,7 @@ if [ "$SKIP_LIVE" = "1" ]; then
   echo "  NOT VERIFIED: no product launch, so no frame, no ordinal and no depth"
   echo "  assertion was taken. This run proves the contract and the fixtures only."
   echo
+  echo "  assertions=$NASSERT (--skip-live: the $OUTLINE_ASSERTION_FLOOR floor covers the full run; product layers NOT VERIFIED)"
   if [ "$fail" = "0" ]; then
     echo "OUTLINE-CHECK=PARTIAL (probe layers only; product layers NOT VERIFIED)"
     exit 0
@@ -961,7 +1115,7 @@ window_usable() { # window_usable <file> -- three fields readable and last > fir
 WINDOW_RC=$?
 WINDOW_OK=1
 if window_usable "$OUT/probe-window.txt"; then
-  echo "  OK   window discovery reported a usable history line"
+  ok "  OK   window discovery reported a usable history line"
 else
   echo "  FAIL window discovery reported no usable history line"; fail=1; WINDOW_OK=0
 fi
@@ -975,7 +1129,7 @@ printf 'demo history packets=1 retainedLast=2 serverTickOrigin=3\n' > "$OUT/wind
 if window_usable "$OUT/window-doctored.txt"; then
   echo "  FAIL window self-test: a line without retainedFirst= was accepted"; fail=1
 else
-  echo "  OK   window self-test: a line without retainedFirst= is rejected"
+  ok "  OK   window self-test: a line without retainedFirst= is rejected"
 fi
 
 RETAINED_FIRST=$(window_field "$OUT/probe-window.txt" retainedFirst)
@@ -1318,7 +1472,7 @@ echo "  frame size: speed=1 ${SPEED1_SIZE:-<none>} speed=$SPEED ${ON_SIZE:-<none
 assert_eq "the speed=1 capture and the speed=$SPEED capture have the SAME frame size" \
   "${SPEED1_SIZE:-<none>}" "${ON_SIZE:-<none>}"
 if cmp -s "$OUT/speed1.bmp" "$OUT/on.bmp"; then
-  echo "  OK   the frame is byte-identical at speed=1 and speed=${SPEED} (cmp)"
+  ok "  OK   the frame is byte-identical at speed=1 and speed=${SPEED} (cmp)"
 else
   echo "  FAIL --playback-speed CHANGES THE FRAME: the speed=1 capture and the speed=${SPEED}"
   echo "  capture of the same tick differ byte for byte. The harness knob is then a"
@@ -1361,14 +1515,14 @@ printf "1.0 gpu: overlay meshes prepared=0 of 9\n2.0 gpu: overlay meshes prepare
   > "$OUT/helper-tracefield.trace"
 HELPER_UPLOADED=$(trace_field "$OUT/helper-tracefield.trace" "gpu: overlay meshes prepared=" uploaded)
 if [ "$HELPER_UPLOADED" = "9" ]; then
-  echo "  OK   trace_field skips a prefix-sharing line that lacks the field"
+  ok "  OK   trace_field skips a prefix-sharing line that lacks the field"
 else
   echo "  FAIL trace_field took the wrong line: got '${HELPER_UPLOADED:-<empty>}' instead of 9"
   fail=1
 fi
 HELPER_SUBMITTED=$(outline_value "$OUT/helper-selftest.trace" submitted)
 if [ "$HELPER_SUBMITTED" = "3" ]; then
-  echo "  OK   outline_value reads the product line shape (timestamp prefix, k=v tokens)"
+  ok "  OK   outline_value reads the product line shape (timestamp prefix, k=v tokens)"
 else
   echo "  FAIL outline_value cannot read a timestamped trace line: got '${HELPER_SUBMITTED:-<empty>}' instead of 3"
   fail=1
@@ -1702,7 +1856,7 @@ NI_IN=$(echo "$NI" | grep -o "diff_inside=[0-9]*" | cut -d= -f2)
 NI_TOTAL=$(( ${NI_OUT:-0} + ${NI_IN:-0} ))
 NI_LIMIT=$(( 1264 * 681 / 50 ))
 if [ "$NI_TOTAL" -lt "$NI_LIMIT" ]; then
-  echo "  OK   precondition: the two runs saw the same scene (${NI_TOTAL} differing pixels < 2% of the frame)"
+  ok "  OK   precondition: the two runs saw the same scene (${NI_TOTAL} differing pixels < 2% of the frame)"
 else
   echo "  FAIL precondition: the two runs did not see the same scene (${NI_TOTAL} >= ${NI_LIMIT} differing pixels)"
   echo "       every region assertion below measures the camera, not the overlay, so this run proves nothing"
@@ -1871,7 +2025,7 @@ DEPTH_TICK=$(grep -a "capture: armed" "$OUT/worlddepth.trace" 2>/dev/null | tail
 DEPTH_OK=1
 assert_eq "world-depth run rc" "$DEPTH_RC" "0"
 if [ "${DEPTH_TICK:-none}" = "$TICK" ]; then
-  echo "  OK   the depth capture reached the requested tick ($TICK)"
+  ok "  OK   the depth capture reached the requested tick ($TICK)"
 else
   LAST_SCENE=$(grep -a "scene: begin tick=" "$OUT/worlddepth.trace" 2>/dev/null | tail -1 | sed -n 's/.*tick=\([0-9]*\).*/\1/p')
   echo "  FAIL capture never reached tick $TICK (last scene tick ${LAST_SCENE:-none};"
@@ -1883,25 +2037,25 @@ DEPTH_NONGREY=$(depth_stat nonGreyPct)
 DEPTH_NONZERO=$(depth_stat nonzeroPct)
 DEPTH_UNIQUE=$(depth_stat uniqueSampled)
 if [ "${DEPTH_BYTES:-0}" -ge 100000 ] 2>/dev/null; then
-  echo "  OK   depth image bytes written = $DEPTH_BYTES (>= 100000)"
+  ok "  OK   depth image bytes written = $DEPTH_BYTES (>= 100000)"
 else
   echo "  FAIL depth image bytes written = ${DEPTH_BYTES:-<none>}, expected >= 100000"
   fail=1; DEPTH_OK=0
 fi
 case "${DEPTH_NONGREY:-1}" in
-  0|0.0|0.00) echo "  OK   the depth image is a scalar image (0% non-grey)" ;;
+  0|0.0|0.00) ok "  OK   the depth image is a scalar image (0% non-grey)" ;;
   *) echo "  FAIL the depth image is not a depth image: ${DEPTH_NONGREY:-<none>}% of pixels carry colour"
      echo "       (the world shader writes one value into R, G and B; a colour frame of this scene is ~17%)"
      fail=1; DEPTH_OK=0 ;;
 esac
 if [ "${DEPTH_NONZERO%%.*}" -ge 1 ] 2>/dev/null; then
-  echo "  OK   the depth image has geometry in it (${DEPTH_NONZERO}% of pixels are not black)"
+  ok "  OK   the depth image has geometry in it (${DEPTH_NONZERO}% of pixels are not black)"
 else
   echo "  FAIL the depth image is blank: ${DEPTH_NONZERO:-<none>}% of pixels are not black, expected >= 1%"
   fail=1; DEPTH_OK=0
 fi
 if [ "${DEPTH_UNIQUE:-0}" -ge 2 ] 2>/dev/null; then
-  echo "  OK   the depth image carries more than one sampled depth value ($DEPTH_UNIQUE)"
+  ok "  OK   the depth image carries more than one sampled depth value ($DEPTH_UNIQUE)"
 else
   echo "  FAIL the depth image is one value (${DEPTH_UNIQUE:-none} sampled): nothing was rendered"
   fail=1; DEPTH_OK=0
@@ -1923,20 +2077,20 @@ PGM_DISTINCT=$(pgm_stat distinct)
 PGM_MIN=$(pgm_stat min)
 PGM_MAX=$(pgm_stat max)
 if [ "${PGM_BYTES:-0}" -ge 100000 ] 2>/dev/null; then
-  echo "  OK   capture-depth bytes written = $PGM_BYTES (>= 100000)"
+  ok "  OK   capture-depth bytes written = $PGM_BYTES (>= 100000)"
 else
   echo "  FAIL capture-depth bytes written = ${PGM_BYTES:-<none>}, expected >= 100000"
   echo "       (a depth capture that wrote no 16-bit image cannot prove occlusion at all)"
   fail=1; DEPTH_OK=0
 fi
 if [ "${PGM_WIDTH:-0}" -ge 800 ] && [ "${PGM_HEIGHT:-0}" -ge 600 ] 2>/dev/null; then
-  echo "  OK   capture-depth image size = ${PGM_WIDTH}x${PGM_HEIGHT}"
+  ok "  OK   capture-depth image size = ${PGM_WIDTH}x${PGM_HEIGHT}"
 else
   echo "  FAIL capture-depth image size = ${PGM_WIDTH:-none}x${PGM_HEIGHT:-none}, expected the capture window"
   fail=1; DEPTH_OK=0
 fi
 if [ "${PGM_DISTINCT:-0}" -gt 256 ] 2>/dev/null; then
-  echo "  OK   capture-depth carries $PGM_DISTINCT distinct depths (> 256, so it is the buffer and not the 8-bit view)"
+  ok "  OK   capture-depth carries $PGM_DISTINCT distinct depths (> 256, so it is the buffer and not the 8-bit view)"
 else
   echo "  FAIL capture-depth carries ${PGM_DISTINCT:-none} distinct depths, expected > 256"
   echo "       (the 8-bit --world-depth view can only hold 256 values; a 'depth map' with"
@@ -1944,7 +2098,7 @@ else
   fail=1; DEPTH_OK=0
 fi
 if [ "${PGM_MAX:-0}" -gt "${PGM_MIN:-0}" ] 2>/dev/null; then
-  echo "  OK   capture-depth spans ${PGM_MIN}..${PGM_MAX} (near surface to the clear plane)"
+  ok "  OK   capture-depth spans ${PGM_MIN}..${PGM_MAX} (near surface to the clear plane)"
 else
   echo "  FAIL capture-depth spans ${PGM_MIN:-none}..${PGM_MAX:-none}: one value, nothing was drawn"
   fail=1; DEPTH_OK=0
@@ -2174,7 +2328,7 @@ PYEOF
       echo "  FAIL patch_in self-test: the file changed despite the failure"; rm -f "$tmp"; return 1
     fi
     rm -f "$tmp"
-    echo "  OK   patch_in stops the suite when an anchor no longer matches (rc=$rc, source untouched)"
+    ok "  OK   patch_in stops the suite when an anchor no longer matches (rc=$rc, source untouched)"
     return 0
   }
 
@@ -2246,7 +2400,7 @@ PYEOF
     echo "  MUTATION-META FAIL: an invalid mutant was not counted as a suite failure"
     mut_fail=1
   else
-    echo "  OK   a source that does not compile reads MUTATION-INVALID and fails the run"
+    ok "  OK   a source that does not compile reads MUTATION-INVALID and fails the run"
   fi
   # The failure was EXPECTED, so its accounting is put back: this case proves the
   # guard fires; it is not itself a broken mutation.
@@ -2790,6 +2944,16 @@ if [ -s "$HARNESS_UNKNOWN_LOG" ]; then
 fi
 rm -f "$HARNESS_UNKNOWN_LOG" 2>/dev/null
 
+# D-72 (D68-SCAN K3): floor = 150, i.e. 82% of the 184 OK lines measured once.
+# The 184 did NOT come from these bytes:
+#   grep -c "^  OK " /d/_shared/EXEC-2026-11-09/t63/logs/layer-a-run.log  ->  184
+# That log was produced on 2026-11-09 by the PRE-D-72 script (HEAD blob a5d230b2,
+# materialised CRLF as sha256 352abfad). THIS file is a5d230b2 plus the D-72 floor
+# patch and its self-tests, and no full run has measured it: the post-patch
+# assertion count is UNKNOWN until a full run is logged. The floor is a tripwire
+# inherited from the old reading, not a claim about this version.
+assertion_floor "$NASSERT"
+echo "  assertions=$NASSERT (floor $OUTLINE_ASSERTION_FLOOR, measured 184 on 2026-11-09)"
 if [ "$fail" = "0" ]; then
   echo "OUTLINE-CHECK=PASS"
 else
