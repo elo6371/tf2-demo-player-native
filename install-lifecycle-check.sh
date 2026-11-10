@@ -67,16 +67,31 @@
 # USAGE
 #   bash install-lifecycle-check.sh --forward  <out-dir>
 #   bash install-lifecycle-check.sh --mutation <out-dir>   (forward must have run)
+#   bash install-lifecycle-check.sh --prereq-only <out-dir> (D-91: the install set
+#       check alone, so the refusal path can be exercised without a build)
 # Exit 0 = every assertion held / every mutation was caught; 1 = a red reading;
-# 2 = usage; 90 = MUTATION-NOT-LINKED (a fixture would exercise the reference
+# 2 = usage; 3 = PREREQUISITE-FAIL (the install set is incomplete, so nothing was
+# staged; D-91); 90 = MUTATION-NOT-LINKED (a fixture would exercise the reference
 # binary, so the mutation proves nothing about itself).
+#
+# D-91: THE INSTALL SET IS CHECKED BEFORE ANY CASE RUNS.
+#   When the build directory is missing one member of the install set, every one
+#   of the 162 assertions downstream used to fail for the same reason: the
+#   package was short a file, so counts, manifests and readings all disagreed at
+#   once and the gate printed a wall of red that said nothing about the code.
+#   That is a prerequisite, not 162 defects. check_prerequisites() hashes every
+#   member of the install set (the names tf2-package.cmake installs, plus the two
+#   probe binaries the readings need) and refuses with one PREREQUISITE-FAIL line
+#   and exit 3 before section 1/15. TF2_INSTALL_BUILD=<dir> points the check at a
+#   stand-in tree so the refusal itself can be exercised; --mutation refuses that
+#   variable, because a mutation must run the build it just made.
 
 set -uo pipefail
 
 MODE="${1:---forward}"
 OUT_ARG="${2:-}"
-if [ "$MODE" != "--forward" ] && [ "$MODE" != "--mutation" ]; then
-  echo "usage: $0 --forward|--mutation <out-dir>"; exit 2
+if [ "$MODE" != "--forward" ] && [ "$MODE" != "--mutation" ] && [ "$MODE" != "--prereq-only" ]; then
+  echo "usage: $0 --forward|--mutation|--prereq-only <out-dir>"; exit 2
 fi
 if [ -z "$OUT_ARG" ]; then echo "usage: $0 $MODE <out-dir>"; exit 2; fi
 
@@ -86,7 +101,14 @@ mkdir -p "$OUT_ARG"
 OUT="$(cd "$OUT_ARG" && pwd)"
 mkdir -p "$OUT/logs"
 
-BUILD="$REPO/native/build-nmake"
+# D-91: the build directory can be pointed elsewhere so the prerequisite refusal
+# can be exercised against a stand-in tree; a mutation never may, because it
+# rebuilds and then runs what it built.
+BUILD="${TF2_INSTALL_BUILD:-$REPO/native/build-nmake}"
+if [ -n "${TF2_INSTALL_BUILD:-}" ] && [ "$MODE" = "--mutation" ]; then
+  echo "TF2_INSTALL_BUILD is for prerequisite controls only; --mutation must run the real build" >&2
+  exit 2
+fi
 EXE="$BUILD/tf2_demo_native.exe"
 PROBE="$BUILD/install_cli_probe.exe"
 
@@ -123,6 +145,69 @@ REAL_DEMO="$TF_ROOT/demos/autorecord_2026-07-02_13-26-46.dem"
 BSP_SOURCE="$TF_ROOT/maps/itemtest.bsp"
 TITLE_CAPTURE="$REPO/title-capture.ps1"
 FIXTURES_PY="$REPO/install-lifecycle-fixtures.py"
+
+# ---- D-91 install set -------------------------------------------------------
+# The members tf2-package.cmake installs, plus the two probe binaries the
+# readings need. Keeping the list in one function means the check and the message
+# can never disagree about what "complete" means.
+install_set_members() { # name<TAB>path
+  printf '%s\t%s\n' \
+    "tf2_demo_native.exe"            "$EXE" \
+    "tf2_demo_native.identity"       "$BUILD/tf2_demo_native.identity" \
+    "native_install_smoke_probe.exe" "$BUILD/native_install_smoke_probe.exe" \
+    "install_smoke_probe.ps1"        "$REPO/native/tools/install_smoke_probe.ps1" \
+    "WebView2Loader.dll"             "$REPO/native/third_party/webview2/x64/WebView2Loader.dll" \
+    "install_cli_probe.exe"          "$PROBE" \
+    "vpk_query.exe"                  "$VPK_QUERY"
+}
+
+check_prerequisites() { # <reason> ; 0 = every member present, 3 = missing
+  local reason="$1" name path size sha content missing="" count=0 present=0
+  local inv="$OUT/logs/prerequisite.txt"
+  mkdir -p "$OUT/logs"
+  {
+    echo "# D-91 prerequisite inventory ($reason)"
+    echo "# one line per member of the install set, hashed before anything is staged"
+  } > "$inv"
+  while IFS=$'\t' read -r name path; do
+    [ -n "$name" ] || continue
+    count=$((count + 1))
+    if [ ! -f "$path" ]; then
+      missing="${missing}${missing:+,}$name"
+      printf 'PREREQUISITE missing %s path=%s\n' "$name" "$path" >> "$inv"
+      continue
+    fi
+    size="$(wc -c < "$path" | tr -d ' ')"
+    if [ "${size:-0}" -le 0 ]; then
+      missing="${missing}${missing:+,}$name"
+      printf 'PREREQUISITE empty %s bytes=0 path=%s\n' "$name" "$path" >> "$inv"
+      continue
+    fi
+    sha="$(sha256sum "$path" 2>/dev/null | cut -d' ' -f1)"
+    printf 'PREREQUISITE ok %s bytes=%s sha256=%s path=%s\n' "$name" "$size" "$sha" "$path" >> "$inv"
+    present=$((present + 1))
+  done < <(install_set_members)
+  # A sidecar with no content hash would produce the same wall of red one layer
+  # later: --version would print sourceContent= (empty) and every identity
+  # assertion downstream would fail. It is part of the prerequisite.
+  content="$(head_field "$BUILD/tf2_demo_native.identity" sourceContent)"
+  if ! printf '%s' "$content" | grep -qE '^[0-9a-f]{64}$'; then
+    missing="${missing}${missing:+,}tf2_demo_native.identity:sourceContent"
+    printf 'PREREQUISITE value tf2_demo_native.identity sourceContent=%s expected=64 hex digits\n' "${content:-<empty>}" >> "$inv"
+  else
+    printf 'PREREQUISITE value tf2_demo_native.identity sourceContent=%s ok\n' "$content" >> "$inv"
+  fi
+  if [ -n "$missing" ]; then
+    echo "PREREQUISITE-FAIL missing=$missing reason=$reason"
+    echo "  the install set is incomplete, so no package was staged and no case ran;"
+    echo "  this is a prerequisite failure, not one reading per missing file"
+    echo "  inventory: $inv"
+    echo "INSTALL-LIFECYCLE=PREREQUISITE-FAIL missing=$((count - present))"
+    return 3
+  fi
+  echo "  prerequisites present=$present/$count (inventory: $inv)"
+  return 0
+}
 
 CHECKS=0; FAIL=0; MUTATIONS=0
 sec() { echo; echo "=== $1 ==="; }
@@ -211,8 +296,25 @@ stage_package() { # <prefix> <log-name>
   return $rc
 }
 
+# ================================================================ prereq only
+if [ "$MODE" = "--prereq-only" ]; then
+prereq_rc=0
+check_prerequisites "prereq-only" || prereq_rc=$?
+if [ "$prereq_rc" -eq 0 ]; then
+  echo "  INSTALL-LIFECYCLE-PREREQ=PASS members=$(install_set_members | wc -l | tr -d ' ')"
+fi
+exit "$prereq_rc"
+fi
+
 # ===================================================================== forward
 if [ "$MODE" = "--forward" ]; then
+
+# D-91: before the first section, so a missing member cannot masquerade as 162
+# separate defects. The refusal is one line and exit 3, and the log then contains
+# no "=== 1/15" at all.
+prereq_rc=0
+check_prerequisites "forward" || prereq_rc=$?
+if [ "$prereq_rc" -ne 0 ]; then exit 3; fi
 
 sec "1/15 the package cmake --install produces"
 rc=0; stage_package "$OUT/stage" install || rc=$?
