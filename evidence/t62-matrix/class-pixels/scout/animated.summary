@@ -1,13 +1,13 @@
 tag=animated rc=0 view=textured frameTick=64161 sceneTick=74481
-147282.6 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
-27068.6 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
-27100.4 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
-27129.2 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
-27159.2 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
-27186.4 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
-40057.2 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
-58044.1 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
-123354.6 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
+139582.9 animsum: tick=74481 players=2 moving=2 idle=0 advanced=2 skipped=0 maxDeltaCycle=0.838676
+19393.7 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+19419.2 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+19444.5 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+19472.7 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+19494.5 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+32361.2 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
+50365.0 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
+115664.9 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
 anim: ent=10 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
 anim: ent=10 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
 anim: ent=11 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
@@ -39,9 +39,9 @@ anim: ent=8 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_
 anim: ent=8 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
 anim: ent=9 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
 anim: ent=9 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
-27238.5 gpu: world debug view=textured
-147285.4 capture: armed requested=64161 frame_tick=64161 frames=5292
-147282.8 scene: anim skinned=89 bindPose=7 matrices=364 gpuSkin=88/364 boneMismatch=25574 poseChanges=4681 targetInstances=3 targetPose=3 advances=4480 targetAdv=3 cycle=64950/52805 tick=74481 status=ok reason=run_PRIMARY
+19548.7 gpu: world debug view=textured
+139585.7 capture: armed requested=64161 frame_tick=64161 frames=7321
+139583.0 scene: anim skinned=89 bindPose=7 matrices=364 gpuSkin=88/364 boneMismatch=35473 poseChanges=4681 targetInstances=3 targetPose=3 advances=4480 targetAdv=3 cycle=89836/73332 tick=74481 status=ok reason=run_PRIMARY
 frame: bmp=animated.bmp sha256=4cf6098c37fa8761a20fa55e0c333fcfb50fc75a7b2b7538f1d4071249df2800
-frame: product sha256=ff49beac4fe2830361ce846f6434c84816f78d81b4442ad9aa83cf43d7b4499a
+frame: product sha256=c59157617ed1e9d64e4cebc020178e189f761121254308774385d502aea8639a
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=64161 speed=8 camera=2492.7,-1327.1,-54.0,4.1,0.0 flags=--player-animation

@@ -1,13 +1,13 @@
 tag=animated rc=0 view=textured frameTick=63000 sceneTick=72374
-151188.9 animsum: tick=72374 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
-33081.4 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
-33119.8 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
-33158.5 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
-33195.9 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
-33231.4 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
-46179.9 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
-64150.0 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
-129438.0 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
+137806.6 animsum: tick=72374 players=11 moving=0 idle=11 advanced=0 skipped=0 maxDeltaCycle=0.000000
+19789.5 anim: pick model=models/player/soldier.mdl idleSeq=10 idleLabel=AttackStand_PRIMARY movingSeq=201 movingLabel=run_PRIMARY
+19814.8 anim: pick model=models/player/sniper.mdl idleSeq=11 idleLabel=AttackStand_PRIMARY movingSeq=213 movingLabel=run_PRIMARY
+19840.8 anim: pick model=models/player/demo.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=147 movingLabel=run_PRIMARY
+19867.2 anim: pick model=models/player/medic.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=80 movingLabel=run_PRIMARY
+19891.1 anim: pick model=models/player/scout.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=212 movingLabel=run_PRIMARY
+32757.6 anim: pick model=models/player/heavy.mdl idleSeq=16 idleLabel=AttackStand_SECONDARY movingSeq=115 movingLabel=run_PRIMARY
+50740.7 anim: pick model=models/player/engineer.mdl idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY
+116057.5 anim: pick model=models/player/spy.mdl idleSeq=10 idleLabel=AttackStand_SECONDARY movingSeq=145 movingLabel=run_SECONDARY
 anim: ent=10 model=models/player/scout.mdl state=idle seq=9 label=AttackStand_PRIMARY
 anim: ent=10 model=models/player/scout.mdl state=moving seq=212 label=run_PRIMARY
 anim: ent=11 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
@@ -39,9 +39,9 @@ anim: ent=8 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_
 anim: ent=8 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
 anim: ent=9 model=models/player/soldier.mdl state=idle seq=10 label=AttackStand_PRIMARY
 anim: ent=9 model=models/player/soldier.mdl state=moving seq=201 label=run_PRIMARY
-33315.9 gpu: world debug view=textured
-151191.1 capture: armed requested=63000 frame_tick=63000 frames=5646
-151189.1 scene: anim skinned=90 bindPose=6 matrices=1103 gpuSkin=89/1103 boneMismatch=27456 poseChanges=4508 targetInstances=2 targetPose=3 advances=4310 targetAdv=3 cycle=70004/57157 tick=72374 status=ok reason=AttackStand_PRIMARY
+19941.1 gpu: world debug view=textured
+137808.6 capture: armed requested=63000 frame_tick=63000 frames=7751
+137806.8 scene: anim skinned=90 bindPose=6 matrices=1103 gpuSkin=89/1103 boneMismatch=37694 poseChanges=4508 targetInstances=2 targetPose=3 advances=4310 targetAdv=3 cycle=95583/78008 tick=72374 status=ok reason=AttackStand_PRIMARY
 frame: bmp=animated.bmp sha256=3b0dcba565ae4efa54a6b6c00a99f301f5ee7c068f6a03795b2036dcd0c17565
-frame: product sha256=ff49beac4fe2830361ce846f6434c84816f78d81b4442ad9aa83cf43d7b4499a
+frame: product sha256=c59157617ed1e9d64e4cebc020178e189f761121254308774385d502aea8639a
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem tick=63000 speed=8 camera=3390.0,-1764.5,-254.0,4.1,0.0 flags=--player-animation

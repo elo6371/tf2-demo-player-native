@@ -20,7 +20,7 @@ frame: bmp identity-2 sha256=ecd578e7a5f516268d0184c0e45b7ef14ed6baa991923a4a6c1
 frame: bmp off sha256=a7f46f9625115b385af7212a76f96a93b2f2ea7c868b25b866849b3af3ce5945
 frame: identity capture twice byte-identical=yes
 frame: phase identity=maxDeltaCycle=0.000000 identity-2=maxDeltaCycle=0.000000 animated=maxDeltaCycle=0.000000 off=n/a
-frame: product sha256=ff49beac4fe2830361ce846f6434c84816f78d81b4442ad9aa83cf43d7b4499a
+frame: product sha256=c59157617ed1e9d64e4cebc020178e189f761121254308774385d502aea8639a
 frame: request demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
 frame: request tick=64000 speed=8
 frame: request camera=4529.4,-2001.4,-30.0,4.1,0.0
