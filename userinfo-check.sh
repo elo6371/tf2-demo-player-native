@@ -112,7 +112,7 @@ assert_same_file() {
   fi
 }
 count_rows() {
-  grep -c "^$1" "$2" 2>/dev/null || true
+  grep -c -- "$1" "$2" 2>/dev/null || true
 }
 
 if [ ! -x "$PROBE" ]; then
@@ -135,6 +135,14 @@ fi
 printf 'PROBE=%s sha256=%s\n' "$PROBE" "$(sha256sum "$PROBE" | cut -d' ' -f1)"
 printf 'GATE=%s sha256=%s\n' "$0" "$(sha256sum "$0" | cut -d' ' -f1)"
 printf 'HEAD=%s branch=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse --abbrev-ref HEAD)"
+
+# The row counter is how this gate reads "how many rows came back", and both of
+# its callers pass patterns that already carry their own anchor. This is the
+# bootstrap for that: with the counter broken every count reads 0, and an
+# assertion written as a lower bound would read 0 as "nothing to check" (D-68).
+printf '0\ta\n1\tb\n' > "$OUT/self-test-rows.txt"
+assert_eq "gate self-test: the row counter counts anchored patterns" \
+  "$(count_rows '^[0-9]' "$OUT/self-test-rows.txt")" "2"
 
 # --- fixtures ---------------------------------------------------------------
 # Synthetic bit-exact svc_CreateStringTable messages for the "userinfo" table.
