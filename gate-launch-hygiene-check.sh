@@ -34,6 +34,14 @@
 #     "$@" is judged by the literal flags in its own body.
 #   - Whether the run ACTUALLY stays isolated at runtime; this gate is a static
 #     ratchet and must be paired with verify-release.sh's machine-isolation step.
+#   - A command BUILT at run time (D-76). Six gates wrap a launch as
+#     cmd=$(printf %q ... "$PRODUCT" ...); bash -c "$cmd" -- the tokenizer sees
+#     no exe in command position, so the launch was invisible. It is now a WARN
+#     line per site instead of silence (fog-check.sh:613, world-geometry-budget-
+#     check.sh:158, map-geometry-lighting-check.sh:273 as of 2026-11-10). Still not
+#     checked: the flags inside that string. WARN, not VIOLATION, because six
+#     scripts already have the shape and red lines would say the tree got worse
+#     when what got worse is this scanner's reach.
 #
 # USAGE
 #   bash gate-launch-hygiene-check.sh                   # check (0 PASS / 1 FAIL / 90 tool error)
@@ -236,12 +244,23 @@ def resolve_value(tok, assigns, at):
     if 'evidence/' in t or '/AppData/' in t or 'LOCALAPPDATA' in t: return 'shared'
     return 'isolated'
 
+# D-76: a command BUILT at run time. printf %q ... ; bash -c "$cmd" is how six
+# gates wrap a product launch, and the tokenizer below cannot see the exe inside
+# the string -- so the launch is neither a site nor a wrapped launch, and a gate
+# that forgot --settings-file would have been invisible rather than red. This is
+# a warning and not a violation on purpose: six scripts already have the shape and
+# turning that into six red lines would say the tree got worse when what got worse
+# is the SCANNER's reach. Make it a violation once every site is either visible or
+# recorded as exempt by name.
+DYN_EXEC=re.compile(r'(?:^|[;|&(]|\bthen\b|\bdo\b|\belse\b)\s*(?:bash|sh)\s+-c\s+["\']?\$')
+
 def scan_script(path):
     raw=open(path,encoding='utf-8',errors='replace').read().split('\n')
     logs=logical(raw); pvars,arrays,assigns=collect(logs)
-    sites=[]; wrapped=[]
-    if not pvars: return sites,wrapped
+    sites=[]; wrapped=[]; dynamic=[]
+    if not pvars: return sites,wrapped,dynamic
     for ln,t in logs:
+        if not t.lstrip().startswith('#') and DYN_EXEC.search(t): dynamic.append(ln)
         toks=shell_tokens(t)
         if not toks: continue
         fl=[tok_strip(x) for x in toks if tok_strip(x).startswith('--')]
@@ -274,13 +293,15 @@ def scan_script(path):
                     sites.append((ln,'array-def',bt,assigns))
     direct_lines=set(s[0] for s in sites)
     wrapped=[w for w in wrapped if w[0] not in direct_lines]
-    return sites,wrapped
+    return sites,wrapped,dynamic
 
 def main(root):
     scripts=sorted(f for f in os.listdir(root) if f.endswith('.sh') and os.path.isfile(os.path.join(root,f)))
     violations=[]; warnings=[]; lifecycle=[]; nlaunch=0; nsites=0
     for sc in scripts:
-        sites,wrapped=scan_script(os.path.join(root,sc))
+        sites,wrapped,dynamic=scan_script(os.path.join(root,sc))
+        for ln in dynamic:
+            warnings.append((sc,'L%d dynamic exec: bash -c "$var" builds the command at run time, so a product launch inside it is not statically checkable (D-76)'%ln))
         if not sites:
             # Wrapper launches (product path as an ARGUMENT, e.g. run_exe ...): not
             # asserted, but a wrapper that only drives --version/--install/
