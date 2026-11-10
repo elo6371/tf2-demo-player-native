@@ -394,6 +394,14 @@ if [ "$MUTATION" -eq 1 ]; then
   echo "MUTATION-CAUGHT=FAIL (expected 3 red lines, saw $bad)"
   exit 1
 fi
+# D-72 (D68-SCAN K3): floor = 38, i.e. 83% of the measured 46 (2026-11-09,
+# RUN13-VERIFY-ALL/verify-all.log). A focus case that stopped running used to
+# read exactly like a green run.
+# Reading taken with: grep -o 'OBSERVER-FOCUS=PASS (assertions_ok=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN13-VERIFY-ALL/verify-all.log | tail -1  ->  assertions_ok=46
+if [ "$ok" -lt 38 ]; then
+  echo "  FAIL assertions: only $ok assertions ran, below the floor 38 -- a focus case that stopped running reads like a green run (D-72)"
+  fail=1
+fi
 if [ "$fail" -eq 0 ]; then
   echo "OBSERVER-FOCUS=PASS (assertions_ok=$ok)"
 else
