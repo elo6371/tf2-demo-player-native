@@ -462,6 +462,32 @@ struct WorldTileReading {
 // re-deriving the camera, the projection or the lighting switches from
 // settings. Every field here is the value uploaded to the constant buffer for
 // the world pass; none of them is a preference.
+// T101 (2026-11-09): environment fog, as the world pass is told to draw it.
+// `start` and `end` are in MAP units, not box units: the world vertex buffer is
+// a normalised box (native_renderer_world.cpp:93-101 scales x/y by
+// worldHorizontalScale_ and z by spanZ/0.8), so the fog distance has to be
+// measured in the space the map's numbers were authored in. The two scales are
+// carried with the state and applied in the shader, so the conversion cannot
+// drift from the vertex conversion: both read the same two numbers.
+struct WorldFogState {
+  bool enabled = false;
+  float start = 0.0f;          // fogstart, map units
+  float end = 0.0f;            // fogend, map units
+  float maxDensity = 1.0f;     // fogmaxdensity
+  float color[3] = {1.0f, 1.0f, 1.0f};  // fogcolor, 0..1
+  // Where the numbers came from, so a trace can say "the map said this" rather
+  // than "the renderer decided this": "bsp", "cli", or "off".
+  std::string source;
+  std::string reason;
+};
+
+struct WorldFogUploadState {
+  WorldFogState fog;
+  float boxToMapXZ = 1.0f;     // 1 / worldHorizontalScale_
+  float boxToMapZ = 1.0f;      // worldSpanZ_ / 0.8
+  std::size_t verticesFogged = 0;
+};
+
 struct WorldShaderConstants {
   bool valid = false;
   float mvp[16] = {};              // row-major view * projection
@@ -478,6 +504,16 @@ struct WorldShaderConstants {
   int debugView = 0;
   int width = 0;
   int height = 0;
+  // T101: the fog the last frame uploaded. These are readings, not settings --
+  // they exist so a trace can state what the pixel shader was told, including
+  // the two box->map scales, without recomputing them from the map bounds.
+  bool fogEnabled = false;
+  float fogStart = 0.0f;
+  float fogEnd = 0.0f;
+  float fogMaxDensity = 0.0f;
+  float fogColor[3] = {};
+  float fogBoxToMapXZ = 1.0f;
+  float fogBoxToMapZ = 1.0f;
 };
 
 struct WorldMaterialSampleState {
@@ -1025,6 +1061,16 @@ public:
     worldSkyEnabled_ = enabled;
     if (!reason.empty()) worldSkyReason_ = reason;
   }
+  // T101: the environment fog. Called BEFORE uploadWorldGeometry, because the
+  // fog bit is written into the vertex feature mask there -- setting it after
+  // the upload would leave every vertex unmarked and the pass silently unfogged.
+  // An enabled state with start >= end is taken as written: the shader clamps
+  // the ramp denominator, so the frame is fogged and the trace shows the values,
+  // rather than the renderer deciding the map meant something else.
+  void setWorldFog(const WorldFogState& fog) { worldFog_ = fog; }
+  // What the last upload actually drew: the state, the two scales the shader
+  // multiplies by, and how many vertices carry the fog bit (0 when disabled).
+  WorldFogUploadState worldFogState() const;
   // The pvs verdict for the current camera cluster. An empty index list means
   // "draw everything"; a non-empty one is drawn indexed, so the hidden
   // triangles leave the rasteriser as well as the reading.
@@ -2132,6 +2178,12 @@ private:
   std::uint32_t worldBlendedTriangleCount_ = 0;
   std::uint32_t worldCutoutTriangleCount_ = 0;
   std::uint32_t worldBlendedBatchCount_ = 0;
+  // T101: the fog state the world pass was uploaded with, and how many vertices
+  // ended up carrying the fog bit. The count lives here rather than being
+  // recomputed by the caller so a trace reading it cannot disagree with the
+  // buffer that was uploaded.
+  WorldFogState worldFog_{};
+  std::size_t worldFogVertices_ = 0;
   RenderSettings settings_{};
   float cameraYaw_ = 0.0f;
   float cameraPitch_ = 0.36f;

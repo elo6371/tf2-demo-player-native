@@ -286,6 +286,15 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     std::string model;
     std::array<float, 3> origin{{0.0f, 0.0f, 0.0f}};
     bool hasOrigin = false;
+    // T101: env_fog_controller's keys, carried raw. They are matched by name and
+    // parsed after the block closes so that a key written before `classname`
+    // is not lost -- the dispatch below is order-dependent for that reason only.
+    std::string fogEnable;
+    std::string fogStart;
+    std::string fogEnd;
+    std::string fogMaxDensity;
+    std::string fogColor;
+    std::string fogBlend;
   };
   std::vector<RawBrushEntity> brushEntities;
   {
@@ -317,6 +326,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         }
         if (key == "classname") current.className = value;
         else if (key == "model") current.model = value;
+        else if (key == "fogenable") current.fogEnable = value;
+        else if (key == "fogstart") current.fogStart = value;
+        else if (key == "fogend") current.fogEnd = value;
+        else if (key == "fogmaxdensity") current.fogMaxDensity = value;
+        else if (key == "fogcolor") current.fogColor = value;
+        else if (key == "fogblend") current.fogBlend = value;
         else if (key == "origin") {
           // "x y z" in one quoted value. A key that does not parse is not an
           // origin: the model is then left in whatever space its vertices are
@@ -341,6 +356,58 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         }
       }
     }
+  }
+  // T101: the environment fog. One controller per map is the engine's rule; the
+  // first one found wins and a second would be a map this parser has not seen,
+  // so the row records which entity was read rather than silently averaging.
+  // Absent keys keep their struct defaults, and `enabled` is read off
+  // `fogenable` alone: an absent key reads as disabled, because inventing the
+  // engine's default for a map that did not say is the kind of guess this file
+  // has been burned by. All four authorised maps write it explicitly ("1").
+  for (std::size_t index = 0; index < brushEntities.size(); ++index) {
+    const auto& entity = brushEntities[index];
+    if (entity.className != "env_fog_controller") continue;
+    const auto number = [](const std::string& text, float* out) {
+      if (text.empty()) return false;
+      const char* p = text.c_str();
+      char* end = nullptr;
+      const float value = std::strtof(p, &end);
+      if (end == p || !std::isfinite(value)) return false;
+      *out = value;
+      return true;
+    };
+    const auto triple = [](const std::string& text, float* out) {
+      if (text.empty()) return false;
+      const char* p = text.c_str();
+      float values[3] = {0.0f, 0.0f, 0.0f};
+      for (int k = 0; k < 3; ++k) {
+        char* end = nullptr;
+        values[k] = std::strtof(p, &end);
+        if (end == p || !std::isfinite(values[k])) return false;
+        p = end;
+      }
+      out[0] = values[0]; out[1] = values[1]; out[2] = values[2];
+      return true;
+    };
+    BspFog fog;
+    fog.present = true;
+    fog.entityIndex = static_cast<int>(index);
+    fog.enabled = !entity.fogEnable.empty() && entity.fogEnable != "0";
+    number(entity.fogStart, &fog.start);
+    number(entity.fogEnd, &fog.end);
+    number(entity.fogMaxDensity, &fog.maxDensity);
+    float rgb[3] = {255.0f, 255.0f, 255.0f};
+    if (triple(entity.fogColor, rgb)) {
+      // The entity lump stores the colour as 0..255; the shader lerps in 0..1.
+      // A value outside the range is left as written rather than clamped here,
+      // because this is where the map is read, not where it is judged.
+      fog.color[0] = rgb[0] / 255.0f;
+      fog.color[1] = rgb[1] / 255.0f;
+      fog.color[2] = rgb[2] / 255.0f;
+    }
+    fog.blend = entity.fogBlend == "1";
+    map.fog = fog;
+    break;
   }
   const std::size_t modelCount = models.size() / 48;
   std::vector<std::string> modelClassName(modelCount);

@@ -209,6 +209,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldBumpFeature_ = WorldFeatureState{};
   worldBump2Feature_ = WorldFeatureState{};
   worldDetailFeature_ = WorldFeatureState{};
+  // T101: the fog vertex reading is per upload too. A frame that did not fog must
+  // not inherit the previous frame's count, and "0 vertices carried the bit"
+  // is exactly the structural evidence the disabled pass needs.
+  worldFogVertices_ = 0;
   // T96: the alpha readings are per upload too, for the same reason.
   worldBlendedTriangleCount_ = 0;
   worldCutoutTriangleCount_ = 0;
@@ -620,6 +624,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   // terrain filter drops a triangle, and in that mode no batch is built at all
   // (see below), so the two never disagree where it matters.
   std::size_t uploadedTriangle = 0;
+  // T101: how many vertices carry the fog bit in THIS upload. Declared here, next
+  // to the ordinal it is read beside, because the single-material overload above
+  // has its own copy of the same locals and a shared name would be two counters.
+  std::size_t fogVertices = 0;
   for (const auto& triangle : map.triangles) {
     // T12: the terrain-only frame. The bounds above were taken over every
     // triangle on purpose, so filtering here leaves the terrain at exactly the
@@ -821,6 +829,18 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       // status read Active, and most of the map sampled nothing.
       if (triangle.lightmapped) { a.lu = triangle.alu; a.lv = triangle.alv; b.lu = triangle.blu; b.lv = triangle.blv; c.lu = triangle.clu; c.lv = triangle.clv; }
     }
+    // T101: the fog bit, after both the tiled and the untiled branch so it lands
+    // on every triangle this pass draws -- an untiled material is still world
+    // brush geometry drawn by the world pass, and a fog that skipped exactly the
+    // surfaces the atlas refused would have a hole in the shape of a bug. The
+    // bit is the only fog condition decided here; the pass-level switch rides the
+    // constant's w, so a stale bit cannot fog an unfogged pass.
+    if (worldFog_.enabled) {
+      a.featureMask = static_cast<float>(static_cast<int>(a.featureMask) | 32);
+      b.featureMask = static_cast<float>(static_cast<int>(b.featureMask) | 32);
+      c.featureMask = static_cast<float>(static_cast<int>(c.featureMask) | 32);
+      fogVertices += 3;
+    }
     // Counted off the vertex, not off the triangle: the pixel shader samples
     // the lightmap when lightUv.x >= 0.0, so a counter keyed on
     // triangle.lightmapped would keep reporting the intent after the uv had
@@ -1021,6 +1041,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   }
   worldDisplacedTriangleCount_ = static_cast<UINT>(displacedTriangles);
   worldWaterTriangleCount_ = static_cast<UINT>(waterTriangles);
+  // T101: the count the trace reports, taken from the loop that wrote the bits.
+  worldFogVertices_ = fogVertices;
   worldMinX_ = minX; worldMinY_ = minY; worldMinZ_ = minZ;
   worldMaxX_ = maxX; worldMaxY_ = maxY; worldMaxZ_ = maxZ;
   worldCenterX_ = centerX; worldCenterY_ = centerY;

@@ -2330,6 +2330,15 @@ bool outlineVertexExtent = false;
   // something different.
   bool worldSkyRequested = true;
   bool worldSkyGiven = false;
+  // T101: the environment fog is OFF by default -- it is a new pass feature, and
+  // a default that changes pixels is a default that has to be argued for. The
+  // numbers themselves come from the map's env_fog_controller (displayMap.fog);
+  // --fog-start/--fog-end exist so a gate can pin values without editing the map.
+  bool worldFogGiven = false;
+  bool worldFogStartGiven = false;
+  bool worldFogEndGiven = false;
+  float worldFogStartOverride = 0.0f;
+  float worldFogEndOverride = 0.0f;
   bool worldVisClipRequested = true;
   bool worldVisClipGiven = false;
   // T10 diagnostic: the world pass rasterises with back-face culling by
@@ -2630,6 +2639,23 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--start-paused") == 0) { startPaused = true; continue; }
       if (wcscmp(arguments[i], L"--vsync") == 0) { persistent.render.vsync = true; continue; }
       if (wcscmp(arguments[i], L"--no-vsync") == 0) { persistent.render.vsync = false; continue; }
+      // T101: the fog switches, in the same pre-ladder block and for the same
+      // reason -- each one only sets a local. Two of them take a value, which the
+      // note above did not anticipate; they are consumed here rather than in the
+      // ladder because the ladder is where the next reader will be editing, and
+      // a flag that is not consumed anywhere is an unrecognised argument (pushed
+      // at main.cpp:3133, refused by --strict-args at main.cpp:3173).
+      if (wcscmp(arguments[i], L"--world-fog") == 0) { worldFogGiven = true; continue; }
+      if (wcscmp(arguments[i], L"--fog-start") == 0 && i + 1 < argumentCount) {
+        worldFogStartOverride = static_cast<float>(_wtof(arguments[++i]));
+        worldFogStartGiven = true;
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--fog-end") == 0 && i + 1 < argumentCount) {
+        worldFogEndOverride = static_cast<float>(_wtof(arguments[++i]));
+        worldFogEndGiven = true;
+        continue;
+      }
       // The hermeticity pair is taken by the pre-scan at main.cpp:1898-1920, which has
       // to run before the settings are loaded; the loop consumes it here as a KNOWN
       // flag. Without this the D-23 counter would report the flags every gate passes
@@ -7039,6 +7065,55 @@ bool outlineVertexExtent = false;
     renderer.setWorldBump2Enabled(persistent.render.bumpMap2 && persistent.render.materialBump);
     renderer.setWorldBump2Diagnostic(worldBump2Diagnostic);
     renderer.setWorldDetailEnabled(persistent.render.detailLayer);
+    // ---- T101: the environment fog -----------------------------------------
+    // Read here -- before the upload, and after every other switch that decides
+    // what the buffer contains -- because the fog bit is written into the vertex
+    // feature mask during uploadWorldGeometry. A state set after the upload would
+    // mark no vertex and the pass would be silently unfogged, which is the exact
+    // failure mode this comment exists to prevent.
+    //
+    // The numbers are the map's own (displayMap.fog, parsed from the entity lump),
+    // with --fog-start/--fog-end as overrides so a gate can pin values without
+    // editing a map. The pass is OFF unless --world-fog is given and the world
+    // geometry is unfiltered: in terrain/sky mode the drawn set is not the map,
+    // and a fog over a diagnostic subset is a picture of the flag.
+    //
+    // COVERAGE LIMIT, first version: world brush geometry only. Entity models,
+    // the third-person weapon and the sky box are not fogged, and the trace line
+    // below carries passes=world-brush-only so the limit travels with the claim.
+    {
+      tf2::native::WorldFogState fog;
+      const bool geometryAll = worldGeometry == WorldGeometryFilter::All;
+      const bool mapHasFog = displayMap.fog.present && displayMap.fog.enabled;
+      fog.enabled = worldFogGiven && geometryAll && mapHasFog;
+      fog.start = displayMap.fog.start;
+      fog.end = displayMap.fog.end;
+      fog.maxDensity = displayMap.fog.maxDensity;
+      fog.color[0] = displayMap.fog.color[0];
+      fog.color[1] = displayMap.fog.color[1];
+      fog.color[2] = displayMap.fog.color[2];
+      if (worldFogStartGiven) fog.start = worldFogStartOverride;
+      if (worldFogEndGiven) fog.end = worldFogEndOverride;
+      if (!worldFogGiven) {
+        fog.source = "off";
+        fog.reason = "default off; --world-fog turns it on";
+      } else if (!geometryAll) {
+        fog.source = "off";
+        fog.reason = "world geometry is filtered, so the fogged set is not the map";
+      } else if (!mapHasFog) {
+        fog.source = "off";
+        fog.reason = displayMap.fog.present
+          ? "the map's env_fog_controller has fogenable 0"
+          : "no env_fog_controller in the entity lump";
+      } else {
+        fog.source = (worldFogStartGiven || worldFogEndGiven) ? "cli" : "bsp";
+        // The map asking for bilateral fog is not a failure of this pass; it is a
+        // limitation that has to be visible in the reading rather than in a doc.
+        fog.reason = displayMap.fog.blend
+          ? "the map also sets fogblend (bilateral fog), which is not implemented" : "";
+      }
+      renderer.setWorldFog(fog);
+    }
     if (worldGeometry == WorldGeometryFilter::None) {
       // Nothing is uploaded, so no world vertex buffer exists and the world
       // draw's own guard skips it. That frame is the background measurement the
@@ -7065,6 +7140,25 @@ bool outlineVertexExtent = false;
         : worldGeometry == WorldGeometryFilter::Sky ? "sky"
         : worldGeometry == WorldGeometryFilter::None ? "none" : "all",
       (worldBlendGiven ? worldBlendRequested : true) ? "on" : "off");
+    // T101: the fog reading, after the upload so verticesFogged is the number the
+    // buffer actually carries. featureMaskFogBit=32 is printed as a constant on
+    // purpose: the disabled pass must read verticesFogged=0 AND no vertex may
+    // carry that bit, which is a stronger statement than "the shader branch did
+    // not run" and is what the disabled control asserts against.
+    {
+      const auto fogState = renderer.worldFogState();
+      const int fogR = static_cast<int>(fogState.fog.color[0] * 255.0f + 0.5f);
+      const int fogG = static_cast<int>(fogState.fog.color[1] * 255.0f + 0.5f);
+      const int fogB = static_cast<int>(fogState.fog.color[2] * 255.0f + 0.5f);
+      traceFmt("gpu: world fog enabled=%d start=%.2f end=%.2f maxdensity=%.3f color=%d,%d,%d"
+        " boxScaleXZ=%.6f boxScaleZ=%.6f verticesFogged=%zu featureMaskFogBit=32"
+        " source=%s passes=world-brush-only reason=%s",
+        fogState.fog.enabled ? 1 : 0, fogState.fog.start, fogState.fog.end,
+        fogState.fog.maxDensity, fogR, fogG, fogB,
+        fogState.boxToMapXZ, fogState.boxToMapZ, fogState.verticesFogged,
+        fogState.fog.source.empty() ? "-" : fogState.fog.source.c_str(),
+        fogState.fog.reason.empty() ? "-" : fogState.fog.reason.c_str());
+    }
     // ---- T2 (2026-10-14): the water surface --------------------------------
     // The water triangles are taken out of the world buffer and uploaded as
     // their own draw. This is deliberately NOT a split of the world buffer: the

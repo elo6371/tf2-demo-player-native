@@ -93,6 +93,28 @@ struct BspRefusedBrushModel {
   bool moving = false;           // true: skippedMoving; false: unknown classname
 };
 
+// T101 (2026-11-09): the map's environment fog, as the entity lump declares it.
+// `env_fog_controller` is a POINT entity -- no `model` key, so the brush walk
+// never looked at it -- and before this struct none of its keys reached memory:
+// the entity parser keeps classname/model/origin and drops the rest. The values
+// are in MAP units (fogstart/fogend), 0..255 (fogcolor), and the engine reads
+// them as the controller's INITIAL state -- `foglerptime` says the demo can move
+// them at run time, so this is a starting value, not the whole truth.
+struct BspFog {
+  bool present = false;      // an env_fog_controller exists in lump 0
+  bool enabled = false;      // its fogenable key is present and not "0"
+  float start = 0.0f;        // fogstart, map units
+  float end = 0.0f;          // fogend, map units
+  float maxDensity = 1.0f;   // fogmaxdensity
+  float color[3] = {1.0f, 1.0f, 1.0f};  // fogcolor, normalised to 0..1
+  // fogblend = 1 means the engine blends fogcolor toward fogcolor2 along
+  // fogdir -- a bilateral, direction-dependent fog this renderer does not
+  // implement. Carried so a reader can see the map asked for it rather than
+  // being told the fog is "done"; koth_bagel_rc11/rc12 both set it.
+  bool blend = false;
+  int entityIndex = -1;      // 0-based position in lump 0
+};
+
 struct BspMap {
   int version = 0;
   int revision = 0;
@@ -230,6 +252,10 @@ struct BspMap {
   // the world pass.
   std::vector<BspTriangle> skyTriangles;
   std::string skyName;
+  // T101: the environment fog the entity lump declares (see BspFog). Parsed
+  // regardless of the renderer's switch; whether it is drawn is a caller
+  // decision, so the reading exists before the capability does.
+  BspFog fog;
   std::size_t skyFaces = 0;
   std::size_t displacementFaces = 0;
   std::size_t displacementTriangles = 0;

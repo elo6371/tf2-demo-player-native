@@ -80,13 +80,19 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     DirectX::XMFLOAT4 materialFeatures;
     DirectX::XMFLOAT4 lightmapFeatures;
     DirectX::XMFLOAT4 envFeatures;
+    // T101: environment fog. fogParams = (start, end, maxDensity, enabled) in
+    // MAP units; fogScale converts a box-space delta to map-space so the shader
+    // measures distance in the units the map authored. See WorldFogState.
+    DirectX::XMFLOAT4 fogParams;
+    DirectX::XMFLOAT4 fogColor;
+    DirectX::XMFLOAT4 fogScale;
   };
   // T101: the constant buffer's ByteWidth (native_renderer.cpp) must equal this
   // size exactly -- UpdateSubresource copies ByteWidth bytes and says nothing
   // about the rest. It was 160 against this 144-byte struct, so every frame read
   // 16 bytes past the end. The comment that asked for the two to match was
   // already beside that number and did not hold; this assertion does.
-  static_assert(sizeof(WorldConstantsData) == 144,
+  static_assert(sizeof(WorldConstantsData) == 192,
     "WorldConstantsData must be exactly the world constant buffer's ByteWidth");
   WorldConstantsData frameConstants{};
   bool frameConstantsValid = false;
@@ -190,6 +196,23 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // only builds it when all six faces decoded.
     constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f,
       worldBump2Diagnostic_ ? 1.0f : 0.0f, 0.0f);
+    // T101: the fog, converted into the two spaces the shader needs in one place
+    // so the scales cannot drift from the vertex convert (which uses the same
+    // two members, native_renderer_world.cpp:93-101). When the pass was uploaded
+    // unfogged every value here is a no-op: enabled 0 keeps the shader branch
+    // closed, and scale 1.0 is finite even if something read a distance anyway.
+    // A disabled pass therefore uploads (0,0,0,0)/(1,1,1,0) and not garbage.
+    const float fogBoxToMapXZ = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
+      ? 1.0f / worldHorizontalScale_ : 1.0f;
+    const float fogBoxToMapZ = (std::isfinite(worldSpanZ_) && worldSpanZ_ > 0.0f)
+      ? worldSpanZ_ / 0.8f : 1.0f;
+    constants.fogParams = worldFog_.enabled
+      ? XMFLOAT4(worldFog_.start, worldFog_.end, worldFog_.maxDensity, 1.0f)
+      : XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+    constants.fogColor = worldFog_.enabled
+      ? XMFLOAT4(worldFog_.color[0], worldFog_.color[1], worldFog_.color[2], 1.0f)
+      : XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    constants.fogScale = XMFLOAT4(fogBoxToMapXZ, fogBoxToMapXZ, fogBoxToMapZ, 0.0f);
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
     frameConstantsValid = true;
     // T21: publish the same numbers for the face trace. Copied field by field
@@ -232,6 +255,16 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     worldShaderConstants_.debugView = worldDebugView_;
     worldShaderConstants_.width = static_cast<int>(width_);
     worldShaderConstants_.height = static_cast<int>(height_);
+    // T101: the fog readings, copied from the struct that was just uploaded.
+    worldShaderConstants_.fogEnabled = constants.fogParams.w > 0.5f;
+    worldShaderConstants_.fogStart = constants.fogParams.x;
+    worldShaderConstants_.fogEnd = constants.fogParams.y;
+    worldShaderConstants_.fogMaxDensity = constants.fogParams.z;
+    worldShaderConstants_.fogColor[0] = constants.fogColor.x;
+    worldShaderConstants_.fogColor[1] = constants.fogColor.y;
+    worldShaderConstants_.fogColor[2] = constants.fogColor.z;
+    worldShaderConstants_.fogBoxToMapXZ = constants.fogScale.x;
+    worldShaderConstants_.fogBoxToMapZ = constants.fogScale.z;
     // The sky box, first and with its own mvp: the same view and projection with
     // the translation removed, so the box stays centred on the camera and a
     // vertex's own direction is the direction the cube is sampled at. Drawn
@@ -247,10 +280,18 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         XMFLOAT4 materialFeatures;
         XMFLOAT4 lightmapFeatures;
         XMFLOAT4 envFeatures;
+        XMFLOAT4 fogParams;
+        XMFLOAT4 fogColor;
+        XMFLOAT4 fogScale;
       } skyConstants{};
       // T101: the sky's copy is uploaded into the SAME buffer, so it has the same
-      // required size -- see the note beside WorldConstantsData.
-      static_assert(sizeof(SkyConstantsData) == 144,
+      // required size -- see the note beside WorldConstantsData. The three fog
+      // blocks are written with explicit no-fog sentinels rather than left at
+      // whatever the initialiser left: the sky branch returns before the fog arm
+      // today, but a struct member that is "probably not read" is how the
+      // 144/160 over-read got in, and a zeroed fog params block is the same value
+      // the disabled world pass uploads.
+      static_assert(sizeof(SkyConstantsData) == 192,
         "SkyConstantsData must be exactly the world constant buffer's ByteWidth");
       XMMATRIX skyView = view;
       skyView.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
@@ -258,6 +299,11 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // Mode 3 is the sky branch in the pixel shader, and it is the only field
       // the branch reads: the box is lit by nothing and carries no lightmap uv.
       skyConstants.envFeatures = XMFLOAT4(3.0f, 0.0f, 0.0f, 0.0f);
+      // T101: explicit no-fog sentinels -- the same values a disabled world pass
+      // uploads. Nothing here is left to the zero-initialiser's accident.
+      skyConstants.fogParams = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      skyConstants.fogColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+      skyConstants.fogScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
       context_->UpdateSubresource(worldSkyConstants_.Get(), 0, nullptr, &skyConstants, 0, 0);
       const UINT skyStride = sizeof(WorldVertex), skyOffset = 0;
       auto* skyBuffer = worldSkyVertexBuffer_.Get();

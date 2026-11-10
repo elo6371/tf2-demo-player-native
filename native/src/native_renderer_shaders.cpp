@@ -30,6 +30,12 @@ cbuffer WorldConstants : register(b0) {
   float4 materialFeatures;
   float4 lightmapFeatures;
   float4 envFeatures;
+  // T101: environment fog. fogParams = (start, end, maxDensity, enabled) in map
+  // units; fogScale converts a box-space delta to map space. Copied verbatim
+  // into the pixel shader's cbuffer below -- the two blocks are the same buffer.
+  float4 fogParams;
+  float4 fogColor;
+  float4 fogScale;
 };
 struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
 struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
@@ -44,6 +50,9 @@ cbuffer WorldConstants : register(b0) {
   float4 materialFeatures;
   float4 lightmapFeatures;
   float4 envFeatures;
+  float4 fogParams;
+  float4 fogColor;
+  float4 fogScale;
 };
 Texture2D texture0 : register(t0);
 Texture2D bumpTexture : register(t1);
@@ -348,6 +357,27 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // vertex without bit 8 keeps 1.0, so the opaque frame is unchanged.
   if ((featureMask & 16u) != 0u && sampledTexel.a < 0.5) discard;
   const float outputAlpha = (featureMask & 8u) != 0u ? sampledTexel.a : 1.0f;
+  // T101: environment fog, on bit 32 (32/64/128 were free) AND on the constant
+  // itself. The vertex bit says "this surface is in the fogged set"; the
+  // constant's w says the pass is fogged at all. Both are required so a stale
+  // bit in a vertex buffer cannot fog a frame whose pass was uploaded unfogged,
+  // and so a disabled pass costs one integer test per pixel, not a branch into
+  // uninitialised values. Only the rgb is blended: alpha is what the $translucent
+  // path just decided, and fog is a colour it sits behind, not a transparency.
+  //
+  // The distance is measured in MAP units. worldPosition is the normalised box
+  // vertex (the vertex shader copies input.position straight through), so the
+  // delta is multiplied by the same two scales the vertex convert used
+  // (native_renderer_world.cpp:93-101): 1/horizontalScale for x/y, spanZ/0.8
+  // for z. One scalar would put the fog at a different depth in every map whose
+  // long axis is not 0.8 wide.
+  if ((featureMask & 32u) != 0u && fogParams.w > 0.5) {
+    float3 fogDelta = (cameraPositionAndSpecular.xyz - worldPosition) * fogScale.xyz;
+    float fogDistance = length(fogDelta);
+    float fogAmount = saturate((fogDistance - fogParams.x) / max(fogParams.y - fogParams.x, 1.0e-3));
+    fogAmount = min(fogAmount, fogParams.z);
+    return float4(lerp(albedo * lighting, fogColor.rgb, fogAmount), outputAlpha);
+  }
   return float4(albedo * lighting, outputAlpha);
 }
 )HLSL";

@@ -32,6 +32,11 @@ struct WorldVertex {
   // tiles it actually blitted, not from the VMT: a declared feature whose
   // texture did not resolve must not set a bit that makes the shader sample
   // the neutral filler and call it applied.
+  // T101 adds bit 5 (32) = environment fog, and it is deliberately the same
+  // kind of claim as the three above: set by the renderer only for vertices the
+  // fogged pass actually uploaded, so "the frame is fogged" and "this vertex is
+  // in the fogged set" stay two separate readings. The pass switch itself rides
+  // the constant's w, not this bit -- see the shader's fog arm.
   float featureMask = 0.0f;
   // `$detailblendmode` and `$detailblendfactor`, as the SDK's TextureCombine
   // reads them (`lightmappedgeneric_ps2_3_x.h` -> `common_ps_fxc.h`).

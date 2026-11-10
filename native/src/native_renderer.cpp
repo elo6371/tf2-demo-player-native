@@ -633,7 +633,7 @@ bool Renderer::createPipeline() {
       worldWaterRasterizerState_.GetAddressOf()))) return false;
   D3D11_BUFFER_DESC constantsDescription{};
   // ByteWidth must equal sizeof(WorldConstantsData) in drawFrame(): mvp (64
-  // bytes) plus five float4 blocks (80) is 144. It was 160 -- "rounded up so
+  // bytes) plus eight float4 blocks (128) is 192. It was 160 -- "rounded up so
   // the next block added does not quietly fall off the end" -- and that padding
   // was never harmless: UpdateSubresource copies ByteWidth bytes out of a
   // 144-byte struct, so every frame read 16 bytes past the end of it. The same
@@ -641,7 +641,12 @@ bool Renderer::createPipeline() {
   // stop *that* over-read either, which is why the invariant is now a
   // static_assert beside the struct (native_renderer_frame.cpp) and this number
   // is exactly the sizeof rather than a round number above it.
-  constantsDescription.ByteWidth = 144;
+  //
+  // T101 added the three fog blocks (fogParams, fogColor, fogScale) to the
+  // struct and this number together, in one commit, for the same reason: a
+  // field added without the ByteWidth is a field the constant buffer never
+  // carries, and a ByteWidth raised without a field is an over-read.
+  constantsDescription.ByteWidth = 192;
   constantsDescription.Usage = D3D11_USAGE_DEFAULT;
   constantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldConstants_.GetAddressOf()))) return false;
@@ -741,6 +746,24 @@ bool Renderer::createPipeline() {
     return false;
   }
   return true;
+}
+
+// T101: what the world pass was uploaded with. The two scales are derived from
+// the same members the vertex convert uses (native_renderer_world.cpp:93-101,
+// :188), which is the point: a caller that recomputed them could disagree with
+// the buffer, and then the fog would sit at a different depth than the geometry
+// it is fogging.
+WorldFogUploadState Renderer::worldFogState() const {
+  WorldFogUploadState state;
+  state.fog = worldFog_;
+  if (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f) {
+    state.boxToMapXZ = 1.0f / worldHorizontalScale_;
+  }
+  if (std::isfinite(worldSpanZ_) && worldSpanZ_ > 0.0f) {
+    state.boxToMapZ = worldSpanZ_ / 0.8f;
+  }
+  state.verticesFogged = worldFogVertices_;
+  return state;
 }
 
 bool Renderer::uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
