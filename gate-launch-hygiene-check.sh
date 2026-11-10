@@ -80,6 +80,21 @@
 #   CAND-A2 hygiene PASS was measured on b61af91, a tree from before that merge, and
 #   cannot be cited for the tree that carries it.
 #
+# D-93: the scan used to return early on any script that assigned no product
+#   variable (if not pvars: return), so a launcher that names the exe by a literal
+#   path -- native/build-nmake/tf2_demo_native.exe --demo x -- was never a site and
+#   'no violation' could not tell 'every launch is isolated' from 'the launcher was
+#   never looked at'. That early-out is gone. Two rules keep the wider scan honest:
+#     * a LITERAL token counts only when it carries a path or the .exe suffix, so
+#       the product NAME on its own (quoted) stays data -- this scanner's own python
+#       source contains three such fragments inside its heredoc, and without the
+#       rule the gate reports itself as an unisolated launch;
+#     * a script whose text never contains the product name is still skipped, which
+#       is what the early-out was really protecting: ~100 gates that never touch
+#       the exe. Measured on t105-e5 @ 801b0f1: launchers/sites/violations/warnings
+#       are unchanged (55/79/0/26), so D-93 only widens the population the scan
+#       looks at, it does not change the verdict on this tree.
+#
 # USAGE
 #   bash gate-launch-hygiene-check.sh                   # check (0 PASS / 1 FAIL / 90 tool error)
 #   bash gate-launch-hygiene-check.sh --update-baseline # rewrite baseline, print +/- rows
@@ -104,6 +119,14 @@
 #                                                       # fails, and a launcher hidden in
 #                                                       # $( ) inside the array is caught.
 #                                                       # No product, no lock, mktemp only.
+#   bash gate-launch-hygiene-check.sh --selftest-literal # D-93 controls: four mock trees
+#                                                       # proving a literal launch with no
+#                                                       # product variable is now a site and
+#                                                       # fails, a path outside command
+#                                                       # position is not a launch, the same
+#                                                       # launch with both flags passes, and
+#                                                       # a quoted product name stays data.
+#                                                       # No product, no lock, mktemp only.
 #
 # Last line is a machine token:
 #   GATE-LAUNCH-HYGIENE=PASS|FAIL violations=N baseline=M warnings=W lifecycle=K arrskipped=S pslaunch=A psunflagged=B
@@ -115,6 +138,7 @@ UPDATE=0
 FLOORS=1
 SELFTEST_PWSH=0
 SELFTEST_ARRAY=0
+SELFTEST_LITERAL=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) SCAN_ROOT="$(cd "$2" && pwd)"; shift 2;;
@@ -122,7 +146,8 @@ while [ $# -gt 0 ]; do
     --ignore-floors) FLOORS=0; shift;;
     --selftest-pwsh) SELFTEST_PWSH=1; shift;;
     --selftest-array) SELFTEST_ARRAY=1; shift;;
-    --help|-h) sed -n '2,109p' "$0"; exit 0;;
+    --selftest-literal) SELFTEST_LITERAL=1; shift;;
+    --help|-h) sed -n '2,132p' "$0"; exit 0;;
     *) echo "GATE-LAUNCH-HYGIENE=FAIL unknown argument: $1"; exit 2;;
   esac
 done
@@ -300,8 +325,94 @@ run_array_selftest() {
   return 0
 }
 
+# D-93 controls: the early-out that dropped a whole script when it assigned no
+# product variable. Four mock trees, no product, no lock, mktemp only.
+run_literal_selftest() {
+  local W; W=$(mktemp -d) || { echo "HYGIENE-LITERAL-SELFTEST=FAIL tool-error: mktemp"; return 90; }
+  local checks=0 fails=0 rc=0 exe_name d
+  exe_name=$(printf 'tf2_demo_%s.exe' native)
+
+  ok()   { checks=$((checks + 1)); printf '  OK   %s\n' "$1"; }
+  bad()  { checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL %s\n' "$1"; }
+  has()  { if grep -qaF "$3" "$2"; then ok "$1"; else bad "$1 (no: $3)"; fi; }
+  lacks(){ if grep -qaF "$3" "$2"; then bad "$1 (found: $3)"; else ok "$1"; fi; }
+  rcis() { if [ "$2" = "$3" ]; then ok "$1 (rc=$3)"; else bad "$1 (rc=$2, expected $3)"; fi; }
+
+  echo "=== gate-launch-hygiene selftest: a literal launch is a site (D-93), mock trees ==="
+
+  # L1: the script assigns NO product variable and launches the product at a literal
+  #     path without the two isolation flags. Before D-93 the scanner returned early
+  #     on this script, so the launch was not even a site and the tree was green.
+  d=$W/l1; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf 'native/build-nmake/%s --demo "$1" --audio-disabled --hidden-window\n' "$exe_name"
+  } > "$d/l1.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/l1.log" 2>&1; rc=$?
+  rcis "L1 a literal launch without isolation flags fails" "$rc" 1
+  has  "L1 the launch is a site, not an invisible script" "$W/l1.log" "sites=1"
+  has  "L1 the failure is named" "$W/l1.log" "new unisolated launch"
+  has  "L1 it names the script" "$W/l1.log" "l1.sh"
+
+  # L2: the product path appears only as a command ARGUMENT (sha256sum, [ -x ]).
+  #     Nothing executes it, so there is no site and no violation.
+  d=$W/l2; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf 'sha256sum native/build-nmake/%s\n' "$exe_name"
+    printf '[ -x native/build-nmake/%s ] && echo present\n' "$exe_name"
+  } > "$d/l2.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/l2.log" 2>&1; rc=$?
+  rcis "L2 a product path that is not a command word is not a launch" "$rc" 0
+  has  "L2 no site is recorded" "$W/l2.log" "sites=0"
+  lacks "L2 nothing is named as an unisolated launch" "$W/l2.log" "new unisolated launch"
+
+  # L3: the positive control -- the same literal launch WITH both flags is a site
+  #     and passes, so L1 fails on the missing flags and not on the shape.
+  d=$W/l3; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf 'native/build-nmake/%s --demo "$1" --settings-file "$PWD/s.ini" --ui-settings-file "$PWD/u.ini" --audio-disabled --hidden-window\n' "$exe_name"
+  } > "$d/l3.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/l3.log" 2>&1; rc=$?
+  rcis "L3 the same literal launch carrying both flags passes" "$rc" 0
+  has  "L3 it is still counted as a site" "$W/l3.log" "sites=1"
+  lacks "L3 no violation is raised" "$W/l3.log" "new unisolated launch"
+
+  # L4: the product NAME alone, quoted, is data. That is the shape this scanner's
+  #     own python source has inside its heredoc ('tf2_demo_native' in val ...), and
+  #     without the executable-path rule D-93 makes the gate flag itself.
+  d=$W/l4; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' "if 'tf2_demo_native' in \"\$line\"; then echo hit; fi"
+    printf 'echo "see native/build-nmake/%s"\n' "$exe_name"
+  } > "$d/l4.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/l4.log" 2>&1; rc=$?
+  rcis "L4 a quoted product name is data, not an executable" "$rc" 0
+  has  "L4 it produces no site" "$W/l4.log" "sites=0"
+  lacks "L4 it produces no violation" "$W/l4.log" "new unisolated launch"
+
+  echo
+  if [ "$fails" -ne 0 ]; then
+    echo "HYGIENE-LITERAL-SELFTEST=FAIL checks=$checks failures=$fails"
+    return 1
+  fi
+  echo "HYGIENE-LITERAL-SELFTEST=PASS checks=$checks"
+  return 0
+}
+
 if [ "$SELFTEST_PWSH" -eq 1 ]; then
   run_pwsh_selftest
+  exit $?
+fi
+
+if [ "$SELFTEST_LITERAL" -eq 1 ]; then
+  run_literal_selftest
   exit $?
 fi
 
@@ -432,7 +543,16 @@ def tok_strip(t):
 def token_is_product(tok,pvars):
     t=tok_strip(tok)
     if re.match(r'^[A-Za-z_]\w*=',t): return False
-    if 'tf2_demo_native' in t: return True
+    if 'tf2_demo_native' in t:
+        # D-93: a LITERAL only names an executable when it carries a path or the
+        # .exe suffix (native/build-nmake/tf2_demo_native.exe, tf2_demo_native.exe,
+        # .\\tf2_demo_native). The product NAME on its own, quoted, is a data
+        # fragment: this scanner's own python source has three of those
+        # ('tf2_demo_native' in val ...) inside a heredoc, and without this rule
+        # the D-93 early-out removal makes the gate report ITSELF as an unisolated
+        # launch, which is a false positive rather than a finding.
+        t2=t.replace('\\','/')
+        return ('/' in t2) or t2.lower().endswith('.exe')
     m=re.match(r'^\$\{?([A-Za-z_]\w*)\}?$',t)
     return bool(m and m.group(1) in pvars)
 
@@ -500,7 +620,16 @@ def scan_script(path):
     raw=open(path,encoding='utf-8',errors='replace').read().split('\n')
     logs=logical(raw); pvars,arrays,assigns,arr_body=collect(logs)
     sites=[]; wrapped=[]; dynamic=[]
-    if not pvars: return sites,wrapped,dynamic,len(arr_body)
+    # D-93: a script that assigns no product variable can still launch the product at
+    # a literal path (native/build-nmake/tf2_demo_native.exe --demo ...). This used to
+    # return here and drop the whole script from the scan, so such a launch was not
+    # even a candidate site -- and "no violation" cannot tell "every launch is
+    # isolated" from "the launcher was never looked at". The product NAME is what
+    # token_is_product() matches on (a literal token, or $VAR in pvars), so a script
+    # that never writes the name cannot produce a site below either way: skip only
+    # those, which keeps the scan cheap on the ~100 gates that never touch the exe.
+    if 'tf2_demo_native' not in '\n'.join(t for _, t in logs):
+        return sites, wrapped, dynamic, len(arr_body)
     for ln,t in logs:
         # D-92: an array element is data. Skipping it here (rather than inside
         # collect) leaves array-def and array-exec detection untouched.
