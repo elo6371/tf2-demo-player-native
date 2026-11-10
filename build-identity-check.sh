@@ -15,19 +15,33 @@
 # literal "0" on every build ever made, and nothing in the output could tell a
 # binary built from a clean commit from one built on top of it.
 #
-# The build now measures the identity at build time (native/cmake/
-# gen-build-stamp.cmake, run by the tf2_build_stamp target before either target
-# compiles it) and --version prints it as a third line:
-#     dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0
-# This gate compares those readings against git, live, in three states: the tree
+# T90 (2026-11-07) moved the measurement from configure time to build time,
+# which fixed the reading but not the churn. D-54 (2026-11-10) split it: what
+# the SOURCES contain is one content hash, compiled into both executables; where
+# those sources CAME FROM -- HEAD, the dirty counts, the epoch, the build time --
+# is written to a sidecar beside each executable and printed from there.
+# --version now answers four lines:
+#     1  package=tf2_demo_native version=0.1.0 versionCode=100
+#     2  buildUtc=<sidecar> sourceDateEpoch=<sidecar> sourceTree=<sidecar>
+#     3  dirty=0 dirtyFiles=0 dirtyTracked=0 dirtyUntracked=0      (sidecar)
+#     4  sourceContent=<64 hex> contentMethod=git-clean-v1 identity=sidecar
+# Line 4 is read from the sidecar too, but the assertion that matters is that
+# the sidecar's hash is the hash COMPILED INTO the executable: the sidecar must
+# name the bytes next to it, and the gate recomputes the hash from the tree with
+# a second, independent implementation (build-identity-content.sh).
+#
+# This gate compares those readings against git, live, in four states: the tree
 # as it is now (sourceTree must be HEAD; the dirty flag and its counts must be
-# exactly what "git status --porcelain -uall" reports at that instant); a tree
-# the gate deliberately dirties with one tracked change and one untracked file
-# (the rebuild must relink and answer dirty=1 with +1/+1 counts); and after
-# byte-exact restoration (the identity must return to what it was -- the property
-# that makes the reading a function of the tree instead of of what happened to be
-# lying around). It also pins that a rebuild with no source change neither
-# relinks nor moves buildUtc, so an incremental build pays nothing for the stamp.
+# exactly what "git status --porcelain -uall" reports at that instant; the
+# sidecar must name the exe on disk and the hash compiled into it; the build's
+# content hash must equal an independent recomputation); a tree the gate dirties
+# with docs-only changes, where D-54 requires the READING to move and the BYTES
+# to stay identical (a change to docs/ cannot alter one instruction); a tree
+# dirtied in a COMPILED input, where both must move, followed by byte-exact
+# restoration (bytes and hash must return -- the property that makes the reading
+# a function of the tree rather than of what happened to be lying around); and a
+# no-op rebuild, which must move neither the bytes nor the stamp and must not
+# rewrite the sidecar.
 #
 # AN EXE SHA IS NOT AN IDENTITY. Measured on 2026-11-07: three builds of one
 # source tree produced three different sha256 values, because the COFF
@@ -46,15 +60,23 @@
 #   * not cross-machine reproducibility: --reproducible proves two clean full
 #     builds of this tree on THIS machine and toolchain are byte-identical; it
 #     says nothing about another compiler, SDK, path or machine.
-#   * not a content hash: sourceTree is HEAD's short id, dirty is a COUNT.
-#     "built from e15577b with 3 dirty files" does not say which files or what
-#     they contained; only a hash of the tree would, and there is none.
+#   * not that the content hash covers the toolchain: line 4 hashes the compiled
+#     INPUTS, so the same inputs built with another compiler have the same line 4
+#     and different bytes. It identifies the sources, not the image.
+#   * not that raw-v1 and git-clean-v1 are comparable: when git is unavailable the
+#     hash degrades to raw bytes, and contentMethod is the only thing that says
+#     which of the two you are looking at. Two different methods never agree.
 #   * not that an ignored file is accounted for: git-ignored inputs are not
 #     counted, so a build whose only extra input is ignored reads as clean.
 #   * not that the manifest/VERSION.txt agree with --version; that is
 #     install-lifecycle-check.sh's subject and this gate reads --version only.
 #   * not that a dirty binary can be rebuilt from the dirty tree; the tree is not
-#     recorded, only counted.
+#     recorded, only counted -- the hash covers the compiled inputs, not the
+#     provenance the sidecar reports.
+#   * not that an installed product keeps its identity: the sidecar is installed
+#     beside the executable (tf2-package.cmake), but a package assembled without
+#     it answers identity=missing and unknown/-1 on lines 2 and 3. That is
+#     install-lifecycle-check.sh's subject, not this gate's.
 #   * not that the product UNDERSTANDS an argument it was given: section 1c/5
 #     reads the "args: unrecognized=" line, which counts what the loop did not
 #     consume. The default run still ignores those arguments -- that is the
@@ -63,7 +85,7 @@
 #
 # Usage:
 #   bash build-identity-check.sh --forward      <out-dir>  # BUILD-IDENTITY=PASS
-#   bash build-identity-check.sh --mutation     <out-dir>  # 3 mutants must go red
+#   bash build-identity-check.sh --mutation     <out-dir>  # 4 mutants must go red
 #   bash build-identity-check.sh --reproducible <out-dir>  # two clean full
 #       # builds must be byte-identical: BUILD-REPRODUCIBLE=PASS builds=2 sha=<sha>
 #
@@ -81,9 +103,13 @@
 # (main_lifecycle.cpp:20-34), so no device is opened; the launch still happens
 # inside the lock like every other launcher.
 #
-# Exit: 0 = every assertion held (with --mutation: all three mutants were caught;
+# Exit: 0 = every assertion held (with --mutation: all four mutants were caught;
 #       with --reproducible: the two clean builds were byte-identical),
-#       1 = an assertion failed, 2 = usage, 90 = a mutant built the same bytes.
+#       1 = an assertion failed, 2 = usage,
+#       90 = a mutant left the READING it was meant to break unchanged, so nothing
+#            was measured. Under D-54 that guard is reading-level, not byte-level:
+#            a mutant inside native/cmake/ also moves the content hash and thus
+#            the bytes, which says nothing about whether the reading was tested.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
@@ -122,6 +148,19 @@ EXE="$BUILD_DIR/tf2_demo_native.exe"
 PROBE="$BUILD_DIR/install_cli_probe.exe"
 GENERATOR="native/cmake/gen-build-stamp.cmake"
 STAMP="native/generated/tf2_build_stamp.cpp"
+# D-54: the provenance the build wrote for the tree it just built, and the two
+# sidecars copied beside the executables. The .identity files carry HEAD, the
+# dirty counts, the epoch and the build time -- everything that used to be
+# compiled in and therefore changed the bytes of a binary whose code had not
+# changed. They are named after the executable, so the product and the probe
+# cannot read each other's.
+PROVENANCE="native/generated/tf2_build_stamp.identity"
+IDENTITY="$BUILD_DIR/tf2_demo_native.identity"
+PROBE_IDENTITY="$BUILD_DIR/install_cli_probe.identity"
+# The gate's own re-implementation of the content hash (git blob ids, sorted,
+# sha256). Deliberately not the generator: an assertion whose two sides are the
+# same code proves that the code is deterministic, not that it measured the tree.
+CONTENT_TOOL="build-identity-content.sh"
 
 # The gate measures the tree's dirtiness, so it must not add any: every
 # intermediate copy goes to .scratch/ (git-ignored), never to $OUT, and $OUT is
@@ -246,12 +285,25 @@ cleanup() {
     rm -f "$SCRATCH/probe-doc.backup"
   fi
   if [ -n "${PROBE_UNTRACKED-}" ]; then rm -f "$PROBE_UNTRACKED"; fi
+  # D-54 3b/5 edits a COMPILED input (native/src/main.cpp). If the gate is
+  # interrupted between the edit and the inline restore, the tree would be left
+  # with a modified source -- so the same backup is restored here as well.
+  if [ -f "$SCRATCH/probe-source.backup" ] && [ -n "${PROBE_SOURCE-}" ] && [ -f "${PROBE_SOURCE-}" ]; then
+    cp "$SCRATCH/probe-source.backup" "$PROBE_SOURCE" 2>/dev/null
+    echo "  (exit cleanup: restored $PROBE_SOURCE from the gate's own backup)"
+    rm -f "$SCRATCH/probe-source.backup"
+  fi
   exit "$rc"
 }
 trap cleanup EXIT INT TERM
 
 build_targets() { # <log-suffix>
-  bash build-target.sh tf2_demo_native install_cli_probe > "$SCRATCH/build-$1.log" 2>&1
+  # D-54: tf2_identity is the ALL target that refreshes the two .identity
+  # sidecars. An incremental build that NAMES a target does not build ALL
+  # targets, so it has to be named too -- otherwise a build that changed only
+  # the provenance would leave the sidecar describing the previous tree, and
+  # every assertion below would be reading a stale file.
+  bash build-target.sh tf2_demo_native install_cli_probe tf2_identity > "$SCRATCH/build-$1.log" 2>&1
   return $?
 }
 report_build_failure() {
@@ -286,6 +338,20 @@ assert_version_shape() { # <file> <label>
   hasnt "$label: the answer is not the configure-time placeholder" "$(cat "$f")" "configure-placeholder"
   eq "$label: sourceTree is not the placeholder" \
     "$([ "$(ver_field "$f" sourceTree)" = "configure-placeholder" ] && echo placeholder || echo real)" "real"
+  # D-54, line 4. Every value assertion is preceded by an existence assertion:
+  # "sourceContent == <hash>" would otherwise pass on two empty readings, which
+  # is the exact shape GATE-DESIGN-TRAPS.md:47-58 names -- the assertion has to
+  # fail when the LINE is missing, not only when the value is wrong.
+  ge "$label: the --version answer printed a line 4" "$(count_line "$f" 4)" 1
+  ge "$label: line 4 carries a sourceContent=" "$(count_field "$f" sourceContent)" 1
+  ge "$label: line 4 carries a contentMethod=" "$(count_field "$f" contentMethod)" 1
+  ge "$label: line 4 carries an identity=" "$(count_field "$f" identity)" 1
+  eq "$label: sourceContent is a 64-character lowercase sha256, not a word" \
+    "$(printf '%s' "$(ver_field "$f" sourceContent)" | grep -cE '^[0-9a-f]{64}$')" "1"
+  eq "$label: contentMethod names a method the build can actually produce" \
+    "$(printf '%s' "$(ver_field "$f" contentMethod)" | grep -cE '^(git-clean-v1|raw-v1)$')" "1"
+  eq "$label: identity says the provenance came from the sidecar" \
+    "$(ver_field "$f" identity)" "sidecar"
 }
 
 # The core assertion set: the reading must be a functional image of the tree.
@@ -309,15 +375,75 @@ assert_identity_matches_tree() { # <file> <label>
     "$(ver_field "$f" dirtyUntracked)" "$T_UNTRACKED"
 }
 
+# D-54: the sidecar is what makes lines 2 and 3 a reading of THIS binary. The
+# two assertions with teeth are the last two: the sidecar must name the bytes on
+# disk, and the content hash in the sidecar must be the hash compiled into the
+# executable. Without them "the sidecar exists" would pass while the file next
+# to the executable described a different build.
+assert_sidecar_binding() { # <identity-file> <exe> <version-file> <label>
+  local sidecar="$1" exe="$2" f="$3" label="$4"
+  eq "$label: the sidecar exists beside $(basename "$exe")" \
+    "$([ -f "$sidecar" ] && echo present || echo absent)" "present"
+  ge "$label: the sidecar carries an exeSha256= reading" \
+    "$(grep -cE '^exeSha256=[0-9a-f]{64}$' "$sidecar" 2>/dev/null || true)" 1
+  eq "$label: the sidecar names the executable that is on disk" \
+    "$(sed -n 's/^exeSha256=//p' "$sidecar" | tr -d '\r')" "$(shasum "$exe")"
+  eq "$label: the sidecar's sourceContent is the hash compiled into the executable" \
+    "$(sed -n 's/^sourceContent=//p' "$sidecar" | tr -d '\r')" "$(ver_field "$f" sourceContent)"
+  eq "$label: the sidecar's sourceTree is the live HEAD" \
+    "$(sed -n 's/^sourceTree=//p' "$sidecar" | tr -d '\r')" "$(git rev-parse --short=12 HEAD)"
+}
+
+# D-54: recompute the content hash the way the builder claims to, from the git
+# index and the working copy, and compare it with the hash the build reported.
+# If the two disagree, either the build measured a different set of files or it
+# measured them differently -- both are the defect this gate exists to catch.
+assert_content_hash_agrees() { # <version-file> <label>
+  local f="$1" label="$2" recomputed method
+  method="$(bash "$CONTENT_TOOL" method 2>/dev/null)"
+  recomputed="$(bash "$CONTENT_TOOL" hash 2>/dev/null)"
+  eq "$label: the gate can compute a content hash at all" \
+    "$([ -n "$recomputed" ] && echo computed || echo missing)" "computed"
+  eq "$label: the gate's method is the method the build reported" \
+    "$method" "$(ver_field "$f" contentMethod)"
+  eq "$label: the build's sourceContent is the tree's content, recomputed independently" \
+    "$recomputed" "$(ver_field "$f" sourceContent)"
+}
+
 assert_timestamp_window() { # <file> <label>
-  local f="$1" label="$2" head_epoch stamp_epoch exe_mtime
+  local f="$1" label="$2" head_epoch stamp_epoch exe_mtime sidecar_mtime
   head_epoch="$(git log -1 --format=%ct HEAD)"
   stamp_epoch="$(date -u -d "$(ver_field "$f" buildUtc)" +%s 2>/dev/null)"
   exe_mtime="$(stat -c %Y "$EXE" 2>/dev/null)"
+  sidecar_mtime="$(stat -c %Y "$IDENTITY" 2>/dev/null)"
+  # D-54 PLAN B CHANGED WHAT buildUtc DESCRIBES, SO THE OLD RULE IS REPLACED.
+  #   Before plan B buildUtc was compiled into the executable (a TU constant
+  #   stamped at configure time), so it necessarily predated the link and
+  #   "buildUtc <= exe mtime" was a real check. Under plan B the same field is
+  #   written by the build into the .identity sidecar and can legitimately land
+  #   AFTER the link: the sidecar is written POST_BUILD, and a build that
+  #   rewrites the provenance without relinking the binary (a docs-only commit,
+  #   or the carried case) refreshes buildUtc while the exe keeps its bytes and
+  #   its old mtime. The old direction is therefore FALSE BY CONSTRUCTION, not
+  #   merely unlucky; keeping it would pin the compile-time model this change
+  #   removed. What must still hold -- and what the T90 defect was about -- is
+  #   that the number the binary answers with is a time this identity file's own
+  #   build wrote, not a value pasted in from somewhere else: the sidecar cannot
+  #   predate the clock it reports, and the executable it names by sha was
+  #   already linked when that sidecar was written. Both readings are taken from
+  #   the same file the product reads, and both are preceded by an existence
+  #   check so a missing file cannot pass by comparing two empty values.
   eq "$label: buildUtc parses as a UTC instant" \
     "$([ -n "${stamp_epoch-}" ] && echo yes || echo no)" "yes"
+  eq "$label: the executable the stamp describes exists" \
+    "$([ -n "${exe_mtime-}" ] && echo present || echo absent)" "present"
+  eq "$label: the identity sidecar that reports buildUtc exists" \
+    "$([ -n "${sidecar_mtime-}" ] && echo present || echo absent)" "present"
   ge "$label: buildUtc is not earlier than the commit it names" "${stamp_epoch:-0}" "$head_epoch"
-  le "$label: buildUtc is not later than the executable's own mtime" "${stamp_epoch:-1}" "${exe_mtime:-0}"
+  le "$label: buildUtc is not later than the sidecar that reports it" \
+    "${stamp_epoch:-1}" "$(( ${sidecar_mtime:-0} + 5 ))"
+  le "$label: the executable is not newer than the sidecar that names its sha" \
+    "${exe_mtime:-1}" "$(( ${sidecar_mtime:-0} + 5 ))"
 }
 
 assert_line_one_contract() { # <file> <label>
@@ -559,9 +685,14 @@ assert_version_shape "$SCRATCH/baseline.version" "baseline"
 assert_identity_matches_tree "$SCRATCH/baseline.version" "baseline"
 assert_timestamp_window "$SCRATCH/baseline.version" "baseline"
 assert_line_one_contract "$SCRATCH/baseline.version" "baseline"
+assert_sidecar_binding "$IDENTITY" "$EXE" "$SCRATCH/baseline.version" "baseline"
+assert_content_hash_agrees "$SCRATCH/baseline.version" "baseline"
 
 BASE_SHA="$(shasum "$EXE")"
 BASE_STAMP_SHA="$(shasum "$STAMP")"
+BASE_IDENTITY_SHA="$(shasum "$IDENTITY")"
+BASE_PROVENANCE_SHA="$(shasum "$PROVENANCE")"
+BASE_CONTENT="$(ver_field "$SCRATCH/baseline.version" sourceContent)"
 BASE_STAMP_EPOCH="$(date -u -d "$(ver_field "$SCRATCH/baseline.version" buildUtc)" +%s 2>/dev/null)"
 BASE_VERSION="$(cat "$SCRATCH/baseline.version")"
 tree_counts
@@ -586,6 +717,13 @@ eq "install_cli_probe reports the same sourceTree" \
   "$(ver_field "$SCRATCH/probe.version" sourceTree)" "$(ver_field "$SCRATCH/baseline.version" sourceTree)"
 eq "install_cli_probe reports the same dirty state" \
   "$(ver_field "$SCRATCH/probe.version" dirty)" "$(ver_field "$SCRATCH/baseline.version" dirty)"
+# D-54: the probe reads its OWN sidecar (install_cli_probe.identity). Binding it
+# to its own bytes is what makes "the probe agrees with the product" a
+# statement about two independent readings rather than one file read twice.
+eq "install_cli_probe reports the same line 4 as the product" \
+  "$(sed -n '4p' "$SCRATCH/probe.version" | tr -d '\r')" \
+  "$(sed -n '4p' "$SCRATCH/baseline.version" | tr -d '\r')"
+assert_sidecar_binding "$PROBE_IDENTITY" "$PROBE" "$SCRATCH/probe.version" "probe"
 
 
 # --- 1c/5 the argument surface ----------------------------------------------
@@ -688,9 +826,23 @@ eq "no-op --version exit code" "$?" "0"
 eq "a no-op rebuild does not relink the product (same exe sha256)" "$(shasum "$EXE")" "$BASE_SHA"
 eq "a no-op rebuild does not rewrite the stamp (same stamp sha256)" "$(shasum "$STAMP")" "$BASE_STAMP_SHA"
 eq "a no-op rebuild answers with the same bytes" "$(cat "$SCRATCH/noop.version")" "$BASE_VERSION"
+# D-54: the sidecar and the provenance are rewritten by every build (the stamp
+# target runs unconditionally), so "unchanged" here is a claim about content, not
+# about the file not being touched: the copied-in values must be identical, and
+# buildUtc must be the one carried forward from the previous provenance rather
+# than the clock at this instant.
+eq "D-54: a no-op rebuild does not rewrite the sidecar (same sha256)" \
+  "$(shasum "$IDENTITY")" "$BASE_IDENTITY_SHA"
+eq "D-54: a no-op rebuild does not rewrite the provenance (buildUtc carried)" \
+  "$(shasum "$PROVENANCE")" "$BASE_PROVENANCE_SHA"
 
-# --- 3/5 a dirty tree -------------------------------------------------------
-sec "3/5 a dirty tree must be reported as dirty, with the count git reports"
+# --- 3/5 a dirty tree the compiler never sees --------------------------------
+# D-54 inverts T90's assertion here. T90 required a dirty tree to RELINK the
+# product, which is the defect restated as a requirement: a change to docs/
+# cannot alter one instruction of the binary, and making it relink is what
+# invalidated every cache keyed on the executable's bytes for nothing. The
+# reading must move; the bytes must not.
+sec "3/5 a docs-only change must move the reading and leave the bytes alone"
 PROBE_TRACKED="$REPO/docs/RELEASE-POLICY.md"
 PROBE_UNTRACKED="$REPO/evidence/.build-identity-check-probe.txt"
 cp "$PROBE_TRACKED" "$SCRATCH/probe-doc.backup"
@@ -698,26 +850,88 @@ PROBE_DOC_SHA="$(shasum "$PROBE_TRACKED")"
 printf '\n<!-- build-identity-check.sh probe: one tracked change; must never be committed -->\n' >> "$PROBE_TRACKED"
 printf 'build-identity-check.sh probe\n' > "$PROBE_UNTRACKED"
 tree_counts
-DIRTY_TOTAL=$T_TOTAL
+DOCS_DIRTY_TOTAL=$T_TOTAL
 echo "  --- probe added 1 tracked change (docs/RELEASE-POLICY.md) and 1 untracked file"
-eq "the probe added exactly two records to the tree" "$((DIRTY_TOTAL - BASE_TOTAL))" "2"
+eq "the docs probe added exactly two records to the tree" "$((DOCS_DIRTY_TOTAL - BASE_TOTAL))" "2"
 
 build_targets dirty
-DIRTY_RC=$?
-eq "dirty build exit code" "$DIRTY_RC" "0"
-if [ "$DIRTY_RC" -ne 0 ]; then report_build_failure "$SCRATCH/build-dirty.log"; fi
+DOCS_RC=$?
+eq "docs-dirty build exit code" "$DOCS_RC" "0"
+if [ "$DOCS_RC" -ne 0 ]; then report_build_failure "$SCRATCH/build-dirty.log"; fi
 read_version "$SCRATCH/dirty.version"
-eq "dirty --version exit code" "$?" "0"
-echo "  --- dirty --version ---"
+eq "docs-dirty --version exit code" "$?" "0"
+echo "  --- docs-dirty --version ---"
 sed 's/^/    /' "$SCRATCH/dirty.version"
 assert_version_shape "$SCRATCH/dirty.version" "dirty"
 assert_identity_matches_tree "$SCRATCH/dirty.version" "dirty"
-eq "the dirty rebuild relinked the product (exe sha256 moved)" \
-  "$([ "$(shasum "$EXE")" != "$BASE_SHA" ] && echo moved || echo same)" "moved"
-eq "the dirty build answers differently from the clean one" \
+assert_sidecar_binding "$IDENTITY" "$EXE" "$SCRATCH/dirty.version" "dirty"
+assert_content_hash_agrees "$SCRATCH/dirty.version" "dirty"
+eq "D-54: a docs-only change did NOT relink the product (exe sha256 unmoved)" \
+  "$(shasum "$EXE")" "$BASE_SHA"
+eq "D-54: the docs-only change still moved the reading (line 3 differs)" \
   "$([ "$(sed -n '3p' "$SCRATCH/dirty.version" | tr -d '\r')" != "$(sed -n '3p' "$SCRATCH/baseline.version" | tr -d '\r')" ] && echo differs || echo same)" "differs"
-eq "the dirty build still names the same commit as sourceTree" \
-  "$(ver_field "$SCRATCH/dirty.version" sourceTree)" "$(git rev-parse --short=12 HEAD)"
+eq "D-54: the content hash did not move for a docs-only change" \
+  "$(ver_field "$SCRATCH/dirty.version" sourceContent)" "$BASE_CONTENT"
+eq "D-54: the rewritten source is unchanged too (the stamp TU is content only)" \
+  "$(shasum "$STAMP")" "$BASE_STAMP_SHA"
+eq "D-54: the sidecar reports the probe's record count" \
+  "$(sed -n 's/^dirtyFiles=//p' "$IDENTITY" | tr -d '\r')" "$DOCS_DIRTY_TOTAL"
+
+# --- 3b/5 a dirty tree the compiler does see --------------------------------
+# The other half of the same claim, and the one the old gate never tested: a
+# change to a COMPILED input must move the bytes and the content hash together.
+# The probe edits one string literal (a byte in .rdata, guaranteed to change the
+# image) and is restored byte-identically afterwards -- the restore is checked
+# with cmp AND with sha256, because a restore that "looks" right is not one.
+sec "3b/5 a change to a compiled input must move the bytes and the content hash"
+PROBE_SOURCE="$REPO/native/src/main.cpp"
+cp "$PROBE_SOURCE" "$SCRATCH/probe-source.backup"
+PROBE_SOURCE_SHA="$(shasum "$PROBE_SOURCE")"
+python - "$PROBE_SOURCE" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8", newline="") as stream:
+    data = stream.read()
+# The needle is the whole statement, not the bare word: the word appears in a
+# comment and in a second comparison, and a probe that silently edits three
+# places is not a one-byte probe.
+needle = 'result = "suppressed-by-focus";'
+if data.count(needle) != 1:
+    sys.exit("compiled-input probe: expected exactly one occurrence of " + needle)
+with open(path, "w", encoding="utf-8", newline="") as stream:
+    stream.write(data.replace(needle, 'result = "suppressed-by-focus-d54-probe";', 1))
+PY
+PROBE_SOURCE_APPLY_RC=$?
+eq "the compiled-input probe was applied exactly once" "$PROBE_SOURCE_APPLY_RC" "0"
+if [ "$PROBE_SOURCE_APPLY_RC" -ne 0 ]; then
+  echo "BUILD-IDENTITY=FAIL (the compiled-input probe could not be applied; nothing was measured)"
+  exit 1
+fi
+build_targets source
+SOURCE_RC=$?
+eq "compiled-input-dirty build exit code" "$SOURCE_RC" "0"
+if [ "$SOURCE_RC" -ne 0 ]; then report_build_failure "$SCRATCH/build-source.log"; fi
+read_version "$SCRATCH/source.version"
+eq "compiled-input-dirty --version exit code" "$?" "0"
+assert_version_shape "$SCRATCH/source.version" "source"
+assert_sidecar_binding "$IDENTITY" "$EXE" "$SCRATCH/source.version" "source"
+assert_content_hash_agrees "$SCRATCH/source.version" "source"
+eq "D-54: a compiled-input change DID relink the product (exe sha256 moved)" \
+  "$([ "$(shasum "$EXE")" != "$BASE_SHA" ] && echo moved || echo same)" "moved"
+eq "D-54: a compiled-input change moved the content hash" \
+  "$([ "$(ver_field "$SCRATCH/source.version" sourceContent)" != "$BASE_CONTENT" ] && echo moved || echo same)" "moved"
+cp "$SCRATCH/probe-source.backup" "$PROBE_SOURCE"
+cmp -s "$SCRATCH/probe-source.backup" "$PROBE_SOURCE"
+eq "the compiled-input probe is restored byte-identically" "$?" "0"
+eq "the restored source has its original sha256" "$(shasum "$PROBE_SOURCE")" "$PROBE_SOURCE_SHA"
+rm -f "$SCRATCH/probe-source.backup"
+build_targets source-restored
+eq "restored-after-source build exit code" "$?" "0"
+read_version "$SCRATCH/source-restored.version"
+eq "D-54: restoring the source restores the executable byte-identically" \
+  "$(shasum "$EXE")" "$BASE_SHA"
+eq "D-54: restoring the source restores the content hash" \
+  "$(ver_field "$SCRATCH/source-restored.version" sourceContent)" "$BASE_CONTENT"
 
 # --- 4/5 restoration --------------------------------------------------------
 sec "4/5 restoring the tree must restore the identity"
@@ -748,14 +962,21 @@ eq "the restored identity fields match the pre-probe identity" \
   "$(strip_build_utc "$SCRATCH/restored.version")" "$(strip_build_utc "$SCRATCH/baseline.version")"
 RESTORED_EPOCH="$(date -u -d "$(ver_field "$SCRATCH/restored.version" buildUtc)" +%s 2>/dev/null)"
 ge "the restored build's buildUtc did not move backwards" "${RESTORED_EPOCH:-0}" "${BASE_STAMP_EPOCH:-0}"
-# The stamp is generated C++ (kDirtyFiles[] = "<n>";), not a key=value file:
-# grepping it for "dirtyFiles=" would match nothing and pass on emptiness.
-ge "the restored stamp carries a dirtyFiles reading at all" \
-  "$(grep -cE 'kDirtyFiles\[\] = "[0-9]+";' "$STAMP" 2>/dev/null || true)" 1
-eq "the restored stamp carries the pre-probe record count ($BASE_TOTAL)" \
-  "$(grep -c "kDirtyFiles\[\] = \"$BASE_TOTAL\";" "$STAMP" 2>/dev/null || true)" "1"
-eq "the stamp is not left carrying the probe's record count" \
-  "$(grep -c "kDirtyFiles\[\] = \"$DIRTY_TOTAL\";" "$STAMP" 2>/dev/null || true)" "0"
+# D-54: kDirtyFiles[] no longer exists -- the stamp TU carries the content
+# hash only. The dirty provenance moved to the .identity file, which IS a
+# key=value file, so the reading is grepped there. The existence assertion comes
+# first for the same reason as always: "dirtyFiles == <n>" would otherwise pass
+# on a missing line, which is exactly the trap GATE-DESIGN-TRAPS.md:47-58 names.
+ge "the restored provenance carries a dirtyFiles reading at all" \
+  "$(grep -cE '^dirtyFiles=[0-9]+$' "$PROVENANCE" 2>/dev/null || true)" 1
+eq "the restored provenance carries the pre-probe record count ($BASE_TOTAL)" \
+  "$(sed -n 's/^dirtyFiles=//p' "$PROVENANCE" | tr -d '\r')" "$BASE_TOTAL"
+eq "the provenance is not left carrying the docs probe's record count" \
+  "$(grep -cE "^dirtyFiles=$DOCS_DIRTY_TOTAL\$" "$PROVENANCE" 2>/dev/null || true)" "0"
+eq "the restored sidecar reports the pre-probe record count" \
+  "$(sed -n 's/^dirtyFiles=//p' "$IDENTITY" | tr -d '\r')" "$BASE_TOTAL"
+assert_sidecar_binding "$IDENTITY" "$EXE" "$SCRATCH/restored.version" "restored"
+assert_content_hash_agrees "$SCRATCH/restored.version" "restored"
 
 # --- 4b/5 what an identity is ------------------------------------------------
 sec "4b/5 the identity record: exe sha + HEAD + native/ tree hash, never the sha alone"
@@ -774,6 +995,10 @@ IDENTITY_RECORD="$SCRATCH/source-identity.txt"
   echo "dirty_files=$T_TOTAL"
   echo "version_line2=$(sed -n '2p' "$SCRATCH/restored.version" | tr -d '\r')"
   echo "version_line3=$(sed -n '3p' "$SCRATCH/restored.version" | tr -d '\r')"
+  echo "version_line4=$(sed -n '4p' "$SCRATCH/restored.version" | tr -d '\r')"
+  echo "identity_sidecar_sha256=$(shasum "$IDENTITY")"
+  echo "provenance_sha256=$(shasum "$PROVENANCE")"
+  echo "content_tool_sha256=$(shasum "$CONTENT_TOOL")"
   echo "gate_script_sha256=$(shasum "$0")"
 } > "$IDENTITY_RECORD"
 ge "identity: the record has the fields it promises" "$(grep -c . "$IDENTITY_RECORD" || true)" 7
@@ -789,11 +1014,22 @@ eq "identity: the recorded native/ hash is what git hashes now" \
   "$(sed -n 's/^native_tree_sha256=//p' "$IDENTITY_RECORD")" "$NATIVE_TREE_SHA"
 eq "identity: the version's sourceTree is the short form of that same HEAD" \
   "$(ver_field "$SCRATCH/restored.version" sourceTree)" "$HEAD_SHORT"
+eq "identity: the recorded content hash is a sha256, not a word" \
+  "$(grep -c '^sourceContent=[0-9a-f]\{64\}$' "$IDENTITY")" "1"
+eq "identity: the recorded sidecar hash is the sidecar on disk" \
+  "$(sed -n 's/^identity_sidecar_sha256=//p' "$IDENTITY_RECORD")" "$(shasum "$IDENTITY")"
+eq "identity: the sidecar beside the executable binds it to this HEAD" \
+  "$(sed -n 's/^sourceTree=//p' "$IDENTITY" | tr -d '\r')" "$HEAD_SHORT"
 
 # --- 5/5 summary ------------------------------------------------------------
 sec "5/5 what the assertions above established, and what they did not"
 echo "  NOT-PROVEN cross-machine reproducibility: --reproducible measured two clean full builds on THIS machine only"
-echo "  NOT-PROVEN a content hash: sourceTree+dirty name a commit and a count, not the dirty content"
+# D-54 replaced the old "NOT-PROVEN a content hash" line: line 4 now IS a hash of
+# the compiled inputs, and the gate recomputes it independently above. What is
+# still not proven is smaller and worth naming precisely.
+echo "  NOT-PROVEN that the content hash covers the toolchain: same sources, same hash, different compiler = different bytes"
+echo "  NOT-PROVEN that raw-v1 and git-clean-v1 hashes are comparable: they are not, and contentMethod is the only thing that says which one you have"
+echo "  NOT-PROVEN that an installed product keeps its sidecar: install-lifecycle-check.sh's subject, and a package without the .identity file answers identity=missing"
 echo "  NOT-PROVEN the manifest/VERSION.txt agree with --version (install-lifecycle-check.sh's subject)"
 echo "  NOT-PROVEN that a dirty build can be rebuilt from the dirty tree (it is not recorded, only counted)"
 # Counted before the evidence-copy assertions, which run below on purpose (a red
@@ -817,6 +1053,10 @@ if [ "$MODE" = "--forward" ]; then
   copy_out "$SCRATCH/args-clean.trace" args-clean.trace
   copy_out "$SCRATCH/quit.camera" quit.camera
   copy_out "$SCRATCH/source-identity.txt" source-identity.txt
+  copy_out "$SCRATCH/source.version" version-source-probe.txt
+  copy_out "$SCRATCH/source-restored.version" version-source-restored.txt
+  copy_out "$IDENTITY" identity-sidecar.txt
+  copy_out "$PROVENANCE" provenance.txt
   { echo "exe=$EXE"; echo "exe_sha256=$BASE_SHA"; echo "stamp_sha256=$BASE_STAMP_SHA"
     echo "records_at_baseline=$BASE_TOTAL"; echo "head=$(git rev-parse HEAD)"
     echo "head_full=$HEAD_FULL"; echo "native_tree_sha256=$NATIVE_TREE_SHA"
@@ -829,21 +1069,29 @@ if [ "$MODE" = "--forward" ]; then
   # The verdict is only allowed to be PASS if the evidence it names is really on
   # disk. COPY_FAIL counts failed copies (the 2026-11-09 failure mode: OUT was
   # deleted, every cp failed, the gate printed PASS); the second assertion checks
-  # the twelve promised files exist and are non-empty, so a missing directory
+  # the fifteen promised files exist and are non-empty, so a missing directory
   # cannot pass through this either.
   eq "evidence: every copy reached the output directory" "$COPY_FAIL" 0
-  eq "evidence: the output directory holds the twelve readings this run promises" \
+  eq "evidence: the output directory holds the readings this run promises" \
     "$(( $(evidence_missing present args-unknown.log args-strict.err) \
        + $(evidence_missing nonempty version-baseline.txt version-dirty-probe.txt \
-           version-restored.txt probe-version.txt args-unknown.trace args-strict.trace \
-           args-clean.trace quit.camera source-identity.txt readings.txt) ))" 0
-  ge "evidence: the run copied as many files as the verdict names" "$COPY_N" 11
+           version-restored.txt probe-version.txt version-source-probe.txt \
+           version-source-restored.txt identity-sidecar.txt provenance.txt \
+           args-unknown.trace args-strict.trace args-clean.trace quit.camera \
+           source-identity.txt readings.txt) ))" 0
+  ge "evidence: the run copied as many files as the verdict names" "$COPY_N" 15
+  # Merge note (candidate/t102 x D-54 ba628c6): both sides changed this block.
+  # Incoming widened the promised-file list from 11 to 15 because the identity
+  # sidecar arrives with its own evidence files; local added the D-72 floor.
+  # Keep BOTH: the wider list is the newer evidence contract, and the floor is
+  # the only thing stopping a run in which whole sections never executed from
+  # reading exactly like a green one. The floor stays at 100 -- measured 219 on
+  # the D-54 tree and 118 on the pre-D-54 tree, so 100 is below both.
   # D-72 (D68-SCAN K3): the verdict printed $CHECKS but nothing tied it to a
   # floor, so a forward run in which whole sections were skipped -- or in which
   # eq() quietly stopped being called -- printed "assertions=3" and exited 0.
   # Floor = 100, i.e. 85% of the measured 118 on the integrated tree
   # (measured 2026-11-10 from /d/_shared/EXEC-2026-11-09/t46-buildid/run-20261109T160357Z.log).
-  # Reading taken with: grep -o 'BUILD-IDENTITY=PASS assertions=[0-9]*' /d/_shared/EXEC-2026-11-09/t46-buildid/run-20261109T160357Z.log | tail -1  ->  assertions=118
   if [ "$CHECKS" -lt 100 ]; then
     echo "  FAIL assertions: only $CHECKS assertions ran, below the floor 100 -- sections that stopped running read exactly like a green run (D-72)"
     FAIL=$((FAIL + 1))
@@ -864,8 +1112,22 @@ if [ "$FAIL" -ne 0 ]; then
 fi
 
 # --- mutations --------------------------------------------------------------
-# M1 and M2 edit native/cmake/gen-build-stamp.cmake; M3 edits native/src/main.cpp.
-sec "mutation suite: three edits that must turn a named assertion red"
+# Four mutants, one named assertion each. M1, M2 and M4 edit
+# native/cmake/gen-build-stamp.cmake; M3 edits native/src/main.cpp.
+#
+# WHY THE OLD "the mutant must relink" GUARD IS GONE (D-54; was :904-905 and
+# :947-948). T90 scored a mutant as caught only if the executable changed, which
+# made sense while HEAD and the dirty counts were C++ constants. They are not
+# constants any more: a mutant that forges the provenance changes a key=value
+# file, and a mutant that forges the dirty counts changes a key=value file.
+# Keeping that guard would have declared such a mutant invalid (exit 90) for
+# doing exactly what the design wants it to do -- and because native/cmake/ is
+# itself a hashed input, editing the generator also moves the content hash, so
+# the bytes move for a reason that proves nothing about the reading. The guard is
+# now reading-level: the mutant must MOVE the reading it was aimed at; if it does
+# not, nothing was measured (exit 90), and the source is restored first so the
+# tree is never left mutated.
+sec "mutation suite: four edits that must turn a named assertion red"
 if [ "$FAIL" -ne 0 ]; then
   echo "MUTATION-SUITE=REFUSED (the forward suite above is red; a mutation cannot be scored against a baseline it never had)"
   exit 1
@@ -874,6 +1136,7 @@ fi
 cp "$GENERATOR" "$SCRATCH/generator.backup"
 GENERATOR_SHA="$(shasum "$GENERATOR")"
 REFERENCE_SHA="$BASE_SHA"
+BASE_TREE="$(git rev-parse --short=12 HEAD)"
 
 mutate_insert() { # <anchor> <text>: insert <text> immediately before <anchor>
   python - "$GENERATOR" "$1" "$2" <<'PY'
@@ -895,10 +1158,15 @@ restore_generator() { # <label>
   eq "$1: the restored source has the original sha256" "$(shasum "$GENERATOR")" "$GENERATOR_SHA"
 }
 
-MUT_ANCHOR='string(TIMESTAMP TF2_NOW_UTC "%Y-%m-%dT%H:%M:%SZ" UTC)'
+# The provenance values are assembled in one place; inserting before it forges a
+# field without disturbing the git calls that measured it. The old anchor (the
+# buildUtc TIMESTAMP) no longer exists: build time is carried forward from the
+# previous provenance now, so it is not a line a mutant can target.
+MUT_ANCHOR='set(TF2_VALUES'
+MUT_CONTENT_ANCHOR='string(SHA256 TF2_CONTENT'
 
 sec "M1: the stamp reports a hard-coded source tree instead of HEAD"
-mutate_insert "$MUT_ANCHOR" 'set(TF2_TREE "deadbeef0000")
+mutate_insert "$MUT_ANCHOR" 'set(TF2_SOURCE_TREE "deadbeef0000")
 '
 M1_APPLY_RC=$?
 eq "M1 applied (the anchor was found and edited)" "$M1_APPLY_RC" "0"
@@ -910,27 +1178,25 @@ build_targets mut1
 M1_BUILD_RC=$?
 eq "M1 mutated build rc (a mutant that does not compile is not caught)" "$M1_BUILD_RC" "0"
 if [ "$M1_BUILD_RC" -ne 0 ]; then report_build_failure "$SCRATCH/build-mut1.log"; fi
-M1_SHA="$(shasum "$EXE")"
-eq "M1 mutated build produced a different executable" \
-  "$([ "$M1_SHA" != "$REFERENCE_SHA" ] && echo linked || echo identical)" "linked"
-if [ "$M1_SHA" = "$REFERENCE_SHA" ]; then
-  echo "MUTATION-NOT-LINKED: M1 built the same bytes as the baseline; nothing was measured"
-  exit 90
-fi
 read_version "$SCRATCH/mut1.version"
 echo "  --- under M1: $(sed -n '2p' "$SCRATCH/mut1.version" | tr -d '\r') / $(sed -n '3p' "$SCRATCH/mut1.version" | tr -d '\r')"
 M1_TREE="$(ver_field "$SCRATCH/mut1.version" sourceTree)"
 eq "M1 is caught: the sourceTree assertion is red under the mutant" \
-  "$([ "$M1_TREE" = "$(git rev-parse --short=12 HEAD)" ] && echo green || echo red)" "red"
+  "$([ "$M1_TREE" = "$BASE_TREE" ] && echo green || echo red)" "red"
+if [ "$M1_TREE" = "$BASE_TREE" ]; then
+  restore_generator "M1"
+  echo "MUTATION-NOT-LIVE: M1 was meant to forge sourceTree and did not; nothing was measured"
+  exit 90
+fi
 restore_generator "M1"
 build_targets mut1-restored
 eq "M1 restored build rc" "$?" "0"
 read_version "$SCRATCH/mut1-restored.version"
 eq "M1 restored: the sourceTree assertion is green again" \
-  "$([ "$(ver_field "$SCRATCH/mut1-restored.version" sourceTree)" = "$(git rev-parse --short=12 HEAD)" ] && echo green || echo red)" "green"
+  "$([ "$(ver_field "$SCRATCH/mut1-restored.version" sourceTree)" = "$BASE_TREE" ] && echo green || echo red)" "green"
 MUTATIONS=$((MUTATIONS + 1))
 
-sec "M2: the stamp reports a clean tree while the tree has uncommitted changes"
+sec "M2: the provenance reports a clean tree while the tree has uncommitted changes"
 mutate_insert "$MUT_ANCHOR" 'set(TF2_DIRTY "0")
 set(TF2_DIRTY_FILES "0")
 set(TF2_DIRTY_TRACKED "0")
@@ -953,9 +1219,6 @@ build_targets mut2
 M2_BUILD_RC=$?
 eq "M2 mutated build rc (a mutant that does not compile is not caught)" "$M2_BUILD_RC" "0"
 if [ "$M2_BUILD_RC" -ne 0 ]; then report_build_failure "$SCRATCH/build-mut2.log"; fi
-M2_SHA="$(shasum "$EXE")"
-eq "M2 mutated build produced a different executable" \
-  "$([ "$M2_SHA" != "$REFERENCE_SHA" ] && echo linked || echo identical)" "linked"
 read_version "$SCRATCH/mut2.version"
 echo "  --- under M2: $(sed -n '3p' "$SCRATCH/mut2.version" | tr -d '\r') (the tree has $M2_TOTAL records)"
 M2_DIRTY="$(ver_field "$SCRATCH/mut2.version" dirty)"
@@ -967,6 +1230,13 @@ eq "M2 is caught: the dirty assertion is red under the mutant" \
 eq "M2 is caught: the dirtyFiles assertion is red under the mutant" \
   "$([ "$M2_FILES" = "$M2_TOTAL" ] && echo green || echo red)" "red"
 cp "$SCRATCH/mut2.version" "$SCRATCH/mut2-red.version"
+if [ "$M2_DIRTY" = "$M2_EXPECTED" ] && [ "$M2_FILES" = "$M2_TOTAL" ]; then
+  rm -f "$PROBE_UNTRACKED"; PROBE_UNTRACKED=""
+  cp "$SCRATCH/probe-doc.backup" "$PROBE_TRACKED"
+  restore_generator "M2"
+  echo "MUTATION-NOT-LIVE: M2 was meant to forge the dirty counts and did not; nothing was measured"
+  exit 90
+fi
 rm -f "$PROBE_UNTRACKED"
 PROBE_UNTRACKED=""
 cp "$SCRATCH/probe-doc.backup" "$PROBE_TRACKED"
@@ -1058,19 +1328,72 @@ eq "M3 restored: the args: unrecognized=1 assertion is green again" \
   "$([ "$(trace_text "$SCRATCH/args-restored.trace" | grep -c 'args: unrecognized=1 ' || true)" = "1" ] && echo green || echo red)" "green"
 MUTATIONS=$((MUTATIONS + 1))
 
+sec "M4: the build hashes something that is not the compiled inputs"
+# The mutant appends one line to the text the content hash is computed over. Every
+# consumer of that hash moves together -- the TU, both executables, both sidecars
+# -- so the sidecar still names the bytes beside it and assert_sidecar_binding
+# stays green. Only the independent recomputation (build-identity-content.sh: a
+# different implementation reading a different source of truth, the git index)
+# can see this, which is the reason that second implementation exists.
+mutate_insert "$MUT_CONTENT_ANCHOR" 'string(APPEND TF2_CONTENT_TEXT "# M4 mutant: one line the tree does not have")
+'
+M4_APPLY_RC=$?
+eq "M4 applied (the anchor was found and edited)" "$M4_APPLY_RC" "0"
+if [ "$M4_APPLY_RC" -ne 0 ]; then
+  restore_generator "M4"
+  exit 1
+fi
+build_targets mut4
+M4_BUILD_RC=$?
+eq "M4 mutated build rc (a mutant that does not compile is not caught)" "$M4_BUILD_RC" "0"
+if [ "$M4_BUILD_RC" -ne 0 ]; then report_build_failure "$SCRATCH/build-mut4.log"; fi
+M4_SHA="$(shasum "$EXE")"
+eq "M4 mutated build relinked the product (the content hash is compiled in)" \
+  "$([ "$M4_SHA" != "$REFERENCE_SHA" ] && echo linked || echo identical)" "linked"
+read_version "$SCRATCH/mut4.version"
+echo "  --- under M4: $(sed -n '4p' "$SCRATCH/mut4.version" | tr -d '\r')"
+M4_CONTENT="$(ver_field "$SCRATCH/mut4.version" sourceContent)"
+M4_RECOMPUTED="$(bash "$CONTENT_TOOL" hash 2>/dev/null)"
+eq "M4: the gate can still recompute the tree's content hash" \
+  "$([ -n "$M4_RECOMPUTED" ] && echo computed || echo missing)" "computed"
+eq "M4: the sidecar still names the mutated bytes (binding alone is blind to it)" \
+  "$(sed -n 's/^sourceContent=//p' "$IDENTITY" | tr -d '\r')" "$M4_CONTENT"
+eq "M4 is caught: the content-hash assertion is red under the mutant" \
+  "$([ "$M4_RECOMPUTED" = "$M4_CONTENT" ] && echo green || echo red)" "red"
+cp "$SCRATCH/mut4.version" "$SCRATCH/mut4-red.version"
+if [ "$M4_RECOMPUTED" = "$M4_CONTENT" ]; then
+  restore_generator "M4"
+  echo "MUTATION-NOT-LIVE: M4 was meant to move the content hash and did not; nothing was measured"
+  exit 90
+fi
+restore_generator "M4"
+build_targets mut4-restored
+eq "M4 restored build rc" "$?" "0"
+read_version "$SCRATCH/mut4-restored.version"
+eq "M4 restored: the content hash is the tree's again" \
+  "$([ "$(ver_field "$SCRATCH/mut4-restored.version" sourceContent)" = "$(bash "$CONTENT_TOOL" hash 2>/dev/null)" ] && echo green || echo red)" "green"
+eq "M4 restored: the product is back to its baseline bytes" "$(shasum "$EXE")" "$REFERENCE_SHA"
+MUTATIONS=$((MUTATIONS + 1))
+
 sec "mutation summary"
 eq "the mutant source is back to its original bytes at the end" "$(shasum "$GENERATOR")" "$GENERATOR_SHA"
 eq "the mutated C++ source is back to its original bytes at the end" "$(shasum "$MAIN_CPP")" "$MAIN_CPP_SHA"
+eq "the mutation suite ran every mutation it declares" "$MUTATIONS" "4"
 { echo "mutations=$MUTATIONS"; echo "generator_sha256=$GENERATOR_SHA"
   echo "main_cpp_sha256=$MAIN_CPP_SHA"
   echo "git_head=$(git rev-parse HEAD)"
   echo "native_tree_sha256=$(git ls-tree -r HEAD -- native/ | sha256sum | cut -d' ' -f1)"
   echo "gate_script_sha256=$(shasum "$0")"
-  echo "reference_exe_sha256=$REFERENCE_SHA"; echo "m1_exe_sha256=$M1_SHA"
-  echo "m2_exe_sha256=$M2_SHA"; echo "m3_exe_sha256=$M3_SHA"
+  echo "content_tool_sha256=$(shasum "$CONTENT_TOOL")"
+  echo "reference_exe_sha256=$REFERENCE_SHA"
+  echo "m1_named_assertion=sourceTree"; echo "m1_reading=$M1_TREE"
+  echo "m2_named_assertion=dirty+dirtyFiles"; echo "m2_reading=$M2_DIRTY/$M2_FILES tree=$M2_TOTAL"
+  echo "m3_named_assertion=args-unrecognized"; echo "m3_exe_sha256=$M3_SHA"
+  echo "m4_named_assertion=content-hash-agrees"; echo "m4_reading=$M4_CONTENT recomputed=$M4_RECOMPUTED"
 } > "$OUT/mutation-readings.txt"
 copy_out "$SCRATCH/mut1.version" version-mut1-fake-tree.txt
 copy_out "$SCRATCH/mut2-red.version" version-mut2-claims-clean.txt
+copy_out "$SCRATCH/mut4-red.version" version-mut4-wrong-content.txt
 copy_out "$SCRATCH/args-mut3.trace" args-mut3.trace
 copy_out "$SCRATCH/args-mut3.log" args-mut3.log
 copy_out "$SCRATCH/args-restored.trace" args-restored.trace
@@ -1078,7 +1401,8 @@ eq "evidence: every copy reached the output directory" "$COPY_FAIL" 0
 eq "evidence: the output directory holds the readings this run promises" \
   "$(( $(evidence_missing present args-mut3.log) \
      + $(evidence_missing nonempty mutation-readings.txt version-mut1-fake-tree.txt \
-         version-mut2-claims-clean.txt args-mut3.trace args-restored.trace) ))" 0
+         version-mut2-claims-clean.txt version-mut4-wrong-content.txt \
+         args-mut3.trace args-restored.trace) ))" 0
 if [ "$FAIL" -ne 0 ]; then
   echo "BUILD-IDENTITY-MUTATION=FAIL ($FAIL of $CHECKS assertions red, $MUTATIONS mutations attempted)"
   exit 1

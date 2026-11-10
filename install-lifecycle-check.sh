@@ -89,6 +89,30 @@ mkdir -p "$OUT/logs"
 BUILD="$REPO/native/build-nmake"
 EXE="$BUILD/tf2_demo_native.exe"
 PROBE="$BUILD/install_cli_probe.exe"
+
+# D-54: THE PAYLOAD IS A NAMED LIST, NOT FIVE SCATTERED LITERALS.
+#   Plan B gives the build an identity sidecar (tf2_demo_native.identity): a
+#   file beside the product that carries sourceContent/HEAD/dirty/buildUtc, so
+#   a docs-only commit no longer changes the executable's bytes. It ships in
+#   the package (native/cmake/tf2-package.cmake installs it into .uninstall/
+#   payload beside the other four), therefore every count in this gate that
+#   says "how many files" moves by exactly one. Writing the new numbers as
+#   literals would be eleven independent places to get wrong and no place that
+#   says WHY; the counts below are derived from this list instead, and section
+#   1 compares the staged payload against the list by NAME so a sixth file
+#   cannot slip in unnoticed.
+PAYLOAD_NAMES=(
+  WebView2Loader.dll
+  install_smoke_probe.ps1
+  native_install_smoke_probe.exe
+  tf2_demo_native.exe
+  tf2_demo_native.identity   # D-54: the identity sidecar
+)
+PAYLOAD_FILES=${#PAYLOAD_NAMES[@]}                     # 5
+OWNED_FILES=$((PAYLOAD_FILES + 1))                     # + VERSION.txt the install writes = 6
+FRESH_LISTING=$((OWNED_FILES + 1))                     # + the manifest = 7
+INSTALLED_LISTING=$((OWNED_FILES + 1 + 2))             # + manifest + 2 WebView2 licence docs = 9
+MANIFEST_RECORDS=$((OWNED_FILES + 2))                  # owned files + the 2 preserved licence records = 8
 VPK_QUERY="$BUILD/vpk_query.exe"
 # T42: the pinned inputs the fixture roots are built from, and the harness that
 # launches the INSTALLED product. title-capture.ps1 owns the record -> close ->
@@ -201,7 +225,15 @@ eq "the package carries a payload the installer will lay down" \
   "$([ -f "$OUT/stage/.uninstall/payload/tf2_demo_native.exe" ] && echo yes || echo no)" "yes"
 eq "the package carries its version file" "$([ -f "$OUT/stage/VERSION.txt" ] && echo yes || echo no)" "yes"
 payload_files="$(cd "$OUT/stage/.uninstall/payload" 2>/dev/null && find . -type f | wc -l | tr -d ' ')"
-eq "payload file count" "${payload_files:-0}" "4"
+eq "payload file count" "${payload_files:-0}" "$PAYLOAD_FILES"
+# The count alone would accept any five files. The claim is that the payload is
+# the list D-54 names, so the names are compared, sorted, both sides generated
+# from disk/in this file rather than typed twice.
+eq "the payload is exactly the files this gate names, by name" \
+  "$(cd "$OUT/stage/.uninstall/payload" && find . -type f | sed 's|^\./||' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')" \
+  "$(printf '%s\n' "${PAYLOAD_NAMES[@]}" | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
+eq "the sidecar D-54 adds is the one file that is not an executable or a script" \
+  "$(cd "$OUT/stage/.uninstall/payload" && find . -type f -name '*.identity' | wc -l | tr -d ' ')" "1"
 eq "no file in the package is empty" \
   "$(awk -F'\t' '$2 == 0 {n++} END {print n+0}' "$OUT/package-files.txt")" "0"
 hashlist "$OUT/stage" "$OUT/package-hashes.txt"
@@ -274,6 +306,18 @@ echo "  version=$pkg_version declared=$declared_version"
 eq "the version the product answers is the version the package ships" "$pkg_version" "$declared_version"
 has "the version line carries a monotonic versionCode" "$version_line" "versionCode="
 has "the version line names the source tree it came from" "$version_line" "sourceTree="
+# D-54: the identity is a FILE beside the product now (the sidecar), not a value
+# compiled into it, so the installed package must ship that file and the product
+# must read its answer from it. Three readings pin the install-face claim: the
+# file is in the package, the answer names the sidecar as its source, and the
+# answer carries the content hash the sidecar records. Without them the package
+# would still install and --version would still print four lines while the
+# identity silently degraded -- install_lifecycle.cpp reports identity=missing
+# when the sidecar is absent, and nothing below would have noticed.
+eq "the installed package ships the identity sidecar the build wrote" \
+  "$([ -f "$PKG/tf2_demo_native.identity" ] && echo present || echo absent)" "present"
+has "the product answers --version from that sidecar" "$version_line" "identity=sidecar"
+has "and the answer carries the content hash the sidecar records" "$version_line" "sourceContent="
 PVC="$(printf '%s\n' "$version_line" | sed -n 's/.*versionCode=\([0-9]*\).*/\1/p' | head -1)"
 eq "versionCode is a number" "$([ -n "$PVC" ] && echo yes || echo no)" "yes"
 eq "install_cli_probe agrees with the product" \
@@ -308,7 +352,7 @@ echo "  --- --install ---"
 sed "s/^/    /" "$OUT/install.txt"
 has "install reported PASS" "$(cat "$OUT/install.txt")" "install=PASS"
 eq "install mode" "$(field "$OUT/install.txt" mode)" "fresh"
-eq "files the install owns (4 payload + the VERSION.txt it writes)" "$(field "$OUT/install.txt" files)" "5"
+eq "files the install owns (the payload + the VERSION.txt it writes)" "$(field "$OUT/install.txt" files)" "$OWNED_FILES"
 eq "the only file it created" "$(field "$OUT/install.txt" new)" "1"
 eq "files it had to back up" "$(field "$OUT/install.txt" backups)" "0"
 eq "the two licence documents were already there and were preserved" "$(field "$OUT/install.txt" preserved)" "2"
@@ -324,16 +368,20 @@ sed "s/^/    /" "$OUT/installed-files.txt"
 # documentation (third_party/webview2/LICENSE.txt and NOTICE.txt): they are in
 # the package, so they are in a listing of the package, and the manifest records
 # them as preserved -- see the note at the head of this section.
-eq "installed file count (4 payload + VERSION.txt + manifest + 2 licence files)" \
-  "$(wc -l < "$OUT/installed-files.txt" | tr -d " ")" "8"
+eq "installed file count (payload + VERSION.txt + manifest + 2 licence files)" \
+  "$(wc -l < "$OUT/installed-files.txt" | tr -d " ")" "$INSTALLED_LISTING"
+eq "the installed directory holds the identity sidecar the package shipped" \
+  "$([ -f "$PKG/tf2_demo_native.identity" ] && echo yes || echo no)" "yes"
 eq "the installed manifest records the package version" \
   "$(sed -n "s/^packageVersion=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$declared_version"
 eq "the installed manifest records a monotonic version code" \
   "$(sed -n "s/^packageVersionCode=//p" "$PKG/.uninstall/install-manifest.txt" | tr -d "\r")" "$PVC"
 # The five install records plus the two preserved licence records: the manifest
 # describes the whole directory, not only what this run laid down.
-eq "the manifest lists the five installed files and the two licence documents, each once" \
-  "$(sed -n "s/^file=//p" "$PKG/.uninstall/install-manifest.txt" | wc -l | tr -d " ")" "7"
+eq "the manifest lists every owned file plus the two licence documents, each once" \
+  "$(sed -n "s/^file=//p" "$PKG/.uninstall/install-manifest.txt" | wc -l | tr -d " ")" "$MANIFEST_RECORDS"
+has "the manifest records the identity sidecar as a file the install laid down" \
+  "$(cat "$PKG/.uninstall/install-manifest.txt")" "tf2_demo_native.identity"
 # Pinning the COUNT alone would accept any two stray preserved records, and the
 # claim this section makes is that they are these two documents, so the paths are
 # pinned too. A record is "state<TAB>bytes<TAB>sha256<TAB>path"; this selection
@@ -358,14 +406,14 @@ FRC="$(run_exe "$OUT/stage/tf2_demo_native.exe" "$OUT/install-fresh.txt" --insta
 eq "install into an empty directory exits 0" "$FRC" "0"
 echo "  --- --install (empty directory) ---"
 sed "s/^/    /" "$OUT/install-fresh.txt"
-eq "a fresh install owns the four payload files plus the VERSION.txt it writes" \
-  "$(field "$OUT/install-fresh.txt" files)" "5"
-eq "a fresh install creates every one of them" "$(field "$OUT/install-fresh.txt" new)" "5"
+eq "a fresh install owns the payload files plus the VERSION.txt it writes" \
+  "$(field "$OUT/install-fresh.txt" files)" "$OWNED_FILES"
+eq "a fresh install creates every one of them" "$(field "$OUT/install-fresh.txt" new)" "$OWNED_FILES"
 inventory "$FRESH" "$OUT/installed-fresh.txt"
 echo "  --- the empty directory after the install ---"
 sed "s/^/    /" "$OUT/installed-fresh.txt"
 eq "the fresh directory holds the payload, the version file and the manifest" \
-  "$(wc -l < "$OUT/installed-fresh.txt" | tr -d " ")" "6"
+  "$(wc -l < "$OUT/installed-fresh.txt" | tr -d " ")" "$FRESH_LISTING"
 FSRC="$(run_exe "$FRESH/tf2_demo_native.exe" "$OUT/status-fresh.txt" --install-status)"
 eq "the fresh install reports VERIFIED" "$(cat "$OUT/status-fresh.txt" | grep -o "status=[A-Z]*" | head -1)" "status=VERIFIED"
 
@@ -376,7 +424,7 @@ eq "product --install-status exit code" "$SRC" "0"
 echo "  --- --install-status ---"
 sed 's/^/    /' "$OUT/status.txt"
 has "status is VERIFIED" "$(cat "$OUT/status.txt")" "status=VERIFIED"
-eq "status counts every file the manifest lists as present" "$(field "$OUT/status.txt" present)" "5"
+eq "status counts every file the manifest lists as present" "$(field "$OUT/status.txt" present)" "$OWNED_FILES"
 eq "status found nothing missing" "$(field "$OUT/status.txt" missing)" "0"
 eq "status found nothing modified" "$(field "$OUT/status.txt" modified)" "0"
 eq "status reports the installed version" "$(field "$OUT/status.txt" version)" "$declared_version"
@@ -452,6 +500,11 @@ has "so the verdict is INCOMPLETE, not PASS" "$(cat "$OUT/uninstall.txt")" "unin
 eq "the state directory is gone" "$([ -d "$FRESH/.uninstall" ] && echo present || echo absent)" "absent"
 eq "the version file the install wrote is gone" \
   "$([ -f "$FRESH/VERSION.txt" ] && echo present || echo absent)" "absent"
+# D-54: the sidecar is a file this install laid down (it is in the manifest the
+# install wrote), so uninstall must remove it with the rest -- a state file that
+# outlives its product would describe an install that is no longer there.
+eq "the identity sidecar this install laid down is gone after the uninstall" \
+  "$([ -f "$FRESH/tf2_demo_native.identity" ] && echo present || echo absent)" "absent"
 inventory "$FRESH" "$OUT/after-uninstall.txt"
 echo "  --- what is left ---"
 sed "s/^/    /" "$OUT/after-uninstall.txt"
@@ -552,9 +605,17 @@ has "the moved install verifies against its manifest" "$(cat "$OUT/migrated-stat
 eq "the moved install reports the version it was upgraded to" "$(field "$OUT/migrated-status.txt" version)" "0.2.0"
 eq "the foreign user file is neither missing nor modified" \
   "$(field "$OUT/migrated-status.txt" missing):$(field "$OUT/migrated-status.txt" modified)" "0:0"
-has "the manifest still records the OLD install path (nothing reads it)" \
-  "$(cat "$MIG/.uninstall/install-manifest.txt")" "/upgrade/target"
 MIG_MANIFEST="$(cat "$MIG/.uninstall/install-manifest.txt" 2>/dev/null)"
+# The install that wrote this manifest was given a WINDOWS path (--install-dir
+# "$(cygpath -w ...)"), so the recorded installDirectory is
+# D:\...\upgrade\target with backslashes. Matching that text against a
+# forward-slash needle fails on this machine whatever the product does; the claim
+# is "the recorded path is still the OLD directory", so the recorded form is
+# normalized before matching and the original is pinned too.
+has "the manifest still records the OLD install path (nothing reads it)" \
+  "$(printf '%s' "$MIG_MANIFEST" | tr '\\' '/')" "/upgrade/target"
+has "and the recorded path is a normal Windows absolute path" \
+  "$MIG_MANIFEST" "installDirectory=D:"
 hasnt "the user's note was never in the manifest (it was added after the install)" \
   "$MIG_MANIFEST" "user-notes.txt"
 M1="$(run_exe "$MIG/tf2_demo_native.exe" "$OUT/migrated-uninstall.txt" --uninstall)"
@@ -567,8 +628,8 @@ eq "and the pre-upgrade payload bytes are back on disk" \
   "$(grep -c "upgraded payload" "$MIG/install_smoke_probe.ps1" 2>/dev/null | tr -d " ")" "0"
 eq "the user file that was never installed is still there" \
   "$([ -f "$MIG/user-notes.txt" ] && echo present || echo absent)" "present"
-eq "the uninstall removed the three installed files the upgrade left behind" \
-  "$(field "$OUT/migrated-uninstall.txt" removed)" "3"
+eq "the uninstall removed the installed files the upgrade left behind (one more with the sidecar)" \
+  "$(field "$OUT/migrated-uninstall.txt" removed)" "$((OWNED_FILES - 2))"
 eq "and it did not claim the file it never recorded as preserved (preserved counts manifest records only)" \
   "$(field "$OUT/migrated-uninstall.txt" preserved)" "0"
 eq "the running image is deferred by name, not deleted" \
@@ -648,8 +709,8 @@ MISS="$OUT/clean/missing"; rm -rf "$MISS"; mkdir -p "$MISS/.uninstall"
 cp -r "$OUT/stage/.uninstall/payload" "$MISS/.uninstall/payload"
 MI0="$(run_exe "$OUT/stage/tf2_demo_native.exe" "$OUT/missing-install.txt" --install --install-dir "$(cygpath -w "$MISS")")"
 eq "the directory the missing-file case starts from is a real install" "$MI0" "0"
-eq "the install owns five records (four payload files and the version file)" \
-  "$(field "$OUT/missing-install.txt" files)" "5"
+eq "the install owns every owned file (payload plus the version file)" \
+  "$(field "$OUT/missing-install.txt" files)" "$OWNED_FILES"
 rm -f "$MISS/native_install_smoke_probe.exe" "$MISS/VERSION.txt"
 MI1="$(run_exe "$MISS/tf2_demo_native.exe" "$OUT/missing-status.txt" --install-status)"
 eq "status with two installed files removed exits 0 (it reports, it does not crash)" "$MI1" "0"
@@ -657,7 +718,7 @@ echo "  --- --install-status (an installed runtime file and VERSION.txt removed)
 sed "s/^/    /" "$OUT/missing-status.txt"
 has "status is DEGRADED, not VERIFIED" "$(cat "$OUT/missing-status.txt")" "status=DEGRADED"
 eq "status counts the two removed files as missing" "$(field "$OUT/missing-status.txt" missing)" "2"
-eq "status still counts the three intact records as present" "$(field "$OUT/missing-status.txt" present)" "3"
+eq "status still counts the intact records as present" "$(field "$OUT/missing-status.txt" present)" "$((OWNED_FILES - 2))"
 eq "status found nothing modified (a missing file is not a modified one)" \
   "$(field "$OUT/missing-status.txt" modified)" "0"
 MV="$(run_exe "$MISS/tf2_demo_native.exe" "$OUT/missing-version.txt" --version)"
@@ -672,8 +733,8 @@ echo "  --- --uninstall (two files already missing) ---"
 sed "s/^/    /" "$OUT/missing-uninstall.txt"
 eq "uninstall counts the two missing records as alreadyMissing" \
   "$(field "$OUT/missing-uninstall.txt" alreadyMissing)" "2"
-eq "uninstall removes the two installed files that are still there" \
-  "$(field "$OUT/missing-uninstall.txt" removed)" "2"
+eq "uninstall removes the installed files that are still there" \
+  "$(field "$OUT/missing-uninstall.txt" removed)" "$((OWNED_FILES - 3))"
 eq "that file is gone" "$([ -f "$MISS/install_smoke_probe.ps1" ] && echo present || echo absent)" "absent"
 eq "the file it cannot remove is still a named deferral, not a removal" \
   "$(field "$OUT/missing-uninstall.txt" deferredRunningImage)" "1"
@@ -1064,9 +1125,10 @@ mutated_binary_identity "$M4/tf2_demo_native.exe" "M4 staged binary" || M4_LINKE
 if [ "$M4_LINKED" = "90" ]; then mutation_not_linked "the M4 fixture would run the reference build"; fi
 # The packaged prefix holds the two licence documents before the install runs, so
 # the reference product records them as preserved. Under M4 the sweep skips them:
-# the three pins section 4 makes must read 0 / 5 / "new unchanged" instead of
-# 2 / 7 / "new preserved unchanged", each for the named reason. Anything else
-# means the mutation did not reach the reading it is aimed at.
+# the three pins section 4 makes must read 0 / owned-records / "new unchanged"
+# instead of 2 / all-records / "new preserved unchanged", each for the named
+# reason. Anything else means the mutation did not reach the reading it is
+# aimed at.
 M4RC="$(run_exe "$M4/tf2_demo_native.exe" "$MUT/m4-install.txt" --install)"
 M4_RECORDS="$(sed -n 's/^file=//p' "$M4/.uninstall/install-manifest.txt" | wc -l | tr -d ' ')"
 M4_WORDS="$(sed -n 's/^file=\([a-z]*\)\t.*/\1/p' "$M4/.uninstall/install-manifest.txt" | sort -u | tr '\n' ' ' | sed 's/ $//')"
@@ -1074,7 +1136,7 @@ echo "  under M4: exit=$M4RC preserved=$(field "$MUT/m4-install.txt" preserved) 
 eq "M4 install exit code" "$M4RC" "0"
 MUTATIONS=$((MUTATIONS + 1))
 eq "M4 caught: the preserved pin reads 0, not 2" "$(field "$MUT/m4-install.txt" preserved)" "0"
-eq "M4 caught: the record pin reads 5, not 7" "$M4_RECORDS" "5"
+eq "M4 caught: the record pin reads the owned records, not owned + the two licence records" "$M4_RECORDS" "$((PAYLOAD_FILES + 1))"
 eq "M4 caught: the state-word pin reads new unchanged, not new preserved unchanged" "$M4_WORDS" "new unchanged"
 cp "$MUT/backup/install_lifecycle.cpp" "$SRC_LIFE"
 if cmp -s "$SRC_LIFE" "$MUT/backup/install_lifecycle.cpp"; then ok "M4 source restored byte-identical" "yes"; else wrong "M4 source restored byte-identical" "no" "yes"; fi

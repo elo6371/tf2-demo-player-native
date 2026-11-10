@@ -31,6 +31,21 @@
 #     - a manifest written on every PASS records inputs_sha256 + binary_sha256;
 #     - mtime is reported (mtime_newer=N) as a DIAGNOSTIC and never fails alone.
 #
+#   D-54 (2026-11-10): WHAT THE PRODUCT PROVES NOW
+#   The manifest rule above still asks "did the binary change when the inputs
+#   changed". For the product that question is wrong in the same way mtime was:
+#   a docs-only commit changes the tree, is not a build input, and must NOT be
+#   answered with a relink. So the product is judged by identity instead: the
+#   build writes <build>/<target>.identity next to the exe, which records the
+#   sourceContent it compiled (and the gate's own copy of the same hash comes
+#   from build-identity-content.sh -- two independent implementations of one
+#   definition). Agreement between the two, plus the sidecar still naming the
+#   exe on disk, is the PASS. A changed binary is a DIAGNOSTIC for the product,
+#   not a requirement.
+#
+#   The other four targets keep the manifest rule: they carry no sidecar and
+#   their input set does not include the generated stamp.
+#
 #   THE FOUR STATES (each has one named verdict field)
 #     1. clean checkout, sources newer than the exe, content unchanged
 #        -> basis=content-identical  PASS  (mtime_newer>0 is expected)
@@ -56,7 +71,7 @@
 #      before and after both passes, and the manifest is written);
 #   3. a second build changes nothing -- the tree has no declared work left.
 #
-# VERDICT: REBUILD=PASS targets=5 rebuilt=N fresh=5 noop=5 basis=<content-identical|rebuilt|settled-first-run|relinked-unchanged-inputs> mtime_newer=X exe_sha256=<sha>
+# VERDICT: REBUILD=PASS targets=5 rebuilt=N fresh=5 noop=5 basis=<identity-agrees|content-identical|rebuilt|settled-first-run|relinked-unchanged-inputs> mtime_newer=X exe_sha256=<sha>
 #   rebuilt counts binaries whose sha changed across the two passes; rebuilt=0 is
 #   a pass, the claim is agreement, not churn.
 # Exit: 0 pass, 1 fail, 2 refused (no build tree / no such target / usage).
@@ -75,6 +90,11 @@ BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
 PRIMARY=tf2_demo_native
 TARGETS=(entity_overlay_probe entity_model_probe entity_protocol_probe world_geometry_probe "$PRIMARY")
 N=${#TARGETS[@]}
+
+# D-54: every build pass also refreshes the identity sidecars. tf2_identity is
+# an ALL target, so it is NOT pulled in by naming the binaries -- it has to be
+# named explicitly, exactly as build-identity-check.sh does.
+BUILD_TARGETS=(${TARGETS[@]} tf2_identity)
 MANIFEST_DIR="$BUILD/.rebuild-inputs"
 
 if [ ! -f "$BUILD/Makefile" ]; then
@@ -91,9 +111,16 @@ exe_of() { printf '%s/%s.exe\n' "$BUILD" "$1"; }
 # its own ignored outputs (native/generated/tf2_build_stamp.*) while the gate is
 # running, and those must not look like a changed input. In a tree without git
 # the gate falls back to every file on disk (still correct, just blinder).
+#
+# D-54: the product's list is now the SAME set gen-build-stamp.cmake hashes
+# (src, include, third_party, cmake, CMakeLists.txt) minus native/generated.
+# native/generated is the build's own output twice over now: the generated TU
+# AND the provenance/identity files are rewritten during a build, so keeping it
+# in the input list would make every build look like an input change.
 sources_of() {
   if [ "$1" = "$PRIMARY" ]; then
-    printf '%s\n' native/src native/include native/generated
+    printf '%s\n' native/src native/include native/third_party native/cmake \
+      native/CMakeLists.txt
   else
     printf '%s\n' "native/tools/$1.cpp" native/src native/include
   fi
@@ -125,6 +152,20 @@ inputs_sha() {
 
 sha_of() { if [ -f "$1" ]; then sha256sum "$1" | cut -d' ' -f1; else printf 'missing\n'; fi; }
 
+# D-54 identity helpers. content_of re-derives the product's sourceContent with
+# build-identity-content.sh, which implements the same git-clean-v1 definition as
+# native/cmake/gen-build-stamp.cmake but shares no code with it: a bug in one
+# implementation cannot make both agree by construction. It prints "unknown"
+# when neither git nor a readable tree is available, which is a FAIL below, never
+# a pass.
+content_of() { bash build-identity-content.sh hash 2>/dev/null; }
+content_method() { bash build-identity-content.sh method 2>/dev/null; }
+
+sidecar_field() { # sidecar_field <file> <key> -- empty when absent
+  [ -f "$1" ] || return 1
+  sed -n "s/^$2=//p" "$1" | head -1
+}
+
 mtime_newer() { # mtime_newer <exe> <target> -- DIAGNOSTIC ONLY, never a verdict
   local e="$1" t="$2" n=0 f
   while IFS= read -r f; do
@@ -152,7 +193,7 @@ for t in "${TARGETS[@]}"; do
 done
 
 echo "=== build (pass 1 of 2) ==="
-bash build-target.sh "${TARGETS[@]}"
+bash build-target.sh "${BUILD_TARGETS[@]}"
 rc=$?
 if [ "$rc" -ne 0 ]; then
   echo "REBUILD=FAIL reason=build-failed rc=$rc targets=${TARGETS[*]} log=.scratch/build-target.log"
@@ -176,7 +217,7 @@ for t in "${TARGETS[@]}"; do
 done
 
 echo "=== build (pass 2 of 2, must be a no-op) ==="
-bash build-target.sh "${TARGETS[@]}"
+bash build-target.sh "${BUILD_TARGETS[@]}"
 rc=$?
 if [ "$rc" -ne 0 ]; then
   echo "REBUILD=FAIL reason=second-build-failed rc=$rc (the tree is not settled)"
@@ -200,7 +241,39 @@ for t in "${TARGETS[@]}"; do
   [ "$bin_now" != "${BIN_MID[$t]}" ] && noop_changed=$((noop_changed + 1))
   [ "$bin_now" != "${BIN_BEFORE[$t]}" ] && rebuilt=$((rebuilt + 1))
 
-  if want=$(manifest_get "$t" inputs_sha256) && want_bin=$(manifest_get "$t" binary_sha256); then
+  if [ "$t" = "$PRIMARY" ]; then
+    # D-54: the product proves freshness by identity, not by churn. The build
+    # recorded the sourceContent it compiled; the gate recomputes that content
+    # hash from the tree. Equal hashes plus a sidecar that still names the exe on
+    # disk = the binary was built from exactly this tree. A relinked binary is
+    # NOT required here: a docs-only commit changes the tree without changing any
+    # build input, and demanding a new binary would fail that honest case.
+    sc="$BUILD/$t.identity"
+    recorded=$(sidecar_field "$sc" sourceContent)
+    rec_method=$(sidecar_field "$sc" contentMethod)
+    bound=$(sidecar_field "$sc" exeSha256)
+    live=$(content_of)
+    live_method=$(content_method)
+    if [ -z "$recorded" ] || [ -z "$bound" ]; then
+      echo "REBUILD-FRESH=FAIL reason=identity-sidecar-missing target=$t file=$sc (the build did not record what it compiled)"
+      stale=1
+    elif [ -z "$live" ] || [ "$live" = "unknown" ]; then
+      echo "REBUILD-FRESH=FAIL reason=identity-unavailable target=$t (build-identity-content.sh could not hash the tree)"
+      stale=1
+    elif [ "$live_method" != "$rec_method" ]; then
+      echo "REBUILD-FRESH=FAIL reason=identity-method-mismatch target=$t recorded=$rec_method live=$live_method (two hash methods are not comparable)"
+      stale=1
+    elif [ "$recorded" != "$live" ]; then
+      echo "REBUILD-FRESH=FAIL reason=identity-disagrees target=$t sidecar=${recorded:0:12} live=${live:0:12} (the binary was built from content this tree no longer has)"
+      stale=1
+    elif [ "$bound" != "$bin_now" ]; then
+      echo "REBUILD-FRESH=FAIL reason=sidecar-not-bound-to-binary target=$t sidecar_exe_sha256=${bound:0:12} exe=$bin_now (the sidecar describes some other binary)"
+      stale=1
+    else
+      [ "$basis" = "content-identical" ] && basis="identity-agrees"
+      echo "rebuild: target=$t state=identity-agrees exe=$e sha256=$bin_now sourceContent=${recorded:0:12} method=$rec_method mtime_newer=$newer"
+    fi
+  elif want=$(manifest_get "$t" inputs_sha256) && want_bin=$(manifest_get "$t" binary_sha256); then
     if [ "$want" != "$in_now" ]; then
       # Inputs changed since the last recorded pass. The binary must have changed
       # with them; if two build passes left it identical, nothing rebuilt it.
