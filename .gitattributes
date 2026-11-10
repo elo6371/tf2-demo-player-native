@@ -34,3 +34,11 @@ evidence/gate-launch-hygiene/baseline.txt text eol=lf
 # host only because checkout puts the CR bytes back, and would fail 8 of 12 on a
 # fresh clone. Byte for byte, like the evidence directories above.
 evidence/t91-merge/** -text
+
+# T100: this directory is compared byte for byte -- the golden TSVs, the fixture
+# messages and the captured raw probe output are diffed with cmp. On this host
+# core.autocrlf=true handed out 30 of the tracked text files with CRLF while the
+# index holds LF, so every golden row read as "1,25c1,25" even though od showed
+# the same bytes on both sides. Byte for byte, like evidence/t30 (T30) and
+# evidence/t68 (T68); D-69.
+evidence/t100-userinfo/** -text
