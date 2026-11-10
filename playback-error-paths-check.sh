@@ -12,6 +12,8 @@
 #
 #   bash playback-error-paths-check.sh [--only A1,A2,B,C,D,E] [--tag green] [--out DIR]
 #   bash playback-error-paths-check.sh --selftest      # no product, no lock; ~90 s on this host
+#   bash playback-error-paths-check.sh --mutation-judge M4 OUT/tag-gate.log
+#                                                      # verdict for one product-side mutant
 #
 # TF2_EXE overrides the binary (the pre-fix red run points it at the frozen t79
 # build); TF2_ROOT overrides the Team Fortress 2/tf root.
@@ -32,14 +34,15 @@
 # process spawn is expensive here (20 greps timed at 9.9 s); the selftest is in no
 # chain, so that cost is paid only when someone asks for the negative control.
 #
-# PRODUCT-SIDE MUTATIONS: NOT IMPLEMENTED -- see debt D-55. docs/T93-PLAYBACK-FIXES.md
-# section 5 names four one-line mutants (M1-M4) that would prove each repair is
-# load-bearing; none has ever been built, and this gate has no mutation mode. The only
-# evidence that these assertions go red on a broken product is the --tag pre run against
-# the frozen t79 binary (13 pass / 19 red, docs/T93-PLAYBACK-FIXES.md section 6). The
-# "green 25 pass / 0 red" row in that same table is a REPLAY over the committed trace of
-# the 2026-11-07 run, not a second execution. Do not read this gate as a green light
-# until it has run against a built binary.
+# PRODUCT-SIDE MUTATIONS are built and driven OUTSIDE this script (D-55 on the frozen
+# t103 tree; the E5 serial runner after it). This gate judges the result:
+# --mutation-judge <M#> <gate-log> turns one run into KILLED / SURVIVED / UNEXPECTED /
+# NOT-CAPABLE / GATE-ERROR, so the rule lives here and --selftest can exercise it.
+# D-87/D-88 changed M4's contract: D-first must be red, but D-dup is NOT-CAPABLE for a
+# mutant that swallows the re-entered tick (dup counts re-entries only, so it stays 0
+# by construction), and E-events is known collateral -- neither is a hit. The verdict
+# rules are exercised by --selftest (positive: exact sets KILLED; negative: the M4
+# shape must come back NOT-CAPABLE, never KILLED and never SURVIVED).
 set -u
 
 REPO=$(cd "$(dirname "$0")" && pwd)
@@ -55,6 +58,8 @@ OUT=${PLAYBACK_OUT:-$REPO/evidence/t93-playback}
 TAG=green
 ONLY=
 SELFTEST=0
+MJ_MUT=
+MJ_LOG=
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -62,7 +67,11 @@ while [ $# -gt 0 ]; do
     --tag) TAG=$2; shift 2 ;;
     --out) OUT=$2; shift 2 ;;
     --selftest) SELFTEST=1; shift ;;
-    *) echo "usage: $0 [--only A1,A2,B,C,D,E] [--tag NAME] [--out DIR] | --selftest"; exit 64 ;;
+    --mutation-judge)
+      MJ_MUT=${2:-}; MJ_LOG=${3:-}
+      if [ $# -ge 3 ]; then shift 3; else shift $#; fi
+      ;;
+    *) echo "usage: $0 [--only A1,A2,B,C,D,E] [--tag NAME] [--out DIR] | --selftest | --mutation-judge M1..M4 GATE-LOG"; exit 64 ;;
   esac
 done
 
@@ -197,6 +206,10 @@ judge_D() { # <trace> <rc>
   # count the re-entered tick as a duplicate. seen and dup are read together because
   # either alone can be gamed: a run that replays the tick would raise seen just as
   # well, and one that swallows it would keep dup at 0.
+  # D-87/D-88: that last clause is the whole point. Only a RE-ENTERED tick raises dup;
+  # a mutant that swallows it (lastTick_=tick) collapses seen and leaves dup at 0, so
+  # D-dup cannot carry this claim. D-first does; --mutation-judge reports M4 as
+  # NOT-CAPABLE for D-dup instead of pretending the pair was a clean kill.
   local FT S0 DUP
   FT=$(firstf "$T" "audio: advance" "tick=")
   S0=$(firstf "$T" "audio: advance" "seen=")
@@ -219,6 +232,88 @@ judge_E() { # <trace> <rc> <captured.bmp>
   MA=$(fnum "$T" "camera: summary" "modeApplies=")
   if [ "$MA" = 0 ]; then green E-modeapplies; else red E-modeapplies "camera: summary modeApplies=$MA (want 0 on a run that never changes mode)"; fi
   if [ -s "$B" ]; then green E-capture; else red E-capture "no capture frame written to $B"; fi
+}
+
+# ------------------------------------------------- mutation verdicts (D-87/D-88)
+# --mutation-judge <M#> <gate-log>: one gate log -> one verdict. Kept here (not in a
+# driver) so --selftest can prove the rule, and so every runner judges the same way.
+#
+# M4 is deliberately a two-part claim:
+#   * D-first MUST be red. The swallowed tick-0 range is visible in the first advance's
+#     seen= (measured 2026-11-10 on D-55: 750 -> 4), so this half is a real detection.
+#   * D-dup is NOT-CAPABLE, stated out loud. dup counts ticks that were re-entered; a
+#     mutant that swallows the tick never re-enters it, so dup stays 0 no matter what
+#     the mutant does (judge_D and the comment above say the same thing). D-dup is kept
+#     as a REPLAY detector, not as proof of this repair.
+#   * E-events (events_seen=759) is KNOWN COLLATERAL: the same loss counted through case
+#     E (759-746=13). It is not a hit and never upgrades the verdict.
+MUT_EXPECT_M1="A1-exit A1-stderr A1-trace A1-window A1-map A1-time"
+MUT_EXPECT_M2="B-applied B-paused B-mark B-summary B-clock"
+MUT_EXPECT_M3="C-trace C-target C-window C-burst"
+MUT_M4_REQUIRED="D-first"
+MUT_M4_COLLATERAL="E-events"
+MUT_M4_NOTCAPABLE="D-dup"
+MUT_M4_REASON="dup counts re-entered ticks only; a swallowed tick keeps dup=0 by construction (judge_D), so D-dup cannot prove this mutant -- D-first proves the loss, E-events is collateral and is not counted"
+
+mutation_redset() { # <gate-log> -> red ids in gate order
+  awk '/^RED   /{print $2}' "$1" 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//'
+}
+word_in() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
+
+judge_mutation() { # <M#> <gate-log> -> verdict on stdout; rc 0 KILLED 1 SURVIVED 2 UNEXPECTED 3 NOT-CAPABLE 9 GATE-ERROR
+  local M=$1 L=$2 reds want miss extra x
+  if [ ! -f "$L" ]; then
+    echo "MUTATION-VERDICT=$M GATE-ERROR"
+    echo "MUTATION-GATE-ERROR=$M reason=no gate log at $L"
+    return 9
+  fi
+  if ! grep -qE '^PLAYBACK-ERROR-PATHS=(PASS|FAIL)$' "$L"; then
+    echo "MUTATION-VERDICT=$M GATE-ERROR"
+    echo "MUTATION-GATE-ERROR=$M reason=log has no final PLAYBACK-ERROR-PATHS= line (truncated run or aborted gate; do not read it as SURVIVED)"
+    return 9
+  fi
+  reds=$(mutation_redset "$L")
+  if [ "$M" = "M4" ]; then
+    want=$MUT_M4_REQUIRED
+    miss=; extra=
+    word_in "$reds" "$want" || miss=$want
+    for x in $reds; do
+      [ "$x" = "$want" ] && continue
+      [ "$x" = "$MUT_M4_COLLATERAL" ] && continue
+      extra="$extra $x"
+    done
+    extra=${extra# }
+    echo "MUTATION-REDSET=$M reds=\"${reds:--}\" required=\"$want\" collateral=\"$MUT_M4_COLLATERAL\" not_capable=\"$MUT_M4_NOTCAPABLE\""
+    if [ -n "$miss" ]; then
+      echo "MUTATION-VERDICT=$M SURVIVED missing=\"$miss\""
+      return 1
+    fi
+    if [ -n "$extra" ]; then
+      echo "MUTATION-VERDICT=$M UNEXPECTED extra=\"$extra\""
+      return 2
+    fi
+    echo "MUTATION-CAUGHT=$M by=$want"
+    echo "MUTATION-NOT-CAPABLE=$M.$MUT_M4_NOTCAPABLE reason=\"$MUT_M4_REASON\""
+    echo "MUTATION-VERDICT=$M NOT-CAPABLE caught_by=$want not_capable=$MUT_M4_NOTCAPABLE"
+    return 3
+  fi
+  case "$M" in
+    M1) want=$MUT_EXPECT_M1 ;;
+    M2) want=$MUT_EXPECT_M2 ;;
+    M3) want=$MUT_EXPECT_M3 ;;
+    *) echo "MUTATION-VERDICT=$M GATE-ERROR"
+       echo "MUTATION-GATE-ERROR=$M reason=unknown mutant (want M1..M4)"
+       return 9 ;;
+  esac
+  miss=; extra=
+  for x in $want; do word_in "$reds" "$x" || miss="$miss $x"; done
+  for x in $reds; do word_in "$want" "$x" || extra="$extra $x"; done
+  miss=${miss# }; extra=${extra# }
+  echo "MUTATION-REDSET=$M reds=\"${reds:--}\" expected=\"$want\" missing=\"$miss\" extra=\"$extra\""
+  if [ -n "$extra" ]; then echo "MUTATION-VERDICT=$M UNEXPECTED extra=\"$extra\""; return 2; fi
+  if [ -n "$miss" ]; then echo "MUTATION-VERDICT=$M SURVIVED missing=\"$miss\""; return 1; fi
+  echo "MUTATION-VERDICT=$M KILLED"
+  return 0
 }
 
 # run <name> -- launches the argv in "$@" with the trace, rc and stderr kept.
@@ -328,7 +423,7 @@ EOF
   sed 's/modeApplies=0/modeApplies=1/' "$ST/e.trace" >"$ST/e-modeapplies.trace"
   { cat "$ST/e.trace"; echo "audio: seek reset from=1 to=2"; } >"$ST/e-seek.trace"
 
-  local CLEAN CLEAN_RED CLEAN_PASS ST_PASS=0 ST_FAIL=0
+  local CLEAN CLEAN_RED CLEAN_PASS ST_PASS=0 ST_FAIL=0 ST_MJ_PASS=0 ST_MJ_FAIL=0
   CLEAN=$(
     judge_A1 "$ST/a1.trace" 2 "$ST/a1.err" 0
     judge_A2 "$ST/a2.trace" 0
@@ -402,15 +497,81 @@ EOF
   self_red "E mode applied"       E-modeapplies judge_E "$ST/e-modeapplies.trace" 0 "$ST/e.bmp"
   self_red "E no capture"         E-capture  judge_E "$ST/e.trace" 0 "$ST/no-such.bmp"
 
+  # D-87/D-88: synthetic GATE LOGS for the mutation verdict. These are logs, not
+  # traces: judge_mutation reads only the RED lines plus the final token, so the
+  # positive control can assert KILLED without a product, and the negative control can
+  # assert that the MEASURED M4 shape comes back NOT-CAPABLE -- never KILLED (that would
+  # hide the capability gap) and never SURVIVED (that would understate the detection).
+  mk_log() { # <file> <red ids...>
+    local f=$1; shift
+    {
+      echo "PASS  A2-exit"
+      echo "PASS  E-timeline"
+      local r
+      for r in "$@"; do echo "RED   $r  -- synthetic red for the mutation-verdict selftest"; done
+      echo "GATE tag=selftest cases=6 pass=2 red=$# seconds=0"
+      echo "GATE-RESULT=FAIL"
+      echo "PLAYBACK-ERROR-PATHS=FAIL"
+    } >"$ST/$f"
+  }
+  mk_log m1.log A1-exit A1-stderr A1-trace A1-window A1-map A1-time
+  mk_log m2.log B-applied B-paused B-mark B-summary B-clock
+  mk_log m3.log C-trace C-target C-window C-burst
+  mk_log m4.log D-first E-events
+  mk_log m1-surv.log A1-exit A1-stderr A1-trace A1-window A1-map
+  mk_log m4-surv.log E-events
+  mk_log m1-extra.log A1-exit A1-stderr A1-trace A1-window A1-map A1-time B-applied
+  mk_log m4-extra.log D-first E-events B-applied
+  mk_log m4-dup.log D-first D-dup
+  { echo "PASS  A1-exit"; echo "GATE tag=selftest cases=1"; } >"$ST/trunc.log"
+
+  self_judge() { # <label> <want rc> <want line fragment> <M#> <log>
+    local label=$1 wantrc=$2 tok=$3 m=$4 l=$5 o rc
+    o=$(judge_mutation "$m" "$l"); rc=$?
+    if [ "$rc" = "$wantrc" ] && printf '%s\n' "$o" | grep -qF -- "$tok"; then
+      ST_MJ_PASS=$((ST_MJ_PASS+1))
+    else
+      ST_MJ_FAIL=$((ST_MJ_FAIL+1))
+      echo "SELFTEST-MUTATION-VERDICT-FAIL $label (want rc=$wantrc and '$tok', got rc=$rc)"
+      printf '%s\n' "$o" | sed 's/^/    /'
+    fi
+  }
+
+  self_judge "M1 exact red set"            0 "MUTATION-VERDICT=M1 KILLED"   M1 "$ST/m1.log"
+  self_judge "M2 exact red set"            0 "MUTATION-VERDICT=M2 KILLED"   M2 "$ST/m2.log"
+  self_judge "M3 exact red set"            0 "MUTATION-VERDICT=M3 KILLED"   M3 "$ST/m3.log"
+  # The negative control this debt exists for: the measured M4 shape (D-first + the
+  # E-events collateral, D-dup green) must be NOT-CAPABLE, with D-dup named as the gap.
+  self_judge "M4 swallow is NOT-CAPABLE"  3 "MUTATION-VERDICT=M4 NOT-CAPABLE caught_by=D-first" M4 "$ST/m4.log"
+  self_judge "M4 names D-dup as the gap"  3 "MUTATION-NOT-CAPABLE=M4.D-dup reason=" M4 "$ST/m4.log"
+  self_judge "M4 E-events is collateral"  3 "collateral=\"E-events\""      M4 "$ST/m4.log"
+  self_judge "M1 missing one red"         1 "MUTATION-VERDICT=M1 SURVIVED" M1 "$ST/m1-surv.log"
+  self_judge "M4 without D-first"         1 "MUTATION-VERDICT=M4 SURVIVED" M4 "$ST/m4-surv.log"
+  self_judge "M1 extra red"               2 "MUTATION-VERDICT=M1 UNEXPECTED" M1 "$ST/m1-extra.log"
+  self_judge "M4 extra non-collateral"    2 "MUTATION-VERDICT=M4 UNEXPECTED" M4 "$ST/m4-extra.log"
+  self_judge "M4 D-dup red = other mutant" 2 "MUTATION-VERDICT=M4 UNEXPECTED" M4 "$ST/m4-dup.log"
+  self_judge "truncated log"              9 "MUTATION-VERDICT=M1 GATE-ERROR" M1 "$ST/trunc.log"
+
   echo "PLAYBACK-GATE-SELFTEST: mutants $ST_PASS killed / $ST_FAIL survived; clean fixtures $CLEAN_PASS pass / $CLEAN_RED red"
+  echo "SELFTEST-MUTATION-VERDICT: $ST_MJ_PASS pass / $ST_MJ_FAIL fail (M4 must be NOT-CAPABLE, never KILLED and never SURVIVED)"
   rm -rf "$ST"
-  if [ "$ST_FAIL" -eq 0 ] && [ "$CLEAN_RED" -eq 0 ] && [ "$CLEAN_PASS" -eq 35 ]; then
+  if [ "$ST_FAIL" -eq 0 ] && [ "$ST_MJ_FAIL" -eq 0 ] && [ "$CLEAN_RED" -eq 0 ] && [ "$CLEAN_PASS" -eq 35 ]; then
     echo "PLAYBACK-GATE-SELFTEST=PASS"
     return 0
   fi
   echo "PLAYBACK-GATE-SELFTEST=FAIL"
   return 1
 }
+
+# --mutation-judge: judge a gate log and exit. Nothing is launched; no product, no lock.
+if [ -n "$MJ_MUT" ] || [ -n "$MJ_LOG" ]; then
+  if [ -z "$MJ_MUT" ] || [ -z "$MJ_LOG" ]; then
+    echo "usage: $0 --mutation-judge M1..M4 GATE-LOG"
+    exit 64
+  fi
+  judge_mutation "$MJ_MUT" "$MJ_LOG"
+  exit $?
+fi
 
 if [ "$SELFTEST" = 1 ]; then
   selftest
