@@ -375,7 +375,8 @@ echo
 # deliberately trimmed gate can lower the one number here.
 # Reading taken with: grep -o 'TIMELINE-CHECK=PASS assertions=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN19-KEYPATH-window.log | tail -1  ->  assertions=29
 if [ "$count" -lt 24 ]; then
-  bad "only $count assertions ran; the floor is 24 (measured 29 on 2026-11-09) -- sections that stopped running cannot pass (D-72)"
+  echo "  FAIL assertions: only $count assertions ran; the floor is 24 (measured 29 on 2026-11-09) -- sections that stopped running cannot pass (D-72)"
+  failures=$((failures + 1)); fail=1
 fi
 if [ "$fail" -eq 0 ]; then
   echo "TIMELINE-CHECK=PASS assertions=$count"
