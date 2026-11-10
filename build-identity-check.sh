@@ -411,7 +411,7 @@ assert_content_hash_agrees() { # <version-file> <label>
 }
 
 assert_timestamp_window() { # <file> <label>
-  local f="$1" label="$2" head_epoch stamp_epoch exe_mtime sidecar_mtime
+  local f="$1" label="$2" head_epoch stamp_epoch exe_mtime sidecar_mtime exe_sha sidecar_sha
   head_epoch="$(git log -1 --format=%ct HEAD)"
   stamp_epoch="$(date -u -d "$(ver_field "$f" buildUtc)" +%s 2>/dev/null)"
   exe_mtime="$(stat -c %Y "$EXE" 2>/dev/null)"
@@ -442,8 +442,33 @@ assert_timestamp_window() { # <file> <label>
   ge "$label: buildUtc is not earlier than the commit it names" "${stamp_epoch:-0}" "$head_epoch"
   le "$label: buildUtc is not later than the sidecar that reports it" \
     "${stamp_epoch:-1}" "$(( ${sidecar_mtime:-0} + 5 ))"
-  le "$label: the executable is not newer than the sidecar that names its sha" \
-    "${exe_mtime:-1}" "$(( ${sidecar_mtime:-0} + 5 ))"
+  # D-94 REPLACED THE ORDERING WITH A CURRENCY CHECK (2026-11-10).
+  #   "the executable is not newer than the sidecar" was a proxy for "the sidecar
+  #   describes this binary", and a rebuild that reproduces the same bytes breaks
+  #   the proxy: build-cmake.sh left no header stamp, so the first build-target.sh
+  #   call after a clean build recompiled every translation unit and relinked --
+  #   the exe kept its bytes and gained 500 s of mtime, while the sidecar, whose
+  #   own inputs had not changed, was not rewritten. Measured on E5 at 801b0f1
+  #   (exe sha 86379f95, byte-identical across that rebuild): this assertion was
+  #   the only red of a 219-assertion forward run, at
+  #   build-identity-forward.log:45 -- exe mtime 1794310717 against sidecar
+  #   1794310217 + 5.
+  #   A time ordering cannot tell a stale sidecar from a relinked identical
+  #   binary, so the ordering is gone and the content claim is asserted instead:
+  #   the sidecar must name the sha of the executable that is on disk, and when
+  #   the exe IS newer than its sidecar that equality is the reconciliation the
+  #   old rule stood in for. The unconditional binding assertions in
+  #   assert_sidecar_binding stay where they are; this is the compensating
+  #   assertion, not a deletion.
+  exe_sha="$(shasum "$EXE")"
+  sidecar_sha="$(sed -n 's/^exeSha256=//p' "$IDENTITY" 2>/dev/null | tr -d '\r' | head -1)"
+  eq "$label: the sidecar carries an exeSha256 line to check the executable against" "$(printf '%s' "$sidecar_sha" | grep -cE '^[0-9a-f]{64}$')" "1"
+  eq "$label: the sha the sidecar names is the sha of the executable on disk" "$sidecar_sha" "$exe_sha"
+  if [ "${exe_mtime:-0}" -gt "$(( ${sidecar_mtime:-0} + 5 ))" ]; then
+    ok "$label: the executable is newer than its sidecar, and the sidecar still names it" "$exe_sha"
+  else
+    ok "$label: the executable is not newer than its sidecar (nothing to reconcile)" "$(( ${sidecar_mtime:-0} - ${exe_mtime:-0} ))s"
+  fi
 }
 
 assert_line_one_contract() { # <file> <label>

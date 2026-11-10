@@ -107,6 +107,31 @@ BUILD="$REPO/native/build-nmake"
 EXE="$BUILD/tf2_demo_native.exe"
 PROBE="$BUILD/install_cli_probe.exe"
 
+# THE PAYLOAD IS NAMED ONCE (D-54 + D-91).
+#   D-54 added the identity sidecar to the install set: the payload went 4 -> 5
+#   and the installed tree 8 -> 9. install-lifecycle-check.sh derives its counts
+#   from a named list, but this gate still carried 4 and 5 as literals, so it
+#   went red on a green product: E5 read install=DRYRUN files=5 against
+#   "files=4", and install=PASS files=6 against "files=5" (log
+#   /d/_shared/EXEC-2026-11-10/E5/out/01-identity-install/install-cli-forward.log
+#   lines 20 and 43, exe sha 86379f95). The list below is the single source for
+#   both numbers, and A1 compares it with the set of files the staged package
+#   actually ships -- a member added to the package and either missing here or
+#   left behind here is then a named assertion, not a bare count that drifts.
+PAYLOAD_NAMES=(
+  tf2_demo_native.exe
+  native_install_smoke_probe.exe
+  install_smoke_probe.ps1
+  WebView2Loader.dll
+  tf2_demo_native.identity
+)
+# --install-dry-run plans exactly the payload directory.
+PAYLOAD_FILES=${#PAYLOAD_NAMES[@]}
+# install=PASS counts the payload plus VERSION.txt, which the installer writes
+# and records itself (native/src/install_lifecycle.cpp pushes the kVersionFileName
+# record onto the same files vector whose size "install=PASS files=" reports).
+INSTALL_RECORDS=$((PAYLOAD_FILES + 1))
+
 CHECKS=0; FAIL=0; MUTATIONS=0
 sec() { echo; echo "=== $1 ==="; }
 ok()   { echo "  OK   $1 = $2"; CHECKS=$((CHECKS + 1)); }
@@ -115,6 +140,10 @@ eq()   { if [ "$2" = "$3" ]; then ok "$1" "$2"; else wrong "$1" "$2" "$3"; fi; }
 has()  { case "$2" in *"$3"*) ok "$1" "yes";; *) wrong "$1" "no" "contains $3";; esac; }
 hasnt(){ case "$2" in *"$3"*) wrong "$1" "yes" "absent";; *) ok "$1" "absent";; esac; }
 inventory() { ( cd "$1" && find . -type f -printf "%P\t%s\n" | LC_ALL=C sort ) > "$2"; }
+# The names inside the payload directory of a staged package, one per line.
+# An absent directory prints nothing, so the caller asserts the count before it
+# compares the set: an absent payload cannot pass as a set that happens to match.
+payload_file_set() { ( cd "$1/.uninstall/payload" 2>/dev/null && find . -type f -printf "%P\n" | LC_ALL=C sort ); }
 
 stage_package() { # <prefix> <log-name>
   local prefix="$1" name="$2" rc=0
@@ -224,6 +253,10 @@ if [ "$ST1_RC" != "0" ]; then
   sed 's/^/    /' "$OUT/logs/a1-stage-inventory.txt"
 fi
 eq "A1 the staged package carries a payload" "$([ -d "$A1/.uninstall/payload" ] && echo yes || echo no)" "yes"
+A1_PAYLOAD_SET="$(payload_file_set "$A1" | tr '\n' ' ')"
+EXPECT_PAYLOAD_SET="$(printf '%s\n' "${PAYLOAD_NAMES[@]}" | LC_ALL=C sort | tr '\n' ' ')"
+eq "A1 the payload directory holds as many files as the list names (existence before the set compare)" "$(printf '%s' "$A1_PAYLOAD_SET" | wc -w | tr -d ' ')" "$PAYLOAD_FILES"
+eq "A1 the gate's payload list is the set of files the staged package ships" "$A1_PAYLOAD_SET" "$EXPECT_PAYLOAD_SET"
 inventory "$A1" "$OUT/logs/a1-before.txt"
 A1_RC="$(run_exe "$A1/tf2_demo_native.exe" "$OUT/logs/a1-out.txt" "$OUT/logs/a1.ms" \
   --install-dry-run --install-dir "$(cygpath -w "$A1")" \
@@ -235,7 +268,8 @@ echo "  A1 exit=$A1_RC elapsed_ms=$A1_MS"
 echo "$A1_OUT" | sed 's/^/    /'
 eq "A1 exit code" "$A1_RC" "0"
 has "A1 the answer is a dry run" "$A1_OUT" "install=DRYRUN"
-has "A1 the plan lists the payload count" "$A1_OUT" "files=4"
+eq "A1 the dry-run answer carries a payload-count token (existence before the count)" "$(printf '%s' "$A1_OUT" | grep -c 'install=DRYRUN files=')" "1"
+has "A1 the plan lists the payload count" "$A1_OUT" "install=DRYRUN files=$PAYLOAD_FILES "
 inventory "$A1" "$OUT/logs/a1-after.txt"
 eq "A1 the directory did not change" \
   "$(cmp -s "$OUT/logs/a1-before.txt" "$OUT/logs/a1-after.txt" && echo same || echo changed)" "same"
@@ -292,7 +326,8 @@ echo "  A3 exit=$A3_RC"
 echo "$A3_OUT" | sed 's/^/    /'
 eq "A3 install exit code" "$A3_RC" "0"
 has "A3 the install succeeded" "$A3_OUT" "install=PASS"
-has "A3 the payload was laid down" "$A3_OUT" "files=5"
+eq "A3 the install answer carries a file-count token (existence before the count)" "$(printf '%s' "$A3_OUT" | grep -c 'install=PASS files=')" "1"
+has "A3 the payload was laid down" "$A3_OUT" "install=PASS files=$INSTALL_RECORDS "
 MAN="$CJK/.uninstall/install-manifest.txt"
 eq "A3 the manifest was written" "$([ -f "$MAN" ] && echo yes || echo no)" "yes"
 A3_EXPECT="$(cygpath -w "$CJK")"
@@ -339,6 +374,19 @@ echo "  A4 control exit=$S1_RC"
 echo "$S1_OUT" | sed 's/^/    /'
 eq "A4 control: status exit code" "$S1_RC" "0"
 has "A4 control: status is VERIFIED" "$S1_OUT" "status=VERIFIED"
+# status= files is the whole manifest: the payload records plus VERSION.txt
+# (INSTALL_RECORDS), plus the records collectPreserved() adds for files the
+# package ships but does not own -- WebView2's LICENSE.txt and NOTICE.txt under
+# third_party/. The preserved count is read off the staged package rather than
+# written down here, and present= is the records that are the package's own.
+A4_STAGED_PRESERVED="$(cd "$CJK" && find third_party -type f 2>/dev/null | wc -l | tr -d ' ')"
+if [ "${A4_STAGED_PRESERVED:-0}" -ge 1 ] 2>/dev/null; then
+  ok "A4 control: the staged package carries the license files the manifest preserves" "$A4_STAGED_PRESERVED"
+else
+  wrong "A4 control: the staged package carries the license files the manifest preserves" "${A4_STAGED_PRESERVED:-none}" ">= 1"
+fi
+MANIFEST_RECORDS=$((INSTALL_RECORDS + A4_STAGED_PRESERVED))
+has "A4 control: the status counts every manifest record and every payload file it can see" "$S1_OUT" "files=$MANIFEST_RECORDS present=$INSTALL_RECORDS missing=0"
 hasnt "A4 control: a UTF-8 manifest is not announced as legacy" "$S1_OUT" "manifest: legacy-acp installDirectory"
 python "$HELPER" legacy "$MAN" > "$OUT/logs/a4-rewrite.txt" 2>&1
 A4_REW="$(cat "$OUT/logs/a4-rewrite.txt")"
