@@ -368,8 +368,14 @@ if section_on 4; then
 fi
 
 echo
-if [ "$count" -lt 4 ]; then
-  bad "only $count assertions ran; a timeline gate with fewer than 4 cannot pass"
+# D-72 (D68-SCAN K3): the floor was 4, a vestige of an early revision; the
+# forward run measures 29 (2026-11-09, /d/_shared/EXEC-2026-11-09/RUN19-KEYPATH-window.log).
+# Between 4 and 28 a gate whose sections had stopped running still printed PASS,
+# so the floor is 24 (83% of 29): losing five or more assertions is caught, and a
+# deliberately trimmed gate can lower the one number here.
+# Reading taken with: grep -o 'TIMELINE-CHECK=PASS assertions=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN19-KEYPATH-window.log | tail -1  ->  assertions=29
+if [ "$count" -lt 24 ]; then
+  bad "only $count assertions ran; the floor is 24 (measured 29 on 2026-11-09) -- sections that stopped running cannot pass (D-72)"
 fi
 if [ "$fail" -eq 0 ]; then
   echo "TIMELINE-CHECK=PASS assertions=$count"
