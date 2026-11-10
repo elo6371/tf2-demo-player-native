@@ -28,8 +28,9 @@
 #
 # WHAT IT DOES NOT SEE (model boundaries, not bugs -- do not report a false PASS)
 #   - Launches made indirectly: python heredocs spawning the exe
-#     (entity-material-check.sh:155 does subprocess.Popen), PowerShell launches
-#     (install-readiness-check.sh:770, stability-run-matrix.ps1), build-only references.
+#     (entity-material-check.sh:155 does subprocess.Popen), build-only references.
+#     PowerShell launches are no longer silent (see D-50b below), but they are
+#     WARN level: their flags are collected, never ratcheted.
 #   - Flags forwarded through "$@": statically invisible, so an array that ends in
 #     "$@" is judged by the literal flags in its own body.
 #   - Whether the run ACTUALLY stays isolated at runtime; this gate is a static
@@ -43,6 +44,42 @@
 #     scripts already have the shape and red lines would say the tree got worse
 #     when what got worse is this scanner's reach.
 #
+# D-50b: the ratchet above reads root *.sh only, so the tree's PowerShell launchers
+#   were entirely outside its reach. Measured on 2026-11-10 (t105-e5): 20 tracked
+#   *.ps1, five of which execute the product, and TWO of those --
+#   native/tools/native_acceptance_gate.ps1:58 and
+#   native/tools/native_stability_gate.ps1:35 -- pass neither --settings-file nor
+#   --ui-settings-file, so each run rewrites the machine's real
+#   %LOCALAPPDATA%/TF2 Demo Player/{settings.ini,ui.ini} exactly as D-22 describes.
+#   They are reported and counted (pslaunch= / psunflagged= on the token) but NOT
+#   added as baseline rows: the baseline is a set of shell rows a single edit can
+#   fix, and a row this scanner cannot re-derive after the fix would be stale the
+#   moment it is fixed. Fixing those two launchers is what drives psunflagged to 0;
+#   the count makes them visible until then -- the same reasoning that made D-76 a
+#   WARN instead of a red line.
+#   WHAT THE POWERSHELL PASS READS: every *.ps1 under the scanned root except
+#   evidence/ (history, not launchers), .scratch/ and build*/; a site is a
+#   Start-Process, a [System.Diagnostics.Process]::Start($psi) whose FileName names
+#   the product, or an "& <exe>" call. Flags are collected from the list-building
+#   lines ($a.Add('--x'), $a += @('--x'), $a = @('--x')), followed through
+#   $psi.Arguments / -ArgumentList and one level of variable indirection. A launcher
+#   that assembles flags inside a function, or splats @PSBoundParameters, is counted
+#   unflagged -- conservative on purpose: silence is what this pass exists to end.
+#
+# D-92: the per-line loop read multi-line array literals as if their elements were
+#   commands. install-lifecycle-check.sh:106-112 names the package payload in
+#   PAYLOAD_NAMES=( ... ), and the two elements that contain the product's file name
+#   (:108 tf2_demo_native.exe, :109 tf2_demo_native.identity) were each recorded as a
+#   direct launch carrying neither flag -- two violations that were data, not code.
+#   An element line inside a multi-line array literal is now skipped, with one
+#   exception kept on purpose: a line that runs a command substitution ($( ) or a
+#   backtick) is still scanned, because a launcher can hide inside it. array-def and
+#   array-exec detection is untouched: "$ARR[@]" in command position and an array
+#   whose body starts with the product are still read as launches. This tree had been
+#   FAIL on this gate since 9fea1d1 (D-54) added the identity element; the earlier
+#   CAND-A2 hygiene PASS was measured on b61af91, a tree from before that merge, and
+#   cannot be cited for the tree that carries it.
+#
 # USAGE
 #   bash gate-launch-hygiene-check.sh                   # check (0 PASS / 1 FAIL / 90 tool error)
 #   bash gate-launch-hygiene-check.sh --update-baseline # rewrite baseline, print +/- rows
@@ -55,21 +92,37 @@
 #                                                       # the floors out of the way (D-77).
 #                                                       # The shipping run never passes it;
 #                                                       # the skip is printed, not silent.
+#   bash gate-launch-hygiene-check.sh --selftest-pwsh   # D-50b controls: three mock trees
+#                                                       # proving a PowerShell site is
+#                                                       # counted and WARNed, a compliant one
+#                                                       # is not, and the shell ratchet
+#                                                       # still fails what it failed before.
+#                                                       # No product, no lock, mktemp only.
+#   bash gate-launch-hygiene-check.sh --selftest-array  # D-92 controls: three mock trees
+#                                                       # proving an array element is data,
+#                                                       # a launch after the array still
+#                                                       # fails, and a launcher hidden in
+#                                                       # $( ) inside the array is caught.
+#                                                       # No product, no lock, mktemp only.
 #
 # Last line is a machine token:
-#   GATE-LAUNCH-HYGIENE=PASS|FAIL violations=N baseline=M warnings=W lifecycle=K
+#   GATE-LAUNCH-HYGIENE=PASS|FAIL violations=N baseline=M warnings=W lifecycle=K arrskipped=S pslaunch=A psunflagged=B
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SCAN_ROOT="$ROOT"
 UPDATE=0
 FLOORS=1
+SELFTEST_PWSH=0
+SELFTEST_ARRAY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) SCAN_ROOT="$(cd "$2" && pwd)"; shift 2;;
     --update-baseline) UPDATE=1; shift;;
     --ignore-floors) FLOORS=0; shift;;
-    --help|-h) sed -n '2,40p' "$0"; exit 0;;
+    --selftest-pwsh) SELFTEST_PWSH=1; shift;;
+    --selftest-array) SELFTEST_ARRAY=1; shift;;
+    --help|-h) sed -n '2,109p' "$0"; exit 0;;
     *) echo "GATE-LAUNCH-HYGIENE=FAIL unknown argument: $1"; exit 2;;
   esac
 done
@@ -86,6 +139,175 @@ for c in python python3 py; do
 done
 if [ -z "$PY" ]; then
   echo "GATE-LAUNCH-HYGIENE=FAIL tool-error: no working python interpreter"; exit 90
+fi
+
+# D-50b controls: three mock trees, no product, no lock, mktemp only. The shell
+# ratchet has its own selftest (gate-hygiene-selftest.sh); this one covers the
+# PowerShell pass, which that file cannot see.
+run_pwsh_selftest() {
+  local W; W=$(mktemp -d) || { echo "HYGIENE-PWSH-SELFTEST=FAIL tool-error: mktemp"; return 90; }
+  local checks=0 fails=0 rc=0 exe_name d
+  exe_name=$(printf 'tf2_demo_%s.exe' native)
+
+  ok()   { checks=$((checks + 1)); printf '  OK   %s\n' "$1"; }
+  bad()  { checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL %s\n' "$1"; }
+  has()  { if grep -qaF "$3" "$2"; then ok "$1"; else bad "$1 (no: $3)"; fi; }
+  lacks(){ if grep -qaF "$3" "$2"; then bad "$1 (found: $3)"; else ok "$1"; fi; }
+  rcis() { if [ "$2" = "$3" ]; then ok "$1 (rc=$3)"; else bad "$1 (rc=$2, expected $3)"; fi; }
+
+  echo "=== gate-launch-hygiene selftest: PowerShell pass (D-50b), mock trees ==="
+
+  # P1: a .ps1 that starts the product with no isolation flags -> counted, WARNed,
+  #     and still PASS (the whole point of registering the shape first), with a
+  #     copy under evidence/ proving that directory is not scanned.
+  d=$W/p1; mkdir -p "$d/evidence/gate-launch-hygiene" "$d/evidence/old"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '$exe = Join-Path $PSScriptRoot %s\n' "'$exe_name'"
+    printf '%s\n' "\$arguments = @('--no-vsync', '--demo', \$Demo)"
+    printf '%s\n' 'Start-Process -FilePath $exe -ArgumentList $arguments'
+  } > "$d/evil.ps1"
+  cp "$d/evil.ps1" "$d/evidence/old/old.ps1"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/p1.log" 2>&1; rc=$?
+  rcis "P1 an unflagged PowerShell launch is not fatal (WARN, not VIOLATION)" "$rc" 0
+  has  "P1 the site is counted" "$W/p1.log" "pslaunch=1"
+  has  "P1 the missing flags are counted" "$W/p1.log" "psunflagged=1"
+  has  "P1 the scan names the file" "$W/p1.log" "evil.ps1"
+  has  "P1 the PowerShell pass does not inflate the shell warning count" "$W/p1.log" "warnings=0"
+  lacks "P1 evidence/ is not scanned for PowerShell launchers" "$W/p1.log" "old.ps1"
+
+  # P2: the same launch with both flags plumbed through a List -> flagged.
+  d=$W/p2; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '$exe = Join-Path $PSScriptRoot %s\n' "'$exe_name'"
+    printf '%s\n' '$args = New-Object System.Collections.Generic.List[string]'
+    printf '%s\n' "\$args.Add('--demo'); \$args.Add(\$Demo)"
+    printf '%s\n' "\$args.Add('--settings-file'); \$args.Add(\$settings)"
+    printf '%s\n' "\$args.Add('--ui-settings-file'); \$args.Add(\$uiSettings)"
+    printf '%s\n' '$psi = New-Object System.Diagnostics.ProcessStartInfo'
+    printf '%s\n' '$psi.FileName = $exe'
+    printf '%s\n' "\$psi.Arguments = (\$args | ForEach-Object { \$_ }) -join ' '"
+    printf '%s\n' '$proc = [System.Diagnostics.Process]::Start($psi)'
+  } > "$d/good.ps1"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/p2.log" 2>&1; rc=$?
+  rcis "P2 a compliant PowerShell launch passes" "$rc" 0
+  has  "P2 the site is still counted" "$W/p2.log" "pslaunch=1"
+  has  "P2 no missing flag is reported" "$W/p2.log" "psunflagged=0"
+  lacks "P2 no WARN line is printed for a compliant launcher" "$W/p2.log" "pass neither --settings-file nor --ui-settings-file"
+
+  # P3: the shell ratchet still fires in a tree that also carries a .ps1 -- the new
+  #     pass must add a reading, never replace the old verdict.
+  d=$W/p3; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  cp "$W/p1/evil.ps1" "$d/evil.ps1"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf 'EXE=native/build-nmake/%s\n' "$exe_name"
+    printf '%s\n' 'DEMO=$1'
+    printf '%s\n' '"$EXE" --audio-disabled --hidden-window --demo "$DEMO"'
+  } > "$d/evil.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/p3.log" 2>&1; rc=$?
+  rcis "P3 an unisolated shell launch still fails" "$rc" 1
+  has  "P3 the failure is named" "$W/p3.log" "new unisolated launch"
+  has  "P3 it names the shell script" "$W/p3.log" "evil.sh"
+  has  "P3 the PowerShell count survives in the FAIL token" "$W/p3.log" "psunflagged=1"
+
+  echo
+  if [ "$fails" -ne 0 ]; then
+    echo "HYGIENE-PWSH-SELFTEST=FAIL checks=$checks failures=$fails"
+    return 1
+  fi
+  echo "HYGIENE-PWSH-SELFTEST=PASS checks=$checks"
+  return 0
+}
+
+# D-92 controls: three mock trees. The first is the shape that made this tree red --
+# a payload list that names the product twice with nothing executing it; the second
+# proves a real launch after such a list still fails; the third proves that a launch
+# hidden in a command substitution inside the array body is still caught, because
+# that is the one element shape the skip deliberately leaves in the main scan.
+run_array_selftest() {
+  local W; W=$(mktemp -d) || { echo "HYGIENE-ARRAY-SELFTEST=FAIL tool-error: mktemp"; return 90; }
+  local checks=0 fails=0 rc=0 exe_name d
+  exe_name=$(printf 'tf2_demo_%s.exe' native)
+
+  ok()   { checks=$((checks + 1)); printf '  OK   %s\n' "$1"; }
+  bad()  { checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL %s\n' "$1"; }
+  has()  { if grep -qaF "$3" "$2"; then ok "$1"; else bad "$1 (no: $3)"; fi; }
+  lacks(){ if grep -qaF "$3" "$2"; then bad "$1 (found: $3)"; else ok "$1"; fi; }
+  rcis() { if [ "$2" = "$3" ]; then ok "$1 (rc=$3)"; else bad "$1 (rc=$2, expected $3)"; fi; }
+
+  echo "=== gate-launch-hygiene selftest: an array element is data (D-92), mock trees ==="
+
+  # A1: the install-lifecycle-check.sh shape -- a multi-line payload list naming the
+  #     product. Nothing executes it, so there is no launch and no violation.
+  d=$W/a1; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'PAYLOAD_NAMES=('
+    printf '  %s\n' "$exe_name"
+    printf '  %s\n' "$(printf 'tf2_demo_%s.identity' native)"
+    printf '%s\n' ')'
+    printf '%s\n' 'echo "${#PAYLOAD_NAMES[@]} names"'
+  } > "$d/list.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/a1.log" 2>&1; rc=$?
+  rcis "A1 a payload list that names the product is not a launch" "$rc" 0
+  has  "A1 the scan reports zero violations" "$W/a1.log" "violations=0"
+  has  "A1 the skipped lines are counted, not silent" "$W/a1.log" "array-element lines skipped as data (D-92): 2"
+  has  "A1 the token carries the skip count" "$W/a1.log" "arrskipped=2"
+  lacks "A1 nothing is named as an unisolated launch" "$W/a1.log" "new unisolated launch"
+
+  # A2: the same list followed by a real, unisolated launch -- that launch MUST fail.
+  d=$W/a2; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  cp "$W/a1/list.sh" "$d/list.sh"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'DEMO=$1'
+    printf 'EXE=native/build-nmake/%s\n' "$exe_name"
+    printf '%s\n' '"$EXE" --demo "$DEMO"'
+  } >> "$d/list.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/a2.log" 2>&1; rc=$?
+  rcis "A2 a real launch after an array body still fails" "$rc" 1
+  has  "A2 the failure is named" "$W/a2.log" "new unisolated launch"
+  has  "A2 it names the script" "$W/a2.log" "list.sh"
+
+  # A3: a launcher hidden inside a command substitution that sits in the array body.
+  #     The skip exempts lines with $( ), so this one must still be caught.
+  d=$W/a3; mkdir -p "$d/evidence/gate-launch-hygiene"
+  : > "$d/evidence/gate-launch-hygiene/baseline.txt"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'DEMO=$1'
+    printf 'EXE=native/build-nmake/%s\n' "$exe_name"
+    printf '%s\n' 'TOOLS=('
+    printf '%s\n' '"$(cygpath -w "$PWD")"/'"$exe_name"' --demo "$DEMO"'
+    printf '%s\n' ')'
+  } > "$d/a3.sh"
+  timeout 120 bash "$0" --root "$d" --ignore-floors > "$W/a3.log" 2>&1; rc=$?
+  rcis "A3 a launcher inside a command substitution in the array body is still caught" "$rc" 1
+  has  "A3 the failure is named" "$W/a3.log" "new unisolated launch"
+  has  "A3 it names the script" "$W/a3.log" "a3.sh"
+
+  echo
+  if [ "$fails" -ne 0 ]; then
+    echo "HYGIENE-ARRAY-SELFTEST=FAIL checks=$checks failures=$fails"
+    return 1
+  fi
+  echo "HYGIENE-ARRAY-SELFTEST=PASS checks=$checks"
+  return 0
+}
+
+if [ "$SELFTEST_PWSH" -eq 1 ]; then
+  run_pwsh_selftest
+  exit $?
+fi
+
+if [ "$SELFTEST_ARRAY" -eq 1 ]; then
+  run_array_selftest
+  exit $?
 fi
 
 "$PY" - "$SCAN_ROOT" > "$TMP/scan.txt" <<'PYCODE'
@@ -160,6 +382,7 @@ def close_paren(text, start, depth=1):
 
 def collect(lines):
     pvars=set(); arrays=defaultdict(list); assigns=[]; i=0
+    body_lines=set()
     while i<len(lines):
         ln,t=lines[i]; st=t.strip()
         m=ASSIGN.match(st)
@@ -173,13 +396,22 @@ def collect(lines):
             text=rest; next_i=i+1
             k=close_paren(text,0)
             while k<0 and next_i<len(lines):
-                text += '\n'+lines[next_i][1]; next_i+=1
+                bln, bl = lines[next_i][0], lines[next_i][1]
+                text += '\n'+bl; next_i+=1
                 k=close_paren(text,0)
+                # D-92: a line that is fully inside a multi-line array literal is an
+                # element -- data, not a command position, so the main scan must not
+                # read it as a launch. Two lines keep their place in that scan: the
+                # line that CLOSES the literal (a command may follow the ")" on it),
+                # and any line that runs a command substitution ($( ) or a backtick,
+                # where a launcher can hide).
+                if k<0 and '$(' not in bl and '`' not in bl:
+                    body_lines.add(bln)
             body=text[:k] if k>=0 else text
             arrays[name].append((ln,app,body))
             i=next_i; continue
         i+=1
-    return pvars, arrays, assigns
+    return pvars, arrays, assigns, body_lines
 
 def body_before(arrays,name,at):
     defs=[d for d in arrays.get(name,[]) if d[0]<=at]
@@ -266,10 +498,13 @@ DYN_EXEC=re.compile(r'(?:^|[;|&(]|\bthen\b|\bdo\b|\belse\b)\s*(?:bash|sh)\s+-c\s
 
 def scan_script(path):
     raw=open(path,encoding='utf-8',errors='replace').read().split('\n')
-    logs=logical(raw); pvars,arrays,assigns=collect(logs)
+    logs=logical(raw); pvars,arrays,assigns,arr_body=collect(logs)
     sites=[]; wrapped=[]; dynamic=[]
-    if not pvars: return sites,wrapped,dynamic
+    if not pvars: return sites,wrapped,dynamic,len(arr_body)
     for ln,t in logs:
+        # D-92: an array element is data. Skipping it here (rather than inside
+        # collect) leaves array-def and array-exec detection untouched.
+        if ln in arr_body: continue
         if not t.lstrip().startswith('#') and DYN_EXEC.search(t): dynamic.append(ln)
         toks=shell_tokens(t)
         if not toks: continue
@@ -303,13 +538,117 @@ def scan_script(path):
                     sites.append((ln,'array-def',bt,assigns))
     direct_lines=set(s[0] for s in sites)
     wrapped=[w for w in wrapped if w[0] not in direct_lines]
-    return sites,wrapped,dynamic
+    return sites,wrapped,dynamic,len(arr_body)
+
+# --------------------------------------------------------------- PowerShell (D-50b)
+# The shell scan above reads root *.sh and nothing else, so every PowerShell
+# launcher in the tree was invisible -- see the D-50b paragraph in the header.
+# This pass finds the shape and counts it; it never touches the baseline.
+PS_FLAGLIT = re.compile(r"""['"]--([\w-]+)['"]""")
+PS_SKIP_DIRS = {'evidence', 'node_modules'}
+
+def ps_files(root):
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames
+                             if d not in PS_SKIP_DIRS
+                             and not d.startswith('.')
+                             and not d.startswith('build'))
+        for fn in sorted(filenames):
+            if fn.lower().endswith('.ps1'):
+                p = os.path.join(dirpath, fn)
+                out.append((os.path.relpath(p, root).replace('\\', '/'), p))
+    return out
+
+def ps_collect(lines):
+    """var -> flags it accumulates, and var -> the RHS it was assigned."""
+    flags = defaultdict(set); rhs = {}
+    for t in lines:
+        if t.lstrip().startswith('#'): continue
+        if re.search(r'\.\s*Add\s*\(|\+=\s*@\(|=\s*@\(', t):
+            fs = PS_FLAGLIT.findall(t)
+            m = re.search(r'\$(\w+)\s*(?:\.\s*Add\s*\(|\+=|=\s*@\()', t)
+            if fs and m:
+                flags[m.group(1)] |= set('--' + x for x in fs)
+        m = re.search(r'\$(\w+)\s*\+=\s*[\'"]--([\w-]+)[\'"]', t)
+        if m: flags[m.group(1)].add('--' + m.group(2))
+        m = re.match(r'\s*\$(\w+)\s*=\s*(.*)$', t)
+        if m: rhs[m.group(1)] = m.group(2)
+    return flags, rhs
+
+def ps_resolve(var, flags, rhs, seen=frozenset(), depth=0):
+    if depth > 4 or var in seen: return set()
+    out = set(flags.get(var, ()))
+    for v in re.findall(r'\$(\w+)', rhs.get(var, '')):
+        out |= ps_resolve(v, flags, rhs, seen | {var}, depth + 1)
+    return out
+
+def ps_pvars(lines):
+    """Variables whose assignment names the product, looking 10 lines ahead so
+    that a multi-line assignment ($exe = if (...) { Join-Path ... 'tf2_demo_native.exe' })
+    is still recognised."""
+    out = set()
+    for i, t in enumerate(lines):
+        m = re.match(r'\s*\$(\w+)\s*=', t)
+        if m and 'tf2_demo_native' in chr(10).join(lines[i:i + 10]):
+            out.add(m.group(1))
+    return out
+
+def ps_scan(root):
+    rows = []
+    for rel, path in ps_files(root):
+        try:
+            lines = open(path, encoding='utf-8', errors='replace').read().split(chr(10))
+        except OSError:
+            continue
+        flags, rhs = ps_collect(lines)
+        pvars = ps_pvars(lines)
+        psi_file = {}; psi_args = {}
+        for t in lines:
+            m = re.match(r'\s*\$(\w+)\.FileName\s*=\s*(.*)$', t)
+            if m: psi_file[m.group(1)] = m.group(2)
+            m = re.match(r'\s*\$(\w+)\.Arguments\s*=\s*(.*)$', t)
+            if m: psi_args[m.group(1)] = m.group(2)
+        def productish(expr):
+            if 'tf2_demo_native' in expr: return True
+            return any(v in pvars for v in re.findall(r'\$(\w+)', expr))
+        for i, t in enumerate(lines):
+            if t.lstrip().startswith('#'): continue
+            found = None
+            if 'Start-Process' in t:
+                m = re.search(r'-FilePath\s+("[^"]+"|' + "'[^']+'" + r'|\S+)', t)
+                if m: exe = m.group(1)
+                else:
+                    rest = t.split('Start-Process', 1)[1].strip()
+                    exe = rest.split()[0] if rest else ''
+                if productish(exe):
+                    m2 = re.search(r'-ArgumentList\s+("[^"]*"|' + "'[^']*'" + r'|\S+)', t)
+                    found = ('Start-Process', m2.group(1) if m2 else t)
+            if found is None:
+                m = re.search(r'::\s*Start\s*\(\s*\$(\w+)\s*\)', t)
+                if m and productish(psi_file.get(m.group(1), '')):
+                    found = ('ProcessStartInfo', psi_args.get(m.group(1), ''))
+            if found is None:
+                m = re.match(r'\s*&\s*("[^"]+"|' + "'[^']+'" + r'|\S+)', t)
+                if m and productish(m.group(1)):
+                    found = ('call-operator', t)
+            if found is None: continue
+            verb, aexpr = found
+            fl = set('--' + x for x in PS_FLAGLIT.findall(aexpr))
+            for v in re.findall(r'\$(\w+)', aexpr):
+                fl |= ps_resolve(v, flags, rhs)
+            missing = [h for h in HARD if h not in fl]
+            rows.append((rel, i + 1, verb, 'unflagged' if missing else 'flagged'))
+    return rows
 
 def main(root):
     scripts=sorted(f for f in os.listdir(root) if f.endswith('.sh') and os.path.isfile(os.path.join(root,f)))
-    violations=[]; warnings=[]; lifecycle=[]; nlaunch=0; nsites=0
+    violations=[]; warnings=[]; lifecycle=[]; nlaunch=0; nsites=0; arrskipped=0
     for sc in scripts:
-        sites,wrapped,dynamic=scan_script(os.path.join(root,sc))
+        sites,wrapped,dynamic,ns=scan_script(os.path.join(root,sc))
+        arrskipped+=ns
+        if ns:
+            print('INFO|%s|%d array-element line(s) read as data, not command positions (D-92)'%(sc,ns))
         for ln in dynamic:
             warnings.append((sc,'L%d dynamic exec: bash -c "$var" builds the command at run time, so a product launch inside it is not statically checkable (D-76)'%ln))
         if not sites:
@@ -345,8 +684,13 @@ def main(root):
     for sc,what in sorted(set(violations)): print('VIOLATION|%s|%s'%(sc,what))
     for sc,what in sorted(set(warnings)): print('WARN|%s|%s'%(sc,what))
     for sc in sorted(set(lifecycle)): print('LIFECYCLE|%s'%sc)
-    print('STAT|scripts=%d|launchers=%d|sites=%d|violations=%d|warnings=%d|lifecycle=%d'%(
-        len(scripts),nlaunch,nsites,len(set(violations)),len(set(warnings)),len(set(lifecycle))))
+    psrows=ps_scan(root)
+    for rel,ln,verb,state in psrows:
+        print('PS|%s|L%d|%s|%s'%(rel,ln,verb,state))
+    pslaunch=len(psrows)
+    psunflag=sum(1 for r in psrows if r[3]=='unflagged')
+    print('STAT|scripts=%d|launchers=%d|sites=%d|violations=%d|warnings=%d|lifecycle=%d|arrskipped=%d|pslaunch=%d|psunflagged=%d'%(
+        len(scripts),nlaunch,nsites,len(set(violations)),len(set(warnings)),len(set(lifecycle)),arrskipped,pslaunch,psunflag))
 
 main(os.path.abspath(sys.argv[1]))
 PYCODE
@@ -360,6 +704,10 @@ grep '^WARN|'      "$TMP/scan.txt" | cut -d'|' -f2,3 | sort > "$TMP/warn.txt" ||
 STAT=$(grep '^STAT|' "$TMP/scan.txt" | head -1)
 W=$(echo "$STAT" | sed -n 's/.*warnings=\([0-9]*\).*/\1/p')
 K=$(echo "$STAT" | sed -n 's/.*lifecycle=\([0-9]*\).*/\1/p')
+PSL=$(echo "$STAT" | sed -n 's/.*pslaunch=\([0-9]*\).*/\1/p')
+PSU=$(echo "$STAT" | sed -n 's/.*psunflagged=\([0-9]*\).*/\1/p')
+ARRS=$(echo "$STAT" | sed -n 's/.*arrskipped=\([0-9]*\).*/\1/p')
+grep '^PS|' "$TMP/scan.txt" > "$TMP/ps.txt" || true
 N=$(wc -l < "$TMP/now.txt" | tr -d ' ')
 # D-71: nothing above this line noticed what the scan had actually read. An
 # empty or wrong --root, or a scanner that stopped recognising launch sites,
@@ -376,7 +724,10 @@ FLOORFAIL=0
 if [ "$FLOORS" -eq 0 ]; then
   echo "   floors: SKIPPED (--ignore-floors: a fixture tree cannot meet a 100-script floor; the shipping run never passes this)"
 fi
-[ "$FLOORS" -eq 1 ] && for SPEC in "scripts:${SC:-0}:100" "launchers:${LN:-0}:40" "sites:${ST:-0}:60"; do
+# D-50b added pslaunch: measured 5 on 2026-11-10, floor 3 for the same reason as
+# the others -- a PowerShell pass that finds nothing reads exactly like a tree
+# with no launchers.
+[ "$FLOORS" -eq 1 ] && for SPEC in "scripts:${SC:-0}:100" "launchers:${LN:-0}:40" "sites:${ST:-0}:60" "pslaunch:${PSL:-0}:3"; do
   WHAT=${SPEC%%:*}; REST=${SPEC#*:}; GOT=${REST%%:*}; FLOOR=${REST#*:}
   if [ "${GOT:-0}" -lt "$FLOOR" ]; then
     echo "   FAIL: the scan read $WHAT=${GOT:-0}, below the floor $FLOOR -- a wrong --root or a scanner that no longer recognises launch sites reads exactly like a clean tree, which is why this floor exists (D-71)"
@@ -385,9 +736,22 @@ fi
 done
 echo "== launch hygiene (D-22): static scan of $SCAN_ROOT"
 echo "   $STAT"
+if [ "${ARRS:-0}" -gt 0 ]; then
+  echo "   array-element lines skipped as data (D-92): ${ARRS}"
+fi
 if [ "$K" -gt 0 ]; then
   echo "   lifecycle-only (exempt: --install/--version/--install-status, no --demo):"
   grep '^LIFECYCLE|' "$TMP/scan.txt" | cut -d'|' -f2 | sed 's/^/     /'
+fi
+if [ "${PSL:-0}" -gt 0 ]; then
+  echo "   PowerShell launch sites (D-50b: counted and reported, NOT in the ratchet;"
+  echo "   see the header -- a row here is a launcher this scan can see but the"
+  echo "   baseline cannot keep honest after a fix):"
+  sed 's/^PS|\|/     /; s/|/  /g' "$TMP/ps.txt"
+  if [ "${PSU:-0}" -gt 0 ]; then
+    echo "   WARN: ${PSU} of ${PSL} pass neither --settings-file nor --ui-settings-file"
+    echo "         (each run rewrites the machine's real settings.ini/ui.ini -- D-22)"
+  fi
 fi
 if [ -s "$TMP/warn.txt" ]; then
   echo "   WARN (--audio-disabled/--hidden-window absent; registered, not fatal):"
@@ -403,7 +767,7 @@ if [ "$UPDATE" -eq 1 ]; then
   echo "== baseline rewritten: $BASELINE (+$ADD / -$DEL rows)"
   comm -23 "$TMP/now.txt" "$TMP/old.txt" | sed 's/^/   + /'
   comm -13 "$TMP/now.txt" "$TMP/old.txt" | sed 's/^/   - /'
-  echo "GATE-LAUNCH-HYGIENE=PASS violations=$N baseline=$N warnings=$W lifecycle=$K"
+  echo "GATE-LAUNCH-HYGIENE=PASS violations=$N baseline=$N warnings=$W lifecycle=$K arrskipped=${ARRS:-0} pslaunch=${PSL:-0} psunflagged=${PSU:-0}"
   exit 0
 fi
 
@@ -442,9 +806,9 @@ fi
 M=$(grep -c . "$TMP/base.txt" | tr -d ' ')
 if [ "$FB" -eq 0 ]; then
   echo "   violations match baseline: $M rows, all still real"
-  echo "GATE-LAUNCH-HYGIENE=PASS violations=$N baseline=$M warnings=$W lifecycle=$K"
+  echo "GATE-LAUNCH-HYGIENE=PASS violations=$N baseline=$M warnings=$W lifecycle=$K arrskipped=${ARRS:-0} pslaunch=${PSL:-0} psunflagged=${PSU:-0}"
   exit 0
 else
-  echo "GATE-LAUNCH-HYGIENE=FAIL violations=$N baseline=$M warnings=$W lifecycle=$K"
+  echo "GATE-LAUNCH-HYGIENE=FAIL violations=$N baseline=$M warnings=$W lifecycle=$K arrskipped=${ARRS:-0} pslaunch=${PSL:-0} psunflagged=${PSU:-0}"
   exit 1
 fi
