@@ -385,6 +385,15 @@ echo "  cases=5 checks=$CHECKS fail=$FAIL exe_sha256=$(cut -d' ' -f1 "$OUT/refer
 # accepts a step whose log matches '^<TOKEN>=PASS'. An indented token reads as
 # NO-VERDICT in the chain even when every assertion passed, which would fail the
 # tenth step for a formatting reason after hours of work.
+# D-72 (D68-SCAN K3): cases=5 is a fixed literal, but the per-case check count
+# had no floor, so a case that stopped asserting still printed assertions=$CHECKS.
+# Floor = 38, i.e. 84% of the measured 45 (2026-11-09,
+# /d/_shared/EXEC-2026-11-09/RUN17-KEYPATH-window.log).
+# Reading taken with: grep -o 'INSTALL-CLI-CONTRACT=PASS assertions=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN17-KEYPATH-window.log | tail -1  ->  assertions=45
+if [ "$CHECKS" -lt 38 ]; then
+  echo "  FAIL assertions: only $CHECKS checks ran, below the floor 38 -- a case that stopped asserting reads like a green run (D-72)"
+  FAIL=$((FAIL + 1))
+fi
 if [ "$FAIL" -eq 0 ]; then echo "INSTALL-CLI-CONTRACT=PASS assertions=$CHECKS"; exit 0; fi
 echo "INSTALL-CLI-CONTRACT=FAIL assertions=$CHECKS"; exit 1
 fi
