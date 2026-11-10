@@ -208,6 +208,14 @@ if [ "$MUTATION" -eq 1 ]; then
   echo "MUTATION-CAUGHT=FAIL (expected 2 red lines, saw $fails -- a perturbation went unnoticed)"
   exit 1
 fi
+# D-72 (D68-SCAN K3): floor = 20, i.e. 83% of the measured 24 (2026-11-09,
+# RUN13-VERIFY-ALL/verify-all.log). A freshness case that stopped reading used
+# to read exactly like a green run.
+# Reading taken with: grep -o 'SLOT-FRESHNESS=PASS (assertions_ok=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN13-VERIFY-ALL/verify-all.log | tail -1  ->  assertions_ok=24
+if [ "$ok" -lt 20 ]; then
+  echo "  FAIL assertions: only $ok assertions ran, below the floor 20 -- a case that stopped reading still passes (D-72)"
+  fail=1
+fi
 if [ "$fail" -eq 0 ]; then
   echo "SLOT-FRESHNESS=PASS (assertions_ok=$ok, POV chosenStale=0 worstAge=124, bagel chosenStale=0)"
   exit 0
