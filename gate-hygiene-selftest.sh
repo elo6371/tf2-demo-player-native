@@ -83,11 +83,25 @@ PRIMARY=tf2_demo_native
 TARGETS=(some_probe "$PRIMARY")
 echo "building ${TARGETS[*]}"
 SH
-timeout 120 bash "$HERE/gate-launch-hygiene-check.sh" --root "$d3" > "$W/h3.log" 2>&1; rc=$?
-expect_rc "H3 clean tree passes" "$rc" 0
+# D-77: D-71 gave the scanner a floor (scripts>=100 launchers>=40 sites>=60) and
+# this fixture is two scripts, so the positive control started failing for being
+# SMALL rather than dirty -- the floor could not tell the difference between a
+# wrong --root and a mock tree. The fixture now passes --ignore-floors, and H3b
+# proves the floor still fires when it is not ignored: otherwise "the clean tree
+# passes" would only be measuring a switch.
+timeout 120 bash "$HERE/gate-launch-hygiene-check.sh" --root "$d3" --ignore-floors > "$W/h3.log" 2>&1; rc=$?
+expect_rc "H3 clean tree passes (floors off for the fixture)" "$rc" 0
 expect_has "H3 token reports zero violations" "$W/h3.log" "GATE-LAUNCH-HYGIENE=PASS violations=0"
+expect_has "H3 the floor skip is printed, not silent" "$W/h3.log" "floors: SKIPPED"
 expect_lacks "H3 TARGETS declaration is not a violation" "$W/h3.log" "build-decl.sh"
 expect_lacks "H3 compliant launch is not a violation" "$W/h3.log" "clean.sh"
+
+# H3b: the same clean tree, floors ON, must be refused for being too small -- and
+# name which count failed. A two-script tree cannot meet scripts>=100.
+timeout 120 bash "$HERE/gate-launch-hygiene-check.sh" --root "$d3" > "$W/h3b.log" 2>&1; rc=$?
+expect_rc "H3b the floor refuses a clean two-script tree" "$rc" 1
+expect_has "H3b the refusal names the scripts floor" "$W/h3b.log" "the scan read scripts=2, below the floor 100"
+expect_has "H3b the final token is FAIL" "$W/h3b.log" "GATE-LAUNCH-HYGIENE=FAIL"
 
 echo
 if [ "$failures" -ne 0 ]; then

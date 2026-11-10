@@ -133,6 +133,14 @@ if [ "${1:-}" = "--dry-run" ]; then
   exit 0
 fi
 
+# D-77 (same class): the assertion floor below counts what a REAL forward run
+# measures (29). The selftest feeds a mock product one section, so a fixture run
+# is a handful of assertions and the floor would call it broken for being small.
+# The flag exists for fixtures only; the skip is printed so it cannot be silent,
+# and timeline-check-selftest.sh proves the floor still fires without it.
+IGNORE_FLOOR=0
+if [ "${1:-}" = "--ignore-floor" ]; then IGNORE_FLOOR=1; fi
+
 # Settings isolation (D-22): one throwaway directory for the whole run, one trap.
 # The trap is the only one in this script; adding a second trap later would
 # silently replace this cleanup.
@@ -374,7 +382,9 @@ echo
 # so the floor is 24 (83% of 29): losing five or more assertions is caught, and a
 # deliberately trimmed gate can lower the one number here.
 # Reading taken with: grep -o 'TIMELINE-CHECK=PASS assertions=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN19-KEYPATH-window.log | tail -1  ->  assertions=29
-if [ "$count" -lt 24 ]; then
+if [ "$IGNORE_FLOOR" -eq 1 ]; then
+  echo "  floor: SKIPPED (--ignore-floor: a mock product runs one section, not 29 assertions; the shipping run never passes this)"
+elif [ "$count" -lt 24 ]; then
   echo "  FAIL assertions: only $count assertions ran; the floor is 24 (measured 29 on 2026-11-09) -- sections that stopped running cannot pass (D-72)"
   failures=$((failures + 1)); fail=1
 fi

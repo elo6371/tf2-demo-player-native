@@ -85,7 +85,7 @@ run_case() { # run_case <name> <expected-rc> <grep-that-must-be-present>
     TIMELINE_DEMO="$TMP/demo.dem" \
     TIMELINE_OUT="$out" \
     TIMELINE_SECTIONS=3 \
-    bash timeline-check.sh > "$log" 2>&1
+    bash timeline-check.sh --ignore-floor > "$log" 2>&1
   rc=$?
   if [ "$rc" -eq "$want_rc" ]; then
     ok "$name: gate exit $rc as expected"
@@ -102,10 +102,22 @@ run_case() { # run_case <name> <expected-rc> <grep-that-must-be-present>
 echo "=== timeline-check-selftest: the resume wait is a condition ==="
 
 run_case delayed 0 'TIMELINE-CHECK=PASS'
+run_case delayed 0 'floor: SKIPPED (--ignore-floor'
 run_case delayed 0 'after sample 5/20'
 run_case delayed 0 'wall time allowed 5 ticks'
 run_case never 1 'no state sample moved past 16 in 20 sample(s)'
 run_case replay 1 'does not replay paused wall time (delta=14'
+
+# The floor must still fire when it is not ignored: a one-section mock run reports
+# far fewer than 24 assertions, and without --ignore-floor that must be a FAIL
+# that names the floor -- otherwise "the mock passes" would only measure a switch.
+out="$TMP/out-floor"; log="$TMP/floor.log"
+TIMELINE_MOCK_CASE=delayed TIMELINE_EXE="$MOCK" TIMELINE_TF="$TMP/tf" \
+  TIMELINE_DEMO="$TMP/demo.dem" TIMELINE_OUT="$out" TIMELINE_SECTIONS=3 \
+  bash timeline-check.sh > "$log" 2>&1
+rc=$?
+if [ "$rc" -eq 1 ]; then ok "floor: a one-section run is refused without --ignore-floor"; else bad "floor: a one-section run is refused without --ignore-floor (rc=$rc)"; fi
+if grep -q 'only [0-9]* assertions ran; the floor is 24' "$log"; then ok "floor: the refusal names the floor"; else bad "floor: the refusal names the floor (log $log)"; fi
 
 echo
 if [ "$failures" -eq 0 ]; then

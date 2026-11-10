@@ -47,6 +47,14 @@
 #   bash gate-launch-hygiene-check.sh                   # check (0 PASS / 1 FAIL / 90 tool error)
 #   bash gate-launch-hygiene-check.sh --update-baseline # rewrite baseline, print +/- rows
 #   bash gate-launch-hygiene-check.sh --root DIR        # scan another tree (negative controls)
+#   bash gate-launch-hygiene-check.sh --root DIR --ignore-floors
+#                                                       # fixture trees only: a two-script
+#                                                       # tree cannot meet a 100-script floor,
+#                                                       # and the positive control that
+#                                                       # proves a clean tree passes needs
+#                                                       # the floors out of the way (D-77).
+#                                                       # The shipping run never passes it;
+#                                                       # the skip is printed, not silent.
 #
 # Last line is a machine token:
 #   GATE-LAUNCH-HYGIENE=PASS|FAIL violations=N baseline=M warnings=W lifecycle=K
@@ -55,10 +63,12 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SCAN_ROOT="$ROOT"
 UPDATE=0
+FLOORS=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) SCAN_ROOT="$(cd "$2" && pwd)"; shift 2;;
     --update-baseline) UPDATE=1; shift;;
+    --ignore-floors) FLOORS=0; shift;;
     --help|-h) sed -n '2,40p' "$0"; exit 0;;
     *) echo "GATE-LAUNCH-HYGIENE=FAIL unknown argument: $1"; exit 2;;
   esac
@@ -363,7 +373,10 @@ SC=$(echo "$STAT" | sed -n 's/.*scripts=\([0-9]*\).*/\1/p')
 LN=$(echo "$STAT" | sed -n 's/.*launchers=\([0-9]*\).*/\1/p')
 ST=$(echo "$STAT" | sed -n 's/.*sites=\([0-9]*\).*/\1/p')
 FLOORFAIL=0
-for SPEC in "scripts:${SC:-0}:100" "launchers:${LN:-0}:40" "sites:${ST:-0}:60"; do
+if [ "$FLOORS" -eq 0 ]; then
+  echo "   floors: SKIPPED (--ignore-floors: a fixture tree cannot meet a 100-script floor; the shipping run never passes this)"
+fi
+[ "$FLOORS" -eq 1 ] && for SPEC in "scripts:${SC:-0}:100" "launchers:${LN:-0}:40" "sites:${ST:-0}:60"; do
   WHAT=${SPEC%%:*}; REST=${SPEC#*:}; GOT=${REST%%:*}; FLOOR=${REST#*:}
   if [ "${GOT:-0}" -lt "$FLOOR" ]; then
     echo "   FAIL: the scan read $WHAT=${GOT:-0}, below the floor $FLOOR -- a wrong --root or a scanner that no longer recognises launch sites reads exactly like a clean tree, which is why this floor exists (D-71)"
