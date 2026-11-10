@@ -82,4 +82,22 @@ echo "errors=$(grep -c 'error C' "$LOG" || true)"
 echo "warnings=$(grep -c 'warning C' "$LOG" || true)"
 grep -E 'error C|warning C' "$LOG" | head -30
 ls -la "$BUILD"/*.exe 2>/dev/null | wc -l | sed 's/^/exe_count=/'
+# D-94: A CLEAN BUILD MUST LEAVE THE HEADER STAMP BEHIND.
+#   build-target.sh (see its HEADER DEPENDENCIES note) forces every requested
+#   translation unit to recompile when the header stamp is missing, because this
+#   generator records no header dependencies at all. This script never wrote that
+#   stamp, so the first build-target.sh call after every clean build was a full
+#   recompile and relink: measured 2026-11-10 as the only red in a 219-assertion
+#   build-identity forward run -- the exe kept its bytes (86379f95) and took a
+#   500 s newer mtime, while its sidecar, whose own inputs had not changed, was
+#   not rewritten. The clean build has just compiled every TU against the headers
+#   as they are now, which is exactly what the stamp records, so it is written
+#   here on success and only on success: a failed build must not leave a stamp
+#   claiming the tree is built.
+if [ "$rc" -eq 0 ]; then
+  touch "$BUILD/.headers-stamp"
+  echo "header_stamp=written ($BUILD/.headers-stamp)"
+else
+  echo "header_stamp=skipped (the build did not succeed)"
+fi
 exit "$rc"
