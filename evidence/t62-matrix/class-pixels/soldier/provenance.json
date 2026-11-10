@@ -1,12 +1,12 @@
 {
   "schema": "t62-class-pixels-provenance/1",
   "class": "soldier",
-  "captured_at": "2026-11-09T16:43:43+08:00",
-  "read_at": "2026-11-09T16:58:40+08:00",
-  "exe_sha256": "abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807",
-  "exe_sha256_at_capture": "abb56698cd87df49a73c413ab66194c003c96bc1b6ff5e26e246288316420807",
-  "git_head": "4a8aaff7b01b78ad673299d29752ec3ea216b60b",
-  "native_tree_sha256": "cbf16fc8f8ac7f210a342f33b5c7aa9ba3e8836894542fb58ff734afbe66f063",
+  "captured_at": "2026-11-10T10:06:40+08:00",
+  "read_at": "2026-11-10T10:16:47+08:00",
+  "exe_sha256": "ff49beac4fe2830361ce846f6434c84816f78d81b4442ad9aa83cf43d7b4499a",
+  "exe_sha256_at_capture": "ff49beac4fe2830361ce846f6434c84816f78d81b4442ad9aa83cf43d7b4499a",
+  "git_head": "2b0b855a5c9abe92c5359272e40945b235346b0e",
+  "native_tree_sha256": "90a08fbd493390a801d9d8e64f8cc67bf8876e6dd8a90edad664645ee50197d8",
   "request": {
     "demo": "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem",
     "tick": 63000,
