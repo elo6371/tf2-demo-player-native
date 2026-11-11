@@ -109,7 +109,26 @@ void Renderer::setProjectileTimeline(const std::vector<ProjectileTimelineEvent>&
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, projectileVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    // F0-c: one seam check per create site, so an armed run can fail this exact
+    // allocation and the refusal is named instead of just dropping the lines.
+    // F0-c: the replacement is built in a temporary and swapped in only once
+    // the device accepted it. Releasing the old buffer as an argument to
+    // CreateBuffer -- which is what this did -- destroys it before the call is
+    // even attempted, so a refusal leaves no buffer at all while the capacity
+    // still claims there is one.
+    Microsoft::WRL::ComPtr<ID3D11Buffer> projectileBufferResultTemporary;
+    const HRESULT projectileBufferResult = resourceFaultHit("overlay.projectile.createbuffer")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateBuffer(&description, nullptr, projectileBufferResultTemporary.GetAddressOf());
+    if (FAILED(projectileBufferResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=overlay.projectile.createbuffer kind=create hresult=0x%08lX vertices=%zu\n",
+        static_cast<unsigned long>(projectileBufferResult), vertices.size());
+      std::fflush(stderr);
+      return;
+    }
+    projectileVertexBuffer_ = std::move(projectileBufferResultTemporary);
     projectileVertexCapacity_ = vertices.size();
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -198,8 +217,24 @@ void Renderer::setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>&
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    if (FAILED(device_->CreateBuffer(&description, nullptr,
-                                     projectileTrackVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    // F0-c: the replacement is built in a temporary and swapped in only once
+    // the device accepted it. Releasing the old buffer as an argument to
+    // CreateBuffer -- which is what this did -- destroys it before the call is
+    // even attempted, so a refusal leaves no buffer at all while the capacity
+    // still claims there is one.
+    Microsoft::WRL::ComPtr<ID3D11Buffer> trackBufferResultTemporary;
+    const HRESULT trackBufferResult = resourceFaultHit("overlay.track.createbuffer")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateBuffer(&description, nullptr, trackBufferResultTemporary.GetAddressOf());
+    if (FAILED(trackBufferResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=overlay.track.createbuffer kind=create hresult=0x%08lX vertices=%zu\n",
+        static_cast<unsigned long>(trackBufferResult), vertices.size());
+      std::fflush(stderr);
+      return;
+    }
+    projectileTrackVertexBuffer_ = std::move(trackBufferResultTemporary);
     projectileTrackVertexCapacity_ = vertices.size();
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -249,7 +284,24 @@ void Renderer::setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, projectileVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    // F0-c: the replacement is built in a temporary and swapped in only once
+    // the device accepted it. Releasing the old buffer as an argument to
+    // CreateBuffer -- which is what this did -- destroys it before the call is
+    // even attempted, so a refusal leaves no buffer at all while the capacity
+    // still claims there is one.
+    Microsoft::WRL::ComPtr<ID3D11Buffer> particleBufferResultTemporary;
+    const HRESULT particleBufferResult = resourceFaultHit("overlay.particle.createbuffer")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateBuffer(&description, nullptr, particleBufferResultTemporary.GetAddressOf());
+    if (FAILED(particleBufferResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=overlay.particle.createbuffer kind=create hresult=0x%08lX vertices=%zu\n",
+        static_cast<unsigned long>(particleBufferResult), particles.size());
+      std::fflush(stderr);
+      return;
+    }
+    projectileVertexBuffer_ = std::move(particleBufferResultTemporary);
     projectileVertexCapacity_ = particles.size();
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -437,11 +489,25 @@ void Renderer::rebuildOverlayBuffers() {
       description.Usage = D3D11_USAGE_DYNAMIC;
       description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
       description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-      if (FAILED(device_->CreateBuffer(&description, nullptr,
-          overlayInstanceBuffer_.ReleaseAndGetAddressOf()))) {
+      // F0-c: the replacement is built in a temporary and swapped in only once
+      // the device accepted it. Releasing the old buffer as an argument to
+      // CreateBuffer -- which is what this did -- destroys it before the call is
+      // even attempted, so a refusal leaves no buffer at all while the capacity
+      // still claims there is one.
+      Microsoft::WRL::ComPtr<ID3D11Buffer> instanceBufferResultTemporary;
+      const HRESULT instanceBufferResult = resourceFaultHit("overlay.instance.createbuffer")
+        ? static_cast<HRESULT>(E_OUTOFMEMORY)
+        : device_->CreateBuffer(&description, nullptr, instanceBufferResultTemporary.GetAddressOf());
+      if (FAILED(instanceBufferResult)) {
+        ++resourceRefusals_;
+        std::fprintf(stderr,
+          "[renderer-resource] refuse surface=overlay.instance.createbuffer kind=create hresult=0x%08lX instances=%zu\n",
+          static_cast<unsigned long>(instanceBufferResult), packed.size());
+        std::fflush(stderr);
         overlayDrawRanges_.clear();
         return;
       }
+      overlayInstanceBuffer_ = std::move(instanceBufferResultTemporary);
       overlayInstanceCapacity_ = capacity;
     }
     D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -541,13 +607,27 @@ void Renderer::rebuildOverlayBuffers() {
       description.Usage = D3D11_USAGE_DYNAMIC;
       description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
       description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-      if (FAILED(device_->CreateBuffer(&description, nullptr,
-          overlayLineBuffer_.ReleaseAndGetAddressOf()))) {
+      // F0-c: the replacement is built in a temporary and swapped in only once
+      // the device accepted it. Releasing the old buffer as an argument to
+      // CreateBuffer -- which is what this did -- destroys it before the call is
+      // even attempted, so a refusal leaves no buffer at all while the capacity
+      // still claims there is one.
+      Microsoft::WRL::ComPtr<ID3D11Buffer> lineBufferResultTemporary;
+      const HRESULT lineBufferResult = resourceFaultHit("overlay.line.createbuffer")
+        ? static_cast<HRESULT>(E_OUTOFMEMORY)
+        : device_->CreateBuffer(&description, nullptr, lineBufferResultTemporary.GetAddressOf());
+      if (FAILED(lineBufferResult)) {
+        ++resourceRefusals_;
+        std::fprintf(stderr,
+          "[renderer-resource] refuse surface=overlay.line.createbuffer kind=create hresult=0x%08lX vertices=%zu\n",
+          static_cast<unsigned long>(lineBufferResult), lineVertices.size());
+        std::fflush(stderr);
         overlayLineVertexCount_ = 0;
         overlayLineStartByDepth_[0] = 0;
         overlayLineStartByDepth_[1] = 0;
         return;
       }
+      overlayLineBuffer_ = std::move(lineBufferResultTemporary);
       overlayLineCapacity_ = lineVertices.size();
     }
     D3D11_MAPPED_SUBRESOURCE mapped{};

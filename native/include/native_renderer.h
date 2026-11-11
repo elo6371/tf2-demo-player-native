@@ -1503,6 +1503,35 @@ public:
   // is this frame's own Present, so a genuine device failure still reports
   // through exactly the same arms (4/2 for device removed or reset, 3 otherwise).
   void clearLastError() { lastError_ = S_OK; }
+
+  // ---- F0-c (2026-11-11): the resource-failure seam -----------------------
+  // A D3D create or map that fails on a real machine is, today, a silent event:
+  // the pass returns, the frame reports the primitives it meant to draw, and
+  // nothing names the resource that was missing. Making that path testable
+  // requires the failure to be reachable on the shipped binary, so the seam
+  // lives on the renderer instead of in a rebuilt source tree.
+  //
+  // spec is a comma-separated list of "surface[=N]": N defaults to 1 and 0
+  // means every call. surface is the name each create/map site passes to
+  // resourceFaultHit(); an armed hit makes that call fail with E_OUTOFMEMORY
+  // without touching the device. An empty spec -- the default, and the only
+  // state a product run reaches unless --renderer-fault says otherwise -- arms
+  // nothing, so the seam cannot change a shipped frame.
+  void setResourceFaultPlan(const std::string& spec);
+  // How many create/SRV/map calls the seam or the device refused, and how many
+  // resizes unbound the render target before releasing it. The last one is read
+  // next to the two above because it turns "the unbind ran" from a code reading
+  // into an observation.
+  std::size_t resourceRefusals() const { return resourceRefusals_; }
+  std::size_t resourceMapRefusals() const { return resourceMapRefusals_; }
+  std::size_t resizeUnbindCount() const { return resizeUnbindCount_; }
+  // F0-c: the resize test needs to prove its own precondition, and the HUD
+  // test needs to tell "the pass drew nothing" from "the pass has no buffer
+  // to map". Without the second reading the second case takes the process
+  // down before any verdict is printed. Both are getters: neither creates,
+  // releases nor rebinds anything.
+  bool hudVertexBufferReady() const { return hudVertexBuffer_.Get() != nullptr; }
+  bool renderTargetBound() const;
   // Which step of initialize() refused, as a stable name. Every failure path in
   // there returned the same E_FAIL, so "the renderer did not start" carried no
   // information at all -- and a shader is compiled at run time, which makes a
@@ -1551,6 +1580,10 @@ private:
   void drawHudPass();
   void releaseTarget();
   bool createTarget(UINT width, UINT height);
+  // F0-c: the seam's one decision point. True means "pretend this call failed":
+  // the plan is decremented here and nowhere else, so an armed run fails the
+  // exact number of calls it asked for and no more.
+  bool resourceFaultHit(const char* surface);
   bool createPipeline();
   bool writeBackBufferToFile(const std::wstring& path);
   // 16-bit P5 dump of capturedDepth_, the depth this frame's world pixels carry.
@@ -2220,6 +2253,14 @@ private:
   float worldLightmapIntensity_ = 1.0f;
   bool worldLightmapEnabled_ = true;
   HRESULT lastError_ = S_OK;
+  // F0-c: the armed fault plan (surface -> remaining hits; kFaultEveryCall never
+  // decrements) and the refusal accounting the passes report. They sit next to
+  // lastError_ because they describe the same thing: what the device -- or the
+  // seam standing in for it -- refused.
+  std::map<std::string, unsigned> resourceFaultPlan_;
+  std::size_t resourceRefusals_ = 0;
+  std::size_t resourceMapRefusals_ = 0;
+  std::size_t resizeUnbindCount_ = 0;
   const char* initStage_ = "none";
   std::wstring capturePath_;
   bool captureSucceeded_ = false;

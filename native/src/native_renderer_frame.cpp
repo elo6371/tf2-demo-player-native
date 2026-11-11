@@ -1203,6 +1203,19 @@ void Renderer::drawHudPass() {
   // place"; it is NOT an error and it is NOT the same as `enabled == false`,
   // which is the user's switch. Both are reported separately by the caller.
   if (hudPrimitives_.empty()) return;
+  // F0-c: the counters below are incremented while the vertices are generated,
+  // which is before the device has accepted a buffer to put them in. A pass that
+  // returns after that point drew nothing, so the readings that describe what the
+  // last draw covered go back to zero -- otherwise a refused upload is reported as
+  // three hundred primitives that no pixel shows.
+  auto discardPass = [this]() {
+    hudDrawnPrimitives_ = 0;
+    hudDrawnRects_ = 0;
+    hudTextQuads_ = 0;
+    hudGlyphCount_ = 0;
+    hudUnmappedGlyphs_ = 0;
+    hudRectVertexCount_ = 0;
+  };
   // Six vertices per quad, 11 floats each: pos2, colour4, local2, uv2, kind1.
   // A text primitive expands to one quad per glyph, so the vertex count is only
   // known after the list is expanded; build into a vector, size the buffer from
@@ -1325,11 +1338,41 @@ void Renderer::drawHudPass() {
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, hudVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    // F0-c: the replacement is built in a temporary and swapped in only once
+    // the device accepted it. Releasing the old buffer as an argument to
+    // CreateBuffer -- which is what this did -- destroys it before the call is
+    // even attempted, so a refusal leaves no buffer at all while the capacity
+    // still claims there is one.
+    Microsoft::WRL::ComPtr<ID3D11Buffer> hudBufferResultTemporary;
+    const HRESULT hudBufferResult = resourceFaultHit("hud.createbuffer")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateBuffer(&description, nullptr, hudBufferResultTemporary.GetAddressOf());
+    if (FAILED(hudBufferResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=hud.createbuffer kind=create hresult=0x%08lX capacity=%zu vertices=%zu\n",
+        static_cast<unsigned long>(hudBufferResult), hudRectCapacity_,
+        static_cast<std::size_t>(vertexCount));
+      std::fflush(stderr);
+      discardPass();
+      return;
+    }
+    hudVertexBuffer_ = std::move(hudBufferResultTemporary);
     hudRectCapacity_ = vertexCount;
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
-  if (FAILED(context_->Map(hudVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+  const HRESULT hudMapResult = resourceFaultHit("hud.map")
+    ? static_cast<HRESULT>(E_OUTOFMEMORY)
+    : context_->Map(hudVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+  if (FAILED(hudMapResult)) {
+    ++resourceMapRefusals_;
+    std::fprintf(stderr,
+      "[renderer-resource] refuse surface=hud.map kind=map hresult=0x%08lX vertices=%zu\n",
+      static_cast<unsigned long>(hudMapResult), static_cast<std::size_t>(vertexCount));
+    std::fflush(stderr);
+    discardPass();
+    return;
+  }
   std::memcpy(mapped.pData, vertices.data(), vertices.size() * sizeof(float));
   context_->Unmap(hudVertexBuffer_.Get(), 0);
   hudRectVertexCount_ = vertexCount;

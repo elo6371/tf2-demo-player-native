@@ -616,7 +616,17 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
     // `StructuredBuffer<float4>` declaration in the entity and overlay shaders.
     description.StructureByteStride = sizeof(float) * 4;
     Microsoft::WRL::ComPtr<ID3D11Buffer> replacementBuffer;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, replacementBuffer.GetAddressOf()))) return;
+    const HRESULT boneBufferResult = resourceFaultHit("entity.bone.createbuffer")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateBuffer(&description, nullptr, replacementBuffer.GetAddressOf());
+    if (FAILED(boneBufferResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=entity.bone.createbuffer kind=create hresult=0x%08lX bones=%zu\n",
+        static_cast<unsigned long>(boneBufferResult), boneMatrices.size());
+      std::fflush(stderr);
+      return;
+    }
     D3D11_SHADER_RESOURCE_VIEW_DESC view{};
     view.Format = DXGI_FORMAT_UNKNOWN;
     view.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
@@ -631,14 +641,34 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
     // already had this right; the entity upload did not.
     view.Buffer.NumElements = static_cast<UINT>(capacity * 4);
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> replacementView;
-    if (FAILED(device_->CreateShaderResourceView(replacementBuffer.Get(), &view,
-        replacementView.GetAddressOf()))) return;
+    const HRESULT boneViewResult = resourceFaultHit("entity.bone.createsrv")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateShaderResourceView(replacementBuffer.Get(), &view,
+        replacementView.GetAddressOf());
+    if (FAILED(boneViewResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=entity.bone.createsrv kind=create hresult=0x%08lX bones=%zu\n",
+        static_cast<unsigned long>(boneViewResult), boneMatrices.size());
+      std::fflush(stderr);
+      return;
+    }
     entityBoneBuffer_ = std::move(replacementBuffer);
     entityBoneView_ = std::move(replacementView);
     entityBoneCapacity_ = capacity;
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
-  if (FAILED(context_->Map(entityBoneBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return;
+  const HRESULT boneMapResult = resourceFaultHit("entity.bone.map")
+    ? static_cast<HRESULT>(E_OUTOFMEMORY)
+    : context_->Map(entityBoneBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+  if (FAILED(boneMapResult)) {
+    ++resourceMapRefusals_;
+    std::fprintf(stderr,
+      "[renderer-resource] refuse surface=entity.bone.map kind=map hresult=0x%08lX\n",
+      static_cast<unsigned long>(boneMapResult));
+    std::fflush(stderr);
+    return;
+  }
   std::memcpy(mapped.pData, boneMatrices.data(), boneMatrices.size() * sizeof(std::array<float, 16>));
   context_->Unmap(entityBoneBuffer_.Get(), 0);
   entityBoneMatrixCount_ = boneMatrices.size();

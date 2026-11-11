@@ -47,6 +47,69 @@ bool compileShader(const char* source, const char* entry, const char* target,
 }
 
 
+namespace {
+// F0-c: "0" in a fault plan means every call, not "never" -- a pass that retries
+// the same surface every frame is the case a single hit cannot exercise.
+constexpr unsigned kFaultEveryCall = ~0u;
+}  // namespace
+
+// ---- F0-c: the resource-failure seam --------------------------------------
+void Renderer::setResourceFaultPlan(const std::string& spec) {
+  resourceFaultPlan_.clear();
+  std::size_t start = 0;
+  while (start < spec.size()) {
+    const std::size_t comma = spec.find(',', start);
+    const std::string entry = spec.substr(
+      start, comma == std::string::npos ? std::string::npos : comma - start);
+    start = comma == std::string::npos ? spec.size() : comma + 1;
+    if (entry.empty()) continue;
+    const std::size_t equals = entry.find('=');
+    const std::string name = entry.substr(0, equals);
+    if (name.empty()) continue;
+    unsigned hits = 1;
+    if (equals != std::string::npos) {
+      const std::string digits = entry.substr(equals + 1);
+      bool parsed = !digits.empty();
+      unsigned value = 0;
+      for (const char character : digits) {
+        if (character < '0' || character > '9') {
+          parsed = false;
+          break;
+        }
+        value = value * 10u + static_cast<unsigned>(character - '0');
+      }
+      // A malformed count stays at one hit instead of quietly becoming every
+      // call: a run that armed the wrong number of failures would still pass a
+      // "something was refused" check while proving less than it claimed.
+      if (parsed) {
+        hits = value == 0u ? kFaultEveryCall : value;
+      } else {
+        std::fprintf(stderr, "[renderer-resource] fault plan: ignoring count in '%s'\n",
+          entry.c_str());
+      }
+    }
+    resourceFaultPlan_[name] = hits;
+  }
+}
+
+bool Renderer::resourceFaultHit(const char* surface) {
+  if (resourceFaultPlan_.empty() || !surface) return false;
+  const auto entry = resourceFaultPlan_.find(surface);
+  if (entry == resourceFaultPlan_.end() || entry->second == 0) return false;
+  if (entry->second != kFaultEveryCall) --entry->second;
+  return true;
+}
+
+bool Renderer::renderTargetBound() const {
+  if (!context_) return false;
+  // OMGetRenderTargets is a getter: it hands back a reference to whatever is
+  // bound right now and changes nothing, so asking between a frame and a
+  // resize neither creates nor clears the condition the resize test looks for.
+  Microsoft::WRL::ComPtr<ID3D11RenderTargetView> bound;
+  context_->OMGetRenderTargets(1, bound.GetAddressOf(), nullptr);
+  return bound != nullptr;
+}
+
 bool Renderer::initialize(HWND window) {
   lastError_ = S_OK;
   settings_.normalize();
@@ -779,6 +842,16 @@ bool Renderer::uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, 
 
 void Renderer::resize(UINT width, UINT height) {
   if (!swapChain_ || width == 0 || height == 0 || (width == width_ && height == height_)) return;
+  // F0-c: ResizeBuffers refuses with DXGI_ERROR_INVALID_CALL (0x887A0001) while
+  // the immediate context still references a back buffer, and releasing the views
+  // this renderer owns was never enough -- the context binding is the reference.
+  // Unbind first, then release, then resize. The count is what lets a self-test
+  // observe that the unbind ran instead of inferring it from a resize that worked.
+  if (context_) {
+    context_->OMSetRenderTargets(0, nullptr, nullptr);
+    context_->Flush();
+  }
+  ++resizeUnbindCount_;
   releaseTarget();
   const HRESULT result = swapChain_->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
   if (FAILED(result)) { lastError_ = result; return; }
