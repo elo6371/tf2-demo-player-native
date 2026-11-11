@@ -42,7 +42,22 @@ bool readVoiceData(MessageBits& bits, DemoNetworkSummary& summary) {
 }
 namespace {
 
-void flattenSendTableSchemas(DemoNetworkSummary& summary);
+// F0-a (QA1B-01/02): budgets for svc_DataTable. A local demo carries 100-300
+// tables and each flattens to a few hundred props, so these numbers sit two
+// orders of magnitude above anything a real map needs. What they stop is not a
+// big map: it is a 20 KB body naming 50000 tables, and a diamond whose
+// two-props-per-level shape makes the flatten pass emit 2^depth copies of one
+// leaf table. Both are refused before the allocation they would pay for, and
+// the reason is named so a gate can assert WHICH bound fired instead of
+// inferring it from a size.
+constexpr std::size_t kMaxSendTableSchemas = 4096;
+constexpr std::size_t kMaxFlattenedPropsPerTable = 4096;
+constexpr std::size_t kMaxFlattenedPropsTotal = 1u << 18;
+const char* g_budgetRejectReason = nullptr;
+
+void noteBudgetReject(const char* reason) { g_budgetRejectReason = reason; }
+
+bool flattenSendTableSchemas(DemoNetworkSummary& summary);
 bool readDataTablePacket(MessageBits& bits, DemoNetworkSummary& summary) {
   std::uint32_t tick = 0, lengthBytes = 0;
   if (!bits.read(32, tick) || !bits.read(32, lengthBytes)) return false;
@@ -58,11 +73,23 @@ bool readDataTablePacket(MessageBits& bits, DemoNetworkSummary& summary) {
 }
 } // namespace
 
+// The decoders report rejection through their bool and DemoNetworkSummary has no
+// field for a name; recording the last budget rejection here is what lets a gate
+// assert the reason. Cleared at the start of every scan.
+void setParserBudgetRejectReason(const char* reason) { g_budgetRejectReason = reason; }
+const char* parserBudgetRejectReason() { return g_budgetRejectReason; }
+
 bool readDataTableBody(MessageBits& bits, DemoNetworkSummary& summary) {
   while (bits.remaining() > 16u) {
     std::uint32_t hasTable = 0;
     if (!bits.read(1, hasTable)) return false;
     if (hasTable == 0) break;
+    // 20 bits buy one table, so the count -- not the body length -- is what an
+    // attacker controls here. Refuse before the next schema is constructed.
+    if (summary.sendTableSchemas.size() >= kMaxSendTableSchemas) {
+      noteBudgetReject("datatable-schema-cap");
+      return false;
+    }
     std::uint32_t needsDecoder = 0, propCount = 0;
     SendTableSchema table;
     if (!bits.read(1, needsDecoder) || !bits.readString(table.name) || !bits.read(10, propCount)) return false;
@@ -122,13 +149,13 @@ bool readDataTableBody(MessageBits& bits, DemoNetworkSummary& summary) {
     if (summary.dataTableServerClassNames.size() < 512) summary.dataTableServerClassNames.push_back(serverClass.name);
     summary.serverClassSchemas.push_back(std::move(serverClass));
   }
-  flattenSendTableSchemas(summary);
+  if (!flattenSendTableSchemas(summary)) return false;
   ++summary.dataTablePacketCount;
   return true;
 }
 namespace {
 
-void flattenSendTableSchemas(DemoNetworkSummary& summary) {
+bool flattenSendTableSchemas(DemoNetworkSummary& summary) {
   std::unordered_map<std::string, std::size_t> tableIndex;
   tableIndex.reserve(summary.sendTableSchemas.size());
   for (std::size_t i = 0; i < summary.sendTableSchemas.size(); ++i) tableIndex.emplace(summary.sendTableSchemas[i].name, i);
@@ -150,15 +177,25 @@ void flattenSendTableSchemas(DemoNetworkSummary& summary) {
     }
     stack.erase(table.name);
   };
-  std::function<void(std::size_t, const ExcludeSet&, std::vector<SendPropSchema>&, std::vector<SendPropSchema>&, std::unordered_set<std::string>&)> pushCollapse;
-  std::function<void(std::size_t, const ExcludeSet&, std::vector<SendPropSchema>&, std::unordered_set<std::string>&)> pushEnd;
-  pushEnd = [&](std::size_t index, const ExcludeSet& excludes, std::vector<SendPropSchema>& output, std::unordered_set<std::string>& stack) {
+  std::function<void(std::size_t, const ExcludeSet&, std::vector<SendPropSchema>&, std::vector<SendPropSchema>&, std::unordered_set<std::string>&, bool&)> pushCollapse;
+  std::function<void(std::size_t, const ExcludeSet&, std::vector<SendPropSchema>&, std::unordered_set<std::string>&, bool&)> pushEnd;
+  pushEnd = [&](std::size_t index, const ExcludeSet& excludes, std::vector<SendPropSchema>& output, std::unordered_set<std::string>& stack, bool& overBudget) {
+    if (overBudget) return;
     if (stack.size() >= kMaxTableFlattenDepth) return;
     std::vector<SendPropSchema> local;
-    pushCollapse(index, excludes, local, output, stack);
+    pushCollapse(index, excludes, local, output, stack, overBudget);
+    if (overBudget) return;
+    // Checked before the append: the emission count is the quantity a diamond
+    // multiplies, so a cap applied after the vector had grown would already
+    // have paid for the allocation it exists to prevent.
+    if (local.size() > kMaxFlattenedPropsPerTable - output.size()) {
+      overBudget = true;
+      return;
+    }
     output.insert(output.end(), local.begin(), local.end());
   };
-  pushCollapse = [&](std::size_t index, const ExcludeSet& excludes, std::vector<SendPropSchema>& local, std::vector<SendPropSchema>& output, std::unordered_set<std::string>& stack) {
+  pushCollapse = [&](std::size_t index, const ExcludeSet& excludes, std::vector<SendPropSchema>& local, std::vector<SendPropSchema>& output, std::unordered_set<std::string>& stack, bool& overBudget) {
+    if (overBudget) return;
     if (index >= summary.sendTableSchemas.size()) return;
     if (stack.size() >= kMaxTableFlattenDepth) return;
     const auto& table = summary.sendTableSchemas[index];
@@ -168,9 +205,16 @@ void flattenSendTableSchemas(DemoNetworkSummary& summary) {
       if (prop.type == SendPropType::DataTable) {
         const auto child = tableIndex.find(prop.referencedTable);
         if (child == tableIndex.end() || stack.count(prop.referencedTable) != 0) continue;
-        if ((prop.flags & 4096u) != 0) pushCollapse(child->second, excludes, local, output, stack);
-        else pushEnd(child->second, excludes, output, stack);
+        if ((prop.flags & 4096u) != 0) pushCollapse(child->second, excludes, local, output, stack, overBudget);
+        else pushEnd(child->second, excludes, output, stack, overBudget);
+        if (overBudget) return;
       } else {
+        // A single local vector can grow without bound on a wide table; the
+        // per-table budget has to hold here too, not only at the append.
+        if (local.size() >= kMaxFlattenedPropsPerTable) {
+          overBudget = true;
+          return;
+        }
         auto leaf = prop;
         leaf.ownerTable = table.name;
         local.push_back(std::move(leaf));
@@ -185,7 +229,20 @@ void flattenSendTableSchemas(DemoNetworkSummary& summary) {
     collectExcludes(i, excludes, excludeStack);
     std::vector<SendPropSchema> output;
     std::unordered_set<std::string> stack;
-    pushEnd(i, excludes, output, stack);
+    bool overBudget = false;
+    pushEnd(i, excludes, output, stack, overBudget);
+    if (overBudget) {
+      // A table that cannot be flattened inside the budget abandons the whole
+      // packet: downstream wire property indexes are derived from this vector,
+      // so a half-filled table would be a wrong answer rather than a smaller one.
+      noteBudgetReject("datatable-flatten-budget");
+      summary.sendTableSchemas[i].flattenedProps.clear();
+      return false;
+    }
+    if (output.size() > kMaxFlattenedPropsTotal - summary.dataTableFlattenedPropCount) {
+      noteBudgetReject("datatable-flatten-total-budget");
+      return false;
+    }
     // Source's flatten pass moves each CHANGES_OFTEN prop to the next front
     // slot with a swap. A stable partition changes the relative order of the
     // remaining props and therefore changes the wire property indexes.
@@ -198,6 +255,7 @@ void flattenSendTableSchemas(DemoNetworkSummary& summary) {
     summary.sendTableSchemas[i].flattenedProps = std::move(output);
     summary.dataTableFlattenedPropCount += summary.sendTableSchemas[i].flattenedProps.size();
   }
+  return true;
 }
 } // namespace
 

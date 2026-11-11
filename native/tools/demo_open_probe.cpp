@@ -1,18 +1,35 @@
 #include "demo_header.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <set>
 #include <string>
+#include <system_error>
 #include <tuple>
 #include <vector>
 
+namespace tf2::native {
+// Defined in demo_header_net.cpp: the named reason for the most recent parser
+// budget rejection. Declared here rather than in demo_header.h because F0-a is
+// scoped to three files; a gate asserts on the name so a future change to a cap
+// cannot silently re-use another bound's rejection.
+const char* parserBudgetRejectReason();
+} // namespace tf2::native
+
 namespace {
+
+std::wstring lastBudgetReason() {
+  const char* reason = tf2::native::parserBudgetRejectReason();
+  if (reason == nullptr) return std::wstring();
+  return std::wstring(reason, reason + std::strlen(reason));
+}
 
 std::vector<std::uint8_t> protocol4Fixture(bool includePlayerSlot) {
   std::vector<std::uint8_t> bytes(1072, 0);
@@ -33,6 +50,237 @@ bool parseHeaderWithPlaybackTime(float playbackTime) {
   std::memcpy(bytes.data() + 1056, &playbackTime, sizeof(playbackTime));
   tf2::native::DemoHeader header;
   return tf2::native::parseDemoHeader(bytes, header);
+}
+
+// --- F0-a: synthetic demos for the parser budgets -------------------------
+// The three bounds F0-a adds sit on the FILE path, not on the message-stream
+// path: an svc_DataTable body arrives as a command-6 block and the playback row
+// index comes from a command-2 entry tick, neither of which
+// decodeDemoMessageStream ever sees. Rather than invent a private seam, these
+// tests build a whole .dem in memory and drive the same three entry points the
+// product drives: parseDemoHeader -> indexDemoCommands -> scanKnownDemoMessages.
+
+class BitWriter {
+ public:
+  // MessageBits::read takes stream bit i from bit (i % 8) of byte (i / 8). A
+  // fixture written in any other order is simply read as different bits, so
+  // this layout is copied from the reader rather than chosen.
+  void put(std::uint32_t value, std::uint32_t count) {
+    for (std::uint32_t i = 0; i < count; ++i) {
+      if (bit_ % 8u == 0) bytes_.push_back(0);
+      if (((value >> i) & 1u) != 0u) bytes_.back() |= static_cast<std::uint8_t>(1u << (bit_ % 8u));
+      ++bit_;
+    }
+  }
+  void putString(const char* text) {
+    for (const char* p = text; *p != 0; ++p) put(static_cast<std::uint32_t>(static_cast<unsigned char>(*p)), 8);
+    put(0, 8);
+  }
+  std::vector<std::uint8_t> take() { return std::move(bytes_); }
+
+ private:
+  std::vector<std::uint8_t> bytes_;
+  std::size_t bit_ = 0;
+};
+
+// A demo the indexer accepts: 1072-byte header, protocol-4 command framing, and
+// a three-byte DEM_STOP so the indexer terminates on the real rule instead of
+// running off the end.
+class SyntheticDemo {
+ public:
+  SyntheticDemo() {
+    bytes_.assign(1072, 0);
+    const char signature[8] = {'H', 'L', '2', 'D', 'E', 'M', 'O', 0};
+    std::memcpy(bytes_.data(), signature, 8);
+    setI32(8, 4);    // demoProtocol 4: every command but DEM_STOP carries a player slot
+    setI32(12, 24);  // networkProtocol > 23: svc_CreateStringTable lengths are varints
+    std::memcpy(bytes_.data() + 536, "cp_synthetic", 12);
+  }
+  // Command 2 (packet): cmd, tick, slot, 76-byte cmdinfo + 8 bytes, length, payload.
+  void addPacket(std::int32_t tick, const std::vector<std::uint8_t>& payload) {
+    beginCommand(2, tick);
+    bytes_.insert(bytes_.end(), 84u, 0);  // cmdinfo values are not what these tests read
+    appendI32(static_cast<std::int32_t>(payload.size()));
+    bytes_.insert(bytes_.end(), payload.begin(), payload.end());
+  }
+  // Command 6 (svc_DataTable, signon): cmd, tick, slot, length, payload.
+  void addDataTableBody(std::int32_t tick, const std::vector<std::uint8_t>& payload) {
+    beginCommand(6, tick);
+    appendI32(static_cast<std::int32_t>(payload.size()));
+    bytes_.insert(bytes_.end(), payload.begin(), payload.end());
+  }
+  void addStop(std::int32_t tick) {
+    bytes_.push_back(7);
+    for (int i = 0; i < 3; ++i) bytes_.push_back(static_cast<std::uint8_t>((tick >> (8 * i)) & 0xff));
+  }
+  const std::vector<std::uint8_t>& bytes() const { return bytes_; }
+
+ private:
+  void beginCommand(std::uint8_t command, std::int32_t tick) {
+    bytes_.push_back(command);
+    appendI32(tick);
+    // The player slot comes AFTER the tick: indexDemoCommands reads cmd, then
+    // the 4-byte tick (demo_header_core.cpp:120-130), then the protocol-4 slot
+    // (:133-140). Writing the slot first does not break the framing -- the two
+    // fields are consumed in the same total width -- but the tick then reads as
+    // (slot << 24) | (tick << 8) | (tick >> 24), i.e. tick * 256 for slot 0.
+    // Every fixture here used tick 0, so only the playback cases noticed.
+    bytes_.push_back(0);  // player slot (protocol 4)
+  }
+  void appendI32(std::int32_t value) {
+    const std::uint8_t raw[4] = {static_cast<std::uint8_t>(value & 0xff),
+                                 static_cast<std::uint8_t>((value >> 8) & 0xff),
+                                 static_cast<std::uint8_t>((value >> 16) & 0xff),
+                                 static_cast<std::uint8_t>((value >> 24) & 0xff)};
+    bytes_.insert(bytes_.end(), raw, raw + 4);
+  }
+  void setI32(std::size_t offset, std::int32_t value) { std::memcpy(bytes_.data() + offset, &value, 4); }
+  std::vector<std::uint8_t> bytes_;
+};
+
+struct SyntheticScan {
+  bool headerOk = false;
+  bool indexOk = false;
+  bool scanOk = false;
+  std::string indexError;
+  tf2::native::DemoNetworkSummary summary;
+};
+
+// scanKnownDemoMessages reads from a path, so the fixture has to reach disk: it
+// is the only entry point that runs the command-6 and command-2 paths.
+bool scanSyntheticDemo(const std::vector<std::uint8_t>& bytes, SyntheticScan& out) {
+  static std::size_t sequence = 0;
+  std::error_code error;
+  const std::filesystem::path directory = std::filesystem::temp_directory_path(error);
+  if (error) return false;
+  const std::filesystem::path path = directory
+      / ("t85_f0a_" + std::to_string(++sequence) + "_"
+         + std::to_string(reinterpret_cast<std::uintptr_t>(&bytes)) + ".dem");
+  {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) return false;
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    if (!file) return false;
+  }
+  tf2::native::DemoHeader header;
+  out.headerOk = tf2::native::parseDemoHeader(bytes, header);
+  tf2::native::DemoIndex index;
+  out.indexOk = out.headerOk && tf2::native::indexDemoCommands(bytes, header, index);
+  out.indexError = index.error;
+  if (out.indexOk) {
+    out.summary.networkProtocol = header.networkProtocol;
+    out.scanOk = tf2::native::scanKnownDemoMessages(path, index, out.summary);
+  }
+  std::filesystem::remove(path, error);
+  return out.indexOk;
+}
+
+// A single NOP message: enough for the scan to score the packet as decoded, so
+// a fixture that isolates a command-6 body is still a demo with one packet.
+const std::vector<std::uint8_t>& nopPacket() {
+  static const std::vector<std::uint8_t> payload(1, 0);
+  return payload;
+}
+
+// A command-6 body naming "count" tables that have no properties. Each table is
+// 20 bits -- hasTable(1), needsDecoder(1), empty name(8), propCount(10) -- so a
+// flood of 8192 tables is a 20 KB body that still makes the parser keep one
+// heap-backed SendTableSchema per 20 bits of input.
+std::vector<std::uint8_t> emptyDataTableBody(std::size_t count) {
+  BitWriter writer;
+  for (std::size_t i = 0; i < count; ++i) {
+    writer.put(1, 1);
+    writer.put(0, 1);
+    writer.put(0, 8);
+    writer.put(0, 10);
+  }
+  writer.put(0, 16);  // server class count; the table loop stops at <= 16 bits left
+  return writer.take();
+}
+
+// A diamond, not a chain: every non-leaf table carries two DataTable properties
+// that both point at the SAME child, so a depth-k pyramid expands to 2^k leaf
+// emissions while the body stays a few hundred bytes. A chain would flatten in
+// linear time and prove nothing -- this is the shape QA1B-02 measured.
+std::vector<std::uint8_t> diamondDataTableBody(std::size_t depth, std::size_t leafProps) {
+  BitWriter writer;
+  // Root first. Flatten resolves children by name, so the order does not change
+  // what the pyramid expands to -- but it does change what a REJECTION leaves
+  // behind: only a root-first body can be refused with zero props already
+  // counted, which is the invariant the probe pins.
+  for (std::size_t level = 0; level <= depth; ++level) {
+    writer.put(1, 1);
+    writer.put(0, 1);
+    writer.putString(("T" + std::to_string(level)).c_str());
+    const bool leaf = level == depth;
+    writer.put(leaf ? static_cast<std::uint32_t>(leafProps) : 2u, 10);
+    if (leaf) {
+      for (std::size_t i = 0; i < leafProps; ++i) {
+        writer.put(0, 5);   // SendPropType::Int
+        writer.putString(("p" + std::to_string(i)).c_str());
+        writer.put(0, 16);  // flags
+        writer.put(0, 32);  // lowValue
+        writer.put(0, 32);  // highValue
+        writer.put(1, 7);   // bitCount
+      }
+    } else {
+      const std::string child = "T" + std::to_string(level + 1);
+      for (std::uint32_t slot = 0; slot < 2u; ++slot) {
+        writer.put(6, 5);  // SendPropType::DataTable
+        writer.putString(("c" + std::to_string(slot)).c_str());
+        writer.put(0, 16);  // flags: no COLLAPSIBLE(4096), so the child lands in output
+        writer.putString(child.c_str());
+      }
+    }
+  }
+  writer.put(0, 16);
+  return writer.take();
+}
+
+// F0-a: the caps under test, copied from where they are defined so the probe can
+// pin them exactly instead of merely bounding them. Duplicated on purpose: a cap
+// change must make this test fail so it is made in both places consciously.
+//   schema count             demo_header_net.cpp:53  kMaxSendTableSchemas
+//   per-table flatten props  demo_header_net.cpp:54  kMaxFlattenedPropsPerTable
+//   playback rows            demo_header.cpp:36      kMaxPlaybackRows
+constexpr std::size_t kExpectedSchemaCap = 4096;
+constexpr std::size_t kExpectedFlattenCap = 4096;
+constexpr std::int64_t kExpectedMaxRows = 1ll << 21;
+
+// A root that points at "childCount" distinct children, each carrying
+// "propsPerChild" Int properties: flattening the root emits the product, so this
+// fixture can sit exactly ON the per-table budget (8 x 512 == 4096) and one step
+// past it (8 x 513 == 4104) -- the diamond cannot do that, its count is a power
+// of two times the leaf size. Root first, so a rejection on it leaves no earlier
+// table's props in dataTableFlattenedPropCount.
+std::vector<std::uint8_t> fanDataTableBody(std::size_t childCount, std::size_t propsPerChild) {
+  BitWriter writer;
+  writer.put(1, 1);
+  writer.put(0, 1);
+  writer.putString("R");
+  writer.put(static_cast<std::uint32_t>(childCount), 10);
+  for (std::size_t i = 0; i < childCount; ++i) {
+    writer.put(6, 5);  // SendPropType::DataTable
+    writer.putString(("c" + std::to_string(i)).c_str());
+    writer.put(0, 16);
+    writer.putString(("C" + std::to_string(i)).c_str());
+  }
+  for (std::size_t child = 0; child < childCount; ++child) {
+    writer.put(1, 1);
+    writer.put(0, 1);
+    writer.putString(("C" + std::to_string(child)).c_str());
+    writer.put(static_cast<std::uint32_t>(propsPerChild), 10);
+    for (std::size_t i = 0; i < propsPerChild; ++i) {
+      writer.put(0, 5);   // Int
+      writer.putString(("p" + std::to_string(i)).c_str());
+      writer.put(0, 16);  // flags
+      writer.put(0, 32);  // lowValue
+      writer.put(0, 32);  // highValue
+      writer.put(1, 7);   // bitCount
+    }
+  }
+  writer.put(0, 16);
+  return writer.take();
 }
 
 int runParserBoundsSelfTest() {
@@ -56,15 +304,191 @@ int runParserBoundsSelfTest() {
       std::numeric_limits<float>::infinity());
   const bool acceptedFiniteTime = parseHeaderWithPlaybackTime(30.0f);
 
+  // F0-a case 1 (QA1B-01): 8192 tables in one 20 KB command-6 body. The red
+  // reading is "the parser accepted all of them" -- the count grows with the
+  // input and never stops; nothing here needs the 3.4 GB the defect could reach.
+  constexpr std::size_t kSchemaFloodTables = 8192;
+  SyntheticDemo schemaFloodDemo;
+  schemaFloodDemo.addDataTableBody(0, emptyDataTableBody(kSchemaFloodTables));
+  schemaFloodDemo.addPacket(0, nopPacket());
+  schemaFloodDemo.addStop(0);
+  SyntheticScan schemaFlood;
+  const bool schemaFloodBuilt = scanSyntheticDemo(schemaFloodDemo.bytes(), schemaFlood);
+  // Read the reason before the next scan resets it. The count is pinned to the
+  // cap itself: "fewer than I sent" would pass for any cap at all between the
+  // control and the flood, which is exactly what this test must not allow.
+  const std::wstring schemaFloodReason = lastBudgetReason();
+  const bool rejectedSchemaFlood = schemaFloodBuilt
+      && schemaFlood.summary.malformedPackets > 0
+      && schemaFlood.summary.dataTableDefinitionCount == kExpectedSchemaCap
+      && schemaFloodReason == L"datatable-schema-cap";
+
+  // Positive control: exactly cap tables must still be accepted -- a cap that is
+  // off by one, or arbitrarily small, fails here instead of passing quietly.
+  constexpr std::size_t kSchemaControlTables = kExpectedSchemaCap;
+  SyntheticDemo schemaControlDemo;
+  schemaControlDemo.addDataTableBody(0, emptyDataTableBody(kSchemaControlTables));
+  schemaControlDemo.addPacket(0, nopPacket());
+  schemaControlDemo.addStop(0);
+  SyntheticScan schemaControl;
+  const bool schemaControlBuilt = scanSyntheticDemo(schemaControlDemo.bytes(), schemaControl);
+  const bool acceptedSchemaControl = schemaControlBuilt && schemaControl.indexOk
+      && schemaControl.summary.malformedPackets == 0
+      && schemaControl.summary.dataTableDefinitionCount == kSchemaControlTables
+      && lastBudgetReason().empty();
+
+  // F0-a case 2 (QA1B-02): depth-12 diamond, four props per leaf -> 16384 props
+  // emitted for one root table, from a body under 400 bytes. A budget has to
+  // bite below that 2^12 emission; the red reading is the emitted count itself,
+  // so the test does not pin whichever constant the fix chooses.
+  constexpr std::size_t kDiamondDepth = 12;
+  constexpr std::size_t kDiamondLeafProps = 4;
+  SyntheticDemo diamondDemo;
+  diamondDemo.addDataTableBody(0, diamondDataTableBody(kDiamondDepth, kDiamondLeafProps));
+  diamondDemo.addPacket(0, nopPacket());
+  diamondDemo.addStop(0);
+  SyntheticScan diamond;
+  const bool diamondBuilt = scanSyntheticDemo(diamondDemo.bytes(), diamond);
+  // Root first is what makes the zero below an invariant rather than a coincidence:
+  // the root is table 0, so its refusal happens before any other table's props are
+  // counted. The whole packet is abandoned (naming a reason and leaving the table
+  // half-filled would be a wrong answer, not a smaller one).
+  const std::wstring diamondReason = lastBudgetReason();
+  const bool rejectedDiamondBudget = diamondBuilt
+      && diamond.summary.malformedPackets > 0
+      && diamond.summary.dataTableFlattenedPropCount == 0
+      && diamondReason == L"datatable-flatten-budget";
+
+  // Positive control at depth 3: 32 props, which no reasonable budget rejects.
+  SyntheticDemo diamondControlDemo;
+  diamondControlDemo.addDataTableBody(0, diamondDataTableBody(3, kDiamondLeafProps));
+  diamondControlDemo.addPacket(0, nopPacket());
+  diamondControlDemo.addStop(0);
+  SyntheticScan diamondControl;
+  const bool diamondControlBuilt = scanSyntheticDemo(diamondControlDemo.bytes(), diamondControl);
+  const bool acceptedDiamondControl = diamondControlBuilt && diamondControl.indexOk
+      && diamondControl.summary.malformedPackets == 0
+      && diamondControl.summary.dataTableFlattenedPropCount > 0
+      && lastBudgetReason().empty();
+
+  // F0-a: the per-table budget pinned from both sides. The diamond can only reach
+  // it as a power of two times the leaf size, so it cannot show that the boundary
+  // is where it claims to be. Eight children of 512 props put the root at exactly
+  // 4096 (accepted, all of them kept) and eight of 513 at 4104 (refused, nothing
+  // counted).
+  SyntheticDemo flattenEdgeDemo;
+  flattenEdgeDemo.addDataTableBody(0, fanDataTableBody(8, kExpectedFlattenCap / 8));
+  flattenEdgeDemo.addPacket(0, nopPacket());
+  flattenEdgeDemo.addStop(0);
+  SyntheticScan flattenEdge;
+  const bool flattenEdgeBuilt = scanSyntheticDemo(flattenEdgeDemo.bytes(), flattenEdge);
+  const std::wstring flattenEdgeReason = lastBudgetReason();
+  const bool acceptedFlattenEdge = flattenEdgeBuilt && flattenEdge.indexOk
+      && flattenEdge.summary.malformedPackets == 0
+      && flattenEdge.summary.sendTableSchemas.size() == 9u
+      && flattenEdge.summary.sendTableSchemas[0].flattenedProps.size() == kExpectedFlattenCap
+      && flattenEdgeReason.empty();
+
+  SyntheticDemo flattenOverDemo;
+  flattenOverDemo.addDataTableBody(0, fanDataTableBody(8, kExpectedFlattenCap / 8 + 1));
+  flattenOverDemo.addPacket(0, nopPacket());
+  flattenOverDemo.addStop(0);
+  SyntheticScan flattenOver;
+  const bool flattenOverBuilt = scanSyntheticDemo(flattenOverDemo.bytes(), flattenOver);
+  const std::wstring flattenOverReason = lastBudgetReason();
+  const bool rejectedFlattenOver = flattenOverBuilt
+      && flattenOver.summary.malformedPackets > 0
+      && flattenOver.summary.dataTableFlattenedPropCount == 0
+      && flattenOverReason == L"datatable-flatten-budget";
+
+  // F0-a case 3 (QA1B-03): the second data entry tick names playback row
+  // 2097160. The defect is that this number sizes three vectors, so the red
+  // reading is the row count, not the 12.9 GB an int32-max tick would ask for.
+  constexpr std::int32_t kPlaybackProbeTick = (1 << 21) + 8;
+  SyntheticDemo rowFloodDemo;
+  rowFloodDemo.addPacket(0, nopPacket());
+  rowFloodDemo.addPacket(kPlaybackProbeTick, nopPacket());
+  rowFloodDemo.addStop(kPlaybackProbeTick);
+  SyntheticScan rowFlood;
+  const bool rowFloodBuilt = scanSyntheticDemo(rowFloodDemo.bytes(), rowFlood);
+  // One row: the good entry at tick 0. Two rows would mean the bad entry was
+  // sized before being refused, which is the allocation the cap exists to stop.
+  const std::wstring rowFloodReason = lastBudgetReason();
+  const bool rejectedPlaybackRows = rowFloodBuilt
+      && rowFlood.summary.malformedPackets > 0
+      && rowFlood.summary.packetServerTicks.size() == 1u
+      && rowFloodReason == L"playback-row-cap";
+
+  // Positive control: a 100-tick span must still index row 100 exactly.
+  SyntheticDemo rowControlDemo;
+  rowControlDemo.addPacket(0, nopPacket());
+  rowControlDemo.addPacket(100, nopPacket());
+  rowControlDemo.addStop(100);
+  SyntheticScan rowControl;
+  const bool rowControlBuilt = scanSyntheticDemo(rowControlDemo.bytes(), rowControl);
+  const bool acceptedPlaybackControl = rowControlBuilt && rowControl.indexOk
+      && rowControl.summary.malformedPackets == 0
+      && rowControl.summary.packetServerTicks.size() == 101u
+      && lastBudgetReason().empty();
+
+  // The last legal row and the first illegal one. With the cap read as a row
+  // COUNT, index cap - 1 needs exactly cap rows and must be kept, while index cap
+  // needs cap + 1 and must be refused -- a ">" test accepts the second case and
+  // lets one row past the budget.
+  SyntheticDemo rowEdgeDemo;
+  rowEdgeDemo.addPacket(0, nopPacket());
+  rowEdgeDemo.addPacket(static_cast<std::int32_t>(kExpectedMaxRows - 2), nopPacket());
+  rowEdgeDemo.addStop(static_cast<std::int32_t>(kExpectedMaxRows - 2));
+  SyntheticScan rowEdge;
+  const bool rowEdgeBuilt = scanSyntheticDemo(rowEdgeDemo.bytes(), rowEdge);
+  const std::wstring rowEdgeReason = lastBudgetReason();
+  const bool acceptedPlaybackEdge = rowEdgeBuilt && rowEdge.indexOk
+      && rowEdge.summary.malformedPackets == 0
+      && rowEdge.summary.packetServerTicks.size() == static_cast<std::size_t>(kExpectedMaxRows - 1)
+      && rowEdgeReason.empty();
+
+  SyntheticDemo rowAtCapDemo;
+  rowAtCapDemo.addPacket(0, nopPacket());
+  rowAtCapDemo.addPacket(static_cast<std::int32_t>(kExpectedMaxRows), nopPacket());
+  rowAtCapDemo.addStop(static_cast<std::int32_t>(kExpectedMaxRows));
+  SyntheticScan rowAtCap;
+  const bool rowAtCapBuilt = scanSyntheticDemo(rowAtCapDemo.bytes(), rowAtCap);
+  const std::wstring rowAtCapReason = lastBudgetReason();
+  const bool rejectedPlaybackAtCap = rowAtCapBuilt
+      && rowAtCap.summary.malformedPackets > 0
+      && rowAtCap.summary.packetServerTicks.size() == 1u
+      && rowAtCapReason == L"playback-row-cap";
+
   std::wcout << L"parser_bounds_selftest missing_slot_rejected=" << (rejectedMissingSlot ? 1 : 0)
              << L" valid_control=" << (acceptedControl ? 1 : 0)
              << L" nan_time_rejected=" << (rejectedNanTime ? 1 : 0)
              << L" infinite_time_rejected=" << (rejectedInfiniteTime ? 1 : 0)
              << L" finite_time_control=" << (acceptedFiniteTime ? 1 : 0)
              << L" malformed_error=" << std::wstring(malformed.error.begin(), malformed.error.end())
-             << L" valid_entries=" << valid.entries.size() << L'\n';
+             << L" valid_entries=" << valid.entries.size()
+             << L" datatable_schema_flood_rejected=" << (rejectedSchemaFlood ? 1 : 0)
+             << L" datatable_schema_flood_tables=" << schemaFlood.summary.dataTableDefinitionCount
+             << L" datatable_schema_control=" << (acceptedSchemaControl ? 1 : 0)
+             << L" datatable_flatten_budget_rejected=" << (rejectedDiamondBudget ? 1 : 0)
+             << L" datatable_flatten_props=" << diamond.summary.dataTableFlattenedPropCount
+             << L" datatable_flatten_control=" << (acceptedDiamondControl ? 1 : 0)
+             << L" playback_row_cap_rejected=" << (rejectedPlaybackRows ? 1 : 0)
+             << L" playback_rows=" << rowFlood.summary.packetServerTicks.size()
+             << L" playback_row_control=" << (acceptedPlaybackControl ? 1 : 0)
+             << L" datatable_flatten_edge=" << (acceptedFlattenEdge ? 1 : 0)
+             << L" datatable_flatten_over_rejected=" << (rejectedFlattenOver ? 1 : 0)
+             << L" playback_row_edge=" << (acceptedPlaybackEdge ? 1 : 0)
+             << L" playback_row_at_cap_rejected=" << (rejectedPlaybackAtCap ? 1 : 0)
+             << L" datatable_schema_flood_reason=" << schemaFloodReason
+             << L" datatable_flatten_reason=" << diamondReason
+             << L" datatable_flatten_over_reason=" << flattenOverReason
+             << L" playback_row_reason=" << rowFloodReason
+             << L" playback_row_at_cap_reason=" << rowAtCapReason << L'\n';
   return rejectedMissingSlot && acceptedControl && rejectedNanTime
-      && rejectedInfiniteTime && acceptedFiniteTime ? 0 : 1;
+      && rejectedInfiniteTime && acceptedFiniteTime && rejectedSchemaFlood
+      && acceptedSchemaControl && rejectedDiamondBudget && acceptedDiamondControl
+      && acceptedFlattenEdge && rejectedFlattenOver && rejectedPlaybackRows
+      && acceptedPlaybackControl && acceptedPlaybackEdge && rejectedPlaybackAtCap ? 0 : 1;
 }
 
 } // namespace

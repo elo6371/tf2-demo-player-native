@@ -20,6 +20,27 @@
 
 namespace tf2::native {
 
+// Defined in demo_header_net.cpp (F0-a). The decoders report rejection through
+// their existing bool and DemoNetworkSummary carries no field for a name, so the
+// bound that fired is recorded instead. It is sticky for one whole scan -- reset
+// at scan start, never per message -- because the body that trips a budget can be
+// decoded several packets after the one that carried it: clearing per stream left
+// the probe reading an empty string. The probe asserts the exact text.
+void setParserBudgetRejectReason(const char* reason);
+const char* parserBudgetRejectReason();
+
+namespace {
+
+// F0-a (QA1B-03): a data entry tick is a raw int32 with no relationship to
+// header.ticks, and the playback row it names becomes a real allocation of
+// three vectors (int32 + two uint8, six bytes a row). This is a ROW COUNT, not a
+// maximum index: 2^21 rows is 17 hours at 66 tick and 4.5 hours at 128, past the
+// longest local demo (~2 hours). An index equal to the cap would need cap + 1
+// rows, so the refusal is index >= cap and the probe pins that exact boundary.
+constexpr std::int64_t kMaxPlaybackRows = 1ll << 21;
+
+} // namespace
+
 bool decodeLzss(const std::vector<std::uint8_t>& input, std::size_t offset, std::size_t length,
     std::size_t expectedSize, std::vector<std::uint8_t>& output) {
   if (offset > input.size() || length > input.size() - offset || length < 4u) return false;
@@ -123,6 +144,9 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
                              DemoMessageStreamResult& result,
                              std::uint32_t packetOrdinal) {
   result = {};
+  // F0-a: the reason is deliberately NOT reset per stream. The packet that sets a
+  // budget reason is not always the last one, so clearing here erased the reason
+  // before any caller could read it; it is reset once per scan instead.
   std::vector<std::uint8_t> trimmed;
   const std::vector<std::uint8_t>* source = &payload;
   if (payloadBits < payload.size() * 8u) {
@@ -205,6 +229,7 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   // resolve to the struct's own defaults, so the reset stays the default path.
   const ProjectileTrackLimits projectileTrackLimits = summary.projectileTrackLimits;
   summary = {};
+  setParserBudgetRejectReason(nullptr);
   summary.projectileTrackLimits = projectileTrackLimits;
   summary.networkProtocol = networkProtocol;
   if (index.entries.empty()) return false;
@@ -274,8 +299,19 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
       // packet: S1 drops 22 and S5 drops 4348, so ordinal 20000 is not
       // playback 20000 on either.
       const bool tickKnown = streamOk && stream.finalNetworkTickKnown;
-      const std::int32_t playbackIndex = entry.tick - summary.firstDataEntryTick;
-      if (playbackIndex >= 0) {
+      // F0-a (QA1B-03): entry.tick is a raw int32 with no relation to
+      // header.ticks, and the row it names sizes three vectors -- at 0x7fffffff
+      // that is ~12.9 GB from a 1 KB file. Widen before subtracting, because
+      // entry.tick - firstDataEntryTick overflows int32 on its own.
+      const std::int64_t playbackIndex =
+          static_cast<std::int64_t>(entry.tick) - static_cast<std::int64_t>(summary.firstDataEntryTick);
+      if (playbackIndex >= kMaxPlaybackRows) {
+        // Beyond the cap is a corrupt entry, not a long demo: count it and keep
+        // scanning instead of sizing three vectors for it. First rejection wins,
+        // so a later bad packet cannot rewrite what the probe asserts.
+        if (parserBudgetRejectReason() == nullptr) setParserBudgetRejectReason("playback-row-cap");
+        ++summary.malformedPackets;
+      } else if (playbackIndex >= 0) {
         const std::size_t row = static_cast<std::size_t>(playbackIndex);
         if (row >= summary.packetServerTicks.size()) {
           summary.packetServerTicks.resize(row + 1, -1);
