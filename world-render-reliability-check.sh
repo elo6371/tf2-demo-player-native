@@ -90,6 +90,20 @@ MODE="forward"
 if [ "${1:-}" = "--mutation" ]; then MODE="mutation"; fi
 OUT="${T8_OUT:-evidence/t8-render-reliability-${RUN_TAG}-${MODE}}"
 mkdir -p "$OUT"
+# D-96: OUT may be absolute -- T8_OUT names a window directory. Prefixing $PWD to
+# an absolute path produces <repo>//d/..., the product cannot open it as a trace
+# destination, and the run still exits 0 with its bmp and csv written. Every
+# reading taken from that trace then comes back empty and the gate reads as
+# "drawn=0" instead of "no trace". Convert once, at the root, and prefix only
+# genuinely relative paths. camera-ui-check.sh:90-96 is the same helper, for the
+# same reason; world-material-check.sh is unaffected because its scratch paths
+# are relative by default.
+absolute_out() { # absolute_out <shell path> -- native Windows path
+  case "$1" in
+    /*|[A-Za-z]:*) cygpath -m "$1" ;;
+    *) cygpath -m "$PWD/$1" ;;
+  esac
+}
 
 checks=0
 fails=0
@@ -113,7 +127,7 @@ run() {
   RUN_CSV="$OUT/$label.csv"
   RUN_TRACE="$OUT/$label.trace"
   rm -f "$RUN_BMP" "$RUN_CSV" "$RUN_TRACE"
-  TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$RUN_TRACE")" timeout 200 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
+  TF2_NATIVE_TRACE="$(absolute_out "$RUN_TRACE")" timeout 200 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --tf-root "$TF" --audio-disabled --hidden-window --demo "$demo" \
     --start-paused --capture-tick 0 --capture-frame "$RUN_BMP" \
     --metrics-file "$RUN_CSV" "$@" > "$OUT/$label.log" 2>&1
