@@ -494,11 +494,20 @@ void logsPanelRunScript(HWND window) {
       int scrollHeight = 0;
       int viewportHeight = 0;
       if (!g_controller->pageExtent(&scrollHeight, &viewportHeight)) {
+        // DO NOT FIRE THE SECOND SCRIPT AFTER A TIMEOUT.
+        //   pageExtent and scrollContent both go through the same
+        //   ExecuteScript-with-a-3-s-deadline path. When the extent call has timed
+        //   out, a scroll call immediately behind it starts while the browser still
+        //   holds the abandoned completion -- that pairing is the use-after-free
+        //   QA-4 WEB-1 recorded, and this was the line that produced it. A step that
+        //   could not read the extent has nothing to scroll either way, and the
+        //   trace line already says the step failed.
         failStep("scroll", "the extent script failed");
-      }
-      int offset = 0;
-      if (!g_controller->scrollContent(480, &offset)) {
-        failStep("scroll", "the scroll script failed");
+      } else {
+        int offset = 0;
+        if (!g_controller->scrollContent(480, &offset)) {
+          failStep("scroll", "the scroll script failed");
+        }
       }
     } else if (script == "resize") {
       // Both ends of the range, through the same entry point the splitter

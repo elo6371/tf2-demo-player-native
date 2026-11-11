@@ -191,6 +191,32 @@ std::filesystem::path statePath(const Options& options,
   return options.installDir / kStateDirectory / relative;
 }
 
+// THE JOIN IS THE DANGEROUS OPERATION, SO THE JOIN IS WHAT IS CHECKED.
+//   install_manifest.cpp refuses a record that climbs out of the install
+//   directory, and that is where a manifest read from disk is rejected with a
+//   reason. This is the second, independent check, at the join itself: install
+//   builds a Manifest in memory and hands it to the same deletion loop, so a
+//   rule enforced only at parse time is a rule about one of the two ways a
+//   Manifest can arrive here. The two checks are deliberately different
+//   procedures -- the parser reads Windows path grammar, this one asks the
+//   path type what the join produced -- so a shape neither anticipated still
+//   cannot escape the directory this function is the last gate for.
+bool resolveInside(const std::filesystem::path& root, const std::string& relative,
+    std::filesystem::path* out) {
+  const std::filesystem::path candidate = std::filesystem::u8path(relative);
+  if (candidate.is_absolute() || candidate.has_root_name()
+      || candidate.has_root_directory()) {
+    return false;
+  }
+  const auto normalizedRoot = root.lexically_normal();
+  const auto joined = (normalizedRoot / candidate).lexically_normal();
+  const auto fromRoot = joined.lexically_relative(normalizedRoot);
+  if (fromRoot.empty() || fromRoot.is_absolute()) return false;
+  if (*fromRoot.begin() == std::filesystem::path("..")) return false;
+  *out = joined;
+  return true;
+}
+
 void emit(Result& result, const std::string& line) { result.lines.push_back(line); }
 
 Result installInto(const Options& options, const PackageInfo& info) {
@@ -560,10 +586,19 @@ Result uninstallFrom(const Options& options) {
     return result;
   }
 
-  std::size_t removed = 0, restored = 0, preserved = 0, modified = 0, missing = 0, deferred = 0;
+  std::size_t removed = 0, restored = 0, preserved = 0, modified = 0, missing = 0,
+    deferred = 0, failedToRemove = 0;
   for (const auto& file : manifest.files) {
     if (file.state == kStatePreserved || file.state == kStateUnchanged) { ++preserved; continue; }
-    const auto path = options.installDir / std::filesystem::path(file.path);
+    // A record that is not a path inside the install directory is refused by
+    // name rather than joined: see resolveInside, and QA-4 INS-1 for what the
+    // join did when it was not checked.
+    std::filesystem::path path;
+    if (!resolveInside(options.installDir, file.path, &path)) {
+      emit(result, "uninstall=FAIL reason=manifest_path_outside file=" + file.path);
+      result.exitCode = 3;
+      return result;
+    }
     std::error_code code;
     if (!std::filesystem::is_regular_file(path, code)) { ++missing; continue; }
     const auto current = sha256File(path, nullptr);
@@ -575,7 +610,12 @@ Result uninstallFrom(const Options& options) {
       continue;
     }
     if (!file.backup.empty()) {
-      const auto backupPath = statePath(options, std::filesystem::path(file.backup));
+      std::filesystem::path backupPath;
+      if (!resolveInside(options.installDir / kStateDirectory, file.backup, &backupPath)) {
+        emit(result, "uninstall=FAIL reason=manifest_path_outside file=" + file.backup);
+        result.exitCode = 3;
+        return result;
+      }
       if (std::filesystem::is_regular_file(backupPath, code)) {
         if (!copyFileRaw(backupPath, path)) {
           emit(result, "uninstall=FAIL reason=cannot_restore file=" + file.path);
@@ -600,7 +640,12 @@ Result uninstallFrom(const Options& options) {
       continue;
     }
     if (!std::filesystem::remove(path, code)) {
-      // Not removed and not ours to defer: say so rather than counting a pass.
+      // Not removed and not ours to defer: say so, count it, and keep removing
+      // the rest -- one locked file is no reason to leave the package half
+      // uninstalled. The count is the part that was missing (QA-4 INS-2): a
+      // note nobody sums let this path report PASS exit 0 while a file this
+      // package installed stayed on disk.
+      ++failedToRemove;
       emit(result, "uninstall=note could_not_remove=" + file.path
         + " win32=" + std::to_string(code.value()));
       continue;
@@ -630,7 +675,19 @@ Result uninstallFrom(const Options& options) {
   }
 
   // The manifest last, so a run that dies part way can simply be repeated.
-  {
+  // NOT WHEN SOMETHING COULD NOT BE REMOVED, THOUGH.
+  //   The manifest is the only record of what this package still owns. Deleting
+  //   it after a failed delete turns that file into an orphan nothing can name,
+  //   and the next uninstall answers reason=no_manifest -- measured 2026-11-11
+  //   (QA-4 INS-2): the first run said PASS exit 0 and the second said this
+  //   directory was never an install. A run that did not finish leaves the
+  //   evidence behind so the same command can be repeated.
+  //   The deferred (running image) case keeps the old behaviour on purpose: the
+  //   caller was told to run the uninstall again after the product exits, and a
+  //   sidecar left behind would make that second run read as a different kind
+  //   of install. Only a file that is neither ours to defer nor removable keeps
+  //   the manifest.
+  if (failedToRemove == 0) {
     std::error_code code;
     std::filesystem::remove(manifestFile, code);
     // VERSION.txt is removed by the record loop above when the manifest lists it
@@ -638,16 +695,25 @@ Result uninstallFrom(const Options& options) {
     // user brought with them, which is the exact class of bug this manifest
     // exists to make impossible.
     std::filesystem::remove_all(options.installDir / kStateDirectory, code);
+  } else {
+    emit(result, "uninstall=note manifest_kept_for_retry couldNotRemove="
+      + std::to_string(failedToRemove));
   }
   // Three, not zero: the caller asked for a complete removal and did not get one.
   // Exit 2 is reserved for "this directory is not an install", which is a
   // different finding and must stay distinguishable in a script.
-  if (deferred != 0) result.exitCode = 3;
-  emit(result, "uninstall=" + std::string(deferred == 0 ? "PASS" : "INCOMPLETE")
+  // A file that could not be removed is the same finding as a deferred image:
+  // the caller asked for a complete removal and did not get one. It is counted
+  // separately because the caller can do nothing about it except look, while a
+  // running image goes away when the product exits.
+  const bool complete = deferred == 0 && failedToRemove == 0;
+  if (!complete) result.exitCode = 3;
+  emit(result, "uninstall=" + std::string(complete ? "PASS" : "INCOMPLETE")
     + " removed=" + std::to_string(removed) + " restored="
     + std::to_string(restored) + " preserved=" + std::to_string(preserved) + " modified="
     + std::to_string(modified) + " alreadyMissing=" + std::to_string(missing)
-    + " deferredRunningImage=" + std::to_string(deferred));
+    + " deferredRunningImage=" + std::to_string(deferred)
+    + " couldNotRemove=" + std::to_string(failedToRemove));
   return result;
 }
 

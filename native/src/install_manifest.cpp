@@ -4,6 +4,7 @@
 #include <bcrypt.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -32,6 +33,65 @@ std::string trim(const std::string& value) {
 // per-line format silently, so it is refused instead.
 bool asciiOnly(const std::string& value) {
   for (const unsigned char c : value) { if (c < 0x20 || c > 0x7e) return false; }
+  return true;
+}
+
+// A RECORD PATH NAMES A FILE RELATIVE TO THE INSTALL DIRECTORY, AND THAT CLAIM
+// IS CHECKED HERE, AT THE POINT THE MANIFEST IS READ.
+//   uninstall joins this string to installDirectory and then deletes what the
+//   join finds. Windows replaces the left-hand side of a join when the right
+//   side is absolute, and a leading ".." component leaves the directory, so a
+//   manifest holding "../x" or "C:/x" made that join name a file this package
+//   never installed -- measured 2026-11-11 (QA-4 INS-1): both were accepted
+//   because both are printable ASCII, and uninstall deleted the victim and
+//   reported PASS. The refusal belongs at parse time because a manifest this
+//   parser rejects still sits on disk and can be read by a human; one that is
+//   silently normalised at deletion time points at a file other than it names.
+//   The grammar is Windows', not POSIX's, because the join is a
+//   std::filesystem join on Windows: "/" is the separator the writer emits
+//   (relativeTo returns generic_string), so a backslash was never written by
+//   this code and is refused rather than translated; a device name is refused because
+//   CreateFileW on CON/NUL is not a file in this directory, and a component
+//   ending in a dot or a space is refused because Windows strips those before
+//   the file system sees them.
+bool safeRelativePath(const std::string& value, std::string* reason) {
+  const auto refuse = [reason](const char* what) {
+    if (reason) *reason = what;
+    return false;
+  };
+  if (value.empty()) return refuse("a file record path is empty");
+  if (value.find('\\') != std::string::npos) {
+    return refuse("a file record path contains a backslash");
+  }
+  if (value.front() == '/') return refuse("a file record path is rooted");
+  if (value.find(':') != std::string::npos) {
+    return refuse("a file record path is drive-qualified or names an alternate stream");
+  }
+  static const char* const kDevices[] = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2",
+    "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3",
+    "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"};
+  std::size_t start = 0;
+  while (true) {
+    const auto slash = value.find('/', start);
+    const auto end = slash == std::string::npos ? value.size() : slash;
+    const std::string component = value.substr(start, end - start);
+    if (component.empty()) return refuse("a file record path has an empty component");
+    if (component == "." || component == "..") {
+      return refuse("a file record path climbs out of the install directory");
+    }
+    if (component.back() == ' ' || component.back() == '.') {
+      return refuse("a file record path component ends with a space or a dot");
+    }
+    std::string stem = component.substr(0, component.find('.'));
+    std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c) {
+      return static_cast<char>(std::toupper(c));
+    });
+    for (const char* device : kDevices) {
+      if (stem == device) return refuse("a file record path names a Windows device");
+    }
+    if (slash == std::string::npos) break;
+    start = slash + 1;
+  }
   return true;
 }
 
@@ -291,6 +351,12 @@ bool parse(const std::string& text, Manifest* manifest, std::string* error) {
       file.path = fields[3];
       if (fields.size() == 5) file.backup = fields[4];
       if (!asciiOnly(file.path)) return bad("a file record path is not printable ASCII");
+      std::string unsafe;
+      if (!safeRelativePath(file.path, &unsafe)) return bad(unsafe.c_str());
+      if (!file.backup.empty()) {
+        if (!asciiOnly(file.backup)) return bad("a file record backup path is not printable ASCII");
+        if (!safeRelativePath(file.backup, &unsafe)) return bad(unsafe.c_str());
+      }
       manifest->files.push_back(std::move(file));
       continue;
     }

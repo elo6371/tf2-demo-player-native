@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <thread>
 
@@ -286,50 +287,99 @@ public:
       int& depth;
       ~DepthGuard() { --depth; }
     } depthGuard{scriptDepth_};
-    std::atomic<bool> done{false};
-    std::string value;
-    std::string failure;
+    // A COMPLETION CAN OUTLIVE THE WAIT, SO ITS STATE IS ON THE HEAP.
+    //   The handler runs on this thread, but only while the loop below pumps,
+    //   and that loop gives up after 3 s. A handler that captured the stack by
+    //   reference then writes into a frame that is gone -- measured 2026-11-11
+    //   (QA-4 WEB-1): one timed-out scroll step followed by the next script call
+    //   from logstf_panel.cpp is a use-after-free. The handler now owns a share
+    //   of the state, and an abandoned call is counted: the next call waits for
+    //   that completion to land before it starts and never reuses its state.
+    struct ScriptCall {
+      // An enum, not static constexpr members: a LOCAL class cannot own a static
+      // data member, and this type is declared inside the function on purpose
+      // (it exists only for one call and its completion).
+      enum { kWaiting = 0, kDone = 1, kAbandoned = 2 };
+      // One atomic replaces done/failed: whoever moves it out of kWaiting is the
+      // only one that may report, and the exchange decides that race exactly once.
+      std::atomic<int> state{kWaiting};
+      std::string value;
+      std::string failure;
+    };
+    // Pump EVERY message on this thread, not only the ones addressed to the panel's
+    // parent window. WebView2 delivers ExecuteScript's completion to a window of
+    // its own, so a PeekMessage filtered by hWnd never dispatches it: every call
+    // then waits out its deadline and reports a timeout that looks like the page
+    // failing. (Found by the first real-runtime scroll run, 2026-10-22; the probe
+    // cannot see it because its host completes synchronously.)
+    const auto pumpUntil = [](auto&& finished, std::chrono::steady_clock::time_point until) {
+      while (!finished()) {
+        MSG message{};
+        bool pumped = false;
+        while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+          pumped = true;
+          TranslateMessage(&message);
+          DispatchMessageW(&message);
+        }
+        if (std::chrono::steady_clock::now() > until) return false;
+        if (!pumped) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      return true;
+    };
+    // TWO OUTSTANDING COMPLETIONS IS WHAT MADE THE TIMEOUT DANGEROUS: the second
+    // call would pump messages while the first still held a reference into the
+    // frame the second call now occupies. So an abandoned call is waited for here
+    // -- briefly, because a runtime that never answers must not turn into a hang.
+    if (abandonedScripts_->load() != 0) {
+      const bool landed = pumpUntil(
+        [this] { return abandonedScripts_->load() == 0; },
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(1000));
+      if (!landed) {
+        if (error) *error = "a previous script timed out and its completion has not arrived";
+        return false;
+      }
+    }
+    const auto call = std::make_shared<ScriptCall>();
+    // A shared_ptr, not this: the handler may outlive the host (destroy()).
+    const auto abandoned = abandonedScripts_;
     const std::wstring wide = widen(script);
     const HRESULT hr = webview_->ExecuteScript(wide.c_str(),
         Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
-            [&done, &value, &failure](HRESULT scriptHr, LPCWSTR jsonResult) -> HRESULT {
-              if (FAILED(scriptHr)) failure = hresultText(scriptHr);
+            [call, abandoned](HRESULT scriptHr, LPCWSTR jsonResult) -> HRESULT {
+              if (FAILED(scriptHr)) call->failure = hresultText(scriptHr);
               // ExecuteScript answers with JSON; decoding it here is what keeps
               // String(480) from parsing as 0 (see logsScriptValue).
-              else value = logsScriptValue(narrow(jsonResult));
-              done.store(true);
+              else call->value = logsScriptValue(narrow(jsonResult));
+              // If the wait already gave up, this completion is the last thing
+              // the abandoned call does: release its count so the next script may
+              // start. exchange() makes exactly one side of the race do it.
+              if (call->state.exchange(ScriptCall::kDone) == ScriptCall::kAbandoned) {
+                abandoned->fetch_sub(1);
+              }
               return S_OK;
             }).Get());
     if (FAILED(hr)) {
       if (error) *error = "ExecuteScript failed with " + hresultText(hr);
       return false;
     }
-    // Pump EVERY message on this thread, not only the ones addressed to the panel's
-    // parent window. WebView2 delivers ExecuteScript's completion to a window of
-    // its own, so a PeekMessage filtered by hWnd never dispatches it: every call
-    // then waits out the deadline below and reports a timeout that looks like the
-    // page failing. (Found by the first real-runtime scroll run, 2026-10-22; the
-    // probe cannot see it because its host completes synchronously.)
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(3000);
-    while (!done.load()) {
-      MSG message{};
-      bool pumped = false;
-      while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
-        pumped = true;
-        TranslateMessage(&message);
-        DispatchMessageW(&message);
+    const bool completed = pumpUntil(
+      [&call] { return call->state.load() != ScriptCall::kWaiting; }, deadline);
+    if (!completed) {
+      // Mark it abandoned so the completion can still finish safely, and count it
+      // so the next call waits instead of racing it.
+      int waiting = ScriptCall::kWaiting;
+      if (call->state.compare_exchange_strong(waiting, ScriptCall::kAbandoned)) {
+        abandoned->fetch_add(1);
       }
-      if (std::chrono::steady_clock::now() > deadline) {
-        if (error) *error = "the script did not complete within 3 s";
-        return false;
-      }
-      if (!pumped) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-    if (!failure.empty()) {
-      if (error) *error = "the script failed with " + failure;
+      if (error) *error = "the script did not complete within 3 s";
       return false;
     }
-    if (result != nullptr) *result = value;
+    if (!call->failure.empty()) {
+      if (error) *error = "the script failed with " + call->failure;
+      return false;
+    }
+    if (result != nullptr) *result = call->value;
     return true;
   }
 
@@ -409,6 +459,11 @@ private:
   // cannot cover, because only the real runtime ever reaches it.
   EventRegistrationToken navigationToken_{};
   int scriptDepth_ = 0;  // see runScript: nested evaluation is refused
+  // Script calls that timed out and whose completion has not arrived yet. Shared
+  // with the completion handlers, not owned by the call that started them: a
+  // handler outlives the wait AND can outlive this host (destroy()), and it must
+  // still be able to release its count on an object that is alive.
+  std::shared_ptr<std::atomic<int>> abandonedScripts_ = std::make_shared<std::atomic<int>>(0);
   HWND parent_ = nullptr;
   std::atomic<HostStatus> status_{HostStatus::Idle};
   std::string failure_;
