@@ -152,6 +152,9 @@ register_source() { # register_source <path>
   done
   [ -f "$src" ] || { echo "RESTORE-BACKUP-FAIL path=$src (not a file)"; return 1; }
   bak="$RESTORE_DIR/$(( ${#RESTORE_PATHS[@]} + 1 ))-$(basename "$src")"
+  # The backup keeps the pre-run mtime on purpose: it is a CONTENT snapshot for
+  # cmp, and restore_entry never copies this timestamp back (D-101). Do not
+  # "simplify" the restore side to cp -p again.
   cp -p "$src" "$bak" || { echo "RESTORE-BACKUP-FAIL path=$src"; return 1; }
   if ! cmp -s "$src" "$bak"; then
     echo "RESTORE-BACKUP-FAIL path=$src (copy is not byte-identical)"
@@ -163,8 +166,32 @@ register_source() { # register_source <path>
   return 0
 }
 restore_entry() { # restore_entry <path> <backup>
-  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
-    echo "RESTORE-OK path=$1"
+  # D-101 (2026-11-11): restore the CONTENT and give the file a FRESH mtime,
+  # but only when the content actually changed.
+  #
+  # Why the mtime matters. This used to be `cp -p`, and `-p` carried the pre-run
+  # timestamp back onto the source. mtime is an input to the build, not
+  # decoration: build-target.sh drives an incremental NMake tree, which skips a
+  # translation unit whose .obj is newer than its .cpp. After a mutated build the
+  # .obj IS newer than the pre-run timestamp, so every "restore and rebuild" was a
+  # no-op that left the binary the last mutant -- while the source was
+  # byte-identical and every caller said "restored". Measured on the 2026-11-10
+  # g3b ticket: main.cpp mtime 21:00:27 against its .obj at 00:28:21, restored
+  # exe 54901f84... instead of the canonical 86379f95..., and "restored:
+  # capacity=24" (the mutant's number) at the shipped-bound reading. Same family
+  # as D-86: a timestamp standing in for a content identity.
+  #
+  # cp without -p sets the mtime to now; the explicit touch guarantees it is
+  # newer than any object built before this call, even when the copy and the
+  # build land in the same second. A file whose content already matches its
+  # backup is NOT touched: touching it would make the next build recompile a
+  # file nobody changed (this suite rebuilds 23 times).
+  if cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1 (already identical)"
+    return 0
+  fi
+  if cp "$2" "$1" && touch "$1" && cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1 (content restored, mtime refreshed)"
     return 0
   fi
   echo "RESTORE-FAIL path=$1"
@@ -215,6 +242,7 @@ seed_run_files() { # seed_run_files <prefix>: per-run copies, so two runs never 
 MUTATION=0
 LAYER_A_SELFTEST=0
 SKIP_LIVE=0
+RESTORE_SELFTEST=0
 # WORLD_ONLY is set here and read down at the "T85 P0" section below. It was read
 # there but never set here until 2026-11-07: the flag was documented in the
 # section comment, the section existed, and turning it on was impossible -- the
@@ -229,6 +257,7 @@ for arg in "$@"; do
     --mutation) MUTATION=1 ;;
     --skip-live) SKIP_LIVE=1 ;;
     --layer-a-selftest) LAYER_A_SELFTEST=1 ;;
+    --restore-selftest) RESTORE_SELFTEST=1 ;;
     --floor-selftest) FLOOR_SELFTEST=1 ;;
     --world-only) WORLD_ONLY=1 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
@@ -515,6 +544,145 @@ fi
 # exercises the green side.
 if [ "${FLOOR_SELFTEST:-0}" = "1" ]; then
   floor_selftest
+  exit $?
+fi
+
+# ---------------------------------------------------------------------------
+# D-101 --restore-selftest (2026-11-11): DOES A RESTORE REACH THE BUILD?
+#
+# The mutation suite rests on one sentence repeated 23 times: "restore the
+# source, rebuild, read the fixed product". On 2026-11-10 that sentence was
+# false and nothing in the log said so. restore_entry used `cp -p`, which puts
+# the pre-run mtime back on the source; build-target.sh drives an incremental
+# NMake tree; NMake skips a translation unit whose .obj is newer than its .cpp,
+# and after a mutated build the .obj is ALWAYS newer than a pre-run timestamp.
+# So every restore-and-rebuild was a no-op, the binary stayed the last mutant,
+# and the failure surfaced far away as six "shipped budget" assertions reading
+# capacity=24. The source was byte-identical throughout, so every byte-level
+# check in the suite passed.
+#
+# This self-test is the cheap way to know the sentence is true again: mutate
+# the m14 anchor, rebuild (the exe MUST change), restore through the shipped
+# restore_entry, rebuild, and require the exe to come back to the sha it had
+# before the mutation. Two incremental builds, no demo, no capture -- about a
+# minute, against ~1.5 h for the full suite. It refused to run outside a
+# hostlock window because both steps are builds.
+_restore_selftest_steps() {
+  local src="native/src/native_renderer_frame.cpp"
+  local obj="native/build-nmake/CMakeFiles/tf2_demo_native.dir/src/native_renderer_frame.cpp.obj"
+  local log=".scratch/restore-selftest.build.log"
+  local base_sha rest_sha mut_sha backup
+  if [ ! -f "$EXE" ]; then
+    echo "  FAIL exe: $EXE is not built, so there is no binary to reproduce"
+    return 1
+  fi
+  if [ ! -f "$obj" ]; then
+    echo "  FAIL object: $obj is missing; the freshness check below needs it"
+    return 1
+  fi
+  base_sha=$(sha256sum "$EXE" | cut -d" " -f1)
+  echo "  baseline exe sha256=$base_sha"
+  register_source "$src" || { echo "  FAIL backup: $src could not be snapshotted"; return 1; }
+  backup="${RESTORE_LAST_BAK:-}"
+  echo "  backup: $backup"
+  # The same anchor m14 patches, so this self-test also fails if m14's anchor
+  # rots: both call sites are pinned to the same line.
+  "$PY" - "$src" <<'PYEOF'
+import io, sys
+path = sys.argv[1]
+find = "                reading.expandPixels = kOverlaySilhouetteExpandPixels;"
+repl = "                reading.expandPixels = 0.0f;  /* D-101 self-test: declare no shell */"
+raw = io.open(path, "rb").read()
+crlf = b"\r\n" in raw
+data = raw.decode("utf-8")
+if crlf:
+    find = find.replace("\n", "\r\n")
+    repl = repl.replace("\n", "\r\n")
+count = data.count(find)
+if count != 1:
+    sys.exit("ANCHOR COUNT %d (expected 1): %s" % (count, find.strip()[:60]))
+io.open(path, "wb").write(data.replace(find, repl, 1).encode("utf-8"))
+PYEOF
+  if [ $? -ne 0 ]; then
+    echo "  FAIL patch: the self-test anchor no longer matches $src"
+    return 1
+  fi
+  echo "  patched: expandPixels -> 0 (this is m14's change)"
+  if ! bash build-target.sh tf2_demo_native entity_overlay_probe > "$log" 2>&1; then
+    echo "  FAIL mutated build: build-target.sh failed (log: $log)"
+    grep -a -E "error C|fatal error|LNK[0-9]+" "$log" | head -5
+    return 1
+  fi
+  mut_sha=$(sha256sum "$EXE" | cut -d" " -f1)
+  echo "  after the mutated build: exe sha256=$mut_sha"
+  if [ "$mut_sha" = "$base_sha" ]; then
+    echo "  FAIL mutated build: the exe did not change, so a stale binary and a"
+    echo "        rebuilt one cannot be told apart here and the rest proves nothing"
+    return 1
+  fi
+  # Restore through the SHIPPED path, then check the two facts the build reads:
+  # the bytes are the pre-run bytes, and the mtime is newer than the object.
+  restore_registered || { echo "  FAIL restore: a registered source did not restore"; return 1; }
+  if cmp -s "$src" "$backup"; then
+    ok "  OK   the restored source is byte-identical to its backup"
+  else
+    echo "  FAIL the restored source differs from its backup"
+    return 1
+  fi
+  if [ "$src" -nt "$obj" ]; then
+    ok "  OK   the restored source is newer than its object, so the build must recompile it"
+  else
+    echo "  FAIL the restored source is NOT newer than its object: this is D-101,"
+    echo "        and any rebuild after it will be a no-op"
+    return 1
+  fi
+  if ! bash build-target.sh tf2_demo_native entity_overlay_probe > "$log" 2>&1; then
+    echo "  FAIL restored build: build-target.sh failed (log: $log)"
+    grep -a -E "error C|fatal error|LNK[0-9]+" "$log" | head -5
+    return 1
+  fi
+  rest_sha=$(sha256sum "$EXE" | cut -d" " -f1)
+  echo "  after the restored build: exe sha256=$rest_sha"
+  if [ "$rest_sha" = "$base_sha" ]; then
+    ok "  OK   the restored build is the binary this self-test started from"
+  else
+    echo "  FAIL restored build: exe sha256=$rest_sha, expected $base_sha"
+    echo "        the restore did not reach the link (D-101 is back)"
+    return 1
+  fi
+  return 0
+}
+
+restore_selftest() {
+  local lock rc
+  echo "=== restore self-test (D-101): a restored source must rebuild the same exe ==="
+  lock=$(bash /d/TF2_Native_Worktrees/_shared/hostlock.sh status 2>/dev/null | head -1)
+  case "$lock" in
+    LOCKED\ owner=*) echo "  lock: $lock" ;;
+    *) echo "  REFUSED: this self-test runs two builds and is not inside a hostlock run"
+       echo "           ($lock). Run it as:"
+       echo "             bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run <owner> \\"
+       echo "               bash outline-check.sh --restore-selftest"
+       echo "RESTORE-SELFTEST=REFUSED"
+       return 3 ;;
+  esac
+  _restore_selftest_steps; rc=$?
+  # Whatever the steps left behind, leave the tree pristine. This mirrors
+  # on_exit(:204) instead of calling it: the verdict has to be the last line of
+  # the log, and on_exit would print its RESTORE-OK lines after it.
+  trap - EXIT INT TERM HUP
+  restore_registered >/dev/null 2>&1 || rc=1
+  rm -rf "${ISO_DIR:-}" "${RESTORE_DIR:-}"
+  if [ "$rc" -eq 0 ]; then
+    echo "RESTORE-SELFTEST=PASS"
+  else
+    echo "RESTORE-SELFTEST=FAIL"
+  fi
+  return "$rc"
+}
+
+if [ "${RESTORE_SELFTEST:-0}" = "1" ]; then
+  restore_selftest
   exit $?
 fi
 
@@ -2266,6 +2434,19 @@ if [ "$MUTATION" = "1" ]; then
   done
   mut_fail=0
   mut_invalid=0
+  # D-101 (2026-11-11): the binary this mutation block starts from. Recorded here
+  # because on 2026-11-10 "the source is byte-identical again" was true while the
+  # exe was still the last mutant: the restore carried the pre-run mtime back onto
+  # the source, the incremental build skipped every translation unit, and six
+  # "shipped budget" assertions failed against the mutant's capacity=24. Every
+  # rebuild below prints its own sha; the restored build at the end must BE this
+  # binary, which is the difference between "restored" as text and as a fact.
+  MUT_BASE_EXE_SHA=$(sha256sum "$EXE" 2>/dev/null | cut -d" " -f1)
+  echo "  mutation baseline: exe sha256=${MUT_BASE_EXE_SHA:-<none>}"
+  if [ -z "${MUT_BASE_EXE_SHA:-}" ]; then
+    echo "  FAIL mutation baseline: $EXE is not readable, so no rebuild can be checked against it (D-101)"
+    mut_fail=1
+  fi
 
   # Applies one literal replacement, and requires the pattern to occur EXACTLY
   # ONCE. A pattern that is not found is a hard error (the mutation would silently
@@ -2344,7 +2525,9 @@ PYEOF
 
   rebuild_product() { # rebuild_product <label>
     if bash build-target.sh tf2_demo_native entity_overlay_probe > "$OUT/mutation-build.log" 2>&1; then
-      echo "  built ($(grep -c "error C" "$OUT/mutation-build.log" || true) compiler errors)"
+      # D-101: print the sha of every rebuild, so a run whose restores did not take
+      # can be read afterwards as a sequence of distinct binaries, not as one.
+      echo "  built ($(grep -c "error C" "$OUT/mutation-build.log" || true) compiler errors) exe sha256=$(sha256sum "$EXE" 2>/dev/null | cut -d" " -f1)"
       return 0
     fi
     # A mutation that does not COMPILE is not a caught mutation: nothing was
@@ -2789,6 +2972,12 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     M11_TOTAL=$(grep -a -c "overlay: readback i=" "$OUT/m11.trace" 2>/dev/null || true)
     M11_BAD=$(grep -a "overlay: readback i=" "$OUT/m11.trace" 2>/dev/null | grep -c "match=0" 2>/dev/null || true)
     echo "    m11 drawn=${M11_TOTAL:-0} identity mismatches=${M11_BAD:-0}"
+    # D-101 companion (2026-11-11): a reading taken from a build that publishes
+    # NOTHING is vacuous -- "mismatches=0" is what an empty table says. On
+    # 2026-11-10 this case went GREEN for exactly that reason (the binary was the
+    # budget-24 mutant and the overlay drew nothing). The count below makes the
+    # vacuous case a named red instead of a green one.
+    assert_ge "m11: the mutant still publishes the readback table (otherwise this case proves nothing)" "${M11_TOTAL:-0}" "1"
     must_move "m11" "identity mismatches in the readback table" "0" "${M11_BAD:-0}"
   fi
   restore_all; rebuild_product "restore after m11" || true
@@ -2817,6 +3006,14 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m12" "pixels outside every drawn region with the draw shifted 3 px" \
       "${NI_OUT:-0}" "${M12_OUT:-0}"
   fi
+  # D-101 companion (2026-11-11): restore BEFORE the next case, not after all
+  # three. m12, m13 and m14 all patch native_renderer_frame.cpp and the readings
+  # above/below are readings of a build that is supposed to differ from the fixed
+  # tree in ONE way. Here they used to compose: m12's 3 px shift and m13's 15 px
+  # shell were still compiled in when m14 ran, so m14 measured "declares 0 / draws
+  # 1.5" on a build that drew 15 px through a shifted matrix. The three rebuilds
+  # below already happened (they are moved, not added).
+  restore_all; rebuild_product "restore after m12" || true
   # ---- m13: the shell DRAWN is ten times the shell DECLARED ----------------
   echo
   echo "  -- m13: the drawing expands ten times as far as the product declares --"
@@ -2840,6 +3037,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     must_move "m13" "pixels outside every drawn region when the product declares no expansion" \
       "${NI_OUT:-0}" "${M13_OUT:-0}"
   fi
+  restore_all; rebuild_product "restore after m13" || true
   # ---- m14: the product declares a zero shell while the pixels still expand --
   echo
   echo "  -- m14: the product publishes expandPx=0 while the shell still expands --"
@@ -2856,6 +3054,7 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
     M14_NI=$("$PY" outline-frame-check.py noninterference on="$OUT/m14.bmp" off="$OUT/off.bmp" require_inside=0 2>&1)
     M14_OUT=$(echo "$M14_NI" | grep -o "diff_outside=[0-9]*" | cut -d= -f2)
     M14_BELOW=$(echo "$M14_BAND" | grep -o "below=[0-9]*" | cut -d= -f2)
+    M14_PUB=$(echo "$M14_BAND" | grep -o "published=[0-9]*" | cut -d= -f2)
     M14_TOL=$("$PY" "$PWD/outline-regions.py" --trace "$OUT/m14.trace" --expand-tolerance)
     M14_TOLV=$(echo "$M14_TOL" | grep -o "tolerance=[0-9.]*" | cut -d= -f2)
     # The pixels do NOT move (the renderer still expands): what moves is whether the
@@ -2865,14 +3064,19 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
       'BEGIN { printf "%d", ((out + 0) <= (tol + 0)) ? 1 : 0 }')
     echo "    m14 $M14_BAND outsideDiff=${M14_OUT:-<none>} declared tolerance=${M14_TOLV:-<none>}" \
       "within=${M14_WITHIN:-<none>} (fixed: ${BAND:-<none>} within=${WITHIN:-<none>})"
+    # D-101 companion (2026-11-11): --expand-band counts `below` over PUBLISHED
+    # items only (outline-regions.py:532-549), so published=0 reads below=0 and the
+    # case goes green while measuring nothing. That is what happened on 2026-11-10:
+    # the mutant binary had the budget-24 build linked in, drew no silhouette at
+    # all, and this case was recorded MUTATION-GREEN. Requiring a non-empty
+    # publication makes the vacuous run a named red.
+    assert_ge "m14: the mutant still publishes silhouettes (otherwise the band reading is empty)" "${M14_PUB:-0}" "1"
     must_move "m14" "silhouettes the band refuses because the product declared zero" \
       "0" "${M14_BELOW:-0}"
     must_move "m14" "out-of-region pixels the gate still accepts once the shell is declared zero" \
       "${WITHIN:-1}" "${M14_WITHIN:-1}"
   fi
   restore_all; rebuild_product "restore after m14" || true
-  restore_all; rebuild_product "restore after m13" || true
-  restore_all; rebuild_product "restore after m12" || true
 
   # The restored tree must be the FIXED tree, and a byte-exact restore plus a
   # rebuild is only half of that: the binary has to read green again, or every
@@ -2881,6 +3085,16 @@ must_move "m5" "x-ray depth write state" "$M5_FIXED" "$(outline_value "$OUT/m5.t
   assert_eq "restored build: overlay ordinal" "$(outline_value "$OUT/restored.trace" ordinal)" "${FIXED_ORD:-<none>}"
   assert_eq "restored build: pass order" "$(outline_value "$OUT/restored.trace" orderOk)" "1"
   assert_eq "restored build: overlay drew" "$(outline_value "$OUT/restored.trace" drew)" "1"
+  # D-101 (2026-11-11): a byte-exact restore is a claim about the SOURCE. The claim
+  # that matters is about the BINARY, and it was unchecked: on 2026-11-10 the run
+  # above was made with an exe the incremental build had never relinked (the restore
+  # put the old mtime back, so every .obj looked newer than its .cpp), which is how
+  # this block read "drew=0" out of a tree that cmp said was pristine. Requiring the
+  # rebuilt exe to be the sha recorded at the start of the mutation block turns
+  # "the sources were put back" into "this process is the product the suite started
+  # from". If that sha changes, the restore did not reach the build.
+  assert_eq "restored build: exe sha256 is the binary the mutation block started from" \
+    "$(sha256sum "$EXE" 2>/dev/null | cut -d" " -f1)" "${MUT_BASE_EXE_SHA:-<none>}"
 
 
   # ---- m10: the colour frame offered as the depth map --------------------
