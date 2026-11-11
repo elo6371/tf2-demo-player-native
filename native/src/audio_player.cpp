@@ -171,20 +171,26 @@ void AudioPlayer::stop() {
   if (!playback_) {
     return;
   }
-  std::string cleanupError;
+  // Keep the PCM and WAVEHDR alive until WinMM confirms the device is closed.
   MMRESULT result = waveOutReset(playback_->output);
-  if (result != MMSYSERR_NOERROR) cleanupError = mmError(result, "waveOutReset");
+  if (result != MMSYSERR_NOERROR) {
+    lastError_ = mmError(result, "waveOutReset");
+    return;
+  }
   if (playback_->header.dwFlags & WHDR_PREPARED) {
     result = waveOutUnprepareHeader(playback_->output, &playback_->header, sizeof(playback_->header));
-    if (result != MMSYSERR_NOERROR && cleanupError.empty())
-      cleanupError = mmError(result, "waveOutUnprepareHeader");
+    if (result != MMSYSERR_NOERROR) {
+      lastError_ = mmError(result, "waveOutUnprepareHeader");
+      return;
+    }
   }
   result = waveOutClose(playback_->output);
-  if (result != MMSYSERR_NOERROR && cleanupError.empty())
-    cleanupError = mmError(result, "waveOutClose");
+  if (result != MMSYSERR_NOERROR) {
+    lastError_ = mmError(result, "waveOutClose");
+    return;
+  }
   delete playback_;
   playback_ = nullptr;
-  if (!cleanupError.empty()) lastError_ = std::move(cleanupError);
 }
 
 void AudioEventScheduler::reset(std::int32_t tick) {

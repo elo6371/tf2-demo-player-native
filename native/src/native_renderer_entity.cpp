@@ -155,7 +155,9 @@ void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, entityMarkerVertexBuffer_.ReleaseAndGetAddressOf()))) return;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> replacement;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, replacement.GetAddressOf()))) return;
+    entityMarkerVertexBuffer_ = std::move(replacement);
     entityMarkerVertexCapacity_ = vertices.size();
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -559,12 +561,14 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, entityModelInstanceBuffer_.ReleaseAndGetAddressOf()))) {
+    Microsoft::WRL::ComPtr<ID3D11Buffer> replacement;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, replacement.GetAddressOf()))) {
       entityModelDrawRanges_.clear();
       entityModelTexturedRangeCount_ = 0;
       entityModelTexturedInstanceCount_ = 0;
       return;
     }
+    entityModelInstanceBuffer_ = std::move(replacement);
     entityModelInstanceCapacity_ = capacity;
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -601,8 +605,6 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
     }
   }
   if (!entityBoneBuffer_ || entityBoneCapacity_ < boneMatrices.size()) {
-    entityBoneView_.Reset();
-    entityBoneBuffer_.Reset();
     D3D11_BUFFER_DESC description{};
     const auto capacity = std::max(boneMatrices.size(), std::size_t{256});
     description.ByteWidth = static_cast<UINT>(capacity * sizeof(std::array<float, 16>));
@@ -613,7 +615,8 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
     // One float4 per element, four elements per bone matrix -- strides the
     // `StructuredBuffer<float4>` declaration in the entity and overlay shaders.
     description.StructureByteStride = sizeof(float) * 4;
-    if (FAILED(device_->CreateBuffer(&description, nullptr, entityBoneBuffer_.ReleaseAndGetAddressOf()))) return;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> replacementBuffer;
+    if (FAILED(device_->CreateBuffer(&description, nullptr, replacementBuffer.GetAddressOf()))) return;
     D3D11_SHADER_RESOURCE_VIEW_DESC view{};
     view.Format = DXGI_FORMAT_UNKNOWN;
     view.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
@@ -627,11 +630,11 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
     // spiked tent. The viewmodel upload (native_renderer_viewmodel.cpp, T18)
     // already had this right; the entity upload did not.
     view.Buffer.NumElements = static_cast<UINT>(capacity * 4);
-    if (FAILED(device_->CreateShaderResourceView(entityBoneBuffer_.Get(), &view,
-        entityBoneView_.ReleaseAndGetAddressOf()))) {
-      entityBoneBuffer_.Reset();
-      return;
-    }
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> replacementView;
+    if (FAILED(device_->CreateShaderResourceView(replacementBuffer.Get(), &view,
+        replacementView.GetAddressOf()))) return;
+    entityBoneBuffer_ = std::move(replacementBuffer);
+    entityBoneView_ = std::move(replacementView);
     entityBoneCapacity_ = capacity;
   }
   D3D11_MAPPED_SUBRESOURCE mapped{};

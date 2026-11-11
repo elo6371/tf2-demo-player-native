@@ -89,7 +89,8 @@ bool parseDemoHeader(const std::vector<std::uint8_t>& bytes, DemoHeader& header)
   header.ticks = readValue<std::int32_t>(bytes, 1060);
   header.frames = readValue<std::int32_t>(bytes, 1064);
   if (!validMapName(header.mapName)) { header.error = "demo map name is invalid"; return false; }
-  if (header.ticks < 0 || header.frames < 0 || header.playbackTime < 0.0f) { header.error = "demo timing fields are invalid"; return false; }
+  if (header.ticks < 0 || header.frames < 0 || !std::isfinite(header.playbackTime)
+      || header.playbackTime < 0.0f) { header.error = "demo timing fields are invalid"; return false; }
   if (namesIndicateSourceTv(header)) {
     header.recordingType = DemoRecordingType::SourceTv;
   } else if (!header.clientName.empty()) {
@@ -106,7 +107,7 @@ bool indexDemoCommands(const std::vector<std::uint8_t>& bytes, const DemoHeader&
   constexpr std::size_t kPacketInfo = 76;
   std::size_t cursor = kHeaderSize;
   auto readI32 = [&](std::size_t offset, std::int32_t& value) {
-    if (offset + sizeof(value) > bytes.size()) return false;
+    if (offset > bytes.size() || sizeof(value) > bytes.size() - offset) return false;
     std::memcpy(&value, bytes.data() + offset, sizeof(value));
     return true;
   };
@@ -129,11 +130,18 @@ bool indexDemoCommands(const std::vector<std::uint8_t>& bytes, const DemoHeader&
     }
     // Protocol 4 adds a player slot to commands that carry one. DEM_STOP is
     // the exception: real TF2 files end with command + tick only.
-    if (header.demoProtocol >= 4 && command != 7) cursor += 1;
+    if (header.demoProtocol >= 4 && command != 7) {
+      if (cursor >= bytes.size()) {
+        index.malformedOffset = commandOffset;
+        index.error = "truncated player slot";
+        return false;
+      }
+      ++cursor;
+    }
     std::size_t payloadOffset = cursor;
     std::size_t payloadSize = 0;
     if (command == 1 || command == 2) {
-      if (cursor + kPacketInfo + 12 > bytes.size()) { index.malformedOffset = commandOffset; index.error = "truncated packet header"; return false; }
+      if (cursor > bytes.size() || bytes.size() - cursor < kPacketInfo + 12) { index.malformedOffset = commandOffset; index.error = "truncated packet header"; return false; }
       cursor += kPacketInfo + 8;
       std::int32_t length = 0;
       if (!readI32(cursor, length) || length < 0) { index.malformedOffset = commandOffset; index.error = "invalid packet length"; return false; }
@@ -147,7 +155,7 @@ bool indexDemoCommands(const std::vector<std::uint8_t>& bytes, const DemoHeader&
       if (!readI32(cursor, length) || length < 0) { index.malformedOffset = commandOffset; index.error = "invalid length-prefixed command"; return false; }
       cursor += 4; payloadOffset = cursor; payloadSize = static_cast<std::size_t>(length);
     } else if (command == 5) {
-      if (cursor + 4 > bytes.size()) { index.malformedOffset = commandOffset; index.error = "truncated user command sequence"; return false; }
+      if (cursor > bytes.size() || bytes.size() - cursor < 4) { index.malformedOffset = commandOffset; index.error = "truncated user command sequence"; return false; }
       cursor += 4;
       std::int32_t length = 0;
       if (!readI32(cursor, length) || length < 0) { index.malformedOffset = commandOffset; index.error = "invalid user command length"; return false; }
@@ -155,7 +163,7 @@ bool indexDemoCommands(const std::vector<std::uint8_t>& bytes, const DemoHeader&
     } else {
       index.malformedOffset = commandOffset; index.error = "unknown demo command"; return false;
     }
-    if (payloadSize > bytes.size() - cursor) { index.malformedOffset = commandOffset; index.error = "command payload exceeds file"; return false; }
+    if (cursor > bytes.size() || payloadSize > bytes.size() - cursor) { index.malformedOffset = commandOffset; index.error = "command payload exceeds file"; return false; }
     index.entries.push_back({tick, command, commandOffset, payloadOffset, payloadSize});
     ++index.commandCount;
     cursor += payloadSize;

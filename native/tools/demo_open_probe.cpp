@@ -10,6 +10,64 @@
 #include <set>
 #include <string>
 #include <tuple>
+#include <vector>
+
+namespace {
+
+std::vector<std::uint8_t> protocol4Fixture(bool includePlayerSlot) {
+  std::vector<std::uint8_t> bytes(1072, 0);
+  bytes.push_back(3); // dem_synctick, no payload
+  bytes.insert(bytes.end(), {0, 0, 0, 0}); // tick
+  if (includePlayerSlot) bytes.push_back(0);
+  if (includePlayerSlot) {
+    bytes.push_back(7); // dem_stop uses a three-byte terminal tick
+    bytes.insert(bytes.end(), {0, 0, 0});
+  }
+  return bytes;
+}
+
+bool parseHeaderWithPlaybackTime(float playbackTime) {
+  std::vector<std::uint8_t> bytes(1072, 0);
+  std::memcpy(bytes.data(), "HL2DEMO\0", 8);
+  std::memcpy(bytes.data() + 536, "cp_test", 7);
+  std::memcpy(bytes.data() + 1056, &playbackTime, sizeof(playbackTime));
+  tf2::native::DemoHeader header;
+  return tf2::native::parseDemoHeader(bytes, header);
+}
+
+int runParserBoundsSelfTest() {
+  tf2::native::DemoHeader header;
+  header.valid = true;
+  header.demoProtocol = 4;
+
+  const auto malformedBytes = protocol4Fixture(false);
+  tf2::native::DemoIndex malformed;
+  const bool malformedOk = tf2::native::indexDemoCommands(malformedBytes, header, malformed);
+  const bool rejectedMissingSlot = !malformedOk
+      && malformed.error == "truncated player slot" && malformed.entries.empty();
+
+  const auto validBytes = protocol4Fixture(true);
+  tf2::native::DemoIndex valid;
+  const bool validOk = tf2::native::indexDemoCommands(validBytes, header, valid);
+  const bool acceptedControl = validOk && valid.valid && valid.entries.size() == 2;
+  const bool rejectedNanTime = !parseHeaderWithPlaybackTime(
+      std::numeric_limits<float>::quiet_NaN());
+  const bool rejectedInfiniteTime = !parseHeaderWithPlaybackTime(
+      std::numeric_limits<float>::infinity());
+  const bool acceptedFiniteTime = parseHeaderWithPlaybackTime(30.0f);
+
+  std::wcout << L"parser_bounds_selftest missing_slot_rejected=" << (rejectedMissingSlot ? 1 : 0)
+             << L" valid_control=" << (acceptedControl ? 1 : 0)
+             << L" nan_time_rejected=" << (rejectedNanTime ? 1 : 0)
+             << L" infinite_time_rejected=" << (rejectedInfiniteTime ? 1 : 0)
+             << L" finite_time_control=" << (acceptedFiniteTime ? 1 : 0)
+             << L" malformed_error=" << std::wstring(malformed.error.begin(), malformed.error.end())
+             << L" valid_entries=" << valid.entries.size() << L'\n';
+  return rejectedMissingSlot && acceptedControl && rejectedNanTime
+      && rejectedInfiniteTime && acceptedFiniteTime ? 0 : 1;
+}
+
+} // namespace
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
@@ -87,6 +145,9 @@ int wmain(int argc, wchar_t** argv) {
     }
     std::cout.flush();
     return 0;
+  }
+  if (std::wstring(argv[1]) == L"--parser-bounds-selftest") {
+    return runParserBoundsSelfTest();
   }
   bool scan = false;
   std::int32_t snapshotTick = -1;
