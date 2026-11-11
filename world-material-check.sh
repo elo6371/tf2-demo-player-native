@@ -98,6 +98,19 @@ done
 command -v timeout >/dev/null 2>&1 || { echo "FATAL: missing tool: timeout"; exit 1; }
 command -v cygpath >/dev/null 2>&1 || { echo "FATAL: missing tool: cygpath"; exit 1; }
 
+# OUT and SCRATCH may be given absolute (WORLD_MATERIAL_OUT=D:/e5/out is an
+# invocation this gate supports). Prefixing one of those with $PWD yields
+# $PWD/D:/e5/out, which the Cygwin layer truncates after the colon, so every
+# native path handed to the product is converted through one function that
+# tells the two forms apart. Same shape as world-render-reliability-check.sh:101
+# and camera-ui-check.sh:90.
+absolute_out() { # absolute_out <shell path> -- native Windows path
+  case "$1" in
+    /*|[A-Za-z]:*) cygpath -m "$1" ;;
+    *) cygpath -m "$PWD/$1" ;;
+  esac
+}
+
 assert_eq() { # assert_eq <label> <actual> <expected>
   if [ "${2:-<none>}" = "$3" ]; then
     echo "  OK   $1 = $3"
@@ -202,6 +215,14 @@ echo "=== 4/8 the real map's six capabilities, pinned ==="
 # equals faces). Why this is not a regression: nothing was lost -- the old
 # reading was a truncated map, the new one is the map. Measured in the g3a
 # window (D:/_shared/EXEC-2026-11-10/E5/out/03a-world-20261110T2202Z/).
+#
+# D-97: the probe used to have no way to walk a map with the capacity the
+# product parses with (400000 since T88, main.cpp:4699), so the two cross-source
+# identities in section 6 compared a 200000-triangle prefix with the whole map.
+# The probe takes --triangle-limit now; this section keeps its pins on the
+# default 200000 walk (the displacement numbers below are where that walk
+# stops, and the probe fixtures depend on it), and the whole-map readings are
+# taken right after the displacement block and used by section 6.
 REAL=$("$EXE" --bsp "$TF/maps/$MAP.bsp" --tf-root "$TF" --map-name "$MAP" 2>&1)
 echo "$REAL" > "$OUT/real-$MAP.txt"
 assert_eq "lightmap state"        "$(field "$REAL" lightmap.state)"        "active"
@@ -214,6 +235,9 @@ assert_eq "lightmap faces"        "$(field "$REAL" lightmap.facesWithLightmap)" 
 # is the reading that would go red if the packer lost a face again.
 assert_eq "lightmap packed"       "$(field "$REAL" lightmap.facesPacked)"  "14988"
 assert_eq "lightmap dropped"      "$(field "$REAL" lightmap.facesDropped)" "0"
+# The walk stops at 200000 triangles here; the whole map carries 242031 (of its
+# 242109 triangles) with a light uv, which is the reading the whole-map block
+# below pins and section 6 uses as 726093 = 3 x 242031.
 assert_eq "lightmap triangles"    "$(field "$REAL" lightmap.trianglesWithLightUv)" "199922"
 assert_eq "lightmap atlas"        "$(field "$REAL" lightmap.atlas)"        "4096x1331"
 assert_eq "lightmap atlas cap"    "$(field "$REAL" lightmap.atlasMaxWidth)" "4096"
@@ -282,6 +306,22 @@ assert_eq "sky face 5 pixel" "$(field "$REAL" sky.face5.rgba)" "29,57,90,255"
 assert_eq "displacement faces"    "$(field "$REAL" displacement.faces)"    "1316"
 assert_eq "displacement triangles" "$(field "$REAL" displacement.triangles)" "165376"
 assert_eq "displacement corners"  "$(field "$REAL" displacement.cornerMatches)" "1316"
+# D-97: the product parses this map with 400000 triangles, so the probe is asked
+# for that walk as well and these three readings are the map rather than a prefix
+# of it. The pins above stay on the DEFAULT 200000 walk on purpose: they record
+# where the walk stops (165376 of the map's 199360 displacement triangles), the
+# probe fixtures rely on the early stop, and a probe change moving them is then
+# still visible. 242031 = the 242109 triangles the product uploads minus the 78
+# whose face has no lightmap; the renderer reads 726093 = 3 x that in section 6.
+REAL_FULL=$("$EXE" --bsp "$TF/maps/$MAP.bsp" --tf-root "$TF" --map-name "$MAP" --triangle-limit 400000 2>&1)
+echo "$REAL_FULL" > "$OUT/real-full-$MAP.txt"
+assert_eq "whole-map lightmap triangles" "$(field "$REAL_FULL" lightmap.trianglesWithLightUv)" "242031"
+# The whole grid set, not the 165376 the cut walk reached; the renderer counts
+# the same 199360 while filling its vertex buffer.
+assert_eq "whole-map displacement triangles" "$(field "$REAL_FULL" displacement.triangles)" "199360"
+# Active, not fallback: every grid fits the 400000 cap, so no face is refused for
+# budget, every emitted grid is complete, and the tag count equals the counter.
+assert_eq "whole-map displacement state" "$(field "$REAL_FULL" displacement.state)" "active"
 assert_eq "water faces"           "$(field "$REAL" water.faces)"           "18"
 assert_eq "water triangles"       "$(field "$REAL" water.trianglesTagged)" "36"
 assert_eq "vis mode"              "$(field "$REAL" vis.mode)"              "cluster-pvs"
@@ -334,7 +374,7 @@ rm -f "$PRODUCT_TRACE" "$PRODUCT_BMP" "$PRODUCT_CSV" "$PRODUCT_LOG"
 # so it needs the Windows form; cygpath -m gives it without the doubled
 # backslashes the MSYS layer rewrites. --hidden-window and --audio-disabled keep
 # the run quiet, exactly as quiet-capture-check.sh established they may.
-TRACE_WIN="$(cygpath -m "$PWD/$PRODUCT_TRACE")"
+TRACE_WIN="$(absolute_out "$PRODUCT_TRACE")"
 PRODUCT_RC=$(TF2_NATIVE_TRACE="$TRACE_WIN" timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" \
   --audio-disabled --hidden-window --demo "$DEMO" --world-sky --capture-tick 0 \
   --capture-frame "$PRODUCT_BMP" --metrics-file "$PRODUCT_CSV" > "$PRODUCT_LOG" 2>&1; echo $?)
@@ -353,15 +393,14 @@ RENDER_STATUS=$(printf '%s\n' "$RENDER" | grep -oE "status=[a-z-]+" | head -1 | 
 assert_eq "render lightmap status" "$RENDER_STATUS" "active"
 assert_eq "render atlas bound" "$(rfield atlas)" "1"
 assert_eq "render vertices" "$(rfield vertices)" "726327"
-# T88 re-pin: this used to be the identity "lightmapped = 3 x the parse side's
-# trianglesWithLightUv". The probe still walks the map with the old 200000
-# triangle limit (world_material_probe.cpp:2046), so that number now measures a
-# prefix of the map (199922 of 200000 triangles) while the renderer uploads the
-# whole thing -- the "identity" was comparing two different maps, which is why
-# it read 726093 against 599766 in g3a. The product's whole-map reading is
-# pinned here; the cross-check that survives uses two lines of this one trace
-# and lives in section 6.
+# D-97: the probe is asked for the product's 400000-triangle walk (REAL_FULL
+# above), so this identity compares the whole map with the whole map instead of
+# a 200000-triangle prefix with the whole thing. The pin
+# stays on the renderer's number: an identity between two sources can read OK
+# while both moved together, and 726093 is what this map is.
 assert_eq "render lightmapped" "$(rfield lightmapped)" "726093"
+assert_eq "render lightmapped = 3 x parse triangles with light uv" \
+  "$(rfield lightmapped)" "$(( 3 * $(field "$REAL_FULL" lightmap.trianglesWithLightUv) ))"
 # vertices minus lightmapped is 234, i.e. three vertices for each of the map's
 # 78 triangles that carry no lightmap face. Those must stay unlit: if the
 # renderer handed them a uv this gap would collapse to 0, and if it dropped a
@@ -380,13 +419,12 @@ else
   echo "  FAIL the render run produced no geometry reading, so it is not appended to $OUT/render-lightmap.txt"; fail=1
 fi
 gfield() { printf '%s\n' "$GEOMETRY" | grep -oE "$1=[0-9]+" | head -1 | cut -d= -f2; }
-# T88 re-pin: the parse side reads 165376 because the probe's displacement walk
-# is cut by the same 200000-triangle limit its own reading names ("the triangle
-# limit truncated the walk"), while the renderer builds the whole map's 199360.
-# Pinned on the renderer's count until the probe is given the product's capacity
-# (D-97, WORLD-MATERIAL-TRIAGE.md); the probe-side pin at section 4 stays
-# 165376, so a probe change is still visible.
+# D-97: REAL_FULL walks the same map the product does, so the two sides must
+# agree exactly. The pin stays for the reason above: an identity between two
+# sources that both regressed together would still read OK.
 assert_eq "render displaced triangles" "$(gfield displacedTriangles)" "199360"
+assert_eq "render displaced = parse displacement triangles" \
+  "$(gfield displacedTriangles)" "$(field "$REAL_FULL" displacement.triangles)"
 assert_eq "render water = parse water triangles" \
   "$(gfield waterTriangles)" "$(field "$REAL" water.trianglesTagged)"
 # The VIS capability, as an applied clip rather than as an absence. Until this
@@ -482,10 +520,10 @@ ENV_BMP="$SCRATCH/render-cubemap-plain.$RUN_TAG.bmp"
 ENV_FORCED_TRACE="$SCRATCH/render-cubemap-forced.$RUN_TAG.trace"
 ENV_FORCED_BMP="$SCRATCH/render-cubemap-forced.$RUN_TAG.bmp"
 rm -f "$ENV_TRACE" "$ENV_BMP" "$ENV_FORCED_TRACE" "$ENV_FORCED_BMP"
-ENV_TRACE_WIN="$(cygpath -m "$PWD/$ENV_TRACE")"
-ENV_BMP_WIN="$(cygpath -m "$PWD/$ENV_BMP")"
-ENV_FORCED_TRACE_WIN="$(cygpath -m "$PWD/$ENV_FORCED_TRACE")"
-ENV_FORCED_BMP_WIN="$(cygpath -m "$PWD/$ENV_FORCED_BMP")"
+ENV_TRACE_WIN="$(absolute_out "$ENV_TRACE")"
+ENV_BMP_WIN="$(absolute_out "$ENV_BMP")"
+ENV_FORCED_TRACE_WIN="$(absolute_out "$ENV_FORCED_TRACE")"
+ENV_FORCED_BMP_WIN="$(absolute_out "$ENV_FORCED_BMP")"
 ENV_RC=$(TF2_NATIVE_TRACE="$ENV_TRACE_WIN" timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" \
   --quality standard --audio-disabled --hidden-window --capture-tick 0 \
   --capture-frame "$ENV_BMP_WIN" --metrics-file "$SCRATCH/render-cubemap-plain.csv" > "$SCRATCH/render-cubemap-plain.log" 2>&1; echo $?)
@@ -546,8 +584,8 @@ echo "=== 8/8 the two switches, off: the sky is not drawn and the clip does not 
 OFF_TRACE="$SCRATCH/render-off.$RUN_TAG.trace"
 OFF_BMP="$SCRATCH/render-off.$RUN_TAG.bmp"
 rm -f "$OFF_TRACE" "$OFF_BMP"
-OFF_TRACE_WIN="$(cygpath -m "$PWD/$OFF_TRACE")"
-OFF_BMP_WIN="$(cygpath -m "$PWD/$OFF_BMP")"
+OFF_TRACE_WIN="$(absolute_out "$OFF_TRACE")"
+OFF_BMP_WIN="$(absolute_out "$OFF_BMP")"
 OFF_RC=$(TF2_NATIVE_TRACE="$OFF_TRACE_WIN" timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" \
   --audio-disabled --hidden-window --demo "$DEMO" --no-world-sky --no-world-vis-clip \
   --capture-tick 0 --capture-frame "$OFF_BMP_WIN" \
@@ -679,7 +717,7 @@ if [ "$MUTATION" -eq 1 ]; then
     local name="$1"
     MUT_TRACE="$SCRATCH/$name.$RUN_TAG.trace"
     rm -f "$MUT_TRACE" "$SCRATCH/$name.$RUN_TAG.bmp" "$SCRATCH/$name.$RUN_TAG.csv"
-    TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$MUT_TRACE")" \
+    TF2_NATIVE_TRACE="$(absolute_out "$MUT_TRACE")" \
       timeout 300 "$PRODUCT" --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" --tf-root "$TF" --audio-disabled --hidden-window --demo "$DEMO" \
       --world-sky --capture-tick 0 --capture-frame "$SCRATCH/$name.$RUN_TAG.bmp" \
       --metrics-file "$SCRATCH/$name.$RUN_TAG.csv" > "$SCRATCH/$name.$RUN_TAG.log" 2>&1

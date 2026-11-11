@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -2005,6 +2006,15 @@ int main(int argc, char** argv) {
   std::vector<std::filesystem::path> bspPaths;
   std::filesystem::path tfRoot;
   std::string mapName;
+  // D-97: the capacity the parser walks a real map with. The default keeps the
+  // 200000 this probe has always used, so every existing invocation -- fixtures
+  // and self-tests included -- reads byte-for-byte what it read before. The
+  // product parses with 400000 since T88 (main.cpp:4699); a caller that compares
+  // the probe with the product passes that value through --triangle-limit. The
+  // same number also feeds measureWorldCapabilities: it reports the displacement
+  // walk as truncated when the map holds at least that many triangles, so a full
+  // parse paired with a stale 200000 would still say truncation.
+  std::size_t triangleLimit = 200000;
   for (int i = 1; i < argc; ++i) {
     const std::string_view arg = argv[i];
     if (arg == "--self-test") { runSelf = true; continue; }
@@ -2023,8 +2033,28 @@ int main(int argc, char** argv) {
       mapName = argv[++i];
       continue;
     }
+    if (arg == "--triangle-limit" && i + 1 < argc) {
+      const std::string value = argv[++i];
+      // Digits only: std::stoull would accept "400000abc" as 400000 and a
+      // leading minus as its two's complement, and a capacity that silently
+      // is not the one that was typed is worse than a usage error.
+      if (!value.empty() && value.find_first_not_of("0123456789") == std::string::npos) {
+        try {
+          triangleLimit = static_cast<std::size_t>(std::stoull(value, nullptr, 10));
+        } catch (...) {
+          triangleLimit = 0;
+        }
+      } else {
+        triangleLimit = 0;
+      }
+      if (triangleLimit == 0) {
+        std::cerr << "--triangle-limit needs a positive integer, got " << value << "\n";
+        return 2;
+      }
+      continue;
+    }
     std::cerr << "usage: world_material_probe [--self-test] [--fixture [--mutation]]"
-      " [--bsp map.bsp [--tf-root dir] [--map-name name]]\n";
+      " [--bsp map.bsp [--tf-root dir] [--map-name name] [--triangle-limit n]]\n";
     return 2;
   }
   int status = 0;
@@ -2043,7 +2073,7 @@ int main(int argc, char** argv) {
   for (const auto& path : bspPaths) {
     const auto bytes = readFile(path);
     tf2::native::BspMap map;
-    tf2::native::BspParser::parse(bytes, map, 200000);
+    tf2::native::BspParser::parse(bytes, map, triangleLimit);
     printMap(path, map);
     // The readings are printed even when the map is invalid, because an
     // unreadable BSP is exactly the case the capability layer has to describe:
@@ -2079,7 +2109,7 @@ int main(int argc, char** argv) {
       waterReason = water.reason;
     }
     const auto readings = tf2::native::measureWorldCapabilities(map, name, *resourceProbe,
-      false, false, waterMaterialDeclared, waterTextureReachable, bytes, 200000);
+      false, false, waterMaterialDeclared, waterTextureReachable, bytes, triangleLimit);
     const auto flat = flattenReadings(readings);
     for (const auto& [key, value] : flat) {
       std::cout << "{\"reading\":\"" << key << "\",\"value\":\"" << value << "\"}\n";
