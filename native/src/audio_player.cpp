@@ -18,10 +18,24 @@ std::size_t g_waveOutOpenCallCount = 0;
 // producing sound.
 std::atomic<std::uint32_t> g_deviceOpenAttempts{0};
 std::atomic<std::uint32_t> g_deviceOpenedCount{0};
+// Set only by installWinMmBackend(); null means "the real entry points".
+const WinMmBackend* g_installedBackend = nullptr;
+// Cleanup outcomes. Counted at the call sites in stop(), not derived from
+// lastError(): a string cannot be summed, and the failure this replaced was
+// exactly an outcome nobody could read.
+std::atomic<std::uint32_t> g_deviceClosedCount{0};
+std::atomic<std::uint32_t> g_cleanupFailureCount{0};
+std::atomic<std::uint32_t> g_deadHandleCount{0};
+// Buffers currently owned. Incremented once the state is published and
+// decremented only by releaseState(), so a non-zero value means the driver
+// still owns memory this process is holding on purpose.
+std::atomic<std::size_t> g_retainedStateCount{0};
+std::atomic<std::uint64_t> g_retainedByteCount{0};
+std::atomic<std::uint32_t> g_retainedAtExitCount{0};
 
 std::string mmError(MMRESULT result, const char* operation) {
   char buffer[256]{};
-  if (waveOutGetErrorTextA(result, buffer, static_cast<UINT>(sizeof(buffer))) == MMSYSERR_NOERROR) {
+  if (winMmBackend().errorText(result, buffer, static_cast<UINT>(sizeof(buffer))) == MMSYSERR_NOERROR) {
     return std::string(operation) + ": " + buffer;
   }
   return std::string(operation) + " failed (MMRESULT=" + std::to_string(result) + ")";
@@ -40,6 +54,18 @@ void writeS16(std::uint8_t* bytes, std::int32_t sample) {
 
 } // namespace
 
+const WinMmBackend& productionWinMmBackend() {
+  static const WinMmBackend backend{};
+  return backend;
+}
+
+const WinMmBackend& winMmBackend() {
+  const WinMmBackend* installed = g_installedBackend;
+  return installed != nullptr ? *installed : productionWinMmBackend();
+}
+
+void installWinMmBackend(const WinMmBackend* backend) { g_installedBackend = backend; }
+
 std::size_t waveOutOpenCalls() { return g_waveOutOpenCallCount; }
 std::uint32_t audioDeviceOpenAttempts() {
   return g_deviceOpenAttempts.load(std::memory_order_relaxed);
@@ -47,6 +73,30 @@ std::uint32_t audioDeviceOpenAttempts() {
 
 std::uint32_t audioDeviceOpenedCount() {
   return g_deviceOpenedCount.load(std::memory_order_relaxed);
+}
+
+std::uint32_t audioDeviceClosedCount() {
+  return g_deviceClosedCount.load(std::memory_order_relaxed);
+}
+
+std::uint32_t audioCleanupFailureCount() {
+  return g_cleanupFailureCount.load(std::memory_order_relaxed);
+}
+
+std::uint32_t audioDeadHandleCount() {
+  return g_deadHandleCount.load(std::memory_order_relaxed);
+}
+
+std::size_t audioRetainedStateCount() {
+  return g_retainedStateCount.load(std::memory_order_relaxed);
+}
+
+std::uint64_t audioRetainedByteCount() {
+  return g_retainedByteCount.load(std::memory_order_relaxed);
+}
+
+std::uint32_t audioRetainedAtExitCount() {
+  return g_retainedAtExitCount.load(std::memory_order_relaxed);
 }
 
 bool applyPcmPan(std::vector<std::uint8_t>& pcm, std::uint16_t& channels,
@@ -93,9 +143,21 @@ bool applyPcmPan(std::vector<std::uint8_t>& pcm, std::uint16_t& channels,
   return true;
 }
 
-AudioPlayer::~AudioPlayer() { stop(); }
-
+AudioPlayer::~AudioPlayer() {
+  stop();
+  // The destructor is the last cleanup opportunity. If the driver still holds
+  // the buffer, the state is kept rather than freed: freeing it would hand the
+  // device memory the allocator is about to reuse, and that is a crash in a
+  // driver thread with no line of product code to point at. Counted, so the
+  // leak is a reading instead of a surprise.
+  if (playback_ != nullptr) g_retainedAtExitCount.fetch_add(1, std::memory_order_relaxed);
+}
 bool AudioPlayer::play(const WavPcmData& wav, float volume, float pan) {
+  // A voice the driver will not release is not a retry point. Retrying here
+  // repeats the failing cleanup on every scheduled sound -- one device fault
+  // becomes a stream of driver calls that buries the error which caused it.
+  // The retry is stop(), which the caller of a failed play runs anyway.
+  if (stuck_) return false;
   stop();
   if (playback_) return false;
   lastError_.clear();
@@ -137,7 +199,7 @@ bool AudioPlayer::play(const WavPcmData& wav, float volume, float pan) {
   auto* playback = new PlaybackState{};
   ++g_waveOutOpenCallCount;
   g_deviceOpenAttempts.fetch_add(1, std::memory_order_relaxed);
-  MMRESULT result = waveOutOpen(&playback->output, deviceId_, &format, 0, 0, CALLBACK_NULL);
+  MMRESULT result = winMmBackend().open(&playback->output, deviceId_, &format, 0, 0, CALLBACK_NULL);
   if (result == MMSYSERR_NOERROR) g_deviceOpenedCount.fetch_add(1, std::memory_order_relaxed);
   if (result != MMSYSERR_NOERROR) {
     delete playback;
@@ -147,50 +209,115 @@ bool AudioPlayer::play(const WavPcmData& wav, float volume, float pan) {
   playback_ = playback;
 
   playback_->pcm = std::move(mixedPcm);
+  g_retainedStateCount.fetch_add(1, std::memory_order_relaxed);
+  g_retainedByteCount.fetch_add(static_cast<std::uint64_t>(playback_->pcm.size()),
+    std::memory_order_relaxed);
   format.nChannels = outputChannels;
   format.nBlockAlign = static_cast<WORD>(outputChannels * (wav.bitsPerSample / 8u));
   format.nAvgBytesPerSec = wav.sampleRate * format.nBlockAlign;
   playback_->header.lpData = reinterpret_cast<LPSTR>(playback_->pcm.data());
   playback_->header.dwBufferLength = static_cast<DWORD>(playback_->pcm.size());
-  result = waveOutPrepareHeader(playback_->output, &playback_->header, sizeof(playback_->header));
+  result = winMmBackend().prepare(playback_->output, &playback_->header, sizeof(playback_->header));
   if (result != MMSYSERR_NOERROR) {
-    lastError_ = mmError(result, "waveOutPrepareHeader");
+    // The root cause has to outlive the cleanup. stop() can fail too, and that
+    // failure describes the cleanup, not why playback never started -- before
+    // this the last writer won and lastError() named the wrong step (QA2-03).
+    const std::string primary = mmError(result, "waveOutPrepareHeader");
     stop();
+    lastError_ = primary;
     return false;
   }
-  result = waveOutWrite(playback_->output, &playback_->header, sizeof(playback_->header));
+  prepared_ = true;
+  result = winMmBackend().write(playback_->output, &playback_->header, sizeof(playback_->header));
   if (result != MMSYSERR_NOERROR) {
-    lastError_ = mmError(result, "waveOutWrite");
+    const std::string primary = mmError(result, "waveOutWrite");
     stop();
+    lastError_ = primary;
     return false;
   }
   return true;
 }
 
-void AudioPlayer::stop() {
-  if (!playback_) {
-    return;
-  }
-  // Keep the PCM and WAVEHDR alive until WinMM confirms the device is closed.
-  MMRESULT result = waveOutReset(playback_->output);
-  if (result != MMSYSERR_NOERROR) {
-    lastError_ = mmError(result, "waveOutReset");
-    return;
-  }
-  if (playback_->header.dwFlags & WHDR_PREPARED) {
-    result = waveOutUnprepareHeader(playback_->output, &playback_->header, sizeof(playback_->header));
-    if (result != MMSYSERR_NOERROR) {
-      lastError_ = mmError(result, "waveOutUnprepareHeader");
-      return;
-    }
-  }
-  result = waveOutClose(playback_->output);
-  if (result != MMSYSERR_NOERROR) {
-    lastError_ = mmError(result, "waveOutClose");
-    return;
-  }
+void AudioPlayer::releaseState() {
+  if (playback_ == nullptr) return;
+  g_retainedStateCount.fetch_sub(1, std::memory_order_relaxed);
+  g_retainedByteCount.fetch_sub(static_cast<std::uint64_t>(playback_->pcm.size()),
+    std::memory_order_relaxed);
   delete playback_;
   playback_ = nullptr;
+  prepared_ = false;
+  stuck_ = false;
+}
+
+void AudioPlayer::noteCleanupFailure(MMRESULT result, const char* operation) {
+  const std::string message = mmError(result, operation);
+  lastCleanupError_ = message;
+  // Also the current error: for a plain stop() this *is* the reason the voice
+  // is still open, and play() restores its own root cause after calling stop().
+  lastError_ = message;
+  g_cleanupFailureCount.fetch_add(1, std::memory_order_relaxed);
+}
+
+void AudioPlayer::stop() {
+  if (playback_ == nullptr) {
+    stuck_ = false;
+    return;
+  }
+  // Cleanup is a sequence of independent confirmations, not a chain a single
+  // refusal can end. It used to be a chain: a refused reset returned before
+  // unprepare and close were even attempted, which is how one transient driver
+  // hiccup held the device open until the next attempt (QA2-04).
+  // Keep the PCM and WAVEHDR alive until WinMM confirms the device is closed.
+  MMRESULT result = winMmBackend().reset(playback_->output);
+  if (result == MMSYSERR_INVALHANDLE) {
+    // The handle is already gone, so no driver can be writing through it: this
+    // is the one failure that still permits a free. Retaining the buffer here
+    // would be a leak with nothing left to protect.
+    g_deadHandleCount.fetch_add(1, std::memory_order_relaxed);
+    releaseState();
+    lastError_.clear();
+    lastCleanupError_.clear();
+    return;
+  }
+  if (result != MMSYSERR_NOERROR) {
+    noteCleanupFailure(result, "waveOutReset");
+  }
+  // Unprepare is attempted whenever this process prepared the buffer, including
+  // after a refused reset: the driver can still accept it, and the header's
+  // WHDR_PREPARED bit is not ours to trust (QA2-09).
+  if (prepared_) {
+    result = winMmBackend().unprepare(playback_->output, &playback_->header, sizeof(playback_->header));
+    if (result == MMSYSERR_NOERROR || result == WAVERR_UNPREPARED) {
+      // WAVERR_UNPREPARED means the driver had already dropped it: the buffer
+      // is in the state this step wanted, so it is not a cleanup failure.
+      prepared_ = false;
+    } else {
+      noteCleanupFailure(result, "waveOutUnprepareHeader");
+    }
+  }
+  // Close is attempted even when reset or unprepare was refused. It is the step
+  // whose answer decides whether the buffer may be freed, and a driver that
+  // refused one step can still accept this one; gating it behind the earlier
+  // steps is what turned one refusal into a leak (QA2-04). The decision rests
+  // on close alone: a success (or a dead handle) is the only confirmation that
+  // no driver is still writing through the buffer.
+  result = winMmBackend().close(playback_->output);
+  if (result == MMSYSERR_NOERROR || result == MMSYSERR_INVALHANDLE) {
+    if (result == MMSYSERR_INVALHANDLE) g_deadHandleCount.fetch_add(1, std::memory_order_relaxed);
+    g_deviceClosedCount.fetch_add(1, std::memory_order_relaxed);
+    releaseState();
+    lastError_.clear();
+    lastCleanupError_.clear();
+    return;
+  }
+  noteCleanupFailure(result, "waveOutClose");
+  // The driver will not let go. Freeing the buffer would hand the device memory
+  // the allocator may already have reused, so it is kept and the voice marked
+  // stuck: play() will not retry it, stop() will -- that is the only retry
+  // point -- and the counters make the retention readable. Bounded by one
+  // buffer per voice, i.e. at most kVoiceCount per scheduler; it does not grow
+  // with the number of calls, which is what separates this from a leak.
+  stuck_ = true;
 }
 
 void AudioEventScheduler::reset(std::int32_t tick) {
@@ -242,9 +369,22 @@ void AudioEventScheduler::setListenerPosition(float x, float y, float z) {
 std::size_t AudioEventScheduler::activeVoiceCount() const {
   std::size_t active = 0;
   for (const auto& player : players_) {
-    if (player.playing()) ++active;
+    // playing() alone is not "this voice is still audible". A device that
+    // refused one close left playing() true forever, reset() turned that into
+    // stopped_ = true, and advance() then answered every later tick with the
+    // same stats -- permanent silence after a single hiccup, with no counter
+    // to show it (QA2-02). A stuck voice is still reported, but as stuck.
+    if (player.playing() && !player.stuck()) ++active;
   }
   return active;
+}
+
+std::size_t AudioEventScheduler::stuckVoiceCount() const {
+  std::size_t stuck = 0;
+  for (const auto& player : players_) {
+    if (player.stuck()) ++stuck;
+  }
+  return stuck;
 }
 
 AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeline, std::int32_t tick) {
