@@ -193,23 +193,32 @@ echo "=== 4/8 the real map's six capabilities, pinned ==="
 # install goes red on purpose: the finding it records ("this map's baked light
 # fits the atlas except for 15 faces") would no longer be true, and a reader
 # needs to be told rather than left with a stale note.
+#
+# Re-pinned 2026-11-10 (g3a triage). fc884cd (T88, 2026-11-07) deleted the
+# parser's early break: the budget decides what is KEPT, not what is READ
+# (bsp_map.cpp:1222-1230), so the packer now walks all 14988 faces of this map
+# instead of stopping at the 11527 the 200000-triangle walk used to reach. The
+# atlas is 175 rows taller and still drops nothing (facesDropped 0, packed
+# equals faces). Why this is not a regression: nothing was lost -- the old
+# reading was a truncated map, the new one is the map. Measured in the g3a
+# window (D:/_shared/EXEC-2026-11-10/E5/out/03a-world-20261110T2202Z/).
 REAL=$("$EXE" --bsp "$TF/maps/$MAP.bsp" --tf-root "$TF" --map-name "$MAP" 2>&1)
 echo "$REAL" > "$OUT/real-$MAP.txt"
 assert_eq "lightmap state"        "$(field "$REAL" lightmap.state)"        "active"
-assert_eq "lightmap faces"        "$(field "$REAL" lightmap.facesWithLightmap)" "11527"
+assert_eq "lightmap faces"        "$(field "$REAL" lightmap.facesWithLightmap)" "14988"
 # T1 (2026-10-13): these four numbers changed, and the change is the finding.
 # The shelf packer used to be hard-coded to 2048, which is 2047 rows of usable
 # height on this map -- 15 of the 11527 faces did not fit and were dropped with
 # nothing reporting it. The width is chosen now, this map grows to 4096, and all
 # 11527 pack. `facesDropped` staying 0 while `facesPacked` equals `facesWithLightmap`
 # is the reading that would go red if the packer lost a face again.
-assert_eq "lightmap packed"       "$(field "$REAL" lightmap.facesPacked)"  "11527"
+assert_eq "lightmap packed"       "$(field "$REAL" lightmap.facesPacked)"  "14988"
 assert_eq "lightmap dropped"      "$(field "$REAL" lightmap.facesDropped)" "0"
 assert_eq "lightmap triangles"    "$(field "$REAL" lightmap.trianglesWithLightUv)" "199922"
-assert_eq "lightmap atlas"        "$(field "$REAL" lightmap.atlas)"        "4096x1156"
+assert_eq "lightmap atlas"        "$(field "$REAL" lightmap.atlas)"        "4096x1331"
 assert_eq "lightmap atlas cap"    "$(field "$REAL" lightmap.atlasMaxWidth)" "4096"
 assert_eq "lightmap atlas grew"   "$(field "$REAL" lightmap.atlasGrown)"   "true"
-assert_eq "lightmap atlas reason" "$(field "$REAL" lightmap.atlasReason)"  "all 11527 faces fit the 4096-wide atlas"
+assert_eq "lightmap atlas reason" "$(field "$REAL" lightmap.atlasReason)"  "all 14988 faces fit the 4096-wide atlas"
 assert_eq "lightmap uv in range"  "$(field "$REAL" lightmap.uvAllInRange)" "true"
 # The cubemap reading changed on 2026-10-13 and the change is the finding: the
 # probe used to look for six files per sample named c_<map>_<n><suffix>.vtf,
@@ -341,15 +350,24 @@ rfield() { # rfield <key> -> number out of the render reading line
   printf '%s\n' "$RENDER" | grep -oE "$1=[0-9]+" | head -1 | cut -d= -f2
 }
 RENDER_STATUS=$(printf '%s\n' "$RENDER" | grep -oE "status=[a-z-]+" | head -1 | cut -d= -f2)
-REAL_TRIS=$(field "$REAL" lightmap.trianglesWithLightUv)
 assert_eq "render lightmap status" "$RENDER_STATUS" "active"
 assert_eq "render atlas bound" "$(rfield atlas)" "1"
-assert_eq "render vertices" "$(rfield vertices)" "600000"
-# The identity, not a second pin: the GPU-side count must equal three times the
-# parse-side triangle count from section 4. If the parse side changes, this
-# follows it; if the renderer drops a face's light uv again, it does not.
-assert_eq "render lightmapped = 3 x parse triangles" "$(rfield lightmapped)" "$((REAL_TRIS * 3))"
-# And the map is not fully lit: 737 of its 200000 triangles carry no lightmap
+assert_eq "render vertices" "$(rfield vertices)" "726327"
+# T88 re-pin: this used to be the identity "lightmapped = 3 x the parse side's
+# trianglesWithLightUv". The probe still walks the map with the old 200000
+# triangle limit (world_material_probe.cpp:2046), so that number now measures a
+# prefix of the map (199922 of 200000 triangles) while the renderer uploads the
+# whole thing -- the "identity" was comparing two different maps, which is why
+# it read 726093 against 599766 in g3a. The product's whole-map reading is
+# pinned here; the cross-check that survives uses two lines of this one trace
+# and lives in section 6.
+assert_eq "render lightmapped" "$(rfield lightmapped)" "726093"
+# vertices minus lightmapped is 234, i.e. three vertices for each of the map's
+# 78 triangles that carry no lightmap face. Those must stay unlit: if the
+# renderer handed them a uv this gap would collapse to 0, and if it dropped a
+# lit face the gap would grow.
+assert_eq "render unlit vertices" "$(( $(rfield vertices) - $(rfield lightmapped) ))" "234"
+# And the map is not fully lit: 78 of its 242109 triangles carry no lightmap
 # face, so lightmapped must stay strictly below vertices. A reading of
 # lightmapped == vertices would mean unlit faces were being handed a uv.
 # The displacement and water counts, taken while the vertex buffer was filled
@@ -362,8 +380,13 @@ else
   echo "  FAIL the render run produced no geometry reading, so it is not appended to $OUT/render-lightmap.txt"; fail=1
 fi
 gfield() { printf '%s\n' "$GEOMETRY" | grep -oE "$1=[0-9]+" | head -1 | cut -d= -f2; }
-assert_eq "render displaced = parse displacement triangles" \
-  "$(gfield displacedTriangles)" "$(field "$REAL" displacement.triangles)"
+# T88 re-pin: the parse side reads 165376 because the probe's displacement walk
+# is cut by the same 200000-triangle limit its own reading names ("the triangle
+# limit truncated the walk"), while the renderer builds the whole map's 199360.
+# Pinned on the renderer's count until the probe is given the product's capacity
+# (D-97, WORLD-MATERIAL-TRIAGE.md); the probe-side pin at section 4 stays
+# 165376, so a probe change is still visible.
+assert_eq "render displaced triangles" "$(gfield displacedTriangles)" "199360"
 assert_eq "render water = parse water triangles" \
   "$(gfield waterTriangles)" "$(field "$REAL" water.trianglesTagged)"
 # The VIS capability, as an applied clip rather than as an absence. Until this
@@ -385,6 +408,13 @@ vfield() { printf '%s\n' "$VIS" | grep -oE "$1=[0-9-]+" | head -1 | cut -d= -f2;
 # Re-pinned 2026-11-01 (T82/T83). History, kept so the move is auditable:
 #   cameraCluster 639 -> 2108, visibleFromCamera 2150 -> 1481,
 #   hiddenTriangles 10872 -> 15039, drawnTriangles 189128 -> 184961.
+#
+# Re-pinned again 2026-11-10 (g3a): inputTriangles 200000 -> 242109 and
+# drawnTriangles 184961 -> 227070 are the same fc884cd capacity change seen at
+# the clip -- the buffer now holds the whole map, so the clip judges the whole
+# map. hiddenTriangles (15039), cameraCluster (2108), visibleFromCamera (1481)
+# and clusteredTriangles (34517) did not move, which is what says the change is
+# the buffer's size and not the pvs.
 # Why: T80 stands the relay camera in the watched player's eye instead of the
 # world origin, so the clip is asked about a different leaf (639 was the origin
 # camera's), and T83 builds the 1,237 brush-model faces the parser used to drop,
@@ -396,8 +426,14 @@ assert_eq "render vis clustered triangles" "$(vfield clusteredTriangles)" "34517
 assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "15039"
 assert_eq "render vis clip applied" "$(vfield clipApplied)" "1"
 assert_eq "render vis clip state" "$(printf '%s\n' "$VIS" | grep -oE 'state=[a-z]+' | head -1 | cut -d= -f2)" "active"
-assert_eq "render vis input triangles" "$(vfield inputTriangles)" "200000"
-assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "184961"
+assert_eq "render vis input triangles" "$(vfield inputTriangles)" "242109"
+assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "227070"
+# The cross-line identity T88 leaves standing, both terms from this one trace:
+# every triangle that carries a light uv contributes three lightmapped vertices,
+# and the whole map minus its 78 unlit triangles is 242031. A renderer that
+# dropped a face or withheld a uv moves one term and not the other.
+assert_eq "render lightmapped = 3 x (input - 78 unlit)" \
+  "$(rfield lightmapped)" "$(( ( $(vfield inputTriangles) - 78 ) * 3 ))"
 # The identity, not a second pin: what the draw call was given plus what the pvs
 # withheld has to be the whole map. A clip that hid triangles by not uploading
 # them would satisfy the two numbers above and fail this one.
@@ -655,23 +691,34 @@ if [ "$MUTATION" -eq 1 ]; then
     return 0
   }
 
-  SKY_BACKUP="$SCRATCH/native_renderer.cpp.sky.backup"
-  cp native/src/native_renderer.cpp "$SKY_BACKUP"
+  # b366dcd (2026-10-30, "renderer: split the world geometry stage and the frame
+  # pass itself") moved the sky draw's guard into native_renderer_frame.cpp and
+  # this sed kept pointing at the file it left. Measured 2026-11-10 (g3a): the
+  # pattern matches 0 lines in native_renderer.cpp, and the cmp guard could not
+  # see it -- sed -i rewrites a CRLF source as LF, so a NO-OP substitution still
+  # leaves the file byte-different and the guard reads "the sed changed
+  # something". The mutation then rebuilt an unmutated product and reported
+  # MUTATION-CAUGHT=FAIL (draws=1 state=active) for a run that never mutated
+  # anything. Fixed here: the real file, and a guard that asks whether the
+  # mutation is IN rather than whether the bytes moved.
+  SKY_SOURCE=native/src/native_renderer_frame.cpp
+  SKY_BACKUP="$SCRATCH/native_renderer_frame.cpp.sky.backup"
+  cp "$SKY_SOURCE" "$SKY_BACKUP"
   sed -i 's|const bool hasSkyBox = worldSkyEnabled_ \&\& worldSkyVertexBuffer_|const bool hasSkyBox = false \&\& worldSkyEnabled_ \&\& worldSkyVertexBuffer_|' \
-    native/src/native_renderer.cpp
-  if cmp -s native/src/native_renderer.cpp "$SKY_BACKUP"; then
-    echo "  MUTATION-SETUP=FAIL (sky_draw_deleted: the sed changed nothing)"
-    cp "$SKY_BACKUP" native/src/native_renderer.cpp
+    "$SKY_SOURCE"
+  if ! grep -q 'const bool hasSkyBox = false && worldSkyEnabled_' "$SKY_SOURCE"; then
+    echo "  MUTATION-SETUP=FAIL (sky_draw_deleted: the sed changed nothing at $SKY_SOURCE)"
+    cp "$SKY_BACKUP" "$SKY_SOURCE"
     echo "WORLD-MATERIAL-MUTATION=FAIL"; exit 1
   fi
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mutated-sky_draw_deleted.$RUN_TAG.build" 2>&1; then
     echo "  MUTATION-SETUP=FAIL (sky_draw_deleted: the rebuild failed)"
-    cp "$SKY_BACKUP" native/src/native_renderer.cpp
+    cp "$SKY_BACKUP" "$SKY_SOURCE"
     bash build-target.sh tf2_demo_native > "$SCRATCH/restore-sky.$RUN_TAG.build" 2>&1
     echo "WORLD-MATERIAL-MUTATION=FAIL"; exit 1
   fi
   if ! run_mutated_product mutated-sky_draw_deleted; then
-    cp "$SKY_BACKUP" native/src/native_renderer.cpp
+    cp "$SKY_BACKUP" "$SKY_SOURCE"
     bash build-target.sh tf2_demo_native > "$SCRATCH/restore-sky.$RUN_TAG.build" 2>&1
     echo "WORLD-MATERIAL-MUTATION=FAIL"; exit 1
   fi
@@ -682,15 +729,15 @@ if [ "$MUTATION" -eq 1 ]; then
     echo "  MUTATION-CAUGHT=PASS (sky_draw_deleted: draws=0 while the state still reads active)"
   else
     echo "  MUTATION-CAUGHT=FAIL (sky_draw_deleted: draws=$MUT_SKY_DRAWN state=$MUT_SKY_STATE, the gate would have stayed green)"
-    cp "$SKY_BACKUP" native/src/native_renderer.cpp
+    cp "$SKY_BACKUP" "$SKY_SOURCE"
     bash build-target.sh tf2_demo_native > "$SCRATCH/restore-sky.$RUN_TAG.build" 2>&1
     echo "WORLD-MATERIAL-MUTATION=FAIL"; exit 1
   fi
   echo "$MUT_SKY" > "$OUT/mutated-sky_draw_deleted.txt"
-  cp "$SKY_BACKUP" native/src/native_renderer.cpp
+  cp "$SKY_BACKUP" "$SKY_SOURCE"
   bash build-target.sh tf2_demo_native > "$SCRATCH/restore-sky.$RUN_TAG.build" 2>&1 \
     || { echo "  RESTORE-BUILD=FAIL (sky_draw_deleted)"; echo "WORLD-MATERIAL-MUTATION=FAIL"; exit 1; }
-  if ! cmp -s native/src/native_renderer.cpp "$SKY_BACKUP"; then
+  if ! cmp -s "$SKY_SOURCE" "$SKY_BACKUP"; then
     echo "  RESTORE=FAIL (sky_draw_deleted: the source did not come back byte-identical)"
     echo "WORLD-MATERIAL-MUTATION=FAIL"; exit 1
   fi
