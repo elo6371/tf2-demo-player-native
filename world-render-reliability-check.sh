@@ -31,6 +31,18 @@
 #   that still sets it and still reaches the same arms (4/2/3), so explicit
 #   device-failure reporting is preserved -- only the stale verdict is gone.
 #
+# D-97 (2026-11-11) -- the F4 pins restated, not deleted
+#   Both readings PARTS ONE pinned describe the pre-7954527 build. The world atlas
+#   is 4112x4112x4 = 67,634,176 B and an ordinary Texture2D is held to 64 MiB, so
+#   the atlas upload refused it and recorded E_FAIL; 7954527 gave the atlas its own
+#   budget (max(64 MiB, its own bytes)) and the same atlas now binds -- measured:
+#   `gpu: world atlas size=4112 bytes=67634176 atlases=3 ... state=bound`. Keeping
+#   "E_FAIL must be recorded" would demand the defect back. PART ONE now asserts the
+#   property the T8 fix was for -- a load-time error is REPORTED, never swallowed --
+#   the reading that shows the old cause is closed, and that every create site in
+#   the world uploader still records its failure. The mutation that deletes the
+#   clear is replaced by one that restores the old atlas ceiling.
+#
 # PART TWO -- the extra scope, stated before it was built
 #   Of the documented limitations (water refraction, displacement completeness,
 #   sky texture correctness, VIS behaviour, large atlas handling) this task takes
@@ -204,22 +216,81 @@ chk "sunshine is not a device-error exit (3)" "$([ "$SUN_RC" = "3" ] && echo yes
 chk "sunshine frame written" "$([ -s "$SUN_BMP" ] && echo yes || echo no)" "yes"
 DRAWN=$(grep -o 'drawn=[0-9]*' "$SUN_TRACE" 2>/dev/null | tail -1 | cut -d= -f2)
 chk "sunshine frames drawn >= 1" "$([ "${DRAWN:-0}" -ge 1 ] && echo yes || echo no)" "yes"
-if grep -q "gpu: post-reload lastError=0x80004005" "$SUN_TRACE" 2>/dev/null; then
-  echo "  OK   cause reading present: load recorded stale E_FAIL (0x80004005)"
-  checks=$((checks + 1))
+# ---- D-97 (2026-11-11): the two readings below used to pin the CAUSE ---------
+# This gate pinned two readings of the T4/F4 defect: that the load records a stale
+# E_FAIL, and that the stage which sets it is `water`. Both were true of the
+# pre-T8 build and neither is true now, for a reason the product itself names. The
+# world atlas is 4112x4112x4 = 67,634,176 B; an ordinary Texture2D is held to
+# 64 MiB (native/include/texture2d.h:14-21), so the atlas upload refused it and
+# uploadWorldGeometry recorded E_FAIL (native/src/native_renderer_world.cpp:480-486).
+# 7954527 (2026-10-18) gave the atlas its own budget -- max(64 MiB, its own bytes) --
+# and the same atlas now binds. Pinning "E_FAIL must be recorded" would demand the
+# defect back, so the pins are replaced by the property the T8 fix was for: a
+# load-time error is REPORTED, never swallowed.
+STAGE_SEQ=$(grep -o "gpu: reload-stage stage=[a-z]*" "$SUN_TRACE" 2>/dev/null | sed "s/.*stage=//" | tr "\n" " " | sed "s/ *$//")
+chk "load stage sequence (texture..models)" "$STAGE_SEQ" "texture aux lightmap cubemap sky water models"
+STAGE_READINGS=$(grep -c "gpu: reload-stage stage=[a-z]* lastError=0x[0-9A-Fa-f]\{8\}" "$SUN_TRACE" 2>/dev/null)
+chk "every load stage printed a 32-bit HRESULT" "${STAGE_READINGS:-0}" "7"
+POST_RELOAD=$(grep -o "gpu: post-reload lastError=0x[0-9A-Fa-f]*" "$SUN_TRACE" 2>/dev/null | tail -1 | sed "s/.*lastError=//")
+chk "post-reload reading present" "$([ -n "$POST_RELOAD" ] && echo yes || echo no)" "yes"
+# The product prints the post-reload value and clears the channel immediately
+# after it (native/src/main.cpp:8021-8023). So nothing may legitimately disappear
+# between the last stage line and that print. Both directions are asserted:
+#   no stage recorded anything    -> post-reload must be 0x00000000 (clean channel)
+#   a stage did record something  -> post-reload must still carry a failure
+# The second is the "not hidden" direction: a build that clears earlier, or stops
+# printing the value, goes red here instead of passing on an empty channel.
+STAGE_ERRORS=$(grep -o "reload-stage stage=[a-z]* lastError=0x[0-9A-Fa-f]*" "$SUN_TRACE" 2>/dev/null | grep -v "lastError=0x00000000$" | wc -l | tr -d " ")
+LAST_NONZERO=$(grep -o "reload-stage stage=[a-z]* lastError=0x[0-9A-Fa-f]*" "$SUN_TRACE" 2>/dev/null | grep -v "lastError=0x00000000$" | tail -1 | sed "s/.*lastError=//")
+echo "  note stage readings that recorded an error = ${STAGE_ERRORS:-0} (0 = the load recorded none)"
+if [ "${STAGE_ERRORS:-0}" -gt 0 ]; then
+  # The channel is sticky and is only cleared after this print, so the value printed
+  # at post-reload must still BE the last error a stage recorded. Not merely "some
+  # error": the same one. Anything else means a value was cleared, overwritten or
+  # dropped between the last stage and the print -- the swallow this gate forbids.
+  chk "post-reload equals the last non-zero stage (nothing swallowed)" \
+    "${POST_RELOAD:-<missing>}" "${LAST_NONZERO:-<missing>}"
 else
-  echo "  FAIL cause reading missing (expected stale E_FAIL 0x80004005)"
-  fails=$((fails + 1))
+  chk "no stage recorded an error, so the post-reload channel is clean" \
+    "${POST_RELOAD:-<missing>}" "0x00000000"
 fi
-# The stage that set it has to keep naming water: the fix clears the channel, it
-# does not make the water stage succeed.
-if grep -q "gpu: reload-stage stage=water lastError=0x80004005" "$SUN_TRACE" 2>/dev/null; then
-  echo "  OK   stage reading still names water as the refusing stage"
-  checks=$((checks + 1))
-else
-  echo "  FAIL stage reading no longer names water (the fix must not hide it)"
-  fails=$((fails + 1))
-fi
+# ---- the old cause is closed, read from the run itself ----------------------
+# The atlas the pre-7954527 product refused is now built, and the reading says so:
+# its byte count is over the 64 MiB ceiling an ordinary texture is held to and its
+# state is `bound`. If it is ever refused again this same line names the refusal
+# instead of hiding it, and the two checks below go red before the frame does.
+ATLAS_LINE=$(grep "gpu: world atlas size=" "$SUN_TRACE" 2>/dev/null | tail -1)
+chk "world atlas state" "$(printf "%s" "$ATLAS_LINE" | grep -o "state=.*" | cut -d= -f2-)" "bound"
+ATLAS_BYTES=$(printf "%s" "$ATLAS_LINE" | grep -o "bytes=[0-9]*" | head -1 | cut -d= -f2)
+chk "the atlas is over the 64 MiB ordinary-texture ceiling" \
+  "$([ "${ATLAS_BYTES:-0}" -gt "$((64 * 1024 * 1024))" ] && echo yes || echo no)" "yes"
+echo "  note world atlas bytes = ${ATLAS_BYTES:-0} (the pre-7954527 product refused this atlas)"
+PLAN_LINE=$(grep "gpu: world atlas-plan" "$SUN_TRACE" 2>/dev/null | tail -1)
+# The plan line states budget twice: once as the field, once inside its reason text
+# ("... refused=0 (malformed=0, duplicate=0, budget=0)"), so the field is the first hit.
+chk "atlas plan budget refusals" "$(printf "%s" "$PLAN_LINE" | grep -o "budget=[0-9]*" | head -1 | cut -d= -f2)" "0"
+# ---- the recording side, read from the source ------------------------------
+# A reading is only worth pinning if the code that would fail still records it.
+# Every create site in the world uploader must set `lastError_` or name a
+# world*Reason_ within the next eight lines. A site that does neither is a failure
+# this product could hit and never report -- the shape this gate exists to forbid.
+UNRECORDED=$(awk '
+  { buf[NR] = $0 }
+  END {
+    bad = 0
+    for (n = 1; n <= NR; n++) {
+      if (buf[n] !~ /if \(![A-Za-z_]+\.create\(/ && buf[n] !~ /if \(FAILED\(device_->Create/) continue
+      ok = 0
+      for (i = n; i <= n + 8; i++) {
+        if (buf[i] ~ /lastError_ = / || buf[i] ~ /world[A-Za-z]*Reason_ = /) { ok = 1; break }
+      }
+      if (!ok) { bad++; printf "  unrecorded create site at line %d: %s\n", n, buf[n] > "/dev/stderr" }
+    }
+    print bad
+  }' native/src/native_renderer_world.cpp)
+chk "every world-upload create site records its failure" "${UNRECORDED:-x}" "0"
+echo "  note native/src/native_renderer_world.cpp: create sites whose failure goes unrecorded = ${UNRECORDED:-x} (11 sites scanned 2026-11-11)"
+
 # And the policy must not be reached at all once the stale value is gone: with
 # the fix, no error reaches the loop's device-error arm.
 if grep -q "gpu: device-error-policy" "$SUN_TRACE" 2>/dev/null; then
@@ -272,7 +343,7 @@ echo
 echo "=== 4/4 verdict ==="
 if [ "$MODE" = "mutation" ]; then
   echo
-  echo "=== mutations: the fix deleted, and the sky suffix table swapped ==="
+  echo "=== mutations: the old atlas ceiling restored, the sky table swapped ==="
   # The cheap half, one per reading this gate is about. Each value below is one
   # the fixed product must NOT produce; if one matches, the assertion that reads
   # it is a constant.
@@ -293,57 +364,66 @@ if [ "$MODE" = "mutation" ]; then
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
 
-  # ---- Product mutation 1: the fix deleted --------------------------------
-  # `renderer.clearLastError();` -- the whole of the fix -- is removed from
-  # native/src/main.cpp, the target is rebuilt, and the reliability input runs
-  # again. Deleting the fix is the only mutation that can answer the question
-  # the gate asks: does the exit-3 assertion read the fix, or something else
-  # that happens to be green? If the mutated build still exits 0, the forward
-  # section proves nothing and this gate has to be red.
-  MUT_BACKUP="$OUT/main.cpp.clearLastError.backup"
-  cp native/src/main.cpp "$MUT_BACKUP"
-  sed -i 's|^  renderer\.clearLastError();|  /* T8 mutation: the fix is deleted */|' \
-    native/src/main.cpp
-  if cmp -s native/src/main.cpp "$MUT_BACKUP"; then
-    echo "  MUTATION-SETUP=FAIL (fix_deleted: the sed changed nothing)"
-    cp "$MUT_BACKUP" native/src/main.cpp
+  # ---- Product mutation 1: the pre-7954527 atlas ceiling restored ----------
+  # D-97 rebased this mutation. It used to delete `renderer.clearLastError();`,
+  # which was the whole of the T8 fix. That mutation can no longer be caught: the
+  # load no longer records an error to leave stale (see the forward comment), so
+  # deleting the clear would give rc=0 and an empty channel -- the mutation would
+  # report "the gate would stay green" for a reason that says nothing about the
+  # gate. What still answers the gate's question is the CAUSE: put the atlas
+  # budget back to the 64 MiB ceiling the pre-7954527 build held it to
+  # (native/src/native_renderer_world.cpp:480-481), rebuild, and the same map must
+  # fail the same way again -- exit 3, the water stage line recording E_FAIL, the
+  # policy line naming it, and the atlas reading no longer `bound`. If the
+  # mutation does not reproduce, the forward assertions are not reading the cause
+  # they claim to.
+  MUT_BACKUP="$OUT/native_renderer_world.cpp.atlas_ceiling.backup"
+  cp native/src/native_renderer_world.cpp "$MUT_BACKUP"
+  sed -i 's|const std::uint64_t atlasBudget = std::max<std::uint64_t>(64ull \* 1024ull \* 1024ull,|const std::uint64_t atlasBudget = (64ull * 1024ull * 1024ull) + 0 * std::max<std::uint64_t>(0ull,|' \
+    native/src/native_renderer_world.cpp
+  if cmp -s native/src/native_renderer_world.cpp "$MUT_BACKUP"; then
+    echo "  MUTATION-SETUP=FAIL (atlas_ceiling: the sed changed nothing)"
+    cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
-  echo "  mutated source sha256=$(sha256sum native/src/main.cpp | cut -d' ' -f1)"
-  if ! bash build-target.sh tf2_demo_native > "$OUT/mutated-fix_deleted.build" 2>&1; then
-    echo "  MUTATION-SETUP=FAIL (fix_deleted: the rebuild failed)"
-    cp "$MUT_BACKUP" native/src/main.cpp
-    bash build-target.sh tf2_demo_native > "$OUT/restore-fix_deleted.build" 2>&1
+  echo "  mutated source sha256=$(sha256sum native/src/native_renderer_world.cpp | cut -d' ' -f1)"
+  if ! bash build-target.sh tf2_demo_native > "$OUT/mutated-atlas_ceiling.build" 2>&1; then
+    echo "  MUTATION-SETUP=FAIL (atlas_ceiling: the rebuild failed)"
+    cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
+    bash build-target.sh tf2_demo_native > "$OUT/restore-atlas_ceiling.build" 2>&1
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
   echo "  mutated exe sha256=$(sha256sum native/build-nmake/tf2_demo_native.exe | cut -d' ' -f1)"
-  run mutated-fix_deleted "$SUNSHINE"
+  run mutated-atlas_ceiling "$SUNSHINE"
   MUT_RC=$RUN_RC
   echo "  mutated exit_code=$MUT_RC"
+  MUT_STAGE=$(grep -c "gpu: reload-stage stage=water lastError=0x80004005" "$RUN_TRACE" 2>/dev/null)
   if [ "$MUT_RC" = "3" ] \
+     && [ "${MUT_STAGE:-0}" -ge 1 ] \
      && grep -q "gpu: device-error-policy hresult=0x80004005" "$RUN_TRACE" 2>/dev/null; then
-    echo "  MUTATION-CAUGHT=PASS (fix_deleted: exit 3 again, and the policy line"
-    echo "    names the same E_FAIL the load recorded)"
+    echo "  MUTATION-CAUGHT=PASS (atlas_ceiling: exit 3 again, the water stage line"
+    echo "    records 0x80004005, and the policy line names the same failure)"
   else
-    echo "  MUTATION-CAUGHT=FAIL (fix_deleted: rc=$MUT_RC, the gate would stay green)"
-    cp "$MUT_BACKUP" native/src/main.cpp
-    bash build-target.sh tf2_demo_native > "$OUT/restore-fix_deleted.build" 2>&1
+    echo "  MUTATION-CAUGHT=FAIL (atlas_ceiling: rc=$MUT_RC, water-stage E_FAIL lines="
+    echo "    ${MUT_STAGE:-0}; the gate would have stayed green)"
+    cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
+    bash build-target.sh tf2_demo_native > "$OUT/restore-atlas_ceiling.build" 2>&1
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
   { echo "exit_code=$MUT_RC"
-    grep -E "gpu: post-reload|gpu: device-error-policy|mode: summary" "$RUN_TRACE" 2>/dev/null
-  } > "$OUT/mutated-fix_deleted.txt"
-  cp "$MUT_BACKUP" native/src/main.cpp
-  bash build-target.sh tf2_demo_native > "$OUT/restore-fix_deleted.build" 2>&1 \
-    || { echo "  RESTORE-BUILD=FAIL (fix_deleted)"; echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1; }
-  if ! cmp -s native/src/main.cpp "$MUT_BACKUP"; then
-    echo "  RESTORE=FAIL (fix_deleted: source did not come back byte-identical)"
+    grep -E "gpu: reload-stage|gpu: post-reload|gpu: device-error-policy|gpu: world atlas |mode: summary" "$RUN_TRACE" 2>/dev/null
+  } > "$OUT/mutated-atlas_ceiling.txt"
+  cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
+  bash build-target.sh tf2_demo_native > "$OUT/restore-atlas_ceiling.build" 2>&1 \
+    || { echo "  RESTORE-BUILD=FAIL (atlas_ceiling)"; echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1; }
+  if ! cmp -s native/src/native_renderer_world.cpp "$MUT_BACKUP"; then
+    echo "  RESTORE=FAIL (atlas_ceiling: source did not come back byte-identical)"
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
   echo "  RESTORE=PASS (source byte-identical, exe sha256=$(sha256sum native/build-nmake/tf2_demo_native.exe | cut -d' ' -f1))"
   rm -f "$MUT_BACKUP"
   if [ -e "$MUT_BACKUP" ]; then
-    echo "  RESTORE=FAIL (fix_deleted: backup could not be removed: $MUT_BACKUP)"
+    echo "  RESTORE=FAIL (atlas_ceiling: backup could not be removed: $MUT_BACKUP)"
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
 
@@ -417,8 +497,8 @@ if [ "$MODE" = "mutation" ]; then
     echo "  -- a caught mutation over a red gate is not a pass"
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
-  echo "MUTATION-CAUGHT=PASS (the deleted fix and the swapped sky suffixes each go"
-  echo "  red; both sources came back byte-identical)"
+  echo "MUTATION-CAUGHT=PASS (the restored atlas ceiling and the swapped sky suffixes"
+  echo "  each go red; both sources came back byte-identical)"
   exit 0
 fi
 
