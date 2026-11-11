@@ -364,69 +364,131 @@ if [ "$MODE" = "mutation" ]; then
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
 
-  # ---- Product mutation 1: the pre-7954527 atlas ceiling restored ----------
-  # D-97 rebased this mutation. It used to delete `renderer.clearLastError();`,
-  # which was the whole of the T8 fix. That mutation can no longer be caught: the
-  # load no longer records an error to leave stale (see the forward comment), so
-  # deleting the clear would give rc=0 and an empty channel -- the mutation would
-  # report "the gate would stay green" for a reason that says nothing about the
-  # gate. What still answers the gate's question is the CAUSE: put the atlas
-  # budget back to the 64 MiB ceiling the pre-7954527 build held it to
-  # (native/src/native_renderer_world.cpp:480-481), rebuild, and the same map must
-  # fail the same way again -- exit 3, the water stage line recording E_FAIL, the
-  # policy line naming it, and the atlas reading no longer `bound`. If the
-  # mutation does not reproduce, the forward assertions are not reading the cause
-  # they claim to.
+  # ---- Product mutation 1: both halves of the T8 fix taken back ------------
+  # D-98 rebased this a second time. D-97 put the 64 MiB atlas ceiling back and
+  # expected the old ending (exit 3). Measured 2026-11-11 on this tree: the
+  # ceiling alone no longer ends the program -- `clearLastError()`
+  # (native/src/main.cpp:8023) still runs after the load, so the sticky E_FAIL is
+  # dropped, the world falls back to one material texture and the run exits 0
+  # (measured trace: `reload-stage stage=water lastError=0x80004005`,
+  # `post-reload lastError=0x80004005`, `gpu: world atlas size=0 ... state=the
+  # atlas overload was not used; the world was drawn with one material texture`,
+  # `mode: summary ... drawn=1 ... exit=0`). The historical defect needs BOTH
+  # halves back: the cause (the ceiling) and the arm that used to catch it (no
+  # clear). So this mutation reverts the two halves of the T8 fix together and
+  # asks for the original ending: exit 3, the water stage recording E_FAIL, and
+  # the policy line naming that same value. The atlas line is read too: it must
+  # stop saying `bound`, otherwise the cause was not actually restored.
   MUT_BACKUP="$OUT/native_renderer_world.cpp.atlas_ceiling.backup"
+  MUT_CLEAR_BACKUP="$OUT/main.cpp.clear_last_error.backup"
   cp native/src/native_renderer_world.cpp "$MUT_BACKUP"
+  cp native/src/main.cpp "$MUT_CLEAR_BACKUP"
   sed -i 's|const std::uint64_t atlasBudget = std::max<std::uint64_t>(64ull \* 1024ull \* 1024ull,|const std::uint64_t atlasBudget = (64ull * 1024ull * 1024ull) + 0 * std::max<std::uint64_t>(0ull,|' \
     native/src/native_renderer_world.cpp
-  if cmp -s native/src/native_renderer_world.cpp "$MUT_BACKUP"; then
-    echo "  MUTATION-SETUP=FAIL (atlas_ceiling: the sed changed nothing)"
+  sed -i 's|^\( *\)renderer\.clearLastError();|\1// MUTATION (D-98): the clear taken back|' native/src/main.cpp
+  if cmp -s native/src/native_renderer_world.cpp "$MUT_BACKUP" \
+     || cmp -s native/src/main.cpp "$MUT_CLEAR_BACKUP"; then
+    echo "  MUTATION-SETUP=FAIL (fix_taken_back: a sed changed nothing)"
     cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
+    cp "$MUT_CLEAR_BACKUP" native/src/main.cpp
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
-  echo "  mutated source sha256=$(sha256sum native/src/native_renderer_world.cpp | cut -d' ' -f1)"
-  if ! bash build-target.sh tf2_demo_native > "$OUT/mutated-atlas_ceiling.build" 2>&1; then
-    echo "  MUTATION-SETUP=FAIL (atlas_ceiling: the rebuild failed)"
+  echo "  mutated sources sha256=$(sha256sum native/src/native_renderer_world.cpp native/src/main.cpp | cut -d' ' -f1 | tr '\n' ' ')"
+  if ! bash build-target.sh tf2_demo_native > "$OUT/mutated-fix_taken_back.build" 2>&1; then
+    echo "  MUTATION-SETUP=FAIL (fix_taken_back: the rebuild failed)"
     cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
-    bash build-target.sh tf2_demo_native > "$OUT/restore-atlas_ceiling.build" 2>&1
+    cp "$MUT_CLEAR_BACKUP" native/src/main.cpp
+    bash build-target.sh tf2_demo_native > "$OUT/restore-fix_taken_back.build" 2>&1
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
   echo "  mutated exe sha256=$(sha256sum native/build-nmake/tf2_demo_native.exe | cut -d' ' -f1)"
-  run mutated-atlas_ceiling "$SUNSHINE"
+  run mutated-fix_taken_back "$SUNSHINE"
   MUT_RC=$RUN_RC
   echo "  mutated exit_code=$MUT_RC"
   MUT_STAGE=$(grep -c "gpu: reload-stage stage=water lastError=0x80004005" "$RUN_TRACE" 2>/dev/null)
-  if [ "$MUT_RC" = "3" ] \
-     && [ "${MUT_STAGE:-0}" -ge 1 ] \
-     && grep -q "gpu: device-error-policy hresult=0x80004005" "$RUN_TRACE" 2>/dev/null; then
-    echo "  MUTATION-CAUGHT=PASS (atlas_ceiling: exit 3 again, the water stage line"
-    echo "    records 0x80004005, and the policy line names the same failure)"
+  MUT_POLICY=$(grep -c "gpu: device-error-policy hresult=0x80004005" "$RUN_TRACE" 2>/dev/null)
+  MUT_ATLAS_STATE=$(grep "gpu: world atlas size=" "$RUN_TRACE" 2>/dev/null | tail -1 | grep -o "state=.*" | cut -d= -f2-)
+  echo "  mutated atlas state=${MUT_ATLAS_STATE:-<none>} (the restored cause must show here too)"
+  if [ "$MUT_RC" = "3" ] && [ "${MUT_STAGE:-0}" -ge 1 ] && [ "${MUT_POLICY:-0}" -ge 1 ] \
+     && [ "${MUT_ATLAS_STATE:-bound}" != "bound" ]; then
+    echo "  MUTATION-CAUGHT=PASS (fix_taken_back: exit 3 again, the water stage line"
+    echo "    records 0x80004005, the policy line names it, and the atlas line no"
+    echo "    longer says bound -- the forward block reads the cause it claims to)"
   else
-    echo "  MUTATION-CAUGHT=FAIL (atlas_ceiling: rc=$MUT_RC, water-stage E_FAIL lines="
-    echo "    ${MUT_STAGE:-0}; the gate would have stayed green)"
+    echo "  MUTATION-CAUGHT=FAIL (fix_taken_back: rc=$MUT_RC, water-stage E_FAIL lines="
+    echo "    ${MUT_STAGE:-0}, policy lines=${MUT_POLICY:-0}, atlas state=${MUT_ATLAS_STATE:-<none>};"
+    echo "    the gate would have stayed green)"
     cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
-    bash build-target.sh tf2_demo_native > "$OUT/restore-atlas_ceiling.build" 2>&1
+    cp "$MUT_CLEAR_BACKUP" native/src/main.cpp
+    bash build-target.sh tf2_demo_native > "$OUT/restore-fix_taken_back.build" 2>&1
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
   { echo "exit_code=$MUT_RC"
     grep -E "gpu: reload-stage|gpu: post-reload|gpu: device-error-policy|gpu: world atlas |mode: summary" "$RUN_TRACE" 2>/dev/null
-  } > "$OUT/mutated-atlas_ceiling.txt"
+  } > "$OUT/mutated-fix_taken_back.txt"
   cp "$MUT_BACKUP" native/src/native_renderer_world.cpp
-  bash build-target.sh tf2_demo_native > "$OUT/restore-atlas_ceiling.build" 2>&1 \
-    || { echo "  RESTORE-BUILD=FAIL (atlas_ceiling)"; echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1; }
-  if ! cmp -s native/src/native_renderer_world.cpp "$MUT_BACKUP"; then
-    echo "  RESTORE=FAIL (atlas_ceiling: source did not come back byte-identical)"
+  cp "$MUT_CLEAR_BACKUP" native/src/main.cpp
+  bash build-target.sh tf2_demo_native > "$OUT/restore-fix_taken_back.build" 2>&1 \
+    || { echo "  RESTORE-BUILD=FAIL (fix_taken_back)"; echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1; }
+  if ! cmp -s native/src/native_renderer_world.cpp "$MUT_BACKUP" \
+     || ! cmp -s native/src/main.cpp "$MUT_CLEAR_BACKUP"; then
+    echo "  RESTORE=FAIL (fix_taken_back: a source did not come back byte-identical)"
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
-  echo "  RESTORE=PASS (source byte-identical, exe sha256=$(sha256sum native/build-nmake/tf2_demo_native.exe | cut -d' ' -f1))"
-  rm -f "$MUT_BACKUP"
-  if [ -e "$MUT_BACKUP" ]; then
-    echo "  RESTORE=FAIL (atlas_ceiling: backup could not be removed: $MUT_BACKUP)"
+  echo "  RESTORE=PASS (both sources byte-identical, exe sha256=$(sha256sum native/build-nmake/tf2_demo_native.exe | cut -d' ' -f1))"
+  rm -f "$MUT_BACKUP" "$MUT_CLEAR_BACKUP"
+  if [ -e "$MUT_BACKUP" ] || [ -e "$MUT_CLEAR_BACKUP" ]; then
+    echo "  RESTORE=FAIL (fix_taken_back: a backup could not be removed)"
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
 
+  # ---- Source mutation 3: one create site stops recording its failure ------
+  # The forward block's static guard is new with D-97, so it needs teeth on
+  # this tree and not only in the offline fixtures. Take one
+  # `lastError_ = E_FAIL;` away from a world-uploader create site and run the
+  # SAME awk guard over the mutated source: it must count one unrecorded site
+  # and name its line. No rebuild -- the guard reads the source, and a rebuild
+  # would only prove the compiler still works.
+  GUARD_BACKUP="$OUT/native_renderer_world.cpp.guard.backup"
+  cp native/src/native_renderer_world.cpp "$GUARD_BACKUP"
+  awk '{ if (!done && $0 ~ /^[[:space:]]*lastError_ = E_FAIL;$/) { print "// MUTATION (D-98): this site records nothing"; done = 1; next } print }' \
+    "$GUARD_BACKUP" > "$OUT/mutated_guard.cpp"
+  cp "$OUT/mutated_guard.cpp" native/src/native_renderer_world.cpp
+  if cmp -s native/src/native_renderer_world.cpp "$GUARD_BACKUP"; then
+    echo "  MUTATION-SETUP=FAIL (guard_bites: no lastError_ line matched)"
+    cp "$GUARD_BACKUP" native/src/native_renderer_world.cpp
+    echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
+  fi
+  GUARD_MUT=$(awk '
+    { buf[NR] = $0 }
+    END {
+      bad = 0
+      for (n = 1; n <= NR; n++) {
+        if (buf[n] !~ /if \(![A-Za-z_]+\.create\(/ && buf[n] !~ /if \(FAILED\(device_->Create/) continue
+        ok = 0
+        for (i = n; i <= n + 8; i++) {
+          if (buf[i] ~ /lastError_ = / || buf[i] ~ /world[A-Za-z]*Reason_ = /) { ok = 1; break }
+        }
+        if (!ok) { bad++; printf "  unrecorded create site at line %d: %s\n", n, buf[n] > "/dev/stderr" }
+      }
+      print bad
+    }' native/src/native_renderer_world.cpp)
+  if [ "${GUARD_MUT:-0}" -ge 1 ]; then
+    echo "  MUTATION-CAUGHT=PASS (guard_bites: the guard counts $GUARD_MUT unrecorded"
+    echo "    site(s) and names the line, so forward check 8 is not a constant)"
+  else
+    echo "  MUTATION-CAUGHT=FAIL (guard_bites: the guard still reported 0 with a"
+    echo "    recording line deleted)"
+    cp "$GUARD_BACKUP" native/src/native_renderer_world.cpp
+    echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
+  fi
+  cp "$GUARD_BACKUP" native/src/native_renderer_world.cpp
+  if ! cmp -s native/src/native_renderer_world.cpp "$GUARD_BACKUP"; then
+    echo "  RESTORE=FAIL (guard_bites: source not byte-identical)"
+    echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
+  fi
+  rm -f "$GUARD_BACKUP"
+  echo "  RESTORE=PASS (guard_bites: source byte-identical, no rebuild was needed)"
   # ---- Product mutation 2: the sky suffix table swapped -------------------
   # `up` and `dn` trade places in BspParser::skyMaterialPath's suffix table.
   # This is the defect the extra scope exists to catch, and it is invisible to
@@ -497,9 +559,9 @@ if [ "$MODE" = "mutation" ]; then
     echo "  -- a caught mutation over a red gate is not a pass"
     echo "WORLD-RENDER-RELIABILITY-MUTATION=FAIL"; exit 1
   fi
-  echo "MUTATION-CAUGHT=PASS (the restored atlas ceiling and the swapped sky suffixes"
-  echo "  each go red; both sources came back byte-identical)"
-  exit 0
+  echo "MUTATION-CAUGHT=PASS (both halves of the T8 fix, one create site's"
+  echo "  recording and the swapped sky suffixes each go red; every source"
+  echo "  came back byte-identical)"
 fi
 
 echo "checks=$checks fail=$fails"
