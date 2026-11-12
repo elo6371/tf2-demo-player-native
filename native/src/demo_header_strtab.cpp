@@ -22,6 +22,12 @@ namespace tf2::native {
 
 namespace {
 
+// Bounds for the instancebaseline table. The entry cap alone already bounds
+// retained bytes because each entry length is a uint16: 1024 * 65535 =
+// 67,107,840 bytes, below 64 MiB. The byte cap is an independent second bound.
+constexpr std::size_t kMaxInstanceBaselineEntries = 1024u;
+constexpr std::size_t kMaxInstanceBaselineRetainedBytes = 64u * 1024u * 1024u;
+
 // One network string-table entry as the wire encodes it. Text and user data are
 // two independent halves, and every table this decoder reads (soundprecache,
 // modelprecache, instancebaseline, userinfo) uses the identical encoding -- they
@@ -451,7 +457,7 @@ StringTablePayloadInfo decodeStringTablePayload(const std::vector<std::uint8_t>&
   return info;
 }
 
-void recordInstanceBaselineEntry(const std::string& text, std::vector<std::uint8_t> raw,
+bool recordInstanceBaselineEntry(const std::string& text, std::vector<std::uint8_t> raw,
     DemoNetworkSummary& summary) {
   std::uint32_t classId = 0;
   bool validClassId = !text.empty();
@@ -468,11 +474,23 @@ void recordInstanceBaselineEntry(const std::string& text, std::vector<std::uint8
   }
   if (!validClassId) {
     ++summary.instanceBaselineClassParseFailures;
-    return;
+    return true;
   }
   ++summary.instanceBaselineClassTextCount;
-  summary.instanceBaselines[static_cast<std::uint16_t>(classId)] = std::move(raw);
+  const auto key = static_cast<std::uint16_t>(classId);
+  std::size_t retained = 0;
+  for (const auto& entry : summary.instanceBaselines) retained += entry.second.size();
+  const auto existing = summary.instanceBaselines.find(key);
+  const std::size_t previous = existing == summary.instanceBaselines.end() ? 0 : existing->second.size();
+  const std::size_t projected = retained - previous + raw.size();
+  if (existing == summary.instanceBaselines.end() &&
+      summary.instanceBaselines.size() >= kMaxInstanceBaselineEntries) {
+    return false;
+  }
+  if (projected > kMaxInstanceBaselineRetainedBytes) return false;
+  summary.instanceBaselines[key] = std::move(raw);
   ++summary.instanceBaselineEntryCount;
+  return true;
 }
 
 // instancebaseline: the entry text is the server class id and the user data is
@@ -484,8 +502,7 @@ struct InstanceBaselineSink {
   bool operator()(const StringTableEntryView& view) const {
     if (!view.hasUserData) return true;
     // instancebaseline's text is the server class id; its entry index is not.
-    recordInstanceBaselineEntry(*view.text, *view.userData, summary);
-    return true;
+    return recordInstanceBaselineEntry(*view.text, *view.userData, summary);
   }
 };
 } // namespace
@@ -495,11 +512,18 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload,
   MessageBits bits(payload);
   std::uint32_t tableCount = 0;
   if (!bits.read(8, tableCount) || tableCount > 64u) return false;
+  std::uint32_t baselineEntriesInPacket = 0;
   for (std::uint32_t table = 0; table < tableCount; ++table) {
     std::string name;
     std::uint32_t entryCount = 0;
     if (!bits.readString(name) || !bits.read(16, entryCount)) return false;
     const bool isInstanceBaseline = name == "instancebaseline";
+    if (isInstanceBaseline &&
+        (entryCount > kMaxInstanceBaselineEntries ||
+         baselineEntriesInPacket > kMaxInstanceBaselineEntries - entryCount)) {
+      return false;
+    }
+    if (isInstanceBaseline) baselineEntriesInPacket += entryCount;
     const bool isUserInfo = name == "userinfo";
     for (std::uint32_t entry = 0; entry < entryCount; ++entry) {
       std::string text;
@@ -528,7 +552,9 @@ bool readDemoStringTablesPayload(const std::vector<std::uint8_t>& payload,
         recordUserInfoEntry(summary, packetTick, entry, text, raw,
                             static_cast<std::uint32_t>(raw.size() * 8u));
       }
-      if (isInstanceBaseline && hasUserData) recordInstanceBaselineEntry(text, std::move(raw), summary);
+      if (isInstanceBaseline && hasUserData) {
+        if (!recordInstanceBaselineEntry(text, std::move(raw), summary)) return false;
+      }
     }
     std::uint32_t hasClientEntries = 0;
     if (!bits.read(1, hasClientEntries)) return false;
@@ -579,6 +605,7 @@ bool readCreateStringTable(MessageBits& bits, DemoNetworkSummary& summary,
   if (!bits.readString(name) || !bits.read(16, maxEntries)) return false;
   const std::uint32_t entryIndexBits = indexBitsForMaxEntries(maxEntries);
   if (!bits.read(entryIndexBits + 1u, entryCount)) return false;
+  if (name == "instancebaseline" && entryCount > kMaxInstanceBaselineEntries) return false;
   if ((summary.networkProtocol > 23 && !bits.readVarInt(payloadBits)) ||
       (summary.networkProtocol <= 23 && !bits.read(20, payloadBits))) return false;
   if (!bits.read(1, fixedUserData)) return false;
