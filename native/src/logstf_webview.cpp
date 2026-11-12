@@ -18,6 +18,15 @@
 // the CMake target), not a download at build time.
 #include <WebView2.h>
 
+// Older SDK headers predate the LoadLibraryEx search flags; the values are
+// stable in the Windows loader and are defined here only if the SDK omits them.
+#ifndef LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR
+#define LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR 0x00000100
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+
 // WHY THIS FILE EXISTS
 //   logstf_viewer.cpp owns everything about the panel that can be decided
 //   without a browser. This is the one part that cannot: the WebView2 backend.
@@ -26,9 +35,11 @@
 //   wiring is untested by the probe (a gate exercises it through the product).
 //
 // TWO DELIBERATE CHOICES
-//   1. WebView2Loader.dll is loaded by name at run time, not linked. Linked, a
-//      machine without the loader would fail to START the product; loaded, a
-//      missing loader is one more entry in the runtime probe's answer and the
+//   1. WebView2Loader.dll is loaded from the executable's own directory at run
+//      time, not linked and not by bare name. Linked, a machine without the
+//      loader would fail to START the product; a bare name would also accept a
+//      DLL planted in the working directory. Loaded from beside the executable,
+//      a missing loader is one more entry in the runtime probe's answer and the
 //      rest of the player still works. The Evergreen RUNTIME is already on this
 //      machine (see logstf: runtime in the trace); only the 159 KB loader is
 //      ours to ship, so no browser payload is packaged.
@@ -68,6 +79,41 @@ std::string hresultText(HRESULT hr) {
   char buffer[64];
   std::snprintf(buffer, sizeof(buffer), "0x%08lX", static_cast<unsigned long>(hr));
   return buffer;
+}
+
+// Where the executable lives, not where it was started from. GetModuleFileNameW
+// can truncate, so grow the buffer until the returned length fits; an empty
+// path means the API failed and the caller must not silently fall back to a
+// bare-name load.
+std::filesystem::path executableDirectory() {
+  std::wstring buffer(MAX_PATH, L'\0');
+  for (;;) {
+    const DWORD length = GetModuleFileNameW(
+        nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length == 0) return {};
+    if (length < buffer.size()) {
+      buffer.resize(length);
+      return std::filesystem::path(buffer).parent_path();
+    }
+    buffer.resize(buffer.size() * 2);
+  }
+}
+
+std::filesystem::path webView2LoaderPath() {
+  const std::filesystem::path directory = executableDirectory();
+  if (directory.empty()) return {};
+  return directory / L"WebView2Loader.dll";
+}
+
+// LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR makes dependencies resolve next to the DLL;
+// SYSTEM32 stays available for the OS DLLs the loader itself needs. There is no
+// bare-name fallback: if the file beside the executable is absent or unusable,
+// the panel reports loader=missing rather than accepting a working-directory
+// copy.
+HMODULE loadWebView2Loader(const std::filesystem::path& path) {
+  if (path.empty()) return nullptr;
+  return LoadLibraryExW(path.c_str(), nullptr,
+      LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 }
 
 } // namespace
@@ -415,11 +461,13 @@ public:
   // viewer calls" is a different question from "the runtime registry entry
   // exists", and the panel's explanation has to name whichever failed.
   static std::string loaderStatus() {
-    HMODULE module = LoadLibraryW(L"WebView2Loader.dll");
+    const std::filesystem::path loaderPath = webView2LoaderPath();
+    if (loaderPath.empty()) {
+      return "loader=missing (executable path unavailable)";
+    }
+    HMODULE module = loadWebView2Loader(loaderPath);
     if (module == nullptr) {
-      std::error_code error;
-      const std::filesystem::path beside = std::filesystem::current_path(error) / L"WebView2Loader.dll";
-      return "loader=missing (" + narrow(beside.c_str()) + " not loadable)";
+      return "loader=missing (" + narrow(loaderPath.c_str()) + " not loadable)";
     }
     const auto create = reinterpret_cast<CreateEnvironmentFn>(
         GetProcAddress(module, "CreateCoreWebView2EnvironmentWithOptions"));
@@ -440,7 +488,7 @@ public:
 private:
   void loadLibrary() {
     if (createEnvironment_ != nullptr) return;
-    module_ = LoadLibraryW(L"WebView2Loader.dll");
+    module_ = loadWebView2Loader(webView2LoaderPath());
     if (module_ == nullptr) return;
     createEnvironment_ = reinterpret_cast<CreateEnvironmentFn>(
         GetProcAddress(module_, "CreateCoreWebView2EnvironmentWithOptions"));
