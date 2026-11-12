@@ -44,7 +44,11 @@
 #   --fixtures DIR   fixture directory (default testdata/fixtures/instancebaseline-budget)
 #   --bagel PATH     bagel rc13 demo used by the no-regression row
 #   --out DIR        scratch directory (default .scratch/instancebaseline-budget)
-#   --keep           keep the scratch tree on success
+#   --keep           accepted for compatibility; the scratch tree is always retained
+#
+# Env:
+#   INSTANCEBASELINE_SKIP_ONE=1  selftest only: skip the last assertion; the
+#                                gate must then FAIL because 19 < 20.
 #
 # Exit: 0 = 20/20 assertions held; 1 = an assertion failed; 9 = lock not held.
 
@@ -93,6 +97,7 @@ mkdir -p "$OUT"
 
 ASSERTIONS=0
 FAILED=0
+EXPECTED_ASSERTIONS=20
 pass() { ASSERTIONS=$((ASSERTIONS + 1)); printf 'OK %s\n' "$*"; }
 fail() { ASSERTIONS=$((ASSERTIONS + 1)); FAILED=$((FAILED + 1)); printf 'FAIL %s\n' "$*"; }
 assert_eq() {
@@ -125,15 +130,23 @@ run_case() {
 }
 finish() {
   echo
-  if [ "$FAILED" -eq 0 ]; then
+  if [ "$FAILED" -eq 0 ] && [ "$ASSERTIONS" -ge "$EXPECTED_ASSERTIONS" ]; then
     echo "INSTANCEBASELINE-BUDGET=PASS ($ASSERTIONS assertions)"
-    if [ "$KEEP" -eq 0 ]; then rm -rf "$OUT"; fi
+    echo "out=$OUT (retained after PASS)"
     exit 0
   fi
-  echo "INSTANCEBASELINE-BUDGET=FAIL ($FAILED/$ASSERTIONS failed)"
+  if [ "$FAILED" -ne 0 ]; then
+    echo "INSTANCEBASELINE-BUDGET=FAIL ($FAILED/$ASSERTIONS failed)"
+  else
+    echo "INSTANCEBASELINE-BUDGET=FAIL ($ASSERTIONS assertions, expected at least $EXPECTED_ASSERTIONS; an assertion block was skipped)"
+  fi
   exit 1
 }
 
+echo "head=$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+echo "head_short=$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+echo "tree_dirty=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+echo "expected_assertions=$EXPECTED_ASSERTIONS"
 echo "probe: $PROBE"
 if [ ! -f "$PROBE" ]; then
   echo "INSTANCEBASELINE-BUDGET=FAIL probe=missing path=$PROBE"
@@ -148,6 +161,10 @@ echo
 CAP="$FIXTURES/cap-1024.dem"
 OVER="$FIXTURES/over-1025.dem"
 GLOBAL="$FIXTURES/over-global-2048.dem"
+echo "fixture_sha256.cap-1024=$(file_sha "$CAP")"
+echo "fixture_sha256.over-1025=$(file_sha "$OVER")"
+echo "fixture_sha256.over-global-2048=$(file_sha "$GLOBAL")"
+echo "bagel_sha256=$(file_sha "$BAGEL")"
 
 # 1-3: the fixtures themselves.
 assert_eq "fixture.cap-1024.sha256" "$(file_sha "$CAP")" "5174bd8c71fcda009de249e7fb008b78e212a52e48ca16b3894d0e6dca377acc"
@@ -188,6 +205,10 @@ assert_eq "bagel.rc" "$(cat "$OUT/bagel.rc")" "0"
 assert_eq "bagel.malformed" "$(field malformed_packets "$OUT/bagel.txt")" "0"
 assert_eq "bagel.instance_baselines" "$(field instance_baselines "$OUT/bagel.txt")" "126"
 assert_eq "bagel.baseline_misses" "$(field baseline_misses "$OUT/bagel.txt")" "16"
-assert_eq "bagel.baseline_applied" "$(field baseline_applied "$OUT/bagel.txt")" "10035"
+if [ "${INSTANCEBASELINE_SKIP_ONE:-0}" = "1" ]; then
+  echo "  selftest: INSTANCEBASELINE_SKIP_ONE=1 -> last assertion deliberately skipped (the floor must FAIL)"
+else
+  assert_eq "bagel.baseline_applied" "$(field baseline_applied "$OUT/bagel.txt")" "10035"
+fi
 
 finish
