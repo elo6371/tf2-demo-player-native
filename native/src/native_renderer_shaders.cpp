@@ -54,7 +54,13 @@ cbuffer WorldConstants : register(b0) {
   float4 fogColor;
   float4 fogScale;
 };
+cbuffer ModelMaterialProxy : register(b1) {
+  float4 texture2Scroll;
+  float4 materialProxyColor;
+  float4 materialProxyFlags;
+};
 Texture2D texture0 : register(t0);
+Texture2D modelSecondTexture : register(t11);
 Texture2D bumpTexture : register(t1);
 Texture2D envTexture : register(t2);
 Texture2D lightmapTexture : register(t3);
@@ -235,6 +241,28 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // in the pixels rather than in a second texcoord. A material with no detail
   // tile has bit 2 clear and never samples here.
   uint featureMask = (uint)feature.x;
+  // Map-only unlit/model blend modes. World and player feature masks never set
+  // these bits. UnlitTwoTexture multiplies both textures and adds with ONE/ONE;
+  // Modulate interpolates from neutral grey through the texture's alpha before
+  // the output merger multiplies it into the framebuffer (twice for $mod2x).
+  if ((featureMask & 512u) != 0u) {
+    float3 unlitColour = sampled * colour.rgb;
+    float unlitAlpha = sampledTexel.a;
+    if ((featureMask & 128u) != 0u) {
+      float2 secondUv = uv + texture2Scroll.xy * materialProxyFlags.x;
+      float4 secondTexel = modelSecondTexture.Sample(sampler0, secondUv);
+      unlitColour *= secondTexel.rgb * lerp(float3(1.0, 1.0, 1.0),
+        materialProxyColor.rgb, materialProxyFlags.y);
+      unlitAlpha *= secondTexel.a;
+    }
+    if ((featureMask & 16u) != 0u && sampledTexel.a < 0.5) discard;
+    const bool alphaBlend = (featureMask & (8u | 64u)) != 0u;
+    return float4(unlitColour, alphaBlend ? unlitAlpha : 1.0);
+  }
+  if ((featureMask & 1024u) != 0u) {
+    return float4(lerp(float3(0.5, 0.5, 0.5), saturate(sampled * colour.rgb),
+      saturate(sampledTexel.a * colour.a)), 1.0);
+  }
   if ((featureMask & 4u) != 0u) {
     float4 detailColor = detailAtlas.Sample(sampler0, uv);
     albedo = combineDetail(albedo, detailColor, (uint)feature.y, feature.z);
@@ -675,7 +703,7 @@ Output main(Input input) {
   // for what leaving these unwritten did to the frame.
   output.blend = -1.0;
   output.blendModulate = 0.0;
-  output.feature = float4(0.0, 0.0, 0.0, 0.0);
+  output.feature = float4((float)input.boneInfo.w, 0.0, 0.0, 0.0);
   output.tangent = float4(1.0, 0.0, 0.0, 0.0);
   return output;
 }

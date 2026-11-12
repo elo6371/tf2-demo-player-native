@@ -94,6 +94,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // already beside that number and did not hold; this assertion does.
   static_assert(sizeof(WorldConstantsData) == 192,
     "WorldConstantsData must be exactly the world constant buffer's ByteWidth");
+  struct ModelMaterialProxyConstantsData {
+    DirectX::XMFLOAT4 texture2Scroll;
+    DirectX::XMFLOAT4 color;
+    DirectX::XMFLOAT4 flags;
+  };
+  static_assert(sizeof(ModelMaterialProxyConstantsData) == 48,
+    "ModelMaterialProxy constants must match their D3D11 buffer");
   WorldConstantsData frameConstants{};
   bool frameConstantsValid = false;
   if (worldConstants_) {
@@ -631,7 +638,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // T12: entity instances are content, not background; a diagnostic frame has
   // none of them, or the mask would include whatever model happened to be near
   // the camera.
-  if (!worldDiagnosticIsolation_ && !entityModelDrawRanges_.empty() && entityModelInstanceBuffer_ && entityModelInstanceCount_ > 0
+  if (!worldDiagnosticIsolation_ && !entityModelDrawRanges_.empty() && entityModelInstanceBuffer_
+      && (entityModelInstanceCount_ + mapStaticPropInstanceCount_) > 0
       && entityModelVertexShader_ && entityModelInputLayout_ && worldPixelShader_ && worldConstants_) {
     const UINT strides[2] = { sizeof(EntityModelGpuVertex), sizeof(EntityModelInstanceGpu) };
     const UINT offsets[2] = { 0, 0 };
@@ -701,14 +709,37 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       }
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &entityConstants, 0, 0);
     }
+    for (int blended = 0; blended < 2; ++blended) {
     for (const auto& range : entityModelDrawRanges_) {
+      if (range.translucent != (blended != 0)) continue;
       if (!range.vertexBuffer || range.vertexCount < 3 || range.instanceCount == 0) continue;
       // Entity meshes have their own material domain. Binding the world atlas
       // when that material is missing paints characters with unrelated map
       // tiles and makes a resource failure look like a valid draw.
       if (!range.textureView) continue;
+      context_->RSSetState(range.noCull ? worldNoCullRasterizerState_.Get() : rasterizerState_.Get());
+      ID3D11BlendState* materialBlend = range.translucent ? worldAlphaBlendState_.Get() : nullptr;
+      if ((range.materialFlags & 64u) != 0u) materialBlend = mapAdditiveBlendState_.Get();
+      if ((range.materialFlags & 1024u) != 0u) materialBlend = (range.materialFlags & 2048u) != 0u
+        ? mapModulate2xBlendState_.Get() : mapModulateBlendState_.Get();
+      context_->OMSetBlendState(materialBlend, nullptr, 0xffffffffu);
+      context_->OMSetDepthStencilState(range.translucent ? worldBlendedDepthStencilState_.Get() : depthStencilState_.Get(), 0);
       auto* rangeView = range.textureView;
       context_->PSSetShaderResources(0, 1, &rangeView);
+      auto* secondView = range.secondTextureView;
+      context_->PSSetShaderResources(11, 1, &secondView);
+      ModelMaterialProxyConstantsData proxyConstants{};
+      proxyConstants.texture2Scroll = DirectX::XMFLOAT4(range.proxyScrollU,
+        range.proxyScrollV, 0.0f, 0.0f);
+      proxyConstants.color = DirectX::XMFLOAT4(range.proxyColor,
+        range.proxyColor, range.proxyColor, 1.0f);
+      proxyConstants.flags = DirectX::XMFLOAT4(
+        range.proxy.textureScroll ? 1.0f : 0.0f,
+        range.proxy.sineColor ? 1.0f : 0.0f, 0.0f, 0.0f);
+      context_->UpdateSubresource(worldMaterialProxyConstants_.Get(), 0, nullptr,
+        &proxyConstants, 0, 0);
+      auto* proxyBuffer = worldMaterialProxyConstants_.Get();
+      context_->PSSetConstantBuffers(1, 1, &proxyBuffer);
       ID3D11Buffer* buffers[2] = { range.vertexBuffer, instanceBuffer };
       // The run is a window into the model's one vertex buffer: offset the bind
       // instead of uploading a buffer per material.
@@ -717,6 +748,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       context_->IASetVertexBuffers(0, 2, buffers, strides, rangeOffsets);
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
     }
+    }
+    context_->RSSetState(rasterizerState_.Get());
+    context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+    context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
     if (entityConstantsDiffer) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }

@@ -189,7 +189,7 @@ std::string Renderer::evictableEntityModelMeshKey() const {
   std::uint64_t bestTouch = 0;
   for (const auto& entry : entityModelMeshes_) {
     const auto& mesh = entry.second;
-    if (mesh.pinned) continue;
+    if (mesh.pinned || mesh.mapStaticProp) continue;
     const int rank = static_cast<int>(mesh.priority);
     if (rank < static_cast<int>(EntityMeshPriority::WorldProp)) continue;
     // entityModelMeshFrame_ == 0 means no instance update has run yet (the
@@ -205,7 +205,7 @@ std::string Renderer::evictableEntityModelMeshKey() const {
 }
 
 bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
-    const std::vector<ModelMeshMaterialRun>& runs, EntityMeshPriority priority) {
+    const std::vector<ModelMeshMaterialRun>& runs, EntityMeshPriority priority, bool mapStaticProp) {
   if (!device_ || cacheKey.empty() || vertices.size() < 3) { lastError_ = E_INVALIDARG; return false; }
   // T85 P0: THE TABLE IS A BUDGETED CACHE, NOT A WALL.
   //
@@ -225,6 +225,14 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   // outcomes are published in "budget: meshTable" (main.cpp).
   const auto existing = entityModelMeshes_.find(cacheKey);
   const bool wasResident = existing != entityModelMeshes_.end();
+  if (wasResident && existing->second.mapStaticProp != mapStaticProp) {
+    lastError_ = E_INVALIDARG;
+    return false;
+  }
+  if (!wasResident && mapStaticProp && mapStaticPropMeshCount() >= mapStaticPropMeshCapacityLimit) {
+    lastError_ = E_OUTOFMEMORY;
+    return false;
+  }
   // T57 measured this line cutting every one of the nine player models at 12000
   // vertices (603..20724 LOD0 indices lost per class). The cap was a budget for
   // some model that was never named, applied to a list whose length the model
@@ -319,7 +327,7 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
     if (static_cast<int>(existing->second.priority) < static_cast<int>(priority)) {
       residentPriority = existing->second.priority;
     }
-  } else if (entityModelMeshes_.size() >= kEntityModelMeshCapacity) {
+  } else if (!mapStaticProp && entityModelMeshCount() >= kEntityModelMeshCapacity) {
     const std::string victimKey = evictableEntityModelMeshKey();
     if (victimKey.empty()) {
       // Every resident is protected (bodies, held weapons, pinned overlay) or was
@@ -350,6 +358,7 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
   resident = std::move(mesh);
   resident.priority = residentPriority;
   resident.pinned = residentPriority == EntityMeshPriority::Overlay;
+  resident.mapStaticProp = mapStaticProp;
   resident.lastTouchedFrame = entityModelMeshFrame_;
   entityModelDrawRanges_.clear();
   entityModelVertexCount_ = 0;
@@ -361,7 +370,9 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
 }
 
 bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, std::uint32_t materialSlot,
-    std::uint32_t skinFamily, const std::vector<std::uint8_t>& rgba, UINT width, UINT height) {
+    std::uint32_t skinFamily, const std::vector<std::uint8_t>& rgba, UINT width, UINT height,
+    std::uint32_t materialFlags, const std::vector<std::uint8_t>& secondRgba,
+    UINT secondWidth, UINT secondHeight, const VmtMaterialProxy& proxy) {
   if (!device_ || cacheKey.empty() || rgba.empty() || width == 0 || height == 0) { lastError_ = E_INVALIDARG; return false; }
   const auto mesh = entityModelMeshes_.find(cacheKey);
   if (mesh == entityModelMeshes_.end()) { lastError_ = E_INVALIDARG; return false; }
@@ -373,8 +384,22 @@ bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, std::uint32
     return false;
   }
   const auto key = EntityModelMesh::textureKey(materialSlot, skinFamily);
+  Texture2D secondTexture;
+  if (!secondRgba.empty()) {
+    if (!secondTexture.create(device_.Get(), secondRgba, secondWidth, secondHeight, &error)) {
+      lastError_ = E_INVALIDARG;
+      return false;
+    }
+    materialFlags |= 128u;
+  } else {
+    materialFlags &= ~128u;
+  }
   const bool existed = mesh->second.textures.find(key) != mesh->second.textures.end();
   mesh->second.textures[key] = std::move(texture);
+  mesh->second.materialFlags[key] = materialFlags;
+  mesh->second.materialProxies[key] = proxy;
+  if (!secondRgba.empty()) mesh->second.secondTextures[key] = std::move(secondTexture);
+  else mesh->second.secondTextures.erase(key);
   if (!existed) ++entityModelTextureCount_;
   return true;
 }
@@ -382,6 +407,8 @@ bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, std::uint32
 void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances) {
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
+  mapStaticPropInstanceCount_ = 0;
+  mapStaticPropInstanceRejected_ = 0;
   entityModelInstanceSlotCount_ = 0;
   entityModelSkinnedInstanceCount_ = 0;
   entityModelTexturedRangeCount_ = 0;
@@ -405,6 +432,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   struct Bucket {
     const EntityModelMesh* mesh = nullptr;
     std::uint32_t skinFamily = 0;
+    std::uint32_t body = 0;
     std::vector<EntityModelInstanceGpu> items;
   };
   std::vector<Bucket> buckets;
@@ -412,6 +440,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   buckets.reserve(8);
   bucketOf.reserve(8);
   std::size_t accepted = 0;
+  std::size_t staticAccepted = 0;
   // T85 P0: one frame counter and four refusal counters. Until this change every
   // rejection in the loop below was a bare `continue`: a key with no mesh, a
   // buffer that could not be drawn, a non-finite matrix and an instance past the
@@ -425,22 +454,28 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   entityModelInstanceRejectedBudget_ = 0;
   for (std::size_t i = 0; i < instances.size(); ++i) {
     const auto& instance = instances[i];
-    if (instance.cacheKey.empty()) { ++entityModelInstanceRejectedBadMesh_; continue; }
+    const auto reject = [&](std::size_t& entityCounter) {
+      if (instance.mapStaticProp) ++mapStaticPropInstanceRejected_;
+      else ++entityCounter;
+    };
+    if (instance.cacheKey.empty()) { reject(entityModelInstanceRejectedBadMesh_); continue; }
     const auto mesh = entityModelMeshes_.find(instance.cacheKey);
     if (mesh == entityModelMeshes_.end()) {
       // Two different facts, counted apart (lead review, point 2): a model the
       // 64-slot prepare budget deferred is a bounded, published decision, while a
       // key the caller believes in with nothing behind it is the m8 defect. One
       // counter for both made the defect indistinguishable from the budget.
-      if (instance.budgetDeferred) { ++entityModelInstanceRejectedDeferredNotResident_; }
-      else { ++entityModelInstanceRejectedMissingMesh_; }
+      if (instance.budgetDeferred) { reject(entityModelInstanceRejectedDeferredNotResident_); }
+      else { reject(entityModelInstanceRejectedMissingMesh_); }
       continue;
     }
-    if (!mesh->second.vertexBuffer || mesh->second.vertexCount < 3
-        || (mesh->second.vertexCount % 3) != 0) { ++entityModelInstanceRejectedBadMesh_; continue; }
+    if (mesh->second.mapStaticProp != instance.mapStaticProp
+        || !mesh->second.vertexBuffer || mesh->second.vertexCount < 3
+        || (mesh->second.vertexCount % 3) != 0) { reject(entityModelInstanceRejectedBadMesh_); continue; }
     EntityModelInstanceRows rows;
-    if (!buildEntityModelInstanceRows(instance.origin, instance.angles, instance.hasAngles, world, rows)) {
-      ++entityModelInstanceRejectedNonFinite_;
+    if (!buildEntityModelInstanceRows(instance.origin, instance.angles, instance.hasAngles,
+          world, rows, instance.sourceModelSpace)) {
+      reject(entityModelInstanceRejectedNonFinite_);
       continue;
     }
     // An instance placed by a local matrix rides on another model's bone: the
@@ -458,7 +493,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       // One non-finite row would poison every vertex of the instance, and a
       // silently vanished weapon is the failure mode this whole path exists to
       // remove; refuse the instance instead and let the caller count it.
-      if (!finite) { ++entityModelInstanceRejectedNonFinite_; continue; }
+      if (!finite) { reject(entityModelInstanceRejectedNonFinite_); continue; }
       EntityModelInstanceRows composed;
       for (int row = 0; row < 3; ++row) {
         for (int column = 0; column < 3; ++column) {
@@ -478,16 +513,23 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     // The draw capacity is layer D's twin in this file: at most maxInstances
     // entity instances reach one update. Past it the instance is REFUSED and
     // counted; it is not silently skipped.
-    if (accepted >= maxInstances) { ++entityModelInstanceRejectedBudget_; continue; }
+    if ((instance.mapStaticProp && staticAccepted >= mapStaticPropInstanceCapacityLimit)
+        || (!instance.mapStaticProp && accepted - staticAccepted >= maxInstances)) {
+      reject(entityModelInstanceRejectedBudget_);
+      continue;
+    }
     // A mesh this update actually asked for is not evictable this frame. The
     // eviction policy reads this stamp (evictForEntityModelMesh).
     mesh->second.lastTouchedFrame = entityModelMeshFrame_;
-    const std::string bucketKey = instance.cacheKey + "#" + std::to_string(instance.skinFamily);
+    const std::uint32_t selectedBody = instance.mapStaticProp ? instance.body : 0;
+    const std::string bucketKey = instance.cacheKey + "#" + std::to_string(instance.skinFamily)
+      + "#body=" + std::to_string(selectedBody);
     const auto inserted = bucketOf.emplace(bucketKey, buckets.size());
     if (inserted.second) {
       Bucket created;
       created.mesh = &mesh->second;
       created.skinFamily = instance.skinFamily;
+      created.body = selectedBody;
       buckets.push_back(std::move(created));
     }
     EntityModelInstanceGpu gpu{};
@@ -514,6 +556,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     }
     buckets[inserted.first->second].items.push_back(gpu);
     ++accepted;
+    if (instance.mapStaticProp) ++staticAccepted;
   }
   if (accepted == 0 || buckets.empty()) return;
   std::vector<EntityModelInstanceGpu> packed;
@@ -525,6 +568,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     bool instanceCountedAsTextured = false;
     for (const auto& run : bucket.mesh->runs) {
       if (run.vertexCount < 3) continue;
+      if (bucket.mesh->mapStaticProp && !run.selectedForBody(bucket.body)) continue;
       EntityModelDrawRange range;
       range.vertexBuffer = bucket.mesh->vertexBuffer.Get();
       range.vertexStart = run.vertexStart;
@@ -534,14 +578,47 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       const auto texture = bucket.mesh->textures.find(
         EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));
       range.textureView = texture == bucket.mesh->textures.end() ? nullptr : texture->second.view();
+      const auto flags = bucket.mesh->materialFlags.find(
+        EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));
+      const auto materialFlags = flags == bucket.mesh->materialFlags.end() ? 0u : flags->second;
+      range.noCull = (materialFlags & 256u) != 0u;
+      range.materialFlags = materialFlags;
+      range.translucent = (materialFlags & (8u | 64u | 1024u)) != 0u;
+      const auto second = bucket.mesh->secondTextures.find(
+        EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));
+      range.secondTextureView = second == bucket.mesh->secondTextures.end() ? nullptr : second->second.view();
+      const auto proxy = bucket.mesh->materialProxies.find(
+        EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));
+      if (proxy != bucket.mesh->materialProxies.end()) range.proxy = proxy->second;
+      if (range.proxy.textureScroll && std::isfinite(entityModelTimeSeconds_)) {
+        constexpr double kPi = 3.14159265358979323846;
+        const double angle = static_cast<double>(range.proxy.textureScrollAngle) * kPi / 180.0;
+        const double distance = entityModelTimeSeconds_ * range.proxy.textureScrollRate;
+        const auto wrap = [](double value) {
+          value -= std::floor(value);
+          return static_cast<float>(value);
+        };
+        range.proxyScrollU = wrap(distance * std::cos(angle));
+        range.proxyScrollV = wrap(distance * std::sin(angle));
+      }
+      if (range.proxy.sineColor && std::isfinite(entityModelTimeSeconds_)
+          && range.proxy.sinePeriod > 0.0f) {
+        constexpr double kTau = 6.28318530717958647692;
+        const double phase = entityModelTimeSeconds_ * kTau / range.proxy.sinePeriod;
+        range.proxyColor = range.proxy.sineMin + (range.proxy.sineMax - range.proxy.sineMin)
+          * static_cast<float>((std::sin(phase) + 1.0) * 0.5);
+      }
       packed.insert(packed.end(), bucket.items.begin(), bucket.items.end());
+      for (std::size_t item = range.instanceStart; item < packed.size(); ++item) {
+        packed[item].padding[1] = materialFlags;
+      }
       entityModelDrawRanges_.push_back(range);
       if (range.textureView) {
         ++entityModelTexturedRangeCount_;
         // An instance covered by any of its model's textured runs is a textured
         // instance; counting it per run would report more instances than exist.
         if (!instanceCountedAsTextured) {
-          entityModelTexturedInstanceCount_ += range.instanceCount;
+          if (!bucket.mesh->mapStaticProp) entityModelTexturedInstanceCount_ += range.instanceCount;
           instanceCountedAsTextured = true;
         }
       }
@@ -588,7 +665,8 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   // accepted; using the slot sum here made N/N unreachable for every model with
   // more than one run -- 91/201 on 2026-10-28 -- and the gate read that as a
   // paint defect when the paint was mostly there.
-  entityModelInstanceCount_ = accepted;
+  entityModelInstanceCount_ = accepted - staticAccepted;
+  mapStaticPropInstanceCount_ = staticAccepted;
   entityModelInstanceSlotCount_ = packed.size();
 }
 

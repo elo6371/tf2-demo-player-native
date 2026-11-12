@@ -13,6 +13,7 @@
 #include <wrl/client.h>
 
 #include "texture2d.h"
+#include "vmt_material.h"
 #include "bsp_map.h"
 #include "model_loader.h"
 #include "demo_header.h"
@@ -283,6 +284,9 @@ struct EntityModelDrawInstance {
   // bucketed by family so a red and a blue instance of the same model do not
   // share a paint. Defaults to 0, the family every model has.
   std::uint32_t skinFamily = 0;
+  bool mapStaticProp = false;
+  std::uint32_t body = 0;
+  bool sourceModelSpace = false;
   // A model-space placement for an instance that rides on another model's bone
   // -- a held weapon on a hand attachment. Row-major 3x4 in the same "v' = rows
   // * v" convention as buildEntityModelInstanceRows. The instance still carries
@@ -885,11 +889,14 @@ public:
   // counted; see entityModelMeshEvictions() / entityModelMeshCapacityRefusals().
   bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
     const std::vector<ModelMeshMaterialRun>& runs = {},
-    EntityMeshPriority priority = EntityMeshPriority::WorldProp);
+    EntityMeshPriority priority = EntityMeshPriority::WorldProp, bool mapStaticProp = false);
   // One texture per (material slot, skin family). The draw loop picks the
   // instance's family and binds that texture for the matching runs.
   bool uploadEntityModelTexture(const std::string& cacheKey, std::uint32_t materialSlot, std::uint32_t skinFamily,
-    const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+    const std::vector<std::uint8_t>& rgba, UINT width, UINT height, std::uint32_t materialFlags = 0,
+    const std::vector<std::uint8_t>& secondRgba = {}, UINT secondWidth = 0, UINT secondHeight = 0,
+    const VmtMaterialProxy& proxy = {});
+  void setEntityModelTime(double seconds) { entityModelTimeSeconds_ = seconds; }
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
   // The bone matrices every skinned instance indexes into, concatenated. Uploaded
   // once per scene update rather than per draw: a demo can carry 96 instances and
@@ -897,7 +904,7 @@ public:
   void setEntityBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices);
   std::size_t entitySkinnedInstanceCount() const { return entityModelSkinnedInstanceCount_; }
   std::size_t entityBoneMatrixCount() const { return entityBoneMatrixCount_; }
-  std::size_t entityModelMeshCount() const { return entityModelMeshes_.size(); }
+  std::size_t entityModelMeshCount() const { return entityModelMeshes_.size() - mapStaticPropMeshCount(); }
   // Instances DRAWN: one per accepted entity, at most the entity pass's cap.
   std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
   // Instance SLOTS: the same instances counted once per material run, which is
@@ -926,6 +933,17 @@ public:
   // here so the ledger can print the capacity it is measured against instead of
   // repeating a literal.
   static constexpr std::size_t entityModelInstanceCapacityLimit = 96;
+  // Separate map capacity: the six launch maps contain up to 1,866 static
+  // instances and 201 distinct models. They must not spend player/weapon slots.
+  static constexpr std::size_t mapStaticPropMeshCapacityLimit = 512;
+  static constexpr std::size_t mapStaticPropInstanceCapacityLimit = 4096;
+  std::size_t mapStaticPropMeshCount() const {
+    std::size_t count = 0;
+    for (const auto& entry : entityModelMeshes_) if (entry.second.mapStaticProp) ++count;
+    return count;
+  }
+  std::size_t mapStaticPropInstanceCount() const { return mapStaticPropInstanceCount_; }
+  std::size_t mapStaticPropInstanceRejected() const { return mapStaticPropInstanceRejected_; }
   std::size_t entityModelMeshEvictions() const { return entityModelMeshEvictions_; }
   std::vector<std::string> takeEvictedEntityModelMeshKeys() {
     std::vector<std::string> out = std::move(entityModelMeshEvictedKeys_);
@@ -941,7 +959,7 @@ public:
   std::size_t entityModelMeshResident(EntityMeshPriority priority) const {
     std::size_t count = 0;
     for (const auto& entry : entityModelMeshes_) {
-      if (entry.second.priority == priority) ++count;
+      if (!entry.second.mapStaticProp && entry.second.priority == priority) ++count;
     }
     return count;
   }
@@ -1626,6 +1644,7 @@ private:
   Microsoft::WRL::ComPtr<ID3D11InputLayout> entityModelInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelSkinningConstants_;
   UINT worldVertexCount_ = 0;
   // How many of worldVertexCount_ carry a per-face light uv. Kept beside the
@@ -1789,6 +1808,9 @@ private:
     // for this slot/family": that run falls back to the world atlas, it does not
     // borrow another slot's texture.
     std::unordered_map<std::uint64_t, Texture2D> textures;
+    std::unordered_map<std::uint64_t, Texture2D> secondTextures;
+    std::unordered_map<std::uint64_t, std::uint32_t> materialFlags;
+    std::unordered_map<std::uint64_t, VmtMaterialProxy> materialProxies;
     // T85 P0: what this mesh is for, and the last instance update that asked for
     // it. The pair is what makes eviction a policy rather than a coin flip: a
     // mesh that the previous frame drew is never evicted to make room for one
@@ -1805,6 +1827,7 @@ private:
     // the product's identity pass), so they are never a candidate: pinned is a
     // property of the mesh, not a rank comparison that a policy could get wrong.
     bool pinned = false;
+    bool mapStaticProp = false;
     static std::uint64_t textureKey(std::uint32_t materialSlot, std::uint32_t skinFamily) {
       return (static_cast<std::uint64_t>(materialSlot) << 32) | skinFamily;
     }
@@ -1819,6 +1842,14 @@ private:
     // Non-owning. Points at the mesh's own Texture2D so the draw loop can bind
     // t0 per range; null means "no model material, fall back to the world atlas".
     ID3D11ShaderResourceView* textureView = nullptr;
+    bool noCull = false;
+    bool translucent = false;
+    std::uint32_t materialFlags = 0;
+    ID3D11ShaderResourceView* secondTextureView = nullptr;
+    VmtMaterialProxy proxy;
+    float proxyScrollU = 0.0f;
+    float proxyScrollV = 0.0f;
+    float proxyColor = 1.0f;
   };
   // T85 P0: layer B's compile-time bound, named. 96 is kept: the defect was not
   // that the number was too small, it was that a bounded table refused instead
@@ -1849,6 +1880,7 @@ private:
   std::size_t entityModelInstanceRejectedNonFinite_ = 0;
   std::size_t entityModelInstanceRejectedBudget_ = 0;
   std::vector<EntityModelDrawRange> entityModelDrawRanges_;
+  double entityModelTimeSeconds_ = 0.0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> entityModelInstanceBuffer_;
   std::size_t entityModelInstanceCapacity_ = 0;
   // Per-instance skin matrices, bound to the entity shader at t4.
@@ -1858,6 +1890,8 @@ private:
   std::size_t entityBoneMatrixCount_ = 0;
   UINT entityModelVertexCount_ = 0;
   std::size_t entityModelInstanceCount_ = 0;
+  std::size_t mapStaticPropInstanceCount_ = 0;
+  std::size_t mapStaticPropInstanceRejected_ = 0;
   std::size_t entityModelInstanceSlotCount_ = 0;
   std::size_t entityModelSkinnedInstanceCount_ = 0;
   std::size_t entityModelTexturedRangeCount_ = 0;
@@ -2207,6 +2241,9 @@ private:
   // world's own less-equal test with the write mask cleared, which is what lets
   // a blended surface composite with what is behind it instead of occluding it.
   Microsoft::WRL::ComPtr<ID3D11BlendState> worldAlphaBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> mapAdditiveBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> mapModulateBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> mapModulate2xBlendState_;
   Microsoft::WRL::ComPtr<ID3D11DepthStencilState> worldBlendedDepthStencilState_;
   std::uint32_t worldBlendedTriangleCount_ = 0;
   std::uint32_t worldCutoutTriangleCount_ = 0;

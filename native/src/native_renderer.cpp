@@ -659,6 +659,20 @@ bool Renderer::createPipeline() {
   initStage_ = "createBlendState.world";
   if (FAILED(device_->CreateBlendState(&worldAlphaBlendDescription,
       worldAlphaBlendState_.GetAddressOf()))) return false;
+  // Map holograms are material models, not particle effects. These states
+  // follow UnlitTwoTexture's SRC_ALPHA/ONE and Modulate's DST_COLOR/{ZERO,SRC_COLOR}.
+  auto mapBlendDescription = worldAlphaBlendDescription;
+  mapBlendDescription.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+  mapBlendDescription.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+  if (FAILED(device_->CreateBlendState(&mapBlendDescription,
+      mapAdditiveBlendState_.GetAddressOf()))) return false;
+  mapBlendDescription.RenderTarget[0].SrcBlend = D3D11_BLEND_DEST_COLOR;
+  mapBlendDescription.RenderTarget[0].DestBlend = D3D11_BLEND_ZERO;
+  if (FAILED(device_->CreateBlendState(&mapBlendDescription,
+      mapModulateBlendState_.GetAddressOf()))) return false;
+  mapBlendDescription.RenderTarget[0].DestBlend = D3D11_BLEND_SRC_COLOR;
+  if (FAILED(device_->CreateBlendState(&mapBlendDescription,
+      mapModulate2xBlendState_.GetAddressOf()))) return false;
   D3D11_RASTERIZER_DESC rasterDescription{};
   rasterDescription.FillMode = D3D11_FILL_SOLID;
   rasterDescription.CullMode = D3D11_CULL_BACK;
@@ -713,6 +727,12 @@ bool Renderer::createPipeline() {
   constantsDescription.Usage = D3D11_USAGE_DEFAULT;
   constantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldConstants_.GetAddressOf()))) return false;
+  D3D11_BUFFER_DESC proxyConstantsDescription{};
+  proxyConstantsDescription.ByteWidth = 48;
+  proxyConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
+  proxyConstantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+  if (FAILED(device_->CreateBuffer(&proxyConstantsDescription, nullptr,
+      worldMaterialProxyConstants_.GetAddressOf()))) return false;
   // The sky's own copy of the same layout, because the sky draw needs a
   // different mvp (translation removed) from the one the world draw is using in
   // the same frame, and two UpdateSubresource calls into one buffer would make
@@ -997,6 +1017,7 @@ void Renderer::shutdown() {
   worldLightmapStatus_ = WorldLightmapStatus::Unavailable;
   worldLightmapIntensity_ = 1.0f;
   worldConstants_.Reset();
+  worldMaterialProxyConstants_.Reset();
   modelSkinningConstants_.Reset();
   worldInputLayout_.Reset();
   modelInputLayout_.Reset();

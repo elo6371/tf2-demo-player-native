@@ -339,6 +339,12 @@ bool buildEntityModelInstanceRows(
   const float angles[3],
   bool hasAngles,
   const EntityModelWorldMap& world,
-  EntityModelInstanceRows& rows);
+  EntityModelInstanceRows& rows, bool sourceModelSpace = false);
+
+// Compose a map model's live Source pose with its moveparent chain. Bone
+// attachments and absent/cyclic parents are refused rather than drawn at a
+// compiled map origin. The matrix is unscaled, in Source map units.
+bool resolveEntityWorldMatrix(const std::vector<EntityState>& statesByIndex,
+  std::size_t entityIndex, std::array<float, 12>& matrix, std::string& error);
 
 } // namespace tf2::native

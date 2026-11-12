@@ -802,7 +802,7 @@ bool buildEntityModelInstanceRows(
     const float angles[3],
     bool hasAngles,
     const EntityModelWorldMap& world,
-    EntityModelInstanceRows& rows) {
+    EntityModelInstanceRows& rows, bool sourceModelSpace) {
   if (!origin || !std::isfinite(origin[0]) || !std::isfinite(origin[1]) || !std::isfinite(origin[2])) return false;
   if (!std::isfinite(world.centerX) || !std::isfinite(world.centerY) || !std::isfinite(world.minZ)
       || !std::isfinite(world.horizontalScale) || !std::isfinite(world.zScale)
@@ -852,7 +852,79 @@ bool buildEntityModelInstanceRows(
   rows.normalRows[0] = m01; rows.normalRows[1] = m02; rows.normalRows[2] = m00;
   rows.normalRows[3] = m11; rows.normalRows[4] = m12; rows.normalRows[5] = m10;
   rows.normalRows[6] = m21; rows.normalRows[7] = m22; rows.normalRows[8] = m20;
+  if (sourceModelSpace) {
+    for (int row = 0; row < 3; ++row) {
+      const float x = rows.positionRows[row * 4];
+      const float y = rows.positionRows[row * 4 + 1];
+      rows.positionRows[row * 4] = rows.positionRows[row * 4 + 2];
+      rows.positionRows[row * 4 + 1] = x;
+      rows.positionRows[row * 4 + 2] = y;
+      const float nx = rows.normalRows[row * 3];
+      const float ny = rows.normalRows[row * 3 + 1];
+      rows.normalRows[row * 3] = rows.normalRows[row * 3 + 2];
+      rows.normalRows[row * 3 + 1] = nx;
+      rows.normalRows[row * 3 + 2] = ny;
+    }
+  }
   return std::isfinite(rows.positionRows[3]) && std::isfinite(rows.positionRows[7]) && std::isfinite(rows.positionRows[11]);
+}
+
+bool resolveEntityWorldMatrix(const std::vector<EntityState>& statesByIndex,
+    std::size_t entityIndex, std::array<float, 12>& matrix, std::string& error) {
+  matrix = {};
+  std::vector<std::size_t> chain;
+  for (std::size_t depth = 0; ; ++depth) {
+    if (entityIndex >= statesByIndex.size() || statesByIndex[entityIndex].classId < 0) {
+      error = "map model parent is absent from snapshot"; return false;
+    }
+    if (depth >= 32 || std::find(chain.begin(), chain.end(), entityIndex) != chain.end()) {
+      error = "map model parent chain is cyclic or too deep"; return false;
+    }
+    chain.push_back(entityIndex);
+    bool hasParent = false;
+    auto parent = readIntSlot(statesByIndex[entityIndex], "moveparent", hasParent);
+    if (!hasParent) parent = readIntSlot(statesByIndex[entityIndex], "m_hMoveParent", hasParent);
+    if (!hasParent || static_cast<std::uint32_t>(parent) == 0x1fffffu
+        || static_cast<std::uint32_t>(parent) == UINT32_MAX) break;
+    bool hasAttachment = false;
+    const auto attachment = readIntSlot(statesByIndex[entityIndex], "m_iParentAttachment", hasAttachment);
+    if (hasAttachment && attachment > 0) {
+      error = "map model requires a parent bone attachment"; return false;
+    }
+    entityIndex = static_cast<std::uint32_t>(parent) & 0x7ffu;
+  }
+  EntityModelWorldMap world;
+  world.horizontalScale = 1.0f;
+  world.zScale = 1.0f;
+  matrix = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+  for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+    const auto pose = EntityModelResolver::extractTransform(statesByIndex[*it]);
+    EntityModelInstanceRows rows;
+    if (!pose.hasOrigin || !buildEntityModelInstanceRows(pose.origin, pose.angles,
+          pose.hasAngles, world, rows, true)) {
+      error = "map model has no finite live transform"; return false;
+    }
+    rows.positionRows[11] -= 0.1f;
+    std::array<float, 12> composed{};
+    for (int row = 0; row < 3; ++row) {
+      for (int column = 0; column < 3; ++column) {
+        for (int k = 0; k < 3; ++k) {
+          composed[row * 4 + column] += matrix[row * 4 + k] * rows.positionRows[k * 4 + column];
+        }
+      }
+      composed[row * 4 + 3] = matrix[row * 4 + 3];
+      for (int k = 0; k < 3; ++k) {
+        composed[row * 4 + 3] += matrix[row * 4 + k] * rows.positionRows[k * 4 + 3];
+      }
+    }
+    if (!std::all_of(composed.begin(), composed.end(), [](float value) { return std::isfinite(value); })) {
+      matrix = {};
+      error = "map model parent transform overflow"; return false;
+    }
+    matrix = composed;
+  }
+  error.clear();
+  return true;
 }
 
 } // namespace tf2::native
