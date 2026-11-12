@@ -57,7 +57,13 @@ std::vector<Token> tokenize(const std::string& text) {
   return out;
 }
 
-bool readObject(const std::vector<Token>& tokens, std::size_t& cursor, std::unordered_map<std::string, VmtValue>& result, std::string& error) {
+constexpr int kMaxVmtNestingDepth = 64;
+
+bool readObject(const std::vector<Token>& tokens, std::size_t& cursor, std::unordered_map<std::string, VmtValue>& result, int depth, std::string& error) {
+  if (depth > kMaxVmtNestingDepth) {
+    error = "VMT object nesting is deeper than 64";
+    return false;
+  }
   while (cursor < tokens.size()) {
     const Token& key = tokens[cursor++];
     if (key.kind == Token::Kind::Close) return true;
@@ -66,7 +72,7 @@ bool readObject(const std::vector<Token>& tokens, std::size_t& cursor, std::unor
     const std::string name = lower(key.value);
     if (value.kind == Token::Kind::Open) {
       VmtValue nested; nested.object = true;
-      if (!readObject(tokens, cursor, nested.fields, error)) return false;
+      if (!readObject(tokens, cursor, nested.fields, depth + 1, error)) return false;
       result[name] = std::move(nested);
     } else if (value.kind == Token::Kind::Text) {
       VmtValue scalar; scalar.text = value.value; result[name] = std::move(scalar);
@@ -121,7 +127,7 @@ bool loadNode(const std::string& text, VmtNode& node, std::string& error) {
   node.shader = tokens[0].value;
   node.root.clear();
   std::size_t cursor = 2;
-  return readObject(tokens, cursor, node.root, error);
+  return readObject(tokens, cursor, node.root, 1, error);
 }
 
 // Depth 4 is a refusal, not a tuning knob: a chain deeper than that is a cycle or

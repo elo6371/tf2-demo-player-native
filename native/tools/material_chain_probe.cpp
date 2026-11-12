@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <iostream>
 #include <cstring>
+#include <cstdio>
 #include <cctype>
 #include <map>
 #include <memory>
@@ -19,6 +20,29 @@
 std::vector<std::uint8_t> readFile(const std::filesystem::path& path) {
   std::ifstream input(path, std::ios::binary);
   return std::vector<std::uint8_t>((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+}
+
+std::string jsonEscape(const std::string& value) {
+  std::string out;
+  out.reserve(value.size());
+  for (unsigned char c : value) {
+    switch (c) {
+      case '\\': out += "\\\\"; break;
+      case '"': out += "\\\""; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default:
+        if (c < 0x20) {
+          char buffer[7];
+          std::snprintf(buffer, sizeof(buffer), "\\u%04x", c);
+          out += buffer;
+        } else {
+          out.push_back(static_cast<char>(c));
+        }
+    }
+  }
+  return out;
 }
 
 int main(int argc, char** argv) {
@@ -100,6 +124,11 @@ int main(int argc, char** argv) {
   std::string explicitVmtBump;
   std::string explicitVmtEnv;
   bool explicitVmtSelfIllum = false;
+  std::string explicitVmtError;
+  std::string explicitVmtBaseTexture;
+  bool explicitVmtPatchDeclared = false;
+  bool explicitVmtPatchResolved = false;
+  std::string explicitVmtPatchInclude;
   if (argc == 3 && std::string_view(argv[1]) == "--vtf") {
     const auto bytes = readFile(std::filesystem::u8path(argv[2]));
     tf2::native::VtfTexture texture;
@@ -112,11 +141,38 @@ int main(int argc, char** argv) {
       explicitVtfRgbaBytes = rgba.size();
     }
   }
-  if (argc == 3 && std::string_view(argv[1]) == "--vmt") {
+  const bool explicitVmtMode = (argc == 3 || argc == 5)
+    && std::string_view(argv[1]) == "--vmt";
+  bool explicitVmtArgsValid = true;
+  std::filesystem::path explicitVmtIncludeRoot;
+  if (argc == 5 && explicitVmtMode) {
+    if (std::string_view(argv[3]) == "--vmt-include-root") {
+      explicitVmtIncludeRoot = std::filesystem::u8path(argv[4]);
+    } else {
+      explicitVmtArgsValid = false;
+      explicitVmtError = std::string("unknown --vmt option: ") + argv[3];
+    }
+  }
+  if (explicitVmtMode && explicitVmtArgsValid) {
     const auto bytes = readFile(std::filesystem::u8path(argv[2]));
     tf2::native::VmtMaterial material;
+    tf2::native::VmtParser::IncludeReader includeReader;
+    if (!explicitVmtIncludeRoot.empty()) {
+      const auto includeRoot = explicitVmtIncludeRoot;
+      includeReader = [includeRoot](const std::string& resource) {
+        std::string name = resource;
+        const std::string prefix = "materials/";
+        if (name.rfind(prefix, 0) == 0) name.erase(0, prefix.size());
+        return readFile(includeRoot / std::filesystem::u8path(name));
+      };
+    }
     explicitVmtParsed = !bytes.empty()
-      && tf2::native::VmtParser::parse(std::string(bytes.begin(), bytes.end()), material);
+      && tf2::native::VmtParser::parse(std::string(bytes.begin(), bytes.end()), material, includeReader);
+    explicitVmtError = material.error;
+    explicitVmtBaseTexture = material.baseTexture;
+    explicitVmtPatchDeclared = material.patch.declared;
+    explicitVmtPatchResolved = material.patch.resolved;
+    explicitVmtPatchInclude = material.patch.includeResource;
     if (explicitVmtParsed) {
       explicitVmtShader = material.shader;
       explicitVmtBump = material.bumpMap;
@@ -279,7 +335,12 @@ int main(int argc, char** argv) {
     << ",\"explicitVtfFormat\":" << explicitVtfFormat
     << ",\"explicitVtfRgbaBytes\":" << explicitVtfRgbaBytes
     << ",\"explicitVmtParsed\":" << (explicitVmtParsed ? "true" : "false")
-    << ",\"explicitVmtShader\":\"" << explicitVmtShader << "\""
+    << ",\"explicitVmtShader\":\"" << jsonEscape(explicitVmtShader) << "\""
+    << ",\"explicitVmtError\":\"" << jsonEscape(explicitVmtError) << "\""
+    << ",\"explicitVmtBaseTexture\":\"" << jsonEscape(explicitVmtBaseTexture) << "\""
+    << ",\"explicitVmtPatchDeclared\":" << (explicitVmtPatchDeclared ? "true" : "false")
+    << ",\"explicitVmtPatchResolved\":" << (explicitVmtPatchResolved ? "true" : "false")
+    << ",\"explicitVmtPatchInclude\":\"" << jsonEscape(explicitVmtPatchInclude) << "\""
     << ",\"explicitVmtHasBump\":" << (!explicitVmtBump.empty() ? "true" : "false")
     << ",\"explicitVmtHasEnvMap\":" << (!explicitVmtEnv.empty() ? "true" : "false")
     << ",\"explicitVmtSelfIllum\":" << (explicitVmtSelfIllum ? "true" : "false")
