@@ -172,19 +172,26 @@ LOADER_SHA="$(sha256sum "$LOADER" | cut -d' ' -f1)"
 run_case() {
   local label="$1" exe="$2" cwd="$3" dir="$4"
   mkdir -p "$cwd" "$dir"
+  # Resolve both paths BEFORE the subshell changes directory. Keeping them
+  # relative is how the first version lost its stdout redirect: the shell tried
+  # to write .scratch/... from inside .scratch/.../work and the product never ran.
+  local absdir abscwd absexe
+  absdir="$(cd "$dir" && pwd)" || return 1
+  abscwd="$(cd "$cwd" && pwd)" || return 1
+  absexe="$(cd "$(dirname "$exe")" && pwd)/$(basename "$exe")" || return 1
   local -a argv=(--tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled
-                 --capture-frame "$(cygpath -m "$PWD/$dir/$label.bmp")"
+                 --capture-frame "$(cygpath -m "$absdir/$label.bmp")"
                  --capture-tick "$CAPTURE_TICK"
-                 --settings-file "$(cygpath -m "$PWD/$dir/$label.settings")"
-                 --ui-settings-file "$(cygpath -m "$PWD/$dir/$label.ui.ini")"
+                 --settings-file "$(cygpath -m "$absdir/$label.settings")"
+                 --ui-settings-file "$(cygpath -m "$absdir/$label.ui.ini")"
                  --logstf-script empty)
   case " ${argv[*]} " in *" --hidden-window "*) : ;; *) echo "REFUSED: no --hidden-window" >&2; return 99 ;; esac
   case " ${argv[*]} " in *" --audio-disabled "*) : ;; *) echo "REFUSED: no --audio-disabled" >&2; return 98 ;; esac
-  rm -f "$dir/$label.trace" "$dir/$label.rc" "$dir/$label.stdout"
-  ( cd "$cwd" && TF2_NATIVE_TRACE="$(cygpath -m "$PWD/../$label.trace")" \
-      timeout "$RUN_TIMEOUT" "$exe" "${argv[@]}" > "$dir/$label.stdout" 2>&1 )
-  echo "$?" > "$dir/$label.rc"
-  echo "  $label rc=$(cat "$dir/$label.rc") trace_lines=$(wc -l < "$dir/$label.trace" 2>/dev/null | tr -d ' ')"
+  rm -f "$absdir/$label.trace" "$absdir/$label.rc" "$absdir/$label.stdout"
+  ( cd "$abscwd" && TF2_NATIVE_TRACE="$(cygpath -m "$absdir/$label.trace")" \
+      timeout "$RUN_TIMEOUT" "$absexe" "${argv[@]}" > "$absdir/$label.stdout" 2>&1 )
+  echo "$?" > "$absdir/$label.rc"
+  echo "  $label rc=$(cat "$absdir/$label.rc") trace_lines=$(wc -l < "$absdir/$label.trace" 2>/dev/null | tr -d ' ')"
 }
 
 # ---------------------------------------------------------------- positive (6)
@@ -232,8 +239,11 @@ assert_not_contains "negative does not report present" "$NEG_RUNTIME" "loader=pr
 NEG_APP_WIN="$(cygpath -w "$NEG_APP")"
 NEG_WORK_WIN="$(cygpath -w "$NEG_WORK")"
 NEG_MISSING_PATH="$NEG_APP_WIN\\WebView2Loader.dll"
-assert_contains "negative missing path names the exe directory" "$NEG_RUNTIME" "$NEG_MISSING_PATH"
-assert_not_contains "negative missing path does not name the CWD" "$NEG_RUNTIME" "$NEG_WORK_WIN"
+neg_path_ok=no
+case "$NEG_RUNTIME" in
+  *"$NEG_MISSING_PATH"*) case "$NEG_RUNTIME" in *"$NEG_WORK_WIN"*) ;; *) neg_path_ok=yes ;; esac ;;
+esac
+assert_eq "negative missing path names the exe directory, not the CWD" "$neg_path_ok" "yes"
 
 # ---------------------------------------------------------------- old control
 # Not an assertion: the old executable is optional. Print one line with one of
