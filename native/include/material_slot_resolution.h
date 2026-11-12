@@ -39,6 +39,15 @@ struct MaterialSlotResolution {
   std::string vmtPath;
   std::string vtfPath;
   std::string reason;
+  bool alphaTest = false;
+  bool translucent = false;
+  bool noCull = false;
+  bool additive = false;
+  bool unlit = false;
+  bool modulate = false;
+  bool modulate2x = false;
+  VmtMaterialProxy proxy;
+  std::string secondVtfPath;
 };
 
 // THE SKIN FAMILY RULE (engine behaviour, not a tolerance)
@@ -113,7 +122,8 @@ bool resolveMaterialSlot(const ModelMetadata::SkinFamilyTable& skinFamilies,
     const auto vmtBytes = read(vmtResource);
     if (vmtBytes.empty()) continue;
     VmtMaterial material;
-    if (!VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material)) continue;
+    if (!VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material,
+          [&](const std::string& resource) { return read(resource); })) continue;
     const std::string& baseTexture = material.baseTexture.empty()
       ? material.fallbackBaseTexture : material.baseTexture;
     if (baseTexture.empty()) continue;
@@ -126,6 +136,16 @@ bool resolveMaterialSlot(const ModelMetadata::SkinFamilyTable& skinFamilies,
     out.textureStem = stem;
     out.vmtPath = vmtResource;
     out.vtfPath = vtfResource;
+    out.alphaTest = material.alphaTest;
+    out.translucent = material.translucent;
+    out.noCull = material.noCull;
+    out.additive = material.additive;
+    out.unlit = material.unlit;
+    out.modulate = material.modulate;
+    out.modulate2x = material.modulate2x;
+    out.proxy = material.proxy;
+    if (material.unlit && !material.texture2.empty())
+      out.secondVtfPath = VmtParser::resourcePath(material.texture2, ".vtf");
     out.reason = "resolved";
     return true;
   }

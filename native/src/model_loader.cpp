@@ -1396,6 +1396,15 @@ ModelInspection ModelLoader::inspect(const ModelResourcePaths& paths) {
     readFile(paths.vtx, ignored), readFile(paths.vtxDx80, ignored), readFile(paths.vtxSw, ignored), paths);
 }
 
+ModelInspection ModelLoader::inspectResources(const std::string& modelPath,
+    const std::function<std::vector<std::uint8_t>(const std::string&)>& read) {
+  const auto paths = ModelResourcePaths::fromMdl(normalizeModelPath(modelPath));
+  if (!read || paths.mdl.empty()) return {};
+  return inspectBuffers(read(paths.mdl.generic_string()), read(paths.vvd.generic_string()),
+    read(paths.vtx.generic_string()), read(paths.vtxDx80.generic_string()),
+    read(paths.vtxSw.generic_string()), paths);
+}
+
 ModelInspection ModelLoader::inspectVpk(const VpkArchive& archive, const std::string& modelPath) {
   auto relative = normalizeModelPath(modelPath);
   ModelInspection failed;
@@ -1640,7 +1649,7 @@ bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& er
 }
 
 bool ModelLoader::buildMaterialRuns(const ModelMetadata& metadata, std::vector<ModelMeshMaterialRun>& runs,
-    std::string& error) {
+    std::string& error, bool preserveBodygroups) {
   runs.clear();
   if (!metadata.meshMaterials.available) {
     error = "mesh material table is unavailable: " + metadata.meshMaterials.reason;
@@ -1661,11 +1670,28 @@ bool ModelLoader::buildMaterialRuns(const ModelMetadata& metadata, std::vector<M
       return false;
     }
     const auto materialSlot = static_cast<std::uint32_t>(slot);
+    ModelMeshMaterialRun candidate{range.vertexStart, range.vertexCount, materialSlot};
+    if (preserveBodygroups) {
+      if (range.bodyPart >= metadata.bodyParts.size()) {
+        error = "material run has no bodypart selector"; runs.clear(); return false;
+      }
+      const auto& part = metadata.bodyParts[range.bodyPart];
+      if (part.base <= 0 || part.modelCount <= 0
+          || range.model >= static_cast<std::uint32_t>(part.modelCount)) {
+        error = "material run has an invalid bodypart selector"; runs.clear(); return false;
+      }
+      candidate.bodyBase = static_cast<std::uint32_t>(part.base);
+      candidate.bodyCount = static_cast<std::uint32_t>(part.modelCount);
+      candidate.bodyModel = range.model;
+    }
     if (!runs.empty() && runs.back().materialSlot == materialSlot
+        && runs.back().bodyBase == candidate.bodyBase
+        && runs.back().bodyCount == candidate.bodyCount
+        && runs.back().bodyModel == candidate.bodyModel
         && runs.back().vertexStart + runs.back().vertexCount == range.vertexStart) {
       runs.back().vertexCount += range.vertexCount;
     } else {
-      runs.push_back(ModelMeshMaterialRun{range.vertexStart, range.vertexCount, materialSlot});
+      runs.push_back(candidate);
     }
   }
   // The runs must tile the de-indexed vertex list exactly: a gap would leave

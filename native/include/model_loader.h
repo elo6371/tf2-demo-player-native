@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -157,6 +158,12 @@ struct ModelMeshMaterialRun {
   std::uint32_t vertexStart = 0;
   std::uint32_t vertexCount = 0;
   std::uint32_t materialSlot = 0;
+  std::uint32_t bodyBase = 0;
+  std::uint32_t bodyCount = 0;
+  std::uint32_t bodyModel = 0;
+  bool selectedForBody(std::uint32_t body) const {
+    return bodyCount == 0 || (bodyBase != 0 && (body / bodyBase) % bodyCount == bodyModel);
+  }
 };
 
 struct ModelDrawVertex {
@@ -485,6 +492,10 @@ public:
   static ModelInspection inspect(const std::filesystem::path& mdlPath);
   static ModelInspection inspect(const ModelResourcePaths& paths);
   static ModelInspection inspectVpk(const VpkArchive& archive, const std::string& modelPath);
+  // Resolve the complete model set through one store policy, including a BSP's
+  // embedded pakfile. Geometry and materials must see the same map resources.
+  static ModelInspection inspectResources(const std::string& modelPath,
+    const std::function<std::vector<std::uint8_t>(const std::string&)>& read);
   static bool buildModelMeshData(const ModelInspection& inspection, std::size_t descriptorIndex,
     ModelMeshData& mesh, std::string& error);
   static bool buildModelMeshDataAll(const ModelInspection& inspection,
@@ -499,7 +510,7 @@ public:
   // unavailable or the runs do not tile the vertex list -- a caller that cannot
   // split must say so rather than silently paint the whole model with one slot.
   static bool buildMaterialRuns(const ModelMetadata& metadata, std::vector<ModelMeshMaterialRun>& runs,
-    std::string& error);
+    std::string& error, bool preserveBodygroups = false);
   static bool cpuSkinVertexReference(const ModelMetadata& metadata, const ModelDrawVertex& vertex,
     std::array<float, 3>& outputPosition, std::string& error);
 };

@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <sstream>
 #include <utility>
 
@@ -83,6 +84,17 @@ bool enabled(const std::string& value) {
   if (value.empty()) return false;
   char* end = nullptr; const double number = std::strtod(value.c_str(), &end);
   if (end && *end == '\0') return number != 0.0;
+  return true;
+}
+
+bool finiteNumber(const std::string& text, float& value) {
+  if (text.empty()) return false;
+  char* end = nullptr;
+  const double parsed = std::strtod(text.c_str(), &end);
+  if (!end || *end != '\0' || !std::isfinite(parsed)
+      || parsed < -static_cast<double>(std::numeric_limits<float>::max())
+      || parsed > static_cast<double>(std::numeric_limits<float>::max())) return false;
+  value = static_cast<float>(parsed);
   return true;
 }
 // T59 ------------------------------------------------------------------------
@@ -228,6 +240,7 @@ bool extractFields(const std::unordered_map<std::string, VmtValue>& root, VmtMat
     }
   }
   material.baseTexture2 = scalar(root, "$basetexture2");
+  material.texture2 = scalar(root, "$texture2");
   material.blendModulateTexture = scalar(root, "$blendmodulatetexture");
   material.bumpMap = scalar(root, "$bumpmap");
   // `$bumpmap1` is layer 1 of a WorldVertexTransition. It is read as an alias
@@ -285,6 +298,38 @@ bool extractFields(const std::unordered_map<std::string, VmtValue>& root, VmtMat
   material.noCull = enabled(scalar(root, "$nocull")) || scalar(root, "$cull") == "0";
   material.aboveWater = enabled(scalar(root, "$abovewater"));
   const auto shaderName = lower(material.shader);
+  material.additive = enabled(scalar(root, "$additive"));
+  material.unlit = shaderName == "unlitgeneric" || shaderName == "unlittwotexture";
+  material.modulate = shaderName == "modulate";
+  material.modulate2x = material.modulate && enabled(scalar(root, "$mod2x"));
+  if (const auto proxies = root.find("proxies"); proxies != root.end() && proxies->second.object) {
+    if (const auto scroll = proxies->second.fields.find("texturescroll");
+        scroll != proxies->second.fields.end() && scroll->second.object) {
+      const auto& fields = scroll->second.fields;
+      float rate = 0.0f, angle = 0.0f;
+      if (scalar(fields, "texturescrollvar") == "$texture2transform"
+          && finiteNumber(scalar(fields, "texturescrollrate"), rate)
+          && finiteNumber(scalar(fields, "texturescrollangle"), angle)) {
+        material.proxy.textureScroll = true;
+        material.proxy.textureScrollRate = rate;
+        material.proxy.textureScrollAngle = angle;
+      }
+    }
+    if (const auto sine = proxies->second.fields.find("sine");
+        sine != proxies->second.fields.end() && sine->second.object) {
+      const auto& fields = sine->second.fields;
+      float period = 0.0f, minimum = 0.0f, maximum = 0.0f;
+      if (scalar(fields, "resultvar") == "$color"
+          && finiteNumber(scalar(fields, "sineperiod"), period) && period > 0.0f
+          && finiteNumber(scalar(fields, "sinemin"), minimum)
+          && finiteNumber(scalar(fields, "sinemax"), maximum)) {
+        material.proxy.sineColor = true;
+        material.proxy.sinePeriod = period;
+        material.proxy.sineMin = minimum;
+        material.proxy.sineMax = maximum;
+      }
+    }
+  }
   material.waterShader = shaderName == "water" || shaderName == "water_dx90"
     || !material.waterBottomMaterial.empty() || !material.underwaterOverlay.empty();
   // T59: $basetexturetransform re-maps the uv before sampling (center, scale,

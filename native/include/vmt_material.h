@@ -30,6 +30,16 @@ struct VmtPatchReading {
   std::vector<std::string> objectBlocks;   // object-valued blocks, named not merged
 };
 
+struct VmtMaterialProxy {
+  bool textureScroll = false;
+  float textureScrollRate = 0.0f;
+  float textureScrollAngle = 0.0f;
+  bool sineColor = false;
+  float sinePeriod = 0.0f;
+  float sineMin = 1.0f;
+  float sineMax = 1.0f;
+};
+
 struct VmtMaterial {
   std::string shader;
   std::unordered_map<std::string, std::string> fields;
@@ -41,6 +51,7 @@ struct VmtMaterial {
   // follows the fallback when the root key is absent.
   std::string fallbackBaseTexture;
   std::string baseTexture2;
+  std::string texture2; // UnlitTwoTexture; distinct from terrain's $basetexture2.
   // T12: `$blendmodulatetexture` is the mask that reshapes the vertex-alpha
   // blend between `$basetexture` and `$basetexture2`. In the SDK's
   // LightmappedGeneric pixel shader it is read as `smoothstep(g - r, g + r,
@@ -84,6 +95,11 @@ struct VmtMaterial {
   bool translucent = false;
   bool alphaTest = false;
   bool noCull = false;
+  bool additive = false;
+  bool unlit = false;
+  bool modulate = false;
+  bool modulate2x = false;
+  VmtMaterialProxy proxy;
   bool aboveWater = false;
   bool waterShader = false;
   // T59: the wrapper this material came from, when it came from one.

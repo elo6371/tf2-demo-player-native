@@ -94,7 +94,21 @@ bool VtfTexture::parse(const std::vector<std::uint8_t>& bytes, std::string* erro
     }
     header_.mipStart = foundHighRes ? highResOffset : header_.headerSize;
   } else {
-    header_.mipStart = header_.headerSize;
+    // Legacy VTF files put their low-resolution thumbnail immediately after
+    // the header, BEFORE the high-resolution mip chain. Treating the header
+    // end as the chain start decodes thumbnail/mip-tail bytes as full-size
+    // blocks (including alpha), producing corrupt, speckled map materials.
+    std::uint64_t thumbnailBytes = 0;
+    if (header_.lowResWidth != 0 || header_.lowResHeight != 0) {
+      if (header_.lowResWidth == 0 || header_.lowResHeight == 0) {
+        return fail("invalid VTF thumbnail dimensions");
+      }
+      thumbnailBytes = mipSpan(header_.lowResFormat, header_.lowResWidth,
+        header_.lowResHeight, 1, 1);
+      if (thumbnailBytes == 0) return fail("unsupported VTF thumbnail format");
+    }
+    header_.mipStart = static_cast<std::uint64_t>(header_.headerSize) + thumbnailBytes;
+    if (header_.mipStart > bytes.size()) return fail("VTF thumbnail data is out of bounds");
   }
   header_.chainBytes = mipSpan(header_.format, header_.width, header_.height,
     header_.mipCount, header_.depth);
