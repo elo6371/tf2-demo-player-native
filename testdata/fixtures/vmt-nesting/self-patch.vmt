@@ -1,0 +1,8 @@
+patch
+{
+  include "materials/self-patch.vmt"
+  replace
+  {
+    "$basetexture" "qa1a02/self"
+  }
+}

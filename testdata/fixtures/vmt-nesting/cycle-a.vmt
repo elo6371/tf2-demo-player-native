@@ -1,0 +1,8 @@
+patch
+{
+  include "materials/cycle-b.vmt"
+  replace
+  {
+    "$basetexture" "qa1a02/cycle-a"
+  }
+}
