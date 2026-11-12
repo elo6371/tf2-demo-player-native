@@ -18,7 +18,7 @@ constexpr std::size_t kHeaderSize = 8 + 64 * 16 + 4;
 constexpr int kLumpEntities = 0, kLumpTexData = 2, kLumpVertices = 3, kLumpTexInfo = 6, kLumpFaces = 7,
   kLumpLighting = 8,
   kLumpEdges = 12, kLumpSurfEdges = 13, kLumpModels = 14,
-  kLumpStringData = 43, kLumpStringTable = 44,
+  kLumpGame = 35, kLumpStringData = 43, kLumpStringTable = 44,
   // T17: v20's second lighting lump. A map compiled with HDR carries the
   // tonemapped page in lump 8 and the wide-range page in lump 53, and the
   // engine picks per `mat_hdr_level`. Both are indexed by the same
@@ -77,6 +77,148 @@ bool tryDecode(const Bytes& file, Lump lump, Bytes& result) {
   result.clear();
   if (lump.length <= 0) return false;
   return decodeLump(file, lump, result);
+}
+
+void parseStaticProps(const Bytes& file, Lump gameLump, BspMap& map) {
+  Bytes directory;
+  if (!tryDecode(file, gameLump, directory) || directory.size() < 4) {
+    map.staticPropsReason = "game lump is absent or unreadable";
+    return;
+  }
+  const auto entryCount = read<std::int32_t>(directory, 0);
+  if (entryCount < 0 || entryCount > 64
+      || static_cast<std::size_t>(entryCount) > (directory.size() - 4u) / 16u) {
+    map.staticPropsReason = "game-lump directory is invalid";
+    return;
+  }
+  Lump staticPropLump;
+  std::uint16_t staticPropVersion = 0;
+  bool found = false;
+  for (int index = 0; index < entryCount; ++index) {
+    const auto at = 4u + static_cast<std::size_t>(index) * 16u;
+    if (read<std::uint32_t>(directory, at) != 0x73707270u) continue; // on disk: "prps" (sprp)
+    staticPropVersion = read<std::uint16_t>(directory, at + 6u);
+    staticPropLump.offset = read<std::int32_t>(directory, at + 8u);
+    staticPropLump.length = read<std::int32_t>(directory, at + 12u);
+    found = true;
+    break;
+  }
+  if (!found) {
+    map.staticPropsReason = "static-prop game-lump entry is absent";
+    return;
+  }
+  if (staticPropVersion != 10) {
+    map.staticPropsReason = "unsupported static-prop version " + std::to_string(staticPropVersion);
+    return;
+  }
+  Bytes props;
+  bool decodedProps = false;
+  if (staticPropLump.offset >= 0 && staticPropLump.length >= 0) {
+    const auto offset = static_cast<std::size_t>(staticPropLump.offset);
+    const auto declaredSize = static_cast<std::size_t>(staticPropLump.length);
+    if (offset <= file.size() && file.size() - offset >= 4u
+        && std::memcmp(file.data() + offset, "LZMA", 4) == 0) {
+      if (file.size() - offset >= 17u) {
+        const auto outputSize = read<std::uint32_t>(file, offset + 4u);
+        const auto packedSize = read<std::uint32_t>(file, offset + 8u);
+        if (outputSize == declaredSize && packedSize <= file.size() - offset - 17u) {
+          decodedProps = decodeRawLzma(file.data() + offset + 12u,
+            file.data() + offset + 17u, packedSize, outputSize, props);
+        }
+      }
+    } else {
+      decodedProps = decodeLump(file, staticPropLump, props);
+    }
+  }
+  if (!decodedProps || props.size() < 4) {
+    map.staticPropsReason = "static-prop lump is unreadable";
+    return;
+  }
+  std::size_t cursor = 0;
+  const auto modelCount = read<std::int32_t>(props, cursor);
+  cursor += 4;
+  if (modelCount < 0 || modelCount > 4096
+      || static_cast<std::size_t>(modelCount) > (props.size() - cursor) / 128u) {
+    map.staticPropsReason = "static-prop model dictionary is invalid";
+    return;
+  }
+  std::vector<std::string> modelNames;
+  modelNames.reserve(static_cast<std::size_t>(modelCount));
+  for (int index = 0; index < modelCount; ++index) {
+    const auto begin = cursor + static_cast<std::size_t>(index) * 128u;
+    const auto end = std::find(props.begin() + static_cast<std::ptrdiff_t>(begin),
+      props.begin() + static_cast<std::ptrdiff_t>(begin + 128u), std::uint8_t{0});
+    modelNames.emplace_back(props.begin() + static_cast<std::ptrdiff_t>(begin), end);
+  }
+  cursor += static_cast<std::size_t>(modelCount) * 128u;
+  if (props.size() - cursor < 4u) {
+    map.staticPropsReason = "static-prop leaf count is truncated";
+    return;
+  }
+  const auto leafCount = read<std::int32_t>(props, cursor);
+  cursor += 4;
+  if (leafCount < 0 || leafCount > 1000000
+      || static_cast<std::size_t>(leafCount) > (props.size() - cursor) / 2u) {
+    map.staticPropsReason = "static-prop leaf table is invalid";
+    return;
+  }
+  std::vector<std::uint16_t> propLeafIndices;
+  propLeafIndices.reserve(static_cast<std::size_t>(leafCount));
+  for (int index = 0; index < leafCount; ++index) {
+    propLeafIndices.push_back(read<std::uint16_t>(props, cursor + static_cast<std::size_t>(index) * 2u));
+  }
+  cursor += static_cast<std::size_t>(leafCount) * 2u;
+  if (props.size() - cursor < 4u) {
+    map.staticPropsReason = "static-prop instance count is truncated";
+    return;
+  }
+  const auto propCount = read<std::int32_t>(props, cursor);
+  cursor += 4;
+  constexpr std::size_t kStaticPropV10Bytes = 72;
+  if (propCount < 0 || propCount > 100000
+      || static_cast<std::size_t>(propCount) != (props.size() - cursor) / kStaticPropV10Bytes
+      || (props.size() - cursor) % kStaticPropV10Bytes != 0) {
+    map.staticPropsReason = "static-prop v10 records do not match the lump length";
+    return;
+  }
+  map.staticProps.reserve(static_cast<std::size_t>(propCount));
+  for (int index = 0; index < propCount; ++index) {
+    const auto at = cursor + static_cast<std::size_t>(index) * kStaticPropV10Bytes;
+    const auto modelIndex = read<std::uint16_t>(props, at + 24u);
+    BspStaticProp prop;
+    if (modelIndex >= modelNames.size() || modelNames[modelIndex].empty()) {
+      map.staticPropsReason = "static-prop record references an invalid model dictionary entry";
+      map.staticProps.clear();
+      return;
+    }
+    prop.modelPath = modelNames[modelIndex];
+    for (int axis = 0; axis < 3; ++axis) {
+      prop.origin[axis] = read<float>(props, at + static_cast<std::size_t>(axis) * 4u);
+      prop.angles[axis] = read<float>(props, at + 12u + static_cast<std::size_t>(axis) * 4u);
+      if (!std::isfinite(prop.origin[axis]) || !std::isfinite(prop.angles[axis])) {
+        map.staticPropsReason = "static-prop record contains a non-finite transform";
+        map.staticProps.clear();
+        return;
+      }
+    }
+    prop.firstLeaf = read<std::uint16_t>(props, at + 26u);
+    prop.leafCount = read<std::uint16_t>(props, at + 28u);
+    prop.solid = props[at + 30u];
+    prop.flags = props[at + 31u];
+    prop.skin = read<std::int32_t>(props, at + 32u);
+    if (static_cast<std::size_t>(prop.firstLeaf) + prop.leafCount > static_cast<std::size_t>(leafCount)) {
+      map.staticPropsReason = "static-prop record leaf range is outside the leaf table";
+      map.staticProps.clear();
+      return;
+    }
+    prop.leafIndices.assign(
+      propLeafIndices.begin() + prop.firstLeaf,
+      propLeafIndices.begin() + prop.firstLeaf + prop.leafCount);
+    map.staticProps.push_back(std::move(prop));
+  }
+  map.staticPropModelCount = modelNames.size();
+  map.staticPropsAvailable = true;
+  map.staticPropsReason = "decoded static-prop v10 records";
 }
 
 std::string quotedValue(const std::string& text, const char* key) {
@@ -143,6 +285,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   tryDecode(bytes, table[26], dispInfo);
   tryDecode(bytes, table[33], dispVerts);
   tryDecode(bytes, table[42], cubemapBytes);
+  parseStaticProps(bytes, table[kLumpGame], map);
   if (!entities.empty()) map.skyName = quotedValue(std::string(entities.begin(), entities.end()), "skyname");
   if (planes.size() % 20 == 0) {
     map.planes.reserve(planes.size() / 20);
@@ -221,22 +364,18 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     if (clusters > 0 && clusters < 1000000 && headerBytes <= vis.size()) {
       map.visClusterCount = clusters;
       map.visOffsets.resize(static_cast<std::size_t>(clusters));
-      map.visRawOffsets.assign(static_cast<std::size_t>(clusters), -1);
       bool offsetsOk = true;
       for (int cluster = 0; cluster < clusters; ++cluster) {
-        // T11: dvis_t is { int numclusters; int bitofs[2][numclusters]; }. The
-        // two tables are contiguous, so [0][c] is at 4 + c*4 and [1][c] at
-        // 4 + numclusters*4 + c*4. The previous reader stepped bitofs[0] by 8
-        // bytes, which lands on [0][2c] -- every cluster decoded another
-        // cluster's row -- and then ran a run-length decoder over data that
-        // this map stores uncompressed ([1][c] >= 0 for all c, measured).
-        const auto compressedOffset = read<std::int32_t>(vis, 4 + static_cast<std::size_t>(cluster) * 4u);
-        const auto rawOffset = read<std::int32_t>(vis,
-          4 + static_cast<std::size_t>(clusters) * 4u + static_cast<std::size_t>(cluster) * 4u);
-        if (rawOffset < 0 && (compressedOffset < 0 || static_cast<std::size_t>(compressedOffset) >= vis.size())) offsetsOk = false;
-        if (rawOffset >= 0 && static_cast<std::size_t>(rawOffset) >= vis.size()) offsetsOk = false;
-        map.visOffsets[static_cast<std::size_t>(cluster)] = compressedOffset;
-        map.visRawOffsets[static_cast<std::size_t>(cluster)] = rawOffset;
+        // Source stores one PVS/PAS offset pair per cluster. The PVS row is
+        // zero-run encoded; the old two-table/raw-row interpretation selected
+        // unrelated bytes on the supported maps.
+        const auto pvsOffset = read<std::int32_t>(vis, 4 + static_cast<std::size_t>(cluster) * 8u);
+        const auto pasOffset = read<std::int32_t>(vis, 8 + static_cast<std::size_t>(cluster) * 8u);
+        const auto validOffset = [&](std::int32_t offset) {
+          return offset == -1 || (offset >= 0 && static_cast<std::size_t>(offset) < vis.size());
+        };
+        if (!validOffset(pvsOffset) || !validOffset(pasOffset)) offsetsOk = false;
+        map.visOffsets[static_cast<std::size_t>(cluster)] = pvsOffset;
       }
       if (offsetsOk) { map.visBits = vis; map.visMode = BspVisMode::ClusterPvs; }
       else { map.visOffsets.clear(); map.visClusterCount = 0; }
@@ -1300,44 +1439,23 @@ bool BspParser::skyMaterialPath(const std::string& skyName, int face, std::strin
 bool BspParser::clusterVisible(const BspMap& map, int fromCluster, int toCluster) {
   if (map.visMode != BspVisMode::ClusterPvs) return true;
   if (fromCluster < 0 || toCluster < 0 || fromCluster >= map.visClusterCount || toCluster >= map.visClusterCount) return false;
-  // T11: prefer the uncompressed row whenever the map carries one. The row is
-  // (numclusters + 7) / 8 plain bytes, bit i of byte k = cluster k*8 + i. The
-  // previous code always ran a run-length walk over the COMPRESSED offset
-  // table and answered with whatever the walk produced -- for pl_odyssey that
-  // was another cluster's row read as runs, which is why the clip hid faces
-  // that were plainly in front of the camera.
-  const auto rawOffset = static_cast<std::size_t>(fromCluster) < map.visRawOffsets.size()
-    ? map.visRawOffsets[static_cast<std::size_t>(fromCluster)] : -1;
-  if (rawOffset >= 0) {
-    const std::size_t byteIndex = static_cast<std::size_t>(rawOffset)
-      + static_cast<std::size_t>(toCluster) / 8u;
-    if (byteIndex >= map.visBits.size()) return false;
-    return (map.visBits[byteIndex] & (1u << (toCluster & 7))) != 0;
-  }
   const auto offset = map.visOffsets[static_cast<std::size_t>(fromCluster)];
   if (offset < 0 || static_cast<std::size_t>(offset) >= map.visBits.size()) return false;
-  // Compressed rows: a byte with the high bit set repeats the next byte
-  // (count = low 7 bits + 1); otherwise the byte copies that many + 1 bytes
-  // verbatim. Walked only as far as the queried cluster.
+  // Source zero-run encoding: a non-zero byte contributes eight cluster bits;
+  // zero is followed by a count of zero bytes.
   std::size_t cursor = static_cast<std::size_t>(offset);
   int cluster = 0;
   while (cluster <= toCluster && cursor < map.visBits.size()) {
-    const auto run = map.visBits[cursor++];
-    if ((run & 0x80u) != 0u) {
-      const int count = static_cast<int>(run & 0x7fu) + 1;
+    const auto value = map.visBits[cursor++];
+    if (value == 0) {
       if (cursor >= map.visBits.size()) return false;
-      const auto value = map.visBits[cursor++];
-      if (toCluster < cluster + count * 8) return (value & (1u << (toCluster - cluster))) != 0;
-      cluster += count * 8;
-    } else {
-      const int count = static_cast<int>(run) + 1;
-      for (int i = 0; i < count; ++i) {
-        if (cursor >= map.visBits.size()) return false;
-        const auto value = map.visBits[cursor++];
-        if (toCluster < cluster + 8) return (value & (1u << (toCluster - cluster))) != 0;
-        cluster += 8;
-      }
+      const int zeroBytes = map.visBits[cursor++];
+      if (zeroBytes > (map.visClusterCount - cluster + 7) / 8) return false;
+      cluster += zeroBytes * 8;
+      continue;
     }
+    if (toCluster < cluster + 8) return (value & (1u << (toCluster - cluster))) != 0;
+    cluster += 8;
   }
   return false;
 }

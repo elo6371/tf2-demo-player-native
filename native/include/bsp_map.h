@@ -77,6 +77,20 @@ struct BspCubemapSample { int origin[3] = {}; int size = 0; };
 struct BspPlane { float normal[3] = {}; float dist = 0; };
 struct BspNode { int plane = 0; int child[2] = {}; };
 struct BspLeaf { int cluster = -1; int firstFace = 0; int faceCount = 0; };
+struct BspStaticProp {
+  std::string modelPath;
+  float origin[3] = {};
+  float angles[3] = {};
+  std::int32_t skin = 0;
+  std::uint16_t firstLeaf = 0;
+  std::uint16_t leafCount = 0;
+  // The game-lump stores leaf indices, not cluster ids. Keep the indices so
+  // the renderer can apply the map's actual cluster PVS without duplicating
+  // the BSP leaf table in every prop.
+  std::vector<std::uint16_t> leafIndices;
+  std::uint8_t solid = 0;
+  std::uint8_t flags = 0;
+};
 
 // D-14 (2026-11-09): a brush model this parser refuses to draw, named. The
 // counters in BspMap say how many; a count cannot say WHICH, and 84 refusals
@@ -251,6 +265,10 @@ struct BspMap {
   // sky` diagnostic mask, which is the same camera, projection and transform as
   // the world pass.
   std::vector<BspTriangle> skyTriangles;
+  bool staticPropsAvailable = false;
+  std::string staticPropsReason;
+  std::size_t staticPropModelCount = 0;
+  std::vector<BspStaticProp> staticProps;
   std::string skyName;
   // T101: the environment fog the entity lump declares (see BspFog). Parsed
   // regardless of the renderer's switch; whether it is drawn is a caller
@@ -356,11 +374,6 @@ struct BspMap {
   BspVisMode visMode = BspVisMode::Unavailable;
   int visClusterCount = 0;
   std::vector<int> visOffsets;
-  // T11: dvis_t carries TWO offset tables -- [0] for the 0x80-run compressed
-  // rows, [1] for the plain-bit rows, with -1 in whichever table the map did
-  // not use. Reading only [0] with a stride of 8 asked for bitofs[0][2c]: a
-  // different cluster's row. This vector is [1] and takes precedence.
-  std::vector<int> visRawOffsets;
   std::vector<std::uint8_t> visBits;
   std::vector<BspPlane> planes;
   std::vector<BspNode> nodes;

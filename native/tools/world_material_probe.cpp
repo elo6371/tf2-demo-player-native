@@ -114,6 +114,11 @@ bool checkMap(const tf2::native::BspMap& map, const std::filesystem::path& path,
     const int visible = tf2::native::BspParser::countVisibleClusters(map, 0);
     if (visible <= 0 || visible >= map.visClusterCount) { error = "vis did not hide any cluster"; return false; }
     if (tf2::native::BspParser::clusterVisible(map, -1, 0)) { error = "invalid cluster treated as visible"; return false; }
+    int selfVisible = 0;
+    for (int cluster = 0; cluster < map.visClusterCount; ++cluster) {
+      if (tf2::native::BspParser::clusterVisible(map, cluster, cluster)) ++selfVisible;
+    }
+    if (selfVisible != map.visClusterCount) { error = "vis self visibility"; return false; }
   }
   const std::string stem = path.stem().string();
   if (stem == "itemtest") {
@@ -153,6 +158,10 @@ void printMap(const std::filesystem::path& path, const tf2::native::BspMap& map)
     << ",\"atlas\":\"" << map.lightmapAtlasWidth << "x" << map.lightmapAtlasHeight
     << "\",\"sky\":\"" << map.skyName
     << "\",\"skyFaces\":" << map.skyFaces
+    << ",\"staticPropsAvailable\":" << (map.staticPropsAvailable ? "true" : "false")
+    << ",\"staticPropModels\":" << map.staticPropModelCount
+    << ",\"staticPropInstances\":" << map.staticProps.size()
+    << ",\"staticPropsReason\":\"" << map.staticPropsReason
     << ",\"displacements\":" << map.displacementFaces
     << ",\"displacementTriangles\":" << map.displacementTriangles
     << ",\"displacementCornerMatches\":" << map.displacementCornerMatches
@@ -2114,6 +2123,39 @@ int main(int argc, char** argv) {
     for (const auto& [key, value] : flat) {
       std::cout << "{\"reading\":\"" << key << "\",\"value\":\"" << value << "\"}\n";
     }
+    if (map.visMode == tf2::native::BspVisMode::ClusterPvs) {
+      // The row table starts right after the (pvs,pas) pair table and never
+      // steps back; an empty row may share the previous row's offset. This is
+      // a statement about the bytes we just read, not a constant.
+      const std::size_t tableEnd = 4u + static_cast<std::size_t>(map.visClusterCount) * 8u;
+      bool pvsContiguous = map.visOffsets.size() == static_cast<std::size_t>(map.visClusterCount);
+      std::size_t previous = tableEnd;
+      for (std::size_t index = 0; pvsContiguous && index < map.visOffsets.size(); ++index) {
+        const int offset = map.visOffsets[index];
+        if (offset < 0 || static_cast<std::size_t>(offset) < tableEnd
+            || (index == 0 && static_cast<std::size_t>(offset) != tableEnd)
+            || static_cast<std::size_t>(offset) < previous) {
+          pvsContiguous = false;
+          break;
+        }
+        previous = static_cast<std::size_t>(offset);
+      }
+      std::cout << "{\"reading\":\"vis.tableLayout\",\"value\":\"pairs\"}\n";
+      std::cout << "{\"reading\":\"vis.pvsContiguous\",\"value\":\""
+        << (pvsContiguous ? 1 : 0) << "\"}\n";
+      int selfVisible = 0;
+      for (int cluster = 0; cluster < map.visClusterCount; ++cluster) {
+        if (tf2::native::BspParser::clusterVisible(map, cluster, cluster)) ++selfVisible;
+      }
+      std::cout << "{\"reading\":\"vis.selfVisible\",\"value\":\""
+        << selfVisible << "\"}\n";
+    }
+    std::cout << "{\"reading\":\"staticprops.available\",\"value\":\""
+      << (map.staticPropsAvailable ? "true" : "false") << "\"}\n";
+    std::cout << "{\"reading\":\"staticprops.models\",\"value\":\""
+      << map.staticPropModelCount << "\"}\n";
+    std::cout << "{\"reading\":\"staticprops.instances\",\"value\":\""
+      << map.staticProps.size() << "\"}\n";
     std::cout << "{\"reading\":\"water.materialResolution\",\"value\":\"" << waterReason << "\"}\n";
     if (!mapOk) status = 1;
   }

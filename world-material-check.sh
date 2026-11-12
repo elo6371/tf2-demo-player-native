@@ -326,11 +326,13 @@ assert_eq "water faces"           "$(field "$REAL" water.faces)"           "18"
 assert_eq "water triangles"       "$(field "$REAL" water.trianglesTagged)" "36"
 assert_eq "vis mode"              "$(field "$REAL" vis.mode)"              "cluster-pvs"
 assert_eq "vis clusters"          "$(field "$REAL" vis.clusters)"          "2940"
-# T11 moved this pin: it used to decode the pvs row table with one stride-8
-# offset table and a run-length walk over rows the map stores uncompressed.
-# With the corrected reader cluster 0 sees 1462 clusters, and an independent
-# python decode of the same lump reproduces the number.
-assert_eq "vis visible from 0"    "$(field "$REAL" vis.visibleFromCluster0)" "1462"
+assert_eq "vis self-visible clusters" "$(field "$REAL" vis.selfVisible)" "2940"
+assert_eq "vis table layout"      "$(field "$REAL" vis.tableLayout)"      "pairs"
+assert_eq "vis pvs rows contiguous" "$(field "$REAL" vis.pvsContiguous)"  "1"
+# T11: lump 6 is one (pvs,pas) offset pair per cluster and the PVS rows are
+# Source zero-run encoded; the old reader walked bitofs[1] as plain bits.
+# 384 is cluster 0's row (90 bytes) decoded independently from the same lump.
+assert_eq "vis visible from 0"    "$(field "$REAL" vis.visibleFromCluster0)" "384"
 
 echo
 echo "=== 5/8 the negative control: no BSP, so nothing is available ==="

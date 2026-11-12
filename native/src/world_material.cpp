@@ -1665,26 +1665,32 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
   }
 
   // ---- vis ----------------------------------------------------------------
-  // dvis_t: int32 cluster count, then bitofs[0][c] (compressed rows) and
-  // bitofs[1][c] (uncompressed rows) as two contiguous tables, then the rows.
-  // T11: the fixture used to interleave one offset per 8 bytes -- the same
-  // misreading the parser had -- so a fixture that "passed" was a fixture that
-  // agreed with the bug. It now states the format: bitofs[0] is -1 (these rows
-  // are uncompressed) and bitofs[1] points at each row of (clusters+7)/8 bytes.
+  // Source dvis_t: int32 cluster count, then one PVS/PAS offset pair per
+  // cluster. PVS rows use Source zero-run encoding.
   std::vector<std::uint8_t> vis;
   if (fixture.clusterCount > 0) {
     const auto clusters = static_cast<std::size_t>(fixture.clusterCount);
     const auto rowBytes = (clusters + 7) / 8;
-    vis.resize(4 + clusters * 8 + clusters * rowBytes, 0);
+    vis.resize(4 + clusters * 8, 0);
     put32(vis, 0, fixture.clusterCount);
     for (std::size_t i = 0; i < clusters; ++i) {
-      const auto rowOffset = static_cast<std::int32_t>(4 + clusters * 8 + i * rowBytes);
-      put32(vis, 4 + i * 4, -1);
-      put32(vis, 4 + clusters * 4 + i * 4,
-        i < fixture.visOffsets.size() ? fixture.visOffsets[i] : rowOffset);
-    }
-    for (std::size_t i = 0; i < clusters && i < fixture.visBits.size(); ++i) {
-      vis[4 + clusters * 8 + i * rowBytes] = fixture.visBits[i];
+      std::vector<std::uint8_t> row(rowBytes, 0);
+      if (i < fixture.visBits.size()) row[0] = fixture.visBits[i];
+      row[i / 8] |= static_cast<std::uint8_t>(1u << (i & 7u));
+      put32(vis, 4 + i * 8, static_cast<std::int32_t>(vis.size()));
+      put32(vis, 8 + i * 8, -1);
+      for (std::size_t byte = 0; byte < row.size();) {
+        if (row[byte] != 0) {
+          vis.push_back(row[byte++]);
+          continue;
+        }
+        std::size_t zeroCount = 1;
+        while (byte + zeroCount < row.size() && row[byte + zeroCount] == 0
+            && zeroCount < 255u) ++zeroCount;
+        vis.push_back(0);
+        vis.push_back(static_cast<std::uint8_t>(zeroCount));
+        byte += zeroCount;
+      }
     }
   }
 
