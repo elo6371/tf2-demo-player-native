@@ -257,6 +257,8 @@ std::vector<std::string> g_overlayBindMeshes;
 // printed by the second.
 std::size_t g_overlayPaintedModels = 0;
 std::size_t g_overlayPaintedSlots = 0;
+std::size_t g_staticPropPaintedModels = 0;
+std::size_t g_staticPropPaintedSlots = 0;
 std::size_t g_overlaySampledTicks = 0;
 std::size_t g_overlayFramesWithList = 0;
 // What the last built list contained, as scalars so the trace prints one line
@@ -2616,6 +2618,7 @@ bool outlineVertexExtent = false;
   // sky" without guessing from a colour.
   enum class WorldGeometryFilter { All, Terrain, Sky, None };
   WorldGeometryFilter worldGeometry = WorldGeometryFilter::All;
+  bool worldIsolationRequested = false;
   int invalidWorldGeometryArgument = 0;
   // T17: the lightmap A/B. The product had no way to draw the world with the
   // lightmap term removed, so "this surface is dark because its lightmap is
@@ -3102,6 +3105,8 @@ bool outlineVertexExtent = false;
         else ++invalidWorldGeometryArgument;
       } else if (wcscmp(arguments[i], L"--world-geometry") == 0) {
         ++invalidWorldGeometryArgument;
+      } else if (wcscmp(arguments[i], L"--world-isolate") == 0) {
+        worldIsolationRequested = true;
       } else if (wcscmp(arguments[i], L"--tf-root") == 0 && i + 1 < argumentCount) {
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
@@ -4067,6 +4072,9 @@ bool outlineVertexExtent = false;
       std::uint32_t skinFamily = 0;
       std::string vmtPath;
       std::string vtfPath;
+      std::uint32_t materialFlags = 0;
+      std::string secondVtfPath;
+      tf2::native::VmtMaterialProxy proxy;
     };
     std::vector<PaintedSlot> paintedSlots;
     // T85 P0: which budget layer this model belongs to (entity_mesh_budget.h).
@@ -4076,6 +4084,13 @@ bool outlineVertexExtent = false;
     tf2::native::EntityMeshPriority priority = tf2::native::EntityMeshPriority::WorldProp;
   };
   std::vector<PreparedEntityMesh> preparedEntityMeshes;
+  // Map-owned models have their own bounded residency and instance allowance;
+  // they never take a player's or held weapon's slot or overwrite its path key.
+  std::vector<PreparedEntityMesh> staticPropMeshes;
+  std::unordered_map<std::string, std::size_t> staticPropMeshByPath;
+  std::unordered_set<std::string> mapNetworkModelPaths;
+  std::size_t staticPropModelCandidates = 0;
+  std::size_t staticPropModelsPrepared = 0;
   // The overlay's own bind-pose player meshes. Separate list so the world pass's
   // model count stays the number other tasks read (see the preparation site).
   std::vector<PreparedEntityMesh> overlayBindMeshes;
@@ -4329,7 +4344,8 @@ bool outlineVertexExtent = false;
       // cannot be decoded is skipped WITH a reason -- guessing slot 0 for it is
       // the defect this round removes.
       std::string runsError;
-      if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs, runsError)) {
+      if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs,
+            runsError, prepared.priority == tf2::native::EntityMeshPriority::WorldProp)) {
         // Review minor 3: a material-run failure is a build failure like any
         // other. Without this line built+failed < admitted and the ledger does
         // not balance, which is exactly what a budget account must never do.
@@ -6046,9 +6062,72 @@ bool outlineVertexExtent = false;
     const auto paintRead = [&assetChain](const std::string& resource) {
       return assetChain.lookup(resource).bytes;
     };
+    // The BSP pakfile reader is now registered. Custom map models often exist
+    // only there, so the installation-only demo precache loader cannot supply them.
+    if (assets.valid()) {
+      std::map<std::string, std::size_t> pathFrequency;
+      for (const auto& prop : displayMap.staticProps) ++pathFrequency[tf2::native::normalizeModelPath(prop.modelPath)];
+      staticPropModelCandidates = pathFrequency.size();
+      for (const auto& precache : demoNetworkSummary.modelPrecache) {
+        const auto path = tf2::native::normalizeModelPath(precache.second);
+        if (path.rfind("models/props", 0) == 0 || path.rfind("models/models/props", 0) == 0
+            || path.rfind("models/effects/cappoint", 0) == 0) {
+          mapNetworkModelPaths.insert(path);
+          pathFrequency.emplace(path, 0);
+        }
+      }
+      std::vector<std::pair<std::string, std::size_t>> rankedPaths(pathFrequency.begin(), pathFrequency.end());
+      std::sort(rankedPaths.begin(), rankedPaths.end(), [](const auto& left, const auto& right) {
+        if (left.second != right.second) return left.second > right.second;
+        return left.first < right.first;
+      });
+      for (const auto& candidate : rankedPaths) {
+        if (staticPropMeshes.size() >= renderer.mapStaticPropMeshCapacityLimit) break;
+        auto inspection = tf2::native::ModelLoader::inspectResources(candidate.first, paintRead);
+        if (!inspection.renderableResourceSet || !inspection.metadata.valid) {
+          traceFmt("map: static-prop model-refused path=%s stage=resources mdl=%d vvd=%d vtx=%d",
+            candidate.first.c_str(), inspection.mdl.signatureValid ? 1 : 0,
+            inspection.vvd.signatureValid ? 1 : 0, inspection.vtx.signatureValid ? 1 : 0);
+          continue;
+        }
+        std::string error;
+        if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(inspection.metadata, error)
+            || inspection.metadata.bindPoseVertices.size() < 3) {
+          traceFmt("map: static-prop model-refused path=%s stage=mesh reason=%s",
+            candidate.first.c_str(), error.empty() ? "empty LOD0" : error.c_str());
+          continue;
+        }
+        PreparedEntityMesh prepared;
+        prepared.path = candidate.first;
+        prepared.cacheKey = "bsp-static:" + tf2::native::normalizeModelPath(candidate.first)
+          + "#" + std::to_string(inspection.metadata.checksum);
+        prepared.vertices = std::move(inspection.metadata.bindPoseVertices);
+        if (!tf2::native::ModelLoader::buildMaterialRuns(inspection.metadata, prepared.runs, error, true)) {
+          traceFmt("map: static-prop model-refused path=%s stage=material-runs reason=%s",
+            candidate.first.c_str(), error.c_str());
+          continue;
+        }
+        prepared.skinFamilies = std::move(inspection.metadata.skinFamilies);
+        prepared.textureCandidates = std::move(inspection.metadata.textureCandidates);
+        staticPropMeshByPath[candidate.first] = staticPropMeshes.size();
+        staticPropMeshes.push_back(std::move(prepared));
+      }
+      for (const auto& entry : staticPropMeshByPath) {
+        const auto count = pathFrequency.find(entry.first);
+        if (count != pathFrequency.end() && count->second > 0) ++staticPropModelsPrepared;
+      }
+    }
+    traceFmt("map: static-props available=%d instances=%zu modelCandidates=%zu modelsPrepared=%zu modelBudget=%zu reason=%s",
+      displayMap.staticPropsAvailable ? 1 : 0, displayMap.staticProps.size(),
+      staticPropModelCandidates, staticPropModelsPrepared, renderer.mapStaticPropMeshCapacityLimit,
+      displayMap.staticPropsReason.empty() ? "-" : displayMap.staticPropsReason.c_str());
+    traceFmt("map: model-bank networkCandidates=%zu modelsPrepared=%zu meshBudget=%zu",
+      mapNetworkModelPaths.size(), staticPropMeshes.size(), renderer.mapStaticPropMeshCapacityLimit);
     g_overlayPaintedModels = 0;
     g_overlayPaintedSlots = 0;
-    const auto paintModels = [&](std::vector<PreparedEntityMesh>& models, bool countAsWorldPass) {
+    g_staticPropPaintedModels = 0;
+    g_staticPropPaintedSlots = 0;
+    const auto paintModels = [&](std::vector<PreparedEntityMesh>& models, int category) {
     for (auto& prepared : models) {
       if (!prepared.skinFamilies.available) {
         traceFmt("gpu: entity paint skipped path=%s reason=skin family table unavailable: %s",
@@ -6063,8 +6142,12 @@ bool outlineVertexExtent = false;
       // range fell back to the world atlas. The draw stage below clamps the
       // request with the same rule, so the key uploaded here is the key it looks
       // up there (see effectiveSkinFamily() in material_slot_resolution.h).
-      for (std::uint32_t family = 0;
-           family < tf2::native::selectableSkinFamilyCount(prepared.skinFamilies); ++family) {
+      // World props use authored m_nSkin values, which are not restricted to
+      // the player models' two team families (control points have a third).
+      const std::uint32_t familyCount = prepared.priority == tf2::native::EntityMeshPriority::WorldProp
+        ? std::max(1u, prepared.skinFamilies.skinFamilyCount)
+        : tf2::native::selectableSkinFamilyCount(prepared.skinFamilies);
+      for (std::uint32_t family = 0; family < familyCount; ++family) {
         for (const auto slot : slots) {
           tf2::native::MaterialSlotResolution resolution;
           if (!tf2::native::resolveMaterialSlot(prepared.skinFamilies, prepared.textureCandidates,
@@ -6078,6 +6161,22 @@ bool outlineVertexExtent = false;
           painted.skinFamily = family;
           painted.vmtPath = resolution.vmtPath;
           painted.vtfPath = resolution.vtfPath;
+          if (category == 2 || prepared.priority == tf2::native::EntityMeshPriority::WorldProp) {
+            painted.materialFlags = (resolution.alphaTest ? 16u : 0u)
+              | (resolution.translucent ? 8u : 0u) | (resolution.noCull ? 256u : 0u)
+              | (resolution.additive ? 64u : 0u) | (resolution.unlit ? 512u : 0u)
+              | (resolution.modulate ? 1024u : 0u) | (resolution.modulate2x ? 2048u : 0u);
+            painted.secondVtfPath = resolution.secondVtfPath;
+            painted.proxy = resolution.proxy;
+            if (prepared.path.rfind("models/effects/cappoint", 0) == 0) {
+              traceFmt("map: material path=%s slot=%u family=%u shaderFlags=%u second=%s scroll=%d rate=%.3f angle=%.3f sine=%d period=%.3f min=%.3f max=%.3f",
+                prepared.path.c_str(), slot, family, painted.materialFlags,
+                painted.secondVtfPath.empty() ? "-" : painted.secondVtfPath.c_str(),
+                painted.proxy.textureScroll ? 1 : 0, painted.proxy.textureScrollRate,
+                painted.proxy.textureScrollAngle, painted.proxy.sineColor ? 1 : 0,
+                painted.proxy.sinePeriod, painted.proxy.sineMin, painted.proxy.sineMax);
+            }
+          }
           prepared.paintedSlots.push_back(std::move(painted));
         }
       }
@@ -6091,14 +6190,17 @@ bool outlineVertexExtent = false;
         // The world-pass counters keep meaning "the world pass". The overlay's
         // nine bodies are counted separately, so raising the number a gate
         // already asserts is not how this fix gets noticed.
-        if (countAsWorldPass) { ++entityMaterialResolvedModels; }
-        else { ++g_overlayPaintedModels; }
+        if (category == 0) { ++entityMaterialResolvedModels; }
+        else if (category == 1) { ++g_overlayPaintedModels; }
+        else { ++g_staticPropPaintedModels; }
       }
     }
     };
-    paintModels(preparedEntityMeshes, true);
-    paintModels(overlayBindMeshes, false);
+    paintModels(preparedEntityMeshes, 0);
+    paintModels(overlayBindMeshes, 1);
+    paintModels(staticPropMeshes, 2);
     for (const auto& overlayPainted : overlayBindMeshes) g_overlayPaintedSlots += overlayPainted.paintedSlots.size();
+    for (const auto& propPainted : staticPropMeshes) g_staticPropPaintedSlots += propPainted.paintedSlots.size();
   }
   g_playback.enabled = demoHeader.valid;
   g_playback.endTick = std::max<std::int32_t>(0, demoHeader.ticks);
@@ -7279,7 +7381,8 @@ bool outlineVertexExtent = false;
     renderer.setWorldSkyFaceOnly(worldGeometry == WorldGeometryFilter::Sky);
     renderer.setWorldFaceIdUpload(worldDebugView == 4);
     renderer.setWorldRefusedMask(worldRefusedMask != 0);
-    renderer.setWorldDiagnosticIsolation(worldGeometry != WorldGeometryFilter::All);
+    renderer.setWorldDiagnosticIsolation(
+      worldIsolationRequested || worldGeometry != WorldGeometryFilter::All);
     // T17: this one changes a draw-time constant, not the upload. It is set here
     // so the reading and the frames of one run describe one configuration.
     renderer.setWorldLightmapEnabled(worldLightmapGiven ? worldLightmapRequested : true);
@@ -7870,9 +7973,28 @@ bool outlineVertexExtent = false;
         }
         const UINT preparedWidth = preparedTexture.header().width;
         const UINT preparedHeight = preparedTexture.header().height;
+        std::vector<std::uint8_t> secondRgba;
+        tf2::native::VtfTexture secondTexture;
+        if (!painted.secondVtfPath.empty()) {
+          const auto& secondBytes = readMaterialVtf(painted.secondVtfPath);
+          if (!secondBytes.empty() && secondTexture.parse(secondBytes))
+            secondRgba = secondTexture.decodeRgba(secondBytes);
+          if (secondRgba.empty()) {
+            traceFmt("gpu: map-model second-texture-refused path=%s material=%s texture=%s",
+              prepared.path.c_str(), painted.vmtPath.c_str(), painted.secondVtfPath.c_str());
+            continue;
+          }
+        }
         if (renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
-              preparedRgba, preparedWidth, preparedHeight)) {
+              preparedRgba, preparedWidth, preparedHeight, painted.materialFlags,
+              secondRgba, secondTexture.header().width, secondTexture.header().height,
+              painted.proxy)) {
           ++preparedPainted;
+          if (prepared.path.rfind("models/effects/cappoint", 0) == 0) {
+            traceFmt("map: material-upload path=%s slot=%u family=%u flags=%u secondBytes=%zu",
+              prepared.path.c_str(), painted.materialSlot, painted.skinFamily,
+              painted.materialFlags, secondRgba.size());
+          }
         }
       }
       if (preparedPainted > 0) {
@@ -7886,6 +8008,45 @@ bool outlineVertexExtent = false;
     }
     traceFmt("gpu: models done %zu uploaded=%zu", preparedEntityMeshes.size(),
       entityMaterialUploadedModels);
+    std::size_t staticPropMeshesUploaded = 0;
+    std::size_t staticPropMeshesRejected = 0;
+    for (const auto& prepared : staticPropMeshes) {
+      if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs,
+            tf2::native::EntityMeshPriority::WorldProp, true)) {
+        ++staticPropMeshesRejected;
+        traceFmt("gpu: static-prop mesh-refused key=%s lastError=0x%08lX",
+          prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()));
+        continue;
+      }
+      std::size_t painted = 0;
+      for (const auto& slot : prepared.paintedSlots) {
+        const auto& bytes = readMaterialVtf(slot.vtfPath);
+        tf2::native::VtfTexture texture;
+        const auto rgba = bytes.empty() || !texture.parse(bytes)
+          ? std::vector<std::uint8_t>{} : texture.decodeRgba(bytes);
+        if (rgba.empty()) continue;
+        std::vector<std::uint8_t> secondRgba;
+        tf2::native::VtfTexture secondTexture;
+        if (!slot.secondVtfPath.empty()) {
+          const auto& secondBytes = readMaterialVtf(slot.secondVtfPath);
+          if (!secondBytes.empty() && secondTexture.parse(secondBytes))
+            secondRgba = secondTexture.decodeRgba(secondBytes);
+          if (secondRgba.empty()) {
+            traceFmt("gpu: map-model second-texture-refused path=%s material=%s texture=%s",
+              prepared.path.c_str(), slot.vmtPath.c_str(), slot.secondVtfPath.c_str());
+            continue;
+          }
+        }
+        if (renderer.uploadEntityModelTexture(prepared.cacheKey, slot.materialSlot,
+              slot.skinFamily, rgba, texture.header().width, texture.header().height,
+              slot.materialFlags, secondRgba, secondTexture.header().width,
+              secondTexture.header().height, slot.proxy)) ++painted;
+      }
+      if (painted > 0) ++staticPropMeshesUploaded;
+    }
+    traceFmt("gpu: static-prop meshes prepared=%zu uploaded=%zu rejected=%zu paintedModels=%zu paintedSlots=%zu",
+      staticPropMeshes.size(), staticPropMeshesUploaded, staticPropMeshesRejected,
+      g_staticPropPaintedModels, g_staticPropPaintedSlots);
     // THE OVERLAY'S OWN MESHES GO IN AFTER the world pass's, and the keys that
     // actually landed are the only ones the builder is told about: a key whose
     // upload was refused would be submitted, counted, and drawn from nothing --
@@ -7979,7 +8140,8 @@ bool outlineVertexExtent = false;
           }
         }
         const bool overlayUploaded = renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
-              overlayRgba, overlayTexture.header().width, overlayTexture.header().height);
+              overlayRgba, overlayTexture.header().width, overlayTexture.header().height,
+              0, {}, 0, 0, painted.proxy);
         traceFmt("gpu: overlay texture key=%s slot=%u family=%u size=%ux%u uploaded=%d meanRGBA=%.1f,%.1f,%.1f,%.1f samples=%zu vtf=%s",
           prepared.cacheKey.c_str(), painted.materialSlot, painted.skinFamily,
           overlayTexture.header().width, overlayTexture.header().height, overlayUploaded ? 1 : 0,
@@ -8273,6 +8435,12 @@ bool outlineVertexExtent = false;
   bool worldDrawTraceEmitted = false;
   tf2::native::WorldVisClipReading worldVisReading;
   const auto applyWorldVisClip = [&]() {
+    // The relay may replace the scene tick's demo view. Select the final
+    // diagnostic view BEFORE querying PVS, not only immediately before draw.
+    if (g_debugCamera) {
+      renderer.setObserverDemoViewWorld(g_debugCameraEye[0], g_debugCameraEye[1],
+        g_debugCameraEye[2], g_debugCameraPitch, g_debugCameraYaw);
+    }
     const bool enabled = worldVisClipGiven ? worldVisClipRequested : true;
     renderer.setWorldVisClipEnabled(enabled);
     if (!enabled) {
@@ -8283,7 +8451,7 @@ bool outlineVertexExtent = false;
     }
     float eyeX = worldVisCameraEye[0], eyeY = worldVisCameraEye[1], eyeZ = worldVisCameraEye[2];
     // T10 fix: map-space eye for a map-space cluster query (see the fill above).
-    if (renderer.observerFocusMapWorld(eyeX, eyeY, eyeZ)) {
+    if (renderer.cameraEyeMapWorld(eyeX, eyeY, eyeZ)) {
       worldVisCameraEye[0] = eyeX; worldVisCameraEye[1] = eyeY; worldVisCameraEye[2] = eyeZ;
     }
     const int cameraCluster = tf2::native::BspParser::clusterAt(displayMap, eyeX, eyeY, eyeZ);
@@ -10253,6 +10421,70 @@ bool outlineVertexExtent = false;
           }
         };
         const auto modelInstances = buildGuarded();
+        // Map actors use the current snapshot's model and skin, not a historic
+        // asset reference at the same entity slot. Their meshes share the map
+        // residency allowance, leaving the player/held-weapon budgets intact.
+        std::unordered_set<std::size_t> mapNetworkEntities;
+        std::vector<tf2::native::EntityModelDrawInstance> mapNetworkDraws;
+        std::size_t mapNetworkHidden = 0, mapNetworkMissing = 0, mapNetworkPoseRefused = 0;
+        const auto readMapInt = [](const tf2::native::EntityState& state,
+            const std::string& suffix, std::int64_t fallback) {
+          const auto ranked = tf2::native::rankPropertyCandidates(state, suffix.c_str());
+          if (ranked.empty()) return fallback;
+          const auto found = state.properties.find(ranked.front().name);
+          return found != state.properties.end() && found->second.type == tf2::native::SendPropType::Int
+            ? found->second.intValue : fallback;
+        };
+        for (std::size_t entity = 0; entity < currentEntityStates.size(); ++entity) {
+          const auto& state = currentEntityStates[entity];
+          if (state.classId < 0) continue;
+          const auto modelIndex = readMapInt(state, "m_nModelIndex", -1);
+          if (modelIndex < 0 || modelIndex > 0xffff) continue;
+          const auto precache = demoNetworkSummary.modelPrecache.find(static_cast<std::uint16_t>(modelIndex));
+          if (precache == demoNetworkSummary.modelPrecache.end()) continue;
+          const auto path = tf2::native::normalizeModelPath(precache->second);
+          if (!mapNetworkModelPaths.count(path)) continue;
+          mapNetworkEntities.insert(entity);
+          if ((readMapInt(state, "m_fEffects", 0) & 0x20) != 0) { ++mapNetworkHidden; continue; }
+          const auto meshIndex = staticPropMeshByPath.find(path);
+          if (meshIndex == staticPropMeshByPath.end()) { ++mapNetworkMissing; continue; }
+          const auto& mesh = staticPropMeshes[meshIndex->second];
+          std::array<float, 12> matrix;
+          std::string reason;
+          if (!tf2::native::resolveEntityWorldMatrix(currentEntityStates, entity, matrix, reason)) {
+            ++mapNetworkPoseRefused;
+            traceFmt("map: model pose-refused entity=%zu path=%s reason=%s", entity, path.c_str(), reason.c_str());
+            continue;
+          }
+          tf2::native::EntityModelDrawInstance draw;
+          draw.entityIndex = static_cast<std::int32_t>(entity);
+          draw.cacheKey = mesh.cacheKey;
+          draw.mapStaticProp = true;
+          draw.sourceModelSpace = true;
+          // The local matrix already includes the live map-space translation.
+          // Keep the outer origin at zero: its -center/-minZ terms normalize
+          // that map-space result exactly once.
+          draw.hasLocalMatrix = true;
+          std::copy(matrix.begin(), matrix.end(), draw.localPositionRows);
+          // Map-model VVD positions are Source Z-up, including animated props
+          // and cap-point holograms; STUDIOHDR_FLAGS_STATIC_PROP does not select
+          // a coordinate system. The player's historical permutation is not
+          // applicable to this model bank.
+          const auto skin = readMapInt(state, "m_nSkin", 0);
+          const auto body = readMapInt(state, "m_nBody", 0);
+          draw.body = body >= 0 && static_cast<std::uint64_t>(body) <= UINT32_MAX
+            ? static_cast<std::uint32_t>(body) : 0u;
+          draw.skinFamily = tf2::native::effectiveSkinFamily(
+            std::max(1u, mesh.skinFamilies.skinFamilyCount),
+            skin >= 0 && static_cast<std::uint64_t>(skin) <= UINT32_MAX ? static_cast<std::uint32_t>(skin) : 0u);
+          draw.color[0] = draw.color[1] = draw.color[2] = draw.color[3] = 1.0f;
+          traceFmt("map: model entity=%zu path=%s skin=%u body=%u origin=%.2f,%.2f,%.2f parent=%lld",
+            entity, path.c_str(), draw.skinFamily, draw.body, matrix[3], matrix[7], matrix[11],
+            static_cast<long long>(readMapInt(state, "moveparent", -1)));
+          mapNetworkDraws.push_back(std::move(draw));
+        }
+        traceFmt("scene: mapModels observed=%zu submitted=%zu hidden=%zu missingMesh=%zu poseRefused=%zu",
+          mapNetworkEntities.size(), mapNetworkDraws.size(), mapNetworkHidden, mapNetworkMissing, mapNetworkPoseRefused);
         // The cap is a reading, not a constant: when the request loop fills it,
         // the player-class sweep below never runs and every player silently
         // vanishes while the instance count still looks healthy. Publish the
@@ -10685,12 +10917,16 @@ bool outlineVertexExtent = false;
         // push a player body out of the frame it is the subject of.
         const std::size_t attachBudget = std::min(heldByPlayer.size(), propBudget);
         propBudget -= attachBudget;
+        const std::size_t mapNetworkSubmitted = std::min(
+          renderer.mapStaticPropInstanceCapacityLimit, mapNetworkDraws.size());
+        const std::size_t staticPropBudget = renderer.mapStaticPropInstanceCapacityLimit - mapNetworkSubmitted;
         std::size_t attachDrawn = 0;
         std::size_t attachPoseMissing = 0;
         std::size_t attachOverBudget = 0;
         std::size_t attachSkippedStandalone = 0;
         std::unordered_set<std::string> attachSignatures;
         for (const auto& instance : drawCandidates) {
+          if (mapNetworkEntities.count(instance.entityIndex)) continue;
           if (!instance.transform.hasOrigin) continue;
           // T66 rule 1: a dead player left the candidate set above, at the tick
           // m_lifeState stopped being 0, so it can neither be drawn nor become the
@@ -10823,8 +11059,11 @@ bool outlineVertexExtent = false;
             // engine clamps an out-of-range paint index to the model's default
             // family, so the request is clamped before the bucket key is built --
             // the same rule the paint stage used to decide which keys to upload.
-            const std::uint32_t requestedSkinFamily =
-              (instance.transform.hasTeam && instance.transform.team == 3) ? 1u : 0u;
+            const std::uint32_t requestedSkinFamily = !player && instance.transform.hasSkin
+              && instance.transform.skin >= 0
+              && static_cast<std::uint64_t>(instance.transform.skin) <= UINT32_MAX
+              ? static_cast<std::uint32_t>(instance.transform.skin)
+              : (instance.transform.hasTeam && instance.transform.team == 3) ? 1u : 0u;
             std::uint32_t drawnSkinFamilyCount = 0;
             const auto drawnFamilyCount = entitySkinFamilyCountByKey.find(cacheKey);
             if (drawnFamilyCount != entitySkinFamilyCountByKey.end()) {
@@ -11424,6 +11663,87 @@ bool outlineVertexExtent = false;
             fallbackMarkers.push_back(marker);
           }
         }
+        struct VisibleStaticProp {
+          std::size_t index = 0;
+          float distanceSquared = 0.0f;
+        };
+        std::vector<VisibleStaticProp> visibleStaticProps;
+        std::size_t staticPropPvsRejected = 0;
+        float staticPropEye[3] = {worldVisCameraEye[0], worldVisCameraEye[1], worldVisCameraEye[2]};
+        if (g_debugCamera) {
+          std::copy(std::begin(g_debugCameraEye), std::end(g_debugCameraEye), staticPropEye);
+        } else {
+          renderer.cameraEyeMapWorld(staticPropEye[0], staticPropEye[1], staticPropEye[2]);
+        }
+        if (staticPropBudget > 0 && displayMap.staticPropsAvailable) {
+          const float* eye = staticPropEye;
+          const int eyeCluster = tf2::native::BspParser::clusterAt(
+            displayMap, eye[0], eye[1], eye[2]);
+          visibleStaticProps.reserve(displayMap.staticProps.size());
+          for (std::size_t index = 0; index < displayMap.staticProps.size(); ++index) {
+            const auto& prop = displayMap.staticProps[index];
+            bool potentiallyVisible = true;
+            bool hasCluster = false;
+            if (eyeCluster >= 0 && displayMap.visMode == tf2::native::BspVisMode::ClusterPvs) {
+              potentiallyVisible = false;
+              for (const auto leafIndex : prop.leafIndices) {
+                if (leafIndex >= displayMap.leaves.size()) continue;
+                const int cluster = displayMap.leaves[leafIndex].cluster;
+                if (cluster < 0) continue;
+                hasCluster = true;
+                if (tf2::native::BspParser::clusterVisible(displayMap, eyeCluster, cluster)) {
+                  potentiallyVisible = true;
+                  break;
+                }
+              }
+              if (!hasCluster) potentiallyVisible = true;
+            }
+            if (!potentiallyVisible) { ++staticPropPvsRejected; continue; }
+            const float dx = prop.origin[0] - eye[0];
+            const float dy = prop.origin[1] - eye[1];
+            const float dz = prop.origin[2] - eye[2];
+            visibleStaticProps.push_back({index, dx * dx + dy * dy + dz * dz});
+          }
+          std::stable_sort(visibleStaticProps.begin(), visibleStaticProps.end(),
+            [](const VisibleStaticProp& left, const VisibleStaticProp& right) {
+              if (left.distanceSquared != right.distanceSquared) {
+                return left.distanceSquared < right.distanceSquared;
+              }
+              return left.index < right.index;
+            });
+        }
+        std::size_t staticPropDrawn = 0;
+        std::size_t staticPropMissingMesh = 0;
+        for (const auto& candidate : visibleStaticProps) {
+          const auto& prop = displayMap.staticProps[candidate.index];
+          const auto found = staticPropMeshByPath.find(tf2::native::normalizeModelPath(prop.modelPath));
+          if (found == staticPropMeshByPath.end()) { ++staticPropMissingMesh; continue; }
+          if (staticPropDrawn >= staticPropBudget) continue;
+          const auto& mesh = staticPropMeshes[found->second];
+          tf2::native::EntityModelDrawInstance draw;
+          draw.cacheKey = mesh.cacheKey;
+          draw.mapStaticProp = true;
+          draw.sourceModelSpace = true;
+          draw.skinFamily = tf2::native::effectiveSkinFamily(
+            std::max(1u, mesh.skinFamilies.skinFamilyCount),
+            prop.skin < 0 ? 0u : static_cast<std::uint32_t>(prop.skin));
+          draw.color[0] = draw.color[1] = draw.color[2] = draw.color[3] = 1.0f;
+          draw.entityIndex = -1;
+          draw.hasAngles = true;
+          for (int axis = 0; axis < 3; ++axis) {
+            draw.origin[axis] = prop.origin[axis];
+            draw.angles[axis] = prop.angles[axis];
+          }
+          draws.push_back(std::move(draw));
+          ++staticPropDrawn;
+        }
+        traceFmt("scene: staticProps available=%d instances=%zu visible=%zu pvsRejected=%zu drawn=%zu missingMesh=%zu budget=%zu eyeCluster=%d eye=%.1f,%.1f,%.1f",
+          displayMap.staticPropsAvailable ? 1 : 0, displayMap.staticProps.size(),
+          visibleStaticProps.size(), staticPropPvsRejected, staticPropDrawn,
+          staticPropMissingMesh, staticPropBudget,
+          tf2::native::BspParser::clusterAt(displayMap, staticPropEye[0],
+            staticPropEye[1], staticPropEye[2]),
+          staticPropEye[0], staticPropEye[1], staticPropEye[2]);
         {
           // T85 8.3-2: the gate anchor. PASS requires at least one player body to
           // have been checked and ZERO bodies whose drawn model had no provable
@@ -11493,6 +11813,9 @@ bool outlineVertexExtent = false;
           // would duplicate the same account from a half-built frame.)
         }
         renderer.setEntityBoneMatrices(entityBoneMatrices);
+        renderer.setEntityModelTime(sceneTickKnown && g_playback.tickRate > 0.0
+          ? static_cast<double>(sceneTick) / g_playback.tickRate : 0.0);
+        draws.insert(draws.end(), mapNetworkDraws.begin(), mapNetworkDraws.begin() + mapNetworkSubmitted);
         renderer.setEntityModelInstances(draws);
         // T85 P0: LAYER C'S LEDGER. The instance update is the last place an
         // entity can disappear between the draw list and the GPU, and until this
@@ -11512,13 +11835,18 @@ bool outlineVertexExtent = false;
         // instance row per material run (packed.size()), so accepted==slots is false for
         // every multi-run model and a sum-against-slots assertion is a tautology trap.
         traceFmt("budget: instances capacity=%zu submitted=%zu accepted=%zu slots=%zu rejected=missingMesh:%zu,deferredNotResident:%zu,badMesh:%zu,nonFinite:%zu,budget:%zu",
-          renderer.entityModelInstanceCapacityLimit, draws.size(), renderer.entityModelInstanceCount(),
+          renderer.entityModelInstanceCapacityLimit, draws.size() - staticPropDrawn - mapNetworkSubmitted,
+          renderer.entityModelInstanceCount(),
           renderer.entityModelInstanceSlotCount(),
           renderer.entityModelInstanceRejectedMissingMesh(),
           renderer.entityModelInstanceRejectedDeferredNotResident(),
           renderer.entityModelInstanceRejectedBadMesh(),
           renderer.entityModelInstanceRejectedNonFinite(),
           renderer.entityModelInstanceRejectedBudget());
+        traceFmt("budget: mapModels meshCapacity=%zu resident=%zu instanceCapacity=%zu submitted=%zu accepted=%zu rejected=%zu",
+          renderer.mapStaticPropMeshCapacityLimit, renderer.mapStaticPropMeshCount(),
+          renderer.mapStaticPropInstanceCapacityLimit, staticPropDrawn + mapNetworkSubmitted,
+          renderer.mapStaticPropInstanceCount(), renderer.mapStaticPropInstanceRejected());
         // T85 P0 review B3/B4: settle the eviction books BEFORE the ledger, so an
         // eviction created by this frame's uploads (world, overlay or attach) has
         // already unpublished its path->key mapping and printed its NAMED line
