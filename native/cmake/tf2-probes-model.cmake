@@ -70,7 +70,7 @@ target_compile_definitions(model_robustness_probe PRIVATE ${TF2_DEMO_HEADER_DEFI
 target_include_directories(model_robustness_probe PRIVATE include third_party/lzma)
 set_target_properties(model_robustness_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp src/vmt_material.cpp src/vtf_texture.cpp)
+add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp src/asset_lookup.cpp src/bsp_map.cpp src/world_material.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp src/vmt_material.cpp src/vtf_texture.cpp)
 target_link_libraries(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(entity_model_probe PRIVATE include third_party/lzma)

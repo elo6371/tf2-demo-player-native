@@ -497,8 +497,9 @@ std::vector<std::uint8_t> syntheticFlatVtf(std::uint32_t width, std::uint32_t he
   put16At(24, 1);
   put32At(52, 0);
   file[56] = 1;
-  file[61] = 1;
-  file[62] = 1;
+  // No thumbnail bytes follow this synthetic header.
+  file[61] = 0;
+  file[62] = 0;
   put16At(63, 1);
   for (std::size_t pixel = 0; pixel < static_cast<std::size_t>(width) * height; ++pixel) {
     file.push_back(colour[0]);
@@ -1940,6 +1941,16 @@ bool worldDrawSelfTest() {
   const bool clipWithoutPvs = clipNoPvs.state == WorldVisClipState::Unavailable
     && !clipNoPvs.clipApplied && clipNoPvs.outputTriangles == noVisMap.triangles.size()
     && clipNoPvs.reason.find("no cluster pvs") != std::string::npos;
+  BspMap longVis;
+  longVis.visMode = tf2::native::BspVisMode::ClusterPvs;
+  longVis.visClusterCount = 80;
+  longVis.visOffsets.assign(80, -1);
+  longVis.visOffsets[0] = 0;
+  longVis.visBits = {0, 5, 1, 0, 4};
+  const bool longZeroRun = tf2::native::BspParser::clusterVisible(longVis, 0, 40)
+    && !tf2::native::BspParser::clusterVisible(longVis, 0, 39);
+  longVis.visBits = {0};
+  const bool truncatedZeroRunRefused = !tf2::native::BspParser::clusterVisible(longVis, 0, 40);
 
   // The atlas: the shelf width is chosen now, and the choice is what turns "this
   // map loses faces" from a subtraction into a behaviour. The same seventeen
@@ -1986,7 +1997,7 @@ bool worldDrawSelfTest() {
 
   const bool ok = box && planes && uvs && partialFallback && noSides && disabled
     && clipHides && clipIndices && clipFollowsCamera && clipDisabled && clipNeedsCamera
-    && clipWithoutPvs && atlasReason && atlasGrows;
+    && clipWithoutPvs && longZeroRun && truncatedZeroRunRefused && atlasReason && atlasGrows;
   std::cout << "{\"worldDrawSelfTest\":" << (ok ? "true" : "false")
     << ",\"skyBoxVertices\":" << (box ? "true" : "false")
     << ",\"skyBoxPlanes\":" << (planes ? "true" : "false")
@@ -2000,9 +2011,114 @@ bool worldDrawSelfTest() {
     << ",\"visClipDisabled\":" << (clipDisabled ? "true" : "false")
     << ",\"visClipNeedsCamera\":" << (clipNeedsCamera ? "true" : "false")
     << ",\"visClipWithoutPvs\":" << (clipWithoutPvs ? "true" : "false")
+    << ",\"visLongZeroRun\":" << (longZeroRun ? "true" : "false")
+    << ",\"visTruncatedZeroRunRefused\":" << (truncatedZeroRunRefused ? "true" : "false")
     << ",\"atlasFitsAt2048\":" << (atlasReason ? "true" : "false")
     << ",\"atlasGrowsWhenFull\":" << (atlasGrows ? "true" : "false") << "}\n";
   return ok;
+}
+
+bool legacyVtfThumbnailSelfTest() {
+  // VTF 7.2: header, low-resolution DXT1 thumbnail, high-resolution mip chain.
+  // The known solid-red DXT5 block must never decode the thumbnail bytes.
+  std::vector<std::uint8_t> bytes(104, 0);
+  const auto write = [&bytes](std::size_t at, const auto& value) {
+    std::memcpy(bytes.data() + at, &value, sizeof(value));
+  };
+  std::memcpy(bytes.data(), "VTF\0", 4);
+  write(4, 7u); write(8, 2u); write(12, 80u);
+  write(16, std::uint16_t{4}); write(18, std::uint16_t{4});
+  write(24, std::uint16_t{1}); write(52, 15u);
+  bytes[56] = 1; write(57, 13u); bytes[61] = bytes[62] = 4;
+  write(63, std::uint16_t{1});
+  std::fill(bytes.begin() + 80, bytes.begin() + 88, 0x7f);
+  bytes[88] = bytes[89] = 255;
+  write(96, std::uint16_t{0xf800});
+  tf2::native::VtfTexture texture;
+  const bool parsed = texture.parse(bytes);
+  const auto pixels = parsed ? texture.decodeRgba(bytes) : std::vector<std::uint8_t>{};
+  bool red = pixels.size() == 64;
+  for (std::size_t at = 0; red && at < pixels.size(); at += 4) {
+    red = pixels[at] == 255 && pixels[at + 1] == 0 && pixels[at + 2] == 0 && pixels[at + 3] == 255;
+  }
+  const bool offset = parsed && texture.header().mipStart == 88;
+  auto truncated = bytes; truncated.resize(96);
+  tf2::native::VtfTexture incomplete;
+  const bool truncatedRefused = !incomplete.parse(truncated);
+  auto absent = bytes;
+  absent.erase(absent.begin() + 80, absent.begin() + 88);
+  absent[61] = absent[62] = 0;
+  tf2::native::VtfTexture plain;
+  const bool noThumbnail = plain.parse(absent) && plain.header().mipStart == 80
+    && plain.decodeRgba(absent) == pixels;
+  std::cout << "{\"legacyVtfThumbnailSelfTest\":true,\"offsetCorrect\":" << (offset ? "true" : "false")
+    << ",\"knownRedPixels\":" << (red ? "true" : "false")
+    << ",\"truncatedRefused\":" << (truncatedRefused ? "true" : "false")
+    << ",\"noThumbnailControl\":" << (noThumbnail ? "true" : "false") << "}\n";
+  return offset && red && truncatedRefused && noThumbnail;
+}
+
+bool staticPropSelfTest() {
+  tf2::native::BspFixture fixture;
+  fixture.faces.push_back(lightmapQuad());
+  auto bytes = tf2::native::buildFixtureBsp(fixture);
+  const std::size_t game = bytes.size();
+  const std::size_t props = game + 20;
+  // Dictionary(132), leaves(8), count(4), one v10 instance(72).
+  constexpr std::uint32_t propBytes = 216;
+  bytes.resize(props + propBytes, 0);
+  const auto write = [](auto& target, std::size_t offset, const auto& value) {
+    std::memcpy(target.data() + offset, &value, sizeof(value));
+  };
+  write(bytes, 8 + 35 * 16, static_cast<std::uint32_t>(game));
+  write(bytes, 12 + 35 * 16, propBytes + 20u);
+  write(bytes, game, 1u);
+  write(bytes, game + 4, 0x73707270u);
+  write(bytes, game + 10, std::uint16_t{10});
+  write(bytes, game + 12, static_cast<std::uint32_t>(props));
+  write(bytes, game + 16, propBytes);
+  write(bytes, props, 1u);
+  const char model[] = "models/fixture/prop.mdl";
+  std::memcpy(bytes.data() + props + 4, model, sizeof(model));
+  write(bytes, props + 132, 2u);
+  write(bytes, props + 136, std::uint16_t{3});
+  write(bytes, props + 138, std::uint16_t{7});
+  write(bytes, props + 140, 1u);
+  const auto instance = props + 144;
+  write(bytes, instance, 10.0f);
+  write(bytes, instance + 4, 20.0f);
+  write(bytes, instance + 8, 30.0f);
+  write(bytes, instance + 16, 90.0f);
+  write(bytes, instance + 28, std::uint16_t{2});
+  write(bytes, instance + 32, std::int32_t{2});
+  tf2::native::BspMap map;
+  tf2::native::BspParser::parse(bytes, map);
+  const bool decoded = map.staticPropsAvailable && map.staticProps.size() == 1
+    && map.staticPropModelCount == 1 && map.staticProps[0].modelPath == model
+    && map.staticProps[0].origin[0] == 10.0f && map.staticProps[0].origin[2] == 30.0f
+    && map.staticProps[0].angles[1] == 90.0f && map.staticProps[0].skin == 2
+    && map.staticProps[0].leafIndices == std::vector<std::uint16_t>{3, 7};
+  const auto refuses = [&](std::size_t offset, const auto& value) {
+    auto damaged = bytes;
+    write(damaged, offset, value);
+    tf2::native::BspMap result;
+    tf2::native::BspParser::parse(damaged, result);
+    return !result.staticPropsAvailable && result.staticProps.empty();
+  };
+  const bool badVersion = refuses(game + 10, std::uint16_t{11});
+  const bool badDictionary = refuses(props, std::int32_t{-1});
+  const bool badModel = refuses(instance + 24, std::uint16_t{1});
+  const bool badLeaves = refuses(instance + 26, std::uint16_t{2});
+  const bool badCount = refuses(props + 140, 2u);
+  const bool badTransform = refuses(instance, std::uint32_t{0x7fc00000u});
+  std::cout << "{\"staticPropSelfTest\":true,\"decoded\":" << (decoded ? "true" : "false")
+    << ",\"badVersionRejected\":" << (badVersion ? "true" : "false")
+    << ",\"badDictionaryRejected\":" << (badDictionary ? "true" : "false")
+    << ",\"badModelRejected\":" << (badModel ? "true" : "false")
+    << ",\"badLeavesRejected\":" << (badLeaves ? "true" : "false")
+    << ",\"badCountRejected\":" << (badCount ? "true" : "false")
+    << ",\"badTransformRejected\":" << (badTransform ? "true" : "false") << "}\n";
+  return decoded && badVersion && badDictionary && badModel && badLeaves && badCount && badTransform;
 }
 
 } // namespace
@@ -2015,6 +2131,8 @@ int main(int argc, char** argv) {
   std::vector<std::filesystem::path> bspPaths;
   std::filesystem::path tfRoot;
   std::string mapName;
+  std::filesystem::path vtfPath;
+  std::filesystem::path rgbaPath;
   // D-97: the capacity the parser walks a real map with. The default keeps the
   // 200000 this probe has always used, so every existing invocation -- fixtures
   // and self-tests included -- reads byte-for-byte what it read before. The
@@ -2026,6 +2144,14 @@ int main(int argc, char** argv) {
   std::size_t triangleLimit = 200000;
   for (int i = 1; i < argc; ++i) {
     const std::string_view arg = argv[i];
+    if (arg == "--vtf" && i + 1 < argc) {
+      vtfPath = std::filesystem::u8path(argv[++i]);
+      continue;
+    }
+    if (arg == "--dump-vtf-rgba" && i + 1 < argc) {
+      rgbaPath = std::filesystem::u8path(argv[++i]);
+      continue;
+    }
     if (arg == "--self-test") { runSelf = true; continue; }
     if (arg == "--fixture") { runFixturesFlag = true; continue; }
     if (arg == "--water-fixture") { runWaterFixturesFlag = true; continue; }
@@ -2067,10 +2193,33 @@ int main(int argc, char** argv) {
     return 2;
   }
   int status = 0;
+  if (!vtfPath.empty() || !rgbaPath.empty()) {
+    if (vtfPath.empty() || rgbaPath.empty()) {
+      std::cerr << "--vtf and --dump-vtf-rgba must be used together\n";
+      return 2;
+    }
+    const auto bytes = readFile(vtfPath);
+    tf2::native::VtfTexture texture;
+    std::string error;
+    if (!texture.parse(bytes, &error)) {
+      std::cerr << error << '\n';
+      return 1;
+    }
+    const auto rgba = texture.decodeRgba(bytes, &error);
+    if (rgba.empty()) { std::cerr << error << '\n'; return 1; }
+    std::ofstream output(rgbaPath, std::ios::binary);
+    output.write(reinterpret_cast<const char*>(rgba.data()), static_cast<std::streamsize>(rgba.size()));
+    output.close();
+    if (!output) { std::cerr << "RGBA output write failed\n"; return 1; }
+    std::cout << "vtf-rgba width=" << texture.header().width << " height="
+      << texture.header().height << " bytes=" << rgba.size() << '\n';
+  }
   if (runSelf) {
     if (!selfTest()) status = 1;
     if (!capabilitySelfTest()) status = 1;
     if (!worldDrawSelfTest()) status = 1;
+    if (!staticPropSelfTest()) status = 1;
+    if (!legacyVtfThumbnailSelfTest()) status = 1;
     if (!waterSelfTest()) status = 1;
   }
   if (runFixturesFlag) {

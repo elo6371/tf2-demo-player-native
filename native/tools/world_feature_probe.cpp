@@ -193,6 +193,46 @@ double dot(float3 left, float3 right) {
 // 2. the fixture
 // ---------------------------------------------------------------------------
 int runSelfTest() {
+  {
+    VmtMaterial logo;
+    const bool logoParsed = VmtParser::parse(
+      "UnLitTwoTexture { \"$basetexture\" \"models/effects/logo\""
+      " \"$texture2\" \"models/effects/lines\" \"$additive\" \"1\" }", logo);
+    check("parse.unlit-two-texture", logoParsed && logo.unlit && logo.additive
+      && logo.texture2 == "models/effects/lines", logo.shader + "/" + logo.texture2);
+    VmtMaterial modulate;
+    const bool modulateParsed = VmtParser::parse(
+      "Modulate { \"$basetexture\" \"models/effects/logo\" \"$mod2x\" \"1\" }", modulate);
+    check("parse.modulate-2x", modulateParsed && modulate.modulate && modulate.modulate2x,
+      modulate.shader);
+    VmtMaterial control;
+    const bool controlParsed = VmtParser::parse(
+      "LightmappedGeneric { \"$basetexture\" \"maps/wall\" }", control);
+    check("parse.world-material-control", controlParsed && !control.unlit
+      && !control.additive && !control.modulate && control.texture2.empty(), control.shader);
+    VmtMaterial animated;
+    const bool animatedParsed = VmtParser::parse(
+      "UnLitTwoTexture { \"$basetexture\" \"models/effects/logo\""
+      " \"$texture2\" \"models/effects/lines\" \"Proxies\" {"
+      " \"TextureScroll\" { \"texturescrollvar\" \"$texture2transform\""
+      " \"texturescrollrate\" \".1\" \"texturescrollangle\" \"90\" }"
+      " \"Sine\" { \"Sineperiod\" \"2\" \"SineMax\" \"1\""
+      " \"SineMin\" \".6\" \"resultVar\" \"$color\" } } }", animated);
+    check("parse.proxy.cappoint", animatedParsed && animated.proxy.textureScroll
+      && near(animated.proxy.textureScrollRate, 0.1, 1.0e-6)
+      && near(animated.proxy.textureScrollAngle, 90.0, 1.0e-6)
+      && animated.proxy.sineColor && near(animated.proxy.sinePeriod, 2.0, 1.0e-6)
+      && near(animated.proxy.sineMin, 0.6, 1.0e-6)
+      && near(animated.proxy.sineMax, 1.0, 1.0e-6), "nested TextureScroll and Sine values");
+    VmtMaterial malformedProxy;
+    VmtParser::parse(
+      "UnLitTwoTexture { \"$basetexture\" \"models/effects/logo\""
+      " \"Proxies\" { \"Sine\" { \"Sineperiod\" \"nan\""
+      " \"SineMin\" \".6\" \"SineMax\" \"1\" \"resultVar\" \"$color\" } } }",
+      malformedProxy);
+    check("parse.proxy.rejects-nonfinite", !malformedProxy.proxy.sineColor,
+      "non-finite proxy values stay disabled");
+  }
   // ---- 2a. the parser: every key T27 reads, and the alias ----------------
   {
     VmtMaterial material;

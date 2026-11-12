@@ -351,7 +351,11 @@ echo "== 1. probe self-test (fixture) =="
 SELF="$SCRATCH/self.txt"
 "$PROBE" --self-test > "$SELF" 2>&1
 assert_eq "self-test verdict" "$(kv "$SELF" selfTest)" "true"
-assert_eq "self-test checks passed" "$(grep -c '"ok":true' "$SELF")" "49"
+# 54 = 49 + the five material checks this batch adds (parse.unlit-two-texture,
+# parse.modulate-2x, parse.world-material-control, parse.proxy.cappoint,
+# parse.proxy.rejects-nonfinite). A new named check is counted, not a
+# threshold relaxed: every one of them is asserted by name below.
+assert_eq "self-test checks passed" "$(grep -c '"ok":true' "$SELF")" "54"
 assert_eq "self-test checks failed" "$(grep -c '"ok":false' "$SELF")" "0"
 # link 1: the declaration. `$bumpmap1` is an alias and must lose to `$bumpmap`.
 assert_contains "\$bumpmap1 alias" "$(ckdetail "$SELF" parse.bumpmap1.alias)" "fix/a_height"

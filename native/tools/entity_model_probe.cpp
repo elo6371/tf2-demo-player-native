@@ -1,4 +1,6 @@
 #include "asset_root.h"
+#include "asset_lookup.h"
+#include "bsp_map.h"
 #include "demo_header.h"
 #include "entity_model.h"
 // T60: the product and this audit share one material-slot resolver, so the
@@ -8,6 +10,7 @@
 #include "vmt_material.h"
 #include "vpk_archive.h"
 #include "vtf_texture.h"
+#include "world_material.h"
 
 #include <algorithm>
 #include <array>
@@ -167,6 +170,67 @@ bool runSelfTest() {
 
   const float badOrigin[3] = {0.0f, 0.0f, std::numeric_limits<float>::quiet_NaN()};
   if (tf2::native::buildEntityModelInstanceRows(badOrigin, nullptr, false, unit, rows)) return false;
+
+  // Map props retain Source Z-up vertices; player vertices above retain their
+  // existing permutation. A tall pillar must remain tall after upload.
+  if (!tf2::native::buildEntityModelInstanceRows(zero, nullptr, false, unit, rows, true)) return false;
+  applyPosition(rows, 0.0f, 0.0f, 256.0f, mapped);
+  if (!near(mapped[0], 0.0f) || !near(mapped[1], 0.0f) || !near(mapped[2], 256.1f)) return false;
+  applyNormal(rows, 0.0f, 0.0f, 1.0f, normal);
+  if (!near(normal[0], 0.0f) || !near(normal[1], 0.0f) || !near(normal[2], 1.0f)) return false;
+
+  std::vector<tf2::native::EntityState> hierarchy(3);
+  const auto setPose = [&hierarchy](std::size_t entity, float x, float y, float z, float yaw) {
+    auto& node = hierarchy[entity];
+    node.classId = 0;
+    tf2::native::EntityPropertyValue value;
+    value.type = tf2::native::SendPropType::Vector;
+    value.x = x; value.y = y; value.z = z;
+    node.properties["DT_BaseEntity.m_vecOrigin"] = value;
+    value.x = 0; value.y = yaw; value.z = 0;
+    node.properties["DT_BaseEntity.m_angRotation"] = value;
+  };
+  const auto setParent = [&hierarchy](std::size_t entity, const char* key, std::int64_t parent) {
+    tf2::native::EntityPropertyValue value;
+    value.type = tf2::native::SendPropType::Int; value.intValue = parent;
+    hierarchy[entity].properties[key] = value;
+  };
+  setPose(1, 100, 200, 300, 90);
+  setPose(2, 1, 2, 3, 0);
+  std::array<float, 12> composed;
+  std::string poseError;
+  if (!tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)
+      || !near(composed[3], 1) || !near(composed[7], 2) || !near(composed[11], 3)) return false;
+  setParent(2, "DT_BaseEntity.moveparent", 1 | (5 << 11));
+  if (!tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)
+      || !near(composed[3], 98) || !near(composed[7], 201) || !near(composed[11], 303)
+      || !near(composed[0], 0) || !near(composed[1], -1) || !near(composed[4], 1)) return false;
+  setParent(1, "DT_BaseEntity.moveparent", 2);
+  if (tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)) return false;
+  hierarchy[1].properties.erase("DT_BaseEntity.moveparent");
+  setParent(2, "DT_BaseEntity.moveparent", 99);
+  if (tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)) return false;
+  setParent(2, "DT_BaseEntity.moveparent", 1);
+  setParent(2, "DT_BaseEntity.m_iParentAttachment", 1);
+  if (tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)) return false;
+  hierarchy[2].properties.erase("DT_BaseEntity.m_iParentAttachment");
+  setParent(2, "DT_BaseEntity.moveparent", 0x1fffff);
+  if (!tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)
+      || !near(composed[3], 1)) return false;
+  hierarchy[2].properties.erase("DT_BaseEntity.moveparent");
+  setParent(2, "DT_BaseEntity.m_hMoveParent", 1);
+  if (!tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)
+      || !near(composed[3], 98)) return false;
+  setPose(1, std::numeric_limits<float>::max(), 0, 0, 0);
+  setPose(2, std::numeric_limits<float>::max(), 0, 0, 0);
+  if (tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)) return false;
+  setPose(2, 0, 0, std::numeric_limits<float>::quiet_NaN(), 0);
+  if (tf2::native::resolveEntityWorldMatrix(hierarchy, 2, composed, poseError)) return false;
+  std::cout << "map-model-transform-selftest=PASS sourceZ=1 parentRotation=1 parentHandle=1 missingParent=1 cycle=1 attachmentRefused=1 overflowRefused=1\n";
+  const tf2::native::ModelMeshMaterialRun bodygroupRange{0, 3, 0, 1, 4, 0};
+  if (!bodygroupRange.selectedForBody(0) || bodygroupRange.selectedForBody(1)
+      || !bodygroupRange.selectedForBody(4) || !bodygroupRange.selectedForBody(8)) return false;
+  std::cout << "map-model-bodygroup-selftest=PASS base=1 models=4 body0=0 body1=1 body4=0 body8=0\n";
 
   // -------------------------------------------------------------------------
   // World-model wiring fixture.
@@ -1628,6 +1692,83 @@ std::vector<std::uint8_t> readAssetBytes(const tf2::native::AssetRoot& assets, c
   return {};
 }
 
+int runBspModelMaterialProbe(const std::string& tfRootText, const std::string& bspPathText,
+    const std::string& modelPath) {
+  const auto tfRoot = std::filesystem::u8path(tfRootText);
+  const auto bspPath = std::filesystem::u8path(bspPathText);
+  std::ifstream bspInput(bspPath, std::ios::binary);
+  if (!bspInput) return fail("cannot open BSP");
+  const std::vector<std::uint8_t> bspBytes((std::istreambuf_iterator<char>(bspInput)),
+    std::istreambuf_iterator<char>());
+  if (bspBytes.empty()) return fail("BSP is empty");
+  tf2::native::AssetStoreChain chain(tfRoot);
+  for (const auto* name : {"pak01_dir.vpk", "tf2_misc_dir.vpk", "tf2_textures_dir.vpk"}) {
+    auto archive = std::make_shared<tf2::native::VpkArchive>();
+    if (archive->open(tfRoot / name)) chain.addArchive(std::move(archive), tfRoot / name);
+  }
+  chain.setPakfileReader([&bspBytes](const std::string& path,
+      std::vector<std::uint8_t>& bytes, std::string& reason) {
+    return tf2::native::bspPakfileEntry(bspBytes, path, bytes, &reason);
+  });
+  const auto read = [&chain](const std::string& resource) {
+    return chain.lookup(resource).bytes;
+  };
+  auto inspection = tf2::native::ModelLoader::inspectResources(modelPath, read);
+  if (!inspection.renderableResourceSet || !inspection.metadata.valid) {
+    return fail("model resources are not renderable");
+  }
+  std::string meshError;
+  if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(inspection.metadata, meshError)) {
+    return fail("bind-pose mesh refused: " + meshError);
+  }
+  const auto& metadata = inspection.metadata;
+  std::fprintf(stdout, "bsp-model path=%s textures=%zu families=%u slots=%u\n",
+    modelPath.c_str(), metadata.textureCandidates.size(), metadata.skinFamilies.skinFamilyCount,
+    metadata.skinFamilies.skinRefCount);
+  for (std::size_t slot = 0; slot < metadata.textureCandidates.size(); ++slot) {
+    for (const auto& stem : metadata.textureCandidates[slot]) {
+      const auto vmtPath = tf2::native::VmtParser::resourcePath(stem, ".vmt");
+      const auto vmt = chain.lookup(vmtPath);
+      std::fprintf(stdout, "candidate slot=%zu stem=%s vmt=%s origin=%s bytes=%zu\n",
+        slot, stem.c_str(), vmtPath.c_str(), vmt.origin.empty() ? "-" : vmt.origin.c_str(),
+        vmt.bytes.size());
+      if (vmt.bytes.empty()) continue;
+      tf2::native::VmtMaterial material;
+      if (!tf2::native::VmtParser::parse(
+          std::string(vmt.bytes.begin(), vmt.bytes.end()), material,
+          [&chain](const std::string& resource) { return chain.lookup(resource).bytes; })) {
+        std::fprintf(stdout, "  vmt-parse=0\n");
+        continue;
+      }
+      const auto base = material.baseTexture.empty() ? material.fallbackBaseTexture : material.baseTexture;
+      const auto vtfPath = tf2::native::VmtParser::resourcePath(base, ".vtf");
+      const auto vtf = chain.lookup(vtfPath);
+      tf2::native::VtfTexture texture;
+      const bool parsed = !vtf.bytes.empty() && texture.parse(vtf.bytes);
+      std::fprintf(stdout, "  vmt-parse=1 base=%s vtf=%s origin=%s bytes=%zu parsed=%d\n",
+        base.c_str(), vtfPath.c_str(), vtf.origin.empty() ? "-" : vtf.origin.c_str(),
+        vtf.bytes.size(), parsed ? 1 : 0);
+    }
+  }
+  std::vector<tf2::native::ModelMeshMaterialRun> materialRuns;
+  std::string materialRunError;
+  if (!tf2::native::ModelLoader::buildMaterialRuns(metadata, materialRuns, materialRunError, true)) {
+    return fail("material runs refused: " + materialRunError);
+  }
+  for (std::uint32_t family = 0; family < metadata.skinFamilies.skinFamilyCount; ++family) {
+    for (const auto& run : materialRuns) {
+      tf2::native::MaterialSlotResolution resolution;
+      const bool ok = tf2::native::resolveMaterialSlot(metadata.skinFamilies,
+        metadata.textureCandidates, family, static_cast<std::int32_t>(run.materialSlot), read, resolution);
+      std::fprintf(stdout, "resolved family=%u slot=%u ok=%d reason=%s vmt=%s vtf=%s\n",
+        family, run.materialSlot, ok ? 1 : 0, resolution.reason.c_str(),
+        resolution.vmtPath.empty() ? "-" : resolution.vmtPath.c_str(),
+        resolution.vtfPath.empty() ? "-" : resolution.vtfPath.c_str());
+    }
+  }
+  return 0;
+}
+
 // A class table is a file of "<tfClass> <model path>" lines, comments allowed.
 // The tampered-table negative control is the reason this exists: a gate that
 // can only run the built-in list cannot show that it reads a table at all.
@@ -2054,6 +2195,8 @@ int main(int argc, char** argv) {
   std::string precacheFilter;
   std::string modelTexturePath;
   std::string modelSlotsPath;
+  std::string bspModelPath;
+  std::string bspPath;
   bool weaponModelDump = false;
   bool animationPropsDump = false;
   bool historyStats = false;
@@ -2072,6 +2215,9 @@ int main(int argc, char** argv) {
     else if (arg == "--dump-precache" && i + 1 < argc) precacheFilter = argv[++i];
     else if (arg == "--dump-model-textures" && i + 1 < argc) modelTexturePath = argv[++i];
     else if (arg == "--dump-model-slots" && i + 1 < argc) modelSlotsPath = argv[++i];
+    else if (arg == "--dump-bsp-model-materials" && i + 2 < argc) {
+      bspPath = argv[++i]; bspModelPath = argv[++i];
+    }
     else if (arg == "--dump-weapon-models") weaponModelDump = true;
     else if (arg == "--anim-props") animationPropsDump = true;
     else if (arg == "--history-stats") historyStats = true;
@@ -2094,6 +2240,10 @@ int main(int argc, char** argv) {
   if (playerModelAudit) {
     if (tfRoot.empty()) return fail("--player-model-audit needs --tf-root");
     return runPlayerModelAudit(tfRoot, classTablePath);
+  }
+  if (!bspModelPath.empty()) {
+    if (tfRoot.empty()) return fail("--dump-bsp-model-materials needs --tf-root");
+    return runBspModelMaterialProbe(tfRoot, bspPath, bspModelPath);
   }
 
   std::size_t uniqueRenderable = 0;
