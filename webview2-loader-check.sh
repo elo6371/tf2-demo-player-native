@@ -19,7 +19,7 @@
 #   name: the same layout makes the pre-fix executable report loader=present.
 #   That old executable is an OPTIONAL control (--old-exe); its answer is printed
 #   as OLD-WEBVIEW-LOADER=present|missing|unavailable and is deliberately NOT one
-#   of the 18 assertions. The gate passes when the old executable cannot be
+#   of the 22 assertions. The gate passes when the old executable cannot be
 #   found, because the old binary is not a usability prerequisite.
 #
 # WHAT THIS GATE DOES NOT CLAIM
@@ -45,9 +45,9 @@
 #   --old-exe PATH    optional pre-fix exe for the control line
 #   --out DIR         scratch directory (default .scratch/webview2-loader)
 #   --capture-tick N  product capture tick (default 600)
-#   --keep            keep the scratch tree on success
+#   --keep            accepted for compatibility; the scratch tree is always retained
 #
-# Exit: 0 = 18/18 assertions held; 1 = an assertion failed; 9 = lock not held.
+# Exit: 0 = 22/22 assertions held; 1 = an assertion failed; 9 = lock not held.
 
 set -uo pipefail
 cd "$(dirname "$0")" || exit 9
@@ -130,9 +130,9 @@ assert_not_contains() {
 
 finish() {
   local total=$((ok + bad))
-  if [ "$bad" -eq 0 ] && [ "$total" -eq 18 ]; then
+  if [ "$bad" -eq 0 ] && [ "$total" -eq 22 ]; then
     echo "WEBVIEW-LOADER-CHECK=PASS ($total assertions)"
-    [ "$KEEP" -eq 1 ] || rm -rf "$OUT"
+    echo "out=$OUT (retained after PASS)"
     exit 0
   fi
   echo "WEBVIEW-LOADER-CHECK=FAIL ($total assertions, $bad failed)"
@@ -158,6 +158,17 @@ if [ "$bad" -ne 0 ]; then
   echo "  preflight failed; the two runs were not started"
   finish
 fi
+
+# --------------------------------------------------- source load-site (4)
+# The two runs prove the executable-directory mechanism through the probe line
+# (loaderStatus). They would stay green if the panel's loadLibrary() reverted to
+# a bare name, because that is a different call site (audit D-2). Pin both the
+# helper call and the absence of a bare LoadLibraryW in the source.
+WEBVIEW_SRC="native/src/logstf_webview.cpp"
+assert_eq "source exists" "$([ -f "$WEBVIEW_SRC" ] && echo yes || echo no)" "yes"
+assert_eq "source LoadLibraryExW call count" "$(grep -c 'LoadLibraryExW(' "$WEBVIEW_SRC" 2>/dev/null || true)" "1"
+assert_eq "source bare LoadLibraryW call count" "$(grep -c 'LoadLibraryW(' "$WEBVIEW_SRC" 2>/dev/null || true)" "0"
+assert_eq "source loadLibrary() calls the exe-dir helper" "$(sed -n '/void loadLibrary()/,/^  }$/p' "$WEBVIEW_SRC" 2>/dev/null | grep -c 'loadWebView2Loader(' || true)" "1"
 
 command -v cygpath >/dev/null 2>&1 || { echo "FATAL: cygpath missing"; exit 1; }
 command -v timeout >/dev/null 2>&1 || { echo "FATAL: timeout missing"; exit 1; }
@@ -250,7 +261,7 @@ assert_eq "negative missing path names the exe directory, not the CWD" "$neg_pat
 # three answers. If it is present and runs, the negative layout should make the
 # pre-fix bare-name load find the CWD copy, which is the point of the control.
 echo
-echo "=== old-exe control (not one of the 18 assertions) ==="
+echo "=== old-exe control (not one of the 22 assertions) ==="
 if [ ! -f "$OLD_EXE" ]; then
   echo "OLD-WEBVIEW-LOADER=unavailable (old-exe-missing: $OLD_EXE)"
 else
