@@ -674,3 +674,42 @@ implied.
 - P5: minimap contract and implementation are open (only BSP-derived source data exists).
 - P6: CI workflow, /W4 coverage, caching measurement and the library boundary are drafted/measured but not landed.
 - P7: merge window, seven-map final evidence, final release chain and publishing are untouched.
+
+## Update - 2026-11-13 Candidate Fix Review and Multi-View Feature
+
+### Candidate-fix review
+
+The supplied files are proposals, not drop-in patches. Current source inspection found:
+
+- Animation sequence token matching already lives in `native/include/animation_sequence_match.h`; demo pose sampling, parent composition, inverse-bind application and GPU matrix packing already run through `native/src/animation_binding.cpp`. Do not add the duplicate selector or synthetic `evaluateEntitySkinningMatrices` from the attachment. That evaluator ignores `cycle`, body angles and movement after clamping them, so it does not animate a pose.
+- WorldVertexTransition already samples the second albedo and blend-modulate textures and applies the SDK-shaped smooth transition in `native/src/native_renderer_shaders.cpp`. RGBExp32 lightmap sampling and linear-light handling are also present. The attachment's extra HDR clamp to 4.0 is not accepted without a map-specific image comparison.
+- ViewModel skinning, independent projection and Phong inputs already exist. The supplied four-weight shader is incompatible with the current three-weight vertex layout. The simple bone-name lookup is not a complete bone-merge transform.
+- Confirmed source gap to validate on first-release maps: `$nocull` is parsed and used for entity-model ranges, but the world-texture record and world draw batches do not carry a per-material cull flag. The world brush pass currently uses the global cull state. This is a code-path finding, not yet proof of a visible first-release defect.
+- Confirmed limitation, not an attachment-ready fix: world translucent faces are grouped after opaque faces, but are not sorted per face back-to-front. The current PVS/index ordering and per-atlas batch layout must be preserved or deliberately redesigned; a generic center-distance sort is insufficient.
+
+### Multi-player multi-view feature
+
+Goal: show 2-4 player cameras concurrently, either in equal split panes or a selectable picture-in-picture inset. Clicking a pane selects it; camera-mode controls then change that pane among first-person, third-person and free-look. Every pane keeps its own player target, camera mode and free-look pose while playback time and decoded demo state remain shared.
+
+Implementation order and acceptance:
+
+| ID | Owner | Deliverable and exit condition | Scheduling |
+|---|---|---|---|
+| R8-1 | Product/UI | Contract for 2/3/4-pane layouts, PIP placement, target selection, click/focus behavior, per-pane mode state, invalid/dead targets and keyboard routing | Read-only; parallel with R2-9 and R6-1 |
+| R8-2 | Playback/camera | Per-view state type and resolver: player entity, first/third/free mode, orbit pose and fallback reason; prove two views can resolve different players at the same demo tick | After R8-1; camera-state files only |
+| R8-3 | Renderer | Render one shared scene snapshot through N camera views using per-view camera constants, viewport/scissor rectangles and independent depth clears; do not decode/seek the demo once per pane | After R8-2; serialize all renderer-frame/world edits |
+| R8-4 | UI | Split/PIP layout controls and pane hit-testing; clicking a pane makes it the sole target of camera-mode and free-look input | After R8-1 and R8-3; serialize UI integration |
+| R8-5 | QA/performance | Same-tick two-player positive case, 2/4-pane captures, all three modes per selected pane, click/input isolation, target-loss fallback, resize/DPI layout, deterministic repeat and frame-time measurement | After R8-2 through R8-4 |
+
+First implementation should target two views and equal split. Add PIP and four views after two-view isolation and frame-time are proven. Rendering cost grows with view count; demo decoding, entity interpolation and asset preparation must be shared, while camera-dependent passes repeat. The feature is accepted only when switching one pane leaves every other pane's target and camera state unchanged.
+
+### New assignable map tasks
+
+| ID | Owner | First deliverable | Dependency / scheduling |
+|---|---|---|---|
+| R2-9 | Map renderer + QA | Census `$nocull` declarations on the seven first-release maps; choose a fixed visible face/material per affected map and capture culling-on/off controls | Read-only census parallel; renderer change only after a positive case; shares world/frame files with R8-3, so serialize implementation |
+| R2-10 | Map renderer | Establish whether unsorted translucent faces cause a visible error on a named first-release scene; compare source ordering, camera-relative face depth and atlas/PVS constraints | After R2-1; read-only analysis parallel, implementation requires a separate approved design and pixel gate |
+
+### Integration decision
+
+No attachment source or shader text was copied into product files. The implementations already present remain authoritative. R2-9 is the only proposed product change with a concrete missing data path; it stays unimplemented until a first-release map fixture proves it is needed and an affected-material gate can discriminate the behavior. R2-10 remains investigation-only until a same-camera reference demonstrates an ordering defect.
