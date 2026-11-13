@@ -220,14 +220,21 @@ OUT="evidence/material-semantics"
 mkdir -p "$SCRATCH" "$OUT"
 
 fail=0
+# C5b: every assert_* call increments `checks`, and the verdict below compares it
+# to a literal. Adding or losing an assertion is then visible in the summary, not
+# only in a diff nobody re-reads.
+checks=0
 assert_eq() { # assert_eq <name> <got> <want>
+  checks=$((checks + 1))
   if [ "$2" = "$3" ]; then echo "  OK $1 = $2"; else echo "  FAIL $1: got '$2' want '$3'"; fail=1; fi
 }
 assert_ne() { # assert_ne <name> <got> <mustNotBe>
+  checks=$((checks + 1))
   if [ "$2" = "$3" ]; then echo "  FAIL $1: still '$2'"; fail=1;
   else echo "  OK $1 = $2 (was $3)"; fi
 }
 assert_contains() { # assert_contains <name> <text> <needle>
+  checks=$((checks + 1))
   case "$2" in
     *"$3"*) echo "  OK $1 contains '$3'" ;;
     *) echo "  FAIL $1: '$2' does not contain '$3'"; fail=1 ;;
@@ -313,6 +320,15 @@ ckdetail() { # ckdetail <self-test text> <check name>
   grep -F "\"check\":\"$2\"" "$1" 2>/dev/null | head -1 \
     | sed -n 's/.*"detail":"\([^"]*\)".*/\1/p'
 }
+ckok() { # ckok <self-test text> <check name> -> true | false | absent
+  local line
+  line=$(grep -F "\"check\":\"$2\"" "$1" 2>/dev/null | head -1)
+  case "$line" in
+    '') echo absent ;;
+    *'"ok":true'*) echo true ;;
+    *) echo false ;;
+  esac
+}
 lightingline() { grep -a "gpu: world lighting " "$1" 2>/dev/null | head -1 | tr -d '\r'; }
 lfield() { # lfield <line> <key>
   printf '%s' "$1" | grep -oE "(^| )$2=[^ ]+" | head -1 | cut -d= -f2-
@@ -357,6 +373,21 @@ assert_eq "self-test verdict" "$(kv "$SELF" selfTest)" "true"
 # threshold relaxed: every one of them is asserted by name below.
 assert_eq "self-test checks passed" "$(grep -c '"ok":true' "$SELF")" "54"
 assert_eq "self-test checks failed" "$(grep -c '"ok":false' "$SELF")" "0"
+# C5b: the five checks this batch added are asserted by NAME, not only counted by
+# the 54 above -- a count alone cannot say which check disappeared. Each line
+# below fails by name if the probe stops reporting it.
+assert_eq "check parse.unlit-two-texture passed" "$(ckok "$SELF" parse.unlit-two-texture)" "true"
+assert_eq "check parse.modulate-2x passed" "$(ckok "$SELF" parse.modulate-2x)" "true"
+assert_eq "check parse.world-material-control passed" "$(ckok "$SELF" parse.world-material-control)" "true"
+assert_eq "check parse.proxy.cappoint passed" "$(ckok "$SELF" parse.proxy.cappoint)" "true"
+assert_eq "check parse.proxy.rejects-nonfinite passed" "$(ckok "$SELF" parse.proxy.rejects-nonfinite)" "true"
+# Negative control: the same named assertion must reject a self-test that quietly
+# lost one of the five. The doctored copy is scratch-only; the probe is not run
+# again, so this costs nothing but still proves the assertion can go red.
+NEG_SELF="$SCRATCH/self-missing-check.txt"
+grep -vF '"check":"parse.proxy.cappoint"' "$SELF" > "$NEG_SELF"
+assert_eq "negative control: a self-test missing parse.proxy.cappoint is not satisfied" \
+  "$(ckok "$NEG_SELF" parse.proxy.cappoint)" "absent"
 # link 1: the declaration. `$bumpmap1` is an alias and must lose to `$bumpmap`.
 assert_contains "\$bumpmap1 alias" "$(ckdetail "$SELF" parse.bumpmap1.alias)" "fix/a_height"
 assert_contains "\$bumpmap beats \$bumpmap1" "$(ckdetail "$SELF" parse.bumpmap.precedence)" "fix/plain"
@@ -882,6 +913,17 @@ cp "$SIGN" "$OUT/sign.txt"
     fi
   done
 } > "$OUT/frames.txt"
+
+# C5b: the count is the contract. 198 is every assert_* invocation in this file
+# before C5b (all of them column-0, so all of them run); the six added in section 1
+# are the five named checks plus the negative control. Reproduce the base with:
+#   git show <base>:world-material-semantics-check.sh \
+#     | grep -c '^[[:space:]]*assert_\(eq\|ne\|contains\) '   # 198 = calls only
+# (plain "grep -c '^assert_'" returns 201: it also counts the three helper
+# definitions, which are not assertions). This runs in both modes: default mode
+# leaves through the branch below, mutation mode through the final verdict.
+echo "assertions executed: $checks (expected 204 = 198 before C5b + 6)"
+if [ "$checks" -ne 204 ]; then echo "  FAIL assertion count: got $checks want 204"; fail=1; fi
 
 if [ "$MODE" != "--mutation" ]; then
   echo "== verdict =="
