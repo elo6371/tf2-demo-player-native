@@ -40,6 +40,23 @@ This reduces the usage-only population from 20 to 12. The `pak01_dir.vpk`
 absence is reported by two probes but did not prevent 4 archives / 149,970
 entries from opening; it is a named input gap, not a probe failure.
 
+## Third and fourth batches: the remaining two probes and quiet-capture
+
+| Probe | rc | Result |
+|---|---:|---|
+| `texture_quad_probe materials/vgui/logos/spray.vtf` | 0 | `vtfWidth=256 vtfHeight=256 featureLevel=45056 nonBlackPixels=16 drawPixelsNonBlack=true` |
+| `animation_viewmodel_probe` with `TF_ROOT` | 1 | `selfTest=false`, **`loop=false`**, every other flag true (`parent/compressed/malformed/fov/missingCompanions/bindPose/scout/soldier/motion/section/realLoop/deterministic/viewmodel`); `realLoop=true`, `motionSequence=AttackStand_PRIMARY`, `bones=76 anims=1012` |
+| `quiet_capture_probe` | 0 | exercised by `quiet-capture-check.sh` (39 pinned + 47 live checks; the live device pair is now opt-in) |
+
+`animation_viewmodel_probe` is the one open probe result. Its failure is the
+synthetic `loopAndOnce()` flag, not an input gap: the same run's `realLoop=true`
+and the model/sequence readings are populated. It is reported as an OPEN probe
+self-test, not folded into the 29 pass count.
+
+With those runs, every one of the 52 probes has been invoked once with either
+its real input or its own self-test. The remaining work is **domain depth**
+(model/map/demo matrices and rendering claims), not invocation coverage.
+
 ## The 23 nonzero rows, classified
 
 | Probe | rc | Classification |
@@ -82,16 +99,16 @@ entries from opening; it is a named input gap, not a probe failure.
 ## What it does not prove
 
 - It does not run each probe's domain acceptance (demos, maps, models, VPKs).
-  The next batch should run the remaining 12 usage rows with their real
-  arguments in domain groups, under the host lock where they read the
-  GPU/product.
+  All 52 have now been invoked with real input or self-test; the next work is
+  domain depth, not invocation coverage.
 - It does not replace the per-gate evidence; a probe self-test is not a
   rendering claim.
 
 ## Follow-up
 
-1. Group the remaining 12 usage-only probes by required input and run each with
-   its real fixture in measured batches.
+1. Triage `animation_viewmodel_probe`'s synthetic `loop=false` (the real-model
+   loop flag is true). Keep it as an OPEN probe result until the synthetic case
+   is fixed or shown to be a stale assertion.
 2. Keep `animation_viewmodel_probe` and `pcf_capability_probe` in the
    TF-root/VPK batch, not the no-argument batch.
 3. Feed the result into the remaining F2-2 exit definition (`tf2_core`, `/W4`,

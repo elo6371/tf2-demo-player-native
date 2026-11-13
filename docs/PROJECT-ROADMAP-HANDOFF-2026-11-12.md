@@ -872,22 +872,24 @@ No attachment source or shader text was copied into product files. The implement
   but those are global world controls, not a per-material `$nocull` case; the
   oak is a static prop. No world-renderer change is justified until a targeted
   world-brush face fixture exists.
-- F2-2 first probe batch done: `docs/F2-2-PROBE-SWEEP-2026-11-13.md`.
-  52 `*_probe.exe` files were started under the host lock with `--self-test`
-  and a 15 s timeout: 29 exited 0, 23 returned a usage/missing-input line
-  (20 argument-usage, 2 TF-root/VPK, 1 VTF-path). No probe crashed with an empty
-  output in this batch. A second batch ran 8 of the argument-bearing probes with
-  real map/TF-root/demo inputs and all 8 exited 0 (world geometry/features/
-  terrain, resource reachability, VPK integrity, sound content map, minimap
-  logic, skeleton skin mutation). 12 argument-bearing probes remain.
-  This is a startup/domain-probe sweep, not full rendering acceptance.
+- F2-2 probe coverage done once: `docs/F2-2-PROBE-SWEEP-2026-11-13.md`.
+  52 `*_probe.exe` files were started under the host lock: 29 exited 0 on
+  `--self-test`; a second batch ran 8 argument-bearing probes with real
+  map/TF-root/demo inputs, all 8 rc=0; a third/fourth batch covered the
+  remaining probes (`playback`, `review-workspace`, three ViewModel probes,
+  model robustness, WinMM dry run, install CLI, entity protocol, brush entity,
+  sound corpus, item schema, PCF, texture quad, quiet capture). All 52 have now
+  been invoked once. **One OPEN probe result:** `animation_viewmodel_probe`
+  reports synthetic `loop=false` while `realLoop=true` and every other flag is
+  true; it needs triage. This is not full domain/rendering acceptance.
 - Identity at batch close: exe `00ec8b99fc779327eb2cf0eb0cb9a0e59eca3a4d0413e1ea29b36c7bcbec2078`,
   2,988,544 B; `sourceContent=1d9c0ead...`; canonical rebuild after the batch
   commits reports `sourceTree=f533293`, `dirty=0`. The earlier build during the
   working batch reported `dirty=1` only because the roadmap document was still
   uncommitted; the exe bytes are identical.
 - Still open: F1-5's 849 vertex-colour and 919 UV discrepancy; F1-4 audible device smoke;
-  F2-1 A12 mutation and five-map frames; F2-2's 12 argument-bearing probes;
-  F2-3's targeted world-brush `$nocull` fixture; F2-4/F2-5/F2-6; F3/F4; one full release
+  F2-1 A12 mutation and five-map frames; F2-2 `animation_viewmodel_probe`
+  `loop=false` triage; F2-3's targeted world-brush `$nocull` fixture;
+  F2-4/F2-5/F2-6; F3/F4; one full release
   chain only at freeze.
 
