@@ -83,4 +83,5 @@ Classes:
 | `world-material-face-check.sh` | segmented | World-material pixel chain at a named face; map acceptance evidence, not a daily smoke. | R2-4 map acceptance; map renderer owner. |
 | `world-material-semantics-check.sh` | blocked | I-24 pin drift: it is red until the six material-coverage readings are re-pinned with a causal explanation (F1-3). | After F1-3; map/QA owner. |
 | `world-near-clip-check.sh` | segmented | T29 near-clip units gate; run when world projection/camera units change. | World camera changes; map renderer owner. |
+| `world-black-account-check.sh` | segmented | F1-5 diagnostic: samples the tile alpha at six named black pixels, resolves the TREELINECARD/METALGRATE transparent-texel cases, and keeps the 849/919 prediction-vs-albedo discrepancy open. Run on map-material changes. | Map material work; map renderer owner. |
 | `world-render-reliability-check.sh` | segmented | T8 device-error/reliability gate; run when the renderer's failure path changes. | Renderer reliability changes; map renderer owner. |
