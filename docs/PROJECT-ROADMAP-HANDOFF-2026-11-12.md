@@ -860,9 +860,10 @@ No attachment source or shader text was copied into product files. The implement
   Seven-map linework is tabulated but only Upward and Sunshine have frames;
   the other five are **NOT VERIFIED**. A12 mutation was not run in this batch.
 - Identity at batch close: exe `00ec8b99fc779327eb2cf0eb0cb9a0e59eca3a4d0413e1ea29b36c7bcbec2078`,
-  2,988,544 B; `sourceContent=1d9c0ead...`; `dirty=1` at build time because the
-  roadmap document was still uncommitted. Rebuild after this docs commit and
-  bind the next captures to the new sidecar.
+  2,988,544 B; `sourceContent=1d9c0ead...`; canonical rebuild after the batch
+  commits reports `sourceTree=f533293`, `dirty=0`. The earlier build during the
+  working batch reported `dirty=1` only because the roadmap document was still
+  uncommitted; the exe bytes are identical.
 - Still open: F1-5's 849/919 sampling discrepancy; F1-4 audible device smoke;
   F2-1 A12 mutation and five-map frames; F2-2 probe batch; F2-3/F2-4/F2-5/F2-6;
   F3/F4; one full release chain only at final freeze.
