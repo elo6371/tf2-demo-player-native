@@ -161,7 +161,7 @@ void printMap(const std::filesystem::path& path, const tf2::native::BspMap& map)
     << ",\"staticPropsAvailable\":" << (map.staticPropsAvailable ? "true" : "false")
     << ",\"staticPropModels\":" << map.staticPropModelCount
     << ",\"staticPropInstances\":" << map.staticProps.size()
-    << ",\"staticPropsReason\":\"" << map.staticPropsReason
+    << ",\"staticPropsReason\":\"" << map.staticPropsReason << "\""
     << ",\"displacements\":" << map.displacementFaces
     << ",\"displacementTriangles\":" << map.displacementTriangles
     << ",\"displacementCornerMatches\":" << map.displacementCornerMatches
