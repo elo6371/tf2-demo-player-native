@@ -809,6 +809,9 @@ No attachment source or shader text was copied into product files. The implement
 
 ### Batch 4 - 2026-11-13 Phase F (F1-1 through F2-3)
 
+- Full report: `docs/PHASE-F-REPORT-2026-11-13.md`
+  (shared copy `D:/_shared/EXEC-2026-11-13/ROUND-REPORT-2026-11-13-PHASE-F.md`).
+
 - Base: `9deed76`; tree `t105-e5`, branch `candidate/e5`; no release chain, no
   push, no tag, no history rewrite. All product runs and builds were inside the
   host lock; captures and logs are outside tracked evidence under
