@@ -56,7 +56,7 @@
 #   scratch backup verified with cmp, then a rebuild, then a control run that
 #   must reproduce the fixed readings.
 #
-# Usage: bash camera-ui-check.sh [--mutation]
+# Usage: bash camera-ui-check.sh [--mutation] [--selftest-i18]
 # Exit:  0 = every assertion held (or every mutation went red); 1 = not.
 
 set -uo pipefail
@@ -94,6 +94,183 @@ absolute_out() { # absolute_out <shell path under OUT> -- native Windows path
     *) cygpath -m "$PWD/$path" ;;
   esac
 }
+# --- I-18: the camera line's target= is a BOOLEAN, not an entity index --------
+#
+# main.cpp:12626-12631 prints 'target=%d' from 'cameraTraceHasTarget ? 1 : 0':
+# the field says WHETHER this frame has a target, never WHICH entity it is. The
+# entity index is printed by the relay that placed the camera
+# ('spectate: camera relay target=%d', main.cpp:418) and by the director
+# ('spectate: tick=... target=%d', spectate_target.cpp:355-366).
+#
+# I-18: the assertion this replaces read that boolean as an index and demanded
+# it be >= 1. On every 'src=follow' frame the boolean IS 1 by construction, so
+# the assertion was a tautology: it could not tell a frame that followed the
+# player the director picked from one that followed the wrong player, nor from
+# a boolean that outlived its target. The audit below cross-checks the three
+# lines, which are emitted in this order inside one frame:
+#
+#   relay (main.cpp:418, during camera placement)
+#   scene camera (main.cpp:12626, after the pose the frame is drawn with is final)
+#   director (main.cpp:12651, on a target/transition/progress change)
+#
+# Readings:
+#   I18_FOLLOWS          src=follow frames seen
+#   I18_BAD_BOOL         those frames whose target= is not 1
+#   I18_RELAYS           relay lines that named an entity
+#   I18_PAIRS            relay targets cross-checked against a director line
+#   I18_MISMATCH         pairs where the relay's entity != the director's entity
+#   I18_NO_RELAY         follow frames drawn before any relay placement
+#   I18_NEG_AFTER_FOLLOW a follow frame followed by a director line with target < 0
+i18_audit_trace() { # <trace>; sets the I18_* readings; rc 1 = unreadable trace
+  local trace="$1" readings kv
+  [ -s "$trace" ] || return 1
+  readings=$(awk '
+    function num(line, key,   s) {
+      if (!match(line, " " key "=-?[0-9]+")) return ""
+      s = substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 2)
+      return s
+    }
+    /spectate: camera relay target=/ {
+      t = num($0, "target"); if (t == "") next
+      relays++
+      if (t + 0 < 0) relay_negative++
+      pending = t; pending_any = 1
+      next
+    }
+    /scene: camera / && /src=follow/ {
+      follows++
+      if (relays == 0) no_relay++
+      if (num($0, "target") != "1") bad_bool++
+      since_follow = 1
+      next
+    }
+    /spectate: tick=/ {
+      d = num($0, "target"); if (d == "") next
+      ticks++
+      if (pending_any) {
+        pairs++
+        if (pending != d) { mismatch++ }
+        pending_any = 0
+      }
+      if (since_follow && d + 0 < 0) { neg_after++ }
+      since_follow = 0; last_tick = d
+      next
+    }
+    END {
+      if (pending_any) {
+        pairs++
+        if (last_tick == "" || last_tick != pending) { mismatch++ }
+      }
+      printf "I18_FOLLOWS=%d I18_BAD_BOOL=%d I18_RELAYS=%d I18_RELAY_NEGATIVE=%d I18_TICKS=%d I18_PAIRS=%d I18_MISMATCH=%d I18_NO_RELAY=%d I18_NEG_AFTER_FOLLOW=%d\n", follows, bad_bool, relays, relay_negative, ticks, pairs, mismatch, no_relay, neg_after
+    }
+  ' "$trace")
+  I18_FOLLOWS=0 I18_BAD_BOOL=0 I18_RELAYS=0 I18_RELAY_NEGATIVE=0 I18_TICKS=0
+  I18_PAIRS=0 I18_MISMATCH=0 I18_NO_RELAY=0 I18_NEG_AFTER_FOLLOW=0
+  for kv in $readings; do
+    case "$kv" in
+      I18_*=*[!0-9]*) echo "I18-AUDIT-FAIL malformed reading: $kv" >&2; return 1 ;;
+      I18_*=*) eval "$kv" ;;
+      *) echo "I18-AUDIT-FAIL unexpected reading: $kv" >&2; return 1 ;;
+    esac
+  done
+  return 0
+}
+
+# --selftest-i18: the audit's own negative controls, offline. No build, no
+# product, no lock: synthetic traces whose defect is the one I-18 names.
+run_i18_selftest() {
+  local dir checks=0 bad=0 f old_target old_verdict
+  dir=$(mktemp -d "${TMPDIR:-/tmp}/tf2-i18.XXXXXX") || {
+    echo "FATAL: cannot create the I-18 selftest directory" >&2; return 2; }
+  check() { # check <label> <actual> <expected>
+    checks=$((checks + 1))
+    if [ "${2:-}" = "$3" ]; then
+      echo "  OK   $1 = $3"
+    else
+      echo "  FAIL $1 = ${2:-<none>}, expected $3"; bad=1
+    fi
+  }
+
+  # P1: a consistent frame stays green. 'notarget=0' is present on purpose --
+  # it proves the audit anchors on " target=" and does not read the substring.
+  f="$dir/p1.trace"
+  cat > "$f" <<'TRACE'
+1.0 spectate: camera relay target=2 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 behind=0
+1.0 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 src=follow
+1.0 spectate: tick=100 dead=- corpses=0 target=2 src=stable tr=0 prog=0.000 focus=1.0,2.0,3.0 deaths=0 notarget=0
+TRACE
+  i18_audit_trace "$f" || bad=1
+  check "P1 consistent relay/scene/director triple passes" \
+    "$I18_FOLLOWS/$I18_BAD_BOOL/$I18_RELAYS/$I18_PAIRS/$I18_MISMATCH/$I18_NO_RELAY" "1/0/1/1/0/0"
+  check "P1 a 'notarget=' field is not read as target=" "$I18_NEG_AFTER_FOLLOW" "0"
+
+  # N1: the camera follows entity 2 while the director names entity 5. That is
+  # "followed the wrong player"; the pre-I-18 assertion passes it.
+  f="$dir/n1-wrong-person.trace"
+  cat > "$f" <<'TRACE'
+2.0 spectate: camera relay target=2 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 behind=0
+2.0 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 src=follow
+2.0 spectate: tick=101 dead=- corpses=0 target=5 src=stable tr=0 prog=0.000 focus=1.0,2.0,3.0 deaths=0 notarget=0
+TRACE
+  i18_audit_trace "$f" || bad=1
+  check "N1 a frame following an entity the director did not pick is red" "$I18_MISMATCH" "1"
+  old_target="$(grep -E 'scene: camera .*src=follow' "$f" | tail -1 | grep -oE 'target=[0-9]+' | head -1 | cut -d= -f2)"
+  if [ "${old_target:-0}" -ge 1 ]; then old_verdict=GREEN; else old_verdict=RED; fi
+  check "N1 the pre-I-18 assertion (camera target=$old_target >= 1) stays $old_verdict" "$old_verdict" "GREEN"
+
+  # N2: a frame claims src=follow with the boolean 0 -- the flag and the pose
+  # disagree; this is the "names the watched target" claim failing.
+  f="$dir/n2-bool-zero.trace"
+  cat > "$f" <<'TRACE'
+3.0 spectate: camera relay target=4 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 behind=0
+3.0 scene: camera mode=first-person target=0 follows=0 holds=1 freeze=0 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 src=follow
+3.0 spectate: tick=102 dead=- corpses=0 target=4 src=stable tr=0 prog=0.000 focus=1.0,2.0,3.0 deaths=0 notarget=0
+TRACE
+  i18_audit_trace "$f" || bad=1
+  check "N2 a src=follow frame whose target= boolean is 0 is red" "$I18_BAD_BOOL" "1"
+
+  # N3: a followed frame drawn before any relay placement -- there is no entity
+  # behind the claim at all.
+  f="$dir/n3-no-relay.trace"
+  cat > "$f" <<'TRACE'
+4.0 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 src=follow
+4.0 spectate: camera relay target=4 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 behind=0
+4.0 spectate: tick=103 dead=- corpses=0 target=4 src=stable tr=0 prog=0.000 focus=1.0,2.0,3.0 deaths=0 notarget=0
+TRACE
+  i18_audit_trace "$f" || bad=1
+  check "N3 a follow frame before the relay names anybody is red" "$I18_NO_RELAY" "1"
+
+  # N4: the boolean outlives the target -- a follow frame, then a director line
+  # that says there is no target.
+  f="$dir/n4-outlived.trace"
+  cat > "$f" <<'TRACE'
+5.0 spectate: camera relay target=7 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 behind=0
+5.0 scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 src=follow
+5.0 spectate: tick=104 dead=- corpses=0 target=7 src=stable tr=0 prog=0.000 focus=1.0,2.0,3.0 deaths=0 notarget=0
+6.0 scene: camera mode=first-person target=1 follows=2 holds=0 freeze=0 eye=1.0,2.0,3.0 pitch=0.00 yaw=0.00 src=follow
+6.0 spectate: tick=105 dead=- corpses=0 target=-1 src=stable tr=0 prog=0.000 focus=0.0,0.0,0.0 deaths=0 notarget=1
+TRACE
+  i18_audit_trace "$f" || bad=1
+  check "N4 a follow flag that outlives the director's target is red" "$I18_NEG_AFTER_FOLLOW" "1"
+  check "N4 the matching relay/director pair above is still green" "$I18_MISMATCH" "0"
+
+  rm -rf "$dir"
+  if [ "$bad" -eq 0 ]; then
+    echo "I18-SELFTEST=PASS assertions=$checks"; return 0
+  fi
+  echo "I18-SELFTEST=FAIL assertions=$checks"; return 1
+}
+
+I18_SELFTEST=0
+for i18_arg in "$@"; do
+  case "$i18_arg" in
+    --selftest-i18) I18_SELFTEST=1 ;;
+  esac
+done
+if [ "$I18_SELFTEST" -eq 1 ]; then
+  run_i18_selftest
+  exit $?
+fi
 # patch-source.py is invoked by absolute path so a mutation runs from any cwd.
 ROOT="$(pwd)"
 RUN_TIMEOUT=240
@@ -482,8 +659,22 @@ if [ -s "$OUT/e2e.trace" ]; then
   assert_ge_ok "trace camera published the pose each followed frame drew with" "$follow_lines" 1
   assert_eq "no followed frame claims the world origin for an eye" \
     "$(grep -E 'scene: camera .*src=follow' "$OUT/e2e.trace" | grep -c 'eye=0.0,0.0,0.0')" "0"
-  follow_target="$(grep -E 'scene: camera .*src=follow' "$OUT/e2e.trace" | tail -1 | grep -oE 'target=[0-9]+' | head -1 | cut -d= -f2)"
-  assert_ge_ok "the published followed frame names the watched target" "$follow_target" 1
+  # I-18: 'target=' on the camera line is a boolean (main.cpp:12626-12631:
+  # 'cameraTraceHasTarget ? 1 : 0'), not an entity index -- the assertion this
+  # replaces read it as an index and could therefore only ever pass. The entity
+  # indexes are on the relay ('spectate: camera relay target=%d', main.cpp:418)
+  # and the director ('spectate: tick=... target=%d', spectate_target.cpp:355-366);
+  # i18_audit_trace cross-checks all three readings.
+  if i18_audit_trace "$OUT/e2e.trace"; then
+    echo "  OK   I-18 audit follows=$I18_FOLLOWS relays=$I18_RELAYS ticks=$I18_TICKS pairs=$I18_PAIRS badBool=$I18_BAD_BOOL mismatch=$I18_MISMATCH noRelay=$I18_NO_RELAY negAfter=$I18_NEG_AFTER_FOLLOW"
+    assert_eq "I-18 a src=follow frame reports the target boolean, never an index" "$I18_BAD_BOOL" "0"
+    assert_eq "I-18 no followed frame was drawn before a relay named an entity" "$I18_NO_RELAY" "0"
+    assert_eq "I-18 the relay and the director name the same entity" "$I18_MISMATCH" "0"
+    assert_eq "I-18 the follow flag does not outlive the director's target" "$I18_NEG_AFTER_FOLLOW" "0"
+    assert_ge_ok "I-18 at least one relay/director pair was cross-checked" "$I18_PAIRS" 1
+  else
+    echo "  FAIL I-18 the audit could not read $OUT/e2e.trace"; fail=1
+  fi
 else
   echo "  FAIL the trace was not written"; fail=1
 fi
