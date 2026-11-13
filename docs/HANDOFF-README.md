@@ -49,16 +49,16 @@ The product has no `--help`. It answers `--version` and `--install-status`, and
 | `native/docs`, `native/tests` | 18 | renderer notes, and the one gate fixture directory |
 | `*.sh` in the root | 131 | build scripts, gates, and the chain entry points |
 | `*.py` / `*.ps1` in the root | 59 | pixel and geometry analysis, capture harnesses |
-| `docs` | 83 | design traps, release policy, debt list, per-task reports, the six handoff documents, and 53 archived 2026-10 documents |
+| `docs` | 84 | design traps, release policy, debt list, per-task reports, the seven handoff documents, and 53 archived 2026-10 documents |
 | `testdata` | 14 | wire fixtures and VMT nesting fixtures the gates diff against |
 | `evidence/probe-baseline`, `evidence/corpus-calib` | 37 | frozen baselines the chain reads at run time -- **do not delete** |
 | `scripts` | 3 | three timeline test scripts |
 
-593 files, 14,635,154 bytes. The only file under `tools/` is `hostlock.sh` -- the
+595 files, 14,654,555 bytes. The only file under `tools/` is `hostlock.sh` -- the
 build/capture mutex every evidence command in these documents assumes; the probe
 executables live in `native/tools/`.
 
-## The six documents
+## The seven documents
 
 | Document | Question it answers |
 |---|---|
@@ -68,6 +68,7 @@ executables live in `native/tools/`.
 | `docs/HANDOFF-EVIDENCE.md` | Where each number comes from, and which evidence is not in this tree |
 | `docs/HANDOFF-TOOLING.md` | What builds it, what checks it, what each kind of script is for |
 | `docs/HANDOFF-MISSING.md` | What a recipient needs that is not, and cannot be, in this repository |
+| `docs/HANDOFF-MATERIALS.md` | Which game assets, demo recordings and binaries a recipient must supply, with the SHA256 of each |
 
 `docs/archive-2026-10/` holds narrative documents recovered from the seven `handoff-*`
 branches of the old history. They describe the 2026-10-01..10-06 window and are

@@ -7,7 +7,7 @@
 | Cut date | 2026-11-13 (Asia/Shanghai) |
 | Source worktree | `D:/TF2_Native_Worktrees/t105-e5` (branch `candidate/e5`) |
 | Source commit | `50a355a` -- "docs: record the 2026-11-12/13 batch (handoff docs)" |
-| Clean tree | `main`, one orphan commit, 593 files, 14,635,154 bytes |
+| Clean tree | `main`, one orphan commit, 595 files, 14,654,555 bytes |
 | Full history | `archive/full-history-2026-11-13` -> `50a355a` |
 | Remote | `git@github.com:elo6371/tf2-demo-player-native.git` |
 
@@ -22,7 +22,7 @@ only its tree does.
 Recompute the numbers:
 
 ```bash
-git ls-tree -r --name-only main | wc -l          # 593
+git ls-tree -r --name-only main | wc -l          # 595
 git ls-tree -r -l main | awk '{s+=$4} END {print s}'   # 14635154
 bash build-identity-content.sh hash              # 4498475d (see below)
 ```
@@ -90,7 +90,7 @@ would have to turn red for the claim to be wrong.
   (`git status --porcelain` empty; identity sidecar `dirty=0`), the content hash had
   moved to `4498475d...` because the VMT parser and probe fixture commits landed between
   the two cuts, and `main` was rebuilt from this commit. Every number in this document
-  was re-measured on the final `main`: 593 files / 14,635,154 B / `4498475d...`, and a
+  was re-measured on the final `main`: 595 files / 14,654,555 B / `4498475d...`, and a
   consumer can reproduce all three with the commands in the first section.
 - Consequence for the section below: it records what the **first** cut saw. At the final
   cut those files were no longer uncommitted -- the gate change is committed as
