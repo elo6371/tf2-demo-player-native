@@ -28,6 +28,10 @@ add_executable(tf2_demo_native WIN32
   src/main_hud.cpp
   # T76: the T50 camera pose/bookmark layer.
   src/main_camera.cpp
+  # T76 stage 4 (2026-11-13): the T50 camera-script driver (--camera-script).
+  # Code motion only: the command line, the trace text and the exit code are
+  # unchanged, and the three call sites in main.cpp keep their spelling.
+  src/camera_script.cpp
   # T76 stage 2 (2026-11-02): the file, path and byte helpers -- readFile,
   # sha256File, localCacheDirectory, normalizedModelPath, narrowAscii,
   # entitySnapshotStatusName, addSteamRegistryRoots. No captured state and no

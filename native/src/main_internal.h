@@ -27,13 +27,19 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <vector>
 
 #include "demo_header.h"
+#include "keybinds.h"
 #include "native_ui.h"
 #include "install_lifecycle.h"
+
+namespace tf2::native {
+class ReviewSession;
+}  // namespace tf2::native
 
 namespace tf2::native::main_internal {
 
@@ -155,5 +161,20 @@ inline constexpr int kUiHudImport = 4121;
 inline constexpr int kUiHudPreview = 4122;
 inline constexpr int kUiHudScale = 4123;
 inline constexpr int kUiHudReset = 4124;
+
+// ------------------------------------------------- T76 stage 4 shared state
+// The camera-script driver (src/camera_script.cpp) names the key table, the
+// pause controller, the review session and the two hotkey dispatchers. They
+// stay DEFINED in main.cpp -- same objects, same order among themselves -- and
+// only their linkage changed, which is the stage-3 pattern above.
+extern tf2::native::PauseKeyController g_pauseKey;
+extern tf2::native::KeyBindTable g_keyBinds;
+extern std::string g_lastDispatchedAction;
+extern std::uint32_t g_hotkeySuppressedByFocus;
+extern std::unique_ptr<tf2::native::ReviewSession> g_reviewSession;
+
+bool handleCameraAction(const std::string& action, std::string& reason);
+bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character,
+    std::string& action, std::string& result);
 
 }  // namespace tf2::native::main_internal
