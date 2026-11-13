@@ -2061,6 +2061,11 @@ bool outlineVertexExtent = false;
   // the trace is to name the face under a pixel the frame does not fill.
   std::vector<std::pair<int, int>> worldHoleTracePoints;
   int invalidWorldHoleTraceArgument = 0;
+  // E5/F1-5: the face trace's fixed 28 points are useful for the visual
+  // baseline, but a black-pixel finding names six specific pixels. This
+  // override lets a run ask for those pixels without removing the fixed set.
+  std::vector<std::pair<int, int>> worldFaceTracePoints;
+  int invalidWorldFaceTraceArgument = 0;
   // T2 (2026-10-14): the water surface follows the same shape as T1's two
   // switches -- on by default, with an explicit off switch -- for the same
   // reason: "the water is drawn" is only a reading if "the water is not drawn"
@@ -2462,6 +2467,35 @@ bool outlineVertexExtent = false;
         ++worldDebugViewGiven; worldDebugView = 9;
       } else if (wcscmp(arguments[i], L"--world-face-trace") == 0) {
         worldFaceTraceRequested = true;
+      } else if (wcscmp(arguments[i], L"--world-face-trace-points") == 0 && i + 1 < argumentCount) {
+        // "x,y;x,y;..." -- same strict parse as --world-hole-trace. A typo that
+        // produced zero points would silently fall back to the fixed grid and
+        // the black-pixel reading would be about the wrong pixels.
+        const std::wstring list = arguments[++i];
+        std::size_t at = 0;
+        while (at <= list.size()) {
+          const auto semicolon = list.find(L';', at);
+          const std::wstring token = list.substr(at, semicolon == std::wstring::npos
+            ? std::wstring::npos : semicolon - at);
+          if (!token.empty()) {
+            const auto comma = token.find(L',');
+            if (comma == std::wstring::npos) { ++invalidWorldFaceTraceArgument; break; }
+            wchar_t* endX = nullptr;
+            wchar_t* endY = nullptr;
+            const wchar_t* xText = token.c_str();
+            const long x = std::wcstol(xText, &endX, 10);
+            const long y = std::wcstol(token.c_str() + comma + 1, &endY, 10);
+            if (endX == xText || *endX != L',' || endY == token.c_str() + comma + 1 || *endY != L'\0') {
+              ++invalidWorldFaceTraceArgument;
+              break;
+            }
+            worldFaceTracePoints.emplace_back(static_cast<int>(x), static_cast<int>(y));
+          }
+          if (semicolon == std::wstring::npos) break;
+          at = semicolon + 1;
+        }
+      } else if (wcscmp(arguments[i], L"--world-face-trace-points") == 0) {
+        ++invalidWorldFaceTraceArgument;
       } else if (wcscmp(arguments[i], L"--world-hole-trace") == 0 && i + 1 < argumentCount) {
         // "x,y;x,y;..." -- parsed strictly, because a typo that silently
         // produced zero points would make the empty-pixel claim vacuous.
@@ -3087,6 +3121,10 @@ bool outlineVertexExtent = false;
   }
   if (invalidWorldHoleTraceArgument) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-hole-trace; it takes screen points as x,y;x,y.\n");
+    return 13;
+  }
+  if (invalidWorldFaceTraceArgument) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-face-trace-points; it takes screen points as x,y;x,y.\n");
     return 13;
   }
   if (invalidViewModelEffectArgument) {
@@ -8519,6 +8557,37 @@ bool outlineVertexExtent = false;
       }
       return true;
     };
+    // E5/F1-5: the same filter with the alpha channel kept. `texel=` has always
+    // meant RGB; adding A to that string would break every consumer that parses
+    // three components, so the alpha is a separate `texelA=` field.
+    const auto sampleBilinearRgba = [](const std::vector<std::uint8_t>& rgba, int width, int height,
+                                       float u, float v, unsigned char out[4]) {
+      if (rgba.empty() || width <= 0 || height <= 0) return false;
+      const auto wrapIndex = [](int value, int size) {
+        const int wrapped = value % size;
+        return wrapped < 0 ? wrapped + size : wrapped;
+      };
+      const int x0 = static_cast<int>(std::floor(u));
+      const int y0 = static_cast<int>(std::floor(v));
+      const float fx = u - static_cast<float>(x0);
+      const float fy = v - static_cast<float>(y0);
+      float sum[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+      for (int dy = 0; dy < 2; ++dy) {
+        for (int dx = 0; dx < 2; ++dx) {
+          const int x = wrapIndex(x0 + dx, width);
+          const int y = wrapIndex(y0 + dy, height);
+          const float weight = (dx ? fx : 1.0f - fx) * (dy ? fy : 1.0f - fy);
+          const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+            + static_cast<std::size_t>(x)) * 4u;
+          if (at + 3u >= rgba.size()) return false;
+          for (int c = 0; c < 4; ++c) sum[c] += weight * static_cast<float>(rgba[at + static_cast<std::size_t>(c)]);
+        }
+      }
+      for (int c = 0; c < 4; ++c) {
+        out[c] = static_cast<unsigned char>(std::clamp(std::lround(sum[c]), 0l, 255l));
+      }
+      return true;
+    };
     const auto shadeFor = [](const std::string& material) {
       const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(material));
       return 0.78f + static_cast<float>(hash % 23) / 100.0f;
@@ -8527,9 +8596,16 @@ bool outlineVertexExtent = false;
       && !worldVisKeptIndices.empty();
     std::size_t hits = 0, tiledHits = 0, untiledHits = 0, blendHits = 0, oversizedHits = 0;
     std::size_t beyondCapHits = 0, depthMatched = 0, discriminatingHits = 0;
-    for (const auto& point : kPoints) {
-      const int px = point[0];
-      const int py = point[1];
+    std::vector<std::pair<int, int>> tracePoints;
+    if (worldFaceTracePoints.empty()) {
+      tracePoints.reserve(sizeof(kPoints) / sizeof(kPoints[0]));
+      for (const auto& point : kPoints) tracePoints.emplace_back(point[0], point[1]);
+    } else {
+      tracePoints = worldFaceTracePoints;
+    }
+    for (const auto& point : tracePoints) {
+      const int px = point.first;
+      const int py = point.second;
       if (px < 0 || py < 0 || px >= frameWidth || py >= frameHeight) continue;
       const float fx = static_cast<float>(px) + 0.5f;
       const float fy = static_cast<float>(py) + 0.5f;
@@ -8622,6 +8698,7 @@ bool outlineVertexExtent = false;
       bool insideTile = false;
       std::string uvText = "-";
       std::string texelText = "-";
+      std::string texelAlphaText = "-";
       std::string blendText = "-";
       std::string albedoText = "-";
       std::string albedoTileText = "-";
@@ -8731,14 +8808,15 @@ bool outlineVertexExtent = false;
           }
           return true;
         };
-        unsigned char texel[3];
-        if (haveTexture && sampleBilinear(textureIt->second->rgba, tile->width, tile->height,
+        unsigned char texel[4];
+        if (haveTexture && sampleBilinearRgba(textureIt->second->rgba, tile->width, tile->height,
               tileU, tileV, texel)) {
           // (the tile buffer is the downscaled texture, so this is the texel
           // the shader's linear sampler reads at the interpolated uv)
           char texelBuffer[48];
           std::snprintf(texelBuffer, sizeof(texelBuffer), "%u,%u,%u", texel[0], texel[1], texel[2]);
           texelText = texelBuffer;
+          texelAlphaText = std::to_string(static_cast<unsigned>(texel[3]));
         }
         if (chain.blend && haveTexture) ++blendHits;
         predictAlbedo(tileU, tileV, albedo, &blendText);
@@ -8838,7 +8916,7 @@ bool outlineVertexExtent = false;
       expectedText = expectedBuffer;
       ++hits;
       traceFmt("gpu: world face-trace point=%d,%d tri=%d material=%s vmt=%s vmtStore=%s vtf=%s"
-        " vtfStore=%s src=%dx%d tile=%d/%d size=%dx%d rect=%d,%d atlas=%dx%d uv=%s uvInside=%d texel=%s"
+        " vtfStore=%s src=%dx%d tile=%d/%d size=%dx%d rect=%d,%d atlas=%dx%d uv=%s uvInside=%d texel=%s texelA=%s"
         " blend=%s luv=%.4f,%.4f light=%d,%d,%d albedo=%s albedoTile=%s expected=%s reason=%s"
         " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x",
         px, py, bestTriangle, triangle.material.c_str(),
@@ -8849,7 +8927,7 @@ bool outlineVertexExtent = false;
         tiled ? tile->width : 0, tiled ? tile->height : 0,
         tiled ? tile->x : 0, tiled ? tile->y : 0,
         tiled ? tile->atlasWidth : 0, tiled ? tile->atlasHeight : 0,
-        uvText.c_str(), insideTile ? 1 : 0, texelText.c_str(), blendText.c_str(), lu, lv,
+        uvText.c_str(), insideTile ? 1 : 0, texelText.c_str(), texelAlphaText.c_str(), blendText.c_str(), lu, lv,
         static_cast<int>(std::lround(light[0] * 255.0f)),
         static_cast<int>(std::lround(light[1] * 255.0f)),
         static_cast<int>(std::lround(light[2] * 255.0f)),
