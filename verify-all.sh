@@ -1469,6 +1469,11 @@ step "29/30 world materials: a patch wrapper's include reaches the pixels"
 # and the batch split is now asserted (batch 2 = 13), which is the one assertion
 # this round added. The count moved by exactly that one; none was removed or
 # loosened.
+# Re-pinned 2026-11-13: 100. The 2026-11-13 I-24 run measured 92 OK / 6 FAIL
+# (98 assertions) before the six PVS pins were repaired; the two new assertions
+# are "input triangles" and "drawn + hidden == input", so the forward count is
+# 100. The old 89 was stale: it had not been re-measured since the gate grew its
+# alpha/control/include sections. Re-measured, never copied.
 # Pinned for the same reason as the other steps: a gate that prints PASS while
 # its assertions quietly disappear is not a gate. Do not re-pin to make this
 # chain green; a re-pin must name the reading that moved and why.
@@ -1481,10 +1486,10 @@ COV_RC=$?
 tail -10 "$COV_LOG"
 COV_OK=$(grep -c '^  OK' "$COV_LOG" || true)
 if [ "$COV_RC" -eq 0 ] && grep -q '^MATERIAL-COVERAGE=PASS' "$COV_LOG" \
-    && [ "$COV_OK" = "89" ]; then
-  echo "MATERIAL-COVERAGE-CHECK=PASS (89 assertions)"
+    && [ "$COV_OK" = "100" ]; then
+  echo "MATERIAL-COVERAGE-CHECK=PASS (100 assertions)"
 else
-  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 89)"; rc_all=1
+  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 100)"; rc_all=1
 fi
 # I-32: the translucent rescue gate was added in Phase E and referenced by
 # nothing. It belongs next to the material gate it extends: the same Sultry

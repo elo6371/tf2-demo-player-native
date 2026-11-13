@@ -87,6 +87,21 @@
 # of this build produce the same frame byte for byte, and each reading above was
 # taken off that build.
 #
+# RE-PIN 2026-11-13 (I-24: the 10d1355 PVS row decode). Six readings moved
+# together and for one causal reason: 10d1355 (2026-11-12) reads lump 6 as
+# (pvs,pas) offset pairs and decodes each row with Source's zero-run encoding.
+# The old reader treated bitofs[1] as plain bits and was over-visible. The same
+# commit re-pinned world-material-check.sh's vis row 1462 -> 384 but did not
+# re-pin this gate, which is not in verify-fast, so the drift sat unseen for
+# three days. Measured on 2ae5067c (2026-11-13) at this gate's own argv, and
+# reproduced on the pre-I-23 exe 6b310b70: batch-1 empty tiles 9 -> 42,
+# batch-1 visible triangles 1500 -> 705, batch draws 6 -> 5, textured batch
+# draws 6 -> 5, drawn triangles 227070 -> 216114, control-frame delta
+# 90127 -> 89488. inputTriangles (242109), clusteredTriangles (34517) and the
+# whole atlas-plan line are identical to the old run; the 10956 triangles are
+# hidden, not lost. The identity drawn+hidden==input is asserted below so a
+# later visibility change cannot be mistaken for lost geometry.
+#
 # BUILD FIRST
 #   bash build-target.sh tf2_demo_native material_coverage_probe
 #
@@ -601,10 +616,11 @@ assert_eq "tiles in batch 1" "$(printf '%s\n' "$TILES" | awk '$2==1' | grep -c .
 # claim rather than an arithmetic remark.
 assert_eq "tiles in batch 2" "$(printf '%s\n' "$TILES" | awk '$2==2' | grep -c .)" "13"
 VISIBLE_B1=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" | grep -c "visible=0 ")
-# 9 of the 59 batch-1 materials reach no triangle at this pose (6 before the
-# camera moved; see the 2026-11-01 RE-PIN note). The bound stays a ceiling on
-# how much of the second batch can be invisible, not a count of it.
-assert_le "batch-1 tiles with no visible triangle" "$VISIBLE_B1" "9"
+# 42 of the 59 batch-1 materials reach no triangle at this pose (9 before the
+# 2026-11-12 PVS decode, 6 before the camera moved; see the two RE-PIN notes).
+# The bound stays a ceiling on how much of the second batch can be invisible,
+# not a count of it.
+assert_le "batch-1 tiles with no visible triangle" "$VISIBLE_B1" "42"
 # The large surface: coverage order keeps it in the first atlas, and it is in
 # the picture, not merely resident.
 BEYOND_LINE=$(grep -ao "gpu: world tile material=$BEYOND_CAP_MATERIAL .*" "$TRACE_full" | head -1)
@@ -624,20 +640,29 @@ assert_eq "$SMALL_CAP_MATERIAL batch" "$(rval "$SMALL_LINE" batch)" "0"
 assert_ge "$SMALL_CAP_MATERIAL visible triangles" "$(rval "$SMALL_LINE" visible)" "39"
 B1_VISIBLE_SUM=$(grep -ao "gpu: world tile material=.*batch=1 " "$TRACE_full" \
   | sed 's/.*visible=\([0-9]*\) .*/\1/' | awk '{s+=$1} END {print s+0}')
-assert_ge "batch-1 visible triangles" "$B1_VISIBLE_SUM" "1500"
+assert_ge "batch-1 visible triangles" "$B1_VISIBLE_SUM" "705"
 # The state leaving one pass and arriving at another. Both counters are read at
 # the draw, after the bind, so a pass that forgot to bind its own texture leaves
 # the previous pass's view in t0 and moves the number.
 assert_eq "weapon draws holding a world atlas" "$(rval "$ISO" weaponDrawsWithWorldAtlas)" "0"
 assert_eq "world draws holding a weapon texture" "$(rval "$ISO" worldDrawsWithWeaponTexture)" "0"
-assert_eq "batch draws" "$(rval "$ISO" batchDraws)" "6"
-assert_eq "batch draws with a texture" "$(rval "$ISO" texturedBatchDraws)" "6"
+assert_eq "batch draws" "$(rval "$ISO" batchDraws)" "5"
+assert_eq "batch draws with a texture" "$(rval "$ISO" texturedBatchDraws)" "5"
 assert_ge "slot-0 binds" "$(rval "$ISO" slot0Binds)" "2"
-# The batching round did not change this number; the camera did. 193508 was the
-# orbit camera's reading on ea97815 before T80 moved the held camera off the
-# world origin; 184961 is the reading on this tree, and it is the same number
-# t2-visual-matrix.sh pins for this demo at this tick (see the RE-PIN note).
-assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "227070"
+# The batching round did not change this number; the camera and the PVS decode
+# did. 193508 was the orbit camera's reading on ea97815 before T80 moved the held
+# camera off the world origin; 184961 was the reading after T80; 216114 is the
+# reading on this tree after 10d1355 tightened the PVS row decode (I-24).
+assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "216114"
+# The identity that separates "the mask got stricter" from "geometry went
+# missing": every input triangle is either drawn or hidden, never neither. The
+# input count is pinned too, so a change that shrinks both sides cannot pass by
+# arithmetic alone.
+VIS_DRAWN=$(rval "$VIS" drawnTriangles)
+VIS_HIDDEN=$(rval "$VIS" hiddenTriangles)
+VIS_INPUT=$(rval "$VIS" inputTriangles)
+assert_eq "input triangles" "${VIS_INPUT:-<none>}" "242109"
+assert_eq "drawn + hidden == input" "$(( ${VIS_DRAWN:-0} + ${VIS_HIDDEN:-0} ))" "${VIS_INPUT:-<none>}"
 # ---- T96: the world alpha path ------------------------------------------------
 # The alpha path has four readings -- what the VMTs declare, what the atlas
 # tiles, what the consumption side decides, and what the frame counts -- and
@@ -854,7 +879,11 @@ printf '%s\n' "$DELTA" | sed 's/^/  /'
 # +56 in and -38 out, a net +21. ff8eb8f's sub-batch regroup (the same frame that
 # filled 88,88,88 across the include pose) moves the last 3. Measured on this tree:
 # 90127.
-assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "90127"
+# Re-pinned 2026-11-13 on 2ae5067c (I-24, the 10d1355 PVS decode): 89488. The
+# control frame's own refused set is unchanged; the visible subset of the same
+# 77 refusals moved with the tightened mask, and the same reading was reproduced
+# on the pre-I-23 exe 6b310b70 (see the RE-PIN 2026-11-13 note at the top).
+assert_eq "pixels the control frame changes" "$(rk "$DELTA" changed)" "89488"
 DELTA_BLEND=$(frame_diff "$BMP_full" "$BMP_noblend")
 echo "$DELTA_BLEND" > "$OUT/coverage-delta-blend-off.txt"
 printf '%s\n' "$DELTA_BLEND" | sed 's/^/  /'
