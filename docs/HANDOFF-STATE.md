@@ -6,21 +6,25 @@
 |---|---|
 | Cut date | 2026-11-13 (Asia/Shanghai) |
 | Source worktree | `D:/TF2_Native_Worktrees/t105-e5` (branch `candidate/e5`) |
-| Source commit | `2f8d78d` -- "feat(trace): print the lightmap sample behind a hole-trace point (R2-3)" |
-| Clean tree | `main`, one orphan commit, 529 files, 14,102,672 bytes |
-| Full history | `archive/full-history-2026-11-13` -> `2f8d78d` |
+| Source commit | `50a355a` -- "docs: record the 2026-11-12/13 batch (handoff docs)" |
+| Clean tree | `main`, one orphan commit, 593 files, 14,635,154 bytes |
+| Full history | `archive/full-history-2026-11-13` -> `50a355a` |
 | Remote | `git@github.com:elo6371/tf2-demo-player-native.git` |
 
 The clean tree is derived mechanically from the source commit's tree: 529 whitelisted
-paths and nothing else. It is not a trimmed copy that lost files by accident -- every
-one of the 6,197 other paths is listed in the `DROP-PATHS` inventory kept outside the
+source paths, plus the 63 documents under `docs/` written for this handoff, plus
+`tools/hostlock.sh`. It is not a trimmed copy that lost files by accident -- every one
+of the 6,199 dropped paths is listed in the `DROP-PATHS` inventory kept outside the
 repository, and all of them are still reachable on `archive/full-history-2026-11-13`.
+`main` is an orphan commit, so the cut commit `50a355a` does not appear in its history;
+only its tree does.
 
 Recompute the numbers:
 
 ```bash
-git ls-tree -r --name-only main | wc -l          # 529
-git ls-tree -r -l main | awk '{s+=$4} END {print s}'   # 14102672
+git ls-tree -r --name-only main | wc -l          # 593
+git ls-tree -r -l main | awk '{s+=$4} END {print s}'   # 14635154
+bash build-identity-content.sh hash              # 4498475d (see below)
 ```
 
 ## Identity: how to say "this exact build" in one number
@@ -39,7 +43,7 @@ bash build-identity-content.sh stats    # the D-90 input census
 At this cut, on this tree, `method=git-clean-v1` and
 
 ```
-hash = 98240bf9c08be3018d9275c79feb60ff8f27d671df7317e57ffc0d7a2c8277f1
+hash = 4498475d411e0dd9c126fe24e1b3ce66a87aac92fd09e9aa29b465201749dcf6
 ```
 
 That value covers `native/CMakeLists.txt`, `native/src`, `native/include`,
@@ -77,7 +81,23 @@ the release chain has never passed.**
 Per-capability status is in `docs/HANDOFF-TASKS.md`, with the gate and the line that
 would have to turn red for the claim to be wrong.
 
-## What was uncommitted when the cut was taken
+## Correction log -- the cut was taken twice
+
+- **First cut, `2f8d78d`** (stage 2A): taken while the source worktree still had 22
+  modified tracked files and the two untracked documents below. Its numbers (529 files /
+  14,102,672 B / content hash `98240bf9...`) described *that* tree and are superseded.
+- **Final cut, `50a355a`** (stage 2B): the worktree was clean at build time
+  (`git status --porcelain` empty; identity sidecar `dirty=0`), the content hash had
+  moved to `4498475d...` because the VMT parser and probe fixture commits landed between
+  the two cuts, and `main` was rebuilt from this commit. Every number in this document
+  was re-measured on the final `main`: 593 files / 14,635,154 B / `4498475d...`, and a
+  consumer can reproduce all three with the commands in the first section.
+- Consequence for the section below: it records what the **first** cut saw. At the final
+  cut those files were no longer uncommitted -- the gate change is committed as
+  `55b44b0`, and the two documents are committed as `50a355a` (`docs/` is outside the
+  build-identity content roots, so committing them did not change the content hash).
+
+## What was uncommitted when the first cut was taken
 
 The source worktree at `2f8d78d` was not perfectly clean. What reproduces here:
 
@@ -94,7 +114,7 @@ the day before the cut) and the roadmap is the execution checklist this handoff 
 at. They are copied unchanged, so anything in them that describes the 11-12 worktree
 still reads that way -- in particular the roadmap's opening paragraph about "21 modified
 tracked files" describes that evening, not this tree; those changes are committed as of
-`2f8d78d`. To drop them, `git rm docs/PROJECT-ROADMAP-HANDOFF-2026-11-12.md
+`50a355a`. To drop them, `git rm docs/PROJECT-ROADMAP-HANDOFF-2026-11-12.md
 docs/MAP-MATERIAL-PROGRESS-2026-11-12.md` and re-commit.
 
 ## Document drift found while cutting this tree (fix or believe accordingly)

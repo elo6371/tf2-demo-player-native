@@ -49,19 +49,21 @@ The product has no `--help`. It answers `--version` and `--install-status`, and
 | `native/docs`, `native/tests` | 18 | renderer notes, and the one gate fixture directory |
 | `*.sh` in the root | 131 | build scripts, gates, and the chain entry points |
 | `*.py` / `*.ps1` in the root | 59 | pixel and geometry analysis, capture harnesses |
-| `docs` | 20 | design traps, release policy, debt list, per-task reports |
+| `docs` | 83 | design traps, release policy, debt list, per-task reports, the six handoff documents, and 53 archived 2026-10 documents |
 | `testdata` | 14 | wire fixtures and VMT nesting fixtures the gates diff against |
 | `evidence/probe-baseline`, `evidence/corpus-calib` | 37 | frozen baselines the chain reads at run time -- **do not delete** |
 | `scripts` | 3 | three timeline test scripts |
 
-529 files, 14,102,672 bytes. There is no `tools/` directory at the root; the probes live
-in `native/tools/`.
+593 files, 14,635,154 bytes. The only file under `tools/` is `hostlock.sh` -- the
+build/capture mutex every evidence command in these documents assumes; the probe
+executables live in `native/tools/`.
 
-## The five documents
+## The six documents
 
 | Document | Question it answers |
 |---|---|
 | `docs/HANDOFF-STATE.md` | What is at this commit, what was verified, what was not |
+| `docs/HANDOFF-LATEST-READINGS.md` | What the *latest* measured batch showed: playability, black region, gate drift, animation axes, budget control |
 | `docs/HANDOFF-TASKS.md` | Which capability is PASS, NOT VERIFIED or UNSUPPORTED |
 | `docs/HANDOFF-EVIDENCE.md` | Where each number comes from, and which evidence is not in this tree |
 | `docs/HANDOFF-TOOLING.md` | What builds it, what checks it, what each kind of script is for |
@@ -91,7 +93,7 @@ what each one was.
 
 ## History shape (why the clone is small)
 
-`main` is a single orphan commit. The old history had 55 remote heads, 6,726 files and
+`main` is a single orphan commit. The old history had 55 remote heads, 6,728 files and
 955 MB, 98.5% of which was `evidence/`; a clone of it could not be used to read the
 product. That history is preserved unaltered on `archive/full-history-2026-11-13`,
 which points at the same source commit the clean tree was taken from, and in the
@@ -100,11 +102,15 @@ commit: that is deliberate, not a truncated clone.
 
 ## One manual step: the old default branch
 
-Pushing `main` and the archive branch, then deleting the other 55 heads, is scripted and
-checkable. One branch is deliberately not deleted: GitHub will not delete the branch that is
-currently the repository's default, and that is still `p0-entity-protocol`. The run skips it,
-prints the skip, and stops as a clean state -- everything else is pushed, nothing else is
-left.
+**Status: executed 2026-11-13T11:20Z.** `main` (`e76f60d`) and
+`archive/full-history-2026-11-13` (`50a355a`) are pushed, and the other 54 heads are
+deleted; the remote now has three heads: `main`, the archive branch, and
+`p0-entity-protocol`. That last one is deliberately not deleted: GitHub will not delete
+the branch that is currently the repository's default. The run skipped it, printed the
+skip, and stopped as a clean state -- everything else is pushed.
+
+The step below is the only thing left, and it needs a human with repository settings
+access (the `gh` CLI on the authoring machine is not logged in).
 
 1. **Settings -> Branches -> Default branch -> switch it to `main`**:
    `https://github.com/elo6371/tf2-demo-player-native/settings/branches`
