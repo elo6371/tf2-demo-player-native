@@ -43,6 +43,16 @@ $arguments = @('--no-vsync', '--metrics-file', $metrics)
 if (-not $Play) { $arguments += '--start-paused' }
 if ($effectiveTfRoot) { $arguments += @('--tf-root', $effectiveTfRoot) }
 if ($Demo) { $arguments += @('--demo', $Demo) }
+# D-50b: this gate used to start the product with no --settings-file and no
+# --ui-settings-file, so every run rewrote the machine's real
+# %LOCALAPPDATA%\TF2 Demo Player\{settings.ini,ui.ini} (D-22). Hand it a private
+# pair instead, created here and deleted in the finally block below.
+$settingsDir = Join-Path ([System.IO.Path]::GetTempPath()) ("tf2-native-settings-{0}" -f [guid]::NewGuid())
+New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+$settingsFile = Join-Path $settingsDir 'settings.ini'
+$uiSettingsFile = Join-Path $settingsDir 'ui.ini'
+$arguments += @('--settings-file', $settingsFile)
+$arguments += @('--ui-settings-file', $uiSettingsFile)
 
 # Windows PowerShell 5.1 joins an argument array with spaces and does not quote
 # paths. TF2 lives under "Team Fortress 2", so an unquoted --demo never opens.
@@ -69,6 +79,7 @@ finally {
     if (-not $process.WaitForExit(5000)) { $process.Kill(); $process.WaitForExit() }
   }
   if ($process) { $exitCode = $process.ExitCode }
+  Remove-Item -LiteralPath $settingsDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 if ($exitCode -ne 0) { throw "process_exit_code=$exitCode" }

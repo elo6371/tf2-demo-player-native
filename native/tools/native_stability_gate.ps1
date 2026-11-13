@@ -28,6 +28,16 @@ $arguments = @('--no-vsync', '--metrics-file', $metrics)
 if (-not $Play) { $arguments += '--start-paused' }
 if ($TfRoot) { $arguments += @('--tf-root', $TfRoot) }
 if ($Demo) { $arguments += @('--demo', $Demo) }
+# D-50b: this gate used to start the product with no --settings-file and no
+# --ui-settings-file, so every run rewrote the machine's real
+# %LOCALAPPDATA%\TF2 Demo Player\{settings.ini,ui.ini} (D-22). Hand it a private
+# pair instead, created here and deleted in the finally block below.
+$settingsDir = Join-Path ([System.IO.Path]::GetTempPath()) ("tf2-native-settings-{0}" -f [guid]::NewGuid())
+New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+$settingsFile = Join-Path $settingsDir 'settings.ini'
+$uiSettingsFile = Join-Path $settingsDir 'ui.ini'
+$arguments += @('--settings-file', $settingsFile)
+$arguments += @('--ui-settings-file', $uiSettingsFile)
 
 $process = $null
 $cleanExit = $false
@@ -46,6 +56,7 @@ finally {
     }
   }
   if ($process -and $process.HasExited) { $cleanExit = ($process.ExitCode -eq 0) }
+  Remove-Item -LiteralPath $settingsDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 if (-not (Test-Path $metrics -PathType Leaf)) { throw 'metrics_file_missing' }
