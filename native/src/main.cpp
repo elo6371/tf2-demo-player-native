@@ -74,6 +74,10 @@
 #include "main_internal.h"
 #include "playback_state.h"
 #include "main_hud.h"
+// E9: the minimap panel's tables, projection and frame hand-off. Header-only by
+// design -- the product does not link src/minimap.cpp (that object belongs to the
+// probe target), so the drawing half calls the inline rules the header carries.
+#include "minimap.h"
 #include "main_camera.h"
 // T76 stage 4 (2026-11-13): the camera-script driver is a second translation
 // unit now (src/camera_script.cpp). Declarations only; the using-directive
@@ -1738,6 +1742,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // boolean here is the one the readout gates on, so "off" means off for both.
   bool hudOffCli = false;
   bool hudLiveCli = false;
+  // E9: --hud-minimap. Off in every run that does not pass it, which is every run
+  // the pixel gates make: the panel is a new thing to draw, so it must be asked for.
+  bool hudMinimapCli = false;
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
@@ -2278,6 +2285,12 @@ bool outlineVertexExtent = false;
         // suppresses it by default so that twenty-odd pixel gates keep measuring
         // what they were written to measure; this flag is how a gate asks for it.
         hudLiveCli = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-minimap") == 0) {
+        // E9: draw the minimap panel beside the readout. Separate from --hud-live
+        // on purpose: a gate may want the readout without the panel, and the panel
+        // is the only thing here that changes pixels outside the readout.
+        hudMinimapCli = true;
         return true;
       } else if (wcscmp(arguments[i], L"--hud-reset") == 0) {
         hudResetRequested = true;
@@ -12279,6 +12292,26 @@ bool outlineVertexExtent = false;
     // player the camera is behind, not to the signon svc_SetView entity that
     // summary.lastViewEntity holds. Both are passed even with no target so the
     // fallback is a reading in the trace (nameFallback=1) rather than a guess.
+    // E9: hand the panel the pose of the frame it is about to be drawn on. Only a
+    // run that asked for the panel pays for this; without the switch the HUD's
+    // minimapHudFramePushed() answers false and nothing is composed or printed.
+    // cameraTraceEye/cameraTraceYaw are this frame's camera readings (declared with
+    // the rest of the frame state above), and the map is the one the DEMO names --
+    // not a launch default -- so the panel and the demo cannot disagree about where
+    // the player is standing.
+    if (hudMinimapCli) {
+      tf2::native::MinimapHudFrame minimapFrame;
+      minimapFrame.valid = cameraTraceReady;
+      minimapFrame.mapName = demoHeader.mapName;
+      // Read only when the pose is this frame's: on a frame with no camera reading
+      // these locals hold whatever the last branch left, and copying that would be an
+      // uninitialised read even though the panel refuses to draw it.
+      minimapFrame.eyeX = cameraTraceReady ? cameraTraceEye[0] : 0.0f;
+      minimapFrame.eyeY = cameraTraceReady ? cameraTraceEye[1] : 0.0f;
+      minimapFrame.yawDegrees = cameraTraceReady ? cameraTraceYaw : 0.0f;
+      minimapFrame.tick = g_playback.tick;
+      tf2::native::minimapHudSetFrame(minimapFrame);
+    }
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
       g_playback, hudState, currentEntityStates, demoNetworkSummary,
       g_spectateDirector.targetIndex(), g_spectateDirector.focusValid());

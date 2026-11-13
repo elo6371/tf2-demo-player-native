@@ -122,6 +122,34 @@ inline HudPanelLayout hudLayoutPanels(const std::vector<HudPanelSpec>& specs,
   return layout;
 }
 
+// E9 (2026-11-13): the minimap panel. The numbers are the ones hudPanelSelfTest()
+// below already pins for {"minimap", 1, 0, 160, 160, 4, 4} -- a 160-pixel square
+// in the top-right corner, 4 pixels inside the 8-pixel safe inset. They live next
+// to that self-test on purpose: the panel the product draws and the panel the
+// layout rule was tested on must not be two different rectangles.
+//
+// The panel is measured in BACK-BUFFER PIXELS, not in DIPs: the HUD pass draws in
+// pixels, and the readout beside it (kHudLiveX/Y in main_hud.cpp) is a fixed
+// pixel origin for the same reason. A DPI-scaled panel would move under the
+// --window-size comparisons the pixel gates make.
+inline constexpr int kHudPanelSafeInset = 8;
+inline constexpr float kHudMinimapPanelPixels = 160.0f;
+inline constexpr float kHudMinimapPanelMargin = 4.0f;
+
+inline HudPanelSpec hudMinimapPanelSpec() {
+  HudPanelSpec spec;
+  spec.id = "minimap";
+  spec.anchor = 1;  // top-right
+  spec.order = 0;
+  spec.width = kHudMinimapPanelPixels;
+  spec.height = kHudMinimapPanelPixels;
+  spec.marginX = kHudMinimapPanelMargin;
+  spec.marginY = kHudMinimapPanelMargin;
+  spec.visible = true;
+  spec.collapsed = false;
+  return spec;
+}
+
 // A handful of deterministic cases: stacking, right/bottom anchoring, collapse,
 // visibility, ordering, narrow clamping and the drop path. The product probe
 // prints the counts so a broken rule is a reading, not a screenshot opinion.

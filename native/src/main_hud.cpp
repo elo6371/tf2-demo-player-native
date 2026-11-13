@@ -24,10 +24,39 @@
 
 #include "hud_import.h"
 #include "hud_state.h"
+#include "hud_panel.h"
 #include "keybinds.h"
+#include "minimap.h"
 #include "main_internal.h"
 #include "native_renderer.h"
 #include "native_ui.h"
+
+// ---------------------------------------------------------------------------
+// E9 (2026-11-13): the minimap panel's inputs.
+//
+// main.cpp hands the panel the camera pose it is about to draw, as a value. Nothing
+// here points back into the frame loop, so the panel cannot outlive the tick that
+// produced it. Two accessors keep the storage private: a translation unit that never
+// pushed a frame (a run without --hud-minimap) is indistinguishable from one that
+// never linked the panel at all.
+// ---------------------------------------------------------------------------
+namespace tf2::native {
+
+namespace {
+MinimapHudFrame g_minimapHudFrame;
+bool g_minimapHudFramePushed = false;
+}  // namespace
+
+void minimapHudSetFrame(const MinimapHudFrame& frame) {
+  g_minimapHudFrame = frame;
+  g_minimapHudFramePushed = true;
+}
+
+bool minimapHudFramePushed() { return g_minimapHudFramePushed; }
+
+const MinimapHudFrame& minimapHudFrameRef() { return g_minimapHudFrame; }
+
+}  // namespace tf2::native
 
 namespace tf2::native::main_internal {
 
@@ -787,6 +816,278 @@ HudLiveText hudLiveCompose(const tf2::native::main_internal::PlaybackState& play
   return text;
 }
 
+// ---------------------------------------------------------------------------
+// E9 (2026-11-13): the minimap panel -- what it draws, and why it draws it there.
+//
+// WHAT A PANEL IS. One measured world rectangle (the map's own bounds) projected
+// equal-aspect into a 160-pixel square, plus the control points measured on that
+// map, the viewer's position, and a three-dot arrow along the camera yaw. No bitmap
+// is involved: none of the seven supported maps ships a radar overview (T135
+// MINIMAP-DATA-REPORT.md section 4 looked in the pakfile, the VPKs and the loose
+// files), so a map here is geometry and points, not an image.
+//
+// WHY THE TABLE IS COMPILED IN. Bounds and control points are the map's design, not
+// a row the BSP exposes -- BspMap carries no entity list -- so at load time there is
+// nothing to read a control point's origin from. minimapFindMapRow() is the lookup;
+// a map that is not in the table draws NOTHING and publishes the reason, because an
+// unknown map rendered as an empty panel is a canvas nobody can tell from a map with
+// no objectives (the T65 failure).
+//
+// WHY THESE COLOURS ARE OPAQUE. The gate compares a --hud-minimap frame against a
+// frame without the switch, then reads the rings' own colours back out of the
+// bitmap; a blend of two primitives would make both readings ambiguous.
+// ---------------------------------------------------------------------------
+namespace {
+
+constexpr float kMinimapRadius = 4.0f;       // control-point ring, in pixels
+constexpr float kMinimapViewerHalf = 1.5f;   // the viewer dot is 3x3 pixels
+constexpr float kMinimapArrowStart = 4.0f;   // first arrow dot, from the centre
+constexpr float kMinimapArrowStep = 1.0f;
+constexpr int kMinimapArrowDots = 3;
+constexpr float kMinimapArrowHalf = 1.0f;    // each arrow dot is 2x2 pixels
+constexpr float kMinimapBorderWidth = 2.0f;
+constexpr float kMinimapBackgroundColour[4] = {0.05f, 0.06f, 0.08f, 1.0f};
+constexpr float kMinimapBorderColour[4] = {0.62f, 0.64f, 0.66f, 1.0f};
+constexpr float kMinimapRedColour[4] = {0.90f, 0.20f, 0.18f, 1.0f};
+constexpr float kMinimapBluColour[4] = {0.20f, 0.42f, 0.95f, 1.0f};
+constexpr float kMinimapNeutralColour[4] = {0.92f, 0.90f, 0.85f, 1.0f};
+constexpr float kMinimapViewerColour[4] = {0.10f, 1.00f, 0.30f, 1.0f};
+
+void minimapPushRect(std::vector<tf2::native::Renderer::HudPrimitive>& into, float x,
+    float y, float w, float h, const float colour[4]) {
+  tf2::native::Renderer::HudPrimitive primitive;
+  primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Rect;
+  primitive.x = x;
+  primitive.y = y;
+  primitive.w = w;
+  primitive.h = h;
+  primitive.filled = true;
+  for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = colour[channel];
+  into.push_back(primitive);
+}
+
+// A circle primitive is its BOUNDING BOX: the HUD shader discards outside half the
+// box (native_renderer_shaders.cpp, kind 3), so w == h == 2r, the centre is the box
+// centre, and the rim is hard -- there is no antialiasing to average the colour the
+// gate samples.
+void minimapPushCircle(std::vector<tf2::native::Renderer::HudPrimitive>& into, float x,
+    float y, float diameter, const float colour[4]) {
+  tf2::native::Renderer::HudPrimitive primitive;
+  primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Circle;
+  primitive.x = x;
+  primitive.y = y;
+  primitive.w = diameter;
+  primitive.h = diameter;
+  for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = colour[channel];
+  into.push_back(primitive);
+}
+
+const float* minimapTeamColour(int team) {
+  if (team == 2) return kMinimapRedColour;
+  if (team == 3) return kMinimapBluColour;
+  return kMinimapNeutralColour;
+}
+
+// Whether a point's ring fits inside the panel with its radius to spare. The HUD
+// pass scissors to the union of the primitives it was handed, not to this panel, so a
+// shape that hung over the edge would paint on top of the world outside the panel --
+// and the gate's "nothing outside the panel changed" half would then be red for a
+// reason that had nothing to do with projection.
+bool minimapPointFits(const tf2::native::MinimapPoint& pixel, int panelPixels,
+    float halfExtent) {
+  const float limit = static_cast<float>(panelPixels);
+  return pixel.inside && pixel.px >= halfExtent && pixel.px <= limit - halfExtent
+    && pixel.py >= halfExtent && pixel.py <= limit - halfExtent;
+}
+
+struct HudMinimapDraw {
+  bool active = false;      // a frame was pushed: the switch is on for this run
+  bool ready = false;       // a tabulated map, this frame's pose, and a placed panel
+  const char* reason = "no-frame";
+  const tf2::native::MinimapMapRow* row = nullptr;
+  tf2::native::MinimapBounds bounds;
+  tf2::native::MinimapProjection projection;
+  tf2::native::HudPanelRect rect;
+  float angle = 0.0f;
+  float viewerPx = 0.0f;
+  float viewerPy = 0.0f;
+  bool viewerInside = false;
+  int arrowDots = 0;
+  std::size_t pointsDrawn = 0;
+  std::string signature;
+  std::vector<tf2::native::Renderer::HudPrimitive> primitives;
+};
+
+// The panel rectangle comes from the same rule the hud_panel self-test pins --
+// top-right, 160x160, 4 pixels inside the 8-pixel inset -- and is not arithmetic
+// repeated here: the gate recomputes the expected rectangle from the client size on
+// its own and compares it with the published one, so a drifted panel is caught by two
+// independent computations instead of being agreed with by one.
+tf2::native::HudPanelRect hudMinimapPanelRect(HWND window) {
+  RECT client{};
+  if (!window || !GetClientRect(window, &client)) {
+    client.right = 1280;
+    client.bottom = 720;
+  }
+  std::vector<tf2::native::HudPanelSpec> specs;
+  specs.push_back(tf2::native::hudMinimapPanelSpec());
+  const tf2::native::HudPanelLayout layout = tf2::native::hudLayoutPanels(specs,
+    static_cast<int>(client.right), static_cast<int>(client.bottom),
+    tf2::native::kHudPanelSafeInset);
+  if (layout.panels.empty()) return tf2::native::HudPanelRect{};
+  return layout.panels.front();
+}
+
+HudMinimapDraw hudMinimapCompose(HWND window) {
+  HudMinimapDraw draw;
+  if (!tf2::native::minimapHudFramePushed()) return draw;
+  draw.active = true;
+  const tf2::native::MinimapHudFrame& frame = tf2::native::minimapHudFrameRef();
+
+  // The signature is what the change key publishes on: the map, the panel, and the
+  // camera's projection of the viewer. The tick is deliberately NOT in it -- two
+  // ticks with the same camera draw the same picture, and republishing them would be
+  // an upload nobody can see (the readout it rides on exists to say "the reading
+  // changed").
+  draw.signature = "minimap|";
+  draw.signature += frame.mapName;
+  draw.signature += '|';
+  draw.signature += frame.valid ? "camera" : "held";
+
+  draw.row = tf2::native::minimapFindMapRow(frame.mapName);
+  if (draw.row == nullptr) {
+    draw.reason = "bounds-not-tabulated";
+    return draw;
+  }
+  if (!frame.valid) {
+    // Without this frame's pose the rings would be a real map drawn at the last
+    // camera's place, and the panel would be lying by one frame. Not drawing is the
+    // honest answer, and the reading says which case this is.
+    draw.reason = "no-camera-pose";
+    return draw;
+  }
+  draw.rect = hudMinimapPanelRect(window);
+  if (!draw.rect.placed) {
+    draw.reason = "panel-not-placed";
+    return draw;
+  }
+  draw.bounds = tf2::native::minimapBoundsForRow(*draw.row, draw.rect.w, draw.rect.h);
+  draw.projection = tf2::native::minimapPanelProjection(draw.bounds);
+  if (!draw.projection.valid) {
+    draw.reason = "no-projection";
+    return draw;
+  }
+  draw.ready = true;
+  draw.reason = "ok";
+
+  // Everything below is panel-LOCAL pixels; the panel's origin is added once, when a
+  // primitive is handed to the renderer.
+  const tf2::native::MinimapPoint viewer = tf2::native::minimapPanelPoint(draw.bounds,
+    draw.projection, frame.eyeX, frame.eyeY);
+  draw.viewerPx = viewer.px;
+  draw.viewerPy = viewer.py;
+  draw.viewerInside = minimapPointFits(viewer, draw.rect.w, kMinimapViewerHalf);
+  draw.angle = tf2::native::minimapScreenAngleDegrees(frame.yawDegrees);
+
+  {
+    char numbers[192];
+    std::snprintf(numbers, sizeof(numbers), "|%d,%d,%d|%.2f,%.2f|%d|%.2f|%.2f",
+      draw.rect.x, draw.rect.y, draw.rect.w, static_cast<double>(draw.viewerPx),
+      static_cast<double>(draw.viewerPy), draw.viewerInside ? 1 : 0,
+      static_cast<double>(frame.yawDegrees), static_cast<double>(draw.angle));
+    draw.signature += numbers;
+  }
+
+  const float panelPixels = static_cast<float>(draw.rect.w);
+  const float originX = static_cast<float>(draw.rect.x);
+  const float originY = static_cast<float>(draw.rect.y);
+  minimapPushRect(draw.primitives, originX, originY, panelPixels,
+    static_cast<float>(draw.rect.h), kMinimapBackgroundColour);
+  minimapPushRect(draw.primitives, originX, originY, panelPixels, kMinimapBorderWidth,
+    kMinimapBorderColour);
+  minimapPushRect(draw.primitives, originX, originY + panelPixels - kMinimapBorderWidth,
+    panelPixels, kMinimapBorderWidth, kMinimapBorderColour);
+  minimapPushRect(draw.primitives, originX, originY, kMinimapBorderWidth, panelPixels,
+    kMinimapBorderColour);
+  minimapPushRect(draw.primitives, originX + panelPixels - kMinimapBorderWidth, originY,
+    kMinimapBorderWidth, panelPixels, kMinimapBorderColour);
+  for (std::size_t index = 0; index < draw.row->pointCount; ++index) {
+    const tf2::native::MinimapControlPointRow& point = draw.row->points[index];
+    const tf2::native::MinimapPoint pixel = tf2::native::minimapPanelPoint(draw.bounds,
+      draw.projection, point.x, point.y);
+    if (!minimapPointFits(pixel, draw.rect.w, kMinimapRadius)) continue;
+    ++draw.pointsDrawn;
+    minimapPushCircle(draw.primitives, originX + pixel.px - kMinimapRadius,
+      originY + pixel.py - kMinimapRadius, kMinimapRadius * 2.0f,
+      minimapTeamColour(point.team));
+  }
+  // The rings first, the viewer last: the dot a reader looks for must never be buried
+  // under an objective it happens to stand on.
+  if (draw.viewerInside) {
+    minimapPushRect(draw.primitives, originX + draw.viewerPx - kMinimapViewerHalf,
+      originY + draw.viewerPy - kMinimapViewerHalf, kMinimapViewerHalf * 2.0f,
+      kMinimapViewerHalf * 2.0f, kMinimapViewerColour);
+    // World yaw is counter-clockwise from +x with +y north; the panel is +x right and
+    // +y DOWN. The heading of a yaw in panel space is therefore (cos, -sin) -- the
+    // minus IS the flip, and it is the one sign a wrong implementation gets wrong.
+    const double radians =
+      static_cast<double>(frame.yawDegrees) * 3.14159265358979323846 / 180.0;
+    const float forwardX = static_cast<float>(std::cos(radians));
+    const float forwardY = -static_cast<float>(std::sin(radians));
+    for (int dot = 0; dot < kMinimapArrowDots; ++dot) {
+      const float distance = kMinimapArrowStart + kMinimapArrowStep * static_cast<float>(dot);
+      const float px = draw.viewerPx + distance * forwardX;
+      const float py = draw.viewerPy + distance * forwardY;
+      if (px < kMinimapArrowHalf || px > panelPixels - kMinimapArrowHalf
+          || py < kMinimapArrowHalf || py > panelPixels - kMinimapArrowHalf) {
+        continue;
+      }
+      ++draw.arrowDots;
+      minimapPushRect(draw.primitives, originX + px - kMinimapArrowHalf,
+        originY + py - kMinimapArrowHalf, kMinimapArrowHalf * 2.0f,
+        kMinimapArrowHalf * 2.0f, kMinimapViewerColour);
+    }
+  }
+  return draw;
+}
+
+// The panel's readings: one line per publish plus one line per control point. A gate
+// reads a pixel and this number together, so the ring it samples is the ring the
+// product says it drew; a human reads where a ring went without a debugger.
+void hudMinimapTrace(const HudMinimapDraw& draw) {
+  if (!draw.active) return;
+  const tf2::native::MinimapHudFrame& frame = tf2::native::minimapHudFrameRef();
+  traceFmt("minimap: hud state=%s map=%s reason=%s panel=%d,%d,%d,%d"
+    " scale=%.6f offsetX=%.6f offsetY=%.6f angle=%.2f yaw=%.2f eye=%.1f,%.1f"
+    " viewerPx=%.2f viewerPy=%.2f viewerInside=%d arrowDots=%d cps=%zu drawn=%zu"
+    " shapes=%zu tick=%d",
+    draw.ready ? "ready" : "unavailable", frame.mapName.c_str(), draw.reason,
+    draw.rect.x, draw.rect.y, draw.rect.w, draw.rect.h,
+    static_cast<double>(draw.projection.scale),
+    static_cast<double>(draw.projection.offsetX),
+    static_cast<double>(draw.projection.offsetY),
+    static_cast<double>(draw.angle), static_cast<double>(frame.yawDegrees),
+    static_cast<double>(frame.eyeX), static_cast<double>(frame.eyeY),
+    static_cast<double>(draw.viewerPx), static_cast<double>(draw.viewerPy),
+    draw.viewerInside ? 1 : 0, draw.arrowDots,
+    draw.row ? draw.row->pointCount : static_cast<std::size_t>(0), draw.pointsDrawn,
+    draw.primitives.size(), frame.tick);
+  if (!draw.ready) return;
+  for (std::size_t index = 0; index < draw.row->pointCount; ++index) {
+    const tf2::native::MinimapControlPointRow& point = draw.row->points[index];
+    const tf2::native::MinimapPoint pixel = tf2::native::minimapPanelPoint(draw.bounds,
+      draw.projection, point.x, point.y);
+    traceFmt("minimap: cp name=%s index=%d team=%d world=%.1f,%.1f px=%.2f,py=%.2f"
+      " inside=%d drawn=%d",
+      point.name, point.index, point.team, static_cast<double>(point.x),
+      static_cast<double>(point.y), static_cast<double>(pixel.px),
+      static_cast<double>(pixel.py), pixel.inside ? 1 : 0,
+      minimapPointFits(pixel, draw.rect.w, kMinimapRadius) ? 1 : 0);
+  }
+}
+
+}  // namespace
+
 }  // namespace
 
 // T97, lead ruling 2026-11-09: a readout that is on by default must not deform the
@@ -812,7 +1113,8 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     const std::vector<tf2::native::EntityState>& states,
     const tf2::native::DemoNetworkSummary& summary,
     std::int32_t relayEntity, bool relayValid) {
-  (void)window;
+  // window is used below: the minimap panel asks it for the client rectangle it
+  // lays itself out in (E9). It was unused before the panel existed.
   if (!g_renderer) return;
   // While the T67 probe runs it owns the primitive list. Two writers would make
   // the probe's pixel assertions depend on whether this build also has a readout.
@@ -899,6 +1201,10 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   }
   if (!name.known) ++g_hudLiveNameMissing;  // every frame that asks for a name and cannot have one
   const HudLiveText text = hudLiveCompose(playback, target, reading, name);
+  // E9: the panel is composed from the same frame as the text, after the
+  // suppression branch above -- a suppressed run never publishes a minimap
+  // reading that a gate could mistake for pixels the frame does not have.
+  const HudMinimapDraw minimap = hudMinimapCompose(window);
   std::string key = text.time;
   key += '\n';
   key += text.score;
@@ -906,6 +1212,14 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   key += text.target;
   key += '\n';
   key += text.source;
+  // E9: the panel joins the key only when the switch asked for it. With the switch
+  // off the signature is empty and the key is byte-for-byte the one this readout
+  // has always built; with it on, a camera move that changes no text still
+  // republishes -- which is the whole point of a map beside a readout.
+  if (!minimap.signature.empty()) {
+    key += '\n';
+    key += minimap.signature;
+  }
   if (key == g_hudLiveLastKey) {
     ++g_hudLiveSkips;
     return;
@@ -942,6 +1256,11 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     if (primitive.w > widest) widest = primitive.w;
     primitives.push_back(primitive);
   }
+  // E9: the panel's shapes ride in the same list, after the text. hudApplyRects
+  // rebuilds this list on every resize from g_hudLivePrimitives, so a window
+  // resize keeps the panel without either module knowing about the other.
+  primitives.insert(primitives.end(), minimap.primitives.begin(),
+    minimap.primitives.end());
   g_hudLivePrimitives = primitives;
   g_renderer->setHudPrimitives(primitives);
   g_hudLiveActive = true;
@@ -964,6 +1283,10 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // checkable from outside: the gate compares the sample clock (nameTick) with the
   // entry clock (nameBaseTick + tick) and looks the same slot up in
   // demo_open_probe.
+  // E9: the panel's own readings go out before the readout summary, so the summary
+  // stays the last line of a publish and a reader who greps for it is not skipped
+  // over the panel.
+  hudMinimapTrace(minimap);
   traceFmt("hud: live tick=%d enabled=1 mode=%s source=%s"
     " text1=\"%s\" text2=\"%s\" text3=\"%s\""
     " glyphs=%zu region=%d,%d,%d,%d updates=%zu skips=%zu name=%s"
