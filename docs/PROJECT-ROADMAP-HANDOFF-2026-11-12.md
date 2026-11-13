@@ -860,10 +860,14 @@ No attachment source or shader text was copied into product files. The implement
   `d15332c` adds `minimap-hud-check.sh`; `17a7ef3` registers it. The gate fixes
   two harness defects found on first run: `${RC_$name}` bad substitution and a
   nondeterministic old-exe A10 control (both old runs now `--start-paused`).
-  Evidence: `MINIMAP-HUD=PASS assertions=96 skipped_controls=0`, including
+  Evidence: forward `MINIMAP-HUD=PASS assertions=96 skipped_controls=0`, including
   A1-A11, y-flip/x-mirror controls, yaw rotation, old-exe negative and the
-  untabulated map. Seven-map linework is tabulated but only Upward and Sunshine
-  have frames; the other five are **NOT VERIFIED**. A12 mutation was not run.
+  untabulated map. A12 was then run: `m1-yflip` caught correctly; `m2-heading`
+  and `m3-anchor` were caught but on different assertions than the gate expected
+  (`MINIMAP-HUD=FAIL assertions=100 failed=2`). That is a gate-expectation bug,
+  not a product regression; the restored build reproduced `00ec8b99...`
+  byte-for-byte. Seven-map linework is tabulated but only Upward and Sunshine
+  have frames; the other five are **NOT VERIFIED**.
 - F2-3 (R2-9) census done, read-only: `docs/R2-9-NOCULL-CENSUS-2026-11-13.md`.
   Only `koth_bagel_rc11` has visible `$nocull` candidates in its own BSP pak
   (three oak trees, tarp, detail-sprite sheet); the other six maps only declare
@@ -888,7 +892,7 @@ No attachment source or shader text was copied into product files. The implement
   working batch reported `dirty=1` only because the roadmap document was still
   uncommitted; the exe bytes are identical.
 - Still open: F1-5's 849 vertex-colour and 919 UV discrepancy; F1-4 audible device smoke;
-  F2-1 A12 mutation and five-map frames; F2-2 `animation_viewmodel_probe`
+  F2-1 A12 expectation fix and five-map frames; F2-2 `animation_viewmodel_probe`
   `loop=false` triage; F2-3's targeted world-brush `$nocull` fixture;
   F2-4/F2-5/F2-6; F3/F4; one full release
   chain only at freeze.

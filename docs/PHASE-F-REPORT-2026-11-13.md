@@ -22,7 +22,7 @@
 4. **I-29 关闭（headless 部分）。** `quiet-capture-check.sh` 默认不再打开音频设备；可听 live pair 改成显式 `--device`。新增 `audio-keys-check.sh`，用真实 `WM_KEYDOWN` 驱动 M / `[` / `]`，验证 ui.ini 持久化和跨重启读回。
 5. **I-23 增加像素证据。** 找到能看见 `glasswindow001a_649_-1016_704` 的相机；rescue on/off 改变 **84,965** 像素，5 个 hole-trace 点归因到该材质，1 个不透明 BRICK/WALL028 作为对照。
 6. **I-20/873 的 alpha 解释成立。** 1143,132 / 1110,136 是 TREELINECARD 的 `255,255,255, alpha=0` 透明 texel；873,366 是 METALGRATE 的 `0,0,0, alpha=0`。`--world-texel` 进一步分离出：1110 的 albedo 0 是 alpha=0 + vertex colour 0；849 的 texel 是 `84,83,81` 但 albedo 0，原因是 vertex colour 0；919 的 texel 与 albedo 都是 `210,208,197`，问题在 face-trace UV 与实际 pass 不一致。849/919 保持 OPEN。
-7. **小地图产品化落地。** E9 补丁 4 文件落树，`--hud-minimap` 默认关；`minimap-hud-check.sh` 96 断言 PASS，含投影 y 翻转、x 镜像、yaw 旋转、旧 exe 负控和未列表地图。七图只有 Upward/Sunshine 有帧，其余五图 NOT VERIFIED。
+7. **小地图产品化落地。** E9 补丁 4 文件落树，`--hud-minimap` 默认关；`minimap-hud-check.sh` 前向 96 断言 PASS，含投影 y 翻转、x 镜像、yaw 旋转、旧 exe 负控和未列表地图。七图只有 Upward/Sunshine 有帧，其余五图 NOT VERIFIED。A12 的 3 个变异都被抓到，但 m2/m3 期望红因写错，A12 判 FAIL（gate harness 缺陷，非产品回归）。
 8. **`$nocull` census 完成（只读）。** 七图 BSP pak 中只有 Bagel RC11 有可见候选（3 棵树、tarp、detail-sprite），其余六图只有不可见 `tools/toolstrigger`。Bagel oak 固定相机的 cull on/off 差异 689,683 像素，但这是全局 world cull，不是 per-material 控制；没有改 world renderer，正例仍缺。
 9. **F2-2 probe 覆盖完成一次调用。** 52 个 `*_probe.exe` 全部至少以真实输入或自身 self-test 调用一次：首批 29 rc=0；第二批 8/8 rc=0；第三/四批补齐 `texture_quad_probe`、`quiet_capture_probe`，只剩 `animation_viewmodel_probe` 的 synthetic `loop=false` OPEN（`realLoop=true`）。不是完整域验收。
 
@@ -219,12 +219,21 @@ FAIL pixels the control frame changes = 89488, expected 90127
 1. `echo "RUN ... rc=${RC_$name}"` 是 bash 非法替换；改为间接展开。
 2. A10 旧 exe 两次运行未暂停，25 像素差异导致假红；两侧都加 `--start-paused`。
 
+**A12 变异**（2026-11-14 跑，exe `00ec8b99`）：
+- `m1-yflip`：正确抓住，红因 `cap_1 is drawn at the flipped position`。
+- `m2-heading`：被抓住（red=5），但红因是 4/5/6px **ahead** 的 heading dot 为 0；门禁预期的是 `no heading dot`（behind）。翻转 `forwardY` 本来就会把点移到后方，所以期望写反了。
+- `m3-anchor`：被抓住（red=2），但红因是 `pixels changed inside panel=0` / `outside=25600`；门禁预期的是 `top-right`。anchor 改到左上后，面板矩形断言没有按预期先红，像素矩形先红。
+- 还原构建后 exe 逐字节恢复为 `00ec8b99...`。
+- 末行：`MINIMAP-HUD=FAIL assertions=100 failed=2 skipped_controls=0`。
+
+**结论**：A12 的 3 个变异都被抓到，但 m2/m3 的**期望断言写错**，所以 A12 判 FAIL。这是 gate harness 缺陷，不是小地图产品回归；需要修期望并重跑 A12 才能把 F2-1 标成完整 PASS。
+
 **限制**：
 - 七图只有 Upward / Sunshine 有帧；process/gullywash/sultry/product/bagel 只有表，NOT VERIFIED。
 - 没有 radar/overview 底图，第一版是 BSP-derived linework。
-- A12 mutation 未跑。
+- A12 已跑，但 m2/m3 期望红因不匹配，gate harness 需修。
 
-**状态**：产品路径 PASS（96 断言）；七图完整视觉验收未完成。
+**状态**：产品前向路径 PASS（96 断言）；A12 mutation 判 FAIL（m2/m3 期望写错）；七图完整视觉验收未完成。
 
 ### F2-2：52-probe 首批扫描 + 8-probe 域批次
 
@@ -290,7 +299,7 @@ FAIL pixels the control frame changes = 89488, expected 90127
 | `sultry-translucent-atlas-check.sh` | PASS 139 断言 | `F1/i23-pixels/gate.log` |
 | `quiet-capture-check.sh` | PASS（pinned + headless live） | `F1/quiet/gate3.log` |
 | `audio-keys-check.sh` | PASS（6 键边 + 2 次重启） | `F1/keys/gate4.log` |
-| `minimap-hud-check.sh --old-exe=...` | PASS 96 断言 | `F2/minimap/gate4.log` |
+| `minimap-hud-check.sh --old-exe=...` | 前向 PASS 96 断言；A12 FAIL（m2/m3 期望写错） | `F2/minimap/gate4.log`、`F2/minimap-mutation/gate.log` |
 | `world-black-account-check.sh` | PASS（I-20/873 解释；849/919 OPEN） | `F1/black/gate2.log` |
 | 52-probe sweep | 29 rc0 / 23 usage-missing；8/8 domain-A rc0；domain-B 13/13 rc0；domain-C 1 rc0 + 1 OPEN | `F2/probe-sweep/results.tsv`、`F2/probe-domain-a/results.tsv`、`F2/probe-domain-b/results.tsv` |
 | `$nocull` census | 七图扫描完成 | `F2/nocull-census.txt` |
@@ -317,7 +326,7 @@ FAIL pixels the control frame changes = 89488, expected 90127
 
 1. **没有跑 15 步完整发布链。** 本批所有绿色门禁都是窄门禁/聚焦门禁，不是 release chain。
 2. **没有七图视觉验收。** I-23 像素证据只覆盖一个具名玻璃材质、一个相机；I-20/I-21 只覆盖 Sultry 的六个点。
-3. **小地图只证了 Upward 和 Sunshine 的帧。** 其余五图只有 bounds/控制点表；A12 变异未跑；没有 radar 底图。
+3. **小地图只证了 Upward 和 Sunshine 的帧。** 其余五图只有 bounds/控制点表；A12 已跑但 m2/m3 期望写错，gate harness 需修；没有 radar 底图。
 4. **没有可听音频验证。** M / `[` / `]` 的字节/持久化已证，但 device-6 可听 smoke 未跑。
 5. **F2-2 不是完整域验收。** 52 个 probe 都已调用一次；唯一 OPEN 是 `animation_viewmodel_probe` 的 synthetic `loop=false`。domain matrix（model/map/demo 组合与渲染声明）仍未完成。
 6. **F2-3 没有 Bagel 正/对照帧。** 只有声明 census；没有证明树/tarp 是 world brush 或会掉像素。
@@ -412,6 +421,7 @@ bash "$LOCK" run f-probes bash /d/_shared/EXEC-2026-11-13/F2/probe-sweep.sh
 | quiet capture | `F1/quiet/gate3.log` |
 | 音量键 | `F1/keys/gate4.log` |
 | 小地图 | `F2/minimap/gate4.log` |
+| 小地图 A12 | `F2/minimap-mutation/gate.log` |
 | 52-probe | `F2/probe-sweep/results.tsv` |
 | nocull census | `F2/nocull-census.txt` |
 | Bagel cull control | `F2/bagel-cull/` |
@@ -430,7 +440,7 @@ bash "$LOCK" run f-probes bash /d/_shared/EXEC-2026-11-13/F2/probe-sweep.sh
 5. **F2-6 reload 观测**：提高 30–60 tick 窗口的 checkpoint 密度，先证现有 playback，再改产品。
 6. **F3-1 双视角**：先两路 split，per-pane target/mode/free-look，再做 PIP/四路。
 7. **F1-4 可听 device-6 smoke**：需要人工在场确认，不在无人值守时跑。
-8. **F2-1 A12 变异 + 五图帧**：补 minimap mutation 和 process/gullywash/sultry/product/bagel 的固定相机帧。
+8. **F2-1 A12 期望修复 + 五图帧**：修 m2/m3 的预期红因并重跑 A12；补 process/gullywash/sultry/product/bagel 的固定相机帧。
 9. **F1-5 849/919**：849 追 vertex colour 为什么是 0；919 追 face-trace 的 UV/三角形选择为什么与实际 texel pass 不同。不要把这两条并进 I-20 的 alpha 结论。
 10. **最终 F4**：只在所有 P0/P1 关闭或显式接受后，跑**唯一一次** 15 步发布链。
 
