@@ -54,7 +54,8 @@ Classes:
 | `logstf-check.sh` | external | Needs the WebView2 runtime and a logs.tf URL; it is not a first-release HUD requirement and cannot run offline. | Manual logs-panel check; UI owner. |
 | `logstf-syntax-check.sh` | tooling | `cl /Zs` syntax-only check of T54 translation units; it builds no product behaviour. | Before a WebView2 build; UI owner. |
 | `map-geometry-lighting-check.sh` | segmented | Per-map geometry/lighting matrix; the matrix is a map-acceptance input, not a daily chain step. | R2-1/R2-4 map acceptance; map renderer owner. |
-| `minimap-check.sh` | blocked | Pure-logic minimap gate; the product minimap is not integrated yet (F2-1), so this gate cannot stand in for product support. | F2-1 minimap landing; UI owner. |
+| `minimap-check.sh` | segmented | Pure-logic minimap gate (projection, click, zoom state); the product panel is now covered by `minimap-hud-check.sh`. This one stays as the fast logic probe. | Minimap logic changes; UI owner. |
+| `minimap-hud-check.sh` | segmented | Product minimap panel gate: A1-A12 run the panel, its projection, the y-flip/x-mirror controls, yaw rotation, the old-exe negative, an untabulated map and the mutation half. Seven-map linework limits are documented, not claimed. | F2-1 and UI changes; UI owner. |
 | `playback-control-check.sh` | segmented | T70 transport landing gate; `playback-error-paths-check.sh` and `timeline-check.sh` are the registered release transport gates. | Transport changes; playback owner. |
 | `player-model-check.sh` | segmented | T60 player-model gate; needs the nine-class fixture and produces P4 evidence, not a general smoke result. | P4 model batch; character/weapon owner. |
 | `quality-audit-check.sh` | segmented | Footprint/steady-state measurements; useful at performance milestones, too noisy for every chain. | Performance milestones; architecture owner. |
