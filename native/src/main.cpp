@@ -12671,8 +12671,13 @@ bool outlineVertexExtent = false;
     // The first three arguments are the run's mode, decided from parsed flags only:
     // evidenceRun (a --capture-frame run), --hud-off, --hud-live. main_hud.cpp holds
     // the three-state rule and the reason an evidence frame is suppressed by default.
+    // T126: the relay's decision rides along, because the name belongs to the
+    // player the camera is behind, not to the signon svc_SetView entity that
+    // summary.lastViewEntity holds. Both are passed even with no target so the
+    // fallback is a reading in the trace (nameFallback=1) rather than a guess.
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
-      g_playback, hudState, currentEntityStates, demoNetworkSummary);
+      g_playback, hudState, currentEntityStates, demoNetworkSummary,
+      g_spectateDirector.targetIndex(), g_spectateDirector.focusValid());
     writeMetrics(now, false);
     // T50: the acceptance script runs one step per drawn frame, AFTER the scene
     // and HUD updates for that frame and BEFORE the draw, so a step that changes

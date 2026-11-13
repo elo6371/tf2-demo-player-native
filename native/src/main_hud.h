@@ -24,6 +24,7 @@
 
 #include <Windows.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 
@@ -82,11 +83,18 @@ void hudApplyRects(HWND window);
 // the two documented switches. Passed in rather than read from the command line a
 // second time: a substring search for "--hud-off" also matches a path operand that
 // happens to contain it, and an unregistered flag is invisible to --strict-args.
+// relayEntity: the entity the spectate relay is watching this frame
+// (SpectateDirector::targetIndex(), -1 when it has no answer), and relayValid
+// (focusValid()). T126: the readout's name is the watched player's, and these
+// two are how the decision reaches this file without reaching for a global. The
+// pair is passed even when invalid so the fallback to the demo's view entity is
+// a reading the trace can publish, not a rescue a reader has to infer.
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   const tf2::native::main_internal::PlaybackState& playback,
   const tf2::native::PlaybackHudState& target,
   const std::vector<tf2::native::EntityState>& states,
-  const tf2::native::DemoNetworkSummary& summary);
+  const tf2::native::DemoNetworkSummary& summary,
+  std::int32_t relayEntity, bool relayValid);
 void hudUpdateStatus(HWND window);
 void hudImportInteractive(HWND window);
 void hudTogglePreview(HWND window);

@@ -457,6 +457,18 @@ std::size_t g_hudLiveNameMissing = 0;
 std::size_t g_hudLiveTargetAbsent = 0;
 std::size_t g_hudLiveScoreMissing = 0;
 std::size_t g_hudLiveTimerFallback = 0;
+// T126: the name is resolved for the player the RELAY is watching, and the two
+// readings below say which way it went. g_hudLiveNameFallbacks counts the frames
+// that had to stand the demo's view entity back in (no relay decision yet, or no
+// userinfo sample for the relay's player at this tick); the four g_hudName*
+// values are the last "hud: name" line's tuple, printed on change because the
+// relay holds one target for thousands of ticks.
+std::size_t g_hudLiveNameFallbacks = 0;
+bool g_hudNameHaveReading = false;
+std::int32_t g_hudNameLastEntity = -2;
+std::int32_t g_hudNameLastSlot = -2;
+int g_hudNameLastKnown = -1;
+int g_hudNameLastFallback = -1;
 // T97: the counters above are read off the PUBLISH line, and that line is only
 // written when the reading changes. So a run that publishes once publishes
 // skips=0 even if it called this function a thousand times: the number is a
@@ -485,10 +497,11 @@ void hudLiveRegisterSummary() {
 void hudLiveSummaryAtExit() {
   traceFmt("hud: live summary calls=%zu updates=%zu skips=%zu published=%zu"
     " nameMissing=%zu targetAbsent=%zu scoreMissing=%zu timerFallback=%zu"
+    " nameFallbackCalls=%zu"
     " lastSource=%s lastText1=\"%s\" lastText2=\"%s\" lastText3=\"%s\"",
     g_hudLiveCalls, g_hudLiveUpdates, g_hudLiveSkips, g_hudLivePublished,
     g_hudLiveNameMissing, g_hudLiveTargetAbsent, g_hudLiveScoreMissing,
-    g_hudLiveTimerFallback, g_hudLiveLastSource.c_str(),
+    g_hudLiveTimerFallback, g_hudLiveNameFallbacks, g_hudLiveLastSource.c_str(),
     g_hudLiveLastLines[0].c_str(), g_hudLiveLastLines[1].c_str(),
     g_hudLiveLastLines[2].c_str());
 }
@@ -797,7 +810,8 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     const tf2::native::main_internal::PlaybackState& playback,
     const tf2::native::PlaybackHudState& target,
     const std::vector<tf2::native::EntityState>& states,
-    const tf2::native::DemoNetworkSummary& summary) {
+    const tf2::native::DemoNetworkSummary& summary,
+    std::int32_t relayEntity, bool relayValid) {
   (void)window;
   if (!g_renderer) return;
   // While the T67 probe runs it owns the primitive list. Two writers would make
@@ -829,7 +843,60 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   if (!reading.roundTimerKnown) ++g_hudLiveTimerFallback;
   if (!reading.redKnown || !reading.bluKnown) ++g_hudLiveScoreMissing;
   if (!target.healthKnown && !target.teamKnown && !target.classKnown) ++g_hudLiveTargetAbsent;
-  const HudLiveName name = hudLiveResolveName(summary, summary.lastViewEntity, playback.tick);
+  // T126: THE NAME BELONGS TO THE PLAYER THE CAMERA IS WATCHING, NOT TO THE
+  // DEMO'S VIEW ENTITY. summary.lastViewEntity is written once, by the signon
+  // svc_SetView (demo_header_net.cpp), so it names the recording's own view --
+  // for a SourceTV demo that is the spectator, not the player on screen. Measured
+  // on this gate's demo, the reading said name=MatchaTV at playback ticks 0 and
+  // 1043 while the relay decision (native/include/spectate_target.h) had already
+  // put the camera behind entity 2 (advance.trace:493 spectate target=2 vs :3033
+  // nameEntity=1). The director is the frame's own answer to "who is being
+  // watched", so main.cpp hands it in beside the rest of the frame state, and the
+  // decoder lookup itself is untouched: entity -> slot -> (slot, tick) -> name.
+  //
+  // Falling back is a READING, not a silent rescue. When the relay has no target
+  // yet, or has one the userinfo table cannot name at this tick, the readout keeps
+  // the demo's view entity -- the only target the recording itself names -- and
+  // says nameFallback=1. That is what lets a gate tell "the name follows the
+  // camera" from "the name is lastViewEntity again" instead of inferring it from
+  // the absence of a line.
+  const bool relayUsable = relayValid && relayEntity >= 1;
+  HudLiveName name = hudLiveResolveName(summary,
+    relayUsable ? relayEntity : summary.lastViewEntity, playback.tick);
+  bool nameFallback = false;
+  if (!relayUsable) {
+    // No relay decision on this frame (pre-snapshot): the view entity above is
+    // exactly the fallback, and a gate should be able to see that it was taken.
+    nameFallback = true;
+  } else if (!name.known && static_cast<std::uint32_t>(relayEntity) != summary.lastViewEntity) {
+    const HudLiveName viewName = hudLiveResolveName(summary, summary.lastViewEntity, playback.tick);
+    if (viewName.known) {
+      name = viewName;
+      nameFallback = true;
+    }
+  }
+  if (nameFallback) ++g_hudLiveNameFallbacks;
+  // Printed on change, not per frame: the relay holds one target for thousands of
+  // ticks, and this file's traces are change-driven for exactly that reason. The
+  // tuple is what a reader needs -- which entity the name was asked of, which slot
+  // the decoder assigned it, whether a name came back, and whether the view entity
+  // had to stand in -- so a change in any one of the four is the line.
+  const int nameKnownValue = name.known ? 1 : 0;
+  const int nameFallbackValue = nameFallback ? 1 : 0;
+  if (!g_hudNameHaveReading || name.entity != g_hudNameLastEntity
+      || name.slot != g_hudNameLastSlot || nameKnownValue != g_hudNameLastKnown
+      || nameFallbackValue != g_hudNameLastFallback) {
+    g_hudNameHaveReading = true;
+    g_hudNameLastEntity = name.entity;
+    g_hudNameLastSlot = name.slot;
+    g_hudNameLastKnown = nameKnownValue;
+    g_hudNameLastFallback = nameFallbackValue;
+    traceFmt("hud: name nameEntity=%d nameSlot=%d nameKnown=%d nameFallback=%d"
+      " nameReason=%s nameSlug=%s nameDisplay=\"%s\" relay=%d relayValid=%d",
+      static_cast<int>(name.entity), static_cast<int>(name.slot), nameKnownValue,
+      nameFallbackValue, name.reason, name.slug.c_str(), name.display.c_str(),
+      static_cast<int>(relayUsable ? relayEntity : -1), relayValid ? 1 : 0);
+  }
   if (!name.known) ++g_hudLiveNameMissing;  // every frame that asks for a name and cannot have one
   const HudLiveText text = hudLiveCompose(playback, target, reading, name);
   std::string key = text.time;
