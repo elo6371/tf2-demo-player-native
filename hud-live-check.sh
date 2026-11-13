@@ -100,7 +100,7 @@
 #   creating a directory, building, or launching anything -- so the rule above can
 #   be checked offline under the host lock rules.
 #
-# Usage: bash hud-live-check.sh [--mutation] [--sections=1,2] [--print-out]
+# Usage: bash hud-live-check.sh [--mutation] [--sections=1,2] [--print-out] [--selftest-print-out]
 # Exit:  0 = every assertion held.
 
 set -uo pipefail
@@ -167,12 +167,16 @@ SECTIONS=""
 # without touching the disk or launching the product. It exists so the path rules
 # below can be judged offline (no lock, no build, no window).
 PRINT_OUT=0
+# --selftest-print-out has no product path behind it; it exits before the input
+# checks below, which is why it can run under the lock-free audit rules.
+SELFTEST_PRINT_OUT=0
 for arg in "$@"; do
   case "$arg" in
     --mutation) MUTATION=1 ;;
     --case=*) MUTATION_CASE="$(echo "$arg" | cut -d= -f2)" ;;
     --sections=*) SECTIONS="$(echo "$arg" | cut -d= -f2)" ;;
     --print-out) PRINT_OUT=1 ;;
+    --selftest-print-out) SELFTEST_PRINT_OUT=1 ;;
     *) echo "unknown argument: $arg"; exit 2 ;;
   esac
 done
@@ -192,22 +196,106 @@ done
 # even when it names evidence/ -- some audits do want the file -- but then it is
 # announced, because that run WILL dirty the tree and the caller should be the one
 # who decided that.
-OUT_EXPLICIT=0
-if [ -n "$(printenv HUD_LIVE_CHECK_OUT)" ]; then OUT_EXPLICIT=1; fi
-MUTATION_OUT_REDIRECTED=0
-if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 0 ]; then
-  OUT="$SCRATCH/out"
-  MUTATION_OUT_REDIRECTED=1
-fi
-if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 1 ]; then
-  case "$OUT" in
-    evidence/*|*/evidence/*)
-      echo "WARN: --mutation with an explicit evidence/ OUT writes tracked files: $OUT" ;;
-  esac
+#
+# --selftest-print-out is the control for exactly those three rules (D-101):
+# no product, no build, no lock, no window -- resolve_out_placement() only
+# computes strings, and the sentinel case proves the default path is not aimed
+# at tracked evidence. Last line: HUD-LIVE-REDIRECT-SELFTEST=PASS assertions=3.
+# Called once for the real run and once per case by --selftest-print-out, so the
+# control and the behaviour cannot drift apart.
+resolve_out_placement() {
+  OUT="$(printenv HUD_LIVE_CHECK_OUT)"
+  [ -z "$OUT" ] && OUT=evidence/t97-hud
+  OUT_EXPLICIT=0
+  if [ -n "$(printenv HUD_LIVE_CHECK_OUT)" ]; then OUT_EXPLICIT=1; fi
+  MUTATION_OUT_REDIRECTED=0
+  if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 0 ]; then
+    OUT="$SCRATCH/out"
+    MUTATION_OUT_REDIRECTED=1
+  fi
+  if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 1 ]; then
+    case "$OUT" in
+      evidence/*|*/evidence/*)
+        echo "WARN: --mutation with an explicit evidence/ OUT writes tracked files: $OUT" ;;
+    esac
+  fi
+}
+
+print_out_token() {
+  echo "HUD-LIVE-OUT out=$OUT scratch=$SCRATCH mutation=$MUTATION out_explicit=$OUT_EXPLICIT mutation_out_redirected=$MUTATION_OUT_REDIRECTED"
+}
+
+# D-101 control: three named assertions, no product, no build, no lock.
+# S1 a plain run still lands in evidence/t97-hud; S2 a --mutation run with no
+# HUD_LIVE_CHECK_OUT moves under $SCRATCH and leaves a sentinel in the tracked
+# directory untouched; S3 an explicit evidence/ OUT is honoured and announced.
+run_print_out_selftest() {
+  local T checks=0 fails=0 c1 c2 c3 sentinel now
+  T=$(mktemp -d) || { echo "HUD-LIVE-REDIRECT-SELFTEST=FAIL tool-error=mktemp"; return 90; }
+  mkdir -p "$T/evidence/t97-hud"
+  printf 'sentinel
+' > "$T/evidence/t97-hud/readings.txt"
+  sentinel=$(sha256sum "$T/evidence/t97-hud/readings.txt" | cut -d' ' -f1)
+
+  c1=$( ( unset HUD_LIVE_CHECK_OUT; MUTATION=0; SCRATCH="$T/scratch1"; export SCRATCH; resolve_out_placement; print_out_token ) )
+  c2=$( ( unset HUD_LIVE_CHECK_OUT; MUTATION=1; SCRATCH="$T/scratch2"; export SCRATCH; resolve_out_placement; print_out_token ) )
+  c3=$( ( export HUD_LIVE_CHECK_OUT='evidence/t97-hud'; MUTATION=1; SCRATCH="$T/scratch3"; export SCRATCH; resolve_out_placement; print_out_token ) )
+
+  if printf '%s
+' "$c1" | grep -qaF 'out=evidence/t97-hud'      && printf '%s
+' "$c1" | grep -qaF 'mutation=0'      && printf '%s
+' "$c1" | grep -qaF 'mutation_out_redirected=0'; then
+    checks=$((checks + 1)); printf '  OK   S1 a run without --mutation still writes evidence/t97-hud
+'
+  else
+    checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL S1 default placement changed: %s
+' "$c1"
+  fi
+
+  now=$(sha256sum "$T/evidence/t97-hud/readings.txt" | cut -d' ' -f1)
+  if printf '%s
+' "$c2" | grep -qaF "out=$T/scratch2/out"      && printf '%s
+' "$c2" | grep -qaF 'mutation_out_redirected=1'      && ! printf '%s
+' "$c2" | grep -qaF 'out=evidence/'      && [ "$now" = "$sentinel" ]; then
+    checks=$((checks + 1)); printf '  OK   S2 --mutation without HUD_LIVE_CHECK_OUT writes under .scratch, not evidence/
+'
+  else
+    checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL S2 mutation placement leaked into evidence: %s
+' "$c2"
+  fi
+
+  if printf '%s
+' "$c3" | grep -qaF 'WARN: --mutation with an explicit evidence/ OUT writes tracked files: evidence/t97-hud'      && printf '%s
+' "$c3" | grep -qaF 'out=evidence/t97-hud'      && printf '%s
+' "$c3" | grep -qaF 'out_explicit=1'      && printf '%s
+' "$c3" | grep -qaF 'mutation_out_redirected=0'; then
+    checks=$((checks + 1)); printf '  OK   S3 an explicit evidence/ OUT is honoured and announced
+'
+  else
+    checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL S3 explicit evidence/ OUT not honoured or not announced: %s
+' "$c3"
+  fi
+
+  rm -rf "$T"
+  if [ "$fails" -eq 0 ]; then
+    printf 'HUD-LIVE-REDIRECT-SELFTEST=PASS assertions=%d
+' "$checks"
+    return 0
+  fi
+  printf 'HUD-LIVE-REDIRECT-SELFTEST=FAIL assertions=%d failures=%d
+' "$checks" "$fails"
+  return 1
+}
+
+resolve_out_placement
+
+if [ "$SELFTEST_PRINT_OUT" -eq 1 ]; then
+  run_print_out_selftest
+  exit $?
 fi
 
 if [ "$PRINT_OUT" -eq 1 ]; then
-  echo "HUD-LIVE-OUT out=$OUT scratch=$SCRATCH mutation=$MUTATION out_explicit=$OUT_EXPLICIT mutation_out_redirected=$MUTATION_OUT_REDIRECTED"
+  print_out_token
   exit 0
 fi
 
