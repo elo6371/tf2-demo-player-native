@@ -638,6 +638,46 @@ assert_ge "slot-0 binds" "$(rval "$ISO" slot0Binds)" "2"
 # world origin; 184961 is the reading on this tree, and it is the same number
 # t2-visual-matrix.sh pins for this demo at this tick (see the RE-PIN note).
 assert_eq "triangles drawn" "$(rval "$VIS" drawnTriangles)" "227070"
+# ---- T96: the world alpha path ------------------------------------------------
+# The alpha path has four readings -- what the VMTs declare, what the atlas
+# tiles, what the consumption side decides, and what the frame counts -- and
+# before this block no gate read a single one of them: a material that declares
+# $translucent could be drawn opaque while every assertion above stayed green
+# (R7/ALPHA-GATE-DEBT.md). Everything here reads $TRACE_full, the frame section 4
+# already captured, so it costs no run.
+#
+# Measured on c757156 (exe 3053bf69, 2026-11-12 22:40, this gate's own argv):
+# 21 materials declare an alpha key (20 $translucent + 1 $alphatest), all 21 are
+# tiled, all 21 reach the consumption side (20 blended, 1 cutout), none is
+# refused, and the frame counts 2184 blended + 14092 cutout triangles in 3
+# blended batches with the blend state bound and depth writes off.
+ALPHA_FETCH=$(grep -ao "gpu: world alpha-fetch .*" "$TRACE_full" 2>/dev/null | head -1)
+ALPHA_DECLARED=$(rval "$ALPHA_FETCH" declared)
+ALPHA_TILED_T=$(rval "$ALPHA_FETCH" tiledTranslucent)
+ALPHA_TILED_A=$(rval "$ALPHA_FETCH" tiledAlphatest)
+ALPHA_CONSUMED=$(grep -ac "gpu: world alpha material=.*stage=consumed" "$TRACE_full")
+ALPHA_REFUSED=$(grep -a "gpu: world alpha material=.*stage=consumed" "$TRACE_full" | grep -c "mode=refused")
+ALPHA_OPAQUE=$(grep -a "gpu: world alpha material=.*stage=consumed" "$TRACE_full" | grep -c "mode=opaque")
+ALPHA_FRAME=$(grep -ao "gpu: world alpha frame .*" "$TRACE_full" 2>/dev/null | head -1)
+# 21 is what this map's VMTs ask for. It is pinned as a count of the map, not of
+# this build: a move here means the fetch resolved a different set of materials,
+# which is itself the reading a re-pin has to explain.
+assert_eq "alpha-declaring materials" "${ALPHA_DECLARED:-<none>}" "21"
+# Declared but not tiled is the shape that draws it opaque with nothing saying so.
+assert_eq "alpha materials with an atlas tile" \
+  "$(( ${ALPHA_TILED_T:-0} + ${ALPHA_TILED_A:-0} ))" "${ALPHA_DECLARED:-<none>}"
+# Declared and tiled but never consumed is the other half of the same shape.
+assert_eq "alpha materials consumed" "${ALPHA_CONSUMED:-<none>}" "${ALPHA_DECLARED:-<none>}"
+assert_eq "alpha materials refused" "${ALPHA_REFUSED:-<none>}" "0"
+# A consumed line cannot read mode=opaque: the consumption side only prints for a
+# material that declares an alpha key (native/src/main.cpp:8610), so opaque here
+# is a contradiction, not a variant.
+assert_eq "alpha materials drawn opaque" "${ALPHA_OPAQUE:-<none>}" "0"
+# The device state has to exist for the blended triangles to be blended at all.
+assert_eq "alpha blend state bound" "$(rval "$ALPHA_FRAME" blendState)" "1"
+assert_eq "alpha depth writes off" "$(rval "$ALPHA_FRAME" depthWriteOff)" "1"
+assert_ge "alpha blended triangles" "$(rval "$ALPHA_FRAME" blendedTriangles)" "1"
+assert_ge "alpha cutout triangles" "$(rval "$ALPHA_FRAME" cutoutTriangles)" "1"
 # Two runs of the same build, byte for byte.
 run_product full2 "$DEMO" "$TICK"
 if cmp -s "$BMP_full" "$BMP_full2"; then
