@@ -21,16 +21,8 @@
 # slot origin with the same resolver the draw loop uses -- a probe-side reader
 # would let the two disagree about where the player stands.
 add_executable(spectate_probe
-  tools/spectate_probe.cpp
-  src/spectate_target.cpp
-  src/entity_model.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp)
-target_link_libraries(spectate_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+  tools/spectate_probe.cpp)
+target_link_libraries(spectate_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(spectate_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(spectate_probe PRIVATE include third_party/lzma)
 set_target_properties(spectate_probe PROPERTIES WIN32_EXECUTABLE OFF)
@@ -40,17 +32,8 @@ set_target_properties(spectate_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # on the same state -- two readers that merely agreed on the easy case would make
 # that assertion vacuous, so the probe has to be able to call both.
 add_executable(projectile_track_probe
-  tools/projectile_track_probe.cpp
-  src/projectile_track.cpp
-  src/projectile_overlay.cpp
-  src/entity_model.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp)
-target_link_libraries(projectile_track_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+  tools/projectile_track_probe.cpp)
+target_link_libraries(projectile_track_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(projectile_track_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(projectile_track_probe PRIVATE include third_party/lzma)
 set_target_properties(projectile_track_probe PROPERTIES WIN32_EXECUTABLE OFF)

@@ -20,16 +20,8 @@
 # either, draws nothing, and is gated by viewmodel-material-check.sh. The
 # product still flat-shades the ViewModel: nothing here is wired into a pass.
 add_executable(viewmodel_material_probe
-  tools/viewmodel_material_probe.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp
-  src/viewmodel_material.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/proto_wire.cpp)
+  tools/viewmodel_material_probe.cpp)
 target_include_directories(viewmodel_material_probe PRIVATE include third_party/lzma)
-target_link_libraries(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(viewmodel_material_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(viewmodel_material_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_material_probe PROPERTIES WIN32_EXECUTABLE OFF)

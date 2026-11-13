@@ -20,8 +20,8 @@
 # run is therefore a statement about the rules the product applies; the
 # pixel-level question ("does a page appear in the pane") is answered by the
 # product run in logstf-check.sh, not inferred here.
-add_executable(logstf_viewer_probe tools/logstf_viewer_probe.cpp src/logstf_viewer.cpp)
+add_executable(logstf_viewer_probe tools/logstf_viewer_probe.cpp )
 target_include_directories(logstf_viewer_probe PRIVATE include)
 target_compile_definitions(logstf_viewer_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(logstf_viewer_probe PRIVATE advapi32 shell32)
+target_link_libraries(logstf_viewer_probe PRIVATE tf2_core advapi32 shell32)
 set_target_properties(logstf_viewer_probe PROPERTIES WIN32_EXECUTABLE OFF)

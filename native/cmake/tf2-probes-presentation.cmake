@@ -13,20 +13,21 @@
 # Targets defined here: presentation_probe map_lookup_probe texture_quad_probe
 # T75-BODY-START
 # ---------------------------------------------------------------------------
-add_executable(presentation_probe tools/presentation_probe.cpp ${TF2_DEMO_HEADER_SOURCES})
+add_executable(presentation_probe tools/presentation_probe.cpp )
 target_include_directories(presentation_probe PRIVATE include third_party/lzma)
-target_link_libraries(presentation_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(presentation_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(presentation_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(presentation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # T9 (2026-10-16): the map search order. Pure: it links only map_lookup.cpp, so
 # a green run is a statement about the order and the name rules and cannot be
 # helped by any installed content.
-add_executable(map_lookup_probe tools/map_lookup_probe.cpp src/map_lookup.cpp)
+add_executable(map_lookup_probe tools/map_lookup_probe.cpp )
+target_link_libraries(map_lookup_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(map_lookup_probe PRIVATE include)
 set_target_properties(map_lookup_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(texture_quad_probe tools/texture_quad_probe.cpp src/vtf_texture.cpp)
+add_executable(texture_quad_probe tools/texture_quad_probe.cpp )
 target_include_directories(texture_quad_probe PRIVATE include)
-target_link_libraries(texture_quad_probe PRIVATE d3d11 d3dcompiler)
+target_link_libraries(texture_quad_probe PRIVATE tf2_core d3d11 d3dcompiler)
 set_target_properties(texture_quad_probe PROPERTIES WIN32_EXECUTABLE OFF)

@@ -40,7 +40,6 @@ add_executable(tf2_demo_native WIN32
   # T76 stage 3 (2026-11-02): the native Win32 control layer (layout, per-frame
   # sync, control creation). windowProc and dispatchHotkey stay in main.cpp.
   src/main_ui.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
   src/native_renderer.cpp
   # T77, second stage (2026-11-02): the HLSL, held apart from the D3D state that
   # compiles it. createPipeline() was 1,454 lines with 854 of them shader source
@@ -63,86 +62,48 @@ add_executable(tf2_demo_native WIN32
   # T53: the trajectory overlay builder. In the product because the probe must
   # drive the filter/linger/quality rules the product actually applies -- a probe
   # with its own copy would only prove two copies agree.
-  src/projectile_track.cpp
-  src/projectile_overlay.cpp
-  src/asset_root.cpp
   # T9 (2026-10-16): the map search order, shared with map_lookup_probe. In the
   # product rather than inlined into main.cpp because the gate has to assert the
   # order the product actually walks, not a second copy of it.
-  src/map_lookup.cpp
-  src/vpk_archive.cpp
   # T15: the loose / VPK-directory / numbered-volume / pakfile search order as
   # one object. In the product because vpk_integrity_probe has to drive the same
   # order the product uses; a probe with its own copy would only prove that two
   # copies agree.
-  src/asset_lookup.cpp
-  src/vtf_texture.cpp
-  src/model_loader.cpp
-  src/viewmodel.cpp
   # The ViewModel material chain, shared with viewmodel_material_probe. In the
   # product rather than inlined into viewmodel.cpp because the probe has to
   # resolve the same table from the same bytes: a gate that asserts the two agree
   # is only non-circular if there is one implementation to agree with.
-  src/viewmodel_material.cpp
-  src/entity_model.cpp
-  src/animation_decoder.cpp
-  src/animation_binding.cpp
   # T61: the per-player animation clock. In the product because the probe and
   # the gate drive the same arithmetic the product drives; a copy in the gate
   # would only prove the two copies agree.
-  src/animation_clock.cpp
-  src/vmt_material.cpp
-  src/audio_resource.cpp
-  src/audio_player.cpp
-  src/audio_timeline.cpp
-  src/effects_timeline.cpp
-  src/pcf_operators.cpp
-  src/playback_hud.cpp
   # T70: the request/landing ledger. Pure logic, shared with
   # playback_control_probe so the gate drives the same implementation the
   # product runs rather than a second copy that happens to agree.
-  src/playback_control.cpp
   # T51: the custom HUD import. hud_import.cpp is the pure rule set (shared with
   # hud_probe byte for byte, so the probe and the product cannot disagree about
   # what a document means); hud_state.cpp is the [hud] settings round trip.
-  src/hud_import.cpp
   src/hud_state.cpp
   # T67: the embedded 8x8 font and its atlas; the HUD text pass samples it.
   src/hud_font.cpp
   # T50's shared hotkey/INI layer, copied byte-identical from task/t50-camera.
   # The HUD registers its three actions into the ONE table rather than a second.
-  src/keybinds.cpp
-  src/ini_section.cpp
   # T52: the shared overlay contract both T52 and T53 implement against.
-  src/entity_overlay.cpp
-  src/bsp_map.cpp
   # The world material capability layer. In the product, not just in the probe:
   # the product resolves a map's cubemap through the same bspPakfileEntry and
   # worldCubemapVtfPath the probe measures, so "what the gate pins" and "what the
   # product does" are one implementation rather than two that agree by hand.
-  src/world_material.cpp
   # T19: the tile atlas plan and the feature scan. Pure functions, shared with
   # material_coverage_probe: the gate asserts the plan the product made, not a
   # second copy of the placement rule.
-  src/world_tile_atlas.cpp
-  src/world_material_features.cpp
   # T24: the lighting-control ledger, shared with lighting_semantics_probe. In
   # the product because the trace and the gate must read one classification:
   # the probe's six rows and the product's six rows are the same function.
-  src/world_lighting.cpp
-  third_party/lzma/LzmaDec.c
   src/texture2d.cpp
   src/settings_store.cpp
-  src/item_schema.cpp
-  src/native_ui.cpp
   # T50: the camera director, the named bookmark store and the ONE key table.
   # In the product rather than only in the probe because the probe has to drive
   # the same freeze rule and the same [camera]/[keys] file the product writes; a
   # probe with its own copy would only prove that two copies agree.
-  src/camera_director.cpp
-  src/camera_bookmarks.cpp
-  src/keybinds.cpp
-  src/ini_section.cpp
   # T54: the logs.tf panel. logstf_viewer.cpp is the whole contract that needs
   # no browser -- URL policy, geometry, the state machine, the runtime probe and
   # the frame-time readings -- and it is compiled into logstf_viewer_probe as
@@ -150,7 +111,6 @@ add_executable(tf2_demo_native WIN32
   # logstf_webview.cpp is the WebView2 backend behind ILogsViewHost; it loads
   # WebView2Loader.dll by name at run time, so a host WITHOUT a web-view runtime
   # still starts the player and reports Unavailable (see logstf-check.sh).
-  src/logstf_viewer.cpp
   src/logstf_webview.cpp
   # T54: the Win32 half -- the panel's controls, the splitter drag, the child
   # window the browser draws into, and the scripted --logstf-script sequence.
@@ -162,8 +122,6 @@ add_executable(tf2_demo_native WIN32
   # installed is the thing that installs: a probe that performed a different
   # install would be a second implementation of the one behaviour this round
   # claims. Both files link bcrypt (already in the link line) for SHA-256.
-  src/install_manifest.cpp
-  src/install_lifecycle.cpp
   # T90: the build-identity stamp. A translation unit generated at BUILD time
   # by the tf2_build_stamp target (native/cmake/gen-build-stamp.cmake), so
   # --version answers with the commit and dirty state of the tree this link was
@@ -174,16 +132,12 @@ add_executable(tf2_demo_native WIN32
   # code, not probe code: the frame loop drives update() and the draw loop asks
   # hidesModel() before it submits an instance, so a gate that ran a second copy
   # would only prove that the copy agrees with itself.
-  src/spectate_target.cpp
   # T71/T72: the review workspace store and the bookmark logic. In the PRODUCT
   # target, not only in review_workspace_probe: the session in main.cpp calls them,
   # so a workspace file this build writes has to be the file the probe already
   # verified. A probe-only copy would leave the product's own save path unverified,
   # which is the gap T71 was opened to close.
-  src/review_workspace.cpp
-  src/review_bookmarks.cpp
-  src/review_session.cpp
-)
+  src/review_session.cpp)
 
 # T90: regenerate the build-identity stamp before this target compiles it.
 add_dependencies(tf2_demo_native tf2_build_stamp)
@@ -200,4 +154,4 @@ target_include_directories(tf2_demo_native PRIVATE third_party/webview2/include)
 target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
 # msacm32 supplies the ACM stream API audio_resource.cpp uses to turn MPEG
 # Layer III resources into PCM; without it the link fails on acmStreamOpen.
-target_link_libraries(tf2_demo_native PRIVATE d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32)
+target_link_libraries(tf2_demo_native PRIVATE tf2_core d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32)

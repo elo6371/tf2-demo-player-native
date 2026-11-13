@@ -21,6 +21,7 @@ project(tf2_demo_native LANGUAGES CXX C)
 # Layout (details and the original line ranges are in each module's header):
 #   tf2-settings.cmake         global settings, the demo-header source/link/define contract
 #   tf2-version.cmake          package identity: version, build stamp, source tree
+#   tf2-libraries.cmake        the shared static library tf2_core
 #   tf2-product.cmake          the product target tf2_demo_native
 #   tf2-probes-*.cmake         the 52 probe / query executables, in original order
 #   tf2-package.cmake          install rules, package payload, compiler options
@@ -30,6 +31,10 @@ project(tf2_demo_native LANGUAGES CXX C)
 # keeps the build order.
 include(cmake/tf2-settings.cmake)
 include(cmake/tf2-version.cmake)
+# T85-E2 (2026-11-13): the shared static library. It must be included after the
+# version module (its members compile with ${TF2_VERSION_DEFINES}, defined there)
+# and before every module whose targets link it.
+include(cmake/tf2-libraries.cmake)
 include(cmake/tf2-product.cmake)
 include(cmake/tf2-probes-logstf.cmake)
 include(cmake/tf2-probes-core.cmake)
