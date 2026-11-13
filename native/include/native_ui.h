@@ -267,6 +267,18 @@ public:
   const UiSettings& settings() const { return settings_; }
   void setTfRoot(const std::filesystem::path& root);
 
+  // AUD-03: the audio path reads the master volume and the mute flag from here,
+  // and the product's volume keys write them. Deliberately not a new
+  // UiControlId: planUiLayout's rectangles are pinned by camera-ui-check and by
+  // the camera/UI contract, so a new control would move a rectangle a gate
+  // asserts. setVolume() clamps for the same reason setSettings() does.
+  float volume() const { return settings_.volume; }
+  bool muted() const { return muted_; }
+  void setVolume(float volume) {
+    settings_.volume = volume < 0.0f ? 0.0f : (volume > 1.0f ? 1.0f : volume);
+  }
+  void toggleMute() { muted_ = !muted_; }
+
   bool openDemo(const std::filesystem::path& path);
   bool openRecentDemo(std::size_t index);
   bool beginOpenDemo(const std::filesystem::path& path);

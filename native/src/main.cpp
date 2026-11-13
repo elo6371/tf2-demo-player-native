@@ -1108,11 +1108,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   case WM_KEYDOWN: {
     // Toggle commands must be edge-triggered; Windows may repeat WM_KEYDOWN
     // while a key is held, which otherwise flips state several times. 'P' is
-    // in this list for the same reason: a held P would flip pause every
-    // repeat.
+    // in this list for the same reason: a held P would flip pause every repeat,
+    // and AUD-03 adds 'M' for the same reason: a held M would toggle mute on
+    // every repeat instead of once per press.
     if ((lParam & (1u << 30)) != 0u
-        && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
-            || wParam == VK_END || wParam == VK_F12
+        && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == 'M'
+            || wParam == VK_HOME || wParam == VK_END || wParam == VK_F12
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
     // T51: the shared hotkey table (contract 1.2) gets the first look.
     //
@@ -1241,6 +1242,34 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       request.fromKeyboard = true;
       request.textFieldFocused = g_textFieldFocused;
       applyPlaybackRequest(request);
+    } else if (wParam == 'M' || wParam == VK_OEM_4 || wParam == VK_OEM_6) {
+      // AUD-03: the master volume and the mute toggle, on keys rather than on new
+      // buttons -- planUiLayout's rectangles are pinned by camera-ui-check and by
+      // the camera/UI contract, and the volume field already exists in ui.ini.
+      // Mute is edge-triggered (the repeat filter above); the volume keys are
+      // not, so holding one steps in 10-point increments.
+      if (g_nativeUi) {
+        if (wParam != 'M' && g_nativeUi->muted()) {
+          // A volume key while muted would step a number nobody can hear. The key
+          // means "I want to hear it", so it unmutes first and then steps.
+          g_nativeUi->toggleMute();
+        }
+        if (wParam == 'M') {
+          g_nativeUi->toggleMute();
+        } else {
+          int percent = static_cast<int>(g_nativeUi->volume() * 100.0f + 0.5f)
+              + (wParam == VK_OEM_6 ? 10 : -10);
+          percent = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+          g_nativeUi->setVolume(static_cast<float>(percent) / 100.0f);
+        }
+        // Persist immediately: --capture-frame and the failure exits leave before
+        // the shutdown save, and a setting that only survives a clean exit is not
+        // a setting.
+        g_nativeUi->saveSettings();
+        traceFmt("audio: master volume=%.2f muted=%d source=%s",
+            static_cast<double>(g_nativeUi->volume()), g_nativeUi->muted() ? 1 : 0,
+            wParam == 'M' ? "key-m" : (wParam == VK_OEM_6 ? "key-volume-up" : "key-volume-down"));
+      }
     } else if (wParam == 'R' && g_playback.enabled) {
       if (!g_playback.reverse && g_playback.tick == 0) {
         tf2::native::PlaybackRequest jump;
@@ -9598,6 +9627,18 @@ bool outlineVertexExtent = false;
     // temporary OS stall. The next frame resumes at the current playback rate.
     const double elapsed = std::clamp(measuredElapsed, 0.0, 0.25);
     if (measuredElapsed > 0.25) tickAccumulator = 0.0;
+    // AUD-03: the scheduler's master gain follows the settings once per frame,
+    // paused or not -- a run that pauses, mutes and resumes must land on the new
+    // value instead of the one it started with. Printed only when it moves, so a
+    // steady-state run does not pay one trace line per frame.
+    if (g_nativeUi) {
+      const float masterVolume = g_nativeUi->muted() ? 0.0f : g_nativeUi->volume();
+      if (masterVolume != soundScheduler.masterVolume()) {
+        soundScheduler.setMasterVolume(masterVolume);
+        traceFmt("audio: master applied volume=%.2f muted=%d",
+            static_cast<double>(masterVolume), g_nativeUi->muted() ? 1 : 0);
+      }
+    }
     if (g_playback.paused != lastPaused) {
       if (g_playback.paused) soundScheduler.stop();
       else soundScheduler.reset(g_playback.tick);
@@ -12480,8 +12521,10 @@ bool outlineVertexExtent = false;
   // same value the exit code was chosen from. `audio_device_opened` is the
   // process-wide waveOutOpen call count -- 0 means no device was opened or
   // even asked for, which is the reading that separates "--audio-disabled
-  // works" from "the flag was ignored". `events_skipped` folds the two skip
-  // classes (voice, device-disabled); the contract cares that nothing played.
+  // works" from "the flag was ignored". AUD-10: `events_skipped` counts the voice
+  // class only and `events_skipped_disabled` is printed beside it -- one folded
+  // number made "--audio-disabled skipped everything" read exactly like "the sound
+  // was lost". The contract still cares that nothing played.
   {
     const bool windowAlive = window && IsWindow(window) != 0;
     const auto& audioStats = soundScheduler.stats();
@@ -12491,7 +12534,7 @@ bool outlineVertexExtent = false;
     // "N attempts, not one succeeded" are different readings. Under
     // --audio-disabled all three are 0.
     traceFmt("mode: summary window_created=%d window_visible=%d audio_mode=%s audio_device_opened=%zu"
-      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_missing=%zu drawn=%llu capture_written=%d capture_depth_written=%d capture_depth_bytes=%llu metrics_written=%d exit=%d",
+      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_skipped_disabled=%zu events_missing=%zu drawn=%llu capture_written=%d capture_depth_written=%d capture_depth_bytes=%llu metrics_written=%d exit=%d audio_master_volume=%.4f audio_muted=%d",
       windowAlive ? 1 : 0,
       (windowAlive && IsWindowVisible(window)) ? 1 : 0,
       audioDisabled ? "disabled" : "device",
@@ -12499,14 +12542,19 @@ bool outlineVertexExtent = false;
       tf2::native::audioDeviceOpenAttempts(),
       tf2::native::audioDeviceOpenedCount(),
       audioStats.eventsSeen, audioStats.eventsPlayed,
-      audioStats.eventsSkippedVoice + audioStats.eventsSkippedDisabled,
+      // AUD-10: the voice and device-disabled skip classes are separate
+      // readings now; folding them was the defect.
+      audioStats.eventsSkippedVoice,
+      audioStats.eventsSkippedDisabled,
       audioStats.eventsMissingResource,
       static_cast<unsigned long long>(renderedFrames),
       (captureRequested && renderer.lastFrameCaptureSucceeded()) ? 1 : 0,
       (!captureDepthPath.empty() && renderer.lastDepthCaptureSucceeded()) ? 1 : 0,
       renderer.lastDepthCaptureBytes(),
       (!metricsPath.empty() && metricsFile.is_open() && metricsWriteCalls > 0) ? 1 : 0,
-      static_cast<int>(message.wParam));
+      static_cast<int>(message.wParam),
+      static_cast<double>(g_nativeUi ? g_nativeUi->volume() : 1.0f),
+      (g_nativeUi != nullptr && g_nativeUi->muted()) ? 1 : 0);
     // The eight fields the audio wiring is accepted on, on one line so a gate
     // reads them from a single place. `soundEventsRead` is what the decoder
     // produced, `soundEventsScheduled` what survived the origin/name filter and
@@ -12521,13 +12569,15 @@ bool outlineVertexExtent = false;
       " soundEventsSkippedVoice=%zu soundEventsMissingResource=%zu firstPacketTick=%d"
       " soundOriginTick=%d reverseRecoveries=%zu duplicateTicks=%zu"
       " soundEventsMp3Seen=%zu soundEventsMp3Played=%zu soundEventsMp3Skipped=%zu"
-      " soundEventsMp3Failed=%zu soundEventsMp3Inaudible=%zu soundEventsInaudible=%zu",
+      " soundEventsMp3Failed=%zu soundEventsMp3Inaudible=%zu soundEventsInaudible=%zu"
+      " soundEventsSkippedDisabled=%zu",
       soundEventsRead, soundTimeline.size(), audioStats.eventsPlayed,
       audioStats.eventsSkippedVoice, audioStats.eventsMissingResource,
       static_cast<int>(firstPacketTick), static_cast<int>(soundOriginTick),
       audioStats.reverseRecoveries, audioStats.duplicateTicks,
       audioStats.mp3EventsSeen, audioStats.mp3EventsPlayed, audioStats.mp3EventsSkipped,
-      audioStats.mp3EventsFailed, audioStats.mp3EventsInaudible, audioStats.eventsInaudible);
+      audioStats.mp3EventsFailed, audioStats.mp3EventsInaudible, audioStats.eventsInaudible,
+      audioStats.eventsSkippedDisabled);
     // The camera/HUD contract, on one line so camera-ui-check.sh can pin it:
     // the mode the run ended in, the double-click window the controller
     // advertises (a constant, so a drift shows up as a changed reading), the

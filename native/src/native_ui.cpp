@@ -101,6 +101,11 @@ NativeUiController::NativeUiController() {
   loadUiSettings(settings_);
   settings_.fov = (std::clamp)(settings_.fov, 40.0f, 120.0f);
   settings_.volume = (std::clamp)(settings_.volume, 0.0f, 1.0f);
+  // AUD-03: mute is a ui.ini value beside the volume it attenuates, so a run
+  // that starts muted can be reproduced from the file. It lived only in memory
+  // before this, which made the muted state a reading no file could explain.
+  const auto mutePath = uiSettingsPath();
+  if (!mutePath.empty()) muted_ = readUiInt(mutePath, L"muted", 0) != 0;
 }
 
 NativeUiController::~NativeUiController() {
@@ -132,6 +137,9 @@ bool NativeUiController::saveSettings() const {
   writeUiInt(path, L"fov", static_cast<int>(settings_.fov + 0.5f));
   writeUiInt(path, L"vsync", settings_.vsync ? 1 : 0);
   writeUiInt(path, L"volumePercent", static_cast<int>(settings_.volume * 100.0f + 0.5f));
+  // AUD-03: written here as well as at exit, so a key that changes the setting
+  // and then loses the process still leaves the value on disk.
+  writeUiInt(path, L"muted", muted_ ? 1 : 0);
   WritePrivateProfileStringW(L"ui", L"tfRoot", settings_.tfRoot.wstring().c_str(), path.c_str());
   for (std::size_t index = 0; index < 8; ++index) {
     const std::wstring key = L"recentDemo" + std::to_wstring(index);
