@@ -23,7 +23,7 @@
 5. **I-23 增加像素证据。** 找到能看见 `glasswindow001a_649_-1016_704` 的相机；rescue on/off 改变 **84,965** 像素，5 个 hole-trace 点归因到该材质，1 个不透明 BRICK/WALL028 作为对照。
 6. **I-20/873 的 alpha 解释成立。** 1143,132 / 1110,136 是 TREELINECARD 的 `255,255,255, alpha=0` 透明 texel；873,366 是 METALGRATE 的 `0,0,0, alpha=0`。`--world-texel` 进一步分离出：1110 的 albedo 0 是 alpha=0 + vertex colour 0；849 的 texel 是 `84,83,81` 但 albedo 0，原因是 vertex colour 0；919 的 texel 与 albedo 都是 `210,208,197`，问题在 face-trace UV 与实际 pass 不一致。849/919 保持 OPEN。
 7. **小地图产品化落地。** E9 补丁 4 文件落树，`--hud-minimap` 默认关；`minimap-hud-check.sh` 96 断言 PASS，含投影 y 翻转、x 镜像、yaw 旋转、旧 exe 负控和未列表地图。七图只有 Upward/Sunshine 有帧，其余五图 NOT VERIFIED。
-8. **`$nocull` census 完成（只读）。** 七图 BSP pak 中只有 Bagel RC11 有可见候选（3 棵树、tarp、detail-sprite），其余六图只有不可见 `tools/toolstrigger`。没有改 world renderer。
+8. **`$nocull` census 完成（只读）。** 七图 BSP pak 中只有 Bagel RC11 有可见候选（3 棵树、tarp、detail-sprite），其余六图只有不可见 `tools/toolstrigger`。Bagel oak 固定相机的 cull on/off 差异 689,683 像素，但这是全局 world cull，不是 per-material 控制；没有改 world renderer，正例仍缺。
 9. **F2-2 第一批扫描完成。** 52 个 `*_probe.exe` 以 `--self-test` 15 s 超时运行：29 个 rc=0，23 个是 usage/缺输入，没有空输出崩溃。第二批又用真实 map/demo/TF-root 跑了 8 个带参数 probe，8/8 rc=0；剩余 12 个带参数 probe 未跑。它不是完整域验收。
 
 ---
@@ -267,9 +267,10 @@ FAIL pixels the control frame changes = 89488, expected 90127
 | koth_bagel_rc11 | 132 | 5 | 3 棵 oak tree、tarp、detail-sprite |
 | pl_upward_f12 | 93 | 1 | `toolspro/toolstrigger.vmt` |
 
-**结论**：只有 Bagel RC11 有可见候选；没有 world-renderer 修改依据。未扫描共享 VPK；Bagel 正/对照帧未拍。
+**结论**：只有 Bagel RC11 有可见候选；没有 world-renderer 修改依据。随后用 Bagel oak_l 静态道具 `(4160,-1216,432)` 的固定相机 `(3660,-1216,600, yaw 0)` 做了 cull on/off 和 `--world-geometry none` 对照：on/off 差异 689,683 像素、world-none 差异 860,784 像素，但这是**全局** world cull，不是 per-material `$nocull` 控制；oak 是 static prop（model path），不能证明某个 world brush face 带该材质。因此该项保持只读，正例仍缺。
 
 **报告**：`docs/R2-9-NOCULL-CENSUS-2026-11-13.md`
+**证据**：`D:/_shared/EXEC-2026-11-13/F2/bagel-cull/`
 
 ---
 
@@ -408,6 +409,7 @@ bash "$LOCK" run f-probes bash /d/_shared/EXEC-2026-11-13/F2/probe-sweep.sh
 | 小地图 | `F2/minimap/gate4.log` |
 | 52-probe | `F2/probe-sweep/results.tsv` |
 | nocull census | `F2/nocull-census.txt` |
+| Bagel cull control | `F2/bagel-cull/` |
 | 批次日志 | `docs/PROJECT-ROADMAP-HANDOFF-2026-11-12.md` Batch 4 |
 
 ---

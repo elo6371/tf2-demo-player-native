@@ -867,8 +867,11 @@ No attachment source or shader text was copied into product files. The implement
 - F2-3 (R2-9) census done, read-only: `docs/R2-9-NOCULL-CENSUS-2026-11-13.md`.
   Only `koth_bagel_rc11` has visible `$nocull` candidates in its own BSP pak
   (three oak trees, tarp, detail-sprite sheet); the other six maps only declare
-  the invisible `tools/toolstrigger` material. No world-renderer change is
-  justified until a fixed Bagel camera shows a visible cull loss.
+  the invisible `tools/toolstrigger` material. A fixed oak camera showed
+  `--no-world-cull` changes 689,683 pixels and `--world-geometry none` 860,784,
+  but those are global world controls, not a per-material `$nocull` case; the
+  oak is a static prop. No world-renderer change is justified until a targeted
+  world-brush face fixture exists.
 - F2-2 first probe batch done: `docs/F2-2-PROBE-SWEEP-2026-11-13.md`.
   52 `*_probe.exe` files were started under the host lock with `--self-test`
   and a 15 s timeout: 29 exited 0, 23 returned a usage/missing-input line
@@ -885,6 +888,6 @@ No attachment source or shader text was copied into product files. The implement
   uncommitted; the exe bytes are identical.
 - Still open: F1-5's 849 vertex-colour and 919 UV discrepancy; F1-4 audible device smoke;
   F2-1 A12 mutation and five-map frames; F2-2's 12 argument-bearing probes;
-  F2-3's positive Bagel cull scene; F2-4/F2-5/F2-6; F3/F4; one full release
+  F2-3's targeted world-brush `$nocull` fixture; F2-4/F2-5/F2-6; F3/F4; one full release
   chain only at freeze.
 

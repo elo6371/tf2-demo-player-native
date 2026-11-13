@@ -25,6 +25,34 @@ which is a tool texture and is not part of a visible first-release scene. Bagel
 RC11 is the only map with visible candidates: the three oak-tree materials, the
 crasher tarp and the Bagel detail-sprite sheet.
 
+## Cull on/off at a named Bagel oak
+
+A fixed camera was placed at `--debug-camera 3660 -1216 600 5 0`, looking at the
+large `oak_l_01` static prop at `(4160, -1216, 432)` (decoded from the BSP
+static-prop records). Three runs were captured at tick 0 on the Bagel RC11 demo:
+
+| Run | rc | Diff vs default |
+|---|---:|---|
+| default world cull | 0 | — |
+| `--no-world-cull` | 0 | `differing_pixels=689683`, bbox whole frame |
+| `--world-geometry none` | 0 | `differing_pixels=860784`, bbox whole frame |
+
+The static-prop pass still reports `prepared=268 uploaded=268 rejected=0` in
+both, and `--world-geometry none` removes only the world. The oak is a static
+prop, not a world brush face.
+
+**This is a negative control, not a positive `$nocull` case.** The global
+`--no-world-cull` switch changes 689,683 pixels across the whole frame because
+it disables backface culling for every world face; that difference cannot be
+attributed to the oak's `$nocull` material. The model path already has
+per-material cull handling (the 2026-11-13 candidate review), and the oak's
+material is a model material. No targeted world-brush face carrying `$nocull`
+has been demonstrated on Bagel yet, so **no world-renderer patch is made**.
+
+Evidence: `D:/_shared/EXEC-2026-11-13/F2/bagel-cull/` (`cull-on.trace`,
+`cull-off.trace`, `world-none.trace`, three BMPs).
+
+
 ## What this does and does not decide
 
 The current world-texture record and world draw batches do **not** carry a
@@ -39,10 +67,10 @@ Therefore:
 - **Decided:** no first-release map outside Bagel RC11 has a visible `$nocull`
   candidate in its own BSP pak. A per-map world-cull patch is not justified by
   this census alone.
-- **Not decided:** whether Bagel's five materials are drawn by the world brush
-  pass, and whether culling them changes a pixel. That needs a fixed camera that
-  sees a named tree/tarp face plus `--world-cull` on/off frames. Until then,
-  F2-3 stays read-only and no world-renderer change is made.
+- **Not decided:** whether a Bagel **world-brush face** carries one of the five
+  materials. The oak camera above is a static prop, and the global cull switch
+  is not a per-material control, so it cannot decide this. Until a targeted
+  face fixture exists, F2-3 stays read-only and no world-renderer change is made.
 - **Not covered:** VMTs in the shared VPKs. If a future positive scene names a
   material that is not in the map pak, scan the VPKs before proposing a patch.
 
