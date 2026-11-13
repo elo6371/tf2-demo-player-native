@@ -23,7 +23,18 @@ std::vector<Token> tokenize(const std::string& text) {
   while (i < text.size()) {
     if (std::isspace(static_cast<unsigned char>(text[i]))) { ++i; continue; }
     if (text[i] == '/' && i + 1 < text.size() && text[i + 1] == '/') {
-      i += 2; while (i < text.size() && text[i] != '\n') ++i; continue;
+      i += 2;
+      const auto newline = text.find('\n', i);
+      if (newline != std::string::npos) { i = newline; continue; }
+      // A single-line VMT can end with `// ... }` and no newline.  The
+      // comment really does run to EOF, but the trailing `}` is the object
+      // close, not comment text; dropping it makes the whole file unparsable.
+      // Recover only when EOF is the comment terminator and the last
+      // non-space byte is `}`; a `}` in the middle of comment text is ignored.
+      std::size_t end = text.size();
+      while (end > i && std::isspace(static_cast<unsigned char>(text[end - 1]))) --end;
+      if (end > i && text[end - 1] == '}') { i = end - 1; continue; }
+      i = text.size(); continue;
     }
     if (text[i] == '/' && i + 1 < text.size() && text[i + 1] == '*') {
       const auto end = text.find("*/", i + 2); i = end == std::string::npos ? text.size() : end + 2; continue;
@@ -31,7 +42,8 @@ std::vector<Token> tokenize(const std::string& text) {
     if (text[i] == '{') { out.push_back({Token::Kind::Open, "{"}); ++i; continue; }
     if (text[i] == '}') { out.push_back({Token::Kind::Close, "}"}); ++i; continue; }
     std::string value;
-    if (text[i] == '"') {
+    const bool quoted = text[i] == '"';
+    if (quoted) {
       ++i;
       while (i < text.size() && text[i] != '"') {
         // A backslash in a VMT value is a path separator, not an escape. TF2
@@ -52,7 +64,7 @@ std::vector<Token> tokenize(const std::string& text) {
     } else {
       while (i < text.size() && !std::isspace(static_cast<unsigned char>(text[i])) && text[i] != '{' && text[i] != '}') value.push_back(text[i++]);
     }
-    if (!value.empty()) out.push_back({Token::Kind::Text, std::move(value)});
+    if (quoted || !value.empty()) out.push_back({Token::Kind::Text, std::move(value)});
   }
   return out;
 }
