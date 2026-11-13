@@ -807,7 +807,7 @@ No attachment source or shader text was copied into product files. The implement
   regression for the combined feature set. No daily full chain; the single full
   release chain remains the final F4-2 action.
 
-### Batch 4 - 2026-11-13 Phase F (F1-1 through F2-1)
+### Batch 4 - 2026-11-13 Phase F (F1-1 through F2-3)
 
 - Base: `9deed76`; tree `t105-e5`, branch `candidate/e5`; no release chain, no
   push, no tag, no history rewrite. All product runs and builds were inside the
@@ -855,16 +855,21 @@ No attachment source or shader text was copied into product files. The implement
   `d15332c` adds `minimap-hud-check.sh`; `17a7ef3` registers it. The gate fixes
   two harness defects found on first run: `${RC_$name}` bad substitution and a
   nondeterministic old-exe A10 control (both old runs now `--start-paused`).
-  Evidence: `MINIMAP-HUD=PASS assertions=96 skipped_controls=0`, including A1-A11,
-  y-flip/x-mirror controls, yaw rotation, old-exe negative and untabulated map.
-  Seven-map linework is tabulated but only Upward and Sunshine have frames;
-  the other five are **NOT VERIFIED**. A12 mutation was not run in this batch.
+  Evidence: `MINIMAP-HUD=PASS assertions=96 skipped_controls=0`, including
+  A1-A11, y-flip/x-mirror controls, yaw rotation, old-exe negative and the
+  untabulated map. Seven-map linework is tabulated but only Upward and Sunshine
+  have frames; the other five are **NOT VERIFIED**. A12 mutation was not run.
+- F2-3 (R2-9) census done, read-only: `docs/R2-9-NOCULL-CENSUS-2026-11-13.md`.
+  Only `koth_bagel_rc11` has visible `$nocull` candidates in its own BSP pak
+  (three oak trees, tarp, detail-sprite sheet); the other six maps only declare
+  the invisible `tools/toolstrigger` material. No world-renderer change is
+  justified until a fixed Bagel camera shows a visible cull loss.
 - Identity at batch close: exe `00ec8b99fc779327eb2cf0eb0cb9a0e59eca3a4d0413e1ea29b36c7bcbec2078`,
   2,988,544 B; `sourceContent=1d9c0ead...`; canonical rebuild after the batch
   commits reports `sourceTree=f533293`, `dirty=0`. The earlier build during the
   working batch reported `dirty=1` only because the roadmap document was still
   uncommitted; the exe bytes are identical.
 - Still open: F1-5's 849/919 sampling discrepancy; F1-4 audible device smoke;
-  F2-1 A12 mutation and five-map frames; F2-2 probe batch; F2-3/F2-4/F2-5/F2-6;
-  F3/F4; one full release chain only at final freeze.
+  F2-1 A12 mutation and five-map frames; F2-2 probe batch; F2-3's positive
+  Bagel cull scene; F2-4/F2-5/F2-6; F3/F4; one full release chain only at freeze.
 
