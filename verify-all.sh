@@ -1486,6 +1486,24 @@ if [ "$COV_RC" -eq 0 ] && grep -q '^MATERIAL-COVERAGE=PASS' "$COV_LOG" \
 else
   echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 89)"; rc_all=1
 fi
+# I-32: the translucent rescue gate was added in Phase E and referenced by
+# nothing. It belongs next to the material gate it extends: the same Sultry
+# frame, the product's own off switch as the negative control, and a Sunshine
+# frame where the rescue has no candidate. 121 is the count measured on the
+# first run of the gate; re-measure, never copy, if the gate grows.
+SULTRY_OUT="$COV_OUT/sultry"
+SULTRY_LOG="$COV_OUT/sultry.txt"
+SULTRY_ATLAS_OUT="$SULTRY_OUT/evidence" SULTRY_ATLAS_SCRATCH="$SULTRY_OUT/scratch" \
+  bash sultry-translucent-atlas-check.sh > "$SULTRY_LOG" 2>&1
+SULTRY_RC=$?
+tail -6 "$SULTRY_LOG"
+SULTRY_OK=$(grep -c '^  OK ' "$SULTRY_LOG" || true)
+if [ "$SULTRY_RC" -eq 0 ] && grep -q '^SULTRY-TRANSLUCENT-ATLAS=PASS' "$SULTRY_LOG" \
+    && [ "$SULTRY_OK" = "121" ]; then
+  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=PASS (121 assertions)"
+else
+  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=FAIL (rc=$SULTRY_RC ok=$SULTRY_OK expected 121)"; rc_all=1
+fi
 # 30. the review workspace, driven by the product ---------------------------------
 # T71/T72 shipped as a store plus a probe. Every assertion passed while the only
 # writer was the probe, and the product's own two-run roundtrip was unmeasured --
