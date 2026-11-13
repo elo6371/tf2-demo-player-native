@@ -9468,6 +9468,41 @@ bool outlineVertexExtent = false;
         if (ordinal < kept.size()) kept[ordinal] = 1;
       }
     }
+    // ---- the lightmap reading the frame shader would make -----------------
+    // Same atlas, same uv convention, same WRAP/linear bilinear as the world
+    // face trace uses at main.cpp:9301-9319, and the same texel-centre
+    // convention (uv * size - 0.5 addresses texel centres at integers). The
+    // atlas uploaded at main.cpp:7294 is this vector with these dimensions, so
+    // a byte read here is the byte the sampler saw.
+    const auto lightConstants = renderer.worldShaderConstants();
+    const auto sampleLightmapBilinear = [](const std::vector<std::uint8_t>& rgba, int width, int height,
+                                           float u, float v, unsigned char out[3]) {
+      if (rgba.empty() || width <= 0 || height <= 0) return false;
+      const auto wrapIndex = [](int value, int size) {
+        const int wrapped = value % size;
+        return wrapped < 0 ? wrapped + size : wrapped;
+      };
+      const int x0 = static_cast<int>(std::floor(u));
+      const int y0 = static_cast<int>(std::floor(v));
+      const float fx = u - static_cast<float>(x0);
+      const float fy = v - static_cast<float>(y0);
+      float sum[3] = {0.0f, 0.0f, 0.0f};
+      for (int dy = 0; dy < 2; ++dy) {
+        for (int dx = 0; dx < 2; ++dx) {
+          const int x = wrapIndex(x0 + dx, width);
+          const int y = wrapIndex(y0 + dy, height);
+          const float weight = (dx ? fx : 1.0f - fx) * (dy ? fy : 1.0f - fy);
+          const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+            + static_cast<std::size_t>(x)) * 4u;
+          if (at + 2u >= rgba.size()) return false;
+          for (int c = 0; c < 3; ++c) sum[c] += weight * static_cast<float>(rgba[at + static_cast<std::size_t>(c)]);
+        }
+      }
+      for (int c = 0; c < 3; ++c) {
+        out[c] = static_cast<unsigned char>(std::clamp(std::lround(sum[c]), 0l, 255l));
+      }
+      return true;
+    };
     std::size_t drawnHits = 0, anyHits = 0, skyHits = 0, missingWithSky = 0, missingWithoutSky = 0;
     for (const auto& point : worldHoleTracePoints) {
       const int px = point.first, py = point.second;
@@ -9476,6 +9511,11 @@ bool outlineVertexExtent = false;
       const float fy = static_cast<float>(py) + 0.5f;
       int drawnOrdinal = -1, anyOrdinal = -1, skyOrdinal = -1;
       float drawnDepth = 2.0f, anyDepth = 2.0f, skyDepth = 2.0f;
+      // The barycentrics that covered this pixel. `covers` writes them and the
+      // drawn select copies them, so the lightmap probe below asks the same
+      // triangle with the same weights the rasterizer's own test used.
+      float w0Hit = 0.0f, w1Hit = 0.0f, w2Hit = 0.0f;
+      float drawnW0 = 0.0f, drawnW1 = 0.0f, drawnW2 = 0.0f;
       // The screen-space coverage test, shared by both lists: same projection,
       // same barycentrics, same depth.
       const auto covers = [&](const tf2::native::BspTriangle& triangle, float& depth, float& area) {
@@ -9490,6 +9530,9 @@ bool outlineVertexExtent = false;
         const float w2 = 1.0f - w0 - w1;
         if (w0 < -1.0e-4f || w1 < -1.0e-4f || w2 < -1.0e-4f) return false;
         depth = w0 * az + w1 * bz + w2 * cz;
+        w0Hit = w0;
+        w1Hit = w1;
+        w2Hit = w2;
         return depth >= 0.0f;
       };
       for (std::size_t ordinal = 0; ordinal < displayMap.triangles.size(); ++ordinal) {
@@ -9503,6 +9546,9 @@ bool outlineVertexExtent = false;
         if ((!cullEnabled || faces) && visible && depth < drawnDepth) {
           drawnDepth = depth;
           drawnOrdinal = static_cast<int>(ordinal);
+          drawnW0 = w0Hit;
+          drawnW1 = w1Hit;
+          drawnW2 = w2Hit;
         }
       }
       for (std::size_t ordinal = 0; ordinal < displayMap.skyTriangles.size(); ++ordinal) {
@@ -9523,10 +9569,86 @@ bool outlineVertexExtent = false;
       char drawnText[192], anyText[192], skyText[192];
       describe(drawnOrdinal, false, drawnDepth, drawnText, sizeof(drawnText));
       describe(anyOrdinal, false, anyDepth, anyText, sizeof(anyText));
+      // ---- the lightmap half of the same pixel -----------------------------
+      // The frame shader multiplies the drawn triangle's albedo by one atlas
+      // texel: pow(max(lightmapTexture.Sample(sampler0, lightUv).rgb, 0.0),
+      // 1/2.2) (native_renderer_shaders.cpp:290-307). A wall that renders black
+      // can be the atlas holding black at the uv the face names, or the uv
+      // addressing another patch -- same pixel, same colour, two different
+      // fixes, and the frame cannot tell them apart. These five fields can: the
+      // uv the vertex attributes interpolate to, the texel that uv addresses,
+      // the bytes found there, the multiplier they produce, and which of the
+      // shader's two branches ran for this pixel.
+      char lightLuv[40] = "-", lightTexel[32] = "-", lightRgb[24] = "-";
+      float lightFactor = -1.0f;
+      const char* lightBranch = "no-triangle";
+      if (drawnOrdinal >= 0) {
+        const auto& litTriangle = displayMap.triangles[static_cast<std::size_t>(drawnOrdinal)];
+        const float lu = drawnW0 * litTriangle.alu + drawnW1 * litTriangle.blu + drawnW2 * litTriangle.clu;
+        const float lv = drawnW0 * litTriangle.alv + drawnW1 * litTriangle.blv + drawnW2 * litTriangle.clv;
+        std::snprintf(lightLuv, sizeof(lightLuv), "%.5f,%.5f", lu, lv);
+        if (!lightConstants.lightmapEnabled) {
+          // lightmapFeatures.w == 0: the shader keeps lightColour = lightmapFactor.
+          lightBranch = "unlit";
+          lightFactor = std::max(lightConstants.lightmapFactor, 0.0f);
+        } else if (!litTriangle.lightmapped || lu < 0.0f) {
+          // lightUv.x < 0: the face carries no lightmap uv (BspTriangle leaves
+          // them at -1), so the shader takes the plain-factor branch.
+          lightBranch = "factor";
+          lightFactor = std::max(lightConstants.lightmapFactor, 0.0f);
+        } else if (displayMap.lightmapAtlas.empty() || displayMap.lightmapAtlasWidth <= 0
+                   || displayMap.lightmapAtlasHeight <= 0) {
+          lightBranch = "no-atlas";
+        } else {
+          const float texelX = lu * static_cast<float>(displayMap.lightmapAtlasWidth) - 0.5f;
+          const float texelY = lv * static_cast<float>(displayMap.lightmapAtlasHeight) - 0.5f;
+          std::snprintf(lightTexel, sizeof(lightTexel), "%.2f,%.2f", texelX, texelY);
+          unsigned char texel[3] = {0, 0, 0};
+          if (!sampleLightmapBilinear(displayMap.lightmapAtlas, displayMap.lightmapAtlasWidth,
+                displayMap.lightmapAtlasHeight, texelX, texelY, texel)) {
+            lightBranch = "no-atlas";
+          } else {
+            std::snprintf(lightRgb, sizeof(lightRgb), "%u,%u,%u",
+              static_cast<unsigned>(texel[0]), static_cast<unsigned>(texel[1]),
+              static_cast<unsigned>(texel[2]));
+            float encoded = 0.0f;
+            for (int channel = 0; channel < 3; ++channel) {
+              const float linear = static_cast<float>(texel[channel]) / 255.0f;
+              encoded += std::pow(std::max(linear, 0.0f), 1.0f / 2.2f);
+            }
+            lightFactor = encoded / 3.0f;
+            // The 3x3 neighbourhood is the cheapest question that separates
+            // "this patch is black" from "this uv is not in the patch": a face
+            // the packer never wrote has zeroes around it too, while a uv that
+            // landed in padding between patches has a lit texel within two.
+            // (A face whose entire patch is dark reads texture-zero either
+            // way -- that is what the tone histograms already count; this
+            // field is for the point the frame names.)
+            unsigned brightest = 0;
+            unsigned char neighbour[3] = {0, 0, 0};
+            for (int dy = -1; dy <= 1; ++dy) {
+              for (int dx = -1; dx <= 1; ++dx) {
+                if (!sampleLightmapBilinear(displayMap.lightmapAtlas, displayMap.lightmapAtlasWidth,
+                      displayMap.lightmapAtlasHeight, texelX + static_cast<float>(dx),
+                      texelY + static_cast<float>(dy), neighbour)) {
+                  continue;
+                }
+                for (int channel = 0; channel < 3; ++channel) {
+                  brightest = std::max(brightest, static_cast<unsigned>(neighbour[channel]));
+                }
+              }
+            }
+            const bool black = texel[0] == 0 && texel[1] == 0 && texel[2] == 0;
+            lightBranch = black ? (brightest == 0 ? "texture-zero" : "texture-zero-nbr") : "texture";
+          }
+        }
+      }
       describe(skyOrdinal, true, skyDepth, skyText, sizeof(skyText));
       const float frameDepth = renderer.capturedDepthAt(px, py);
-      traceFmt("gpu: world hole-trace point=%d,%d drawn=%s any=%s sky=%s frameDepth=%.4f",
-        px, py, drawnText, anyText, skyText, frameDepth);
+      traceFmt("gpu: world hole-trace point=%d,%d drawn=%s any=%s sky=%s frameDepth=%.4f"
+        " lightluv=%s lighttexel=%s lightrgb=%s lightfactor=%.4f lightbranch=%s",
+        px, py, drawnText, anyText, skyText, frameDepth,
+        lightLuv, lightTexel, lightRgb, lightFactor, lightBranch);
       if (drawnOrdinal >= 0) ++drawnHits;
       if (anyOrdinal >= 0) ++anyHits;
       if (skyOrdinal >= 0) ++skyHits;
