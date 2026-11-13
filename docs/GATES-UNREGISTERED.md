@@ -58,7 +58,8 @@ Classes:
 | `playback-control-check.sh` | segmented | T70 transport landing gate; `playback-error-paths-check.sh` and `timeline-check.sh` are the registered release transport gates. | Transport changes; playback owner. |
 | `player-model-check.sh` | segmented | T60 player-model gate; needs the nine-class fixture and produces P4 evidence, not a general smoke result. | P4 model batch; character/weapon owner. |
 | `quality-audit-check.sh` | segmented | Footprint/steady-state measurements; useful at performance milestones, too noisy for every chain. | Performance milestones; architecture owner. |
-| `quiet-capture-check.sh` | audible | I-29: the live half opens a real audio device without `--audio-disabled`, so it cannot run headless/unattended. | After F1-4 makes it headless-safe; audio/UI owner. |
+| `audio-keys-check.sh` | segmented | End-to-end M / `[` / `]` key and ui.ini persistence gate; three headless product runs (`--audio-disabled`). It is the F1-4 audio/UI evidence, not a per-commit gate. | Audio/UI changes; audio owner. |
+| `quiet-capture-check.sh` | segmented | Product capture gate. The default is now headless-safe (pinned pair plus a headless live run, I-29); the audible live device pair is opt-in with `--device` and runs in the audio regression window. | Audio/UI changes; audio owner. |
 | `resource-discovery-check.sh` | historical | T9 discovery gate; `resource-reachability-check.sh` is registered and covers the current store order. | Forensic only; map/asset owner. |
 | `stability-release-check.sh` | segmented | Judges the 19-case stability matrix; the matrix itself is a long isolated sweep, not a daily gate. | Stability sweep; QA owner. |
 | `terrain-blend-check.sh` | segmented | Pins the reference terrain's WorldVertexTransition chain and pixels; map-specific evidence. | R2-4 material acceptance; map renderer owner. |
