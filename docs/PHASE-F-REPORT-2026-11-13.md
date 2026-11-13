@@ -24,7 +24,7 @@
 6. **I-20/873 的 alpha 解释成立。** 1143,132 / 1110,136 是 TREELINECARD 的 `255,255,255, alpha=0` 透明 texel；873,366 是 METALGRATE 的 `0,0,0, alpha=0`。`--world-texel` 进一步分离出：1110 的 albedo 0 是 alpha=0 + vertex colour 0；849 的 texel 是 `84,83,81` 但 albedo 0，原因是 vertex colour 0；919 的 texel 与 albedo 都是 `210,208,197`，问题在 face-trace UV 与实际 pass 不一致。849/919 保持 OPEN。
 7. **小地图产品化落地。** E9 补丁 4 文件落树，`--hud-minimap` 默认关；`minimap-hud-check.sh` 96 断言 PASS，含投影 y 翻转、x 镜像、yaw 旋转、旧 exe 负控和未列表地图。七图只有 Upward/Sunshine 有帧，其余五图 NOT VERIFIED。
 8. **`$nocull` census 完成（只读）。** 七图 BSP pak 中只有 Bagel RC11 有可见候选（3 棵树、tarp、detail-sprite），其余六图只有不可见 `tools/toolstrigger`。没有改 world renderer。
-9. **F2-2 第一批扫描完成。** 52 个 `*_probe.exe` 以 `--self-test` 15 s 超时运行：29 个 rc=0，23 个是 usage/缺输入，没有空输出崩溃。它不是域验收。
+9. **F2-2 第一批扫描完成。** 52 个 `*_probe.exe` 以 `--self-test` 15 s 超时运行：29 个 rc=0，23 个是 usage/缺输入，没有空输出崩溃。第二批又用真实 map/demo/TF-root 跑了 8 个带参数 probe，8/8 rc=0；剩余 12 个带参数 probe 未跑。它不是完整域验收。
 
 ---
 
@@ -226,19 +226,30 @@ FAIL pixels the control frame changes = 89488, expected 90127
 
 **状态**：产品路径 PASS（96 断言）；七图完整视觉验收未完成。
 
-### F2-2：52-probe 首批扫描
+### F2-2：52-probe 首批扫描 + 8-probe 域批次
 
 **做法**：52 个 `*_probe.exe` 在 hostlock 下逐个 `--self-test`，15 s 超时，记录 rc、输出字节、SHA-256 前缀、首行。
 
-**结果**：
+**首批结果**：
 - 29 个 rc=0
 - 23 个非零：20 个 usage/unknown-arg，2 个需要 TF root/VPK，1 个 `texture_quad_probe` 需要 VTF 路径（rc=3 是它的“不是 VTF”分支）
 - 没有空输出崩溃
 
-**报告**：`docs/F2-2-PROBE-SWEEP-2026-11-13.md`
-**原始表**：`D:/_shared/EXEC-2026-11-13/F2/probe-sweep/results.tsv`
+**第二批（真实参数）**：8 个带参数 probe 全部 rc=0：
+- `world_geometry_probe`：Sunshine `triangles=82859 faces=20449 displaced=24000`，budget within
+- `world_feature_probe`：170 materials，bumpmap 38 declared/resolved、0 missing
+- `terrain_blend_probe`：`triangles=82859 displacementFaces=642`
+- `resource_reachability_probe`：4/5 archives，149,970 entries，105 VMT+VTF，atlas-eligible 19
+- `vpk_integrity_probe`：50/50 resolved，0 empty；`pak01_dir.vpk` 缺失被具名
+- `sound_content_map_probe`：Sultry read 5151 / scheduled 5031 / 1054 missing WAV
+- `minimap_probe --minimap-test`：`scale=0.125 yFlip=1`
+- `skeleton_skin_probe --mutation`：`mutationCaught=true skinLands=1`
 
-**状态**：首批启动扫描完成；20 个带参数 probe 的域验收未完成。
+**报告**：`docs/F2-2-PROBE-SWEEP-2026-11-13.md`
+**原始表**：`D:/_shared/EXEC-2026-11-13/F2/probe-sweep/results.tsv`、
+`F2/probe-domain-a/results.tsv`
+
+**状态**：首批启动扫描 + 8 个域 probe 完成；剩余 12 个带参数 probe 未跑。
 
 ### F2-3 / R2-9：`$nocull` census
 
@@ -275,7 +286,7 @@ FAIL pixels the control frame changes = 89488, expected 90127
 | `audio-keys-check.sh` | PASS（6 键边 + 2 次重启） | `F1/keys/gate4.log` |
 | `minimap-hud-check.sh --old-exe=...` | PASS 96 断言 | `F2/minimap/gate4.log` |
 | `world-black-account-check.sh` | PASS（I-20/873 解释；849/919 OPEN） | `F1/black/gate2.log` |
-| 52-probe sweep | 29 rc0 / 23 usage-missing | `F2/probe-sweep/results.tsv` |
+| 52-probe sweep | 29 rc0 / 23 usage-missing；第二批 8/8 rc0 | `F2/probe-sweep/results.tsv`、`F2/probe-domain-a/results.tsv` |
 | `$nocull` census | 七图扫描完成 | `F2/nocull-census.txt` |
 
 ---
@@ -302,7 +313,7 @@ FAIL pixels the control frame changes = 89488, expected 90127
 2. **没有七图视觉验收。** I-23 像素证据只覆盖一个具名玻璃材质、一个相机；I-20/I-21 只覆盖 Sultry 的六个点。
 3. **小地图只证了 Upward 和 Sunshine 的帧。** 其余五图只有 bounds/控制点表；A12 变异未跑；没有 radar 底图。
 4. **没有可听音频验证。** M / `[` / `]` 的字节/持久化已证，但 device-6 可听 smoke 未跑。
-5. **F2-2 不是 54 个 probe 的域验收。** 20 个带参数 probe 还没用真实 demo/map/model/VPK 跑。
+5. **F2-2 不是 54 个 probe 的完整域验收。** 首批 52 个启动/self-test 扫描 + 8 个真实参数 probe 已完成；剩余 12 个带参数 probe 还没跑。
 6. **F2-3 没有 Bagel 正/对照帧。** 只有声明 census；没有证明树/tarp 是 world brush 或会掉像素。
 7. **F2-4 半透明排序、F2-5 3D skybox、F2-6 reload 观测、F3 多视角、F4 冻结均未开始。**
 8. **没有实现或声称**：ragdoll、水面反射/折射、玻璃反射、通用粒子、lighting/shadow parity、LOD1+。
@@ -405,7 +416,7 @@ bash "$LOCK" run f-probes bash /d/_shared/EXEC-2026-11-13/F2/probe-sweep.sh
 
 按依赖排序：
 
-1. **F2-2 域 probe 批次**：把 20 个 usage 行按 demo/map/model/VPK 分组，用真实参数在 hostlock 内跑；补 `animation_viewmodel_probe`、`pcf_capability_probe` 的 TF root/VPK 输入。
+1. **F2-2 剩余 12 个域 probe**：按 demo/map/model/VPK 分组，用真实参数在 hostlock 内跑；补 `animation_viewmodel_probe`、`pcf_capability_probe` 的 TF root/VPK 输入。
 2. **F2-3 Bagel `$nocull` 正/对照**：固定相机看一棵 oak tree 或 tarp，拍 `--world-cull` on/off；只有在像素证明确有 cull 掉面时才改 world renderer。
 3. **F2-4 半透明排序**：用 Sultry 玻璃相机和现有 atlas/PVS 分组，量化是否有同相机排序错误；没有像素 oracle 不写通用排序。
 4. **F2-5 3D skybox**：按 E3 设计实现 `sky_camera` 解析/变换/第二遍绘制，先做一张图的 on/off 证据。

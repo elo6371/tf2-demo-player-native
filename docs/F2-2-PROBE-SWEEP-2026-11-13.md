@@ -20,6 +20,26 @@ acceptance. A probe that takes a demo, a VTF or a TF root returns its usage or
 a named "cannot read" line; that is not a product failure and is not counted as
 one.
 
+## Second batch: eight probes with real arguments
+
+Command: `bash /d/_shared/EXEC-2026-11-13/F2/probe-domain-a.sh` under host lock
+`f2-domain-a`. All eight exited 0:
+
+| Probe | rc | Key reading |
+|---|---:|---|
+| `world_geometry_probe --tf-root TF --map maps/cp_sunshine.bsp` | 0 | `triangles=82859 faces=20449 displaced=24000 water=410`; budget `within`, dropped 0 |
+| `world_feature_probe --tf-root TF --map cp_sunshine.bsp` | 0 | `feature.materials=170`; bumpmap declared/resolved 38, missing 0, visible 0 |
+| `terrain_blend_probe --map cp_sunshine.bsp --tf-root TF` | 0 | `map.triangles=82859 displacementFaces=642 truncated=0` |
+| `resource_reachability_probe TF cp_sunshine` | 0 | archives 4/5 (`pak01_dir.vpk` absent), 149,970 entries, 170 distinct materials, 105 VMT+decodable VTF, atlas-eligible 19 |
+| `vpk_integrity_probe --real TF --real-limit 50` | 0 | 50 sampled, 50 resolved, 0 empty; same `pak01_dir.vpk` missing line |
+| `sound_content_map_probe --demo <sultry> --tf-root TF` | 0 | read 5151, scheduled 5031, 1054 missing WAV, 0 unsupported, replay 3704/3704 |
+| `minimap_probe --minimap-test` | 0 | synthetic projection `scale=0.125 yFlip=1`, points inside |
+| `skeleton_skin_probe --mutation` | 0 | `mutation=transpose mutationCaught=true skinLands=1 skinReversed=24.942` |
+
+This reduces the usage-only population from 20 to 12. The `pak01_dir.vpk`
+absence is reported by two probes but did not prevent 4 archives / 149,970
+entries from opening; it is a named input gap, not a probe failure.
+
 ## The 23 nonzero rows, classified
 
 | Probe | rc | Classification |
@@ -62,15 +82,16 @@ one.
 ## What it does not prove
 
 - It does not run each probe's domain acceptance (demos, maps, models, VPKs).
-  The next batch should run the 20 usage rows with their real arguments in
-  domain groups, under the host lock where they read the GPU/product.
+  The next batch should run the remaining 12 usage rows with their real
+  arguments in domain groups, under the host lock where they read the
+  GPU/product.
 - It does not replace the per-gate evidence; a probe self-test is not a
   rendering claim.
 
 ## Follow-up
 
-1. Group the 20 usage-only probes by required input and run each with its real
-   fixture in measured batches.
+1. Group the remaining 12 usage-only probes by required input and run each with
+   its real fixture in measured batches.
 2. Keep `animation_viewmodel_probe` and `pcf_capability_probe` in the
    TF-root/VPK batch, not the no-argument batch.
 3. Feed the result into the remaining F2-2 exit definition (`tf2_core`, `/W4`,
