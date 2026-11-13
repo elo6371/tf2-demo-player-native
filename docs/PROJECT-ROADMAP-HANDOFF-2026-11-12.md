@@ -864,12 +864,19 @@ No attachment source or shader text was copied into product files. The implement
   (three oak trees, tarp, detail-sprite sheet); the other six maps only declare
   the invisible `tools/toolstrigger` material. No world-renderer change is
   justified until a fixed Bagel camera shows a visible cull loss.
+- F2-2 first probe batch done: `docs/F2-2-PROBE-SWEEP-2026-11-13.md`.
+  52 `*_probe.exe` files were started under the host lock with `--self-test`
+  and a 15 s timeout: 29 exited 0, 23 returned a usage/missing-input line
+  (20 argument-usage, 2 TF-root/VPK, 1 VTF-path). No probe crashed with an empty
+  output in this batch. This is a startup/self-test sweep, not domain
+  acceptance; the 20 usage rows need their real fixtures next.
 - Identity at batch close: exe `00ec8b99fc779327eb2cf0eb0cb9a0e59eca3a4d0413e1ea29b36c7bcbec2078`,
   2,988,544 B; `sourceContent=1d9c0ead...`; canonical rebuild after the batch
   commits reports `sourceTree=f533293`, `dirty=0`. The earlier build during the
   working batch reported `dirty=1` only because the roadmap document was still
   uncommitted; the exe bytes are identical.
 - Still open: F1-5's 849/919 sampling discrepancy; F1-4 audible device smoke;
-  F2-1 A12 mutation and five-map frames; F2-2 probe batch; F2-3's positive
-  Bagel cull scene; F2-4/F2-5/F2-6; F3/F4; one full release chain only at freeze.
+  F2-1 A12 mutation and five-map frames; F2-2's 20 argument-bearing probes;
+  F2-3's positive Bagel cull scene; F2-4/F2-5/F2-6; F3/F4; one full release
+  chain only at freeze.
 
