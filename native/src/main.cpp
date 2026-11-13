@@ -1986,6 +1986,10 @@ bool outlineVertexExtent = false;
   // numbers themselves come from the map's env_fog_controller (displayMap.fog);
   // --fog-start/--fog-end exist so a gate can pin values without editing the map.
   bool worldFogGiven = false;
+  // I-23: the rescue batch is ON by default. The off switch exists so one frame
+  // can show the refusal fallback and count it; a switch that could not produce
+  // the old picture would make the new picture unfalsifiable.
+  bool worldAtlasTranslucentRescue = true;
   bool worldFogStartGiven = false;
   bool worldFogEndGiven = false;
   float worldFogStartOverride = 0.0f;
@@ -2298,6 +2302,9 @@ bool outlineVertexExtent = false;
       // a flag that is not consumed anywhere is an unrecognised argument (pushed
       // at main.cpp:3133, refused by --strict-args at main.cpp:3173).
       if (wcscmp(arguments[i], L"--world-fog") == 0) { worldFogGiven = true; continue; }
+      if (wcscmp(arguments[i], L"--world-atlas-no-translucent-rescue") == 0) {
+        worldAtlasTranslucentRescue = false; continue;
+      }
       if (wcscmp(arguments[i], L"--fog-start") == 0 && i + 1 < argumentCount) {
         worldFogStartOverride = static_cast<float>(_wtof(arguments[++i]));
         worldFogStartGiven = true;
@@ -6813,6 +6820,7 @@ bool outlineVertexExtent = false;
     renderer.setWorldSkyFaceOnly(worldGeometry == WorldGeometryFilter::Sky);
     renderer.setWorldFaceIdUpload(worldDebugView == 4);
     renderer.setWorldRefusedMask(worldRefusedMask != 0);
+    renderer.setWorldAtlasTranslucentRescue(worldAtlasTranslucentRescue);
     renderer.setWorldDiagnosticIsolation(
       worldIsolationRequested || worldGeometry != WorldGeometryFilter::All);
     // T17: this one changes a draw-time constant, not the upload. It is set here
@@ -8013,10 +8021,11 @@ bool outlineVertexExtent = false;
     // material affects the reference frame" is a count of triangles that
     // survived the clip and not an estimate.
     traceFmt("gpu: world atlas-plan batches=%zu blendBatches=%zu tiled=%zu refused=%zu"
-      " malformed=%zu duplicate=%zu budget=%zu layerBytes=%llu reason=%s",
+      " malformed=%zu duplicate=%zu budget=%zu translucentRefused=%zu layerBytes=%llu reason=%s",
       sample.worldAtlasBatches, sample.worldAtlasBlendBatches, sample.worldTilesTiled,
       sample.worldTilesRefused, sample.worldTilesRefusedMalformed,
       sample.worldTilesRefusedDuplicate, sample.worldTilesRefusedBudget,
+      sample.worldTilesRefusedTranslucent,
       static_cast<unsigned long long>(sample.worldAtlasLayerBytes),
       sample.worldAtlasPlanReason.empty() ? "-" : sample.worldAtlasPlanReason.c_str());
     {

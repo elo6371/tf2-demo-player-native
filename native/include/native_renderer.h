@@ -632,6 +632,12 @@ struct WorldMaterialSampleState {
   std::size_t worldTilesRefusedMalformed = 0;
   std::size_t worldTilesRefusedDuplicate = 0;
   std::size_t worldTilesRefusedBudget = 0;
+  // I-23: refused materials whose VMT declares `$translucent`. A non-zero value
+  // means those materials are drawn by the untiled opaque fallback, because the
+  // alpha path needs a tile. After the rescue pass this is 0 on a map where every
+  // translucent material fit; with the rescue disabled it is the count that fell
+  // back, which is what makes the counter a reading rather than a decoration.
+  std::size_t worldTilesRefusedTranslucent = 0;
   std::size_t worldAtlasBatches = 0;
   std::size_t worldAtlasBlendBatches = 0;
   std::uint64_t worldAtlasLayerBytes = 0;
@@ -1169,6 +1175,11 @@ public:
   // is an untiled material" becomes a pixel count on the capture instead of a
   // triangle count that cannot say where those triangles landed.
   void setWorldRefusedMask(bool enabled) { worldRefusedMask_ = enabled; }
+  // I-23: plan the translucent materials a full atlas refused into their own
+  // rescue batch. Enabled by default because the alternative is drawing an
+  // alpha-keyed surface opaque. `--world-atlas-no-translucent-rescue` turns it
+  // off for the frame that must show the fallback and count it.
+  void setWorldAtlasTranslucentRescue(bool enabled) { worldAtlasTranslucentRescue_ = enabled; }
   // T26: `--world-geometry sky` uploads the BSP's sky-brush polygons and
   // nothing else. It is not a picture of the game: it is the only honest answer
   // to "is this empty pixel sky by design or is it a hole", because it is the
@@ -2057,6 +2068,7 @@ private:
   std::size_t worldTilesRefusedMalformed_ = 0;
   std::size_t worldTilesRefusedDuplicate_ = 0;
   std::size_t worldTilesRefusedBudget_ = 0;
+  std::size_t worldTilesRefusedTranslucent_ = 0;
   std::size_t worldAtlasBatches_ = 0;
   std::size_t worldAtlasBlendBatches_ = 0;
   std::uint64_t worldAtlasLayerBytes_ = 0;
@@ -2192,6 +2204,7 @@ private:
   bool worldBlendEnabled_ = true;
   bool worldTerrainOnly_ = false;
   bool worldRefusedMask_ = false;
+  bool worldAtlasTranslucentRescue_ = true;
   // T26: upload the sky-brush polygons instead of the world triangles, and/or
   // bake the face index into the vertex colour. Both are diagnostic-only and
   // both are read by `uploadWorldGeometry`, which is why they are set before the

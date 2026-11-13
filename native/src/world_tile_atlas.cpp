@@ -28,6 +28,23 @@ std::uint64_t bytesFor(int columns, int rows, std::uint32_t tileSize) {
     * static_cast<std::uint64_t>(rows) * tileSize * 4ull;
 }
 
+// One sentence naming the counts, shared by the initial plan and the rescue pass
+// so the two cannot describe the same plan with different arithmetic.
+std::string planReason(const WorldAtlasPlan& plan, std::size_t sourceCount) {
+  char summary[512] = {0};
+  std::snprintf(summary, sizeof(summary),
+    "%zu of %zu materials tiled in %zu batch(es); refused=%zu (malformed=%zu, duplicate=%zu,"
+    " budget=%zu); layers=%llu+%llu+%llu+%llu+%llu MiB",
+    plan.accepted, sourceCount, plan.batches.size(), plan.refused, plan.refusedMalformed,
+    plan.refusedDuplicate, plan.refusedBudget,
+    static_cast<unsigned long long>(plan.albedoBytes / (1024ull * 1024ull)),
+    static_cast<unsigned long long>(plan.blendBytes / (1024ull * 1024ull)),
+    static_cast<unsigned long long>(plan.modulateBytes / (1024ull * 1024ull)),
+    static_cast<unsigned long long>(plan.bumpBytes / (1024ull * 1024ull)),
+    static_cast<unsigned long long>(plan.bump2Bytes / (1024ull * 1024ull)));
+  return summary;
+}
+
 } // namespace
 
 const char* worldTileRefusalName(WorldTileRefusal reason) {
@@ -209,19 +226,54 @@ WorldAtlasPlan planWorldTiles(const std::vector<WorldTileSource>& sources,
   plan.bumpBytes = spentBump;
   plan.bump2Bytes = spentBump2;
 
-  char summary[512] = {0};
-  std::snprintf(summary, sizeof(summary),
-    "%zu of %zu materials tiled in %zu batch(es); refused=%zu (malformed=%zu, duplicate=%zu,"
-    " budget=%zu); layers=%llu+%llu+%llu+%llu+%llu MiB",
-    plan.accepted, sources.size(), plan.batches.size(), plan.refused, plan.refusedMalformed,
-    plan.refusedDuplicate, plan.refusedBudget,
-    static_cast<unsigned long long>(plan.albedoBytes / (1024ull * 1024ull)),
-    static_cast<unsigned long long>(plan.blendBytes / (1024ull * 1024ull)),
-    static_cast<unsigned long long>(plan.modulateBytes / (1024ull * 1024ull)),
-    static_cast<unsigned long long>(plan.bumpBytes / (1024ull * 1024ull)),
-    static_cast<unsigned long long>(plan.bump2Bytes / (1024ull * 1024ull)));
-  plan.reason = summary;
+  plan.reason = planReason(plan, sources.size());
   return plan;
+}
+
+std::size_t worldTileRescueTranslucent(WorldAtlasPlan& plan,
+    const std::vector<WorldTileSource>& sources, const WorldAtlasPlanOptions& options) {
+  if (plan.slots.size() != sources.size()) return 0;
+  std::vector<WorldTileSource> rescueSources;
+  std::vector<std::size_t> originalIndex;
+  for (std::size_t index = 0; index < sources.size(); ++index) {
+    if (!sources[index].translucent) continue;
+    if (plan.slots[index].batch >= 0) continue;
+    if (plan.refusals[index] != WorldTileRefusal::AtlasBudgetExceeded) continue;
+    rescueSources.push_back(sources[index]);
+    originalIndex.push_back(index);
+  }
+  if (rescueSources.empty()) return 0;
+  // The rescue is charged against what is LEFT of the same budget. A second
+  // 384 MiB would make the bound a story about the first atlas only.
+  const std::uint64_t spent = plan.albedoBytes + plan.blendBytes + plan.modulateBytes
+    + plan.bumpBytes + plan.bump2Bytes;
+  WorldAtlasPlanOptions rescueOptions = options;
+  rescueOptions.budgetBytes = spent < options.budgetBytes ? options.budgetBytes - spent : 0;
+  const WorldAtlasPlan rescue = planWorldTiles(rescueSources, rescueOptions);
+  if (rescue.batches.empty()) return 0;
+  const int firstBatch = static_cast<int>(plan.batches.size());
+  std::size_t rescued = 0;
+  for (std::size_t index = 0; index < rescueSources.size(); ++index) {
+    if (rescue.slots[index].batch < 0) continue;
+    WorldTileSlot slot = rescue.slots[index];
+    slot.batch += firstBatch;
+    const std::size_t target = originalIndex[index];
+    plan.slots[target] = slot;
+    plan.refusals[target] = WorldTileRefusal::None;
+    ++plan.accepted;
+    if (plan.refused > 0) --plan.refused;
+    if (plan.refusedBudget > 0) --plan.refusedBudget;
+    ++rescued;
+  }
+  if (rescued == 0) return 0;
+  plan.batches.insert(plan.batches.end(), rescue.batches.begin(), rescue.batches.end());
+  plan.albedoBytes += rescue.albedoBytes;
+  plan.blendBytes += rescue.blendBytes;
+  plan.modulateBytes += rescue.modulateBytes;
+  plan.bumpBytes += rescue.bumpBytes;
+  plan.bump2Bytes += rescue.bump2Bytes;
+  plan.reason = planReason(plan, sources.size());
+  return rescued;
 }
 
 bool worldFeatureTileRect(const WorldTileSlot& slot, std::uint32_t atlasWidth,

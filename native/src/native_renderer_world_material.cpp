@@ -434,6 +434,7 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.worldTilesRefusedMalformed = worldTilesRefusedMalformed_;
   state.worldTilesRefusedDuplicate = worldTilesRefusedDuplicate_;
   state.worldTilesRefusedBudget = worldTilesRefusedBudget_;
+  state.worldTilesRefusedTranslucent = worldTilesRefusedTranslucent_;
   state.worldAtlasBatches = worldAtlasBatches_;
   state.worldAtlasBlendBatches = worldAtlasBlendBatches_;
   state.worldAtlasLayerBytes = worldAtlasLayerBytes_;

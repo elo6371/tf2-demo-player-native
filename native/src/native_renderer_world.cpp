@@ -232,6 +232,9 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   for (const auto& source : textures) {
     WorldTileSource request;
     request.material = source.material;
+    // I-23: carried into the plan so the rescue pass can name the materials whose
+    // alpha path has no tile, rather than guessing from the VMT a second time.
+    request.translucent = source.translucent;
     request.width = source.width;
     request.height = source.height;
     request.sourceWidth = source.sourceWidth > 0 ? source.sourceWidth : source.width;
@@ -254,13 +257,27 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       ? source.bump2Rgba.size() : 0;
     requests.push_back(std::move(request));
   }
-  const WorldAtlasPlan plan = planWorldTiles(requests);
+  WorldAtlasPlan plan = planWorldTiles(requests);
+  // I-23: the budget refusal is charged per batch and ends the plan, so a
+  // translucent material in a refused batch never gets a tile and therefore never
+  // reaches the tiled alpha branch. Rescue exactly those materials into a batch
+  // priced against the budget that is left; the planner itself is unchanged.
+  if (worldAtlasTranslucentRescue_) worldTileRescueTranslucent(plan, requests);
   worldAtlasPlanReason_ = plan.reason;
   worldTilesTiled_ = plan.accepted;
   worldTilesRefused_ = plan.refused;
   worldTilesRefusedMalformed_ = plan.refusedMalformed;
   worldTilesRefusedDuplicate_ = plan.refusedDuplicate;
   worldTilesRefusedBudget_ = plan.refusedBudget;
+  // I-23: the count is taken from the post-rescue slots: a rescued material is
+  // tiled, so it is not counted -- but the same loop reports every translucent
+  // material still without a tile. That is the number the negative frame pins.
+  worldTilesRefusedTranslucent_ = 0;
+  for (std::size_t index = 0; index < textures.size(); ++index) {
+    if (textures[index].translucent && plan.slots[index].batch < 0) {
+      ++worldTilesRefusedTranslucent_;
+    }
+  }
   worldAtlasBatches_ = plan.batches.size();
   worldAtlasLayerBytes_ = plan.albedoBytes + plan.blendBytes + plan.modulateBytes
     + plan.bumpBytes + plan.bump2Bytes;
@@ -750,9 +767,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         // T96: the alpha keys, same per-vertex channel as the feature bits
         // above. Bit 8 = `$translucent`, bit 16 = `$alphatest`, set from the
         // VMT's own keys rather than from a global switch: the keys are per
-        // material and the shader is told per vertex. A translucent material
-        // whose blend state is missing keeps its bit and reads mode=refused on
-        // the consumption line, rather than silently drawing opaque.
+        // material and the shader is told per vertex. This branch is reached only
+        // for a material the plan gave a tile: a refused translucent material is
+        // drawn by the untiled flat branch below with alpha=0 (opaque), and its
+        // consumption row says mode=refused. That is why the I-23 rescue batch
+        // exists -- a material refused by budget cannot be fixed by the shader,
+        // because no texture rectangle holds its pixels. With
+        // `--world-atlas-no-translucent-rescue` they stay refused and
+        // `translucentRefused` counts exactly them.
         const bool alphaBlended = material.translucent;
         const bool alphaCutout = material.alphaTest;
         if (alphaBlended) mask |= 8;

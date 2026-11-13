@@ -82,6 +82,10 @@ struct WorldTileSource {
   // feature atlas for a batch only when at least one of its tiles carries one.
   std::size_t bumpBytes = 0;
   std::size_t bump2Bytes = 0;
+  // I-23: whether the VMT declared `$translucent`. The planner does not place a
+  // tile differently because of it; the rescue pass uses it to name the refused
+  // materials whose alpha the untiled fallback cannot composite.
+  bool translucent = false;
 };
 
 // Where one material's pixels live. `x` and `y` address the tile's first pixel,
@@ -177,6 +181,21 @@ struct WorldAtlasPlan {
 };
 
 WorldAtlasPlan planWorldTiles(const std::vector<WorldTileSource>& sources,
+  const WorldAtlasPlanOptions& options = {});
+
+// I-23: a full atlas refuses its smallest surfaces by budget, and among them are
+// translucent materials. A refused material gets no tile, so the alpha path never
+// reaches it: the untiled branch paints it opaque and its row reads mode=refused.
+// This pass plans ONLY those materials, against the plan's remaining budget (not a
+// second 384 MiB), and folds the accepted slots into `plan` as new batches. It is
+// deliberately separate from planWorldTiles so the pure planner, its fixtures and
+// every existing per-map reading keep their exact accounting.
+//
+// Returns the number of materials rescued. A material is a candidate only when it
+// is translucent, was refused, and the refusal was AtlasBudgetExceeded -- a
+// malformed or duplicate source has no pixels to rescue.
+std::size_t worldTileRescueTranslucent(WorldAtlasPlan& plan,
+  const std::vector<WorldTileSource>& sources,
   const WorldAtlasPlanOptions& options = {});
 
 // The uv a vertex carries for a tile inside a batch atlas:
