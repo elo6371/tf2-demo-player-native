@@ -1,0 +1,1234 @@
+#!/usr/bin/env bash
+# hud-live-check.sh -- the T97 gate: the live readout (match clock, team score, the
+# spectator target's health/class/team) is really drawn in the frame as glyphs.
+#   * a --hud-live run paints it -- and that is exactly what a plain interactive
+#     launch does by default;
+#   * a --hud-off run paints none of it;
+#   * an EVIDENCE run (--capture-frame) that passes NEITHER flag paints none of it
+#     either, and its bitmap is byte-identical to the --hud-off bitmap.
+# The third line is the load-bearing one for this repository: every pixel gate here
+# compares its captured frame against a pin committed in the tree, so a readout that
+# is on by default must be provably ABSENT from a stock evidence frame.
+#
+# THE THREE-STATE MODE (lead ruling 2026-11-09)
+#   --hud-off                      never draw          reason=cli-hud-off
+#   --hud-live                     always draw         mode=forced
+#   neither + --capture-frame      suppress            reason=evidence-run
+#   neither, interactive launch    draw                mode=interactive
+#   --hud-text-test outranks all four (the T67 probe owns the primitive list).
+#   HOW "a normal launch draws it" IS SUPPORTED -- HONESTLY. It is NOT proven by a
+#   screenshot: under the hostlock rules this harness may not leave a visible
+#   window open. It rests on three readings: (1) the resolved mode is printed on
+#   every drawing line and on the suppression line, so all three states are
+#   observable in a trace; (2) the forced path is verified down to the pixels by
+#   sections 1-3; (3) the suppressed path is verified to be byte-identical to the
+#   --hud-off frame (section 4). What that does not prove -- that an unattended
+#   interactive window renders it -- is stated as unverified in the report.
+#
+# WHY THIS EXISTS
+#   T67 proved the HUD pass can rasterise a FIXED probe list under
+#   --hud-text-test; that is a drawing test, not a product feature. T97 makes the
+#   ordinary frame carry live data: the round clock (CTeamRoundTimer, falling back
+#   to the playback clock), the team scores (CTeam.m_iScore) and the spectator
+#   target's health/class/team (readPlaybackHud). This gate pins what a human
+#   would otherwise have to eyeball: the numbers come from the entity stream, the
+#   glyphs land on the published region pixel for pixel, the text is rebuilt only
+#   when a reading changes, and the player name is NEVER invented.
+#
+# KNOWN WEAKNESSES (independent audit 2026-11-09, FINDINGS; F4/F5/F6 accepted, not yet
+# fixed -- do not read these as assertions they are not):
+#   F4  Some readings are checked against literals of THIS recording's tick 0
+#       (the 10:00 PAUSED clock, the two dashes in the score line). They pin the
+#       shape of unknown values, not the mapping from entity props to numbers.
+#   F5  The control-flow identities (calls==updates+skips, published==updates) prove
+#       internal consistency of the counters, not that a frame really skipped work;
+#       the pixel half is what carries that claim (sections 2-3).
+#   F6  hudtext ordinal>=1 is one directional: it shows the pass ran at least once,
+#       not that it ran exactly once per frame.
+#
+# WHAT IT ASSERTS
+#   A. an ordinary paused run publishes one live reading whose clock/score/target
+#      lines have the published shape, whose glyph count equals the text length,
+#      whose region is the published rect, and whose hudtext readings agree with
+#      the publish line (no claim without a draw);
+#   B. the captured pixels: every lit glyph pixel is white, every unlit pixel
+#      equals the --hud-off frame bit for bit, nothing outside the region differs,
+#      and the text is verified against the font table compiled into the binary;
+#   C. --hud-off publishes enabled=0 reason=cli-hud-off, draws no text quads and
+#      no HUD primitives, and its frame differs from the live frame (the flag
+#      removes a visible feature rather than doing nothing);
+#   C'. the same capture command WITHOUT --hud-live publishes enabled=0
+#      reason=evidence-run once, and its bitmap is byte-identical to the C frame --
+#      i.e. a stock evidence run is unchanged by the feature being on by default;
+#   D. two independent processes at the same tick write the same frame bytes
+#      (the reading is deterministic, not a random sample);
+#   E. an ADVANCING run (no --start-paused, capture at a later tick) publishes a
+#      different, smaller clock and rebuilds the text a bounded number of times
+#      while skipping the unchanged frames -- "the data refreshes" and "it does
+#      not re-upload every frame" are both readings;
+#   F. a resized window (--window-size) keeps the same region and the same text:
+#      the panel is anchored in pixels, not in window fractions;
+#   G. the player name is '?' with reason=no-userinfo: the product has no
+#      svc_UserInfo decoder (t63 evidence/t63-sourcetv/FIELD_TABLE.md:43,
+#      t68 evidence/t68-events/GAME-EVENT-SPEC.md:435, t70 evidence/t70-t72/
+#      DESIGN.md:1126), so a name here would be a fabrication and this gate reds.
+#
+# NEGATIVE CONTROLS (--mutation)
+#   m1 drop-text   the composed lines are emptied before publishing  -> A/B red
+#   m2 freeze      the change key is pinned, so later frames republish
+#                  nothing                                            -> E red
+#   m3 fake-name   the name is invented instead of '?'                -> G red
+#   (m1's and m3's recursive runs also re-check C': a broken readout must not
+#    change what a suppressed evidence frame looks like, and it must not be
+#    possible to satisfy the red by disabling the feature.)
+#   Each mutation is scored against the green forward run; the source is restored
+#   byte for byte (cmp) and the restored build must reproduce the forward reading.
+#
+# SINGLE INSTANCE
+#   Every product launch is --hidden-window --audio-disabled. This script does NOT
+#   take the host lock (a gate that did would deadlock inside a locked run); the
+#   caller holds it. --mutation rebuilds, so it needs the lock too.
+#
+# TRACKED EVIDENCE AND --mutation (D-65)
+#   The forward run writes readings.txt into $OUT, which defaults to the tracked
+#   evidence/t97-hud. That default is right for a green run (the file IS the record)
+#   and wrong for --mutation (the scoring happens on stdout; the file is a side
+#   effect that dirties the tree). So:
+#     --mutation, HUD_LIVE_CHECK_OUT unset   $OUT moves under $SCRATCH, printed
+#     --mutation, explicit evidence/ OUT     honoured, announced with a WARN
+#   --print-out resolves the paths, prints HUD-LIVE-OUT, and exits 0 without
+#   creating a directory, building, or launching anything -- so the rule above can
+#   be checked offline under the host lock rules.
+#
+# Usage: bash hud-live-check.sh [--mutation] [--sections=1,2] [--print-out] [--selftest-print-out]
+# Exit:  0 = every assertion held.
+
+set -uo pipefail
+cd "$(dirname "$0")"
+export LC_ALL=C
+
+EXE=native/build-nmake/tf2_demo_native.exe
+EXE_ABS="$(cygpath -m "$PWD/$EXE")"
+TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
+FONT=native/src/hud_font.cpp
+RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
+OUT="$(printenv HUD_LIVE_CHECK_OUT)"
+[ -z "$OUT" ] && OUT=evidence/t97-hud
+SCRATCH="$(printenv HUD_LIVE_CHECK_SCRATCH)"
+[ -z "$SCRATCH" ] && SCRATCH=".scratch/t97-hudlive/$RUN_TAG"
+# The product is handed every path through cygpath -m, and run_capture builds
+# them by joining $PWD. That join only means anything while SCRATCH is relative:
+# an absolute one used to produce "<repo>//d/_shared/..." and the product wrote
+# its frames into <repo>/d/_shared/... while the readings were looked for in the
+# directory this gate prints (measured 2026-11-09 21:57: a 29-file d/ tree
+# appeared in the worktree and fourteen readings came back "<none>"). Make
+# SCRATCH absolute once, here, so the path printed and the path written are one
+# string, and drop the $PWD join below.
+case "$SCRATCH" in
+  /*) ;;
+  *) SCRATCH="$PWD/$SCRATCH" ;;
+esac
+RUN_TIMEOUT=400
+# Tick 0 + a frozen camera: the paused frames are compared pixel by pixel, so a
+# moving camera would make every frame differ everywhere.
+CAMERA_ARGS="--debug-camera -3498.225 1021.852 1327.843 70.529329 134.999352"
+TICK=0
+# The advance capture is a later tick on purpose: on this recording tick 0 is the
+# pre-round freeze, where the round timer is paused at its full 10:00 and neither
+# score nor a live target exists yet, so a run that never leaves tick 0 cannot
+# show that the reading refreshes at all. 9000 is two and a quarter minutes into
+# the match; --playback-speed keeps that affordable (see section 5).
+ADVANCE_TICK=9000
+# 8x is a wall-clock device, not a tested property: the readout text is a function
+# of the demo tick, so what is judged below is identical at 1x and would only take
+# two and a half minutes longer to reach.
+ADVANCE_SPEED=8
+# The per-run tallies (calls/updates/skips/published) come from a `hud: live summary`
+# line written by std::atexit. That only exists if the product leaves main() through
+# a normal return, which is what main.cpp does (no ExitProcess/_exit/quick_exit in the
+# tree). The assertion below is the proof: if that line is missing the gate goes red
+# rather than explaining the absence away.
+AUDIO_DEVICE=6
+# The published region is derived from the longest line: x=24 y=24, cell 16px,
+# line height 22. The gate recomputes it from the published text rather than
+# trusting the number the product printed.
+REGION_X=24
+REGION_Y=24
+CELL=16
+LINE=22
+
+MUTATION=0
+MUTATION_CASE=""
+# --sections=1,2,5 limits the forward run: the mutation driver only needs the
+# sections whose assertions the injected defect is supposed to red.
+SECTIONS=""
+# D-65: --print-out resolves and prints where the readings would land, then exits
+# without touching the disk or launching the product. It exists so the path rules
+# below can be judged offline (no lock, no build, no window).
+PRINT_OUT=0
+# --selftest-print-out has no product path behind it; it exits before the input
+# checks below, which is why it can run under the lock-free audit rules.
+SELFTEST_PRINT_OUT=0
+for arg in "$@"; do
+  case "$arg" in
+    --mutation) MUTATION=1 ;;
+    --case=*) MUTATION_CASE="$(echo "$arg" | cut -d= -f2)" ;;
+    --sections=*) SECTIONS="$(echo "$arg" | cut -d= -f2)" ;;
+    --print-out) PRINT_OUT=1 ;;
+    --selftest-print-out) SELFTEST_PRINT_OUT=1 ;;
+    *) echo "unknown argument: $arg"; exit 2 ;;
+  esac
+done
+
+# ---------------------------------------------------------------------------
+# D-65: a --mutation run must not leave a tracked file modified.
+#
+# The mutation driver below already isolates the sub-runs it spawns, but the
+# FORWARD run that scores them is this same script, and its :850 writes
+# readings.txt into $OUT -- which defaults to evidence/t97-hud, a tracked
+# directory. So "bash hud-live-check.sh --mutation" used to dirty the tree with a
+# file nobody read (evidence/t97-hud/RUN21-MUTATION-PROVENANCE.md:112 records the
+# write; the run's own payload is not evidence of anything, the scoring is).
+#
+# Rule: --mutation without an explicit HUD_LIVE_CHECK_OUT keeps everything under
+# $SCRATCH (gitignored, .gitignore:35) and says so. An explicit OUT is honoured
+# even when it names evidence/ -- some audits do want the file -- but then it is
+# announced, because that run WILL dirty the tree and the caller should be the one
+# who decided that.
+#
+# --selftest-print-out is the control for exactly those three rules (D-101):
+# no product, no build, no lock, no window -- resolve_out_placement() only
+# computes strings, and the sentinel case proves the default path is not aimed
+# at tracked evidence. Last line: HUD-LIVE-REDIRECT-SELFTEST=PASS assertions=3.
+# Called once for the real run and once per case by --selftest-print-out, so the
+# control and the behaviour cannot drift apart.
+resolve_out_placement() {
+  OUT="$(printenv HUD_LIVE_CHECK_OUT)"
+  [ -z "$OUT" ] && OUT=evidence/t97-hud
+  OUT_EXPLICIT=0
+  if [ -n "$(printenv HUD_LIVE_CHECK_OUT)" ]; then OUT_EXPLICIT=1; fi
+  MUTATION_OUT_REDIRECTED=0
+  if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 0 ]; then
+    OUT="$SCRATCH/out"
+    MUTATION_OUT_REDIRECTED=1
+  fi
+  if [ "$MUTATION" -eq 1 ] && [ "$OUT_EXPLICIT" -eq 1 ]; then
+    case "$OUT" in
+      evidence/*|*/evidence/*)
+        echo "WARN: --mutation with an explicit evidence/ OUT writes tracked files: $OUT" ;;
+    esac
+  fi
+}
+
+print_out_token() {
+  echo "HUD-LIVE-OUT out=$OUT scratch=$SCRATCH mutation=$MUTATION out_explicit=$OUT_EXPLICIT mutation_out_redirected=$MUTATION_OUT_REDIRECTED"
+}
+
+# D-101 control: three named assertions, no product, no build, no lock.
+# S1 a plain run still lands in evidence/t97-hud; S2 a --mutation run with no
+# HUD_LIVE_CHECK_OUT moves under $SCRATCH and leaves a sentinel in the tracked
+# directory untouched; S3 an explicit evidence/ OUT is honoured and announced.
+run_print_out_selftest() {
+  local T checks=0 fails=0 c1 c2 c3 sentinel now
+  T=$(mktemp -d) || { echo "HUD-LIVE-REDIRECT-SELFTEST=FAIL tool-error=mktemp"; return 90; }
+  mkdir -p "$T/evidence/t97-hud"
+  printf 'sentinel
+' > "$T/evidence/t97-hud/readings.txt"
+  sentinel=$(sha256sum "$T/evidence/t97-hud/readings.txt" | cut -d' ' -f1)
+
+  c1=$( ( unset HUD_LIVE_CHECK_OUT; MUTATION=0; SCRATCH="$T/scratch1"; export SCRATCH; resolve_out_placement; print_out_token ) )
+  c2=$( ( unset HUD_LIVE_CHECK_OUT; MUTATION=1; SCRATCH="$T/scratch2"; export SCRATCH; resolve_out_placement; print_out_token ) )
+  c3=$( ( export HUD_LIVE_CHECK_OUT='evidence/t97-hud'; MUTATION=1; SCRATCH="$T/scratch3"; export SCRATCH; resolve_out_placement; print_out_token ) )
+
+  if printf '%s
+' "$c1" | grep -qaF 'out=evidence/t97-hud'      && printf '%s
+' "$c1" | grep -qaF 'mutation=0'      && printf '%s
+' "$c1" | grep -qaF 'mutation_out_redirected=0'; then
+    checks=$((checks + 1)); printf '  OK   S1 a run without --mutation still writes evidence/t97-hud
+'
+  else
+    checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL S1 default placement changed: %s
+' "$c1"
+  fi
+
+  now=$(sha256sum "$T/evidence/t97-hud/readings.txt" | cut -d' ' -f1)
+  if printf '%s
+' "$c2" | grep -qaF "out=$T/scratch2/out"      && printf '%s
+' "$c2" | grep -qaF 'mutation_out_redirected=1'      && ! printf '%s
+' "$c2" | grep -qaF 'out=evidence/'      && [ "$now" = "$sentinel" ]; then
+    checks=$((checks + 1)); printf '  OK   S2 --mutation without HUD_LIVE_CHECK_OUT writes under .scratch, not evidence/
+'
+  else
+    checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL S2 mutation placement leaked into evidence: %s
+' "$c2"
+  fi
+
+  if printf '%s
+' "$c3" | grep -qaF 'WARN: --mutation with an explicit evidence/ OUT writes tracked files: evidence/t97-hud'      && printf '%s
+' "$c3" | grep -qaF 'out=evidence/t97-hud'      && printf '%s
+' "$c3" | grep -qaF 'out_explicit=1'      && printf '%s
+' "$c3" | grep -qaF 'mutation_out_redirected=0'; then
+    checks=$((checks + 1)); printf '  OK   S3 an explicit evidence/ OUT is honoured and announced
+'
+  else
+    checks=$((checks + 1)); fails=$((fails + 1)); printf '  FAIL S3 explicit evidence/ OUT not honoured or not announced: %s
+' "$c3"
+  fi
+
+  rm -rf "$T"
+  if [ "$fails" -eq 0 ]; then
+    printf 'HUD-LIVE-REDIRECT-SELFTEST=PASS assertions=%d
+' "$checks"
+    return 0
+  fi
+  printf 'HUD-LIVE-REDIRECT-SELFTEST=FAIL assertions=%d failures=%d
+' "$checks" "$fails"
+  return 1
+}
+
+resolve_out_placement
+
+if [ "$SELFTEST_PRINT_OUT" -eq 1 ]; then
+  run_print_out_selftest
+  exit $?
+fi
+
+if [ "$PRINT_OUT" -eq 1 ]; then
+  print_out_token
+  exit 0
+fi
+
+fail=0
+for path in "$EXE_ABS" "$DEMO" "$TF" "$FONT"; do
+  [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
+done
+
+PY="C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe"
+[ -x "$PY" ] || PY="C:/Users/Administrator/AppData/Local/Programs/Python/Python310/python.exe"
+[ -x "$PY" ] || { echo "FATAL: no python interpreter found"; exit 1; }
+for tool in cygpath timeout cmp; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "FATAL: missing tool: $tool"; exit 1; }
+done
+
+mkdir -p "$OUT" "$SCRATCH"
+
+val() { if [ -z "$1" ]; then echo "<none>"; else echo "$1"; fi; }
+slen() { printf '%s' "$1" | wc -c | tr -d ' '; }
+assert_eq() {
+  if [ "$(val "$2")" = "$3" ]; then
+    echo "  OK   $1 = $3"
+  else
+    echo "  FAIL $1 = $(val "$2"), expected $3"; fail=1
+  fi
+}
+assert_ge() {
+  if [ -n "$2" ] && [ "$2" -ge "$3" ] 2>/dev/null; then
+    echo "  OK   $1 = $2 (>= $3)"
+  else
+    echo "  FAIL $1 = $(val "$2"), expected >= $3"; fail=1
+  fi
+}
+assert_le() {
+  if [ -n "$2" ] && [ "$2" -le "$3" ] 2>/dev/null; then
+    echo "  OK   $1 = $2 (<= $3)"
+  else
+    echo "  FAIL $1 = $(val "$2"), expected <= $3"; fail=1
+  fi
+}
+assert_ne() {
+  if [ -n "$2" ] && [ "$2" != "$3" ]; then
+    echo "  OK   $1 = $2 ( != $3 )"
+  else
+    echo "  FAIL $1 = $(val "$2"), expected something else than $3"; fail=1
+  fi
+}
+
+want() { # want <n>: is section n in the requested set (default: all)?
+  [ -z "$SECTIONS" ] && return 0
+  echo ",$SECTIONS," | grep -q ",$1,"
+}
+
+run_capture() { # run_capture <name> [extra args...]
+  local name="$1"; shift
+  local trace="$SCRATCH/$name.trace"
+  local bmp="$SCRATCH/$name.bmp"
+  local csv="$SCRATCH/$name.csv"
+  local log="$SCRATCH/$name.log"
+  local settings="$SCRATCH/$name.settings.ini"
+  local uisettings="$SCRATCH/$name.ui.ini"
+  rm -f "$trace" "$bmp" "$csv" "$log" "$settings" "$uisettings"
+  # --hud-live by default: sections 1-3 and 5-7 exist to prove the readout on
+  # purpose. NO_LIVE=1 is only for the two runs that must NOT have it -- --hud-off
+  # and the suppression control, which is the same command minus this flag.
+  local liveArgs="--hud-live"
+  if [ "${NO_LIVE:-0}" = "1" ]; then liveArgs=""; fi
+  TF2_NATIVE_TRACE="$(cygpath -m "$trace")" timeout "$RUN_TIMEOUT" "$EXE" \
+    --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
+    --settings-file "$(cygpath -m "$settings")" \
+    --ui-settings-file "$(cygpath -m "$uisettings")" \
+    --demo "$DEMO" --capture-frame "$(cygpath -m "$bmp")" \
+    --metrics-file "$(cygpath -m "$csv")" \
+    $liveArgs $CAMERA_ARGS "$@" > "$log" 2>&1
+  printf -v "RC_$name" '%s' "$?"
+}
+
+# --- reading helpers -------------------------------------------------------
+capture_size() { # capture_size <trace>: the WxH the product says it captured
+  grep -a 'capture: frame width=' "$1" | tail -1     | grep -oE 'width=[0-9]+ height=[0-9]+' | sed 's/width=//; s/ height=/x/'
+}
+
+cmp_frames() { # cmp_frames <a> <b>: identical | different | READ-FAILED
+  # cmp -s exits 2 on a read error, and the shell idiom "cmp -s a b && .. || .."
+  # files that under "different" (or under "identical", depending on which side
+  # of the || it sits on). A missing bitmap would then pass a comparison about
+  # pixels. Only 0 and 1 mean anything here; everything else is a hard failure.
+  if [ ! -r "$1" ] || [ ! -r "$2" ] || [ ! -s "$1" ] || [ ! -s "$2" ]; then
+    echo READ-FAILED; return
+  fi
+  cmp -s "$1" "$2"
+  case $? in
+    0) echo identical ;;
+    1) echo different ;;
+    *) echo READ-FAILED ;;
+  esac
+}
+
+live_publish() { # every publish line; the exit summary is a different record
+  grep -a 'hud: live ' "$1" | grep -av 'hud: live summary '
+}
+live_field() { # live_field <trace> <name>: <name> on the LAST publish line
+  live_publish "$1" | tail -1 | grep -oE "[ ]$2=[A-Za-z0-9._-]+" | head -1 | cut -d= -f2
+}
+live_text() { # live_text <trace> <n>: the quoted text of line n on the last publish line
+  live_publish "$1" | tail -1 | grep -oE "text$2=\"[^\"]*\"" | sed 's/^text[0-9]="//; s/"$//'
+}
+live_region() {
+  live_publish "$1" | tail -1 | grep -oE 'region=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' | tail -1 | sed 's/region=//'
+}
+live_count() {
+  live_publish "$1" | wc -l | tr -d ' '
+}
+# T126: the HUD names the entity the DIRECTOR watched this frame, not the view
+# entity the server set at load. The reading is change-driven
+# (main_hud.cpp:894, 'hud: name nameEntity=%d ... relay=%d'), so its line count
+# is not a frame count; what can be checked per line is the pairing with the same
+# frame's spectate row -- main.cpp prints 'spectate: tick=... target=N' (the
+# director's traceFields(), spectate_target.cpp:355-359) before it calls
+# hudApplyLive (main.cpp:12773 then :12800). Neither line starts at column 0:
+# traceFmt writes every line as "%.1f %s" (main_trace.cpp:40), so nothing below
+# anchors on '^'.
+name_audit() { # name_audit <trace>: sets the NAMED_* counters
+  local trace="$1" readings kv
+  NAMED_LINES=0 NAMED_PAIRED=0 NAMED_RELAY_FRAMES=0 NAMED_ORPHAN=0
+  NAMED_BAD_FOLLOW=0 NAMED_BAD_SELF=0 NAMED_BAD_KNOWN=0 NAMED_BAD_FALLBACK=0
+  NAMED_FALLBACK_LINES=0
+  [ -s "$trace" ] || return 1
+  readings=$(awk '
+    function val(line, key,   s) {
+      if (!match(line, " " key "=-?[0-9]+")) return ""
+      s = substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 2)
+      return s
+    }
+    /spectate: tick=/ {
+      t = val($0, "target")
+      if (t != "") { target = t; have_target = 1 }
+      next
+    }
+    /hud: name nameEntity=/ {
+      lines++
+      ne = val($0, "nameEntity"); nf = val($0, "nameFallback")
+      rl = val($0, "relay");      nk = val($0, "nameKnown")
+      if (!have_target) { orphan++; next }
+      paired++
+      if (nf + 0 == 0) {
+        relay_frames++
+        if (ne != target || rl != target) bad_follow++
+        if (ne != rl) bad_self++
+        if (nk != "1") bad_known++
+      } else {
+        fallback_lines++
+        # main_hud.cpp:863-865 prints relay=-1 exactly when the relay could not be
+        # used, so a fallback frame that still carries a relay entity is a rescue
+        # that hides a decision, not a reading.
+        if (rl != "-1") bad_fallback++
+      }
+      next
+    }
+    END {
+      printf "NAMED_LINES=%d NAMED_PAIRED=%d NAMED_RELAY_FRAMES=%d NAMED_ORPHAN=%d NAMED_BAD_FOLLOW=%d NAMED_BAD_SELF=%d NAMED_BAD_KNOWN=%d NAMED_BAD_FALLBACK=%d NAMED_FALLBACK_LINES=%d\n", lines, paired, relay_frames, orphan, bad_follow, bad_self, bad_known, bad_fallback, fallback_lines
+    }
+  ' "$trace") || return 1
+  for kv in $readings; do
+    case "$kv" in
+      NAMED_*=[0-9]*) eval "$kv" ;;
+      *) echo "NAME-AUDIT=FAIL malformed reading: $kv" >&2; return 1 ;;
+    esac
+  done
+  return 0
+}
+
+# The exit-time tally. The publish line's skips= is a snapshot taken when the text
+# changed, so a run that publishes once reads skips=0 however many frames it
+# skipped -- reading the skip half of the rule from there measures nothing. This
+# line is written from std::atexit (main_hud.cpp: hudLiveSummaryAtExit) and is the
+# only record of what the run did on every frame.
+live_summary() {
+  grep -a 'hud: live summary ' "$1" | tail -1
+}
+live_summary_field() { # live_summary_field <trace> <name>
+  live_summary "$1" | grep -oE "[ ]$2=[A-Za-z0-9._-]+" | head -1 | cut -d= -f2
+}
+hudtext_field() {
+  grep -a 'hudtext:' "$1" | tail -1 | grep -oE "$2=[-0-9]+" | head -1 | cut -d= -f2
+}
+hud_draw_field() {
+  grep -a 'hud: draw' "$1" | tail -1 | grep -oE "$2=[-0-9]+" | head -1 | cut -d= -f2
+}
+clock_seconds() { # clock_seconds "TIME M:SS..." -> seconds, empty when not a clock
+  echo "$1" | grep -oE '^TIME [0-9]+:[0-9][0-9]' | head -1 | sed 's/^TIME //' \
+    | awk -F: '{ if (NF==2) print $1*60+$2 }'
+}
+
+# verify_live_pixels <off.bmp> <on.bmp> <font.cpp> <x> <y> <text1> <text2> <text3>
+#
+# Exits 0 only when the drawn text is exactly the font table's pixels at the
+# published origin: lit pixels white, unlit pixels equal to the HUD-off frame,
+# nothing outside the region changed. It reads kFont8x8 out of hud_font.cpp so the
+# check is against the same bytes the binary compiled.
+verify_live_pixels() {
+  "$PY" - "$@" <<'PYEOF'
+import struct, sys, re
+
+off_path, on_path, font_path = sys.argv[1], sys.argv[2], sys.argv[3]
+ox, oy = int(sys.argv[4]), int(sys.argv[5])
+lines = sys.argv[6:9]
+CELL, LH, SCALE = 16, 22, 2
+
+def read_bmp(path):
+    data = open(path, 'rb').read()
+    if data[:2] != b'BM':
+        raise SystemExit('not a BMP: ' + path)
+    off = struct.unpack_from('<I', data, 10)[0]
+    w, h = struct.unpack_from('<ii', data, 18)
+    bpp = struct.unpack_from('<H', data, 28)[0]
+    if bpp != 24:
+        raise SystemExit('expected 24bpp: ' + path)
+    stride = (w * 3 + 3) & ~3
+    rows = []
+    for y in range(h):
+        base = off + (h - 1 - y) * stride
+        rows.append(data[base:base + w * 3])
+    return rows, w, h
+
+def rgb(rows, x, y):
+    p = rows[y][x * 3:x * 3 + 3]
+    return (p[2], p[1], p[0])
+
+on, w, h = read_bmp(on_path)
+off, w2, h2 = read_bmp(off_path)
+if (w, h) != (w2, h2):
+    raise SystemExit('frame size differs: %dx%d vs %dx%d' % (w, h, w2, h2))
+
+src = open(font_path, encoding='utf-8').read()
+m = re.search(r'kFont8x8[^\n]*=\s*\{(.*?)\n\};', src, re.S)
+if not m:
+    raise SystemExit('font table not found in ' + font_path)
+values = [int(v, 16) for v in re.findall(r'0x([0-9A-Fa-f]{2})', m.group(1))]
+if len(values) != 95 * 8:
+    raise SystemExit('font table has %d rows, expected 760' % len(values))
+glyphs = [values[i * 8:(i + 1) * 8] for i in range(95)]
+
+rx, ry = ox, oy
+rw = max(len(l) for l in lines) * CELL if lines else 0
+rh = (len(lines) - 1) * LH + 8 * SCALE
+print('frame=%dx%d' % (w, h))
+print('region=%d,%d,%d,%d' % (rx, ry, rw, rh))
+
+outside = inside = 0
+minx, miny, maxx, maxy = w, h, -1, -1
+for y in range(h):
+    a, b = on[y], off[y]
+    for x in range(w):
+        if a[x * 3:x * 3 + 3] != b[x * 3:x * 3 + 3]:
+            if rx <= x < rx + rw and ry <= y < ry + rh:
+                inside += 1
+            else:
+                outside += 1
+            if x < minx: minx = x
+            if x > maxx: maxx = x
+            if y < miny: miny = y
+            if y > maxy: maxy = y
+print('outsideDiff=%d' % outside)
+print('insideDiff=%d' % inside)
+print('diffBBox=%d,%d,%d,%d' % (minx, miny, maxx, maxy))
+
+bad = 0
+cells = 0
+for li, line in enumerate(lines):
+    gy = ry + li * LH
+    for ci, ch in enumerate(line):
+        code = ord(ch)
+        if code < 0x20 or code > 0x7e:
+            bad += 1
+            continue
+        rows8 = glyphs[code - 0x20]
+        gx = rx + ci * CELL
+        cells += 1
+        for r in range(8):
+            for c in range(8):
+                bit = (rows8[r] >> c) & 1
+                for dy in range(SCALE):
+                    for dx in range(SCALE):
+                        x, y = gx + c * SCALE + dx, gy + r * SCALE + dy
+                        if bit:
+                            if rgb(on, x, y) != (255, 255, 255):
+                                bad += 1
+                        else:
+                            if rgb(on, x, y) != rgb(off, x, y):
+                                bad += 1
+print('glyphCells=%d' % cells)
+print('glyphBad=%d' % bad)
+
+ok = outside == 0 and inside > 0 and bad == 0
+print('verifyOk=%d' % (1 if ok else 0))
+sys.exit(0 if ok else 1)
+PYEOF
+}
+
+# Readings that later sections publish; declared empty so --sections=1,2 stays
+# valid under `set -u` and the evidence file prints <none> instead of crashing.
+A_T1=""; A_SRC=""; A_UPDATES=""; A_SKIPS=""; A_LINES=""
+R_T1=""; R_T3=""; R_REGION=""; LIVE2_T1=""
+L_MODE=""; SUP_ENABLED=""; SUP_REASON=""; SUP_LINE=""; SUP_FRAME=""
+# Section 8's readings. Empty so --sections=1,2 stays valid under set -u and the
+# evidence block prints <none> instead of crashing.
+N_NAME=""; N_REASON=""; N_TICK=""; N_BASE=""; N_ENTITY=""; N_SLOT=""; N_RAW=""
+# A negative control that cannot run must be counted, not silently skipped: the
+# evidence block prints this number, so "0 skipped" and "1 skipped" are different
+# claims and neither of them is dressed up as a green.
+SKIPPED_CONTROLS=0
+
+echo "=== T97 HUD live-reading gate: forward ==="
+echo "  exe: $(stat -c '%y %s bytes' "$EXE" 2>/dev/null || echo '<missing>')"
+echo "  out: $OUT"
+if [ "$MUTATION_OUT_REDIRECTED" -eq 1 ]; then
+  echo "  out redirected: --mutation without HUD_LIVE_CHECK_OUT, so the readings stay out of tracked evidence/ (D-65)"
+fi
+echo "  scratch: $SCRATCH"
+echo
+
+# ---------------------------------------------------------------------------
+echo "=== 1 the live reading is published ==="
+run_capture live --start-paused --capture-tick "$TICK"
+NO_LIVE=1 run_capture off --start-paused --capture-tick "$TICK" --hud-off
+assert_eq "live exit code" "$RC_live" "0"
+assert_eq "hud-off exit code" "$RC_off" "0"
+
+LIVE_N=$(live_count "$SCRATCH/live.trace")
+L_ENABLED=$(live_field "$SCRATCH/live.trace" enabled)
+L_MODE=$(live_field "$SCRATCH/live.trace" mode)
+assert_eq "a --hud-live run declares the forced mode" "$L_MODE" "forced"
+L_T1=$(live_text "$SCRATCH/live.trace" 1)
+L_T2=$(live_text "$SCRATCH/live.trace" 2)
+L_T3=$(live_text "$SCRATCH/live.trace" 3)
+L_SRC=$(live_field "$SCRATCH/live.trace" source)
+L_GLYPHS=$(live_field "$SCRATCH/live.trace" glyphs)
+L_REGION=$(live_region "$SCRATCH/live.trace")
+L_NAME=$(live_field "$SCRATCH/live.trace" name)
+L_REASON=$(live_field "$SCRATCH/live.trace" nameReason)
+L_PUBREASON=$(live_field "$SCRATCH/live.trace" reason)
+echo "  reading: text1=\"$(val "$L_T1")\" text2=\"$(val "$L_T2")\" text3=\"$(val "$L_T3")\" source=$(val "$L_SRC")"
+assert_ge "an ordinary run publishes at least one live reading" "$LIVE_N" "1"
+assert_eq "the live reading is enabled" "$L_ENABLED" "1"
+# G: THE NAME IS THE DEMO'S, OR IT IS A QUESTION MARK THAT SAYS WHY. It is never
+# invented: nameReason names the path that produced it, section 8 re-reads the
+# same slot out of the decoder probe and compares the bytes, and a fallback path
+# that cannot be reached with this fixture is counted rather than assumed.
+assert_ne "the reading publishes a name, not the placeholder" "$L_NAME" "unavailable"
+assert_eq "the reading says why the name is known" "$L_REASON" "ok"
+# Why the line exists, as opposed to why the name is a question mark: the publish
+# line exists because the reading changed, and it says so in its own field.
+assert_eq "every publish says why it was published" "$L_PUBREASON" "text-changed"
+echo "$L_T3" | grep -qE '^NAME [^?][^ ]*( [^ ]+)*  HP ' \
+  && echo "  OK   text3 prints the demo's name rather than the placeholder" \
+  || { echo "  FAIL text3 does not print the demo's name: \"$(val "$L_T3")\""; fail=1; }
+# The clock is either a real M:SS or an honest '?': never a blank or a zero stand-in.
+assert_ge "the clock line is not empty" "$(slen "$L_T1")" "6"
+echo "$L_T1" | grep -qE '^TIME ([0-9]+:[0-9][0-9]|\?)( PAUSED)?$' \
+  && echo "  OK   text1 has the published clock shape" \
+  || { echo "  FAIL text1 has no clock shape: \"$(val "$L_T1")\""; fail=1; }
+echo "$L_T2" | grep -qE '^RED ([0-9]+|\?)  BLU ([0-9]+|\?)$' \
+  && echo "  OK   text2 has the published score shape" \
+  || { echo "  FAIL text2 has no score shape: \"$(val "$L_T2")\""; fail=1; }
+echo "$L_T3" | grep -qE '^NAME (\?|[^ ]+( [^ ]+)*)  HP ([0-9]+|\?)  [A-Z?]*  [A-Z?]*$' \
+  && echo "  OK   text3 has the published target shape" \
+  || { echo "  FAIL text3 has no target shape: \"$(val "$L_T3")\""; fail=1; }
+# T126: THE NAME FOLLOWS THE CAMERA. The old reading printed the view entity the
+# server set once at load (svc_SetView), so the name could belong to a player the
+# director had already stopped watching while every shape assertion above stayed
+# green. These are the semantic readings that defect cannot satisfy: each
+# 'hud: name' line is paired with the spectate row of the same frame, and when the
+# relay was usable (nameFallback=0, main_hud.cpp:863-865) the named entity must be
+# that frame's target and the relay's entity, resolved rather than fallen back.
+NAMED_FALLBACK_CALLS=$(live_summary_field "$SCRATCH/live.trace" nameFallbackCalls)
+if name_audit "$SCRATCH/live.trace"; then
+  echo "  reading: name lines=$NAMED_LINES relayFrames=$NAMED_RELAY_FRAMES fallbackLines=$NAMED_FALLBACK_LINES badFollow=$NAMED_BAD_FOLLOW badSelf=$NAMED_BAD_SELF badKnown=$NAMED_BAD_KNOWN badFallback=$NAMED_BAD_FALLBACK fallbackCalls=$NAMED_FALLBACK_CALLS"
+  assert_ge "the reading names at least one entity" "$NAMED_LINES" 1
+  assert_eq "every hud: name line has the frame's spectate target to pair with" "$NAMED_ORPHAN" 0
+  # A run where every line fell back would satisfy the three assertions below for
+  # the trivial reason that none of them applied -- the vacuous-green shape D-62
+  # warns about. At least one frame must have had a usable relay decision.
+  assert_ge "at least one name line came from a usable relay decision" "$NAMED_RELAY_FRAMES" 1
+  assert_eq "the named entity is the frame's spectate target" "$NAMED_BAD_FOLLOW" 0
+  assert_eq "the named entity is the relay's entity" "$NAMED_BAD_SELF" 0
+  assert_eq "a name resolved through the relay is not a fallback" "$NAMED_BAD_KNOWN" 0
+  assert_eq "a fallback is a missing relay, not a silent rescue" "$NAMED_BAD_FALLBACK" 0
+  # A8 THE AGGREGATE. The audit above only sees fallbacks that reached a printed
+  # name line; the exit tally (main_hud.cpp:498-506, hudLiveSummaryAtExit) also
+  # counts fallbacks on frames whose name did not change and therefore printed
+  # nothing. This demo was measured at nameFallbackCalls=0 on the v4 build
+  # (2026-11-13, snakewater tick 0: `name lines=1 relayFrames=1 fallbackCalls=0`),
+  # so 0 is an observed value, not a guess: if a future change starts falling back,
+  # it shows up here by name instead of only changing which entity the name belongs
+  # to. A run whose tally line is missing reads empty and goes red as well.
+  assert_eq "the exit tally records no name fallback on this demo (measured 0)" "$NAMED_FALLBACK_CALLS" 0
+else
+  echo "  FAIL the T126 name audit could not read $SCRATCH/live.trace"; fail=1
+fi
+
+assert_eq "the clock names its source" "$([ -n "$L_SRC" ] && echo yes)" "yes"
+# glyphs is a reading, so it must agree with the text it claims to publish.
+EXPECT_GLYPHS=$(( $(slen "$L_T1") + $(slen "$L_T2") + $(slen "$L_T3") ))
+assert_eq "the published glyph count matches the published text" "$L_GLYPHS" "$EXPECT_GLYPHS"
+EXPECT_W=$(slen "$L_T1")
+[ "$(slen "$L_T2")" -gt "$EXPECT_W" ] && EXPECT_W=$(slen "$L_T2")
+[ "$(slen "$L_T3")" -gt "$EXPECT_W" ] && EXPECT_W=$(slen "$L_T3")
+assert_eq "the published region is the panel anchored at 24,24" "$L_REGION" "24,24,$((EXPECT_W * CELL)),60"
+
+# ---------------------------------------------------------------------------
+echo "=== 2 the product draws exactly the text it published ==="
+D_ORDINAL=$(hud_draw_field "$SCRATCH/live.trace" ordinal)
+# NB: hud: draw drawn= counts RECT primitives only (native_renderer_frame.cpp:1256),
+# so a readout made purely of text must be read from hudtext's drawn=, which
+# counts every primitive the pass actually covered. Using the rect counter here
+# would have asserted "0 primitives were drawn" about a frame full of glyphs.
+T_DRAWN_PRIM=$(hudtext_field "$SCRATCH/live.trace" drawn)
+T_PRIM=$(hudtext_field "$SCRATCH/live.trace" primitives)
+T_QUADS=$(hudtext_field "$SCRATCH/live.trace" textQuads)
+T_GLYPHS=$(hudtext_field "$SCRATCH/live.trace" glyphs)
+T_UNMAPPED=$(hudtext_field "$SCRATCH/live.trace" unmapped)
+assert_eq "the live frame draws every primitive it published" "$T_DRAWN_PRIM" "$T_PRIM"
+assert_ge "the HUD pass runs after the world" "$D_ORDINAL" "1"
+assert_ge "the text primitives exist" "$T_PRIM" "1"
+# hudTextQuads_ counts TEXT PRIMITIVES that drew a glyph, not glyphs
+# (native_renderer_frame.cpp:1237-1238 increments it once per primitive, inside
+# the text branch; the per-glyph counter is hudGlyphCount_). The readout publishes
+# three lines, so three text primitives -- and in a run with no imported layout the
+# pass holds nothing else, which is why primitives must equal textQuads here.
+assert_eq "the readout publishes three text primitives" "$T_QUADS" "3"
+assert_eq "every drawn primitive is a text primitive" "$T_PRIM" "$T_QUADS"
+assert_eq "the hudtext glyph count matches the publish line" "$T_GLYPHS" "$EXPECT_GLYPHS"
+assert_eq "every published codepoint has a glyph" "$T_UNMAPPED" "0"
+
+# ---------------------------------------------------------------------------
+echo "=== 3 the captured pixels are the published text and nothing else ==="
+VERIFY_OUT=$(verify_live_pixels "$SCRATCH/off.bmp" "$SCRATCH/live.bmp" "$FONT" \
+  "$REGION_X" "$REGION_Y" "$L_T1" "$L_T2" "$L_T3" 2>&1)
+VERIFY_RC=$?
+echo "$VERIFY_OUT" | sed 's/^/  | /'
+V_OUTSIDE=$(echo "$VERIFY_OUT" | grep -oE 'outsideDiff=[0-9]+' | cut -d= -f2)
+V_INSIDE=$(echo "$VERIFY_OUT" | grep -oE 'insideDiff=[0-9]+' | cut -d= -f2)
+V_BAD=$(echo "$VERIFY_OUT" | grep -oE 'glyphBad=[0-9]+' | cut -d= -f2)
+V_OK=$(echo "$VERIFY_OUT" | grep -oE 'verifyOk=[0-9]+' | cut -d= -f2)
+assert_eq "the pixel verifier exits clean" "$VERIFY_RC" "0"
+assert_eq "nothing is painted outside the published region" "$V_OUTSIDE" "0"
+assert_ge "the published text paints pixels" "$V_INSIDE" "100"
+assert_eq "every lit and unlit pixel matches the font table" "$V_BAD" "0"
+assert_eq "the pixel verifier's verdict" "$V_OK" "1"
+
+# The verifier's own negative controls. A pixel check that has only ever been run
+# on the frame it was written for proves nothing: it could be printing a constant.
+# Two ways to be wrong, one for each half of the rule.
+# (a) The same expectation against a frame with no text: the inside-diff must be 0
+#     and the verdict red, because "the text paints pixels" is a claim about pixels.
+NEG1_OUT=$(verify_live_pixels "$SCRATCH/off.bmp" "$SCRATCH/off.bmp" "$FONT" \
+  "$REGION_X" "$REGION_Y" "$L_T1" "$L_T2" "$L_T3" 2>&1)
+NEG1_RC=$?
+NEG1_INSIDE=$(echo "$NEG1_OUT" | grep -oE 'insideDiff=[0-9]+' | cut -d= -f2)
+NEG1_OK=$(echo "$NEG1_OUT" | grep -oE 'verifyOk=[0-9]+' | cut -d= -f2)
+echo "  negative control (a): rc=$NEG1_RC insideDiff=$(val "$NEG1_INSIDE") verifyOk=$(val "$NEG1_OK")"
+assert_ne "the verifier rejects a frame that paints no text" "$NEG1_RC" "0"
+assert_eq "the verifier still counts zero text pixels on that frame" "$NEG1_INSIDE" "0"
+
+# (b) The real frame against a deliberately wrong expectation: every lit pixel the
+#     wrong text claims must be a mismatch, so glyphBad is non-zero and red.
+NEG2_OUT=$(verify_live_pixels "$SCRATCH/off.bmp" "$SCRATCH/live.bmp" "$FONT" \
+  "$REGION_X" "$REGION_Y" "TIME 99:99" "$L_T2" "$L_T3" 2>&1)
+NEG2_RC=$?
+NEG2_BAD=$(echo "$NEG2_OUT" | grep -oE 'glyphBad=[0-9]+' | cut -d= -f2)
+NEG2_OUTSIDE=$(echo "$NEG2_OUT" | grep -oE 'outsideDiff=[0-9]+' | cut -d= -f2)
+# Printed as glyphBad/outsideDiff on purpose: a red that came from pixels OUTSIDE the
+# published region would be a region defect, not a text defect, and the two must not
+# be told apart by reading the source. glyphBad>=1 with outsideDiff=0 is the shape
+# that says the refusal is about glyph pixels.
+echo "  negative control (b): rc=$NEG2_RC glyphBad=$(val "$NEG2_BAD") outsideDiff=$(val "$NEG2_OUTSIDE")"
+assert_ne "the verifier rejects a frame that disagrees with its expectation" "$NEG2_RC" "0"
+assert_ge "the disagreement is counted as mismatched glyph pixels" "$NEG2_BAD" "1"
+assert_eq "the disagreement stays inside the published region" "$NEG2_OUTSIDE" "0"
+
+# ---------------------------------------------------------------------------
+echo "=== 4 --hud-off removes the feature and nothing else ==="
+OFF_ENABLED_LINES=$(grep -ac 'hud: live .* enabled=1' "$SCRATCH/off.trace")
+OFF_REASON=$(live_field "$SCRATCH/off.trace" reason)
+OFF_QUADS=$(hudtext_field "$SCRATCH/off.trace" textQuads)
+OFF_PRIM=$(hudtext_field "$SCRATCH/off.trace" primitives)
+OFF_DRAWN=$(hudtext_field "$SCRATCH/off.trace" drawn)
+OFF_RECTS=$(hud_draw_field "$SCRATCH/off.trace" drawn)
+assert_eq "a --hud-off run publishes no enabled reading" "$OFF_ENABLED_LINES" "0"
+assert_eq "a --hud-off run says why it is off" "$OFF_REASON" "cli-hud-off"
+assert_eq "a --hud-off run draws no text quads" "$OFF_QUADS" "0"
+assert_eq "a --hud-off run draws no HUD primitives" "$OFF_PRIM" "0"
+assert_eq "a --hud-off run draws no primitives at all" "$OFF_DRAWN" "0"
+assert_eq "a --hud-off run draws no layout rects" "$OFF_RECTS" "0"
+# The two frames must differ (the feature is visible) -- a --hud-off frame that
+# happens to equal the live frame would mean nothing was drawn at all.
+OFF_VS_LIVE=$(cmp_frames "$SCRATCH/off.bmp" "$SCRATCH/live.bmp")
+assert_eq "the hud-off frame is readable and differs from the live frame" "$OFF_VS_LIVE" "different"
+
+# The suppression control (lead ruling 2026-11-09). The SAME command that produced
+# the live frame, minus --hud-live, must say reason=evidence-run and leave a bitmap
+# byte-identical to the --hud-off one. This is the only evidence in this tree that
+# the default-by-default readout cannot deform an evidence frame, and it is a frame
+# comparison rather than an argument about intent.
+NO_LIVE=1 run_capture suppress --start-paused --capture-tick "$TICK"
+assert_eq "suppressed run exit code" "$RC_suppress" "0"
+SUP_ENABLED=$(grep -ac 'hud: live .* enabled=1' "$SCRATCH/suppress.trace")
+SUP_REASON=$(live_field "$SCRATCH/suppress.trace" reason)
+SUP_LINE=$(grep -ac 'hud: live enabled=0 reason=evidence-run drawn=0' "$SCRATCH/suppress.trace")
+SUP_FRAME=$(cmp_frames "$SCRATCH/suppress.bmp" "$SCRATCH/off.bmp")
+assert_eq "an evidence run without --hud-live publishes no enabled reading" "$SUP_ENABLED" "0"
+assert_eq "an evidence run says why the readout is off" "$SUP_REASON" "evidence-run"
+assert_eq "the suppression is announced once, with a drawn=0" "$SUP_LINE" "1"
+assert_eq "a suppressed evidence frame is byte-identical to a --hud-off frame" "$SUP_FRAME" "identical"
+
+# ---------------------------------------------------------------------------
+if want 5; then
+echo "=== 5 the reading refreshes as the demo advances, and only then ==="
+# --playback-speed is what makes this section affordable and observable at once.
+# The recording plays at 66.67 ticks/s, so tick 9000 at 1x is two and a half
+# minutes of wall clock; at 8x it is seventeen seconds. Nothing about the reading
+# depends on the wall clock: the text is a function of the demo tick, and the
+# captured frame is still the first draw with tick >= the requested one.
+run_capture advance --capture-tick "$ADVANCE_TICK" --playback-speed "$ADVANCE_SPEED"
+assert_eq "advancing run exit code" "$RC_advance" "0"
+A_T1=$(live_text "$SCRATCH/advance.trace" 1)
+A_SRC=$(live_field "$SCRATCH/advance.trace" source)
+A_LINES=$(live_count "$SCRATCH/advance.trace")
+# The tally comes from the exit summary, never from the publish line: that line is
+# a snapshot written when the text changed, so its skips= is not a run total.
+A_CALLS=$(live_summary_field "$SCRATCH/advance.trace" calls)
+A_UPDATES=$(live_summary_field "$SCRATCH/advance.trace" updates)
+A_SKIPS=$(live_summary_field "$SCRATCH/advance.trace" skips)
+A_PUBLISHED=$(live_summary_field "$SCRATCH/advance.trace" published)
+A_SUMMARY_LINES=$(live_summary "$SCRATCH/advance.trace" | wc -l | tr -d ' ')
+A_REASONED=$(live_publish "$SCRATCH/advance.trace" | grep -ac ' reason=text-changed ')
+P_CLOCK=$(clock_seconds "$L_T1")
+A_CLOCK=$(clock_seconds "$A_T1")
+echo "  clock: paused=$(val "$L_T1") advancing=$(val "$A_T1")"
+assert_ne "the clock reading changes when the demo advances" "$A_T1" "$L_T1"
+if [ -n "$P_CLOCK" ] && [ -n "$A_CLOCK" ]; then
+  if [ "$A_CLOCK" -lt "$P_CLOCK" ]; then
+    echo "  OK   the advancing clock is smaller ($A_CLOCK < $P_CLOCK)"
+  else
+    echo "  FAIL the advancing clock did not count down ($A_CLOCK vs $P_CLOCK)"; fail=1
+  fi
+else
+  echo "  (clock is '?' on one side, the countdown check does not apply)"
+fi
+# The run published a tally at exit, and that tally is internally consistent:
+# every call either changed the text or skipped, and every change left one line.
+# Five structural invariants and nothing else. No ratio, no cap, no count that
+# depends on the frame rate or on how often this recording changes its timer:
+# those numbers move with the machine and would one day red a correct build.
+assert_eq "the advancing run published an exit tally" "$A_SUMMARY_LINES" "1"
+assert_ge "the tally counts every frame the readout ran on" "$A_CALLS" "100"
+assert_eq "every call is either an update or a skip" "$A_CALLS" "$(( ${A_UPDATES:-0} + ${A_SKIPS:-0} ))"
+assert_eq "every rebuilt line is a published line" "$A_LINES" "$A_PUBLISHED"
+assert_eq "each published line is one update" "$A_PUBLISHED" "$A_UPDATES"
+assert_eq "every published line says why it was published" "$A_REASONED" "$A_PUBLISHED"
+assert_ge "the text is rebuilt when a reading changes" "$A_UPDATES" "2"
+assert_ge "unchanged frames are skipped instead of re-uploaded" "$A_SKIPS" "1"
+# The first and the last publish must disagree about the clock: a readout that
+# republishes the same text is not refreshing, whatever its counters say.
+A_FIRST_T1=$(live_publish "$SCRATCH/advance.trace" | head -1 | grep -oE 'text1="[^"]*"' | sed 's/^text1="//; s/"$//')
+echo "  first/last published clock: first="$(val "$A_FIRST_T1")" last="$(val "$A_T1")""
+assert_ne "the clock text differs between the first and the last publish" "$A_FIRST_T1" "$A_T1"
+fi
+
+# ---------------------------------------------------------------------------
+if want 6; then
+echo "=== 6 the panel is anchored in pixels, not in window fractions ==="
+run_capture resized --start-paused --capture-tick "$TICK" --window-size 800x600
+assert_eq "resized run exit code" "$RC_resized" "0"
+R_T1=$(live_text "$SCRATCH/resized.trace" 1)
+R_T3=$(live_text "$SCRATCH/resized.trace" 3)
+R_REGION=$(live_region "$SCRATCH/resized.trace")
+# F1 (audit 2026-11-09): "the region did not move" is only evidence if the window
+# actually moved. Two runs that both came out 784x561 would pass the anchored-region
+# assertion while proving nothing, so the capture size is read back from the product
+# and required to differ before the invariance is claimed.
+CAP_SIZE_A=$(capture_size "$SCRATCH/live.trace")
+CAP_SIZE_B=$(capture_size "$SCRATCH/resized.trace")
+echo "  capture size: default=$(val "$CAP_SIZE_A") resized=$(val "$CAP_SIZE_B")"
+assert_ne "the resized run captured at a different window size" "$CAP_SIZE_B" "$CAP_SIZE_A"
+assert_eq "the region does not move when the window is resized" "$R_REGION" "$L_REGION"
+assert_eq "the clock text does not change with the window size" "$R_T1" "$L_T1"
+assert_eq "the target text does not change with the window size" "$R_T3" "$L_T3"
+fi
+
+# ---------------------------------------------------------------------------
+if want 7; then
+echo "=== 7 two independent processes write the same frame ==="
+run_capture live2 --start-paused --capture-tick "$TICK"
+assert_eq "second process exit code" "$RC_live2" "0"
+cmp -s "$SCRATCH/live.bmp" "$SCRATCH/live2.bmp" \
+  && echo "  OK   the two processes wrote byte-identical frames" \
+  || { echo "  FAIL the two processes disagree on the frame"; fail=1; }
+LIVE2_T1=$(live_text "$SCRATCH/live2.trace" 1)
+assert_eq "the second process publishes the same clock" "$LIVE2_T1" "$L_T1"
+fi
+
+# ---------------------------------------------------------------------------
+if want 8; then
+echo "=== 8 the name is the demo's name, at the tick being played ==="
+if [ ! -f "$SCRATCH/live.trace" ]; then
+  echo "  FAIL section 8 needs section 1 (no live.trace under $SCRATCH)"; fail=1
+else
+PROBE=native/build-nmake/demo_open_probe.exe
+PROBE_DUMP="$SCRATCH/userinfo-dump.txt"
+N_T3=$(live_text "$SCRATCH/live.trace" 3)
+N_NAME=$(live_field "$SCRATCH/live.trace" name)
+N_REASON=$(live_field "$SCRATCH/live.trace" nameReason)
+N_TICK=$(live_field "$SCRATCH/live.trace" nameTick)
+N_BASE=$(live_field "$SCRATCH/live.trace" nameBaseTick)
+N_ENTITY=$(live_field "$SCRATCH/live.trace" nameEntity)
+N_SLOT=$(live_field "$SCRATCH/live.trace" nameSlot)
+N_RAW=$(live_field "$SCRATCH/live.trace" nameRawHex)
+echo "  reading: name=$(val "$N_NAME") reason=$(val "$N_REASON") tick=$(val "$N_TICK") base=$(val "$N_BASE") entity=$(val "$N_ENTITY") slot=$(val "$N_SLOT") rawhex=$(val "$N_RAW")"
+# 8.0 THE SECOND OPINION MUST BE A REAL ONE. Everything below compares the
+# product against demo_open_probe, so a missing or stale probe would turn the
+# section into a comparison with an old binary -- the same class as the
+# 2026-10-06 stale-binary incident.
+assert_eq "the decoder probe is built" "$([ -x "$PROBE" ] && echo yes)" "yes"
+if [ -x "$PROBE" ]; then
+  NEWEST_SRC=$(ls -t native/src/demo_header.cpp native/src/demo_header_strtab.cpp native/include/demo_header.h | head -1)
+  if [ "$NEWEST_SRC" -nt "$PROBE" ]; then
+    echo "  FAIL the decoder probe is older than $NEWEST_SRC (STALE-BINARY)"; fail=1
+  else
+    echo "  OK   the decoder probe is not older than $NEWEST_SRC"
+  fi
+  timeout 600 "$PROBE" --scan --userinfo "$DEMO" > "$PROBE_DUMP" 2>&1
+  assert_eq "the decoder probe exits 0 on the gate's demo" "$?" "0"
+  # The dump prints one tab-separated row per client slot. The columns are
+  # entryIndex entityIndex userId name firstTick lastTick updateCount layoutId
+  # tableText guid (native/tools/demo_open_probe.cpp:515-521).
+  ROW=$(awk -F'\t' -v e="$N_ENTITY" 'NF>=10 && $1 ~ /^[0-9]+$/ && $2 == e {print; exit}' "$PROBE_DUMP")
+  ROW_SLOT=$(printf '%s' "$ROW" | cut -f1)
+  ROW_NAME=$(printf '%s' "$ROW" | cut -f4)
+  ROW_FIRST=$(printf '%s' "$ROW" | cut -f5)
+  echo "  probe row: slot=$(val "$ROW_SLOT") entity=$(val "$N_ENTITY") firstTick=$(val "$ROW_FIRST") name=\"$(val "$ROW_NAME")\""
+  assert_eq "the dump carries a userinfo slot for the watched entity" "$([ -n "$ROW" ] && echo yes)" "yes"
+  # 8.1 the slot is the decoder's, not one this code recomputed as entity-1.
+  # NB (D-62 tautology): this demo's userinfo entryIndex is always entityIndex-1
+  # (dump rows 0/1/2 -> entity 1/2/3, entity 4 -> entryIndex 3), so any
+  # 'slot == entity-1' shaped assertion is numerically indistinguishable from the
+  # bug it claims to catch and was green on the defect. The independent sources
+  # are the next line and section 8.3: ROW is found by entityIndex in the
+  # decoder's own dump and its entryIndex is compared with the product's
+  # nameSlot, and nameRawHex must equal that row's name byte for byte.
+  assert_eq "the dump and the reading name the same slot" "$ROW_SLOT" "$N_SLOT"
+  # 8.2 THE CLOCK. The samples are stamped with the server tick that was in force
+  # when their packet was decoded, not with the demo's entry tick: T100 measured
+  # entry ticks running 1..N next to first observations at server tick 10319
+  # (snakewater, this gate's own demo, measured by step 2 of the D73 window) and
+  # 16349/25595/35176 (evidence/t100-userinfo/MEASURED.md:137-142). A readout
+  # that asks in firstDataEntryTick + playback tick is therefore net_minus_entry
+  # ticks late on every demo: it prints '?' for minutes and then carries a stale
+  # sample. Both wrong clocks are named below so a mutation cannot hide behind the
+  # other one.
+  if [ -n "$N_BASE" ]; then ENTRY_CLOCK=$(( N_BASE + TICK )); else ENTRY_CLOCK=no-tick; fi
+  if [ "$N_TICK" != "-1" ] && [ "$ENTRY_CLOCK" != "no-tick" ]; then
+    assert_ne "the HUD asked in the server-tick space, not the entry-tick space" "$N_TICK" "$ENTRY_CLOCK"
+    assert_ne "the HUD asked in the server-tick space, not in raw playback ticks" "$N_TICK" "$TICK"
+  else
+    # No skip here. With no nameTick there is nothing to compare, but the reading
+    # is already red in 8.4, and silently skipping the clock check would let a
+    # future wiring that stops publishing the tick leave this section green while
+    # it checks nothing. Name the two values and go red instead.
+    echo "  FAIL the clock-space checks cannot run: nameTick=$(val "$N_TICK") base=$(val "$N_BASE") reason=$(val "$N_REASON")"; fail=1
+  fi
+  # 8.3 THE HARD ONE: the published name is the demo's name for that slot, byte
+  # for byte. Nothing is hard-coded: the expected bytes come from the probe.
+  WANT_HEX=$(printf '%s' "$ROW_NAME" | od -An -v -tx1 | tr -d ' \n')
+  assert_eq "the HUD name is the demo's name for that slot" "$N_RAW" "$WANT_HEX"
+  # 8.4 a reading that is right in the trace and absent on screen is not a
+  # readout. The name is the first token of line 3, and it is not '?'.
+  assert_ne "the reading publishes a name, not the placeholder" "$N_NAME" "unavailable"
+  echo "$N_T3" | grep -qE '^NAME [^?][^ ]*( [^ ]+)*  HP ' \
+    && echo "  OK   text3 prints the demo's name" \
+    || { echo "  FAIL text3 does not print the demo's name: \"$(val "$N_T3")\""; fail=1; }
+  # 8.4b THE DISPLAY FORM IS THE RAW NAME, PROJECTED. hudLiveProjectName keeps
+  # 0x20..0x7E, maps every other byte to '?', folds runs of spaces and caps at 24
+  # bytes (native/src/main_hud.cpp:647-673). 8.3 pins the exact bytes; this pins
+  # the mapping between those bytes and what the frame carries, so a projection
+  # that dropped or invented characters splits the two apart. On this demo the
+  # name is ASCII and the two coincide -- but the demo's own slots carry a
+  # non-ASCII name (slot 3 is UTF-8 CJK), so the wiring that surfaces one is a
+  # decision away and this is what would make it checkable.
+  # T126: the displayed name can contain a single internal space ('canis canis
+  # familiaris' on this demo), so line 3 is split on its two-space separators
+  # rather than on the first space, and the greedy group keeps the whole name.
+  WANT_DISPLAY=$(printf '%s' "$WANT_HEX" | xxd -r -p | od -An -v -tu1 - | tr -s ' ' '\n' | awk '
+    { if (NF < 1) next; b = $1 + 0;
+      c = (b >= 32 && b <= 126) ? sprintf("%c", b) : "?";
+      if (c == " " && n > 0 && last == " ") next;
+      if (n >= 24) next;
+      s = s c; last = c; n++ }
+    END { sub(/ +$/, "", s); printf "%s", s }')
+  T3_NAME=$(printf '%s' "$N_T3" | sed -n 's/^NAME \(.*\)  HP .*/\1/p')
+  assert_eq "the displayed name is the raw name projected onto the font" "$T3_NAME" "$WANT_DISPLAY"
+  # 8.5 the font is ASCII and the glyph/region arithmetic is byte arithmetic: a
+  # non-ASCII byte here would break both, so the line is required to be ASCII.
+  if printf '%s' "$N_T3" | LC_ALL=C grep -q '[^ -~]'; then
+    echo "  FAIL text3 carries a byte outside printable ASCII"; fail=1
+  else
+    echo "  OK   text3 is printable ASCII only"
+  fi
+  # 8.6 the name came from a sample at or after the slot's first observation.
+  if [ -n "$ROW_FIRST" ] && [ -n "$N_TICK" ]; then
+    assert_ge "the name came from a tick at or after the first observation" "$N_TICK" "$ROW_FIRST"
+  fi
+  # 8.7 A SERVER TICK IS NOT AN ENTRY TICK. The entry tick at row 0 is
+  # firstDataEntryTick (1 on every measured demo) while the samples start in the
+  # thousands: snakewater's first userinfo observation is at server tick 10319
+  # (measured in this window, step 2) and T100 measured 16349/25595/35176 on the
+  # other demos (evidence/t100-userinfo/MEASURED.md:137-142). A floor of 1000
+  # separates the two clocks on this
+  # corpus without hard-coding this recording's own number; a lookup that adds an
+  # entry-tick offset instead of reading the table lands at 1 and goes red here
+  # exactly as it does in 8.2.
+  if [ "$N_TICK" != "-1" ]; then
+    assert_ge "the sample tick is a server tick, not an entry tick" "$N_TICK" 1000
+  else
+    echo "  FAIL the reading published no nameTick at all"; fail=1
+  fi
+  # 8.7b NATURAL NEGATIVE CONTROL, and why it is not here: it needs a playback row
+  # whose packet predates the slot's first observation. Row 0 is the earliest row
+  # this gate captures, and its sample tick is at or after ROW_FIRST (8.6), so no
+  # such row exists on this demo. The skip is COUNTED rather than passing silently,
+  # because a control that does not run is a green that means nothing.
+  SKIPPED_CONTROLS=$(( SKIPPED_CONTROLS + 1 ))
+  echo "  SKIP the pre-observation control: row 0 is the earliest playback row, sample tick $(val "$N_TICK"), first observation $(val "$ROW_FIRST") (SKIPPED_CONTROLS=$SKIPPED_CONTROLS)"
+  # 8.8 TWO INDEPENDENT CODE PATHS MUST LAND ON THE SAME NUMBER. The HUD resolves
+  # the name through the decoder table indexed by playback tick; the scene clock
+  # resolves the same row through DemoNetworkSummary on its own path and prints it
+  # as "scene: begin tick=<row> sceneTick=<server tick>" (main.cpp:9812). If both
+  # are right they print the same number for the same row, and that agreement is
+  # stronger than any shape assertion: a lookup that adds an offset, or one that
+  # reads the table a row late, disagrees here even if it looks plausible.
+  LIVE_ROW=$(grep -a "hud: live " "$SCRATCH/live.trace" 2>/dev/null | grep -av "hud: live summary " | tail -1 | grep -oE " tick=-?[0-9]+" | head -1 | cut -d= -f2)
+  SCENE_TICK=""
+  if [ -n "$LIVE_ROW" ]; then
+    SCENE_TICK=$(grep -a "scene: begin tick=$LIVE_ROW " "$SCRATCH/live.trace" 2>/dev/null | head -1 | grep -oE "sceneTick=[0-9-]+" | head -1 | cut -d= -f2)
+  fi
+  record_sep=; : "$record_sep"
+  if [ -n "$SCENE_TICK" ] && [ "$N_TICK" != "-1" ]; then
+    assert_eq "the HUD sample tick is the scene clock's tick for the same row" "$N_TICK" "$SCENE_TICK"
+  else
+    # Same rule as 8.2: a cross-check that cannot run is red, not skipped. With no
+    # "scene: begin tick=" line for the published row the two code paths never got
+    # compared, and calling that green is how a gate stops meaning anything. This
+    # leaves 8.7b as the only incremented skip, which is what 8.9 asserts.
+    echo "  FAIL the scene-clock cross-check cannot run: publish row $(val "$LIVE_ROW"), scene tick=$(val "$SCENE_TICK"), nameTick=$(val "$N_TICK")"; fail=1
+  fi
+else
+  echo "  FAIL no decoder probe to compare against, section 8 is vacuous"; fail=1
+fi
+# 8.9 A CONTROL THAT DOES NOT RUN IS NOT A GREEN. Section 8 has exactly one
+# legitimate skip: 8.7b, whose control would need a playback row whose packet
+# predates the first observation, and row 0 is the oldest row this gate captures.
+# Any second skip means part of section 8 did not execute -- and a section that
+# can quietly shrink is how a gate stays green while checking nothing (D-62).
+# The expected count is a number here, not a comment.
+assert_eq "section 8 skipped exactly its one documented control" "$SKIPPED_CONTROLS" "1"
+fi
+fi
+
+# ---------------------------------------------------------------------------
+# Evidence: keep the readings, not the 2.5 MB bitmaps.
+{
+  echo "exe=$EXE"
+  echo "exe_sha256=$(sha256sum "$EXE" | cut -d' ' -f1)"
+  echo "gate_sha256=$(sha256sum "$0" | cut -d' ' -f1)"
+  echo "demo_sha256=$(sha256sum "$DEMO" | cut -d' ' -f1)"
+  echo "tick=$TICK advance_tick=$ADVANCE_TICK"
+  echo "reading1=$L_T1"
+  echo "reading2=$L_T2"
+  echo "reading3=$L_T3"
+  echo "source=$L_SRC glyphs=$L_GLYPHS region=$L_REGION"
+  echo "publishes=$LIVE_N"
+  echo "advance_text1=$A_T1 advance_updates=$A_UPDATES advance_skips=$A_SKIPS advance_source=$A_SRC"
+  echo "name=$L_NAME nameReason=$L_REASON nameTick=$N_TICK nameBaseTick=$N_BASE"
+  echo "nameEntity=$N_ENTITY nameSlot=$N_SLOT nameRawHex=$N_RAW name_skipped_controls=$SKIPPED_CONTROLS"
+  echo "resized_region=$R_REGION"
+  echo "pixels: outside=$V_OUTSIDE inside=$V_INSIDE glyphBad=$V_BAD"
+  echo "hud_off: quads=$OFF_QUADS primitives=$OFF_PRIM drawn=$OFF_DRAWN rects=$OFF_RECTS"
+  echo "mode=$L_MODE suppress_reason=$SUP_REASON suppress_enabled_lines=$SUP_ENABLED suppress_frame=$SUP_FRAME"
+} > "$OUT/readings.txt"
+echo
+echo "  readings written to $OUT/readings.txt"
+
+# ---------------------------------------------------------------------------
+# Negative controls. A mutation nobody notices is an assertion that does not
+# test what it claims, so each case must red a NAMED assertion above; the source
+# is then restored byte for byte and the restored build must reproduce the
+# forward green, or the scoring itself is untrustworthy.
+# ---------------------------------------------------------------------------
+if [ "$MUTATION" -eq 1 ]; then
+  echo
+  echo "=== mutation suite ==="
+  if [ "$fail" -ne 0 ]; then
+    echo "REFUSING to score mutations: the forward run above is already red, so"
+    echo "'the mutation was caught' would describe a gate that never worked."
+    exit 2
+  fi
+  SRC=native/src/main_hud.cpp
+  ORIG="$SCRATCH/main_hud.cpp.orig"
+  cp "$SRC" "$ORIG"
+  # F3 (audit 2026-11-09): this suite rewrites a source file in a worktree other
+  # lanes share. An interrupt (ctrl-c, timeout, a killed job) must not leave the
+  # patched file behind, so every exit path restores from the copy first and says
+  # which bytes are on disk now.
+  mut_restore() {
+    if [ -f "$ORIG" ]; then cp "$ORIG" "$SRC"; fi
+    echo "  source restored sha=$(sha256sum "$SRC" | cut -d' ' -f1)"
+  }
+  trap 'mut_restore' EXIT INT TERM
+  mut_fail=0
+
+  patch_case() { # patch_case <case>: one surgical edit, exactly-once match
+    "$PY" - "$SRC" "$1" <<'PYEOF'
+import sys
+path, case = sys.argv[1], sys.argv[2]
+edits = {
+    'm1-drop-text': [(
+        '  const HudLiveText text = hudLiveCompose(playback, target, reading, name);',
+        '  HudLiveText text = hudLiveCompose(playback, target, reading, name);\n'
+        '  text.time.clear(); text.score.clear(); text.target.clear();  // MUTATION m1')],
+    'm2-freeze': [(
+        '  if (key == g_hudLiveLastKey) {',
+        '  if (g_hudLiveLastKey.size() > 0) {  // MUTATION m2: first reading frozen')],
+    # m3 poisons the name at its source, so every downstream reading (slug, hex
+    # and the drawn text) inherits the lie and section 8.3 can catch it.
+    'm3-fake-name': [(
+        '  hudLiveProjectName(resolved.name, name);',
+        '  resolved.name = "Player";  // MUTATION m3: an invented name\n'
+        '  hudLiveProjectName(resolved.name, name);')],
+    'm4-name-slot': [(
+        '    if (entry.entityIndex == static_cast<std::uint32_t>(viewEntity)) {',
+        '    if (entry.entityIndex == static_cast<std::uint32_t>(viewEntity) + 1u) {  // MUTATION m4')],
+    'm5-name-tick': [(
+        '  name.tick = summary.packetServerTicks[playbackTick];',
+        '  name.tick = summary.firstDataEntryTick + playbackTick;  // MUTATION m5: the entry-tick clock')],
+}
+if case not in edits:
+    raise SystemExit('unknown mutation case: ' + case)
+src = open(path, encoding='utf-8').read()
+for old, new in edits[case]:
+    hits = src.count(old)
+    if hits != 1:
+        raise SystemExit('%s: pattern occurs %d times, expected 1: %r' % (case, hits, old))
+    src = src.replace(old, new, 1)
+open(path, 'w', encoding='utf-8', newline='').write(src)
+print('patched', case)
+PYEOF
+  }
+
+  for case in m1-drop-text m2-freeze m3-fake-name m4-name-slot m5-name-tick; do
+    echo
+    echo "--- mutation $case ---"
+    cp "$ORIG" "$SRC"
+    echo "  pre-mutation source sha=$(sha256sum "$SRC" | cut -d' ' -f1)"
+    if ! patch_case "$case"; then
+      echo "  FAIL $case: the patch did not apply"; mut_fail=1; continue
+    fi
+    if ! bash build-target.sh tf2_demo_native > "$SCRATCH/build-$case.log" 2>&1; then
+      echo "  FAIL $case: the mutated tree does not build (see $SCRATCH/build-$case.log)"
+      mut_fail=1; cp "$ORIG" "$SRC"; continue
+    fi
+    mut_sections=""
+    expect=""
+    case "$case" in
+      m1-drop-text) mut_sections="--sections=1,2,3,4"
+                    expect="FAIL text1 has no clock shape" ;;
+      m2-freeze)    mut_sections="--sections=1,2,5"
+                    expect="FAIL the clock reading changes when the demo advances" ;;
+      m3-fake-name) mut_sections="--sections=1,8"
+                    expect="FAIL the HUD name is the demo's name for that slot" ;;
+      m4-name-slot) mut_sections="--sections=1,8"
+                    expect="FAIL the HUD name is the demo's name for that slot" ;;
+      m5-name-tick) mut_sections="--sections=1,8"
+                    expect="FAIL the HUD asked in the server-tick space, not the entry-tick space" ;;
+    esac
+    mout="$SCRATCH/mut-$case.txt"
+    HUD_LIVE_CHECK_OUT="$SCRATCH/mut-$case-out" \
+      HUD_LIVE_CHECK_SCRATCH="$SCRATCH/mut-$case-scratch" \
+      bash "$0" "$mut_sections" > "$mout" 2>&1
+    mut_rc=$?
+    reds=$(grep -ac '^  FAIL ' "$mout")
+    if [ "$mut_rc" -ne 0 ] && grep -qF "$expect" "$mout"; then
+      echo "  MUTATION-RED $case: rc=$mut_rc, $reds named assertion(s) red"
+      grep -a '^  FAIL ' "$mout" | sed 's/^/    /' | head -8
+    else
+      echo "  FAIL $case: NOT CAUGHT (rc=$mut_rc, expected '$expect'); log $mout"
+      mut_fail=1
+    fi
+    cp "$ORIG" "$SRC"
+    if cmp -s "$ORIG" "$SRC"; then
+      echo "  RESTORED-IDENTICAL $SRC ($(sha256sum "$SRC" | cut -d' ' -f1))"
+    else
+      echo "  FAIL $case: restore is not byte-identical"; mut_fail=1
+    fi
+  done
+
+  echo
+  echo "--- restored build ---"
+  if ! bash build-target.sh tf2_demo_native > "$SCRATCH/build-restored.log" 2>&1; then
+    echo "  FAIL the restored tree does not build"; mut_fail=1
+  else
+    HUD_LIVE_CHECK_OUT="$SCRATCH/restored-out" \
+      HUD_LIVE_CHECK_SCRATCH="$SCRATCH/restored-scratch" \
+      bash "$0" > "$SCRATCH/restored.txt" 2>&1
+    rrc=$?
+    if [ "$rrc" -eq 0 ] && grep -q 'HUD-LIVE-CHECK=PASS' "$SCRATCH/restored.txt"; then
+      echo "  OK   the restored build reproduces the forward reading"
+    else
+      echo "  FAIL the restored build does not reproduce the forward reading (rc=$rrc)"
+      grep -a '^  FAIL ' "$SCRATCH/restored.txt" | head -8 | sed 's/^/    /'
+      mut_fail=1
+    fi
+  fi
+  if [ "$mut_fail" -eq 0 ]; then
+    echo "MUTATION-SUITE=PASS"
+  else
+    echo "MUTATION-SUITE=FAIL"; fail=1
+  fi
+fi
+
+if [ "$fail" -eq 0 ]; then
+  echo "HUD-LIVE-CHECK=PASS"
+  exit 0
+fi
+echo "HUD-LIVE-CHECK=FAIL"
+exit 1

@@ -1,0 +1,420 @@
+#include "install_manifest.h"
+
+#include <Windows.h>
+#include <bcrypt.h>
+
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <fstream>
+#include <sstream>
+
+namespace tf2::native::installer {
+
+namespace {
+constexpr char kHex[] = "0123456789abcdef";
+
+std::string lower(std::string value) {
+  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
+  return value;
+}
+
+std::string trim(const std::string& value) {
+  const auto first = value.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) return {};
+  const auto last = value.find_last_not_of(" \t\r\n");
+  return value.substr(first, last - first + 1);
+}
+
+// The manifest is ASCII by construction: every field is a path, a state word, a
+// count or a hex digest. A field that is not ASCII would break the one-record-
+// per-line format silently, so it is refused instead.
+bool asciiOnly(const std::string& value) {
+  for (const unsigned char c : value) { if (c < 0x20 || c > 0x7e) return false; }
+  return true;
+}
+
+// A RECORD PATH NAMES A FILE RELATIVE TO THE INSTALL DIRECTORY, AND THAT CLAIM
+// IS CHECKED HERE, AT THE POINT THE MANIFEST IS READ.
+//   uninstall joins this string to installDirectory and then deletes what the
+//   join finds. Windows replaces the left-hand side of a join when the right
+//   side is absolute, and a leading ".." component leaves the directory, so a
+//   manifest holding "../x" or "C:/x" made that join name a file this package
+//   never installed -- measured 2026-11-11 (QA-4 INS-1): both were accepted
+//   because both are printable ASCII, and uninstall deleted the victim and
+//   reported PASS. The refusal belongs at parse time because a manifest this
+//   parser rejects still sits on disk and can be read by a human; one that is
+//   silently normalised at deletion time points at a file other than it names.
+//   The grammar is Windows', not POSIX's, because the join is a
+//   std::filesystem join on Windows: "/" is the separator the writer emits
+//   (relativeTo returns generic_string), so a backslash was never written by
+//   this code and is refused rather than translated; a device name is refused because
+//   CreateFileW on CON/NUL is not a file in this directory, and a component
+//   ending in a dot or a space is refused because Windows strips those before
+//   the file system sees them.
+bool safeRelativePath(const std::string& value, std::string* reason) {
+  const auto refuse = [reason](const char* what) {
+    if (reason) *reason = what;
+    return false;
+  };
+  if (value.empty()) return refuse("a file record path is empty");
+  if (value.find('\\') != std::string::npos) {
+    return refuse("a file record path contains a backslash");
+  }
+  if (value.front() == '/') return refuse("a file record path is rooted");
+  if (value.find(':') != std::string::npos) {
+    return refuse("a file record path is drive-qualified or names an alternate stream");
+  }
+  static const char* const kDevices[] = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2",
+    "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3",
+    "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"};
+  std::size_t start = 0;
+  while (true) {
+    const auto slash = value.find('/', start);
+    const auto end = slash == std::string::npos ? value.size() : slash;
+    const std::string component = value.substr(start, end - start);
+    if (component.empty()) return refuse("a file record path has an empty component");
+    if (component == "." || component == "..") {
+      return refuse("a file record path climbs out of the install directory");
+    }
+    if (component.back() == ' ' || component.back() == '.') {
+      return refuse("a file record path component ends with a space or a dot");
+    }
+    std::string stem = component.substr(0, component.find('.'));
+    std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c) {
+      return static_cast<char>(std::toupper(c));
+    });
+    for (const char* device : kDevices) {
+      if (stem == device) return refuse("a file record path names a Windows device");
+    }
+    if (slash == std::string::npos) break;
+    start = slash + 1;
+  }
+  return true;
+}
+
+// installDirectory IS THE ONE FIELD THAT MAY HOLD NON-ASCII BYTES.
+//   The install path is whatever the file system accepted, so a Chinese
+//   directory name reaches this field. It is UTF-8 in the format since
+//   2026-11-07 (install_lifecycle.cpp writes u8string()), but manifests written
+//   before that hold MSVC's generic_string() bytes, which are ACTIVE CODE PAGE
+//   -- cp936 on a Chinese machine. Reading those bytes as UTF-8 yields
+//   replacement characters, so anything that is not valid UTF-8 is re-read as
+//   ACP, and the fallback is printed: a conversion that silently changes the
+//   meaning of a path is the kind of magic that costs a day later.
+bool validUtf8(const std::string& value) {
+  std::size_t i = 0;
+  while (i < value.size()) {
+    const unsigned char lead = static_cast<unsigned char>(value[i]);
+    std::size_t extra = 0;
+    if (lead < 0x80) { ++i; continue; }
+    else if ((lead & 0xe0) == 0xc0) { if (lead < 0xc2) return false; extra = 1; }
+    else if ((lead & 0xf0) == 0xe0) { extra = 2; }
+    else if ((lead & 0xf8) == 0xf0) { if (lead > 0xf4) return false; extra = 3; }
+    else return false;
+    if (i + extra >= value.size()) return false;
+    for (std::size_t k = 1; k <= extra; ++k) {
+      if ((static_cast<unsigned char>(value[i + k]) & 0xc0) != 0x80) return false;
+    }
+    i += extra + 1;
+  }
+  return true;
+}
+
+std::string acpToUtf8(const std::string& value) {
+  if (value.empty()) return value;
+  const int length = static_cast<int>(value.size());
+  const int wide = MultiByteToWideChar(CP_ACP, 0, value.data(), length, nullptr, 0);
+  if (wide <= 0) return value;
+  std::wstring buffer(static_cast<std::size_t>(wide), L'\0');
+  if (MultiByteToWideChar(CP_ACP, 0, value.data(), length, buffer.data(), wide) <= 0) return value;
+  const int bytes = WideCharToMultiByte(CP_UTF8, 0, buffer.data(), wide, nullptr, 0, nullptr, nullptr);
+  if (bytes <= 0) return value;
+  std::string out(static_cast<std::size_t>(bytes), '\0');
+  if (WideCharToMultiByte(CP_UTF8, 0, buffer.data(), wide, out.data(), bytes, nullptr, nullptr) <= 0) {
+    return value;
+  }
+  return out;
+}
+
+std::string installDirectoryAsUtf8(const std::string& value) {
+  if (validUtf8(value)) return value;
+  std::printf("manifest: legacy-acp installDirectory\n");
+  std::fflush(stdout);
+  const std::string converted = acpToUtf8(value);
+  return converted.empty() ? value : converted;
+}
+
+void hexEncode(const unsigned char* bytes, std::size_t count, std::string& out) {
+  out.clear();
+  out.reserve(count * 2);
+  for (std::size_t i = 0; i < count; ++i) {
+    out.push_back(kHex[bytes[i] >> 4]);
+    out.push_back(kHex[bytes[i] & 0x0f]);
+  }
+}
+}
+
+std::string sha256Bytes(const std::string& bytes) {
+  BCRYPT_ALG_HANDLE algorithm = nullptr;
+  BCRYPT_HASH_HANDLE hash = nullptr;
+  std::string result;
+  DWORD objectSize = 0, dataSize = 0, produced = 0;
+  std::vector<unsigned char> object, digest;
+  if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0) return {};
+  if (BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH,
+      reinterpret_cast<PUCHAR>(&objectSize), sizeof(objectSize), &produced, 0) < 0) {
+    BCryptCloseAlgorithmProvider(algorithm, 0);
+    return {};
+  }
+  object.resize(objectSize);
+  if (BCryptCreateHash(algorithm, &hash, object.data(), objectSize, nullptr, 0, 0) < 0) {
+    BCryptCloseAlgorithmProvider(algorithm, 0);
+    return {};
+  }
+  const auto* data = reinterpret_cast<const unsigned char*>(bytes.data());
+  const auto length = static_cast<ULONG>(bytes.size());
+  if (BCryptHashData(hash, const_cast<unsigned char*>(data), length, 0) >= 0) {
+    digest.resize(32);
+    if (BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) >= 0) {
+      std::string raw(reinterpret_cast<const char*>(digest.data()), digest.size());
+      hexEncode(reinterpret_cast<const unsigned char*>(raw.data()), raw.size(), result);
+    }
+  }
+  BCryptDestroyHash(hash);
+  BCryptCloseAlgorithmProvider(algorithm, 0);
+  return result;
+}
+
+std::string sha256File(const std::filesystem::path& file, std::string* error) {
+  std::ifstream stream(file, std::ios::binary);
+  if (!stream) {
+    if (error) *error = "cannot open for hashing";
+    return {};
+  }
+  BCRYPT_ALG_HANDLE algorithm = nullptr;
+  BCRYPT_HASH_HANDLE hash = nullptr;
+  std::string result;
+  DWORD objectSize = 0, produced = 0;
+  std::vector<unsigned char> object, digest;
+  if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0) {
+    if (error) *error = "cannot open the hash provider";
+    return {};
+  }
+  if (BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH,
+      reinterpret_cast<PUCHAR>(&objectSize), sizeof(objectSize), &produced, 0) < 0) {
+    BCryptCloseAlgorithmProvider(algorithm, 0);
+    if (error) *error = "cannot size the hash object";
+    return {};
+  }
+  object.resize(objectSize);
+  if (BCryptCreateHash(algorithm, &hash, object.data(), objectSize, nullptr, 0, 0) < 0) {
+    BCryptCloseAlgorithmProvider(algorithm, 0);
+    if (error) *error = "cannot create the hash";
+    return {};
+  }
+  // Streamed: the product is 1.8 MB today, but a manifest reader that loads the
+  // whole payload would be the wrong thing to reach for on a 100 MB package.
+  std::vector<char> chunk(1u << 16);
+  bool ok = true;
+  while (stream) {
+    stream.read(chunk.data(), static_cast<std::streamsize>(chunk.size()));
+    const auto got = stream.gcount();
+    if (got <= 0) break;
+    if (BCryptHashData(hash, reinterpret_cast<unsigned char*>(chunk.data()),
+          static_cast<ULONG>(got), 0) < 0) { ok = false; break; }
+  }
+  if (ok) {
+    digest.resize(32);
+    if (BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) >= 0) {
+      hexEncode(digest.data(), digest.size(), result);
+    } else { ok = false; }
+  }
+  BCryptDestroyHash(hash);
+  BCryptCloseAlgorithmProvider(algorithm, 0);
+  if (!ok) {
+    if (error) *error = "cannot hash the file";
+    return {};
+  }
+  return result;
+}
+
+std::string relativeTo(const std::filesystem::path& root,
+    const std::filesystem::path& path) {
+  std::error_code error;
+  const auto canonicalRoot = std::filesystem::weakly_canonical(root, error);
+  if (error) return {};
+  const auto canonicalPath = std::filesystem::weakly_canonical(path, error);
+  if (error) return {};
+  auto relative = canonicalPath.lexically_relative(canonicalRoot);
+  if (relative.empty() || relative.is_absolute()) return {};
+  if (*relative.begin() == std::filesystem::path("..")) return {};
+  std::string text = relative.generic_string();
+  return text;
+}
+
+std::vector<std::string> listFiles(const std::filesystem::path& root) {
+  std::vector<std::string> files;
+  std::error_code error;
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(root, error)) {
+    if (error) break;
+    if (!entry.is_regular_file(error) || error) continue;
+    auto relative = relativeTo(root, entry.path());
+    if (relative.empty()) continue;
+    files.push_back(std::move(relative));
+  }
+  std::sort(files.begin(), files.end());
+  return files;
+}
+
+bool lastWriteTime(const std::filesystem::path& file, std::uint64_t* value) {
+  WIN32_FILE_ATTRIBUTE_DATA data{};
+  if (!GetFileAttributesExW(file.c_str(), GetFileExInfoStandard, &data)) return false;
+  *value = (static_cast<std::uint64_t>(data.ftLastWriteTime.dwHighDateTime) << 32)
+    | data.ftLastWriteTime.dwLowDateTime;
+  return true;
+}
+
+bool setLastWriteTime(const std::filesystem::path& file, std::uint64_t value) {
+  const HANDLE handle = CreateFileW(file.c_str(), FILE_WRITE_ATTRIBUTES,
+    FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+  if (handle == INVALID_HANDLE_VALUE) return false;
+  FILETIME time{};
+  time.dwLowDateTime = static_cast<DWORD>(value & 0xffffffffu);
+  time.dwHighDateTime = static_cast<DWORD>(value >> 32);
+  const bool ok = SetFileTime(handle, nullptr, nullptr, &time) != 0;
+  CloseHandle(handle);
+  return ok;
+}
+
+std::string serialize(const Manifest& manifest) {
+  std::ostringstream out;
+  out << "format=" << kManifestFormat << "\n";
+  out << "formatVersion=" << kManifestVersion << "\n";
+  out << "package=" << manifest.package << "\n";
+  out << "packageVersion=" << manifest.packageVersion << "\n";
+  out << "packageVersionCode=" << manifest.packageVersionCode << "\n";
+  out << "sourceDateEpoch=" << manifest.sourceDateEpoch << "\n";
+  out << "sourceTree=" << manifest.sourceTree << "\n";
+  // T90: appended after sourceTree so every pre-T90 key keeps its position. A
+  // manifest written by an older build has neither key and still parses; one
+  // written here is readable by this build because parse() has a branch for
+  // each (a missing branch would make every install unreadable).
+  out << "sourceDirty=" << manifest.sourceDirty << "\n";
+  out << "sourceDirtyFiles=" << manifest.sourceDirtyFiles << "\n";
+  out << "installedUtc=" << manifest.installedUtc << "\n";
+  out << "installDirectory=" << manifest.installDirectory << "\n";
+  out << "files=" << manifest.files.size() << "\n";
+  for (const auto& file : manifest.files) {
+    out << "file=" << file.state << '\t' << file.bytes << '\t' << file.sha256
+        << '\t' << file.path;
+    if (!file.backup.empty()) out << '\t' << file.backup;
+    out << "\n";
+  }
+  return out.str();
+}
+
+bool parse(const std::string& text, Manifest* manifest, std::string* error) {
+  const auto bad = [&](const char* what) {
+    if (error) *error = what;
+    return false;
+  };
+  if (manifest == nullptr) return bad("no manifest destination");
+  *manifest = Manifest{};
+  std::istringstream stream(text);
+  std::string line;
+  bool sawFormat = false;
+  while (std::getline(stream, line)) {
+    line = trim(line);
+    if (line.empty()) continue;
+    if (line.rfind("file=", 0) == 0) {
+      // state, bytes, sha256, path [, backup]: the path is last only when there
+      // is no backup, so the split is done by field count rather than by a
+      // guess about where the path could contain a tab (it cannot: paths are
+      // validated to be ASCII without control characters).
+      std::vector<std::string> fields;
+      std::string rest = line.substr(5);
+      std::size_t start = 0;
+      while (true) {
+        const auto tab = rest.find('\t', start);
+        fields.push_back(rest.substr(start, tab == std::string::npos ? std::string::npos : tab - start));
+        if (tab == std::string::npos) break;
+        start = tab + 1;
+      }
+      if (fields.size() != 4 && fields.size() != 5) return bad("a file record has the wrong field count");
+      ManifestFile file;
+      file.state = fields[0];
+      try { file.bytes = std::stoull(fields[1]); } catch (...) { return bad("a file record has no byte count"); }
+      file.sha256 = fields[2];
+      file.path = fields[3];
+      if (fields.size() == 5) file.backup = fields[4];
+      if (!asciiOnly(file.path)) return bad("a file record path is not printable ASCII");
+      std::string unsafe;
+      if (!safeRelativePath(file.path, &unsafe)) return bad(unsafe.c_str());
+      if (!file.backup.empty()) {
+        if (!asciiOnly(file.backup)) return bad("a file record backup path is not printable ASCII");
+        if (!safeRelativePath(file.backup, &unsafe)) return bad(unsafe.c_str());
+      }
+      manifest->files.push_back(std::move(file));
+      continue;
+    }
+    const auto equals = line.find('=');
+    if (equals == std::string::npos) return bad("a manifest line is neither a key nor a file record");
+    const std::string key = line.substr(0, equals);
+    const std::string value = line.substr(equals + 1);
+    if (key == "format") {
+      if (value != kManifestFormat) return bad("this is not an install manifest");
+      sawFormat = true;
+    } else if (key == "formatVersion") {
+      if (value != std::to_string(kManifestVersion)) return bad("unsupported manifest format version");
+    } else if (key == "package") { manifest->package = value; }
+    else if (key == "packageVersion") { manifest->packageVersion = value; }
+    else if (key == "packageVersionCode") {
+      try { manifest->packageVersionCode = std::stoi(value); } catch (...) { return bad("packageVersionCode is not a number"); }
+    }
+    else if (key == "sourceDateEpoch") { manifest->sourceDateEpoch = value; }
+    else if (key == "sourceTree") { manifest->sourceTree = value; }
+    else if (key == "sourceDirty") { manifest->sourceDirty = value; }
+    else if (key == "sourceDirtyFiles") { manifest->sourceDirtyFiles = value; }
+    else if (key == "installedUtc") { manifest->installedUtc = value; }
+    else if (key == "installDirectory") { manifest->installDirectory = installDirectoryAsUtf8(value); }
+    else if (key == "files") { /* counted from the records, not trusted */ }
+    else return bad("unknown manifest key");
+  }
+  if (!sawFormat) return bad("this is not an install manifest");
+  return true;
+}
+
+bool writeManifest(const std::filesystem::path& file, const Manifest& manifest,
+    std::string* error) {
+  std::error_code code;
+  std::filesystem::create_directories(file.parent_path(), code);
+  std::ofstream stream(file, std::ios::binary | std::ios::trunc);
+  if (!stream) {
+    if (error) *error = "cannot create the manifest";
+    return false;
+  }
+  const std::string text = serialize(manifest);
+  stream.write(text.data(), static_cast<std::streamsize>(text.size()));
+  if (!stream) {
+    if (error) *error = "cannot write the manifest";
+    return false;
+  }
+  return true;
+}
+
+bool readManifest(const std::filesystem::path& file, Manifest* manifest,
+    std::string* error) {
+  std::ifstream stream(file, std::ios::binary);
+  if (!stream) {
+    if (error) *error = "cannot open the manifest";
+    return false;
+  }
+  std::ostringstream buffer;
+  buffer << stream.rdbuf();
+  return parse(buffer.str(), manifest, error);
+}
+
+} // namespace tf2::native::installer

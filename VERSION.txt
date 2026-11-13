@@ -1,0 +1,14 @@
+# TF2 Demo Player -- package version metadata.
+#
+# Read at run time by `tf2_demo_native --version` and by `--install`, and laid
+# down into the install directory so a package carries its own identity without
+# a registry key. CMake compiles the same values in as defaults
+# (TF2_PACKAGE_VERSION / TF2_PACKAGE_VERSION_CODE in native/CMakeLists.txt), so
+# this file can re-stamp a release without a rebuild, and a build with no file
+# still answers --version.
+#
+# versionCode is the monotonic number an upgrade comparison should use: a
+# version string is for humans and sorts wrong ('0.10.0' < '0.9.0' as text).
+package=tf2_demo_native
+version=0.1.0
+versionCode=100

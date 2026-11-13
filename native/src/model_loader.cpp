@@ -1,0 +1,1746 @@
+#include "model_loader.h"
+#include "demo_header.h"
+#include "item_schema.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <fstream>
+#include <limits>
+#include <map>
+#include <memory>
+#include <set>
+#include <sstream>
+#include <unordered_map>
+
+namespace tf2::native {
+namespace {
+using Bytes = std::vector<std::uint8_t>;
+constexpr std::uint32_t kIdStudio = 0x54534449u; // "IDST"
+constexpr std::uint32_t kIdVvd = 0x56534449u; // "IDSV"
+constexpr std::uint32_t kIdVtx = 0x31585456u; // "VTX1"
+constexpr std::size_t kMaxFileBytes = 256ull * 1024ull * 1024ull;
+constexpr std::size_t kBoneStride = 216;
+constexpr std::size_t kAttachmentStride = 92;
+constexpr std::size_t kSequenceStride = 212;
+constexpr std::size_t kBodyPartStride = 16;
+// mstudiotexture_t: sznameindex/flags/used/unused1/material/clientmaterial then
+// ten unused words. 24 + 40 = 64.
+constexpr std::size_t kTextureStride = 64;
+constexpr std::size_t kVvdVertexStride = 48;
+constexpr std::size_t kVtxBodyPartStride = 8;
+constexpr std::size_t kVtxModelStride = 8;
+constexpr std::size_t kVtxLodStride = 12;
+constexpr std::size_t kVtxMeshStride = 9;
+constexpr std::size_t kVtxStripGroupStride = 25;
+constexpr std::size_t kVtxIndexStride = 2;
+// OptimizedModel::Vertex_t is packed: boneWeightIndex[3], numBones,
+// origMeshVertID (uint16), and boneID[3] = 9 bytes.
+constexpr std::size_t kVtxVertexStride = 9;
+// mstudiomodel_t and mstudiomesh_t. Unlike the tables above, these are not read
+// at a fixed offset and trusted: `decodeMeshMaterials` tries each candidate and
+// keeps the one the VTX descriptor list and the texture count both accept, so a
+// wrong number here is a rejected candidate rather than a wrong slot number.
+//
+// mstudiomesh_t: material/modelindex/numvertices/vertexoffset/numflexes/
+// flexindex/materialtype/materialparam/meshid (9 words), center (3), the
+// meshvertexdata block (1 + 8 words) and eight unused words. 36+12+36+32 = 116.
+constexpr std::size_t kMeshStride = 116;
+// mstudiomodel_t: name[64], type, boundingradius, nummeshes, meshindex, ... The
+// TF2 (MDL v49) record measured 148 bytes; 140 is the same layout without the
+// version-49 tail. Both are offered to the validator rather than picked here.
+constexpr std::size_t kModelNumMeshesOffset = 72;
+constexpr std::size_t kModelMeshIndexOffset = 76;
+constexpr std::size_t kModelNumVerticesOffset = 80;
+constexpr std::size_t kModelVertexIndexOffset = 84;
+constexpr std::size_t kModelStrideCandidates[] = { 148u, 140u };
+
+// normalizeModelPath is declared in model_loader.h: entity_model.cpp and
+// viewmodel.cpp compare paths through the same rule, and a copy here would be a
+// second answer to the same question.
+
+bool addFits(std::size_t a, std::size_t b, std::size_t limit) {
+  return a <= limit && b <= limit - a;
+}
+
+bool rangeFits(std::size_t offset, std::size_t count, std::size_t stride, std::size_t size) {
+  if (stride != 0 && count > (std::numeric_limits<std::size_t>::max)() / stride) return false;
+  const auto bytes = count * stride;
+  return offset <= size && bytes <= size - offset;
+}
+
+Bytes readFile(const std::filesystem::path& path, std::string& error) {
+  std::error_code ec;
+  const auto size = std::filesystem::file_size(path, ec);
+  if (ec) { error = "file_size failed: " + ec.message(); return {}; }
+  if (size == 0 || size > kMaxFileBytes) { error = "file size outside safe parser limit"; return {}; }
+  std::ifstream in(path, std::ios::binary);
+  if (!in) { error = "open failed"; return {}; }
+  Bytes bytes(static_cast<std::size_t>(size));
+  in.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  if (!in || static_cast<std::size_t>(in.gcount()) != bytes.size()) { error = "short read"; return {}; }
+  return bytes;
+}
+
+template <typename T> bool readAt(const Bytes& b, std::size_t offset, T& out) {
+  if (!rangeFits(offset, sizeof(T), 1, b.size())) return false;
+  std::memcpy(&out, b.data() + offset, sizeof(T));
+  return true;
+}
+
+std::string fixedString(const Bytes& b, std::size_t offset, std::size_t maxLength) {
+  if (offset >= b.size()) return {};
+  const auto length = std::min(maxLength, b.size() - offset);
+  std::size_t end = 0;
+  while (end < length && b[offset + end] != 0) ++end;
+  return std::string(reinterpret_cast<const char*>(b.data() + offset), end);
+}
+
+std::string indexedString(const Bytes& b, std::size_t base, std::int32_t index) {
+  if (index < 0) return {};
+  const auto relative = static_cast<std::size_t>(index);
+  if (!addFits(base, relative, b.size())) return {};
+  return fixedString(b, base + relative, 4096);
+}
+
+// Collapse `.` and `..` segments after converting separators. Used on a name
+// that already carries its base directory, so a leading `..` eats a real
+// segment rather than being dropped.
+std::string foldModelPath(const std::string& raw) {
+  std::string name = raw;
+  std::replace(name.begin(), name.end(), '\\', '/');
+  std::vector<std::string> segments;
+  std::size_t start = 0;
+  while (start <= name.size()) {
+    const auto end = name.find('/', start);
+    const std::string segment = name.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    if (segment == "..") {
+      if (!segments.empty()) segments.pop_back();
+    } else if (!segment.empty() && segment != ".") {
+      segments.push_back(segment);
+    }
+    if (end == std::string::npos) break;
+    start = end + 1;
+  }
+  std::string result;
+  for (const auto& segment : segments) {
+    if (!result.empty()) result += "/";
+    result += segment;
+  }
+  return result;
+}
+
+// Turn a `mstudiotexture_t` name into the list of material path stems the
+// engine would try, in order.
+//
+// Two shapes appear in real models:
+//   * `models/player/scout/scout_red` -- already rooted under `materials/`,
+//     used as is.
+//   * `medic_red`, `resupply_locker`, `..\..\effects\invulnfx_red` -- not
+//     rooted, so each `$cdmaterials` directory is prefixed in turn. This is the
+//     list `studiohdr_t::cdtextureindex` carries.
+//
+// The previous rule (prefix the model's own directory, i.e. the model path with
+// `.mdl` stripped) was an over-fit to the player models, whose `$cdmaterials`
+// entry happens to equal that directory: `models/player/medic.mdl` + `medic_red`
+// gives `models/player/medic/medic_red` either way. A prop model breaks it --
+// `models/props_gameplay/resupply_locker.mdl` stores `resupply_locker`, which
+// lives at `models/props_gameplay/resupply_locker`, not in a `resupply_locker/`
+// directory of its own. That is why 21 of 59 prepared models came back with no
+// paint while every player model was fine.
+std::vector<std::string> textureCandidatesFor(const std::string& raw,
+    const std::vector<std::string>& cdDirectories) {
+  std::vector<std::string> candidates;
+  std::string name = raw;
+  std::replace(name.begin(), name.end(), '\\', '/');
+  if (name.empty()) return candidates;
+  const bool rooted = name.compare(0, 7, "models/") == 0
+    || name.compare(0, 10, "materials/") == 0;
+  const auto push = [&](std::string candidate) {
+    if (candidate.empty()) return;
+    if (std::find(candidates.begin(), candidates.end(), candidate) == candidates.end()) {
+      candidates.push_back(std::move(candidate));
+    }
+  };
+  if (rooted) {
+    push(foldModelPath(name));
+    return candidates;
+  }
+  for (const auto& directory : cdDirectories) {
+    if (directory.empty()) continue;
+    push(foldModelPath(directory + name));
+  }
+  return candidates;
+}
+
+bool readVec3(const Bytes& b, std::size_t offset, std::array<float, 3>& value) {
+  return readAt(b, offset, value[0]) && readAt(b, offset + 4, value[1]) && readAt(b, offset + 8, value[2]);
+}
+
+void parseVvd(const Bytes& b, ModelMetadata& out) {
+  if (b.size() < 64) { out.diagnostics.push_back("VVD header is shorter than the known Source header"); return; }
+  std::uint32_t version = 0, numLods = 0, numLod0 = 0, vertexDataStart = 0;
+  readAt(b, 4, version); readAt(b, 12, numLods); readAt(b, 16, numLod0); readAt(b, 56, vertexDataStart);
+  if (version < 4 || version > 5 || numLod0 > 4000000 || !rangeFits(vertexDataStart, numLod0, kVvdVertexStride, b.size())) {
+    out.diagnostics.push_back("VVD vertex table is outside the file or uses an unsupported layout");
+    return;
+  }
+  // The LOD header and the fixup table are read next to the vertex table they
+  // describe: the LOD counts say how many vertices each LOD adds to the storage
+  // pool, and the fixups name every pool run by (lod, base, length). Both are
+  // evidence for the pool mapping in applyVvdPoolMapping -- a mapping that only
+  // "looks right" is not evidence.
+  if (numLods > 0 && numLods <= 32) {
+    out.vvdLodCount = numLods;
+    out.vvdLodVertexCounts.resize(numLods, 0);
+    for (std::uint32_t lod = 0; lod < numLods; ++lod) {
+      std::uint32_t count = 0;
+      if (readAt(b, 16 + lod * 4, count)) out.vvdLodVertexCounts[lod] = count;
+    }
+  }
+  std::uint32_t numFixups = 0, fixupTableStart = 0;
+  readAt(b, 48, numFixups); readAt(b, 52, fixupTableStart);
+  if (numFixups <= 4096 && fixupTableStart != 0
+      && rangeFits(fixupTableStart, numFixups, 12, b.size())) {
+    out.vvdFixups.reserve(numFixups);
+    for (std::uint32_t i = 0; i < numFixups; ++i) {
+      const auto off = static_cast<std::size_t>(fixupTableStart) + i * 12;
+      ModelMetadata::VvdFixup fixup;
+      if (!readAt(b, off, fixup.lod) || !readAt(b, off + 4, fixup.sourceVertexId)
+          || !readAt(b, off + 8, fixup.numVertices)) break;
+      out.vvdFixups.push_back(fixup);
+    }
+  }
+  out.vertices.reserve(numLod0);
+  std::size_t invalidSkin = 0;
+  for (std::uint32_t i = 0; i < numLod0; ++i) {
+    const auto off = static_cast<std::size_t>(vertexDataStart) + i * kVvdVertexStride;
+    ModelVertex vertex;
+    for (std::size_t j = 0; j < 3; ++j) readAt(b, off + j * 4, vertex.weights[j]);
+    for (std::size_t j = 0; j < 3; ++j) readAt(b, off + 12 + j, vertex.boneIndices[j]);
+    readAt(b, off + 15, vertex.boneCount);
+    if (vertex.boneCount > 3) vertex.boneCount = 3;
+    readVec3(b, off + 16, vertex.position); readVec3(b, off + 28, vertex.normal);
+    readAt(b, off + 40, vertex.texcoord[0]); readAt(b, off + 44, vertex.texcoord[1]);
+    bool vertexSkinValid = true;
+    const auto weightSum = vertex.weights[0] + vertex.weights[1] + vertex.weights[2];
+    if (!std::isfinite(weightSum) || weightSum < 0.99f || weightSum > 1.01f) { ++invalidSkin; vertexSkinValid = false; }
+    for (std::size_t j = 0; j < vertex.boneCount; ++j)
+      if (vertex.boneIndices[j] >= out.boneCount) { ++invalidSkin; vertexSkinValid = false; break; }
+    if (vertex.boneCount > 0 && vertexSkinValid) ++out.skinningVertexCount;
+    out.vertices.push_back(vertex);
+  }
+  if (numLods > 0) out.meshes.push_back(ModelMeshDescriptor{0, 0, numLod0, 0});
+  out.invalidSkinVertexCount = invalidSkin;
+  out.skinningDataAvailable = !out.vertices.empty() && invalidSkin == 0;
+  out.bindPoseMatricesAvailable = !out.bones.empty()
+    && std::all_of(out.bones.begin(), out.bones.end(), [](const ModelBone& bone) { return bone.poseToBoneValid; });
+  out.skinningBlockedReason = out.bindPoseMatricesAvailable
+    ? "animation sequence matrices are not decoded"
+    : "MDL poseToBone bind matrices are missing or invalid for the validated header/stride";
+  if (invalidSkin != 0) out.diagnostics.push_back("VVD contains vertices with invalid skin indices");
+  if (!out.skinningDataAvailable) out.diagnostics.push_back("GPU skinning data unavailable; bind-pose fallback only");
+  out.diagnostics.push_back("GPU skinning blocked: " + out.skinningBlockedReason);
+}
+
+void parseVtxDiagnostics(const Bytes& b, ModelMetadata& out) {
+  auto& d = out.vtxDiagnostics;
+  d.bodyPartStride = kVtxBodyPartStride;
+  if (b.size() < 64) { d.failureReason = "VTX header is shorter than 64 bytes"; return; }
+  d.headerInBounds = true;
+  readAt(b, 0, d.version); readAt(b, 24, d.declaredBytes);
+  readAt(b, 28, d.bodyPartCount); readAt(b, 32, d.bodyPartOffset);
+  d.bodyPartTableInBounds = d.bodyPartCount <= 4096
+      && rangeFits(d.bodyPartOffset, d.bodyPartCount, d.bodyPartStride, b.size());
+  if (!d.bodyPartTableInBounds) {
+    d.failureReason = "bodypart table exceeds VTX file bounds";
+    return;
+  }
+  if (d.bodyPartCount != 0) {
+    std::uint32_t modelOffset = 0;
+    readAt(b, d.bodyPartOffset, modelOffset);
+    d.firstModelOffsetCandidate = modelOffset;
+    if (addFits(d.bodyPartOffset, modelOffset, b.size())) {
+      d.firstModelAbsoluteCandidate = d.bodyPartOffset + modelOffset;
+      d.failureReason = "bodypart boundary verified; model/lod/mesh/stripgroup layout is not yet proven";
+    } else {
+      d.failureReason = "first model relative offset exceeds VTX file bounds";
+    }
+  } else {
+    d.failureReason = "VTX contains no bodyparts";
+  }
+}
+
+bool parseVtxHierarchyWithStrides(const Bytes& b, ModelMetadata& out, std::size_t stripGroupStride, std::size_t vertexStride) {
+  auto& d = out.vtxDiagnostics;
+  if (!d.bodyPartTableInBounds) return false;
+  out.indices.clear();
+  out.renderIndices.clear();
+  out.renderIndicesOriginal.clear();
+  d.vtxDescriptorCount = 0;
+  d.vtxIndexCount = 0;
+  d.vtxOutOfBoundsCount = 0;
+  d.vtxDegenerateTriangleCount = 0;
+  for (std::uint32_t bp = 0; bp < d.bodyPartCount; ++bp) {
+    const auto bpOff = static_cast<std::size_t>(d.bodyPartOffset) + bp * kVtxBodyPartStride;
+    std::uint32_t modelCount = 0, modelRel = 0;
+    readAt(b, bpOff, modelCount); readAt(b, bpOff + 4, modelRel);
+    if (modelCount > 4096 || !rangeFits(bpOff + modelRel, modelCount, kVtxModelStride, b.size())) continue;
+    for (std::uint32_t model = 0; model < modelCount; ++model) {
+      const auto modelOff = bpOff + modelRel + model * kVtxModelStride;
+      std::uint32_t lodCount = 0, lodRel = 0; readAt(b, modelOff, lodCount); readAt(b, modelOff + 4, lodRel);
+      if (lodCount > 32 || !rangeFits(modelOff + lodRel, lodCount, kVtxLodStride, b.size())) continue;
+      for (std::uint32_t lod = 0; lod < lodCount; ++lod) {
+        const auto lodOff = modelOff + lodRel + lod * kVtxLodStride;
+        std::uint32_t meshCount = 0, meshRel = 0; readAt(b, lodOff, meshCount); readAt(b, lodOff + 4, meshRel);
+        if (meshCount > 4096 || !rangeFits(lodOff + meshRel, meshCount, kVtxMeshStride, b.size())) continue;
+        for (std::uint32_t mesh = 0; mesh < meshCount; ++mesh) {
+          const auto meshOff = lodOff + meshRel + mesh * kVtxMeshStride;
+          std::uint32_t groupCount = 0, groupRel = 0; readAt(b, meshOff, groupCount); readAt(b, meshOff + 4, groupRel);
+          if (groupCount > 4096 || !rangeFits(meshOff + groupRel, groupCount, stripGroupStride, b.size())) continue;
+          for (std::uint32_t group = 0; group < groupCount; ++group) {
+            const auto groupOff = meshOff + groupRel + group * stripGroupStride;
+            std::uint32_t vertexCount = 0, vertexRel = 0, indexCount = 0, indexRel = 0;
+            readAt(b, groupOff, vertexCount); readAt(b, groupOff + 4, vertexRel); readAt(b, groupOff + 8, indexCount); readAt(b, groupOff + 12, indexRel);
+            if (vertexCount == 0 || indexCount < 3 || vertexCount > 4000000 || indexCount > 12000000
+                || !rangeFits(groupOff + vertexRel, vertexCount, vertexStride, b.size())
+                || !rangeFits(groupOff + indexRel, indexCount, kVtxIndexStride, b.size())) {
+              ++d.vtxOutOfBoundsCount;
+              continue;
+            }
+            // The VVD pool mapping needs every origMeshVertID this mesh uses at
+            // this LOD, not only the ones its triangles reference: a pool run is
+            // the whole vertex array of the mesh at that LOD, so unreferenced
+            // slots still take up storage positions.
+            {
+              ModelMetadata::VtxLodOids* lodOids = nullptr;
+              for (auto& existing : out.vtxLodOids) {
+                if (existing.bodyPart == bp && existing.model == model
+                    && existing.lod == lod && existing.mesh == mesh) { lodOids = &existing; break; }
+              }
+              if (lodOids == nullptr) {
+                ModelMetadata::VtxLodOids fresh;
+                fresh.bodyPart = bp; fresh.model = model; fresh.lod = lod; fresh.mesh = mesh;
+                out.vtxLodOids.push_back(std::move(fresh));
+                lodOids = &out.vtxLodOids.back();
+              }
+              for (std::uint32_t i = 0; i < vertexCount; ++i) {
+                std::uint16_t slotOid = 0;
+                if (!readAt(b, groupOff + vertexRel + i * vertexStride + 4, slotOid)) break;
+                if (std::find(lodOids->oids.begin(), lodOids->oids.end(), slotOid) == lodOids->oids.end()) {
+                  lodOids->oids.push_back(slotOid);
+                }
+              }
+            }
+            ModelIndexDescriptor descriptor{bp, model, lod, mesh, group, static_cast<std::uint32_t>(groupOff + indexRel), indexCount, static_cast<std::uint32_t>(groupOff + vertexRel), vertexCount, static_cast<std::uint32_t>(out.renderIndices.size()), indexCount};
+            const auto renderStart = out.renderIndices.size();
+            bool conversionOk = true;
+            for (std::uint32_t i = 0; i < indexCount; ++i) {
+              std::uint16_t localIndex = 0;
+              readAt(b, groupOff + indexRel + i * kVtxIndexStride, localIndex);
+              if (localIndex >= vertexCount) { ++d.vtxOutOfBoundsCount; conversionOk = false; break; }
+              std::uint16_t originalIndex = 0;
+              if (!readAt(b, groupOff + vertexRel + localIndex * vertexStride + 4, originalIndex)
+                  || originalIndex >= out.vertices.size()) { ++d.vtxOutOfBoundsCount; conversionOk = false; break; }
+              // The draw index is the strip-group's local index: it is the
+              // position inside the VVD model vertex block once the model base
+              // is added. origMeshVertID is kept only as a fallback.
+              out.renderIndices.push_back(localIndex);
+              out.renderIndicesOriginal.push_back(originalIndex);
+            }
+            if (!conversionOk) {
+              out.renderIndices.resize(renderStart);
+              out.renderIndicesOriginal.resize(renderStart);
+              continue;
+            }
+            d.vtxIndexCount += indexCount;
+            ++d.vtxDescriptorCount;
+            for (std::uint32_t i = 0; i + 2 < indexCount; i += 3) {
+              const auto a = out.renderIndices[renderStart + i];
+              const auto bIndex = out.renderIndices[renderStart + i + 1];
+              const auto c = out.renderIndices[renderStart + i + 2];
+              if (a == bIndex || a == c || bIndex == c) ++d.vtxDegenerateTriangleCount;
+            }
+            out.indices.push_back(descriptor);
+          }
+        }
+      }
+    }
+  }
+  return !out.indices.empty();
+}
+
+void parseVtxHierarchy(const Bytes& b, ModelMetadata& out) {
+  auto& d = out.vtxDiagnostics;
+  if (!d.bodyPartTableInBounds) return;
+  const std::size_t groupStrides[] = { kVtxStripGroupStride, 33u, 29u };
+  const std::size_t vertexStrides[] = { kVtxVertexStride, 9u };
+  std::vector<ModelIndexDescriptor> bestIndices;
+  std::vector<std::uint32_t> bestRender;
+  std::vector<std::uint32_t> bestRenderOriginal;
+  std::vector<ModelMetadata::VtxLodOids> bestLodOids;
+  std::size_t bestDescriptors = 0;
+  std::size_t bestGroupStride = kVtxStripGroupStride;
+  std::size_t bestVertexStride = kVtxVertexStride;
+  ModelVtxDiagnostics bestDiag = d;
+  for (const auto groupStride : groupStrides) {
+    for (const auto vertexStride : vertexStrides) {
+      ModelMetadata trial;
+      trial.vertices = out.vertices;
+      trial.vtxDiagnostics = d;
+      if (!parseVtxHierarchyWithStrides(b, trial, groupStride, vertexStride)) continue;
+      if (trial.indices.size() > bestDescriptors) {
+        bestDescriptors = trial.indices.size();
+        bestIndices = std::move(trial.indices);
+        bestRender = std::move(trial.renderIndices);
+        bestRenderOriginal = std::move(trial.renderIndicesOriginal);
+        bestLodOids = std::move(trial.vtxLodOids);
+        bestDiag = trial.vtxDiagnostics;
+        bestGroupStride = groupStride;
+        bestVertexStride = vertexStride;
+      }
+    }
+  }
+  if (bestDescriptors == 0) {
+    d.failureReason = "stripgroup index conversion exceeded local or VVD vertex bounds";
+    return;
+  }
+  out.indices = std::move(bestIndices);
+  out.renderIndices = std::move(bestRender);
+  out.renderIndicesOriginal = std::move(bestRenderOriginal);
+  out.vtxLodOids = std::move(bestLodOids);
+  out.vtxDiagnostics = bestDiag;
+  d.failureReason = "VTX hierarchy decoded with stripgroupStride=" + std::to_string(bestGroupStride)
+    + " vertexStride=" + std::to_string(bestVertexStride);
+}
+
+ModelFileStatus inspectFile(const std::filesystem::path& path, ModelFileKind kind) {
+  ModelFileStatus result;
+  result.kind = kind;
+  result.path = path;
+  std::error_code ec;
+  result.exists = std::filesystem::is_regular_file(path, ec) && !ec;
+  if (!result.exists) { result.diagnostic = "missing"; return result; }
+  result.bytes = std::filesystem::file_size(path, ec);
+  std::string error;
+  const auto bytes = readFile(path, error);
+  if (bytes.size() < 12) { result.diagnostic = error.empty() ? "file too small" : error; return result; }
+  std::uint32_t id = 0;
+  readAt(bytes, 0, id);
+  std::uint32_t version = 0;
+  std::uint32_t checksum = 0;
+  if (kind == ModelFileKind::Vtx) {
+    // Source VTX files have a version-first header; they do not use an IDST/IDSV tag.
+    version = id;
+    readAt(bytes, 16, checksum);
+    result.version = version;
+    result.checksum = checksum;
+    result.signatureValid = version >= 6 && version <= 8 && checksum != 0;
+  } else {
+    readAt(bytes, 4, version);
+    readAt(bytes, 8, checksum);
+    result.version = version;
+    result.checksum = checksum;
+    const auto expected = kind == ModelFileKind::Mdl ? kIdStudio : kIdVvd;
+    result.signatureValid = id == expected;
+  }
+  if (!result.signatureValid) { result.diagnostic = "unexpected signature or unsupported VTX header"; return result; }
+  result.diagnostic = "signature and header prefix valid";
+  return result;
+}
+
+void parseMdl(const Bytes& b, ModelMetadata& out) {
+  if (b.size() < 316) { out.diagnostics.push_back("MDL header is shorter than the known Source studio header"); return; }
+  readAt(b, 0, out.id); readAt(b, 4, out.version); readAt(b, 8, out.checksum);
+  out.name = fixedString(b, 12, 64);
+  readAt(b, 76, out.length); readAt(b, 152, out.flags);
+  std::uint32_t numBones = 0, boneIndex = 0, numTextures = 0, textureIndex = 0;
+  std::uint32_t numAttachments = 0, attachmentIndex = 0, numSequences = 0, sequenceIndex = 0;
+  std::uint32_t numBodyParts = 0, bodyPartIndex = 0;
+  std::uint32_t numCdTextures = 0, cdTextureIndex = 0;
+  readAt(b, 156, numBones); readAt(b, 160, boneIndex);
+  readAt(b, 188, numSequences); readAt(b, 192, sequenceIndex);
+  // studiohdr_t word layout, verified against scout.mdl byte for byte:
+  // 204 numtextures / 208 textureindex / 212 numcdtextures / 216 cdtextureindex /
+  // 232 numbodyparts / 236 bodypartindex / 240 numlocalattachments / 244 attachmentindex.
+  // The texture pair used to be read from 212/216 -- the CD-texture table -- so
+  // `textureCount` came back as numcdtextures (2) and the table pointer landed
+  // in a list of strings. Nothing consumed `textureCount`, so the wrong word was
+  // never caught; the byte evidence for 208 is that textureindex + 17*64 lands
+  // exactly on cdtextureindex (589552 + 1088 = 590640).
+  //
+  // The bodypart and attachment pairs were shifted by two words in exactly the
+  // same way, and that one *did* have a consumer. 240/244 are numlocalattachments
+  // / localattachmentindex; 248/252 are numlocalnodes / localnodeindex. Reading
+  // the node pair as the attachment pair put the attachment table pointer in the
+  // node table, so every attachment came back with an unreadable name and a
+  // transform of 1e27 -- and nothing noticed, because the only consumer was
+  // `attachments.size() == attachmentCount`, a count check that a table of
+  // garbage satisfies. The two are indistinguishable by count and obvious by
+  // content: a real attachment has a name, a bone index inside the skeleton and
+  // a unit-length basis.
+  readAt(b, 204, numTextures); readAt(b, 208, textureIndex);
+  readAt(b, 212, numCdTextures); readAt(b, 216, cdTextureIndex);
+  readAt(b, 232, numBodyParts); readAt(b, 236, bodyPartIndex);
+  readAt(b, 240, numAttachments); readAt(b, 244, attachmentIndex);
+  out.boneCount = numBones; out.sequenceCount = numSequences; out.textureCount = numTextures;
+  out.bodyPartCount = numBodyParts; out.attachmentCount = numAttachments;
+  const auto saneCount = [&](std::uint32_t count, const char* label) {
+    if (count > 4096) { out.diagnostics.emplace_back(std::string(label) + " count exceeds safe limit"); return false; }
+    return true;
+  };
+  if (!saneCount(numBones, "bone") || !rangeFits(boneIndex, numBones, kBoneStride, b.size())) {
+    out.diagnostics.push_back("bone table is outside the MDL file or uses an unsupported layout");
+  } else {
+    out.bones.reserve(numBones);
+    for (std::uint32_t i = 0; i < numBones; ++i) {
+      const auto off = static_cast<std::size_t>(boneIndex) + i * kBoneStride;
+      std::int32_t nameIndex = -1, parent = -1;
+      readAt(b, off, nameIndex); readAt(b, off + 4, parent);
+      ModelBone bone; bone.name = indexedString(b, off, nameIndex); bone.parent = parent;
+      if (!readVec3(b, off + 32, bone.position)) out.diagnostics.push_back("bone position outside table");
+      bone.poseToBoneValid = true;
+      for (std::size_t matrixIndex = 0; matrixIndex < bone.poseToBone.size(); ++matrixIndex) {
+        if (!readAt(b, off + 96 + matrixIndex * sizeof(float), bone.poseToBone[matrixIndex])
+            || !std::isfinite(bone.poseToBone[matrixIndex])) {
+          bone.poseToBoneValid = false;
+          break;
+        }
+      }
+      if (!bone.poseToBoneValid) out.diagnostics.push_back("bone poseToBone matrix outside table or non-finite");
+      out.bones.push_back(std::move(bone));
+    }
+  }
+  if (!saneCount(numAttachments, "attachment") || !rangeFits(attachmentIndex, numAttachments, kAttachmentStride, b.size())) {
+    out.diagnostics.push_back("attachment table is outside the MDL file or uses an unsupported layout");
+  } else {
+    out.attachments.reserve(numAttachments);
+    for (std::uint32_t i = 0; i < numAttachments; ++i) {
+      const auto off = static_cast<std::size_t>(attachmentIndex) + i * kAttachmentStride;
+      std::int32_t nameIndex = -1, flags = 0, bone = -1;
+      readAt(b, off, nameIndex); readAt(b, off + 4, flags); readAt(b, off + 8, bone);
+      ModelAttachment attachment; attachment.name = indexedString(b, off, nameIndex); attachment.flags = flags; attachment.bone = bone;
+      // mstudioattachment_t::local is a row-major matrix3x4_t. The origin is
+      // its translation column; axes are the three rotation basis columns.
+      const auto readMatrixColumn = [&](std::size_t column, std::array<float, 3>& value) {
+        return readAt(b, off + 12 + column * 4, value[0])
+            && readAt(b, off + 28 + column * 4, value[1])
+            && readAt(b, off + 44 + column * 4, value[2]);
+      };
+      if (!readMatrixColumn(3, attachment.origin)
+          || !readMatrixColumn(0, attachment.axisX)
+          || !readMatrixColumn(1, attachment.axisY)
+          || !readMatrixColumn(2, attachment.axisZ)) {
+        out.diagnostics.push_back("attachment transform outside table");
+      }
+      for (std::size_t i = 0; i < attachment.local.size(); ++i) {
+        if (!readAt(b, off + 12 + i * sizeof(float), attachment.local[i])
+            || !std::isfinite(attachment.local[i])) {
+          attachment.local = {};
+          out.diagnostics.push_back("attachment local matrix outside table or non-finite");
+          break;
+        }
+      }
+      out.attachments.push_back(std::move(attachment));
+    }
+  }
+  if (!saneCount(numBodyParts, "bodypart") || !rangeFits(bodyPartIndex, numBodyParts, kBodyPartStride, b.size())) {
+    out.diagnostics.push_back("bodypart table is outside the MDL file or uses an unsupported layout");
+  } else {
+    out.bodyParts.reserve(numBodyParts);
+    for (std::uint32_t i = 0; i < numBodyParts; ++i) {
+      const auto off = static_cast<std::size_t>(bodyPartIndex) + i * kBodyPartStride;
+      std::int32_t nameIndex = -1;
+      ModelBodyPart bodyPart;
+      readAt(b, off, nameIndex);
+      readAt(b, off + 4, bodyPart.modelCount);
+      readAt(b, off + 8, bodyPart.base);
+      readAt(b, off + 12, bodyPart.modelIndex);
+      bodyPart.name = indexedString(b, off, nameIndex);
+      if (bodyPart.modelCount < 0 || bodyPart.modelCount > 4096) {
+        out.diagnostics.push_back("bodypart model count exceeds safe limit");
+      }
+      out.bodyParts.push_back(std::move(bodyPart));
+    }
+  }
+  // The name table leads with a relative string index, exactly like the
+  // attachment and bodypart descriptors above, so `indexedString` already knows
+  // how to follow it. A slot whose name is unreadable stays in the vector as an
+  // empty string rather than being dropped: slot order is the model's own
+  // texture index space, and a dropped entry would silently renumber the rest.
+  // The $cdmaterials list: `numcdtextures` int offsets. Each offset is an
+  // absolute file offset to a directory string, NOT an offset relative to
+  // `cdtextureindex`. Reading them as relative failed silently: the sums landed
+  // past the end of the file, `indexedString` returned an empty string, and
+  // every bare texture stem then resolved against an empty directory list.
+  // medic.mdl's entry 0 sits at byte 964798 with cdtextureindex=943560, so the
+  // old reading asked for byte 1908358 of a 964852-byte file.
+  std::vector<std::string> cdDirectories;
+  if (!saneCount(numCdTextures, "cdtexture") || !rangeFits(cdTextureIndex, numCdTextures, 4, b.size())) {
+    out.diagnostics.push_back("CD texture table is outside the MDL file or uses an unsupported layout");
+  } else {
+    cdDirectories.reserve(numCdTextures);
+    for (std::uint32_t i = 0; i < numCdTextures; ++i) {
+      std::int32_t pathOffset = 0;
+      readAt(b, static_cast<std::size_t>(cdTextureIndex) + i * 4, pathOffset);
+      std::string directory;
+      if (pathOffset > 0 && static_cast<std::size_t>(pathOffset) < b.size()) {
+        directory = fixedString(b, static_cast<std::size_t>(pathOffset), 512);
+      }
+      std::replace(directory.begin(), directory.end(), '\\', '/');
+      while (!directory.empty() && directory.back() == '/') directory.pop_back();
+      if (!directory.empty()) directory += "/";
+      cdDirectories.push_back(std::move(directory));
+    }
+    out.cdTexturePaths = cdDirectories;
+  }
+  if (!saneCount(numTextures, "texture") || !rangeFits(textureIndex, numTextures, kTextureStride, b.size())) {
+    out.diagnostics.push_back("texture table is outside the MDL file or uses an unsupported layout");
+  } else {
+    out.textureNames.reserve(numTextures);
+    out.textureCandidates.reserve(numTextures);
+    for (std::uint32_t i = 0; i < numTextures; ++i) {
+      const auto off = static_cast<std::size_t>(textureIndex) + i * kTextureStride;
+      std::int32_t nameIndex = -1;
+      readAt(b, off, nameIndex);
+      std::vector<std::string> candidates = textureCandidatesFor(indexedString(b, off, nameIndex), cdDirectories);
+      std::string name = candidates.empty() ? std::string{} : candidates.front();
+      if (!std::all_of(name.begin(), name.end(), [](unsigned char c) { return c >= 32 && c <= 126; })) {
+        out.diagnostics.push_back("texture name is not printable; slot kept empty");
+        name.clear();
+        candidates.clear();
+      }
+      out.textureNames.push_back(std::move(name));
+      out.textureCandidates.push_back(std::move(candidates));
+    }
+  }
+  // The skin family table: words 220/224/228 are numskinref / numskinfamilies /
+  // skinindex (an ABSOLUTE file offset). The table is numskinfamilies rows of
+  // numskinref int16 texture slots. This is the only table in the resource set
+  // that maps a mesh material slot to a texture for a given team; T57's entity
+  // pass never read it and painted slot 0 for all nine classes.
+  //
+  // It is validated against the texture table instead of trusted: every entry
+  // must be a real texture slot. A wrong offset does not read as garbage here --
+  // it reads as plausible small integers -- so an out-of-range count is the
+  // signal, and the table stays unavailable rather than guessing.
+  std::uint32_t numSkinRef = 0, numSkinFamilies = 0, skinIndex = 0;
+  readAt(b, 220, numSkinRef); readAt(b, 224, numSkinFamilies); readAt(b, 228, skinIndex);
+  out.skinFamilies.skinRefCount = numSkinRef;
+  out.skinFamilies.skinFamilyCount = numSkinFamilies;
+  if (numSkinRef == 0 || numSkinFamilies == 0) {
+    out.skinFamilies.reason = "MDL declares no skin family table";
+  } else if (!saneCount(numSkinRef, "skinref") || !saneCount(numSkinFamilies, "skinfamily")
+      || !rangeFits(skinIndex, static_cast<std::size_t>(numSkinRef) * numSkinFamilies, 2, b.size())) {
+    out.skinFamilies.reason = "skin family table is outside the MDL file";
+  } else {
+    out.skinFamilies.families.assign(numSkinFamilies, std::vector<std::int32_t>(numSkinRef, -1));
+    std::size_t outOfRange = 0;
+    for (std::uint32_t family = 0; family < numSkinFamilies; ++family) {
+      for (std::uint32_t ref = 0; ref < numSkinRef; ++ref) {
+        std::uint16_t slot = 0;
+        readAt(b, static_cast<std::size_t>(skinIndex)
+            + (static_cast<std::size_t>(family) * numSkinRef + ref) * 2, slot);
+        if (slot >= numTextures) { ++outOfRange; continue; }
+        out.skinFamilies.families[family][ref] = static_cast<std::int32_t>(slot);
+      }
+    }
+    if (outOfRange > 0) {
+      out.skinFamilies.reason = "skin family entries outside the texture table: " + std::to_string(outOfRange);
+    } else {
+      out.skinFamilies.available = true;
+      out.skinFamilies.reason = "decoded";
+    }
+  }
+  if (!saneCount(numSequences, "sequence") || !rangeFits(sequenceIndex, numSequences, kSequenceStride, b.size())) {
+    out.diagnostics.push_back("sequence table is outside the MDL file or uses an unsupported layout");
+    out.sequenceDecodeReason = "sequence descriptor table is outside bounds";
+  } else {
+    out.sequenceDecodeReason = numSequences == 0
+      ? "MDL contains no sequence descriptors"
+      : "animdesc frame count is unsupported: sequence animindex/animation blocks are not decoded";
+    if (numSequences == 0) out.sequenceFrameCountAvailable = true;
+    out.sequences.reserve(numSequences);
+    for (std::uint32_t i = 0; i < numSequences; ++i) {
+      const auto off = static_cast<std::size_t>(sequenceIndex) + i * kSequenceStride;
+      ModelSequence sequence;
+      // mstudioseqdesc_t stores relative string indices, not inline labels.
+      std::int32_t labelIndex = -1;
+      readAt(b, off + 4, labelIndex);
+      sequence.label = indexedString(b, off, labelIndex);
+      if (!std::all_of(sequence.label.begin(), sequence.label.end(), [](unsigned char c) { return c >= 32 && c <= 126; })) {
+        sequence.label.clear();
+        out.diagnostics.push_back("sequence label is not printable; descriptor kept without a label");
+      }
+      readAt(b, off + 16, sequence.activity); readAt(b, off + 12, sequence.flags);
+      readAt(b, off + 56, sequence.blendCount);
+      sequence.frameCountAvailable = false;
+      out.sequences.push_back(std::move(sequence));
+    }
+  }
+  if (out.name.empty()) out.diagnostics.push_back("MDL name is empty");
+  out.valid = out.id == kIdStudio && out.version >= 44 && out.length <= b.size();
+  if (!out.valid) out.diagnostics.push_back("MDL signature/version/declared length failed validation");
+}
+
+// Decode `mstudiomesh_t.material` for every mesh of every model of every
+// bodypart, and *validate* the decode against two witnesses that do not come
+// from the same table:
+//
+//   * the VTX descriptor list. Each strip group carries the (bodyPart, model,
+//     mesh) triple it came from, so a candidate whose decode does not contain
+//     every one of those triples is provably wrong -- the two files describe the
+//     same model and disagree.
+//   * the texture count. `material` is an index into the `mstudiotexture_t`
+//     table, so a value outside [0, textureCount) is provably not a slot.
+//
+// A candidate that passes both is not "probably right": the VTX triples are a
+// second, independent statement about the same hierarchy.
+void decodeMeshMaterials(const Bytes& b, ModelMetadata& out) {
+  auto& table = out.meshMaterials;
+  table = ModelMeshMaterialTable{};
+  if (out.bodyParts.empty()) {
+    table.reason = "MDL declares no bodyparts";
+    return;
+  }
+  // The bodypart table's own words. `parseMdl` already read them into
+  // `ModelBodyPart`, so this walks the same records rather than re-reading the
+  // header: two reads of the same words is how the 232/240 word shift survived.
+  std::uint32_t bodyPartIndex = 0;
+  readAt(b, 236, bodyPartIndex);
+  const std::size_t bodyPartStride = kBodyPartStride;
+  // A stride candidate is accepted only if *every* descriptor triple lands
+  // inside the decode. `descriptorsChecked` is reported because a table accepted
+  // with zero descriptors checked is not validated at all.
+  const auto tryStride = [&](std::size_t modelStride, const char* source, ModelMeshMaterialTable& candidate) {
+    candidate.slots.clear();
+    candidate.modelStride = modelStride;
+    candidate.meshStride = kMeshStride;
+    candidate.modelStrideSource = source;
+    candidate.modelStrideExercised = false;
+    candidate.meshStrideExercised = false;
+    candidate.meshCount = 0;
+    candidate.descriptorsValidated = 0;
+    const std::uint32_t textureLimit = std::max<std::uint32_t>(1u, out.textureCount);
+    candidate.slots.resize(out.bodyParts.size());
+    candidate.modelVertexBase.clear();
+    candidate.modelVertexBase.resize(out.bodyParts.size());
+    for (std::size_t bp = 0; bp < out.bodyParts.size(); ++bp) {
+      const auto& part = out.bodyParts[bp];
+      if (part.modelCount < 0 || part.modelIndex < 0) { candidate.reason = "bodypart declares a negative model count or table offset"; return false; }
+      if (part.modelCount > 4096) { candidate.reason = "bodypart model count exceeds safe limit"; return false; }
+      // `mstudiobodyparts_t::modelindex` is relative to the bodypart record
+      // itself -- `pModel(i)` is `(mstudiomodel_t*)((byte*)this + modelindex) + i`
+      // -- not an absolute file offset. Reading it as absolute pointed the model
+      // table at whatever bytes happened to sit near the start of the file, which
+      // decoded to `nummeshes=0` and looked like a model with no geometry.
+      const std::size_t bodyPartOff = static_cast<std::size_t>(bodyPartIndex)
+        + bp * bodyPartStride + static_cast<std::size_t>(part.modelIndex);
+      candidate.slots[bp].resize(static_cast<std::size_t>(part.modelCount));
+      candidate.modelVertexBase[bp].resize(static_cast<std::size_t>(part.modelCount));
+      for (std::int32_t model = 0; model < part.modelCount; ++model) {
+        const std::size_t modelOff = bodyPartOff + static_cast<std::size_t>(model) * modelStride;
+        if (model > 0) candidate.modelStrideExercised = true;
+        if (modelOff + kModelMeshIndexOffset + 4 > b.size()) {
+          candidate.reason = "model table is outside the MDL file at stride " + std::to_string(modelStride);
+          return false;
+        }
+        std::uint32_t numMeshes = 0, meshIndex = 0;
+        readAt(b, modelOff + kModelNumMeshesOffset, numMeshes);
+        readAt(b, modelOff + kModelMeshIndexOffset, meshIndex);
+        if (numMeshes > 4096) { candidate.reason = "model mesh count exceeds safe limit"; return false; }
+        std::uint32_t numVertices = 0, vertexIndex = 0;
+        if (modelOff + kModelVertexIndexOffset + 4 > b.size()) {
+          candidate.reason = "model vertex block header is outside the MDL file at stride " + std::to_string(modelStride);
+          return false;
+        }
+        readAt(b, modelOff + kModelNumVerticesOffset, numVertices);
+        readAt(b, modelOff + kModelVertexIndexOffset, vertexIndex);
+        if (numVertices > 4000000) { candidate.reason = "model vertex count exceeds safe limit"; return false; }
+        if (numMeshes > 0 && numVertices == 0) {
+          candidate.reason = "model " + std::to_string(model) + " has " + std::to_string(numMeshes)
+            + " meshes but reads zero vertices at model stride " + std::to_string(modelStride);
+          return false;
+        }
+        if (numVertices > 0) {
+          if (vertexIndex % kVvdVertexStride != 0) {
+            candidate.reason = "model " + std::to_string(model) + " vertexindex "
+              + std::to_string(vertexIndex) + " is not a multiple of the VVD vertex stride at model stride "
+              + std::to_string(modelStride);
+            return false;
+          }
+          const std::size_t base = vertexIndex / kVvdVertexStride;
+          if (base + numVertices > out.vertices.size()) {
+            candidate.reason = "model " + std::to_string(model) + " vertex block "
+              + std::to_string(base) + "+" + std::to_string(numVertices) + " exceeds "
+              + std::to_string(out.vertices.size()) + " VVD vertices";
+            return false;
+          }
+          candidate.modelVertexBase[bp][static_cast<std::size_t>(model)] = static_cast<std::uint32_t>(base);
+        }
+        // `meshindex` is relative to the model record, for the same reason
+        // `modelindex` is relative to the bodypart record: `pMesh(i)` is
+        // `(mstudiomesh_t*)((byte*)this + meshindex) + i`. Reading it as an
+        // absolute file offset landed the mesh table on unrelated bytes, and the
+        // first word of unrelated bytes passed the slot-range check often enough
+        // that `c_scattergun` validated against a table it never read correctly.
+        const std::size_t meshBase = modelOff + static_cast<std::size_t>(meshIndex);
+        if (numMeshes != 0 && !rangeFits(meshBase, numMeshes, kMeshStride, b.size())) {
+          candidate.reason = "mesh table is outside the MDL file";
+          return false;
+        }
+        auto& slots = candidate.slots[bp][static_cast<std::size_t>(model)];
+        slots.reserve(numMeshes);
+        for (std::uint32_t mesh = 0; mesh < numMeshes; ++mesh) {
+          if (mesh > 0) candidate.meshStrideExercised = true;
+          std::int32_t material = -1;
+          readAt(b, meshBase + mesh * kMeshStride, material);
+          if (material < 0 || static_cast<std::uint32_t>(material) >= textureLimit) {
+            candidate.reason = "mesh " + std::to_string(mesh) + " names material slot "
+              + std::to_string(material) + ", outside the " + std::to_string(out.textureCount) + "-slot texture table";
+            return false;
+          }
+          slots.push_back(material);
+        }
+        candidate.meshCount += numMeshes;
+      }
+    }
+    // Witness one: every VTX descriptor's triple has to exist in the decode.
+    for (const auto& descriptor : out.indices) {
+      if (descriptor.bodyPart >= candidate.slots.size()
+          || descriptor.model >= candidate.slots[descriptor.bodyPart].size()
+          || descriptor.mesh >= candidate.slots[descriptor.bodyPart][descriptor.model].size()) {
+        candidate.reason = "VTX descriptor (bodyPart " + std::to_string(descriptor.bodyPart)
+          + ", model " + std::to_string(descriptor.model) + ", mesh " + std::to_string(descriptor.mesh)
+          + ") is not in the decoded mesh table at model stride " + std::to_string(modelStride);
+        return false;
+      }
+      ++candidate.descriptorsValidated;
+    }
+    if (candidate.meshCount == 0) {
+      candidate.reason = "every bodypart decoded to zero meshes";
+      return false;
+    }
+    return true;
+  };
+  // The stride is *solved* when two bodypart tables are laid out back to back:
+  // `modelIndex[bp+1] - modelIndex[bp]` is then `modelCount[bp] * stride` exactly.
+  // Solving it means the answer carries an arithmetic witness; it is offered to
+  // the validator like any other candidate, so a bodypart pair that is not
+  // contiguous simply produces a candidate that fails.
+  std::vector<std::pair<std::size_t, std::string>> candidates;
+  const auto modelTableOffset = [&](std::size_t bp) {
+    return static_cast<std::int64_t>(bodyPartIndex) + static_cast<std::int64_t>(bp) * bodyPartStride
+      + out.bodyParts[bp].modelIndex;
+  };
+  for (std::size_t bp = 0; bp + 1 < out.bodyParts.size(); ++bp) {
+    const auto& current = out.bodyParts[bp];
+    if (current.modelCount <= 0) continue;
+    const std::int64_t span = modelTableOffset(bp + 1) - modelTableOffset(bp);
+    if (span <= 0 || span % current.modelCount != 0) continue;
+    const std::size_t derived = static_cast<std::size_t>(span / current.modelCount);
+    if (derived == 0) continue;
+    candidates.emplace_back(derived, "derived");
+  }
+  for (const auto stride : kModelStrideCandidates) candidates.emplace_back(stride, "assumed");
+  std::string trail;
+  const auto accept = [&](ModelMeshMaterialTable& candidate) {
+    candidate.available = true;
+    if (!candidate.modelStrideExercised) {
+      // Not exercised: every bodypart has one model, so the decode never read a
+      // record at `modelStride`, let alone at `2 * modelStride`. The table is
+      // still exactly what the caller needs -- and saying `modelStride=148`
+      // here would attach a number to the answer that the answer never used.
+      candidate.modelStride = 0;
+      candidate.modelStrideSource = "unexercised";
+    }
+    table = std::move(candidate);
+    out.diagnostics.push_back("mesh material table decoded: modelStride=" + std::to_string(table.modelStride)
+      + " (" + table.modelStrideSource + ") meshStride=" + std::to_string(table.meshStride)
+      + " meshes=" + std::to_string(table.meshCount)
+      + " descriptorsValidated=" + std::to_string(table.descriptorsValidated));
+  };
+  // Two passes. The first refuses a candidate whose stride was never read, so a
+  // stride that *is* exercised is always preferred over one that merely happened
+  // not to break anything. The second pass exists because the unexercised table
+  // is still a correct answer to the question the caller asked -- which slot does
+  // the drawn mesh use -- and refusing it would leave the product guessing again.
+  for (int pass = 0; pass < 2; ++pass) {
+    for (const auto& [stride, source] : candidates) {
+      ModelMeshMaterialTable candidate;
+      if (!tryStride(stride, source.c_str(), candidate)) {
+        if (pass == 0) {
+          if (!trail.empty()) trail += "; ";
+          trail += "stride " + std::to_string(stride) + " (" + source + "): " + candidate.reason;
+          if (trail.size() > 900) trail.resize(900);
+        }
+        continue;
+      }
+      if (pass == 0 && !candidate.modelStrideExercised) continue;
+      accept(candidate);
+      return;
+    }
+  }
+  table.reason = trail.empty() ? "no model stride candidate was available" : trail;
+  out.diagnostics.push_back("mesh material table unavailable: " + table.reason);
+}
+
+// The older reading, kept as a last resort and named as such: it is right only
+// where a mesh's strip-group slot happens to equal its storage position.
+void applyModelVertexBaseFallback(ModelMetadata& out, const std::string& reason) {
+  const auto& bases = out.meshMaterials.modelVertexBase;
+  if (!out.meshMaterials.available || bases.empty()) {
+    out.renderIndices = out.renderIndicesOriginal;
+    out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+      + reason + ") and no validated model vertex base");
+    return;
+  }
+  auto direct = out.renderIndices;
+  for (const auto& descriptor : out.indices) {
+    if (descriptor.bodyPart >= bases.size()
+        || descriptor.model >= bases[descriptor.bodyPart].size()) {
+      out.renderIndices = out.renderIndicesOriginal;
+      out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+        + reason + ") and descriptor (bodyPart " + std::to_string(descriptor.bodyPart)
+        + ", model " + std::to_string(descriptor.model) + ") has no vertex base");
+      return;
+    }
+    const auto base = bases[descriptor.bodyPart][descriptor.model];
+    const std::size_t start = descriptor.renderIndexStart;
+    const std::size_t count = descriptor.renderIndexCount;
+    if (start > direct.size() || count > direct.size() - start) {
+      out.renderIndices = out.renderIndicesOriginal;
+      out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+        + reason + ") and a descriptor render range is outside the decoded index stream");
+      return;
+    }
+    for (std::size_t i = 0; i < count; ++i) {
+      const std::uint64_t rebased = static_cast<std::uint64_t>(direct[start + i]) + base;
+      if (rebased >= out.vertices.size()) {
+        out.renderIndices = out.renderIndicesOriginal;
+        out.diagnostics.push_back("render indices left as VTX origMeshVertID: pool mapping unavailable ("
+          + reason + ") and a rebased index exceeds the VVD vertex count");
+        return;
+      }
+      direct[start + i] = static_cast<std::uint32_t>(rebased);
+    }
+  }
+  out.renderIndices = std::move(direct);
+  out.diagnostics.push_back("render indices fell back to model vertex base + strip-group local index: pool mapping unavailable ("
+    + reason + ")");
+}
+
+// T62: which VVD vertex a VTX index means.
+//
+//   A VTX index counts positions inside its strip group's own vertex array, and
+//   every one of those slots carries `Vertex_t::origMeshVertID` -- an identifier
+//   in the *mesh* numbering, not a storage index. The VVD stores vertices in a
+//   different order: measured on pyro.vvd, scout.vvd and demo.vvd, the pool is
+//   LOD-major, coarsest LOD first. It begins with the vertices only the coarsest
+//   LOD uses, then the vertices the next-finer LOD adds, and so on down to LOD0,
+//   and inside one LOD the vertices of one (bodyPart, model, mesh) form one
+//   contiguous run sorted by origMeshVertID. `mstudiovtxfixup_t` names each of
+//   those runs as (lod, sourceVertexID, numVertexes), so the ordering is not a
+//   guess: the runs derived here are compared against that table and against the
+//   VVD LOD vertex counts *before* a single index is rewritten. If either
+//   comparison disagrees the mapping is refused and the reason is published.
+//
+//   The two readings this replaces: origMeshVertID taken directly as a storage
+//   index joins one LOD's triangles to another LOD's vertices; and "model vertex
+//   base + strip-group local index" is only right for the slots that happen to
+//   land on their own storage position (measured 71% of pyro's LOD0 triangles,
+//   the rest drew as long spikes).
+bool applyVvdPoolMapping(ModelMetadata& out) {
+  if (out.renderIndicesOriginal.size() != out.renderIndices.size()) {
+    applyModelVertexBaseFallback(out, "the origMeshVertID stream is missing");
+    return false;
+  }
+  if (out.vtxLodOids.empty()) {
+    applyModelVertexBaseFallback(out, "the VTX LOD vertex table was not decoded");
+    return false;
+  }
+  if (out.vvdLodVertexCounts.empty()) {
+    applyModelVertexBaseFallback(out, "the VVD LOD vertex counts were not decoded");
+    return false;
+  }
+  // Coarsest LOD first, then the model tree order the file itself uses.
+  std::vector<std::size_t> order(out.vtxLodOids.size());
+  for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+  std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+    const auto& ea = out.vtxLodOids[a];
+    const auto& eb = out.vtxLodOids[b];
+    if (ea.lod != eb.lod) return ea.lod > eb.lod;
+    if (ea.bodyPart != eb.bodyPart) return ea.bodyPart < eb.bodyPart;
+    if (ea.model != eb.model) return ea.model < eb.model;
+    return ea.mesh < eb.mesh;
+  });
+  // The key is the MESH, not the model: measured on demo.vvd/scout.vvd, a
+  // meshes' origMeshVertIDs restart at 0, so two meshes of one model reuse the
+  // same identifiers for different vertices. Deduplicating per model would drop
+  // one mesh's whole run and shift every later run against the fixup table.
+  using MeshKey = std::array<std::uint32_t, 3>;  // {bodyPart, model, mesh}
+  std::map<MeshKey, std::set<std::uint32_t>> assigned;
+  std::map<MeshKey, std::map<std::uint32_t, std::uint32_t>> oidToPool;
+  std::vector<ModelMetadata::VvdFixup> runs;
+  std::uint32_t cursor = 0;
+  std::uint32_t previousLod = 0;
+  bool firstRun = true;
+  for (const auto index : order) {
+    const auto& entry = out.vtxLodOids[index];
+    if (!firstRun && entry.lod != previousLod) {
+      // Every LOD's runs must be complete before the next one starts: the LOD
+      // counts are cumulative, so a short or long run shows up here.
+      if (previousLod >= out.vvdLodVertexCounts.size()) {
+        applyModelVertexBaseFallback(out, "the VTX declares LOD " + std::to_string(previousLod)
+          + " but the VVD header has " + std::to_string(out.vvdLodVertexCounts.size()) + " LOD counts");
+        return false;
+      }
+      const auto expected = out.vvdLodVertexCounts[previousLod];
+      if (cursor != expected) {
+        applyModelVertexBaseFallback(out, "LOD " + std::to_string(previousLod)
+          + " runs end at pool " + std::to_string(cursor) + ", VVD header says "
+          + std::to_string(expected));
+        return false;
+      }
+    }
+    previousLod = entry.lod;
+    firstRun = false;
+    const MeshKey meshKey{entry.bodyPart, entry.model, entry.mesh};
+    auto& assignedSet = assigned[meshKey];
+    std::vector<std::uint32_t> fresh;
+    fresh.reserve(entry.oids.size());
+    for (const auto oid : entry.oids) {
+      if (assignedSet.find(oid) == assignedSet.end()) fresh.push_back(oid);
+    }
+    if (fresh.empty()) continue;
+    std::sort(fresh.begin(), fresh.end());
+    fresh.erase(std::unique(fresh.begin(), fresh.end()), fresh.end());
+    const auto base = cursor;
+    auto& map = oidToPool[meshKey];
+    for (std::size_t i = 0; i < fresh.size(); ++i) {
+      map[fresh[i]] = base + static_cast<std::uint32_t>(i);
+      assignedSet.insert(fresh[i]);
+    }
+    cursor += static_cast<std::uint32_t>(fresh.size());
+    runs.push_back(ModelMetadata::VvdFixup{entry.lod, base, static_cast<std::uint32_t>(fresh.size())});
+  }
+  if (firstRun) {
+    applyModelVertexBaseFallback(out, "the VTX LOD vertex table is empty");
+    return false;
+  }
+  if (cursor != out.vvdLodVertexCounts[0]) {
+    applyModelVertexBaseFallback(out, "the derived runs cover " + std::to_string(cursor)
+      + " vertices, VVD LOD0 has " + std::to_string(out.vvdLodVertexCounts[0]));
+    return false;
+  }
+  if (!out.vvdFixups.empty()) {
+    // The file's own run table, compared as a sorted multiset: the fixup entries
+    // are written per mesh, not in pool order, so order carries no meaning here.
+    auto byTriple = [](const ModelMetadata::VvdFixup& a, const ModelMetadata::VvdFixup& b) {
+      if (a.lod != b.lod) return a.lod < b.lod;
+      if (a.sourceVertexId != b.sourceVertexId) return a.sourceVertexId < b.sourceVertexId;
+      return a.numVertices < b.numVertices;
+    };
+    auto derived = runs;
+    auto declared = out.vvdFixups;
+    std::sort(derived.begin(), derived.end(), byTriple);
+    std::sort(declared.begin(), declared.end(), byTriple);
+    if (derived.size() != declared.size()) {
+      applyModelVertexBaseFallback(out, "derived " + std::to_string(derived.size())
+        + " pool runs, VVD fixup table declares " + std::to_string(declared.size()));
+      return false;
+    }
+    for (std::size_t i = 0; i < derived.size(); ++i) {
+      if (derived[i].lod != declared[i].lod
+          || derived[i].sourceVertexId != declared[i].sourceVertexId
+          || derived[i].numVertices != declared[i].numVertices) {
+        applyModelVertexBaseFallback(out, "derived pool run " + std::to_string(i)
+          + " is {lod " + std::to_string(derived[i].lod) + ", base "
+          + std::to_string(derived[i].sourceVertexId) + ", count "
+          + std::to_string(derived[i].numVertices) + "} but the fixup table says {lod "
+          + std::to_string(declared[i].lod) + ", base "
+          + std::to_string(declared[i].sourceVertexId) + ", count "
+          + std::to_string(declared[i].numVertices) + "}");
+        return false;
+      }
+    }
+  }
+  auto mapped = out.renderIndicesOriginal;
+  for (const auto& descriptor : out.indices) {
+    const MeshKey meshKey{descriptor.bodyPart, descriptor.model, descriptor.mesh};
+    const auto mapIt = oidToPool.find(meshKey);
+    if (mapIt == oidToPool.end()) {
+      applyModelVertexBaseFallback(out, "bodyPart " + std::to_string(descriptor.bodyPart)
+        + " model " + std::to_string(descriptor.model) + " mesh "
+        + std::to_string(descriptor.mesh) + " has no pool runs");
+      return false;
+    }
+    const std::size_t start = descriptor.renderIndexStart;
+    const std::size_t count = descriptor.renderIndexCount;
+    if (start > mapped.size() || count > mapped.size() - start) {
+      applyModelVertexBaseFallback(out, "a descriptor render range is outside the decoded origMeshVertID stream");
+      return false;
+    }
+    for (std::size_t i = 0; i < count; ++i) {
+      const auto oid = mapped[start + i];
+      const auto poolIt = mapIt->second.find(oid);
+      if (poolIt == mapIt->second.end()) {
+        applyModelVertexBaseFallback(out, "origMeshVertID " + std::to_string(oid)
+          + " of bodyPart " + std::to_string(descriptor.bodyPart) + " model "
+          + std::to_string(descriptor.model) + " mesh "
+          + std::to_string(descriptor.mesh) + " has no pool run");
+        return false;
+      }
+      mapped[start + i] = poolIt->second;
+    }
+  }
+  out.renderIndices = std::move(mapped);
+  out.diagnostics.push_back("render indices resolved from the VVD LOD-major pool: (bodyPart, model, mesh) run sorted by origMeshVertID, runs cross-checked against "
+    + std::to_string(out.vvdFixups.size()) + " VVD fixup entries and LOD0 vertex count");
+  return true;
+}
+
+ModelFileStatus inspectBytes(const Bytes& bytes, ModelFileKind kind, const std::filesystem::path& path) {
+  ModelFileStatus result;
+  result.kind = kind;
+  result.path = path;
+  result.exists = !bytes.empty();
+  result.bytes = bytes.size();
+  if (!result.exists) { result.diagnostic = "missing"; return result; }
+  if (bytes.size() < 12) { result.diagnostic = "file too small"; return result; }
+  std::uint32_t id = 0;
+  readAt(bytes, 0, id);
+  std::uint32_t version = 0;
+  std::uint32_t checksum = 0;
+  if (kind == ModelFileKind::Vtx) {
+    version = id;
+    readAt(bytes, 16, checksum);
+    result.version = version;
+    result.checksum = checksum;
+    result.signatureValid = version >= 6 && version <= 8 && checksum != 0;
+  } else {
+    readAt(bytes, 4, version);
+    readAt(bytes, 8, checksum);
+    result.version = version;
+    result.checksum = checksum;
+    const auto expected = kind == ModelFileKind::Mdl ? kIdStudio : kIdVvd;
+    result.signatureValid = id == expected;
+  }
+  if (!result.signatureValid) { result.diagnostic = "unexpected signature or unsupported VTX header"; return result; }
+  result.diagnostic = "signature and header prefix valid";
+  return result;
+}
+
+ModelInspection inspectBuffers(const Bytes& mdlBytes, const Bytes& vvdBytes, const Bytes& vtxBytes,
+    const Bytes& vtxDx80Bytes, const Bytes& vtxSwBytes, const ModelResourcePaths& paths) {
+  ModelInspection result;
+  result.resources = paths;
+  result.mdl = inspectBytes(mdlBytes, ModelFileKind::Mdl, paths.mdl);
+  result.vvd = inspectBytes(vvdBytes, ModelFileKind::Vvd, paths.vvd);
+  result.vtx = inspectBytes(vtxBytes, ModelFileKind::Vtx, paths.vtx);
+  result.vtxDx80 = inspectBytes(vtxDx80Bytes, ModelFileKind::Vtx, paths.vtxDx80);
+  result.vtxSw = inspectBytes(vtxSwBytes, ModelFileKind::Vtx, paths.vtxSw);
+  if (result.mdl.exists && result.mdl.signatureValid) parseMdl(mdlBytes, result.metadata);
+  if (result.vvd.exists && result.vvd.signatureValid) parseVvd(vvdBytes, result.metadata);
+  const auto vtxVersion = result.vtx.signatureValid ? result.vtx.version
+      : (result.vtxDx80.signatureValid ? result.vtxDx80.version : result.vtxSw.version);
+  const bool anyVtx = result.vtx.signatureValid || result.vtxDx80.signatureValid || result.vtxSw.signatureValid;
+  if (anyVtx) {
+    const Bytes& vtxData = result.vtx.signatureValid ? vtxBytes
+      : (result.vtxDx80.signatureValid ? vtxDx80Bytes : vtxSwBytes);
+    parseVtxDiagnostics(vtxData, result.metadata);
+    parseVtxHierarchy(vtxData, result.metadata);
+  }
+  for (auto& mesh : result.metadata.meshes) {
+    mesh.vtxVersion = vtxVersion;
+    mesh.indexStatus = !anyVtx ? ModelMeshIndexStatus::MissingVtx
+        : (!result.metadata.indices.empty() ? ModelMeshIndexStatus::Available : ModelMeshIndexStatus::NotDecoded);
+  }
+  // After the VTX hierarchy, because the decode is validated against it. Before
+  // anything consumes `meshMaterials`, so a consumer can never see an unvalidated
+  // table.
+  if (result.metadata.valid && result.mdl.signatureValid) decodeMeshMaterials(mdlBytes, result.metadata);
+  if (result.metadata.valid) applyVvdPoolMapping(result.metadata);
+  result.renderableResourceSet = result.mdl.signatureValid && result.vvd.signatureValid && anyVtx;
+  if (result.metadata.valid) {
+    result.attachmentStatus = result.metadata.attachmentCount > 0
+      && result.metadata.attachments.size() == result.metadata.attachmentCount
+      ? ModelFeatureStatus::Available : ModelFeatureStatus::Missing;
+    result.bodygroupStatus = ModelFeatureStatus::Unknown;
+    const auto modelName = paths.mdl.filename().generic_string();
+    const bool isViewModel = modelName.size() > 6 && modelName.rfind("v_", 0) == 0
+      && paths.mdl.extension() == ".mdl";
+    result.viewModelPathDetected = isViewModel;
+    result.viewModelStatus = isViewModel ? ModelFeatureStatus::Unknown : ModelFeatureStatus::Missing;
+  }
+  if (!result.mdl.signatureValid) result.diagnostics.push_back("MDL is missing or invalid");
+  if (!result.vvd.signatureValid) result.diagnostics.push_back("VVD is missing or invalid");
+  if (!anyVtx) result.diagnostics.push_back("no valid DX90/DX80/SW VTX companion found");
+  else if (result.metadata.indices.empty()) {
+    result.diagnostics.push_back("VTX strip/group index hierarchy produced no descriptors");
+  } else {
+    const auto& first = result.metadata.indices.front();
+    result.diagnostics.push_back("VTX index descriptors=" + std::to_string(result.metadata.indices.size())
+        + " first indexOffset=" + std::to_string(first.indexOffset)
+        + " indexCount=" + std::to_string(first.indexCount)
+        + " vertexOffset=" + std::to_string(first.vertexOffset)
+        + " vertexCount=" + std::to_string(first.vertexCount));
+  }
+  if (result.renderableResourceSet) result.diagnostics.push_back("resource set is structurally complete; GPU mesh upload and skinning are not implemented here");
+  result.diagnostics.push_back("attachment status=" + std::string(
+    result.attachmentStatus == ModelFeatureStatus::Available ? "available" :
+    result.attachmentStatus == ModelFeatureStatus::Missing ? "missing" : "unknown"));
+  result.diagnostics.push_back("bodygroup status=unknown; runtime selection is not decoded");
+  result.diagnostics.push_back("bodypart probe count=" + std::to_string(result.metadata.bodyParts.size()));
+  for (std::size_t i = 0; i < result.metadata.bodyParts.size() && i < 8; ++i) {
+    const auto& part = result.metadata.bodyParts[i];
+    result.diagnostics.push_back("bodypart[" + std::to_string(i) + "] name=" + part.name
+      + " models=" + std::to_string(part.modelCount)
+      + " base=" + std::to_string(part.base)
+      + " modelIndex=" + std::to_string(part.modelIndex));
+  }
+  result.diagnostics.push_back("viewmodel status=" + std::string(
+    result.viewModelStatus == ModelFeatureStatus::Missing ? "missing" : "unknown")
+    + "; first-person rendering is not implemented");
+  return result;
+}
+}
+
+ModelResourcePaths ModelResourcePaths::fromMdl(const std::filesystem::path& mdlPath) {
+  ModelResourcePaths paths; paths.mdl = mdlPath;
+  paths.vvd = mdlPath; paths.vvd.replace_extension(L".vvd");
+  paths.vtx = mdlPath; paths.vtx.replace_extension(L".dx90.vtx");
+  paths.vtxDx80 = mdlPath; paths.vtxDx80.replace_extension(L".dx80.vtx");
+  paths.vtxSw = mdlPath; paths.vtxSw.replace_extension(L".sw.vtx");
+  return paths;
+}
+
+ModelAssetCandidate ModelLoader::resolveAsset(const AssetRoot& root, const std::string& modelPath) {
+  ModelAssetCandidate result;
+  result.requestedPath = normalizeModelPath(modelPath);
+  if (result.requestedPath.empty()) { result.diagnostic = "empty model path"; return result; }
+  std::filesystem::path relative(result.requestedPath);
+  if (relative.extension() != ".mdl") relative += ".mdl";
+  result.requestedPath = relative.generic_string();
+  const auto loose = root.resolve(relative);
+  std::error_code ec;
+  if (!loose.empty() && std::filesystem::is_regular_file(loose, ec) && !ec) result.looseMdl = loose;
+  // The archives are opened once per AssetRoot and reused. Opening them here
+  // (and again for each companion suffix below) meant re-reading and re-hashing
+  // every *_dir.vpk directory tree -- about a second per model. See
+  // VpkArchiveSet. Iteration order is unchanged, so vpkArchives.front() still
+  // names the same archive it used to.
+  const VpkArchiveSet& archives = root.archives();
+  archives.collectContaining(result.requestedPath, result.vpkArchives);
+  const bool looseFound = !result.looseMdl.empty();
+  result.mdlFound = looseFound || !result.vpkArchives.empty();
+  const auto stem = result.requestedPath.substr(0, result.requestedPath.size() - 4);
+  const auto hasCompanion = [&](const std::string& suffix) {
+    if (looseFound) {
+      std::error_code fileError;
+      return std::filesystem::is_regular_file(root.resolve(stem + suffix), fileError) && !fileError;
+    }
+    for (const auto& archivePath : result.vpkArchives) {
+      const VpkArchive* archive = archives.find(archivePath);
+      if (archive && archive->contains(stem + suffix)) return true;
+    }
+    return false;
+  };
+  result.vvdFound = hasCompanion(".vvd");
+  result.dx90VtxFound = hasCompanion(".dx90.vtx");
+  result.dx80VtxFound = hasCompanion(".dx80.vtx");
+  result.swVtxFound = hasCompanion(".sw.vtx");
+  result.phyFound = hasCompanion(".phy");
+  result.companionSetComplete = result.mdlFound && result.vvdFound
+      && (result.dx90VtxFound || result.dx80VtxFound || result.swVtxFound);
+  if (looseFound && result.vpkArchives.empty()) { result.resolution = ModelAssetResolution::FoundLoose; result.resources = ModelResourcePaths::fromMdl(result.looseMdl); result.diagnostic = "model found as loose file"; }
+  else if (!looseFound && result.vpkArchives.size() == 1) { result.resolution = ModelAssetResolution::FoundVpk; result.diagnostic = "model found in VPK; byte extraction requires archive-aware inspection"; }
+  else if (looseFound || result.vpkArchives.size() > 1) { result.resolution = ModelAssetResolution::Ambiguous; result.diagnostic = "model exists in loose files and/or multiple VPK archives"; }
+  else result.diagnostic = "model not found in loose files or VPK archives";
+  result.diagnostic += " companions(vvd=" + std::to_string(result.vvdFound)
+      + ",dx90=" + std::to_string(result.dx90VtxFound)
+      + ",dx80=" + std::to_string(result.dx80VtxFound)
+      + ",sw=" + std::to_string(result.swVtxFound)
+      + ",phy=" + std::to_string(result.phyFound) + ")";
+  return result;
+}
+
+ModelAssetCandidate ModelLoader::resolveAssetReference(const AssetRoot& root, const AssetReference& reference,
+  const ItemSchema* schema) {
+  if (reference.hasModelPath) return resolveAsset(root, reference.modelPath);
+  ModelAssetCandidate result;
+  if (reference.hasItemDefIndex) {
+    result.itemDefIndex = reference.itemDefIndex;
+    if (schema) {
+      const auto candidates = schema->modelCandidates(static_cast<int>(reference.itemDefIndex));
+      result.itemModelCandidate = !candidates.modelPlayer.empty() || !candidates.modelWorld.empty()
+        || !candidates.modelPlayerPerClass.empty();
+      result.itemModelPlayer = candidates.modelPlayer;
+      result.itemModelWorld = candidates.modelWorld;
+      for (const auto& model : candidates.modelPlayerPerClass) result.itemModelPerClass.push_back(model);
+      if (result.itemModelCandidate) {
+        // The schema candidate is evidence of a possible path, not a path
+        // selected by the Demo. Keep the resource resolution explicitly
+        // unknown until the Demo model reference is decoded.
+        result.resolution = ModelAssetResolution::Unknown;
+        result.requestedPath = !candidates.modelWorld.empty() ? candidates.modelWorld : candidates.modelPlayer;
+        result.diagnostic = "items_game candidate only (itemDefIndex="
+          + std::to_string(reference.itemDefIndex) + "); model path was not present in demo reference";
+        return result;
+      }
+    }
+  }
+  result.resolution = ModelAssetResolution::Unknown;
+  result.diagnostic = reference.hasModelIndex
+    ? "asset reference has model index but no model path; index-to-path mapping is unknown"
+    : "asset reference has no model path";
+  return result;
+}
+
+std::vector<ModelRenderRequest> ModelLoader::buildRenderRequests(const AssetRoot& root,
+  const std::vector<AssetReference>& references, const ItemSchema* schema,
+  ModelRenderRequestStats* stats) {
+  std::vector<ModelRenderRequest> requests;
+  requests.reserve(std::min<std::size_t>(references.size(), 2048u));
+  std::unordered_map<std::string, ModelAssetCandidate> candidateCache;
+  std::unordered_map<std::string, ModelInspection> inspectionCache;
+  candidateCache.reserve(256);
+  inspectionCache.reserve(256);
+  // The archives live on the AssetRoot and are parsed once for the whole run,
+  // not once per call. This used to keep a private cache keyed by archive path,
+  // which still paid a full directory parse for the first lookup of every
+  // archive in every call -- and the callers make several such calls per demo.
+  const VpkArchiveSet& archives = root.archives();
+  if (stats) stats->archiveOpens += archives.size();
+  for (const auto& reference : references) {
+    if (!reference.hasModelPath || reference.modelPath.empty()) continue;
+    if (requests.size() >= 2048u) break;
+    ModelRenderRequest request;
+    request.entityIndex = reference.entityIndex;
+    request.classId = reference.classId;
+    request.className = reference.className;
+    request.modelPath = reference.modelPath;
+    request.modelPathFromWorldModelIndex = reference.modelPathFromWorldModelIndex;
+    const auto normalized = normalizeModelPath(reference.modelPath);
+    auto candidateIt = candidateCache.find(normalized);
+    if (candidateIt == candidateCache.end()) {
+      if (stats) ++stats->candidateResolves;
+      candidateIt = candidateCache.emplace(normalized, resolveAssetReference(root, reference, schema)).first;
+    } else if (stats) {
+      ++stats->candidateCacheHits;
+    }
+    const auto& candidate = candidateIt->second;
+    request.resolution = candidate.resolution;
+    request.companionSetComplete = candidate.companionSetComplete;
+    request.diagnostic = candidate.diagnostic;
+    const bool inspectLoose = candidate.resolution == ModelAssetResolution::FoundLoose
+      && candidate.companionSetComplete;
+    const bool inspectPacked = candidate.resolution == ModelAssetResolution::FoundVpk
+      && candidate.companionSetComplete && !candidate.vpkArchives.empty();
+    if (inspectLoose || inspectPacked) {
+      auto inspectionIt = inspectionCache.find(normalized);
+      if (inspectionIt == inspectionCache.end()) {
+        if (stats) ++stats->inspections;
+        ModelInspection inspection;
+        if (inspectPacked) {
+          if (stats) ++stats->vpkExtracts;
+          if (const auto* archive = archives.find(candidate.vpkArchives.front())) {
+            inspection = ModelLoader::inspectVpk(*archive, normalized);
+            request.inspectedFromVpk = true;
+          } else {
+            inspection.diagnostics.push_back("failed to open VPK archive for inspection");
+          }
+        } else {
+          inspection = inspect(candidate.resources);
+        }
+        inspectionIt = inspectionCache.emplace(normalized, std::move(inspection)).first;
+      } else {
+        if (stats) ++stats->inspectionCacheHits;
+        request.inspectedFromVpk = inspectPacked;
+      }
+      request.inspection = inspectionIt->second;
+      request.checksum = request.inspection.metadata.checksum;
+      request.cacheKey = normalized + "#" + std::to_string(request.checksum);
+      request.renderable = request.inspection.renderableResourceSet;
+      if (!request.renderable) request.diagnostic += "; inspection is not renderable";
+    } else {
+      request.cacheKey = normalized + "#uninspected";
+    }
+    requests.push_back(std::move(request));
+  }
+  return requests;
+}
+
+AppearanceResolution ModelLoader::resolveAppearanceReference(const AssetReference& reference,
+  const ItemSchema* schema) {
+  if (!schema) {
+    AppearanceResolution result;
+    result.itemDefinitionIndex = reference.hasItemDefIndex ? static_cast<int>(reference.itemDefIndex) : -1;
+    result.paintKitId = reference.hasPaintKit ? static_cast<int>(reference.paintKit) : -1;
+    result.skin = reference.hasSkin ? static_cast<int>(reference.skin) : -1;
+    return result;
+  }
+  return schema->resolveAppearance(
+    reference.hasItemDefIndex ? static_cast<int>(reference.itemDefIndex) : -1,
+    reference.hasPaintKit ? static_cast<int>(reference.paintKit) : -1,
+    reference.hasSkin ? static_cast<int>(reference.skin) : -1);
+}
+
+ModelInspection ModelLoader::inspect(const std::filesystem::path& mdlPath) {
+  return inspect(ModelResourcePaths::fromMdl(mdlPath));
+}
+
+ModelInspection ModelLoader::inspect(const ModelResourcePaths& paths) {
+  std::string ignored;
+  return inspectBuffers(readFile(paths.mdl, ignored), readFile(paths.vvd, ignored),
+    readFile(paths.vtx, ignored), readFile(paths.vtxDx80, ignored), readFile(paths.vtxSw, ignored), paths);
+}
+
+ModelInspection ModelLoader::inspectResources(const std::string& modelPath,
+    const std::function<std::vector<std::uint8_t>(const std::string&)>& read) {
+  const auto paths = ModelResourcePaths::fromMdl(normalizeModelPath(modelPath));
+  if (!read || paths.mdl.empty()) return {};
+  return inspectBuffers(read(paths.mdl.generic_string()), read(paths.vvd.generic_string()),
+    read(paths.vtx.generic_string()), read(paths.vtxDx80.generic_string()),
+    read(paths.vtxSw.generic_string()), paths);
+}
+
+ModelInspection ModelLoader::inspectVpk(const VpkArchive& archive, const std::string& modelPath) {
+  auto relative = normalizeModelPath(modelPath);
+  ModelInspection failed;
+  if (relative.empty()) {
+    failed.diagnostics.push_back("empty model path");
+    return failed;
+  }
+  if (relative.size() < 4 || relative.substr(relative.size() - 4) != ".mdl") relative += ".mdl";
+  const auto stem = relative.substr(0, relative.size() - 4);
+  std::string error;
+  const auto mdlBytes = archive.read(relative, &error);
+  const auto vvdBytes = archive.read(stem + ".vvd", &error);
+  const auto vtxBytes = archive.read(stem + ".dx90.vtx", &error);
+  const auto vtxDx80Bytes = archive.read(stem + ".dx80.vtx", &error);
+  const auto vtxSwBytes = archive.read(stem + ".sw.vtx", &error);
+  ModelResourcePaths paths;
+  paths.mdl = relative;
+  paths.vvd = stem + ".vvd";
+  paths.vtx = stem + ".dx90.vtx";
+  paths.vtxDx80 = stem + ".dx80.vtx";
+  paths.vtxSw = stem + ".sw.vtx";
+  auto result = inspectBuffers(mdlBytes, vvdBytes, vtxBytes, vtxDx80Bytes, vtxSwBytes, paths);
+  result.diagnostics.insert(result.diagnostics.begin(),
+    mdlBytes.empty() ? "VPK extraction missed MDL bytes" : "inspected from VPK bytes");
+  return result;
+}
+
+bool ModelLoader::buildModelMeshData(const ModelInspection& inspection, std::size_t descriptorIndex,
+  ModelMeshData& mesh, std::string& error) {
+  mesh = {};
+  error.clear();
+  if (!inspection.renderableResourceSet || descriptorIndex >= inspection.metadata.indices.size()) {
+    error = "model inspection has no renderable descriptor";
+    return false;
+  }
+  const auto& descriptor = inspection.metadata.indices[descriptorIndex];
+  if (descriptor.renderIndexCount == 0 || descriptor.renderIndexCount % 3u != 0
+      || static_cast<std::size_t>(descriptor.renderIndexStart) + descriptor.renderIndexCount
+          > inspection.metadata.renderIndices.size()) {
+    error = "descriptor is not a bounded triangle list";
+    return false;
+  }
+  auto metadata = inspection.metadata;
+  if (!buildBindPoseMesh(metadata, descriptorIndex, error)) return false;
+  if (metadata.bindPoseVertices.size() != descriptor.renderIndexCount) {
+    error = "bind-pose vertex count does not match descriptor index count";
+    return false;
+  }
+  mesh.descriptorIndex = descriptorIndex;
+  mesh.vertices = std::move(metadata.bindPoseVertices);
+  mesh.indices.resize(mesh.vertices.size());
+  for (std::size_t i = 0; i < mesh.indices.size(); ++i) mesh.indices[i] = static_cast<std::uint32_t>(i);
+  mesh.ranges.push_back(ModelMeshData::Range{
+    descriptorIndex, 0u, static_cast<std::uint32_t>(mesh.vertices.size()),
+    inspection.metadata.meshMaterials.available
+      ? inspection.metadata.meshMaterials.slotFor(descriptor.bodyPart, descriptor.model, descriptor.mesh) : -1});
+  mesh.triangleList = true;
+  return true;
+}
+
+bool ModelLoader::buildModelMeshDataAll(const ModelInspection& inspection,
+    ModelMeshData& mesh, std::string& error) {
+  mesh = {};
+  error.clear();
+  if (!inspection.renderableResourceSet || inspection.metadata.indices.empty()) {
+    error = "model inspection has no renderable descriptors";
+    return false;
+  }
+  // THE LOD TO DRAW IS THE LOWEST ONE THE FILE DECLARES.
+  //   This used to be "0 if any descriptor says 0, otherwise every descriptor",
+  //   and the otherwise-branch concatenated LOD 1..3 of the same mesh into one
+  //   vertex buffer -- the same geometry at three detail levels, drawn on top of
+  //   itself. A model whose descriptors start at 1 is unusual but not impossible,
+  //   and the failure is silent. Taking the minimum is the same answer for every
+  //   model that has a LOD 0 and a defined answer for the ones that do not.
+  std::uint32_t targetLod = inspection.metadata.indices.front().lod;
+  for (const auto& descriptor : inspection.metadata.indices) {
+    targetLod = std::min(targetLod, descriptor.lod);
+  }
+  std::size_t wanted = 0;
+  for (const auto& descriptor : inspection.metadata.indices) {
+    if (descriptor.lod == targetLod) ++wanted;
+  }
+
+  std::size_t firstDescriptor = inspection.metadata.indices.size();
+  for (std::size_t index = 0; index < inspection.metadata.indices.size(); ++index) {
+    const auto& descriptor = inspection.metadata.indices[index];
+    if (descriptor.lod != targetLod) continue;
+    ModelMeshData part;
+    std::string partError;
+    if (!buildModelMeshData(inspection, index, part, partError)) {
+      // A PARTIAL RANGE SET IS NOT DRAWN.
+      //   `continue` used to skip the descriptor and keep the rest, so a model
+      //   whose second mesh was malformed drew its first mesh and reported
+      //   success -- hands without sleeves, or one arm. The picture is then
+      //   wrong in a way no counter shows, because every count it produces is
+      //   true of the part that survived. The whole mesh is refused instead, and
+      //   the reason names the descriptor: "the second range failed" and "the
+      //   model has one range" are different repairs, and only one of them is
+      //   about the model's content.
+      error = "descriptor " + std::to_string(index) + " (bodyPart "
+        + std::to_string(descriptor.bodyPart) + " model " + std::to_string(descriptor.model)
+        + " mesh " + std::to_string(descriptor.mesh) + " lod " + std::to_string(descriptor.lod)
+        + ") was refused: " + (partError.empty() ? std::string("no reason recorded") : partError)
+        + "; the mesh is not built from a partial range set";
+      mesh = {};
+      return false;
+    }
+    if (firstDescriptor == inspection.metadata.indices.size()) firstDescriptor = index;
+    const auto first = static_cast<std::uint32_t>(mesh.vertices.size());
+    mesh.vertices.insert(mesh.vertices.end(), part.vertices.begin(), part.vertices.end());
+    const auto material = part.ranges.empty() ? -1 : part.ranges.front().materialSlot;
+    mesh.ranges.push_back(ModelMeshData::Range{
+      index, first, static_cast<std::uint32_t>(part.vertices.size()), material});
+  }
+  if (mesh.vertices.size() < 3 || mesh.ranges.empty()) {
+    error = "no valid LOD mesh descriptors";
+    mesh = {};
+    return false;
+  }
+  // Post-condition, not a branch that can be reached by a well-formed model: the
+  // loop above refuses on the first failure, so a short range list here would
+  // mean the descriptor scan and the build disagreed about which LOD is drawn.
+  if (mesh.ranges.size() != wanted) {
+    error = "the range table has " + std::to_string(mesh.ranges.size()) + " of "
+      + std::to_string(wanted) + " descriptors at lod " + std::to_string(targetLod)
+      + "; the mesh is not built from a partial range set";
+    mesh = {};
+    return false;
+  }
+  mesh.descriptorIndex = firstDescriptor;
+  mesh.indices.resize(mesh.vertices.size());
+  for (std::size_t i = 0; i < mesh.indices.size(); ++i) mesh.indices[i] = static_cast<std::uint32_t>(i);
+  mesh.triangleList = true;
+  return true;
+}
+
+bool ModelLoader::buildBindPoseMesh(ModelMetadata& metadata, std::size_t descriptorIndex, std::string& error) {
+  if (descriptorIndex >= metadata.indices.size()) { error = "model index descriptor is out of range"; return false; }
+  const auto& descriptor = metadata.indices[descriptorIndex];
+  if (descriptor.renderIndexStart + descriptor.renderIndexCount > metadata.renderIndices.size()) { error = "render index range is outside metadata"; return false; }
+  metadata.bindPoseVertices.clear();
+  metadata.bindPoseVertexCount = 0;
+  metadata.bindPoseVertices.reserve(descriptor.renderIndexCount);
+  for (std::uint32_t i = 0; i < descriptor.renderIndexCount; ++i) {
+    const auto original = metadata.renderIndices[descriptor.renderIndexStart + i];
+    if (original >= metadata.vertices.size()) { error = "render index exceeds VVD vertices"; metadata.bindPoseVertices.clear(); return false; }
+    const auto& source = metadata.vertices[original];
+    const float weightSum = source.weights[0] + source.weights[1] + source.weights[2];
+    if (source.boneCount > source.boneIndices.size()
+        || !std::isfinite(weightSum) || weightSum < 0.99f || weightSum > 1.01f) {
+      error = "bind-pose vertex has invalid skin weights";
+      metadata.bindPoseVertices.clear();
+      return false;
+    }
+    for (std::size_t bone = 0; bone < source.boneCount; ++bone) {
+      if (source.boneIndices[bone] >= metadata.boneCount) {
+        error = "bind-pose vertex has an out-of-range bone index";
+        metadata.bindPoseVertices.clear();
+        return false;
+      }
+    }
+    metadata.bindPoseVertices.push_back(ModelDrawVertex{
+      source.position, source.normal, source.texcoord, source.weights, source.boneIndices, source.boneCount});
+  }
+  metadata.bindPoseVertexCount = metadata.bindPoseVertices.size();
+  return true;
+}
+
+bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& error) {
+  metadata.bindPoseVertices.clear();
+  metadata.bindPoseVertexCount = 0;
+  metadata.bindPoseRanges.clear();
+  metadata.bindPoseLod0Budget = 0;
+  metadata.bindPoseLod0Skipped = 0;
+  if (metadata.indices.empty() || metadata.renderIndices.empty() || metadata.vertices.empty()) {
+    error = "model has no decoded bind-pose indices";
+    return false;
+  }
+  bool anyLod0 = false;
+  for (const auto& descriptor : metadata.indices) {
+    if (descriptor.lod == 0) { anyLod0 = true; break; }
+  }
+  // The budget is this model's own LOD0 size: the sum of the render indices of
+  // the LOD0 descriptors that are in bounds. Not a constant, and not a number
+  // borrowed from the largest model measured -- a model that happens to land on
+  // a constant is indistinguishable from one that was cut off at it.
+  std::size_t budget = 0;
+  for (const auto& descriptor : metadata.indices) {
+    if (anyLod0 && descriptor.lod != 0) continue;
+    if (descriptor.renderIndexStart + descriptor.renderIndexCount > metadata.renderIndices.size()) continue;
+    budget += descriptor.renderIndexCount;
+  }
+  metadata.bindPoseLod0Budget = budget;
+  metadata.bindPoseVertices.reserve(budget);
+  std::size_t skipped = 0;
+  for (const auto& descriptor : metadata.indices) {
+    if (anyLod0 && descriptor.lod != 0) continue;
+    if (descriptor.renderIndexStart + descriptor.renderIndexCount > metadata.renderIndices.size()) {
+      skipped += descriptor.renderIndexCount;
+      continue;
+    }
+    const std::size_t rangeStart = metadata.bindPoseVertices.size();
+    for (std::uint32_t i = 0; i < descriptor.renderIndexCount; ++i) {
+      const auto original = metadata.renderIndices[descriptor.renderIndexStart + i];
+      if (original >= metadata.vertices.size()) { ++skipped; continue; }
+      const auto& source = metadata.vertices[original];
+      const float weightSum = source.weights[0] + source.weights[1] + source.weights[2];
+      if (source.boneCount > source.boneIndices.size()
+          || !std::isfinite(weightSum) || weightSum < 0.90f || weightSum > 1.10f) {
+        ++skipped;
+        continue;
+      }
+      metadata.bindPoseVertices.push_back(ModelDrawVertex{
+        source.position, source.normal, source.texcoord, source.weights, source.boneIndices, source.boneCount});
+    }
+    // Record the run this descriptor contributed, even when a weight check
+    // skipped some of its indices: the range is the vertices that DID land, and
+    // the renderer paints them with this descriptor's material. A zero-length
+    // run is not recorded -- it would be a draw of nothing.
+    if (metadata.bindPoseVertices.size() > rangeStart) {
+      ModelBindPoseRange range;
+      range.bodyPart = descriptor.bodyPart;
+      range.model = descriptor.model;
+      range.mesh = descriptor.mesh;
+      range.lod = descriptor.lod;
+      range.vertexStart = static_cast<std::uint32_t>(rangeStart);
+      range.vertexCount = static_cast<std::uint32_t>(metadata.bindPoseVertices.size() - rangeStart);
+      metadata.bindPoseRanges.push_back(range);
+    }
+  }
+  metadata.bindPoseVertexCount = metadata.bindPoseVertices.size();
+  metadata.bindPoseLod0Skipped = skipped;
+  if (metadata.bindPoseVertices.size() < 3) {
+    error = "bind-pose LOD0 produced fewer than 3 vertices";
+    metadata.bindPoseVertices.clear();
+    metadata.bindPoseVertexCount = 0;
+    return false;
+  }
+  if (skipped > 0) metadata.diagnostics.push_back("bind-pose LOD0 skipped " + std::to_string(skipped) + " vertices");
+  return true;
+}
+
+bool ModelLoader::buildMaterialRuns(const ModelMetadata& metadata, std::vector<ModelMeshMaterialRun>& runs,
+    std::string& error, bool preserveBodygroups) {
+  runs.clear();
+  if (!metadata.meshMaterials.available) {
+    error = "mesh material table is unavailable: " + metadata.meshMaterials.reason;
+    return false;
+  }
+  if (metadata.bindPoseRanges.empty()) {
+    error = "model has no bind-pose LOD0 ranges";
+    return false;
+  }
+  for (const auto& range : metadata.bindPoseRanges) {
+    if (range.lod != 0 || range.vertexCount == 0) continue;
+    const auto slot = metadata.meshMaterials.slotFor(range.bodyPart, range.model, range.mesh);
+    if (slot < 0) {
+      error = "bind-pose range names a mesh with no material slot: bodyPart "
+        + std::to_string(range.bodyPart) + " model " + std::to_string(range.model)
+        + " mesh " + std::to_string(range.mesh);
+      runs.clear();
+      return false;
+    }
+    const auto materialSlot = static_cast<std::uint32_t>(slot);
+    ModelMeshMaterialRun candidate{range.vertexStart, range.vertexCount, materialSlot};
+    if (preserveBodygroups) {
+      if (range.bodyPart >= metadata.bodyParts.size()) {
+        error = "material run has no bodypart selector"; runs.clear(); return false;
+      }
+      const auto& part = metadata.bodyParts[range.bodyPart];
+      if (part.base <= 0 || part.modelCount <= 0
+          || range.model >= static_cast<std::uint32_t>(part.modelCount)) {
+        error = "material run has an invalid bodypart selector"; runs.clear(); return false;
+      }
+      candidate.bodyBase = static_cast<std::uint32_t>(part.base);
+      candidate.bodyCount = static_cast<std::uint32_t>(part.modelCount);
+      candidate.bodyModel = range.model;
+    }
+    if (!runs.empty() && runs.back().materialSlot == materialSlot
+        && runs.back().bodyBase == candidate.bodyBase
+        && runs.back().bodyCount == candidate.bodyCount
+        && runs.back().bodyModel == candidate.bodyModel
+        && runs.back().vertexStart + runs.back().vertexCount == range.vertexStart) {
+      runs.back().vertexCount += range.vertexCount;
+    } else {
+      runs.push_back(candidate);
+    }
+  }
+  // The runs must tile the de-indexed vertex list exactly: a gap would leave
+  // vertices undrawn, an overlap would draw them twice. Both are silent on screen.
+  std::uint32_t expected = 0;
+  for (const auto& run : runs) {
+    if (run.vertexStart != expected || run.vertexCount == 0) {
+      error = "material runs do not tile the bind-pose vertex list at vertex " + std::to_string(expected);
+      runs.clear();
+      return false;
+    }
+    expected += run.vertexCount;
+  }
+  if (expected != metadata.bindPoseVertexCount) {
+    error = "material runs cover " + std::to_string(expected) + " of "
+      + std::to_string(metadata.bindPoseVertexCount) + " bind-pose vertices";
+    runs.clear();
+    return false;
+  }
+  return true;
+}
+
+bool ModelLoader::cpuSkinVertexReference(const ModelMetadata& metadata, const ModelDrawVertex& vertex,
+    std::array<float, 3>& outputPosition, std::string& error) {
+  outputPosition = {};
+  if (vertex.boneCount == 0 || vertex.boneCount > vertex.boneIndices.size()) { error = "reference skin vertex has invalid bone count"; return false; }
+  const float weightSum = vertex.weights[0] + vertex.weights[1] + vertex.weights[2];
+  if (!std::isfinite(weightSum) || weightSum < 0.99f || weightSum > 1.01f) { error = "reference skin vertex has invalid weights"; return false; }
+  for (std::size_t i = 0; i < vertex.boneCount; ++i) {
+    const auto index = vertex.boneIndices[i];
+    if (index >= metadata.bones.size() || !metadata.bones[index].poseToBoneValid) { error = "reference skin vertex has an invalid bone matrix"; return false; }
+    const auto& matrix = metadata.bones[index].poseToBone;
+    const float x = vertex.position[0], y = vertex.position[1], z = vertex.position[2];
+    outputPosition[0] += vertex.weights[i] * (matrix[0] * x + matrix[1] * y + matrix[2] * z + matrix[3]);
+    outputPosition[1] += vertex.weights[i] * (matrix[4] * x + matrix[5] * y + matrix[6] * z + matrix[7]);
+    outputPosition[2] += vertex.weights[i] * (matrix[8] * x + matrix[9] * y + matrix[10] * z + matrix[11]);
+  }
+  if (!std::isfinite(outputPosition[0]) || !std::isfinite(outputPosition[1]) || !std::isfinite(outputPosition[2])) {
+    error = "reference skin result is non-finite";
+    outputPosition = {};
+    return false;
+  }
+  return true;
+}
+
+} // namespace tf2::native
+
+
+
+
+
+

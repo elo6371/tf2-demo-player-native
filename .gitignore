@@ -1,0 +1,266 @@
+native/build/
+native/build-nmake/
+# T90: the build-identity stamp is generated at build time (see
+# native/cmake/gen-build-stamp.cmake) and rewritten whenever git HEAD or the
+# dirty state moves -- it is a build input, not a source file.
+native/generated/
+# ~94 MB of raw oracle dumps: kept on disk for inspection, reproducible with
+# `bash check-oracle.sh <oracle.exe> evidence/final`, out of git because a
+# 945k-line diff is not reviewable. The gate result is in oracle-gate-summary.txt.
+evidence/**/oracle-survey-*.txt
+evidence/**/oracle-enters-*.txt
+# One raw probe report per demo. 1643 reports for the full corpus run: kept on
+# disk so a failure can be re-read instead of re-run, but they are derived data.
+# The gate reads corpus-summary.json + corpus-failures.txt, which stay tracked.
+#
+# The rule excludes the *contents* rather than the directory, and the 24
+# calibration reports are re-included, because those 24 are not derived data:
+# verify-all.sh step 9 compares its mutated copies against them as the frozen
+# baseline, the way evidence/probe-baseline/ is a frozen baseline. Leaving them
+# ignored meant a fresh clone had the pinned 24-name list (demos.txt is tracked)
+# and none of the reports it names, so step 9 read `pinned_reports=0` and failed
+# 48 assertions -- an undeclared input dependency on one machine's disk. It is
+# not possible to re-include a file whose parent directory is excluded, which is
+# why the pattern ends in `/*` instead of `/`.
+evidence/corpus*/reports/*
+!evidence/corpus-calib/reports/*.txt
+evidence/corpus*/corpus.csv
+# Truncated and rewritten by every build-cmake.sh run, so it churns on every
+# commit. The build reading that matters is captured per run in
+# evidence/verify/1-build.txt.
+evidence/cmake-build.log
+# Diagnostic git worktrees (p0-tree / p1-tree) used for before-and-after
+# experiments. Each one carries a .git pointer file, so tracking the directory
+# would commit worktree plumbing rather than source.
+.scratch/
+
+# 分层验收（verify-fast / verify-entity / verify-render / verify-audio）的输出。
+# 这些门禁每轮要跑很多次，产物是工作读数而不是该提交的证据 —— 每个提交保留的
+# 证据是完整链的 evidence/verify/（见 README「分级验收」一节）。留在盘上供复核，
+# 不进 git，否则每跑一次就脏一次工作树，而 mutate.sh 那类脚本需要干净的树。
+evidence/fast/
+
+# timeline-check.sh（T85 时间线门禁）的产物：一轮 8 次产品启动，3 张 2.5 MB BMP、每例
+# trace/stdout，外加变异 harness 的 4 次重建 log 与 5 次门禁 log。它们是工作读数，不是
+# 该提交的证据 —— 提交的是门禁脚本与 TIMELINE-GATE.md 里的实测结论。留在盘上供复核，
+# 不进 git：timeline-mutations.sh 在同一个工作树里改 main.cpp，跑之前要求 git status 干净。
+evidence/t85-timeline/
+
+# weapon-animation-check.sh 的 trace 与 metrics CSV 是机器产物：三个 tick 约 15 万行，
+# CSV 里的 elapsed_seconds / fps / working_set_bytes 每次运行都不同。默认写进
+# evidence/fast/weapon-animation/（上面那条已经覆盖），这里再按扩展名兜一层，
+# 免得有人把 TRACE_DIR 指到提交目录里就顺手把 9 MB trace 提交上去。
+# 提交的是冻结见证帧（tick-*.bmp、model-*.bmp）、readings.txt 与 mutation-failure.txt。
+evidence/weapon-animation/*.trace
+evidence/weapon-animation/*.log
+evidence/weapon-animation/**/*.trace
+evidence/weapon-animation/**/*.log
+
+# verify-all.sh 第 22 步把 weapon-animation-check.sh 的输出指到 evidence/verify/ 下，
+# 但那里同样是机器产物：三个 trace 目录共 61 MB（每行带 elapsed_seconds/fps/working_set），
+# 帧是 10 张 2.5 MB 的 BMP —— 且它们与已提交的冻结见证帧 evidence/weapon-animation/*.bmp
+# **逐字节相同**（2026-10-10 用 cmp 逐张验过，10/10 IDENTICAL），再提交一份只是重复。
+# 第 22 步留在主线的是三个 verdict 日志与两份 mutation-failure 文本（原始失败信息）。
+evidence/verify/22-weapon-animation-traces/
+evidence/verify/22-weapon-animation-mutation-traces/
+evidence/verify/22-weapon-animation-mutation-model-traces/
+evidence/verify/22-weapon-animation/
+
+# 第 23 步 ViewModel animation 的原始 trace、BMP 和 CSV 是机器产物；
+# 主线只保留 23-viewmodel-animation*.txt verdict。
+evidence/verify/23-viewmodel-animation-traces/
+evidence/verify/23-viewmodel-animation-mutation-traces/
+
+# 第 22 步的第三个变异（--mutation-identity，T39 加的）与第 24 步的伴生证明
+# 各有一段独立 trace 目录：T49 之前它们从没被生成过，所以一直没进 .gitignore；
+# 完整链第一次跑出它们时，18 MB 的 .trace/.log 直接躺在工作树里未跟踪。
+# 同第 22 步其余三个目录、同第 23 步：留下来的是 verdict 日志与
+# mutation-failure 文本，原始 trace 与帧是可再生的机器产物。
+evidence/verify/22-weapon-animation-mutation-identity-traces/
+evidence/verify/24-viewmodel-companion-traces/
+evidence/verify/24-viewmodel-companion-mutation-traces/
+
+# 合并用补丁（由 git 历史派生，随时可再生成；见 MERGE-MANIFEST-2026-10-08.md §6）
+merge-patches/
+
+# The mutated frame is regenerated from paused.bmp by frame-capture-check.sh --mutation;
+# it is a one-byte edit of a file already kept, so it carries no independent evidence.
+evidence/frame-capture/mutated.bmp
+# Same rule for the second mutation (T49 noticed it was never covered): the frame
+# is regenerated from demo-installed-map.bmp on every run, and what it attests is
+# the comparison refusing a fallback-shaped picture -- the verdict line, not this
+# perturbed copy of a frame that is already tracked.
+evidence/frame-capture/demo-installed-map.as-fallback.bmp
+
+# T14: one trace per run is ~3.7 MB of per-frame lines. What each assertion reads
+# is extracted into evidence/weapon-material/<run>.readings.txt by
+# weapon-material-archive.sh, and artifacts.sha256 records the hash of every trace
+# the extract came from, so the raw file is derivable and its absence is checkable.
+# The frames stay tracked: "two runs are byte-identical at tick 2000" is a claim
+# about bytes, and it is only checkable if the bytes are here.
+evidence/weapon-material/*.trace
+
+# T23: one trace per capture is ~1.9 MB of per-frame lines (13 of them, 25 MB).
+# What the accounting reads is the frame, not the trace; what the trace proves is
+# that the frame was the draw at tick 2000, and world-geometry-completeness-capture.sh
+# checks that itself before it accepts a capture and retries until it holds. The
+# raw traces stay on disk and evidence/t23-world-geometry/hashes.txt records the
+# sha256 of each one, so a trace can still be checked against a claim about it.
+# The frames stay tracked: "the cull, not missing geometry, owns this gap" is a
+# claim about pixels, and it is only checkable if the pixels are here.
+evidence/t23-world-geometry/captures/*.trace
+evidence/t23-world-geometry/captures/traces/
+evidence/t23-world-geometry/captures/*.log
+# T26 follows the same rule for its own matrix: the frames are the claim about
+# pixels and stay tracked; the per-frame traces are machine output and stay on
+# disk with their sha256 in evidence/t26-world-holes/analysis/hashes.txt.
+evidence/t26-world-holes/captures/*.trace
+evidence/t26-world-holes/captures/traces/
+evidence/t26-world-holes/captures/*.log
+# T23's accounting tool writes its own mask bitmap, and T26 runs that tool over
+# T26's frames to show both tasks count the same pixels. The bitmap is T23's
+# reading of the frame, not T26's claim: T26 tracks its own `hole-mask.bmp` and
+# leaves this one on disk so the second tool cannot overwrite evidence.
+evidence/t26-world-holes/analysis/accounting-mask.bmp
+
+# T51 follows the same rule for the HUD gate: the pixel comparisons are the claim
+# and stay tracked (evidence/hud/region.txt, region-200.txt, the fixtures), the
+# product traces are machine output and stay on disk with their sha256 in
+# evidence/hud/traces.sha256. Every HUD line the gate reads out of a trace is
+# quoted next to its assertion in evidence/hud/forward.log.
+evidence/hud/*.trace
+
+# The probe materialises its own fixture tree on every run, and the mutation suite
+# keeps one copy per mutated build; the gate also builds the three user-directory
+# trees it installs into and then asserts about. All of it is regenerated, none of
+# it is evidence: what the assertions compared is committed as the snapshots next
+# to them (user-hud-*.entries.txt / .dirs.txt / .sha256.txt,
+# user-shared-*.entries.txt / .dirs.txt / .sha256.txt, mut4-after.*) and quoted
+# line by line in forward.log and mutation.log.
+evidence/hud/probe-fixtures/
+evidence/hud/probe-fixtures-mut1/
+evidence/hud/probe-fixtures-restored/
+evidence/hud/uninstall/
+evidence/hud/user-hud/
+evidence/hud/user-hud-shared/
+# T52 (红蓝队透视描边) 的门禁把每一次运行的读数写进 evidence/outline/：probe-*.txt、
+# offline-selftest.txt、每帧的 *.bmp 与 *.trace、每次运行的 *.log，以及变异期的
+# mutation-backup/。它们是同一次运行的机器产物，每次都被覆盖，提交进来只是把
+# 8 MB 级的帧和几 MB 的 trace 塞进历史；留在主线的是 OVERLAY-CONTRACT.md（契约）
+# 与 outline-offline-selftest.py（离线证明「读数两个方向都会变」的脚本）。
+evidence/outline/*.txt
+evidence/outline/*.bmp
+evidence/outline/*.trace
+evidence/outline/*.log
+evidence/outline/mutation-backup/
+scratch/
+__pycache__/
+*.pyc
+
+# T66 closeout: the relay's gate writes one trace and up to four 2.5 MB BMPs per run
+# into evidence/t66-sourcetv/, and every mutation case rewrites them. They are machine
+# artifacts -- 87 MB of traces after one suite -- and what is committed is the readings
+# (*.log, *.txt) and the two reports. Same rule as evidence/weapon-animation/*.trace:
+# a frozen witness frame is committed on purpose, a run's working set is not.
+evidence/t66-sourcetv/**/*.trace
+evidence/t66-sourcetv/**/*.bmp
+
+# The outline gate writes a per-run directory (traces, frames, per-assertion output) and
+# every round makes a new one: run-20261102-cam2 alone is 72 MB. The readings that are
+# committed live in evidence/outline/*.log and evidence/t52-a3/; a run's working set is
+# machine output, so it stays out of the index.
+evidence/outline/run-*/
+# Steps 25-30 write their verdicts and readings as text and their frames/traces as
+# binaries. Ignoring the whole directory hid the verdicts too: RUN13 (a5ebd8c, 30/30
+# PASS) had no committable evidence for steps 25-30, so a reader could only trust the
+# chain's own log. The text artifacts are now tracked (about 400 KB in total) and the
+# bitmaps, traces and workspaces stay out -- they are what made the directories large.
+evidence/verify/25-player-animation/*
+!evidence/verify/25-player-animation/*.txt
+evidence/verify/26-animation-pixels/*
+!evidence/verify/26-animation-pixels/*.summary
+!evidence/verify/26-animation-pixels/*.txt
+evidence/verify/27-sourceTV-relay/*
+!evidence/verify/27-sourceTV-relay/*.txt
+evidence/verify/28-world-geometry/*
+!evidence/verify/28-world-geometry/*.txt
+evidence/verify/29-world-materials/*
+!evidence/verify/29-world-materials/*.txt
+!evidence/verify/29-world-materials/*.csv
+evidence/verify/30-review-workspace/*
+!evidence/verify/30-review-workspace/*.txt
+!evidence/verify/30-review-workspace/*.script
+evidence/verify-27-rerun/
+# T62 body appearance, both teams (2026-11-04): the gate captures two 2.5 MB BMPs per body
+# (identity mask + painted frame) and the selection survey captured 26 more, 222 MB in all.
+# What is committed is the readings (gate.log, readings.txt, readings.csv, targets*.txt,
+# frame-hashes.txt) plus a LOSSLESS PNG copy of each of the 32 gate frames (9.3 MB,
+# converted with Pillow and no resampling). The BMPs stay on disk -- frame-hashes.txt
+# records each one's sha256 -- and the survey frames are reproduced by
+# D:/_shared/t62-p1-blu-dynamic/runA_perclass.sh in eight lock holds.
+evidence/t62-matrix/body-appearance-upward/**/*.bmp
+evidence/t62-matrix/body-appearance-upward/probe/
+
+# The bone-mismatch gate derives two 5.4 MB mutated traces from fixtures/driven.trace on
+# every run (control-decrease, control-unattributed). The fixtures (76 KB), readings.txt
+# and semantics.txt are tracked; the mutants are a run's working set.
+evidence/t62-matrix/bone-mismatch/control-*.trace
+
+
+# The class-pixels gate captures its identity frame twice and asserts the two are byte
+# identical; RUNS-2026-11-04.md section 17 records the four hashes. The second copy is a
+# run artifact (0-byte log, 2.5 MB bitmap), not evidence.
+evidence/t62-matrix/class-pixels/**/identity-2.*
+
+# The animation-drive gate captures nine frames per run, each with a 40-80 MB trace, and then
+# copies frames and traces into four negative-control directories, one copy per control: the
+# output directory held 2.9 GB after the 2026-11-06 run. What is tracked is the verdict
+# (gate.txt), the three frames the pixel assertions name (default.bmp, states-crouch.bmp,
+# legacy-crouch.bmp) with their csv/log/rc, each control's check.txt, and README.md. Frames and
+# traces regenerate from the same binary at the same ticks; the ticks are named in gate.txt.
+evidence/t84-animdrive/animation-drive-states/*.trace
+evidence/t84-animdrive/animation-drive-states/*.bmp
+evidence/t84-animdrive/animation-drive-states/*.csv
+evidence/t84-animdrive/animation-drive-states/*.log
+evidence/t84-animdrive/animation-drive-states/*.rc
+evidence/t84-animdrive/animation-drive-states/neg-*/*.trace
+evidence/t84-animdrive/animation-drive-states/neg-*/*.bmp
+evidence/t84-animdrive/animation-drive-states/neg-*/*.csv
+evidence/t84-animdrive/animation-drive-states/neg-*/*.log
+evidence/t84-animdrive/animation-drive-states/neg-*/*.rc
+
+# ---- T85 P0 (mesh/instance budget) evidence ---------------------------------
+# 114 MB of raw product traces (single files up to 21 MB) and captured .bmp
+# frames, plus 50 MB of settings/UI COPIES handed to the product so it cannot
+# dirty a tracked file (see evidence/t85/T85-BUDGET-DESIGN.md §7 and the hygiene
+# doc D:/_shared/t85-hygiene/EVIDENCE-SETTINGS-DRIFT.md). All of it is derived
+# and reproducible with evidence/t85/run-*.sh, which print the exe/demo/gate
+# sha256 and the exact argv they used; the exception is the handful of gate
+# pixel baselines that were already tracked before this work.
+#
+# What STAYS tracked: the design doc, the gate assertion inventory, every
+# evidence/t85/run-*.sh driver, the .log/.ledger.txt readings and the small
+# before/after ledgers that the assertions quote. Same policy as the oracle
+# dumps above: raw blobs on disk, the readings and the reproducer in git.
+evidence/t85/**/*.trace
+evidence/t85/**/*.bmp
+evidence/t85/oom/
+evidence/t85/inputs/
+evidence/t85/**/inputs/
+evidence/t85/**/*.pgm
+evidence/t85/smoke-skiplive/
+
+
+# install-cli-contract-check.sh's working set: the case directories it installs
+# into (each a full 2.7 MB product + probe + WebView2 payload), its logs and the
+# rewritten manifests. Same rule as evidence/fast/: the verdict line, the
+# assertions and the two reference sha256 files are the evidence and are tracked;
+# the trees they were measured on are regenerated by every run.
+evidence/t92-install/gate/
+
+# D-22 isolation (2026-11-09): every launch now writes its own settings/ui copy
+# next to the tracked seed pair. The seed (host-settings.ini / host-ui.ini) stays
+# tracked; the per-run copies are rewritten on every run and are not evidence.
+evidence/outline/inputs/*.settings.ini
+evidence/outline/inputs/*.ui.ini
+evidence/outline/*.pgm

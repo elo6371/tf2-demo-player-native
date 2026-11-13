@@ -1,0 +1,44 @@
+# Archived gate logs and their manifest are evidence: checkout must not rewrite
+# their bytes (core.autocrlf=true on this host would otherwise turn LF into
+# CRLF and make logs.sha256 fail against its own files).
+evidence/viewmodel/range/logs/** -text
+# core.autocrlf=true is on for this checkout, and it would rewrite the evidence
+# here on checkout: every line of artifacts.sha256 is `sha256 *<path>`, so a
+# trailing CR becomes part of the filename, and the .txt/.json/.csv extracts would
+# come back with different bytes than the ones that were hashed. Both failures
+# appear in exactly the situation the receipt exists for -- a fresh clone -- so
+# this directory is checked out byte for byte.
+evidence/weapon-material/** -text
+# T30: the inventory TSV, the gate summary and the frozen frames are evidence whose
+# bytes the report's sha256 lines describe. core.autocrlf=true on this host would
+# otherwise rewrite the text files on checkout and make the report's hashes describe
+# a different file. Checked out byte for byte, like evidence/weapon-material/**.
+evidence/t30/** -text
+
+# T68: the golden event fixtures and the same-tick table are evidence whose bytes
+# the gate hashes (same-tick-334.tsv sha256 9d6817c9...). core.autocrlf=true on
+# this host rewrites LF to CRLF on checkout, which moved that hash to 18f506ff...
+# and made the gate fail against its own fixture. Checked out byte for byte.
+evidence/t68-events/** -text
+
+# T85/task-24: the launch-hygiene baseline is a set of script|flag keys compared
+# byte-wise by the gate. It is committed LF and read LF so that the file git
+# checks out, the file --update-baseline rewrites, and the file the ratchet
+# compares all agree on a fresh clone.
+evidence/gate-launch-hygiene/baseline.txt text eol=lf
+
+# D-64: evidence/t91-merge/RUN22-* carries a SHA256SUMS whose every line names a
+# file in the same directory. core.autocrlf=true normalises text on the way into
+# the index, so eight of the twelve payload blobs were stored with LF while the
+# manifest lists the CRLF bytes the gate wrote -- the receipt verified on this
+# host only because checkout puts the CR bytes back, and would fail 8 of 12 on a
+# fresh clone. Byte for byte, like the evidence directories above.
+evidence/t91-merge/** -text
+
+# T100: this directory is compared byte for byte -- the golden TSVs, the fixture
+# messages and the captured raw probe output are diffed with cmp. On this host
+# core.autocrlf=true handed out 30 of the tracked text files with CRLF while the
+# index holds LF, so every golden row read as "1,25c1,25" even though od showed
+# the same bytes on both sides. Byte for byte, like evidence/t30 (T30) and
+# evidence/t68 (T68); D-69.
+evidence/t100-userinfo/** -text

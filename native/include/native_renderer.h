@@ -1,0 +1,2340 @@
+#pragma once
+
+#include <Windows.h>
+#include <d3d11.h>
+#include <DirectXMath.h>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <wrl/client.h>
+
+#include "texture2d.h"
+#include "vmt_material.h"
+#include "bsp_map.h"
+#include "model_loader.h"
+#include "demo_header.h"
+#include "world_material.h"
+#include "world_tile_atlas.h"
+#include "viewmodel_material.h"
+#include "entity_overlay.h"
+// T85 P0: which budget layer a mesh belongs to. The mesh table below is a cache
+// shared by the world pass, the overlay and the third-person attach, and a
+// refusal now says what it was refused FOR (see entity_mesh_budget.h).
+#include "entity_mesh_budget.h"
+// T53: ProjectileTrackPoint, a three-float POD in a header that includes nothing,
+// so the renderer can take observed positions without including the demo decoder.
+#include "projectile_track_point.h"
+
+namespace tf2::native {
+
+constexpr float clampViewModelFov(float value) {
+  return value < 40.0f ? 40.0f : (value > 120.0f ? 120.0f : value);
+}
+
+enum class QualityPreset {
+  Performance,
+  Standard,
+};
+
+struct RenderSettings {
+  QualityPreset preset = QualityPreset::Performance;
+  int textureMipBias = 2;
+  int antiAliasingQuality = 2;
+  int anisotropicLevel = 1;
+  bool dynamicLighting = false;
+  bool shadows = false;
+  bool bumpMapping = false;
+  // T27: the per-material feature passes. Deliberately separate from
+  // `bumpMapping`: that one is T24's single-slot diagnostic, which binds one
+  // texture for the whole world, while these turn on the per-material atlases.
+  // A capture that turned on one must not read as having turned on the other,
+  // and `normalize()` leaves all three alone for the same reason.
+  bool materialBump = false;
+  bool bumpMap2 = false;
+  bool detailLayer = false;
+  bool specular = false;
+  bool waterReflection = false;
+  bool waterRefraction = true;
+  // T2 (2026-10-14): the water surface pass itself, separate from the two
+  // Fresnel coefficients above. Those two say what the material's own keys
+  // asked for; this says whether the surface is drawn at all, which is the
+  // switch `--world-water on|off` overrides. Additive on purpose: the struct's
+  // existing fields keep their meaning and the settings file keeps loading.
+  bool waterSurface = false;
+  bool skybox = false;
+  int modelLod = 4;
+  float renderScale = 1.0f;
+  float viewModelFov = 90.0f;
+  bool vsync = false;
+  // T52: the overlay slot's persisted state. Two keys only -- `outline` (the
+  // on/off the F12 key also drives) and `outline_depth` (0 x-ray product, 1 the
+  // depth-tested control). T53 adds its own keys under its own names; neither
+  // task writes the other's.
+  bool outlineEnabled = false;
+
+  bool outlineDepthTested = false;
+
+  // ---- T53 (2026-10-23): the projectile trajectory overlay ----------------
+  //
+  // DEFAULT OFF, and that is a requirement rather than caution. Every capture on
+  // this chain -- T50, T51, T52 and the release gates -- would otherwise have its
+  // pixels moved by a feature nobody asked for in that run. T52's outline toggle
+  // is default-off for exactly the same reason.
+  //
+  // These live here, with the renderer's other settings, because that is where
+  // the settings file already reads and writes, and because a control that only
+  // existed as a command-line flag would not survive a restart.
+  bool projectileTrajectory = false;
+  // "all players" (-1) or one player's entity index. There is no shared notion of
+  // a "selected player" anywhere in this tree yet (measured: selectedPlayer /
+  // selectedEntity / SelectPlayer are 0 hits across the integration tree and
+  // T52's worktree), so this field DEFINES it, and T52 reads the same field when
+  // the two branches meet. -1 is the "all" sentinel, not 0: 0 is a real entity
+  // index (the world), and using it as "all" would be the defect this comment
+  // exists to prevent.
+  std::int32_t selectedPlayerEntity = -1;
+  // How long a trail outlives the projectile that drew it, at the demo's own tick
+  // rate. 500 ms is about 33 ticks at 66.66 tick, which is the contract's
+  // kOverlayDefaultLingerTicks. Kept in milliseconds because that is what a user
+  // sets and what survives a tick-rate change between recordings.
+  int trajectoryLingerMs = 500;
+  // The sampling/performance dial. Low and High must change a MEASURED quantity
+  // (the rows sampled and the vertices submitted), or the control is decorative.
+  enum class TrajectoryQuality { Low, High };
+  TrajectoryQuality trajectoryQuality = TrajectoryQuality::High;
+
+  static RenderSettings fromPreset(QualityPreset preset);
+  void normalize();
+};
+
+struct WorldTexture {
+  std::string material;
+  std::vector<std::uint8_t> rgba;
+  UINT width = 0;
+  UINT height = 0;
+  // T21: the VTF's dimensions before the downscale to width x height. The
+  // vertex uv is normalised by these, because the BSP texcoord is in source
+  // texels; zero means the tile is the source (nothing was downscaled).
+  UINT sourceWidth = 0;
+  UINT sourceHeight = 0;
+  // ---- T12 (2026-10-18): the second layer of a blend material ------------
+  // A WorldVertexTransition material names two albedo layers and blends them by
+  // the displacement's per-vertex alpha. `blendRgba` holds the second layer
+  // already resampled to this tile's own `width` x `height`, which is what lets
+  // both layers be sampled with one uv: the uv is the material's texcoord in
+  // normalised space, so two textures on the same pixel grid agree about where
+  // a texel is. Empty means the material declares no second layer.
+  std::vector<std::uint8_t> blendRgba;
+  // T12: whether the material *declares* a second layer, which is a fact about
+  // the VMT and not about this run. `blendRgba` being empty means the layer was
+  // not fetched (or did not resolve); `blendDeclared` being false means the
+  // material never had one. The terrain-only filter needs the second fact: with
+  // `--world-blend off` no layer is fetched at all, and keying the filter on
+  // the bytes made the terrain frame empty -- measured, exit 14.
+  bool blendDeclared = false;
+  // `$blendmodulatetexture`, same grid, r and g carrying the smoothstep range
+  // the SDK's shader uses. Empty means the blend is the raw vertex alpha.
+  std::vector<std::uint8_t> blendModulateRgba;
+  // ---- T27 (2026-10-19): the material features that change the image ------
+  // Each of these is already resampled onto this tile's own width x height, for
+  // the same reason the blend layer is: one tile rectangle, one uv, so a
+  // per-material normal or detail map can be sampled by the vertex uv that is
+  // already there. Empty means the feature is not drawn for this material --
+  // either it declared nothing, its texture did not resolve, or the switch that
+  // fetches it was off. The renderer sets the vertex's feature mask from what
+  // it actually blitted, so an empty vector can never claim to be applied.
+  std::vector<std::uint8_t> bumpRgba;      // `$bumpmap`
+  std::vector<std::uint8_t> bump2Rgba;     // `$bumpmap2`, layer 2's normal
+  std::vector<std::uint8_t> detailRgba;    // `$detail`, tiled `$detailscale` times
+  // TextureCombine's two arguments, from `$detailblendmode` and
+  // `$detailblendfactor` on the material that declares `$detail`.
+  std::uint32_t detailMode = 0;
+  float detailFactor = 1.0f;
+  float detailScale = 1.0f;
+  // What the VMT asked for, whether or not it resolved. The terrain filter's
+  // lesson (T12) applies here too: "declared and not fetched" is a different
+  // fact from "never declared", and only the first one is a bug.
+  bool bumpDeclared = false;
+  bool bump2Declared = false;
+  bool detailDeclared = false;
+  // `$ssbump`. Carried so the feature state can say how many of the materials
+  // that declare a normal map were refused because their texel is a bumpBasis
+  // weight rather than a tangent-space normal -- a refusal that is not a missing
+  // resource and must not be counted as one.
+  bool ssBump = false;
+  // T96: the material's own `$translucent` / `$alphatest`, copied from the VMT
+  // that produced this tile. The renderer turns these into featureMask bits 8
+  // and 16; neither key costs an upload because the pixels were always there
+  // (worldTileBlit memcpy's four channels per texel, world_tile_atlas.cpp:271).
+  bool translucent = false;
+  bool alphaTest = false;
+  // ---- R2 (2026-11-09): `$basetexturetransform` -------------------------
+  // The uv matrix the VMT asks the shader to apply before sampling, parsed by
+  // the VMT reader (vmt_material.cpp `parseTextureTransform`). `false` means the
+  // material declares no transform this reader could read -- such a material is
+  // refused by name in the fetch pass and never reaches a tile, so a tile with
+  // `baseTextureTransform` false is drawn on the face's own texinfo axes.
+  //
+  // Source applies it in the vertex shader as a 2x4 affine: u' = u*m00 + v*m01 +
+  // m03, v' = u*m10 + v*m11 + m13 (lightmappedgeneric_vs20.fxc:149-150 feeding
+  // SetVertexShaderTextureTransform). Center is the pivot, scale multiplies the
+  // normalised uv, rotate is in degrees and positive is counter-clockwise as the
+  // player sees it, translate is added after the pivot. The vertex walk below
+  // reproduces exactly that order.
+  bool baseTextureTransform = false;
+  float baseTransformCenter[2] = {0.5f, 0.5f};
+  float baseTransformScale[2] = {1.0f, 1.0f};
+  float baseTransformRotate = 0.0f;
+  float baseTransformTranslate[2] = {0.0f, 0.0f};
+};
+
+// T12: what the terrain blend path actually did, as counts a gate can read.
+// `tiles` is how many materials put a second layer into the blend atlas;
+// `weightedVertices` is how many uploaded vertices carry a real weight (a
+// displacement whose material names one layer carries the sentinel and is not
+// counted); `malformedLayers` is how many layers were refused for a byte count
+// that did not match the tile.
+struct WorldBlendState {
+  // T12: the two switches, carried on the reading rather than assumed by the
+  // reader. A gate that compares an "off" frame against another "off" frame has
+  // compared the same picture twice and called it a difference; this is the
+  // field that says which state the numbers below were taken in.
+  bool enabled = true;
+  bool terrainOnly = false;
+  std::size_t texturesSeen = 0;
+  std::size_t layersSeen = 0;
+  std::size_t accepted = 0;
+  std::size_t acceptedLayers = 0;
+  std::size_t tiles = 0;
+  std::size_t modulateTiles = 0;
+  std::size_t malformedLayers = 0;
+  std::size_t weightedVertices = 0;
+  std::size_t modulatedVertices = 0;
+  // T12: the *distribution* of the weights that reached the GPU. A count of
+  // weighted vertices cannot tell "the map's painted weights arrived" from "a
+  // constant was written into every vertex", and both draw a picture. These
+  // three readings can: a real terrain has several buckets and spans 0..1, a
+  // constant has one bucket at whatever value it was forced to.
+  float weightMin = -1.0f;
+  float weightMax = -1.0f;
+  std::size_t distinctWeights = 0;
+};
+
+// T27: what the per-material feature path actually did, counted from the
+// blits and the vertices rather than from the VMTs. `tiles` is how many
+// materials put a layer into a feature atlas; `vertices` is how many uploaded
+// vertices carry that bit in `featureMask`; `materials` is how many distinct
+// materials those vertices belong to. A declared-and-resolved count without
+// these three cannot tell "the shader samples this material's own normal map"
+// from "the atlas was built and no vertex points at it", and the second one is
+// the T19 failure this task exists to close.
+struct WorldFeatureState {
+  // The switch the caller set. `enabled == false` means the atlas was not
+  // built at all, not that it was built and left unbound.
+  bool enabled = false;
+  std::size_t tiles = 0;
+  std::size_t materials = 0;
+  std::size_t vertices = 0;
+  // The blend-weight distribution that reached `$bumpmap2`'s lerp. Same reason
+  // as the terrain weights: a constant 1 and a painted gradient draw different
+  // pictures, and only the distribution tells them apart.
+  float bump2WeightMin = -1.0f;
+  float bump2WeightMax = -1.0f;
+  std::size_t bump2DistinctWeights = 0;
+};
+
+struct ProjectileLine {
+  float start[3] = {};
+  float end[3] = {};
+  float color[4] = {1.0f, 0.25f, 0.05f, 0.0f};
+};
+
+struct EntityMarker {
+  float position[3] = {};
+  float color[4] = {0.2f, 0.9f, 0.35f, 0.0f};
+};
+
+struct EntityModelDrawInstance {
+  std::string cacheKey;
+  // The entity state index this instance belongs to, or -1 when the caller has
+  // none. It is the join key between a drawn body and that body's silhouette:
+  // the cache key cannot join them (two players of one class share one), and the
+  // origin cannot either (a match there is only ever a coincidence that survives
+  // because both sides read the same field). The overlay item carries the same
+  // index, so "which body is under this ink" is answered by identity.
+  std::int32_t entityIndex = -1;
+  float origin[3] = {};
+  float angles[3] = {};
+  bool hasAngles = false;
+  float color[4] = {0.72f, 0.72f, 0.76f, 1.0f};
+  // Skinning for this instance. `skinningEnabled` is set only when the caller
+  // has a complete, in-range pose for this entity; when it is false the instance
+  // is drawn through the bind-pose path exactly as before. `boneOffset` indexes
+  // the buffer handed to setEntityBoneMatrices, and `boneCount` bounds the
+  // per-vertex bone indices the shader is allowed to accept.
+  bool skinningEnabled = false;
+  std::uint32_t boneOffset = 0;
+  std::uint32_t boneCount = 0;
+  // Which skin family (team) this instance is drawn with: 0 = red, 1 = blue.
+  // The mesh carries one texture per (material slot, family); the draw ranges are
+  // bucketed by family so a red and a blue instance of the same model do not
+  // share a paint. Defaults to 0, the family every model has.
+  std::uint32_t skinFamily = 0;
+  bool mapStaticProp = false;
+  std::uint32_t body = 0;
+  bool sourceModelSpace = false;
+  // A model-space placement for an instance that rides on another model's bone
+  // -- a held weapon on a hand attachment. Row-major 3x4 in the same "v' = rows
+  // * v" convention as buildEntityModelInstanceRows. The instance still carries
+  // the PARENT's origin/angles in the fields above, and the renderer composes
+  // parent x local before uploading; false keeps the pre-existing instance path
+  // bit-for-bit, which is what makes the flag an A/B control rather than a new
+  // code path for every prop.
+  bool hasLocalMatrix = false;
+  float localPositionRows[12] = {};
+  // T85 P0 (lead review, point 2): why this instance's key is not resident when
+  // the frame is built. True means layer A deliberately DEFERRED the model (the
+  // 64-slot prepare budget did not admit it) -- a known, bounded decision, not a
+  // hole. False means the caller offered a key that should have had a mesh and
+  // there is none: the m8 failure shape. The two are counted separately so the
+  // defect detector is not drowned in the budget's own noise.
+  bool budgetDeferred = false;
+};
+
+// Everything the first-person pass needs, in one value. It is deliberately a
+// plain struct rather than a set of setters: the ViewModel pass must not be able
+// to read the world path's state by accident, and a single struct makes it
+// obvious at the call site which fields the pass actually consumes.
+//
+// The transform chain is applied in this order, all row-major 3x4 and all with
+// the row-vector convention the rest of this file uses (v' = v * A * H * T * V * P):
+//   attachment local -> owning bone model space -> ViewModel model space (A)
+//   -> hand transform (H) -> camera space (T) -> ViewModel projection (P)
+// The left-hand mirror lives only in H. Nothing here reaches the world entity
+// bone buffer or the animation decode output.
+// One contiguous run of the ViewModel vertex buffer that shares one material.
+//
+// The ViewModel mesh is a flat triangle list, one vertex per index, so a range is
+// a `Draw(count, first)` and needs no index buffer. The runs are contiguous by
+// construction: the mesh builder appends a descriptor's vertices as it walks the
+// descriptors, so a descriptor's triangles are adjacent in the buffer. Two
+// descriptors that share a slot therefore produce two ranges, not one -- the
+// alternative (reordering the buffer) would move vertices the T2 mesh readings
+// are frozen against for no gain in what is drawn.
+struct ViewModelDrawRange {
+  std::uint32_t firstVertex = 0;
+  std::uint32_t vertexCount = 0;
+  std::int32_t slot = -1;
+  // The cache key of the material this range binds. Empty means "no material",
+  // which is the same state as an unresolvable slot: flat colour.
+  std::string materialKey;
+  // The material's own `$translucent` / `$alphatest`, copied from the slot table
+  // at mesh-build time so the draw does not have to reach back into it.
+  bool translucent = false;
+  bool alphaTest = false;
+};
+
+struct ViewModelDrawState {
+  bool enabled = false;
+  float fov = 90.0f;
+  bool leftHand = false;
+  std::array<float, 12> handTransform{};
+  std::array<float, 12> attachmentTransform{};
+  bool attachmentValid = false;
+  std::string materialKey;
+  bool materialTranslucent = false;
+  bool materialAlphaTest = false;
+  std::string attachmentName;
+  // Bind pose is `skinningEnabled = false`: the mesh is drawn through the
+  // unskinned path rather than being skinned with a matrix table the caller
+  // could not build. The plan is explicit that a bone-mapping failure refuses
+  // skinning instead of guessing a partial one.
+  bool skinningEnabled = false;
+  std::uint32_t boneCount = 0;
+  // The animation input the caller resolved for this frame, spelled the way
+  // viewModelAnimationStatusName does (missing / ok / sequenceOutOfRange /
+  // boneMismatch). The product prints it as `vmAnimInput` on the pass-order line.
+  //
+  // It is deliberately a SECOND field rather than a replacement for
+  // `animationInput`, and the reason is that the two answer different questions.
+  // `animationInput` is an *effect* reading -- `missing`, or `bones:<n>` once a
+  // bone table was uploaded -- and the identity-bones instrument depends on it
+  // staying that way. This one is the *contract* reading. Keeping both is what
+  // makes "the pass skinned from a real pose" (vmAnimInput=ok, skinning=1)
+  // distinguishable from "the pass skinned through the identity instrument"
+  // (vmAnimInput=missing, skinning=1); folding them into one string would lose
+  // exactly that distinction, and would also rewrite a T2 reading that 154
+  // assertions and a byte-identical frame pair were frozen against.
+  std::string animationStatus;
+  // Whether the resolved pose was actually applied. It is a separate field from
+  // `skinningEnabled` because they answer different questions: skinningEnabled is
+  // "the pass has a table it accepted", this is "the caller decided to use it".
+  // The default is false even when a complete pose exists -- see main.cpp for the
+  // measurement behind that -- and the pair (animationStatus=ok,
+  // animationApplied=0) is the state this round ships.
+  bool animationApplied = false;
+  float tint[4] = {0.78f, 0.78f, 0.84f, 1.0f};
+  // Why the pass did or did not draw, as a stable string the runtime prints.
+  std::string reason;
+};
+
+struct WorldMaterialParams {
+  bool bumpMapping = false;
+  bool envMap = false;
+  bool waterMaterial = false;
+  bool selfIllum = false;
+  float selfIllumR = 0.0f;
+  float selfIllumG = 0.0f;
+  float selfIllumB = 0.0f;
+  // T96: pass-level aggregate of the two alpha keys, true when ANY fetched
+  // material declares it. This is a reading, not the per-material truth: the
+  // world pass has no per-material constant, so the draw key rides the vertex
+  // (WorldVertex::featureMask bits 8/16) and one atlas batch can hold both an
+  // opaque and a translucent material. The aggregate exists so a trace can say
+  // "the map declared glass at all" next to the per-material lines.
+  bool translucent = false;
+  bool alphaTest = false;
+};
+
+enum class WorldLightmapStatus {
+  Unavailable,
+  FallbackUnlit,
+  Active,
+};
+
+// How the world pass samples reflections. Unavailable: the material declares no
+// env map, or none resolved. Approximate2d: the 2D projection of $envmap that
+// the renderer has always used, sampled by the world-space normal.
+// SixFace: a real TextureCube built from a map cubemap's six decoded faces and
+// sampled by the reflection vector.
+enum class WorldCubemapStatus { Unavailable, Approximate2d, SixFace };
+const char* worldCubemapStatusName(WorldCubemapStatus status);
+
+// T19: one material's outcome from the atlas plan, as the product reports it.
+// `reason` is "tiled" or a WorldTileRefusal name; `batch` is which atlas holds
+// it and `tile` its position inside that atlas.
+struct WorldTileReading {
+  std::string material;
+  int batch = -1;
+  int tile = -1;
+  int width = 0;
+  int height = 0;
+  // T21: the tile's first pixel inside its atlas (`slot.x`/`slot.y`) and the
+  // atlas' own size. A trace that says "material M is tile 7" cannot be
+  // checked against a screen pixel; a trace that says "M lives at (2057,1) in a
+  // 4112-wide atlas" can, because the uv is a function of exactly those
+  // numbers. Published here rather than recomputed by the caller: the grid
+  // rule lives in planWorldTiles and a second copy of it would be a second
+  // layout.
+  int x = 0;
+  int y = 0;
+  int atlasWidth = 0;
+  int atlasHeight = 0;
+  // T21: the pre-downscale dimensions the uv is normalised by. Equal to
+  // `width` / `height` for a texture that already fit the tile.
+  int sourceWidth = 0;
+  int sourceHeight = 0;
+  bool blend = false;
+  bool modulate = false;
+  // T27: whether this material's normal layers reached the feature atlases. A
+  // material that declares `$bumpmap` but whose tile could not be placed has
+  // `bump == false`, so "declared" and "the shader can sample it" stay two
+  // different readings instead of one optimistic flag.
+  bool bump = false;
+  bool bump2 = false;
+  bool detail = false;
+  // T96: what the world pass consumed for this material, as a word rather than
+  // a flag: "opaque" (no alpha key), "cutout" ($alphatest -> pixel-shader
+  // discard), "blended" ($translucent -> blend state + depth writes off), or
+  // "refused" with `alphaReason` naming why. The declaration line says what the
+  // VMT asked for; these two are the consumption side, and a material that
+  // declares `$translucent` but reads mode=refused here is exactly the old
+  // silent drop made visible.
+  bool translucent = false;
+  bool alphaTest = false;
+  std::string alphaMode = "opaque";
+  std::string alphaReason;
+  std::string reason;
+};
+
+// T21: the world constants the last frame was drawn with, so a diagnostic can
+// predict what the pixel shader should produce at a screen point without
+// re-deriving the camera, the projection or the lighting switches from
+// settings. Every field here is the value uploaded to the constant buffer for
+// the world pass; none of them is a preference.
+// T101 (2026-11-09): environment fog, as the world pass is told to draw it.
+// `start` and `end` are in MAP units, not box units: the world vertex buffer is
+// a normalised box (native_renderer_world.cpp:93-101 scales x/y by
+// worldHorizontalScale_ and z by spanZ/0.8), so the fog distance has to be
+// measured in the space the map's numbers were authored in. The two scales are
+// carried with the state and applied in the shader, so the conversion cannot
+// drift from the vertex conversion: both read the same two numbers.
+struct WorldFogState {
+  bool enabled = false;
+  float start = 0.0f;          // fogstart, map units
+  float end = 0.0f;            // fogend, map units
+  float maxDensity = 1.0f;     // fogmaxdensity
+  float color[3] = {1.0f, 1.0f, 1.0f};  // fogcolor, 0..1
+  // Where the numbers came from, so a trace can say "the map said this" rather
+  // than "the renderer decided this": "bsp", "cli", or "off".
+  std::string source;
+  std::string reason;
+};
+
+struct WorldFogUploadState {
+  WorldFogState fog;
+  float boxToMapXZ = 1.0f;     // 1 / worldHorizontalScale_
+  float boxToMapZ = 1.0f;      // worldSpanZ_ / 0.8
+  std::size_t verticesFogged = 0;
+};
+
+struct WorldShaderConstants {
+  bool valid = false;
+  float mvp[16] = {};              // row-major view * projection
+  float lightDirection[3] = {};    // lightDirectionAndMode.xyz
+  float lightMode = 0.0f;          // lightDirectionAndMode.w (diffuse term on)
+  float lightmapFactor = 1.0f;     // lightmapFeatures.x
+  bool lightmapEnabled = false;    // lightmapFeatures.w > 0.5
+  float bumpMode = 0.0f;           // lightmapFeatures.y
+  float envMode = 0.0f;            // envFeatures.x
+  float cameraPosition[3] = {};    // cameraPositionAndSpecular.xyz
+  bool specular = false;           // cameraPositionAndSpecular.w
+  float selfIllumTint[3] = {};     // materialFeatures.xyz
+  float selfIllum = 0.0f;          // materialFeatures.w
+  int debugView = 0;
+  int width = 0;
+  int height = 0;
+  // T101: the fog the last frame uploaded. These are readings, not settings --
+  // they exist so a trace can state what the pixel shader was told, including
+  // the two box->map scales, without recomputing them from the map bounds.
+  bool fogEnabled = false;
+  float fogStart = 0.0f;
+  float fogEnd = 0.0f;
+  float fogMaxDensity = 0.0f;
+  float fogColor[3] = {};
+  float fogBoxToMapXZ = 1.0f;
+  float fogBoxToMapZ = 1.0f;
+};
+
+struct WorldMaterialSampleState {
+  WorldLightmapStatus lightmapStatus = WorldLightmapStatus::Unavailable;
+  float lightmapIntensity = 1.0f;
+  bool bumpTextureBound = false;
+  bool envTextureBound = false;
+  bool lightmapAtlasBound = false;
+  bool selfIllumEnabled = false;
+  // T24: the three pass-level lighting constants the LAST world draw uploaded.
+  // `bumpMode` is true only when the switch is on and a bump texture is bound,
+  // so a frame can be attributed to the constant rather than to the setting.
+  // `dynamicLightingMode` and `specularMode` have no resource dependency; they
+  // are the settings field, read through the same helper the constant uses.
+  bool dynamicLightingMode = false;
+  bool specularMode = false;
+  bool bumpMode = false;
+  // T27: the per-material feature path, as the last upload left it. `*Mode`
+  // says the atlas exists AND at least one vertex carries the bit, which is the
+  // pair that separates "the material asked" from "the shader samples it".
+  bool materialBumpMode = false;
+  bool bump2Mode = false;
+  bool detailMode = false;
+  WorldFeatureState bumpFeature{};
+  WorldFeatureState bump2Feature{};
+  WorldFeatureState detailFeature{};
+  // Falsifiable vertex counts for the lightmap pass. `lightmappedVertexCount`
+  // is how many of the uploaded world vertices carry a per-face light uv; a
+  // vertex without one is drawn flat no matter what the atlas holds. The pair
+  // (lightmapped / total) is the number that says whether the lightmap pass
+  // covers the map, which the status enum on its own cannot: `Active` plus
+  // 0/600000 would mean the atlas is bound and nothing samples it.
+  std::uint32_t worldVertexCount = 0;
+  std::uint32_t lightmappedVertexCount = 0;
+  // T10 diagnostic: the CONVERTED bounds of the uploaded world buffer. The
+  // camera and the entity models share one normalized space; if the world
+  // buffer's bounds are not the same box, the world pass is drawing somewhere
+  // the camera never looks, and this pair of triples says where.
+  float convertedMin[3] = {0.0f, 0.0f, 0.0f};
+  float convertedMax[3] = {0.0f, 0.0f, 0.0f};
+  // Which of the three things the env path is doing, as a value the runtime can
+  // read rather than a claim in a comment. `envTextureBound` alone could not
+  // tell a map whose cubemap failed to decode from one that never had an env
+  // map: both leave the 2D approximation bound and both read as bound.
+  WorldCubemapStatus cubemapStatus = WorldCubemapStatus::Unavailable;
+  // The faces uploaded to the cube texture, and its edge in pixels. Six and a
+  // power of two are what a D3D11 cube sample needs; anything else is refused
+  // and the status stays Approximate2d, so a partial cube cannot be sampled as
+  // if it were whole.
+  std::uint32_t cubemapFaces = 0;
+  std::uint32_t cubemapSize = 0;
+  // What the last world draw actually asked the pixel shader to do: 0 = no env
+  // pass, 1 = the 2D approximation, 2 = the six-face cube. `cubemapStatus` says
+  // what exists; this says what was used. A map whose material declares no
+  // $envmap builds the cube and reads status=six-face with mode=0, and without
+  // this field that state and "the cube is sampled" would print the same.
+  std::uint32_t envMode = 0;
+  // What the uploaded vertex buffer actually holds, counted while it is built:
+  // how many of its triangles came from a displacement (the parser subdivides a
+  // displaced face into a grid, so these are the tessellated ones and not the
+  // flat quad) and how many are water. The parse side counts triangles per
+  // capability; these say how much of that reached the GPU, which is the
+  // difference between "the map has 165376 displacement triangles" and "the
+  // map draws them".
+  std::uint32_t displacedTriangles = 0;
+  std::uint32_t waterTriangles = 0;
+  // ---- T1 (2026-10-13): skybox geometry and the pvs clip -------------------
+  // The skybox used to be a resource reading only: six vmts found, six textures
+  // decoded, no vertex of it ever built. `worldSkyVertexCount` is the number of
+  // vertices the sky pass actually draws, and `worldSkyState` is the word the
+  // frozen capability layer gives it -- so "active" now means "36 vertices are
+  // in a buffer and the pass draws them", not "the files are on disk".
+  WorldSkyState worldSkyState = WorldSkyState::Unavailable;
+  std::uint32_t worldSkyVertexCount = 0;
+  std::uint32_t worldSkyTriangles = 0;
+  std::uint32_t worldSkyFaces = 0;
+  std::uint32_t worldSkyDraws = 0;
+  std::uint32_t worldSkySide = 0;
+  bool worldSkyResampled = false;
+  std::string worldSkyReason;
+  // The clip, as a fact about the last draw rather than a setting. `hidden` is
+  // how many of the uploaded triangles the pvs refused; `drawn` is how many the
+  // draw call was actually given. The difference between the two and the total
+  // is what makes "the pvs hides 26936 triangles" and "26936 triangles are not
+  // drawn" the same reading.
+  WorldVisClipState worldVisClipState = WorldVisClipState::Unavailable;
+  bool worldVisClipApplied = false;
+  std::size_t worldVisDrawnTriangles = 0;
+  std::size_t worldVisHiddenTriangles = 0;
+  std::size_t worldVisTrianglesWithoutCluster = 0;
+  std::size_t worldVisInputTriangles = 0;
+  int worldVisCameraCluster = -1;
+  std::string worldVisClipReason;
+  // T10 diagnostic: whether the world pass rasterised with back-face culling
+  // on. Read from the renderer after the draw, like the vis line above, so a
+  // frame captured with --no-world-cull cannot be mistaken for one drawn with
+  // the product's own cull mode.
+  bool worldCullBackfaces = true;
+  // T11 diagnostic: which debug view the world pass drew. 0 = the product's
+  // textured/lightmapped path, 1 = flat colour with no sampling, 2 = depth as
+  // grey. Read from the renderer after the draw so a capture cannot claim a
+  // mode it did not use.
+  int worldDebugView = 0;
+  // ---- T19 (2026-10-19): atlas allocation, in full ----------------------
+  // The pair that replaces the silent 64-tile cap. `worldTilesTiled` is what
+  // got a tile and `worldTilesRefused` is what did not, split by cause, so
+  // "the atlas holds 148 materials" and "the atlas silently dropped 51" cannot
+  // print the same numbers. `worldAtlasBatches` is how many textures the plan
+  // needed: 1 means the old single-atlas shape, 3 means the reference map.
+  std::size_t worldTilesTiled = 0;
+  std::size_t worldTilesRefused = 0;
+  std::size_t worldTilesRefusedMalformed = 0;
+  std::size_t worldTilesRefusedDuplicate = 0;
+  std::size_t worldTilesRefusedBudget = 0;
+  std::size_t worldAtlasBatches = 0;
+  std::size_t worldAtlasBlendBatches = 0;
+  std::uint64_t worldAtlasLayerBytes = 0;
+  std::string worldAtlasPlanReason;
+  // T19: the draw batches the world pass issued, and the two cross-pass
+  // questions. `weaponDrawsWithWorldAtlas` counts weapon ranges drawn while a
+  // world atlas was the bound t0; `worldDrawsWithWeaponTexture` counts world
+  // batches drawn while a weapon range's albedo was. Both must be 0: they are
+  // the leak the task asks to rule out, and a counter that can only ever be
+  // green is not a check, so the mutation binds one on purpose.
+  std::size_t worldBatchDrawCalls = 0;
+  std::size_t worldBatchTexturedDrawCalls = 0;
+  std::size_t weaponDrawsWithWorldAtlas = 0;
+  std::size_t worldDrawsWithWeaponTexture = 0;
+  std::size_t slot0Binds = 0;
+  // T96: the world alpha path, as the last upload left it. `blendedTriangles`
+  // and `cutoutTriangles` are counted off the triangles whose vertices carry
+  // featureMask bit 8 / bit 16, so they say what the shader was handed rather
+  // than what the VMTs declared. `alphaBlendState` / `alphaDepthWriteOff` are
+  // the device objects: the pair separates "the material asked" from "the pass
+  // can composite it".
+  std::uint32_t blendedTriangles = 0;
+  std::uint32_t cutoutTriangles = 0;
+  std::uint32_t blendedBatches = 0;
+  bool alphaBlendState = false;
+  bool alphaDepthWriteOff = false;
+  // One row per material the upload was handed, in the order it was handed
+  // them. The reason is "tiled" or the refusal's name, so a gate can assert on
+  // the exact material that used to vanish into `capped=51`.
+  std::vector<WorldTileReading> worldTileTable;
+};
+
+// What a per-triangle pvs clip decided, handed to the renderer by the caller
+// that owns the BSP. The renderer stores no map: main.cpp runs the frozen
+// clipWorldTrianglesByVis and passes the verdict, so the decision has one
+// implementation and the draw list cannot disagree with it.
+struct WorldVisDrawList {
+  std::vector<std::uint32_t> indices;
+  WorldVisClipState state = WorldVisClipState::Unavailable;
+  bool applied = false;
+  std::size_t inputTriangles = 0;
+  std::size_t outputTriangles = 0;
+  std::size_t hiddenTriangles = 0;
+  std::size_t trianglesWithoutCluster = 0;
+  int cameraCluster = -1;
+  std::string reason;
+};
+
+// ---------------------------------------------------------------------------
+// T2 (2026-10-14): the water surface and the ViewModel's advanced materials
+// ---------------------------------------------------------------------------
+// A second sample state, deliberately NOT an extension of
+// WorldMaterialSampleState. T1 froze that struct and world-material-check.sh
+// pins its fields, so a field added here could not move one T1 pinned; a struct
+// added next to it cannot either. The getter is new for the same reason: the
+// water pass and the ViewModel material effects are read back through
+// viewModelMaterialSampleState() and worldMaterialSampleState() still returns
+// exactly what it returned before.
+
+// The water surface as a draw: how many triangles were handed to it, whether
+// the Draw call ran, whether the warp reached the samples, and the state of the
+// two render targets nobody has built.
+struct WaterSurfaceSampleState {
+  tf2::native::WorldWaterSurfaceState state = tf2::native::WorldWaterSurfaceState::Unavailable;
+  std::uint32_t waterFaces = 0;
+  std::uint32_t waterTriangles = 0;
+  std::uint32_t waterDrawCalls = 0;
+  // Whether the water is in the picture this frame. A buffer that exists and a
+  // pass that drew are different facts and only the second changes pixels.
+  bool waterVisible = false;
+  bool waterWarpApplied = false;
+  bool waterTextureBound = false;
+  bool waterFallback = false;
+  tf2::native::WorldWaterSurfaceState reflectionState = tf2::native::WorldWaterSurfaceState::Unavailable;
+  tf2::native::WorldWaterSurfaceState refractionState = tf2::native::WorldWaterSurfaceState::Unavailable;
+  std::string reason;
+};
+
+// Per-effect, per-frame: what the material declared, what the pass uploaded and
+// how many ranges the effect actually reached. `*AppliedRanges` is the reading
+// the task asks for by name, and it is counted from the ranges that drew rather
+// than from the ranges that exist -- a material on a range whose texture never
+// resolved declares Phong and applies none of it.
+struct ViewModelMaterialSampleState {
+  // Phong
+  tf2::native::ViewModelEffectState phongState = tf2::native::ViewModelEffectState::Unavailable;
+  bool phongDeclared = false;
+  bool phongParsed = false;
+  bool phongUploaded = false;
+  bool phongApplied = false;
+  std::uint32_t phongAppliedRanges = 0;
+  bool phongFallback = false;
+  std::string phongReason;
+  float phongExponent = 0.0f;
+  float phongBoost = 0.0f;
+  float phongFresnelMin = 0.0f;
+  float phongFresnelMax = 0.0f;
+  float phongTint[3] = {0.0f, 0.0f, 0.0f};
+  // Bump
+  tf2::native::ViewModelEffectState bumpState = tf2::native::ViewModelEffectState::Unavailable;
+  bool bumpDeclared = false;
+  bool bumpParsed = false;
+  bool bumpUploaded = false;
+  bool bumpApplied = false;
+  std::uint32_t bumpAppliedRanges = 0;
+  bool bumpFallback = false;
+  std::string bumpReason;
+  std::string bumpTexturePath;
+  bool bumpTextureResolved = false;
+  bool bumpTextureUploaded = false;
+  bool bumpTextureReused = false;
+  // Selfillum
+  tf2::native::ViewModelEffectState selfillumState = tf2::native::ViewModelEffectState::Unavailable;
+  bool selfillumDeclared = false;
+  bool selfillumParsed = false;
+  bool selfillumUploaded = false;
+  bool selfillumApplied = false;
+  std::uint32_t selfillumAppliedRanges = 0;
+  bool selfillumFallback = false;
+  std::string selfillumReason;
+  bool selfillumMaskDeclared = false;
+  bool selfillumMaskBound = false;
+  float selfillumTint[3] = {0.0f, 0.0f, 0.0f};
+  // The whole-run texture bookkeeping. `texturesUploaded` is cumulative and is
+  // NOT reset per frame: that is the reading that catches a pass which rebuilds
+  // its textures every frame, because the number keeps climbing.
+  std::uint32_t texturesUploaded = 0;
+  std::uint32_t texturesReused = 0;
+};
+
+enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
+
+
+class Renderer {
+public:
+  bool initialize(HWND window);
+  void resize(UINT width, UINT height);
+  void orbitCamera(float deltaX, float deltaY);
+  void zoomCamera(float delta);
+  void setObserverFocus(float x, float y, float z);
+  void setObserverFocusWorld(float x, float y, float z);
+  // T80: the orbit distance in MAP units. The renderer keeps the orbit in the
+  // normalized unit box, so a caller that has a distance in world units (the
+  // spectate relay wants the watched player at a fixed number of units away,
+  // not at a fixed fraction of whichever map is loaded) has to convert through
+  // the same scale the focus conversion uses. Clamped so a bad scale cannot put
+  // the eye inside the near plane.
+  void setObserverOrbitDistanceWorld(float worldUnits);
+  void setObserverDemoViewWorld(float x, float y, float z, float pitchDegrees, float yawDegrees);
+  void clearObserverDemoView();
+  bool observerFocusWorld(float& x, float& y, float& z) const;
+  // T10 fix: the observer focus converted BACK to map coordinates. The pvs
+  // clip asks the BSP which cluster a point sits in, and the BSP speaks map
+  // units; observerFocusWorld() speaks the normalized unit-box the world
+  // buffer was scaled into. Handing the normalized point to clusterAt asked
+  // "which leaf contains (±0.4, ±0.9, 0.1..0.9) in map units" -- a fixed spot
+  // near the map origin, so every camera read as one cluster and the clip hid
+  // an arbitrary half of the map. The inverse lives here, next to the forward
+  // conversion and its constants, so the two cannot drift apart.
+  bool observerFocusMapWorld(float& x, float& y, float& z) const;
+  // T21: the constants the last world draw uploaded. Read after a frame, like
+  // the vis and cull readings: a caller that predicts a pixel has to use the
+  // numbers the shader was given, not the settings that were meant to produce
+  // them.
+  WorldShaderConstants worldShaderConstants() const;
+  // T21: the depth the captured frame actually has at a pixel, read back with
+  // the colour buffer. It answers "is the pixel the face the trace picked?"
+  // without assuming it: a model, the water pass or another world triangle in
+  // front all write a different depth, and a colour comparison over such a
+  // pixel would be a comparison with somebody else's surface. Returns a
+  // negative value when no depth readback was taken.
+  float capturedDepthAt(int x, int y) const;
+  // The depth of the FINAL frame -- after the ViewModel pass cleared the world
+  // depth and drew the weapon over it. A pixel whose final depth is nearer than
+  // the world depth is not the world face any more, whatever its colour is.
+  float capturedFinalDepthAt(int x, int y) const;
+  void captureDepthBuffer(bool finalPass);
+  // The raw 32-bit texel behind capturedDepthAt, for diagnosing a driver whose
+  // D24S8 packing is not the one the decode assumes.
+  std::uint32_t capturedDepthRawAt(int x, int y) const;
+  int capturedDepthWidth() const { return capturedDepthWidth_; }
+  int capturedDepthHeight() const { return capturedDepthHeight_; }
+  void setWorldMaterialParams(const WorldMaterialParams& params);
+  void setProjectileTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
+  // T53: the observed trajectory pass. Separate from setProjectileTimeline on
+  // purpose -- that one is driven by TempEntity GENERATION events (one position
+  // plus a velocity, so anything drawn from it is extrapolated), this one by
+  // observed per-tick positions. Keeping them apart is what lets the old path
+  // stay as the fallback for entities with no observed rows, and what lets
+  // projectileVertexCount() and projectileTrackVertexCount() be two readings
+  // instead of one that hides which pass drew.
+  void setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>& points, std::int32_t tick);
+  void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
+  void setEntityMarkers(const std::vector<EntityMarker>& markers);
+
+  // ---- T52: THE OVERLAY PASS ------------------------------------------------
+
+  // One pass, one list PER DEPTH MODE (T53 needs a depth-tested trail and an
+  // x-ray marker in the same frame). The list is copied and kept until it is
+  // replaced, so a product loop that only rebuilds on a sampled tick does not
+  // blank the overlay on the frames in between.
+  //
+  // WHAT THE PASS MAY NOT DO. It writes no depth, restores every state it
+  // touches, and draws nothing when both stored lists are disabled. With the
+  // overlay off, the frame must be byte-identical to a build with no overlay
+  // code at all -- that is the mechanical form of "does not change world
+  // geometry or ordinary visibility", and it is why the pass owns its own
+  // depth-stencil states rather than borrowing the world's.
+  void setOverlayDrawList(const OverlayDrawList& list);
+
+  // What the pass did on the last frame, including its ordinal in draw()'s own
+  // counter, so "the overlay drew before the weapon" is a number a gate reads
+  // rather than a claim about the order of two statements.
+  const OverlayPassReading& overlayPassReading() const { return overlayPassReading_; }
+  void setOverlayVertexExtent(bool enabled) { overlayVertexExtent_ = enabled; }
+  bool overlayVertexExtent() const { return overlayVertexExtent_; }
+  const std::vector<std::pair<std::uint32_t, std::uint32_t>>& overlayInstanceIdentity() const {
+    return overlayInstanceIdentity_;
+  }
+
+  // T52: the depth-stencil states as D3D11 REPORTS them, next to the numbers the
+  // pass publishes per frame. The contract says x-ray is "depth test off and
+  // depth write off"; the pass is created with DepthWriteMask = ZERO and a gate
+  // read depthWrite=1 out of the per-frame reading, which is either a real depth
+  // write (a contract violation) or the two numbers coming from different places.
+  // Printing both in one line settles which, and the rule for reading it was
+  // written before the run: state=0 with the per-frame number still 1 means the
+  // defect is in how the pass fills its reading; state=1 means the state itself
+  // does not have the mask we asked for.
+  bool overlayXRayDepthTestEnabled() const { return overlayXRayDepthTestEnabled_; }
+  bool overlayXRayDepthWriteEnabled() const { return overlayXRayDepthWriteEnabled_; }
+  // Raw device readback of the two overlay depth-stencil states, and the description
+  // each was created from. Published so a gate asserts agreement instead of trusting a
+  // bool that was computed somewhere else.
+  std::uint32_t overlayXRayStateReadWriteMask() const { return overlayXRayStateReadWriteMask_; }
+  std::uint32_t overlayXRayStateCreatedWriteMask() const { return overlayXRayStateCreatedWriteMask_; }
+  std::uint32_t overlayXRayStateReadDepthEnable() const { return overlayXRayStateReadDepthEnable_; }
+  std::uint32_t overlayDepthTestedStateReadWriteMask() const { return overlayDepthTestedStateReadWriteMask_; }
+  std::uint32_t overlayDepthTestedStateCreatedWriteMask() const { return overlayDepthTestedStateCreatedWriteMask_; }
+  std::uint32_t overlayDepthTestedStateReadDepthEnable() const { return overlayDepthTestedStateReadDepthEnable_; }
+  bool overlayStateReadbackAgrees() const { return overlayStateReadbackAgrees_; }
+  bool overlayInstanceRow0Valid() const { return overlayInstanceRow0Valid_; }
+  const float* overlayInstanceRow0Gpu() const { return overlayInstanceRow0Gpu_; }
+  const float* overlayInstanceRow0Cpu() const { return overlayInstanceRow0Cpu_; }
+
+  // Uploads the whole de-indexed LOD0 list -- there is no vertex-count cap here
+  // and no truncation: the buffer is exactly as long as the model's LOD0. `runs`
+  // splits the buffer into per-material draws; an empty list means one draw with
+  // material slot 0.
+  //
+  // T85 P0: `priority` is the delivery order (entity_mesh_budget.h). The table is
+  // a BOUNDED CACHE, not a wall: when it is full the least useful resident is
+  // evicted to make room for a more important mesh, and only a request that
+  // outranks nothing resident is refused. Every eviction and every refusal is
+  // counted; see entityModelMeshEvictions() / entityModelMeshCapacityRefusals().
+  bool uploadEntityModelMesh(const std::string& cacheKey, const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ModelMeshMaterialRun>& runs = {},
+    EntityMeshPriority priority = EntityMeshPriority::WorldProp, bool mapStaticProp = false);
+  // One texture per (material slot, skin family). The draw loop picks the
+  // instance's family and binds that texture for the matching runs.
+  bool uploadEntityModelTexture(const std::string& cacheKey, std::uint32_t materialSlot, std::uint32_t skinFamily,
+    const std::vector<std::uint8_t>& rgba, UINT width, UINT height, std::uint32_t materialFlags = 0,
+    const std::vector<std::uint8_t>& secondRgba = {}, UINT secondWidth = 0, UINT secondHeight = 0,
+    const VmtMaterialProxy& proxy = {});
+  void setEntityModelTime(double seconds) { entityModelTimeSeconds_ = seconds; }
+  void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
+  // The bone matrices every skinned instance indexes into, concatenated. Uploaded
+  // once per scene update rather than per draw: a demo can carry 96 instances and
+  // a per-draw structured-buffer recreate would dominate the frame.
+  void setEntityBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices);
+  std::size_t entitySkinnedInstanceCount() const { return entityModelSkinnedInstanceCount_; }
+  std::size_t entityBoneMatrixCount() const { return entityBoneMatrixCount_; }
+  std::size_t entityModelMeshCount() const { return entityModelMeshes_.size() - mapStaticPropMeshCount(); }
+  // Instances DRAWN: one per accepted entity, at most the entity pass's cap.
+  std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
+  // Instance SLOTS: the same instances counted once per material run, which is
+  // what the vertex shader sees per draw range. A separate reading on purpose --
+  // using it as the denominator of the textured-instance count reported 201 drawn
+  // instances for 96 real ones (2026-10-28), so "every drawn instance is painted"
+  // was arithmetically unreachable rather than false.
+  std::size_t entityModelInstanceSlotCount() const { return entityModelInstanceSlotCount_; }
+  std::size_t entityModelVertexCount() const { return entityModelVertexCount_; }
+  std::size_t entityModelTexturedRangeCount() const { return entityModelTexturedRangeCount_; }
+  std::size_t entityModelTexturedInstanceCount() const { return entityModelTexturedInstanceCount_; }
+  std::size_t entityModelDrawRangeCount() const { return entityModelDrawRanges_.size(); }
+  // Vertices dropped on upload because a cap was applied. Must stay 0: T57
+  // measured this path cutting every player model at 12000 vertices. The counter
+  // exists so a re-introduced cap is a published reading, not a silent cut.
+  std::size_t entityModelMeshTruncatedCount() const { return entityModelMeshTruncatedCount_; }
+  // T85 P0: the entity-mesh table AS A BUDGET. The four layers are named in
+  // entity_mesh_budget.h; these readings make layer B (the cache) observable:
+  // capacity (the compile-time bound), resident (what is in it now), and the
+  // price of keeping it bounded -- evictions and capacity refusals. A bounded
+  // cache that never evicts is either oversized or not being measured, which is
+  // exactly the shape of the defect this replaced: a wall that said
+  // E_OUTOFMEMORY and a frame that was silently short.
+  std::size_t entityModelMeshCapacity() const;
+  // Layer C's bound: at most this many entity instances reach one update. Named
+  // here so the ledger can print the capacity it is measured against instead of
+  // repeating a literal.
+  static constexpr std::size_t entityModelInstanceCapacityLimit = 96;
+  // Separate map capacity: the six launch maps contain up to 1,866 static
+  // instances and 201 distinct models. They must not spend player/weapon slots.
+  static constexpr std::size_t mapStaticPropMeshCapacityLimit = 512;
+  static constexpr std::size_t mapStaticPropInstanceCapacityLimit = 4096;
+  std::size_t mapStaticPropMeshCount() const {
+    std::size_t count = 0;
+    for (const auto& entry : entityModelMeshes_) if (entry.second.mapStaticProp) ++count;
+    return count;
+  }
+  std::size_t mapStaticPropInstanceCount() const { return mapStaticPropInstanceCount_; }
+  std::size_t mapStaticPropInstanceRejected() const { return mapStaticPropInstanceRejected_; }
+  std::size_t entityModelMeshEvictions() const { return entityModelMeshEvictions_; }
+  std::vector<std::string> takeEvictedEntityModelMeshKeys() {
+    std::vector<std::string> out = std::move(entityModelMeshEvictedKeys_);
+    entityModelMeshEvictedKeys_.clear();
+    return out;
+  }
+  std::size_t entityModelMeshCapacityRefusals() const { return entityModelMeshCapacityRefusals_; }
+  // Uploads of a key that was already resident. Non-zero means the attach's
+  // "prepare a weapon once" rule is churning: a re-upload drops the textures the
+  // key already carried (see uploadEntityModelMesh), so a bounded cache must not
+  // turn into a rotating door behind that rule.
+  std::size_t entityModelMeshReuploads() const { return entityModelMeshReuploads_; }
+  std::size_t entityModelMeshResident(EntityMeshPriority priority) const {
+    std::size_t count = 0;
+    for (const auto& entry : entityModelMeshes_) {
+      if (!entry.second.mapStaticProp && entry.second.priority == priority) ++count;
+    }
+    return count;
+  }
+  // Why the last instance update dropped an instance. These used to be a bare
+  // `continue`: a key with no mesh, a buffer shorter than three vertices and a
+  // non-finite local matrix all produced the same invisible short frame.
+  std::size_t entityModelInstanceRejectedMissingMesh() const { return entityModelInstanceRejectedMissingMesh_; }
+  std::size_t entityModelInstanceRejectedBadMesh() const { return entityModelInstanceRejectedBadMesh_; }
+  std::size_t entityModelInstanceRejectedNonFinite() const { return entityModelInstanceRejectedNonFinite_; }
+  std::size_t entityModelInstanceRejectedBudget() const { return entityModelInstanceRejectedBudget_; }
+  // A draw whose model layer A deliberately deferred. Separate from missingMesh
+  // on purpose: one is the budget working, the other is a submitted key with
+  // nothing behind it.
+  std::size_t entityModelInstanceRejectedDeferredNotResident() const { return entityModelInstanceRejectedDeferredNotResident_; }
+  // Number of (material slot, skin family) textures uploaded for entity models.
+  // Zero means every draw falls back to the world atlas.
+  std::size_t entityModelTextureCount() const { return entityModelTextureCount_; }
+  std::size_t projectileVertexCount() const { return projectileVertexCount_; }
+  // T53: the observed-trajectory pass's own count, kept separate from the
+  // TempEntity pass above so "the new pass did not quietly move the old one" is
+  // a reading rather than a promise. Both are printed by the HUD line.
+  std::size_t projectileTrackVertexCount() const { return projectileTrackVertexCount_; }
+  // How many points the last call submitted before any culling, and how many of
+  // them became vertices. Low quality samples fewer points, so the two tiers
+  // differ here and the gate asserts it.
+  std::size_t projectileTrackPointCount() const { return projectileTrackPointCount_; }
+  const WorldMaterialParams& worldMaterialParams() const { return worldMaterialParams_; }
+  // The env mode a world draw would use now: 0 none, 1 the 2D approximation,
+  // 2 the map's six-face cube.
+  UINT worldEnvMode() const;
+  WorldLightmapStatus worldLightmapStatus() const { return worldLightmapStatus_; }
+  WorldMaterialSampleState worldMaterialSampleState() const;
+  // T12: the counts behind the terrain blend path (see WorldBlendState).
+  WorldBlendState worldBlendState() const;
+  // T12: the atlas edge in pixels, its byte size, and the reason it is or is
+  // not bound. "bound" is the only value that means the atlas is what the
+  // world pass samples.
+  // T19: `size` and `bytes` stay the single-atlas readings they were -- the
+  // largest one the pass bound -- so a gate written against one atlas keeps
+  // meaning what it meant. `atlases` and `totalBytes` are what the batching
+  // added: how many there are and what they cost together.
+  std::size_t worldAtlasSize() const { return worldAtlasSize_; }
+  std::uint64_t worldAtlasBytes() const { return worldAtlasBytes_; }
+  std::size_t worldAtlasCount() const { return worldAtlasCount_; }
+  std::uint64_t worldAtlasTotalBytes() const { return worldAtlasTotalBytes_; }
+  const std::string& worldAtlasReason() const { return worldAtlasReason_; }
+  // T19: the per-material disposition of the last atlas upload. Kept as a table
+  // rather than folded into the counters because the product's trace names each
+  // material and its pvs-visible triangle count next to it -- a count of 51
+  // refused tiles answers "how many" and not "which", and the task's question
+  // is the second one.
+  const std::vector<WorldTileReading>& worldTileTable() const { return worldTileTable_; }
+  // T19: the t0 ledger's counters, read after a frame like the draw flags.
+  std::size_t weaponDrawsWithWorldAtlas() const { return weaponDrawsWithWorldAtlas_; }
+  std::size_t worldDrawsWithWeaponTexture() const { return worldDrawsWithWeaponTexture_; }
+  std::size_t slot0BindCount() const { return slot0Binds_; }
+  std::size_t worldBatchDrawCallCount() const { return worldBatchDrawCalls_; }
+  std::size_t worldAtlasBatchCount() const { return worldAtlasBatches_; }
+  std::size_t worldAtlasBlendBatchCount() const { return worldAtlasBlendBatches_; }
+  bool saveCameraPreset(std::size_t slot);
+  bool applyCameraPreset(std::size_t slot);
+  bool clearCameraPreset(std::size_t slot);
+  void clearCameraPresets();
+  void resetCamera();
+  // T50: the orbit pose as the draw will use it, read from the same members the
+  // view matrix is built from. Before this, a gate could only see the camera in
+  // a frame; the pause/bookmark contract needs the numbers, because "the pose
+  // came back exactly" is a claim a pixel comparison answers with "it looks the
+  // same" and a float comparison answers with "it is the same".
+  struct OrbitPoseReading {
+    bool valid = false;
+    // Focus in the normalized box (what saveCameraPreset stores).
+    float focusX = 0.0f, focusY = 0.0f, focusZ = 0.0f;
+    float yaw = 0.0f, pitch = 0.0f, distance = 0.0f;
+    bool demoView = false;
+    float fovDegrees = 90.0f;
+  };
+  OrbitPoseReading orbitPose() const;
+  // Applies a pose through the same clamps applyCameraPreset uses, without
+  // needing a preset slot. Returns false when the input is not finite.
+  bool setOrbitPose(float focusX, float focusY, float focusZ,
+    float yaw, float pitch, float distance);
+  // The map-space eye and target the next world draw will use, in map units.
+  // The bookmark store keeps the box-space focus; a gate that wants to say "the
+  // camera is where the demo eye is" needs the map-space answer.
+  bool cameraEyeMapWorld(float& x, float& y, float& z) const;
+  bool draw(float clearRed, float clearGreen, float clearBlue);
+  bool uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  bool uploadWorldGeometry(const BspMap& map, const std::string& texturedMaterial, UINT textureWidth, UINT textureHeight);
+  bool uploadWorldGeometry(const BspMap& map, const std::vector<WorldTexture>& textures);
+  bool uploadWorldAuxTextures(const std::vector<std::uint8_t>& bumpRgba, UINT bumpWidth, UINT bumpHeight,
+    const std::vector<std::uint8_t>& envRgba, UINT envWidth, UINT envHeight);
+  bool uploadWorldLightmap(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // Six decoded cube faces, in Source's face order (+X,-X,+Y,-Y,+Z,-Z), each
+  // side*side RGBA. All six must be present, square, and the same size: the
+  // upload refuses anything else rather than filling the missing faces with
+  // black, which would sample as "the map is dark in that direction".
+  bool uploadWorldCubemap(const std::array<std::vector<std::uint8_t>, 6>& faces,
+    UINT side, std::string* error = nullptr);
+  // ---- T1 (2026-10-13): the skybox as geometry -----------------------------
+  // Six sides at their own sizes. A cube needs six equal squares and the content
+  // does not have them (this install's sky_well_01dn.vtf is 1x1 beside five
+  // 512x256/512x512 siblings), so the uploader picks the smallest power of two
+  // that covers every decoded side and resamples to it -- and reports that it
+  // did, because "the sky is drawn" and "the sky is drawn at its own pixels"
+  // are different claims and only the second one is a sky.
+  //
+  // Fewer than six sides is refused rather than padded with black: a black side
+  // would sample as "the map is dark in that direction", which is a lie about
+  // the content rather than an admission about the upload.
+  bool uploadWorldSky(const std::array<WorldSkyFace, 6>& faces, std::string* error = nullptr);
+  // The box, 6 vertices per side in D3D11 cube order, built by
+  // evaluateSkyDrawRequest -- the same pure function the probe asserts, so the
+  // vertices the product draws are the vertices the gate counted.
+  bool uploadWorldSkyGeometry(const std::vector<WorldSkyVertex>& vertices);
+  void setWorldSkyEnabled(bool enabled, const std::string& reason = {}) {
+    worldSkyEnabled_ = enabled;
+    if (!reason.empty()) worldSkyReason_ = reason;
+  }
+  // T101: the environment fog. Called BEFORE uploadWorldGeometry, because the
+  // fog bit is written into the vertex feature mask there -- setting it after
+  // the upload would leave every vertex unmarked and the pass silently unfogged.
+  // An enabled state with start >= end is taken as written: the shader clamps
+  // the ramp denominator, so the frame is fogged and the trace shows the values,
+  // rather than the renderer deciding the map meant something else.
+  void setWorldFog(const WorldFogState& fog) { worldFog_ = fog; }
+  // What the last upload actually drew: the state, the two scales the shader
+  // multiplies by, and how many vertices carry the fog bit (0 when disabled).
+  WorldFogUploadState worldFogState() const;
+  // The pvs verdict for the current camera cluster. An empty index list means
+  // "draw everything"; a non-empty one is drawn indexed, so the hidden
+  // triangles leave the rasteriser as well as the reading.
+  void setWorldVisClipEnabled(bool enabled);
+  // T10 diagnostic: rasterise the world pass without back-face culling, so the
+  // same frame can be drawn culled and unculled and the difference attributed
+  // to the winding. Diagnostic only; the product's default stays cull-back.
+  void setWorldBackfaceCull(bool enabled) { worldBackfaceCull_ = enabled; }
+  // T11 diagnostic: 0 = textured (the product path), 1 = flat colour only,
+  // 2 = depth greyscale. Diagnostic only; the product's default stays 0.
+  void setWorldDebugView(int view) { worldDebugView_ = view; }
+  bool setWorldVisDrawList(const WorldVisDrawList& drawList);
+  // ---- T2 (2026-10-14): the water surface as its own pass ----------------
+  // A second world buffer holding only the water triangles, its own texture and
+  // its own constants. It is a separate pass over a separate buffer precisely so
+  // that turning it off cannot change what the world pass draws: the world
+  // vertex buffer, the pvs clip and the sky pass are untouched, and
+  // `drawnTriangles + hiddenTriangles == inputTriangles` still holds on the
+  // world pass with the water on, off, or absent.
+  //
+  // The vertices it takes are the ones `evaluateWaterDrawRequest` already
+  // warped, so the warp has one implementation and the reading that counted the
+  // triangles counted the ones that were uploaded.
+  bool uploadWorldWaterGeometry(const std::vector<WorldWaterVertex>& vertices);
+  // The water material's own texture. An empty buffer is a fallback, not a
+  // failure: the pass then draws the flat shade and says so.
+  bool uploadWorldWaterTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // T78: the water material's own normal map, bound at t1 so the world pixel
+  // shader's legacy bump arm can tilt the surface normal and the directional
+  // term can show the ripples. Without it the surface's only texture is a
+  // colour, and cp_snakewater_final1's water colour map is very nearly one flat
+  // blue -- a textured surface that is indistinguishable from the flat shade.
+  // An empty buffer is a fallback, not a failure: the pass then binds nothing
+  // and clears the shader's bump flag, which is exactly the pre-T78 picture.
+  bool uploadWorldWaterBumpTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  void setWorldWaterEnabled(bool enabled) { worldWaterEnabled_ = enabled; }
+  // ---- T12 (2026-10-18): the terrain blend's two diagnostic switches ------
+  // `setWorldBlendEnabled(false)` keeps the world geometry and the first layer
+  // exactly as they are and refuses the second layer, so the only difference
+  // between the two frames is the blend itself. That is the "off" half of the
+  // on/off/repeat triple the task asks for, and it has to be a renderer-side
+  // switch rather than a main.cpp-side one: dropping the layer in main.cpp
+  // would change the atlas contents as well, and then a differing pixel could
+  // be attributed to the atlas rather than to the shader branch.
+  void setWorldBlendEnabled(bool enabled) { worldBlendEnabled_ = enabled; }
+  // ---- T27 (2026-10-19): the material-feature switches -------------------
+  // One switch per semantic, and each one is a renderer-side switch for the
+  // same reason the blend switch is: turning it off has to leave the geometry,
+  // the albedo atlas and the uv exactly as they are, so the two frames differ
+  // by the normal/detail branch alone. `false` means the atlas is not built at
+  // all and no vertex carries the bit, which is also what makes the default
+  // frame byte-identical to the pre-T27 build.
+  void setWorldMaterialBumpEnabled(bool enabled) { worldMaterialBumpEnabled_ = enabled; }
+  void setWorldBump2Enabled(bool enabled) { worldBump2Enabled_ = enabled; }
+  // T27: the layer-2 diagnostic base. The product path lerps layer 2 into the
+  // material's own layer-1 normal (Source's BUMPMAP2 block is compiled under
+  // BUMPMAP), so a material whose layer 1 is refused -- the 36 `$ssbump`
+  // materials -- has no base for the lerp and must not carry the bit. The
+  // diagnostic switch exists because the one material on this map that does have
+  // both layers is under the terrain at both gate cameras: it lets the lerp be
+  // measured on the base normal the pass already computed, with the trace naming
+  // that base. It is a measurement of the shader arm, not a claim about Source's
+  // bumpBasis.
+  void setWorldBump2Diagnostic(bool enabled) { worldBump2Diagnostic_ = enabled; }
+  void setWorldDetailEnabled(bool enabled) { worldDetailEnabled_ = enabled; }
+  WorldFeatureState worldBumpFeatureState() const { return worldBumpFeature_; }
+  WorldFeatureState worldBump2FeatureState() const { return worldBump2Feature_; }
+  WorldFeatureState worldDetailFeatureState() const { return worldDetailFeature_; }
+  // `setWorldTerrainOnly(true)` uploads only the triangles whose material is a
+  // blend material -- the displacement terrain -- and nothing else. It exists
+  // because "the change is in the terrain region" is a claim about *where* the
+  // pixels are, and the only honest way to bound that region without assuming a
+  // colour or a projection is to draw a frame that contains the terrain and
+  // nothing else, from the same camera and the same buffers.
+  void setWorldTerrainOnly(bool terrainOnly) { worldTerrainOnly_ = terrainOnly; }
+  // T59 diagnostic: paint the flat fallback -- the branch a material takes when
+  // it got no tile -- in magenta instead of its shade, so "how much of this frame
+  // is an untiled material" becomes a pixel count on the capture instead of a
+  // triangle count that cannot say where those triangles landed.
+  void setWorldRefusedMask(bool enabled) { worldRefusedMask_ = enabled; }
+  // T26: `--world-geometry sky` uploads the BSP's sky-brush polygons and
+  // nothing else. It is not a picture of the game: it is the only honest answer
+  // to "is this empty pixel sky by design or is it a hole", because it is the
+  // map's own sky geometry through the product's own camera, projection and
+  // world transform. The product never draws this buffer -- sky faces are not
+  // in `map.triangles` at all.
+  void setWorldSkyFaceOnly(bool skyOnly) { worldSkyFaceOnly_ = skyOnly; }
+  // T26: bake the face index into the vertex colour so the flat debug view can
+  // output a face-id frame. Set before the upload, because the colour is a
+  // vertex property; the draw side is `setWorldDebugView(4)`.
+  void setWorldFaceIdUpload(bool enabled) { worldFaceIdUpload_ = enabled; }
+  // T12: `--world-geometry terrain|none` is a diagnostic frame, not a picture of
+  // the game, so every other pass has to leave it alone: the pvs index buffer
+  // (built from the full triangle list, so it would index past a filtered vertex
+  // buffer), the "no world" placeholder quad (a full-screen textured quad, which
+  // is what the `none` frame used to show instead of the background), and the
+  // entity, marker and projectile passes. Measured, all three.
+  void setWorldDiagnosticIsolation(bool isolated) { worldDiagnosticIsolation_ = isolated; }
+  // T17: the lightmap is the one shading term the product had no off switch for,
+  // so "the world is dark" could not be attributed to it. `false` keeps the same
+  // geometry, materials and uvs and replaces the sample with white, which turns
+  // the question into a frame comparison instead of an argument. Diagnostic
+  // only; the product path never calls it.
+  void setWorldLightmapEnabled(bool enabled) { worldLightmapEnabled_ = enabled; }
+  bool worldLightmapEnabled() const { return worldLightmapEnabled_; }
+  // ---- T51: the custom HUD pass -----------------------------------------
+  // A screen-space pass drawn AFTER the ViewModel pass and BEFORE the frame
+  // capture, in its own viewport-scissored rectangles, with depth test and depth
+  // write disabled, blending enabled, and its own shader pair. It shares no
+  // buffer, no constant buffer and no state with the world, entity or ViewModel
+  // passes, which is what makes "the HUD did not touch the world" a property of
+  // the code rather than a hope: the only thing this pass can write is the
+  // colour of the pixels inside the rectangles it was handed.
+  //
+  // The rectangles are the resolved HUD layout (hud_import.h), recomputed by the
+  // caller on every resize so the pass never draws a stale layout. `enabled`
+  // false is the product default: a capture-only run draws no HUD at all.
+  struct HudDrawRect {
+    float left = 0.0f, top = 0.0f, right = 0.0f, bottom = 0.0f;
+    float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+  };
+  // The pixel region the pass was allowed to touch on the last draw, unioned.
+  // Declared before its accessor so the type is complete where it is used.
+  struct HudPixelRectLast { int x = 0; int y = 0; int w = 0; int h = 0; bool empty = true; };
+  // ---- T67: text, filled shapes and dots --------------------------------
+  // T51 could draw only bordered blocks, so "the HUD shows text" was a claim the
+  // frame could not show. A primitive now says which shader path draws it and,
+  // for text, carries its own UTF-8 string: the pass expands one text primitive
+  // into one quad per glyph against the embedded 8x8 font (hud_font.h). The
+  // per-vertex kind keeps the whole HUD a single draw call.
+  enum class HudPrimitiveKind { Rect = 0, Text = 1, Circle = 2 };
+  struct HudPrimitive {
+    HudPrimitiveKind kind = HudPrimitiveKind::Rect;
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    bool filled = false; // Rect only: false keeps T51's bordered block
+    std::string text;    // Text only: UTF-8
+    float scale = 1.0f;  // Text only: pixels per font pixel
+  };
+  // Replaces the whole primitive list; an empty list disables the pass without
+  // touching `enabled`, so "no HUD in this document" and "the user turned it
+  // off" stay distinguishable in the readings.
+  void setHudPrimitives(const std::vector<HudPrimitive>& primitives);
+  // The T51 entry point is kept: each rect maps to a bordered Rect primitive, so
+  // the existing import path and its readings keep working unchanged.
+  void setHudRects(const std::vector<HudDrawRect>& rects);
+  void setHudEnabled(bool enabled) { hudEnabled_ = enabled; }
+  bool hudEnabled() const { return hudEnabled_; }
+  std::size_t hudRectCount() const { return hudDrawnRects_; }
+  // The number of primitives the last draw actually covered, reset at the start
+  // of it. `hudPrimitiveCount()` is what was handed in; this is what was drawn.
+  std::size_t hudPrimitiveCount() const { return hudPrimitives_.size(); }
+  std::size_t hudDrawnPrimitives() const { return hudDrawnPrimitives_; }
+  std::size_t hudDrawnRects() const { return hudDrawnRects_; }
+  // Text readings: text primitives drawn, glyph quads emitted, and codepoints
+  // that had no glyph and therefore used the fallback cell.
+  std::size_t hudTextQuads() const { return hudTextQuads_; }
+  std::size_t hudGlyphCount() const { return hudGlyphCount_; }
+  std::size_t hudUnmappedGlyphs() const { return hudUnmappedGlyphs_; }
+  std::size_t hudPassOrdinal() const { return hudPassOrdinal_; }
+  // Whether the pass scissored itself. Recorded from the draw rather than
+  // asserted, because "the pass cannot paint outside its rects" is the claim the
+  // world comparison rests on.
+  bool hudScissorApplied() const { return hudScissorApplied_; }
+  // The pixels the pass was allowed to touch on the last draw, in back-buffer
+  // coordinates, unioned. Empty when nothing was drawn.
+  HudPixelRectLast hudLastRegion() const { return hudLastRegion_; }
+
+  // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
+  // was never set on the success path of uploadWorldWaterGeometry, so
+  // waterSurfaceSampleState() reported `unavailable` for a surface that drew --
+  // measured, and it is the reason the mutation that deletes the Draw call first
+  // read `draws=0 state=unavailable` instead of the intended `draws=0
+  // state=active`. The state is a judgement about the request, the draw count is
+  // a fact about the pass, and keeping them in one place made the second one
+  // unable to move on its own.
+  void setWorldWaterReading(tf2::native::WorldWaterSurfaceState state,
+    tf2::native::WorldWaterSurfaceState reflection,
+    tf2::native::WorldWaterSurfaceState refraction, const std::string& reason);
+  // The warp phase, in seconds, derived from the playback tick by the caller.
+  // A paused tick is a fixed phase, which is what makes the repeat frame
+  // byte-identical rather than "the same wave at a different time".
+  void setWorldWaterWarp(double phase, float amplitude);
+  // Built fresh on each call rather than cached, so a mutation that deletes the
+  // draw changes what this returns rather than what a stale copy holds. That is
+  // the same discipline the sky and vis readings use. Returned by value because
+  // a reading assembled from the current fields is not a stored fact: a
+  // reference would let two callers in one frame see different water.
+  WaterSurfaceSampleState waterSurfaceSampleState() const;
+  // The world transform uploadWorldGeometry applied, published because the T2
+  // water pass has to place its own vertices in exactly that space. Reading it
+  // back here rather than recomputing it in main.cpp is what stops the water
+  // from being drawn in a different place from the water the world pass already
+  // drew -- a second transform is a second thing that can disagree with the
+  // first.
+  float worldCenterX() const { return worldCenterX_; }
+  float worldCenterY() const { return worldCenterY_; }
+  float worldMinZ() const { return worldMinZ_; }
+  float worldSpanZ() const { return worldSpanZ_; }
+  float worldHorizontalScale() const { return worldHorizontalScale_; }
+  // Whether those five numbers describe an upload that happened. The initial
+  // values (centre 0, scale 1) are also legitimate values for a map that needs
+  // no scaling, so they cannot be used as a sentinel -- which is exactly the
+  // mistake the T2 water pass made on its first run: it read the transform
+  // before uploadWorldGeometry had set it, built its vertices in raw map
+  // coordinates, drew 36 triangles at the wrong scale and changed no pixel while
+  // reporting draws=1. This flag is the guard that makes that unreachable.
+  bool worldBoundsValid() const { return worldBoundsValid_; }
+  // T29: the near and far planes the last world draw built its projection from,
+  // in the same normalized box the world vertex buffer lives in. They are
+  // published because a plane written in box units is a clip distance in MAP
+  // units: 0.05 box units was 611 map units on the reference map, so the room
+  // the camera stands in was outside the frame. A gate has to read the number
+  // the matrix was built from, not the constant someone meant it to be; the
+  // conversion to map units is printed beside it from the same transform.
+  float worldNearPlaneNormalized() const { return worldNearPlaneNormalized_; }
+  float worldFarPlaneNormalized() const { return worldFarPlaneNormalized_; }
+  // ---- T2 (2026-10-14): the ViewModel's advanced materials ----------------
+  // One call per frame carrying the three parsed readings and the material's own
+  // parameters. It is a struct rather than three setters because the three
+  // effects are uploaded together and a partially-applied set (Phong on, Bump
+  // off, last frame's Selfillum still bound) is exactly the stale-state defect
+  // this round is meant to make impossible.
+  struct ViewModelMaterialEffects {
+    tf2::native::ViewModelPhongReading phong;
+    tf2::native::ViewModelBumpReading bump;
+    tf2::native::ViewModelSelfillumReading selfillum;
+    // True when the shader branches for all three compiled. A branch that did
+    // not compile is a fallback for every effect, not for one of them, because
+    // the three share one pixel shader.
+    bool shaderReady = false;
+  };
+  void setViewModelMaterialEffects(const ViewModelMaterialEffects& effects);
+  // The normal map, keyed separately from the albedo cache so a bump texture
+  // can never be uploaded as a base texture and the albedo key stays a
+  // one-texture-one-key mapping.
+  bool uploadViewModelBumpTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // The selfillum mask. Empty is the material's own default (Source masks by
+  // the albedo's alpha when no `$selfillummask` is given), so the pass reports
+  // `maskFromAlpha` rather than treating a missing file as black.
+  bool uploadViewModelSelfillumMask(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  // GPU normal-map textures created over the whole run. Monotone, and never reset
+  // per frame: read across two frames, a constant value with a growing reuse
+  // count is a cache and a growing value is a per-frame rebuild.
+  std::uint32_t viewModelBumpTextureUploads() const { return viewModelBumpTexturesUploaded_; }
+  // Built fresh on each call, like the water reading, so a mutation that deletes
+  // a branch changes what this returns rather than what a stale copy holds.
+  ViewModelMaterialSampleState viewModelMaterialSampleState() const;
+  bool uploadProjectileLines(const std::vector<ProjectileLine>& lines);
+  bool uploadBindPoseModel(const std::vector<ModelDrawVertex>& vertices);
+  bool uploadBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices, bool enableSkinning);
+  ModelGpuStatus modelGpuStatus() const { return modelGpuStatus_; }
+  void setViewModelFov(float fov) { settings_.viewModelFov = clampViewModelFov(fov); }
+  float viewModelFov() const { return settings_.viewModelFov; }
+
+  // ---- First-person ViewModel pass (T2) -----------------------------------
+  // Its own vertex buffer, bone buffer, constant buffer, shader, projection and
+  // depth state. It shares no buffer with the world or entity path: the world
+  // pass normalises geometry into the map's unit box and writes depth with the
+  // world policy, so a ViewModel routed through it would be scaled into the map
+  // and occluded by it. Reusing `worldConstants_` here would be exactly that
+  // mistake, which is why the pass owns `viewModelConstants_` instead.
+  bool uploadViewModelMesh(const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ViewModelDrawRange>& ranges = {});
+  // The material cache, keyed by the **normalized resource path** of the VTF
+  // (`materials/models/weapons/v_scattergun/v_scattergun.vtf`). Never keyed by
+  // the VMT's raw `$basetexture` value: on this install that value is written
+  // with backslashes in some VMTs and with forward slashes in others, so the raw
+  // string gives one texture two keys and the cache stops being a cache.
+  //
+  // Returns true only when a texture was created. A key already in the cache is a
+  // false and a reuse, which is what makes `texturesUploaded` a statement about
+  // GPU work rather than about how many times the caller asked.
+  bool uploadViewModelMaterialTexture(const std::string& key,
+    const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
+  void clearViewModelMaterials();
+  std::size_t viewModelMaterialCacheSize() const { return viewModelMaterialTextures_.size(); }
+  // GPU textures created for this pass over the whole run. Monotone: it only ever
+  // moves when a key was not already cached.
+  std::size_t viewModelTexturesUploaded() const { return viewModelTexturesUploaded_; }
+  // Binds served out of the cache without touching the device. Read together
+  // with the two above, this is the per-frame-recreation reading: `uploaded`
+  // constant and `reused` growing is a cache; both growing per frame is not.
+  std::size_t viewModelTexturesReused() const { return viewModelTexturesReused_; }
+  std::size_t viewModelDrawRangeCount() const { return viewModelDrawRanges_.size(); }
+  // Ranges on the last draw that had no usable material: no slot, no cached
+  // texture for the slot, or no material table at all. They draw the flat colour.
+  std::size_t viewModelFallbackRanges() const { return viewModelFallbackRanges_; }
+  // Distinct material slots bound on the last draw. Not the same as the number of
+  // ranges: two ranges can share one slot.
+  std::size_t viewModelBoundSlots() const { return viewModelBoundSlots_; }
+  // Ranges drawn with alpha blending on the last draw, from the material's own
+  // `$translucent` key.
+  std::size_t viewModelBlendedRanges() const { return viewModelBlendedRanges_; }
+  std::size_t viewModelAlphaTestedRanges() const { return viewModelAlphaTestedRanges_; }
+  bool uploadViewModelBones(const std::vector<std::array<float, 16>>& boneMatrices);
+  // Empties the pass's bone table. The table is re-uploaded on every scene update
+  // while a pose is being applied, so a frame that does not apply one has to be
+  // able to say "there is no table": without this the previous frame's upload
+  // stays in the count and `boneTableCoverage` reports a comparison that did not
+  // run. It is a named call rather than `uploadViewModelBones({})` because the
+  // latter returns false -- meaning "nothing was uploaded" -- and reading that
+  // false as "the table is now empty" would be relying on a side effect of a
+  // failure.
+  void clearViewModelBones() { viewModelBoneUploadCount_ = 0; }
+  void setViewModelState(const ViewModelDrawState& state);
+  // Draws one ViewModel. Called from draw() after the world and entity passes
+  // and before the frame capture, so the frame that gets written to disk is the
+  // one that already contains the ViewModel. Returns true only when a draw was
+  // actually issued.
+  bool drawViewModel();
+  std::size_t viewModelDrawCount() const { return viewModelDrawCount_; }
+  std::size_t viewModelDrawCallCount() const { return viewModelDrawCallCount_; }
+  std::size_t viewModelVertexCount() const { return viewModelVertexCount_; }
+  std::size_t viewModelBoneUploadCount() const { return viewModelBoneUploadCount_; }
+  float viewModelMeshRadius() const { return viewModelMeshRadius_; }
+  // ---- The weapon body: a second, independent draw request ----------------
+  // The first-person composite the T2.5 investigation established is two models:
+  // the arms (`models/weapons/c_models/c_<class>_arms.mdl`) and the static
+  // weapon body the weapon entity's own `m_iWorldModelIndex` names
+  // (`c_medigun.mdl`, `c_pro_rifle.mdl`). T2 drew the arms; this is the other
+  // half, and it is a SEPARATE MESH SLOT AND A SEPARATE DRAW CALL rather than a
+  // second range in the arms buffer: the two models have their own vertex
+  // counts, their own measured bounds (the placement distance is derived from
+  // the mesh's own radius), their own transform state and their own draw
+  // reason, and folding them into one buffer would make "which model did this
+  // draw" unanswerable from the readings. The two draws share the pass's
+  // pipeline objects (shaders, input layout, constants buffer, depth and
+  // rasterizer states) and the depth clear -- clearing between them would erase
+  // the arms the first draw just wrote.
+  //
+  // T14 (2026-10-18): the ranges are a parameter, for the same reason they are
+  // one on the arms' upload. `c_pro_rifle.mdl` draws two LOD-0 descriptors -- the
+  // rifle on material slot 0 and its scope on slot 1 -- and the pass used to
+  // draw both from `state.materialKey`, which is one slot. A weapon body whose
+  // second range is painted with the first range's albedo is wrong in a way no
+  // counter saw: the draw count, the vertex count and the material chain all
+  // read as correct. Each range now carries its own key and its own blend state.
+  bool uploadViewModelWeaponMesh(const std::vector<ModelDrawVertex>& vertices,
+    const std::vector<ViewModelDrawRange>& ranges = {});
+  void setViewModelWeaponState(const ViewModelDrawState& state);
+  const ViewModelDrawState& viewModelWeaponState() const { return viewModelWeaponState_; }
+  // The weapon body's material readings. They are separate accessors from the
+  // arms' on purpose: the two draws share the texture cache but not their state,
+  // and "the arms bound two slots" must not be able to answer for the body.
+  std::size_t viewModelWeaponDrawRangeCount() const { return viewModelWeaponDrawnRanges_; }
+  std::size_t viewModelWeaponTexturedRanges() const { return viewModelWeaponTexturedRanges_; }
+  std::size_t viewModelWeaponFallbackRanges() const { return viewModelWeaponFallbackRanges_; }
+  std::size_t viewModelWeaponBoundSlots() const { return viewModelWeaponBoundSlots_; }
+  // The normalized VTF paths the body bound on the last draw, in range order,
+  // comma-separated. A count cannot tell "both ranges used the rifle's albedo"
+  // from "each range used its own"; the keys can, and they are the strings a
+  // reviewer can compare against the MDL's slot table.
+  const std::string& viewModelWeaponMaterialKeys() const { return viewModelWeaponMaterialKeys_; }
+  // Per-pass draw-call counters, so `armDrawCalls` and `weaponDrawCalls` are
+  // effects rather than claims: each increments at its own Draw. The
+  // pre-existing viewModelDrawCount/viewModelDrawCallCount keep their T2 meaning
+  // exactly (the arms draw), which is why this pair is separate.
+  std::size_t viewModelArmDrawCallCount() const { return viewModelArmDrawCallCount_; }
+  std::size_t viewModelWeaponDrawCallCount() const { return viewModelWeaponDrawCallCount_; }
+  const std::string& viewModelWeaponDrawReason() const { return viewModelWeaponDrawReason_; }
+  float viewModelWeaponMeshRadius() const { return viewModelWeaponMeshRadius_; }
+  UINT viewModelWeaponVertexCount() const { return viewModelWeaponVertexCount_; }
+  // The weapon body's own centre through its own mvp -- the same reading the
+  // arms centre has, so "the weapon is off screen" is answerable for this draw
+  // as well.
+  const std::array<float, 4>& viewModelWeaponCenterClip() const { return viewModelWeaponCenterClip_; }
+  // The pass's depth policy, recorded from the description the state was created
+  // with. D3D11 cannot read a state object back, so this is the input to
+  // CreateDepthStencilState rather than the device's copy -- stated rather than
+  // glossed over. Both values are constants for this pass and are asserted anyway:
+  // a change to the depth policy should redden a gate, not quietly change the
+  // picture.
+  bool viewModelDepthWrite() const { return viewModelDepthWrite_; }
+  const std::string& viewModelDepthFuncName() const { return viewModelDepthFunc_; }
+  // Whether the *pass* skinned, not whether a caller asked it to. Those differ:
+  // a bone table that cannot cover the skeleton is refused (the all-or-nothing
+  // gate in drawViewModel) and the bind pose is drawn instead, and reporting the
+  // request rather than the effect would make that refusal read as `skinning=1`.
+  bool viewModelSkinningEnabled() const { return viewModelEffectiveBoneCount_ > 0; }
+  // The product reads the effect above and the pair (viewModelBoneUploadCount(),
+  // viewModelState().boneCount) for the table it compared, so there is no
+  // separate accessor for the effective count: an accessor nobody calls is a
+  // reading nobody checks.
+  // What the pass has to skin with, as a reading rather than a claim. A
+  // ViewModel is not an entity, so nothing in a demo drives its sequence and the
+  // honest state is `missing` -- the pass then draws the model's bind pose, which
+  // is a defined picture rather than an animation. The string flips to
+  // `bones:<n>` the moment a caller uploads a bone table, so this is not a
+  // constant: it is the same counter the all-or-nothing skinning gate reads.
+  std::string viewModelAnimationInput() const;
+  // Pass ordinals, so "the ViewModel draws after the world" is a reading rather
+  // than a claim about the order of the statements in draw().
+  std::size_t viewModelPassOrdinal() const { return viewModelPassOrdinal_; }
+  std::size_t viewModelWorldPassOrdinal() const { return viewModelWorldPassOrdinal_; }
+  const std::string& viewModelDrawReason() const { return viewModelDrawReason_; }
+  const ViewModelDrawState& viewModelState() const { return viewModelState_; }
+  // Where the mesh centre lands in normalised device coordinates, computed from
+  // the same mvp the shader gets. `drawn=1` only says a draw was issued; this
+  // says whether the geometry was anywhere the viewport could show, which is the
+  // difference between "the pass ran" and "the weapon is on screen".
+  const std::array<float, 4>& viewModelCenterClip() const { return viewModelCenterClip_; }
+  const std::array<float, 3>& viewModelCenterViewSpace() const { return viewModelCenterViewSpace_; }
+  // The frame camera and the placement point the pass solved for. Published so a
+  // "the weapon is behind the camera" reading can be traced to the input that
+  // caused it instead of being guessed at.
+  const float* frameEye() const { return frameEye_; }
+  const float* frameForward() const { return frameForward_; }
+  const float* viewModelPlacementTarget() const { return viewModelPlacementTarget_.data(); }
+  // T18: the framing numbers the placement solve actually used -- the distance it
+  // put the mesh centre at, the model radius it derived that distance from, and
+  // the near/far planes of the pass's own projection. Published because "the
+  // camera is inside the model" is a claim about these four numbers and the mesh
+  // extent, and three of them were previously visible only as a local variable.
+  const std::array<float, 4>& viewModelFramePlanes() const { return viewModelFramePlanes_; }
+  // The composed first-person matrix actually handed to the shader, row-major.
+  // Exposed so the hand mirror can be shown to live in the final transform only.
+  const std::array<float, 16>& viewModelMvp() const { return viewModelMvp_; }
+  void shutdown();
+  void setSettings(const RenderSettings& settings) { settings_ = settings; settings_.normalize(); }
+  const RenderSettings& settings() const { return settings_; }
+  HRESULT lastError() const { return lastError_; }
+  // T8 (2026-10-16): clear the recorded error. The device-error policy at the
+  // bottom of the main loop used to read `lastError()` without asking what set
+  // it, so a resource upload that the load deliberately degraded (a cubemap or
+  // texture it could not upload) still reached the policy and ended the program
+  // with exit code 3 -- a verdict that reads as "the device failed" although
+  // nothing had drawn yet. Clearing it once the load has succeeded is what makes
+  // the policy judge the device: after this point the only thing that can set it
+  // is this frame's own Present, so a genuine device failure still reports
+  // through exactly the same arms (4/2 for device removed or reset, 3 otherwise).
+  void clearLastError() { lastError_ = S_OK; }
+
+  // ---- F0-c (2026-11-11): the resource-failure seam -----------------------
+  // A D3D create or map that fails on a real machine is, today, a silent event:
+  // the pass returns, the frame reports the primitives it meant to draw, and
+  // nothing names the resource that was missing. Making that path testable
+  // requires the failure to be reachable on the shipped binary, so the seam
+  // lives on the renderer instead of in a rebuilt source tree.
+  //
+  // spec is a comma-separated list of "surface[=N]": N defaults to 1 and 0
+  // means every call. surface is the name each create/map site passes to
+  // resourceFaultHit(); an armed hit makes that call fail with E_OUTOFMEMORY
+  // without touching the device. An empty spec -- the default, and the only
+  // state a product run reaches unless --renderer-fault says otherwise -- arms
+  // nothing, so the seam cannot change a shipped frame.
+  void setResourceFaultPlan(const std::string& spec);
+  // How many create/SRV/map calls the seam or the device refused, and how many
+  // resizes unbound the render target before releasing it. The last one is read
+  // next to the two above because it turns "the unbind ran" from a code reading
+  // into an observation.
+  std::size_t resourceRefusals() const { return resourceRefusals_; }
+  std::size_t resourceMapRefusals() const { return resourceMapRefusals_; }
+  std::size_t resizeUnbindCount() const { return resizeUnbindCount_; }
+  // F0-c: the resize test needs to prove its own precondition, and the HUD
+  // test needs to tell "the pass drew nothing" from "the pass has no buffer
+  // to map". Without the second reading the second case takes the process
+  // down before any verdict is printed. Both are getters: neither creates,
+  // releases nor rebinds anything.
+  bool hudVertexBufferReady() const { return hudVertexBuffer_.Get() != nullptr; }
+  bool renderTargetBound() const;
+  // Which step of initialize() refused, as a stable name. Every failure path in
+  // there returned the same E_FAIL, so "the renderer did not start" carried no
+  // information at all -- and a shader is compiled at run time, which makes a
+  // silent startup failure the normal shape of a bad shader edit. The stage is
+  // reported next to the HRESULT so the two together name the fault.
+  const char* initStage() const { return initStage_; }
+
+  // Diagnostic capture. The back buffer is read back inside draw(), *before*
+  // Present(), so the file holds the frame this call actually composed -- not
+  // whatever the swap chain happens to leave behind afterwards. The request is
+  // consumed once; ask again if you want the next frame too.
+  // The second argument asks for the frame's WORLD DEPTH next to the picture.
+  // The debug depth view (--world-depth) is an 8-bit product that saturates for
+  // everything past a few units -- T26 asserts that saturation on purpose -- so
+  // it cannot answer "is this pixel in front of that player": the answer is 255
+  // either way. This reads the same D24S8 buffer the face trace already trusts,
+  // at the resolution that buffer has, and writes it as a 16-bit PGM.
+  void requestFrameCapture(std::wstring path, std::wstring depthPath = {});
+  bool frameCapturePending() const { return !capturePath_.empty(); }
+  bool lastFrameCaptureSucceeded() const { return captureSucceeded_; }
+  // The size the capture is written at: the swap chain back buffer, i.e. the
+  // client rect the window had when the frame was drawn. --window-size pins the
+  // outer rect for the whole run, so this reading is a constant a gate can assert
+  // instead of assuming a geometry the product never promised.
+  int frameWidth() const { return static_cast<int>(width_); }
+  int frameHeight() const { return static_cast<int>(height_); }
+  bool lastDepthCaptureSucceeded() const { return depthCaptureSucceeded_; }
+  unsigned long long lastDepthCaptureBytes() const { return depthCaptureBytes_; }
+  const std::wstring& lastFrameCaptureError() const { return captureError_; }
+
+private:
+  struct CameraPreset {
+    bool valid = false;
+    float focusX = 0.0f;
+    float focusY = 0.0f;
+    float focusZ = 0.5f;
+    float yaw = 0.0f;
+    float pitch = 0.55f;
+    float distance = 3.0f;
+  };
+
+  // T51: one call that draws every HUD rect, scissored to their union, and puts
+  // the frame's own states back afterwards. Private because it must only ever be
+  // reached from draw() at the one point where the world and ViewModel passes
+  // have finished -- a HUD drawn mid-frame would be a HUD drawn under geometry.
+  void drawHudPass();
+  void releaseTarget();
+  bool createTarget(UINT width, UINT height);
+  // F0-c: the seam's one decision point. True means "pretend this call failed":
+  // the plan is decremented here and nowhere else, so an armed run fails the
+  // exact number of calls it asked for and no more.
+  bool resourceFaultHit(const char* surface);
+  bool createPipeline();
+  bool writeBackBufferToFile(const std::wstring& path);
+  // 16-bit P5 dump of capturedDepth_, the depth this frame's world pixels carry.
+  bool writeWorldDepthToPgm(const std::wstring& path);
+  // T24: the three pass-level lighting controls as the draw will upload them.
+  // One implementation each, read by both the constant buffer and the frame
+  // sample, so "what the settings asked for" and "what the shader got" cannot
+  // drift apart in the trace.
+  bool worldDynamicLightingEffective() const { return settings_.dynamicLighting; }
+  bool worldSpecularEffective() const { return settings_.specular; }
+  bool worldBumpEffective() const {
+    return settings_.bumpMapping && worldBumpTexture_.view() != nullptr;
+  }
+  // The six-array-slice cube, shared by the environment cube and the sky: one
+  // implementation, so the cube cannot be right for one and wrong for the other.
+  bool createCubeTexture(const std::array<std::vector<std::uint8_t>, 6>& faces, UINT side,
+    Microsoft::WRL::ComPtr<ID3D11Texture2D>& outTexture,
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& outView, std::string* error);
+
+  HWND window_ = nullptr;
+  UINT width_ = 0;
+  UINT height_ = 0;
+  Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain_;
+  Microsoft::WRL::ComPtr<ID3D11Device> device_;
+  Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;
+  Microsoft::WRL::ComPtr<ID3D11RenderTargetView> target_;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> depthTexture_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilView> depthStencilView_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depthStencilState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> worldSkyDepthStencilState_;
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizerState_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> worldVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> modelVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> entityModelVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> worldPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> modelPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> worldInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> modelInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> entityModelInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> modelSkinningConstants_;
+  UINT worldVertexCount_ = 0;
+  // How many of worldVertexCount_ carry a per-face light uv. Kept beside the
+  // total so the invariant lightmapped <= total survives a device reset: both
+  // are zeroed together in shutdown().
+  UINT worldLightmappedVertexCount_ = 0;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> projectileVertexBuffer_;
+  std::size_t projectileVertexCapacity_ = 0;
+  UINT projectileVertexCount_ = 0;
+  // T53: the observed-trajectory pass gets its OWN buffer, not the one above.
+  // The two passes would otherwise overwrite each other between the upload and
+  // the draw -- both are uploaded once per scene tick and drawn in the same
+  // frame -- and the symptom would be a trail that flickers between the
+  // TempEntity lines and the observed path depending on which upload won.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> projectileTrackVertexBuffer_;
+  std::size_t projectileTrackVertexCapacity_ = 0;
+  UINT projectileTrackVertexCount_ = 0;
+  std::size_t projectileTrackPointCount_ = 0;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> entityMarkerVertexBuffer_;
+  std::size_t entityMarkerVertexCapacity_ = 0;
+  UINT entityMarkerVertexCount_ = 0;
+  // ---- T52: the overlay pass -------------------------------------------------
+  // Two stored lists, one per depth mode, because a frame may carry an x-ray
+  // silhouette and a depth-tested trail at once and the mode lives on the list.
+  // Stored rather than taken per frame so a product loop that rebuilds only on
+  // a sampled tick keeps drawing between samples.
+  OverlayDrawList overlayLists_[2];
+  OverlayPassReading overlayPassReading_{};
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> overlayVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> overlayLineVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> overlayLineInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> overlayPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> overlayConstants_;
+  // Depth writes are OFF in both: that is what stops the overlay from changing
+  // the depth buffer the later passes and the capture read back.
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> overlayXRayDepthState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> overlayDepthTestedState_;
+  // Read back from those two state objects (GetDesc) once, at init, so the trace
+  // publishes the state the GPU was given instead of a literal copied from the
+  // code that created it.
+  bool overlayXRayDepthTestEnabled_ = false;
+  bool overlayXRayDepthWriteEnabled_ = false;
+  bool overlayDepthTestedDepthTestEnabled_ = false;
+  bool overlayDepthTestedDepthWriteEnabled_ = false;
+  // T52 (2026-10-23b): the depth-stencil states as the DEVICE reports them and as they
+  // were ASKED FOR. The bool above came from a GetDesc call yet read 1 against a state
+  // created with WRITE_MASK_ZERO -- a reading whose name said one thing and whose source
+  // was another. Both sides are now kept, the raw mask travels into the trace, and
+  // `agrees` compares the description handed to CreateDepthStencilState with what
+  // GetDesc returned, so the two cannot drift apart without a red assertion.
+  std::uint32_t overlayXRayStateCreatedDepthEnable_ = 0;
+  std::uint32_t overlayXRayStateCreatedWriteMask_ = 0;
+  std::uint32_t overlayXRayStateReadDepthEnable_ = 0;
+  std::uint32_t overlayXRayStateReadWriteMask_ = 0;
+  std::uint32_t overlayDepthTestedStateCreatedDepthEnable_ = 0;
+  std::uint32_t overlayDepthTestedStateCreatedWriteMask_ = 0;
+  std::uint32_t overlayDepthTestedStateReadDepthEnable_ = 0;
+  std::uint32_t overlayDepthTestedStateReadWriteMask_ = 0;
+  bool overlayStateReadbackAgrees_ = false;
+  // The instance row the draw consumes vs the row the CPU published, read back from
+  // the same staging copy as the identity. Row 0 only, first instance: enough to say
+  // whether the box and the draw share a transform.
+  float overlayInstanceRow0Gpu_[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  float overlayInstanceRow0Cpu_[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  bool overlayInstanceRow0Valid_ = false;
+  // Cull none: the silhouette is an expanded shell whose winding a thin model
+  // part can invert, and culling it would punch a hole in the outline.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> overlayRasterizerState_;
+  // Instance stream for the silhouettes, rebuilt whenever a list is submitted.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> overlayInstanceBuffer_;
+  std::size_t overlayInstanceCapacity_ = 0;
+  // The CPU-side record of one uploaded silhouette. The pass publishes a screen
+  // box and an entity identity per drawn instance, and neither can be recovered
+  // from the GPU instance stream without decoding it a second time.
+  struct OverlayInstanceRecord {
+    std::uint16_t entityIndex = 0;
+    OverlayTeam team = OverlayTeam::Unknown;
+    float origin[3] = {0.0f, 0.0f, 0.0f};
+    // The mesh's box transformed by this instance's rows: where THIS player's
+    // silhouette actually is in the world. Computed once here rather than per
+    // item at draw time, so the box the trace publishes and the box the shader
+    // projects cannot drift apart.
+    float worldMin[3] = {0.0f, 0.0f, 0.0f};
+    float worldMax[3] = {0.0f, 0.0f, 0.0f};
+    // What the box was computed FROM, so a box that disagrees with the pixels can
+    // be attributed instead of guessed at: which mesh the box measured, how many
+    // vertices it had, whether the draw was skinned (the box is bind-pose extent
+    // through the instance rows, which is not the skinned extent), and the mesh's
+    // own model-space bounds.
+    std::uint32_t meshKeyHash = 0;
+    std::uint32_t meshVertexCount = 0;
+    std::uint32_t skinned = 0;
+    float meshBoundsMin[3] = {0.0f, 0.0f, 0.0f};
+    float meshBoundsMax[3] = {0.0f, 0.0f, 0.0f};
+    // The rows the GPU instance carries, and the vertices they transform. Kept
+    // so the pass can project the vertices themselves instead of projecting a box.
+    float rows[12] = {0.0f};
+    const float* vertexPositions = nullptr;
+    std::uint32_t vertexPositionCount = 0;
+  };
+  struct OverlayDrawRange {
+    ID3D11Buffer* vertexBuffer = nullptr;
+    UINT vertexCount = 0;
+    UINT instanceStart = 0;
+    UINT instanceCount = 0;
+    // Which stored list's depth mode this range belongs to. Ranges for BOTH
+    // modes live in the one list: a frame may carry an x-ray silhouette and a
+    // depth-tested trail at once (contract v1, T53's requirement (c)).
+    OverlayDepthMode depth = OverlayDepthMode::XRay;
+  };
+  std::vector<OverlayDrawRange> overlayDrawRanges_;
+  std::vector<OverlayInstanceRecord> overlayInstances_;
+  std::size_t overlayInstanceCount_ = 0;
+  // ---- T52 D1 (2026-10-23): identity of the instances actually in the buffer ---
+  // (entityIndex read back out of the vertex buffer, entityIndex the CPU published
+  // for the same slot). The CPU boxes the gate measures against and the GPU records
+  // the silhouettes are drawn from are filled from one vector in one order; this is
+  // the reading that says whether that is still true.
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> overlayInstanceIdentity_;
+  // T52: when set, the region published for each silhouette is the projected
+  // VERTICES of the mesh the draw consumes, not the entity AABB's corners. Off by
+  // default because it transforms every vertex of every silhouette every frame;
+  // the gate turns it on for the runs it measures.
+  bool overlayVertexExtent_ = false;
+  // Line and marker primitives (T53's), built with the world's own vertex
+  // layout so a trail lands on the world it describes. Both modes' vertices
+  // share one buffer and are drawn by range, so submitting the second list of a
+  // frame does not erase the first list's trail.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> overlayLineBuffer_;
+  std::size_t overlayLineCapacity_ = 0;
+  UINT overlayLineVertexCount_ = 0;
+  UINT overlayLineStartByDepth_[2] = {0, 0};
+  UINT overlayLineVertexCountByDepth_[2] = {0, 0};
+  // Rebuilds every GPU-side overlay buffer from BOTH stored lists. Called by
+  // setOverlayDrawList, which stores the list it was handed and then rebuilds
+  // from both modes -- the buffers are a function of the two lists, not of the
+  // last call.
+  void rebuildOverlayBuffers();
+  Microsoft::WRL::ComPtr<ID3D11Buffer> modelVertexBuffer_;
+  UINT modelVertexCount_ = 0;
+  ModelGpuStatus modelGpuStatus_ = ModelGpuStatus::NotLoaded;
+  struct EntityModelMesh {
+    Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
+    UINT vertexCount = 0;
+    // The mesh's extent in its own space, measured once at upload. The overlay's
+    // per-item screen box is the projection of THIS box: the constant +/-20, +/-36
+    // map-unit hull it used before projected to under two pixels on this map, so
+    // every item read x0==x1 and every region-scoped assertion was vacuous.
+    float boundsMin[3] = {0.0f, 0.0f, 0.0f};
+    float boundsMax[3] = {0.0f, 0.0f, 0.0f};
+    // A CPU copy of the positions. The published AABB is a DERIVATION of these,
+    // and on 2026-10-23 a derivation disagreed with the pixels; the vertex-level
+    // box is the same question asked of the vertices instead of of a box around
+    // them, so the two answers can be compared.
+    std::vector<float> cpuPositions;  // x,y,z per vertex
+    // Per-material runs over vertexBuffer, in vertex order. Each run is drawn with
+    // the texture of (run.materialSlot, instance.skinFamily).
+    std::vector<ModelMeshMaterialRun> runs;
+    // One texture per (material slot << 32 | skin family). The model's own paint,
+    // resolved through the MDL skin family table. A missing key means "no material
+    // for this slot/family": that run falls back to the world atlas, it does not
+    // borrow another slot's texture.
+    std::unordered_map<std::uint64_t, Texture2D> textures;
+    std::unordered_map<std::uint64_t, Texture2D> secondTextures;
+    std::unordered_map<std::uint64_t, std::uint32_t> materialFlags;
+    std::unordered_map<std::uint64_t, VmtMaterialProxy> materialProxies;
+    // T85 P0: what this mesh is for, and the last instance update that asked for
+    // it. The pair is what makes eviction a policy rather than a coin flip: a
+    // mesh that the previous frame drew is never evicted to make room for one
+    // that ranks below it, and when the whole table was drawn last frame the
+    // admission is refused instead of punched into a live draw range (the m8
+    // failure shape: a submitted key with nothing behind it).
+    EntityMeshPriority priority = EntityMeshPriority::WorldProp;
+    std::uint64_t lastTouchedFrame = 0;
+    // T85 P0 review B1/M1: overlay meshes are PINNED. The overlay's draw ranges
+    // hold this mesh's ID3D11Buffer* directly (native_renderer_overlay.cpp), and
+    // they are rebuilt only on an overlay sample frame -- so evicting one is a
+    // use-after-free between samples, and the next sample silently loses the
+    // class silhouette. The nine class models are also MANDATORY (the outline is
+    // the product's identity pass), so they are never a candidate: pinned is a
+    // property of the mesh, not a rank comparison that a policy could get wrong.
+    bool pinned = false;
+    bool mapStaticProp = false;
+    static std::uint64_t textureKey(std::uint32_t materialSlot, std::uint32_t skinFamily) {
+      return (static_cast<std::uint64_t>(materialSlot) << 32) | skinFamily;
+    }
+  };
+  struct EntityModelDrawRange {
+    ID3D11Buffer* vertexBuffer = nullptr;
+    // Vertex offset into vertexBuffer. One model's runs all share the buffer.
+    UINT vertexStart = 0;
+    UINT vertexCount = 0;
+    UINT instanceStart = 0;
+    UINT instanceCount = 0;
+    // Non-owning. Points at the mesh's own Texture2D so the draw loop can bind
+    // t0 per range; null means "no model material, fall back to the world atlas".
+    ID3D11ShaderResourceView* textureView = nullptr;
+    bool noCull = false;
+    bool translucent = false;
+    std::uint32_t materialFlags = 0;
+    ID3D11ShaderResourceView* secondTextureView = nullptr;
+    VmtMaterialProxy proxy;
+    float proxyScrollU = 0.0f;
+    float proxyScrollV = 0.0f;
+    float proxyColor = 1.0f;
+  };
+  // T85 P0: layer B's compile-time bound, named. 96 is kept: the defect was not
+  // that the number was too small, it was that a bounded table refused instead
+  // of budgeting, so the fix is accounting (priority + eviction + counters), not
+  // a larger number.
+  // Layer B's bound (96) is defined in native_renderer_entity.cpp next to the
+  // eviction policy it belongs to, so the budget and the behaviour that spends
+  // it are read in one place.
+  std::unordered_map<std::string, EntityModelMesh> entityModelMeshes_;
+  // The key to evict to make room for `incoming`, or empty when every resident
+  // outranks it. "Least useful" is, in order: not touched by the most recent
+  // instance update, then strictly lower priority, then the oldest touch, then
+  // the key itself (so the choice is deterministic and two processes agree).
+  std::string evictableEntityModelMeshKey() const;
+  // Keys erased by the last upload(s), handed to the caller so the tables that
+  // MAP a path to a cache key can drop them in the same step (review B4): a
+  // mapping left behind resolves a dead key, the attach's one-shot trial set
+  // refuses to try the path again, and the eviction becomes permanent loss.
+  // Drained by takeEvictedEntityModelMeshKeys(); empty on the common path.
+  std::vector<std::string> entityModelMeshEvictedKeys_;
+  std::size_t entityModelMeshEvictions_ = 0;
+  std::size_t entityModelMeshCapacityRefusals_ = 0;
+  std::size_t entityModelMeshReuploads_ = 0;
+  std::uint64_t entityModelMeshFrame_ = 0;
+  std::size_t entityModelInstanceRejectedMissingMesh_ = 0;
+  std::size_t entityModelInstanceRejectedDeferredNotResident_ = 0;
+  std::size_t entityModelInstanceRejectedBadMesh_ = 0;
+  std::size_t entityModelInstanceRejectedNonFinite_ = 0;
+  std::size_t entityModelInstanceRejectedBudget_ = 0;
+  std::vector<EntityModelDrawRange> entityModelDrawRanges_;
+  double entityModelTimeSeconds_ = 0.0;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> entityModelInstanceBuffer_;
+  std::size_t entityModelInstanceCapacity_ = 0;
+  // Per-instance skin matrices, bound to the entity shader at t4.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> entityBoneBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> entityBoneView_;
+  std::size_t entityBoneCapacity_ = 0;
+  std::size_t entityBoneMatrixCount_ = 0;
+  UINT entityModelVertexCount_ = 0;
+  std::size_t entityModelInstanceCount_ = 0;
+  std::size_t mapStaticPropInstanceCount_ = 0;
+  std::size_t mapStaticPropInstanceRejected_ = 0;
+  std::size_t entityModelInstanceSlotCount_ = 0;
+  std::size_t entityModelSkinnedInstanceCount_ = 0;
+  std::size_t entityModelTexturedRangeCount_ = 0;
+  std::size_t entityModelMeshTruncatedCount_ = 0;
+  std::size_t entityModelTextureCount_ = 0;
+  std::size_t entityModelTexturedInstanceCount_ = 0;
+  // First-person pass. Nothing here is shared with the entity members above.
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> viewModelVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> viewModelPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> viewModelInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelVertexBuffer_;
+  UINT viewModelVertexCount_ = 0;
+  // The runs of the buffer that share a material, clamped to what was uploaded.
+  // Empty means "no range information was supplied", in which case the whole
+  // buffer is one range with no material -- exactly the pre-T1 draw.
+  std::vector<ViewModelDrawRange> viewModelDrawRanges_;
+  // GPU textures for this pass, keyed by the normalized VTF resource path.
+  std::map<std::string, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>> viewModelMaterialTextures_;
+  std::size_t viewModelTexturesUploaded_ = 0;
+  std::size_t viewModelTexturesReused_ = 0;
+  std::size_t viewModelFallbackRanges_ = 0;
+  std::size_t viewModelBoundSlots_ = 0;
+  std::size_t viewModelBlendedRanges_ = 0;
+  std::size_t viewModelAlphaTestedRanges_ = 0;
+  // SrcAlpha / InvSrcAlpha, for a range whose material declares `$translucent`.
+  // The pass is opaque by default: a weapon is not glass, and blending every
+  // range would make the alpha channel of an opaque DXT5 weapon composite it
+  // against the map behind it.
+  Microsoft::WRL::ComPtr<ID3D11BlendState> viewModelAlphaBlendState_;
+  // The mesh's own bounds, measured at upload. The ViewModel is authored in
+  // Source units (tens of them across) and the pass has its own projection, so
+  // the distance it sits from the eye has to come from its own size: placing it
+  // a fixed 0.30 units out, as a world-scaled camera would, puts the whole model
+  // behind the near plane and the pass draws nothing visible.
+  float viewModelMeshCenter_[3] = {};
+  float viewModelMeshRadius_ = 0.0f;
+  // The weapon body slot: same rules as the arms slot, separate buffers because
+  // the two models are uploaded and switched independently (`--viewmodel-render
+  // command` can hold the arms slot while the entity's weapon body stays live,
+  // and a path change on either side re-uploads only its own slot).
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelWeaponVertexBuffer_;
+  UINT viewModelWeaponVertexCount_ = 0;
+  float viewModelWeaponMeshCenter_[3] = {};
+  float viewModelWeaponMeshRadius_ = 0.0f;
+  ViewModelDrawState viewModelWeaponState_{};
+  // The body's own range table, uploaded with its mesh. Empty means "no range
+  // information", which is the whole-buffer draw this pass issued before T14;
+  // it is kept as that rather than turned into a one-range fallback, because the
+  // two produce the same picture and saying so costs a branch.
+  std::vector<ViewModelDrawRange> viewModelWeaponDrawRanges_;
+  // Last-draw readings, reset at the top of the weapon section so a disabled or
+  // failed body cannot inherit the previous frame's counts.
+  std::size_t viewModelWeaponDrawnRanges_ = 0;
+  std::size_t viewModelWeaponTexturedRanges_ = 0;
+  std::size_t viewModelWeaponFallbackRanges_ = 0;
+  std::size_t viewModelWeaponBoundSlots_ = 0;
+  std::string viewModelWeaponMaterialKeys_;
+  std::string viewModelWeaponDrawReason_ = "the weapon body pass never ran";
+  std::array<float, 4> viewModelWeaponCenterClip_{};
+  std::size_t viewModelArmDrawCallCount_ = 0;
+  std::size_t viewModelWeaponDrawCallCount_ = 0;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelBoneBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelBoneView_;
+  std::size_t viewModelBoneCapacity_ = 0;
+  std::size_t viewModelBoneUploadCount_ = 0;
+  // Set by drawViewModel to the number of matrices it actually skinned with.
+  std::size_t viewModelEffectiveBoneCount_ = 0;
+  // Read off the depth description at createPipeline time.
+  bool viewModelDepthWrite_ = false;
+  std::string viewModelDepthFunc_ = "unset";
+  Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelConstants_;
+  // A depth state of its own. The pass clears depth before it draws, so the
+  // weapon is never clipped by the map it is standing in -- the same policy the
+  // game uses, and not something the world depth state can express.
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> viewModelDepthStencilState_;
+  // Its own rasterizer state. The world state culls back faces with the world's
+  // winding; a ViewModel mesh whose triangles wind the other way would then be
+  // culled away entirely -- it draws, and no pixel changes. A first-person
+  // weapon is one closed model seen from inside its own space, so culling is
+  // disabled for this pass rather than guessed at.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> viewModelRasterizerState_;
+  ViewModelDrawState viewModelState_{};
+  std::array<float, 16> viewModelMvp_{};
+  // The mesh centre in clip space (x, y, z, w). w <= 0 means the point is behind
+  // the camera; |x| or |y| > w means it is off the side of the viewport.
+  std::array<float, 4> viewModelCenterClip_{};
+  // The same point in view space. z here is the distance in front of the camera;
+  // a negative z is what a "behind the camera" clip w looks like before the
+  // projection divides it.
+  std::array<float, 3> viewModelCenterViewSpace_{};
+  std::array<float, 3> viewModelPlacementTarget_{};
+  // {near, far, distance, radius} of the last ViewModel frame. Zeroed at the top
+  // of every draw so a frame that did not draw cannot report the last one's.
+  std::array<float, 4> viewModelFramePlanes_{};
+  std::size_t viewModelDrawCount_ = 0;
+  std::size_t viewModelDrawCallCount_ = 0;
+  std::size_t viewModelPassOrdinal_ = 0;
+  std::size_t viewModelWorldPassOrdinal_ = 0;
+  std::string viewModelDrawReason_ = "the pass never ran";
+  // The frame's camera, published by draw() so the ViewModel pass can place the
+  // weapon in camera space without recomputing (and without disagreeing with)
+  // the view matrix the world pass used.
+  DirectX::XMFLOAT4X4 frameView_{};
+  float frameEye_[3] = {};
+  float worldConvertedMin_[3] = {};
+  float worldConvertedMax_[3] = {};
+  float frameForward_[3] = {};
+  float frameUp_[3] = {};
+  float frameRight_[3] = {};
+  std::size_t framePassOrdinal_ = 0;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
+  Texture2D texture_;
+  // T19: one albedo atlas per batch. `worldTexture_` is still the single
+  // material texture the non-atlas upload uses; the atlas path never writes it,
+  // so a map whose materials all failed still falls back to it and the two
+  // paths cannot be confused for each other.
+  Texture2D worldTexture_;
+  std::vector<Texture2D> worldAtlasTextures_;
+  std::vector<Texture2D> worldBlendAtlasTextures_;
+  std::vector<Texture2D> worldModulateAtlasTextures_;
+  // One draw per batch: the tiles' indices are grouped by batch in the index
+  // buffer, so each draw is a contiguous range and each binds its own atlas.
+  struct WorldDrawBatch {
+    int tiles = 0;
+    UINT firstIndex = 0;
+    UINT indexCount = 0;
+    // The views this batch draws with. Raw pointers into the Texture2D objects
+    // that own them: the objects live in the vectors below for the lifetime of
+    // the upload, and moving a Texture2D in its vector does not move the
+    // resource it holds.
+    ID3D11ShaderResourceView* albedoView = nullptr;
+    ID3D11ShaderResourceView* blendView = nullptr;
+    ID3D11ShaderResourceView* modulateView = nullptr;
+    // T27: the feature atlases for this batch. Same tile rectangles as
+    // `albedoView`, which is what lets one uv address all of them; null when
+    // this batch has no material with the feature (the shader's mask bit is
+    // clear for those vertices, so null is never sampled).
+    ID3D11ShaderResourceView* bumpView = nullptr;
+    ID3D11ShaderResourceView* bump2View = nullptr;
+    ID3D11ShaderResourceView* detailView = nullptr;
+    // T96: 0 = opaque (no blend state, depth writes on), 1 = blended (src-alpha
+    // blend, depth writes off). The atlas batch is not the same key as the alpha
+    // mode -- one atlas holds materials of both kinds -- so the index buffer is
+    // grouped by (batch, alphaMode) and blended ranges are emitted last.
+    int alphaMode = 0;
+  };
+  std::vector<WorldDrawBatch> worldDrawBatches_;
+  // Per uploaded triangle, which batch it belongs to; -1 when the material got
+  // no tile. Sized map.triangles.size() and used to regroup the pvs draw list.
+  std::vector<std::int16_t> worldTriangleBatch_;
+  std::vector<WorldTileReading> worldTileTable_;
+  // T21: the constants the last world pass uploaded, kept for the face trace.
+  WorldShaderConstants worldShaderConstants_;
+  // T21: the depth of the frame that was captured, one float per pixel.
+  std::vector<float> capturedDepth_;
+  std::vector<std::uint32_t> capturedDepthRaw_;
+  std::vector<float> capturedFinalDepth_;
+  int capturedDepthWidth_ = 0;
+  int capturedDepthHeight_ = 0;
+  std::size_t worldTilesTiled_ = 0;
+  std::size_t worldTilesRefused_ = 0;
+  std::size_t worldTilesRefusedMalformed_ = 0;
+  std::size_t worldTilesRefusedDuplicate_ = 0;
+  std::size_t worldTilesRefusedBudget_ = 0;
+  std::size_t worldAtlasBatches_ = 0;
+  std::size_t worldAtlasBlendBatches_ = 0;
+  std::uint64_t worldAtlasLayerBytes_ = 0;
+  std::string worldAtlasPlanReason_ = "no atlas plan was made";
+  // T19: the t0 ledger. Every slot-0 bind in the world and ViewModel passes goes
+  // through bindSlot0, so "the weapon drew with the world atlas" and "the world
+  // drew with a weapon texture" are measured at the draw rather than argued from
+  // the order of the statements.
+  ID3D11ShaderResourceView* lastSlot0View_ = nullptr;
+  std::string lastSlot0Pass_ = "none";
+  std::size_t slot0Binds_ = 0;
+  std::size_t weaponDrawsWithWorldAtlas_ = 0;
+  std::size_t worldDrawsWithWeaponTexture_ = 0;
+  std::size_t worldBatchDrawCalls_ = 0;
+  std::size_t worldBatchTexturedDrawCalls_ = 0;
+  void bindSlot0(ID3D11ShaderResourceView* view, const char* pass);
+  bool isWorldAtlasView(const ID3D11ShaderResourceView* view) const;
+  bool isWeaponMaterialView(const ID3D11ShaderResourceView* view) const;
+  Texture2D worldBumpTexture_;
+  Texture2D worldEnvTexture_;
+  Texture2D worldLightmapTexture_;
+  // T12: the second and third atlases. They share the base atlas's tile
+  // rectangles, so a vertex carries one uv for all three. Both are optional and
+  // reset to nothing when no material asked for them.
+  Texture2D worldBlendTexture_;
+  Texture2D worldBlendModulateTexture_;
+  std::size_t worldBlendTiles_ = 0;
+  // ---- T27: the per-material feature atlases ------------------------------
+  // One atlas per batch per feature, on the base atlas's tile rectangles. They
+  // exist only when their switch is on, so an off run allocates exactly what
+  // the pre-T27 build allocated and the two frames differ by the shader branch
+  // and not by a texture the driver decided to lay out differently.
+  std::vector<Texture2D> worldBumpAtlasTextures_;
+  std::vector<Texture2D> worldBump2AtlasTextures_;
+  std::vector<Texture2D> worldDetailAtlasTextures_;
+  WorldFeatureState worldBumpFeature_;
+  WorldFeatureState worldBump2Feature_;
+  WorldFeatureState worldDetailFeature_;
+  bool worldMaterialBumpEnabled_ = false;
+  bool worldBump2Enabled_ = false;
+  bool worldBump2Diagnostic_ = false;
+  bool worldDetailEnabled_ = false;
+  std::size_t worldBlendTexturesSeen_ = 0;
+  std::size_t worldBlendLayersSeen_ = 0;
+  std::size_t worldBlendAccepted_ = 0;
+  std::size_t worldBlendAcceptedLayers_ = 0;
+  std::size_t worldBlendModulateTiles_ = 0;
+  std::size_t worldBlendMalformedLayers_ = 0;
+  std::size_t worldBlendVertices_ = 0;
+  std::size_t worldBlendModulateVertices_ = 0;
+  // T12: the world atlas's own identity and the reason it is or is not bound.
+  // The atlas being refused used to be invisible -- the caller fell back to one
+  // material texture and every count stayed green.
+  std::size_t worldAtlasSize_ = 0;
+  std::uint64_t worldAtlasBytes_ = 0;
+  std::size_t worldAtlasCount_ = 0;
+  std::uint64_t worldAtlasTotalBytes_ = 0;
+  std::string worldAtlasReason_ = "no world atlas was uploaded";
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> worldCubemapTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldCubemapView_;
+  UINT worldCubemapSize_ = 0;
+  // ---- T1 (2026-10-13) ----------------------------------------------------
+  // The sky box: its own cube, its own vertex buffer, its own constant buffer
+  // (the mvp has no translation, because the box follows the camera) and its
+  // own rasterizer state (the box is seen from inside, so back-face culling
+  // would remove every side of it).
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> worldSkyTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> worldSkyView_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyVertexBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldSkyConstants_;
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldSkyRasterizerState_;
+  // T10 diagnostic: the world rasterizer with CULL_NONE, bound only while
+  // worldBackfaceCull_ is false.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldNoCullRasterizerState_;
+  // The water pass is coplanar with the world's own water triangles, so it needs
+  // a depth bias to avoid z-fighting. Its own state rather than a tweak to the
+  // world's: the world pass must keep drawing with the depth policy its gate
+  // pins.
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> worldWaterRasterizerState_;
+  UINT worldSkyVertexCount_ = 0;
+  UINT worldSkySide_ = 0;
+  UINT worldSkyIndexCapacity_ = 0;
+  bool worldSkyResampled_ = false;
+  bool worldSkyEnabled_ = true;
+  // Set by the sky draw itself, not recomputed from the same condition the draw
+  // tests. The first version of this reading recomputed the guard inside
+  // worldMaterialSampleState, and a mutation that deleted the draw still
+  // reported draws=1 -- the reading described its own copy of the condition
+  // rather than the pass. This field can only be true if the Draw call ran.
+  bool worldSkyDrewThisFrame_ = false;
+  WorldSkyState worldSkyState_ = WorldSkyState::Unavailable;
+  std::string worldSkyReason_ = "no sky box was uploaded";
+  // The pvs draw list: an index buffer over the world vertex buffer, rebuilt
+  // (main.cpp decides, this only stores) whenever the camera's cluster changes.
+  // Dynamic because that can happen several times a second in a demo and the
+  // buffer is 3 x triangleCount x 4 bytes.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldIndexBuffer_;
+  UINT worldIndexCapacity_ = 0;
+  UINT worldIndexCount_ = 0;
+  // Set by the draw itself: true only if the pass took the indexed branch. A
+  // reading composed from the clip's own decision would report "clipped" for a
+  // draw that handed the whole buffer to the rasteriser.
+  bool worldVisDrewIndexed_ = false;
+  bool worldVisClipEnabled_ = true;
+  bool worldBackfaceCull_ = true;
+  int worldDebugView_ = 0;
+  bool worldVisClipApplied_ = false;
+  std::size_t worldVisDrawnTriangles_ = 0;
+  std::size_t worldVisHiddenTriangles_ = 0;
+  std::size_t worldVisTrianglesWithoutCluster_ = 0;
+  std::size_t worldVisInputTriangles_ = 0;
+  int worldVisCameraCluster_ = -1;
+  WorldVisClipState worldVisClipState_ = WorldVisClipState::Unavailable;
+  std::string worldVisClipReason_ = "no pvs draw list was handed to the renderer";
+  // ---- T2 (2026-10-14): the water surface ---------------------------------
+  // Its own vertex buffer (water triangles only, already warped) and its own
+  // texture. Nothing here is shared with the world pass, so the water switch
+  // cannot move the world's readings.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldWaterVertexBuffer_;
+  Texture2D worldWaterTexture_;
+  Texture2D worldWaterBumpTexture_;
+  UINT worldWaterVertexCount_ = 0;
+  UINT worldWaterTextureSide_ = 0;
+  bool worldWaterEnabled_ = true;
+  bool worldWaterTextureBound_ = false;
+  bool worldWaterBumpBound_ = false;
+  bool worldWaterDrewThisFrame_ = false;
+  // ---- T12 (2026-10-18): the terrain blend ---------------------------------
+  // `worldBlendEnabled_` gates the second layer only; `worldTerrainOnly_`
+  // gates every triangle whose material is not a blend material. They are two
+  // flags rather than one because the gate needs all four combinations: all/on,
+  // all/off, terrain/on, terrain/off.
+  bool worldBlendEnabled_ = true;
+  bool worldTerrainOnly_ = false;
+  bool worldRefusedMask_ = false;
+  // T26: upload the sky-brush polygons instead of the world triangles, and/or
+  // bake the face index into the vertex colour. Both are diagnostic-only and
+  // both are read by `uploadWorldGeometry`, which is why they are set before the
+  // upload rather than before the draw.
+  bool worldSkyFaceOnly_ = false;
+  bool worldFaceIdUpload_ = false;
+  bool worldDiagnosticIsolation_ = false;
+  float worldBlendWeightMin_ = -1.0f;
+  float worldBlendWeightMax_ = -1.0f;
+  std::size_t worldBlendDistinctWeights_ = 0;
+  double worldWaterPhase_ = 0.0;
+  float worldWaterAmplitude_ = 0.02f;
+  WorldWaterSurfaceState worldWaterState_ = WorldWaterSurfaceState::Unavailable;
+  WorldWaterSurfaceState worldWaterReflectionState_ = WorldWaterSurfaceState::Unavailable;
+  WorldWaterSurfaceState worldWaterRefractionState_ = WorldWaterSurfaceState::Unavailable;
+  std::string worldWaterReason_ = "no water geometry was uploaded";
+  WaterSurfaceSampleState waterSurfaceSample_{};
+  // ---- T2 (2026-10-14): the ViewModel's advanced materials ----------------
+  // The three readings as handed in, plus the per-frame facts about what the
+  // last draw did with them. `viewModelPhongAppliedRanges_` and its two
+  // siblings are counted inside drawViewModel from the ranges that actually
+  // drew, so a material on a range whose texture never resolved is declared and
+  // not applied -- which is the pair the task asks to be able to tell apart.
+  ViewModelMaterialEffects viewModelMaterialEffects_{};
+  bool viewModelMaterialEffectsSet_ = false;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> viewModelBumpTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelBumpView_;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> viewModelSelfillumMaskTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelSelfillumMaskView_;
+  bool viewModelBumpBound_ = false;
+  bool viewModelSelfillumMaskBound_ = false;
+  std::uint32_t viewModelPhongAppliedRanges_ = 0;
+  std::uint32_t viewModelBumpAppliedRanges_ = 0;
+  std::uint32_t viewModelSelfillumAppliedRanges_ = 0;
+  std::uint32_t viewModelPhongFallbackRanges_ = 0;
+  std::uint32_t viewModelBumpFallbackRanges_ = 0;
+  std::uint32_t viewModelSelfillumFallbackRanges_ = 0;
+  // Cumulative, never reset per frame: the reading that catches a pass which
+  // rebuilds a texture every frame, because the number would keep climbing.
+  std::uint32_t viewModelBumpTexturesUploaded_ = 0;
+  ViewModelMaterialSampleState viewModelMaterialSample_{};
+  UINT worldDisplacedTriangleCount_ = 0;
+  UINT worldWaterTriangleCount_ = 0;
+  // T96: the world alpha path's own state and readings. The blend state is the
+  // same SrcAlpha / InvSrcAlpha recipe the viewmodel pass created for its
+  // `$translucent` ranges (native_renderer.cpp:444-458); the depth state is the
+  // world's own less-equal test with the write mask cleared, which is what lets
+  // a blended surface composite with what is behind it instead of occluding it.
+  Microsoft::WRL::ComPtr<ID3D11BlendState> worldAlphaBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> mapAdditiveBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> mapModulateBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> mapModulate2xBlendState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> worldBlendedDepthStencilState_;
+  std::uint32_t worldBlendedTriangleCount_ = 0;
+  std::uint32_t worldCutoutTriangleCount_ = 0;
+  std::uint32_t worldBlendedBatchCount_ = 0;
+  // T101: the fog state the world pass was uploaded with, and how many vertices
+  // ended up carrying the fog bit. The count lives here rather than being
+  // recomputed by the caller so a trace reading it cannot disagree with the
+  // buffer that was uploaded.
+  WorldFogState worldFog_{};
+  std::size_t worldFogVertices_ = 0;
+  RenderSettings settings_{};
+  float cameraYaw_ = 0.0f;
+  float cameraPitch_ = 0.36f;
+  float cameraDistance_ = 1.65f;
+  bool observerFocusValid_ = false;
+  float observerFocusX_ = 0.0f;
+  float observerFocusY_ = 0.0f;
+  float observerFocusZ_ = 0.25f;
+  bool observerDemoView_ = false;
+  float observerDemoEyeX_ = 0.0f;
+  float observerDemoEyeY_ = 0.0f;
+  float observerDemoEyeZ_ = 0.0f;
+  float observerDemoPitchDeg_ = 0.0f;
+  float observerDemoYawDeg_ = 0.0f;
+  bool worldBoundsValid_ = false;
+  float worldMinX_ = 0.0f;
+  float worldMinY_ = 0.0f;
+  float worldMinZ_ = 0.0f;
+  float worldMaxX_ = 0.0f;
+  float worldMaxY_ = 0.0f;
+  float worldMaxZ_ = 0.0f;
+  float worldCenterX_ = 0.0f;
+  float worldCenterY_ = 0.0f;
+  float worldSpanZ_ = 1.0f;
+  float worldHorizontalScale_ = 1.0f;
+  // T29: what drawFrame actually put in the projection. The default is the
+  // value that was hard-coded before the fix, so a frame drawn without the
+  // published transform reads as the old clip rather than as a made-up one.
+  float worldNearPlaneNormalized_ = 0.05f;
+  float worldFarPlaneNormalized_ = 100.0f;
+  std::array<CameraPreset, 8> cameraPresets_{};
+  WorldMaterialParams worldMaterialParams_{};
+  WorldLightmapStatus worldLightmapStatus_ = WorldLightmapStatus::Unavailable;
+  float worldLightmapIntensity_ = 1.0f;
+  bool worldLightmapEnabled_ = true;
+  HRESULT lastError_ = S_OK;
+  // F0-c: the armed fault plan (surface -> remaining hits; kFaultEveryCall never
+  // decrements) and the refusal accounting the passes report. They sit next to
+  // lastError_ because they describe the same thing: what the device -- or the
+  // seam standing in for it -- refused.
+  std::map<std::string, unsigned> resourceFaultPlan_;
+  std::size_t resourceRefusals_ = 0;
+  std::size_t resourceMapRefusals_ = 0;
+  std::size_t resizeUnbindCount_ = 0;
+  const char* initStage_ = "none";
+  std::wstring capturePath_;
+  bool captureSucceeded_ = false;
+  std::wstring captureDepthPath_;
+  bool depthCaptureSucceeded_ = false;
+  unsigned long long depthCaptureBytes_ = 0;
+  std::wstring captureError_;
+  // ---- T51: the HUD pass's own state --------------------------------------
+  // Deliberately small and entirely separate from every other pass: a vertex
+  // buffer of screen-space quads, the list it was built from, and the readings
+  // the trace prints. Nothing here is shared with the world, the entities or the
+  // ViewModel, which is the design claim the world-comparison assertion checks.
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> hudVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> hudPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> hudInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> hudVertexBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> hudConstants_;
+  Microsoft::WRL::ComPtr<ID3D11RasterizerState> hudRasterizerState_;
+  Microsoft::WRL::ComPtr<ID3D11DepthStencilState> hudDepthStencilState_;
+  Microsoft::WRL::ComPtr<ID3D11BlendState> hudBlendState_;
+  UINT hudRectVertexCount_ = 0;
+  std::size_t hudRectCapacity_ = 0;
+  std::vector<HudPrimitive> hudPrimitives_;
+  bool hudEnabled_ = false;
+  std::size_t hudDrawnRects_ = 0;
+  std::size_t hudDrawnPrimitives_ = 0;
+  std::size_t hudTextQuads_ = 0;
+  std::size_t hudGlyphCount_ = 0;
+  std::size_t hudUnmappedGlyphs_ = 0;
+  std::size_t hudPassOrdinal_ = 0;
+  bool hudScissorApplied_ = false;
+  HudPixelRectLast hudLastRegion_{};
+  // T67: the embedded font atlas and its point sampler. The table is compiled
+  // into the binary, so these are created once and never updated.
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> hudFontTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> hudFontView_;
+  Microsoft::WRL::ComPtr<ID3D11SamplerState> hudSampler_;
+};
+
+} // namespace tf2::native

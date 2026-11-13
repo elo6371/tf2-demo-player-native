@@ -1,0 +1,15 @@
+header=1 index=1 scan=1 recording=POV (heuristic) protocol=24 map=pl_upward commands=85871 packets=85867
+packets_scanned=85867 malformed_packets=0 unknown_message_packets=0
+unknown_message_types=<none>
+packet_entities=85864 packet_entity_updates=2335407 header_updates=2335407 delta_packets=85863
+enter=14605 preserve=2307592 leave=1520 delete=11690
+entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+delta_base_unavailable=0 history_gap=0 history_gap_tick=0 history_dropped_packets=285
+instance_baselines=198 baseline_applied=14602 baseline_misses=3 baseline_apply_failures=0
+active_entities=720 max_active_entities=764
+file_messages=0 set_pause=0 bsp_decals=0 menus=0 cmd_key_values=0
+string_table_user_data_max_bytes=2395
+first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+first_delta_base_unavailable_tick=-1 first_delta_base_unavailable_from=-1
+message_type_histogram: 0(net_NOP)=10699 3(net_Tick)=85865 5(net_SetConVar)=3 6(net_SignonState)=3 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=82 14(svc_VoiceInit)=1 17(svc_Sounds)=23686 18(svc_SetView)=1 23(svc_UserMessage)=117 24(svc_EntityMessage)=351 25(svc_GameEvent)=13612 26(svc_PacketEntities)=85864 27(svc_TempEntities)=36204 28(svc_Prefetch)=4057 30(svc_GameEventList)=1
+message_types_seen_without_decoder: <none>

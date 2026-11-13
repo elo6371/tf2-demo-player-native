@@ -1,0 +1,9 @@
+# timeline-clamp.script -- used by timeline-check.sh section 4 (out-of-range seeks).
+# Runs paused so nothing advances between the two seeks; the gate reads the applied
+# tick from the transport request line and compares the far end against the ledger's
+# own end tick rather than a hard-coded value.
+seek -1
+expect-tick 0
+seek 999999
+playback-state
+quit

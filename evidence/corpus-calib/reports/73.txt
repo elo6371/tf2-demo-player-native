@@ -1,0 +1,17 @@
+header=1 index=1 scan=1 recording=SourceTV protocol=24 map=koth_ashville_final1 commands=112179 packets=112175
+index_state=ok index_entries=112179 index_tail_bytes=106397681
+recording_stream=SourceTV recording_header_name=1 server_info_count=1 server_info_hltv=1 server_info_replay_bit=0 source_tv_flag=1
+packets_scanned=112175 malformed_packets=0 unknown_message_packets=0
+unknown_message_types=<none>
+packet_entities=112172 packet_entity_updates=3030444 header_updates=3030444 delta_packets=112171
+enter=22424 preserve=2987454 leave=2249 delete=18317
+entity_failures=0 entity_update_header_failures=0 packet_entity_decode_failures=0 prop_missing_table=0 prop_index=0 prop_value=0
+delta_base_unavailable=0 history_gap=0 history_gap_tick=0 history_dropped_packets=370
+instance_baselines=158 baseline_applied=21576 baseline_misses=848 baseline_apply_failures=0
+active_entities=562 max_active_entities=600
+file_messages=0 set_pause=0 bsp_decals=0 menus=0 cmd_key_values=0
+string_table_user_data_max_bytes=7669
+first_entity_failure_tick=-1 first_entity_failure_entity=-1 first_entity_failure_update=-1 first_entity_failure_max_entries=-1 first_entity_failure_updated_entries=-1 first_entity_failure_payload_bits=-1 first_entity_failure_diff=-1
+first_delta_base_unavailable_tick=-1 first_delta_base_unavailable_from=-1
+message_type_histogram: 0(net_NOP)=13886 3(net_Tick)=112173 5(net_SetConVar)=10 6(net_SignonState)=3 8(svc_ServerInfo)=1 10(svc_ClassInfo)=1 12(svc_CreateStringTable)=20 13(svc_UpdateStringTable)=114 14(svc_VoiceInit)=1 17(svc_Sounds)=34201 18(svc_SetView)=1 23(svc_UserMessage)=188 24(svc_EntityMessage)=530 25(svc_GameEvent)=30327 26(svc_PacketEntities)=112172 27(svc_TempEntities)=62145 28(svc_Prefetch)=6664 30(svc_GameEventList)=1
+message_types_seen_without_decoder: <none>

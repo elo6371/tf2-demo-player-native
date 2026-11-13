@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Reproducible CMake build for this machine.
+#
+# WHY THIS FILE EXISTS
+#   The handoff checklist asks for:
+#       cmake -S native -B native/build -G "Visual Studio 17 2022" -A x64
+#   That generator cannot work here. Two separate blockers, both verified:
+#     1. CMake's VS generator runs vcvars64.bat, which calls reg.exe. reg.exe is
+#        on this sandbox's command blacklist, so compiler detection fails with
+#        "No CMAKE_CXX_COMPILER could be found". Passing
+#        -DCMAKE_GENERATOR_INSTANCE=<VS path> does not help (vswhere.exe itself
+#        runs fine and returns C:\Program Files\Microsoft Visual Studio\2022\Community).
+#     2. The NMake generator DOES work, but only after two non-obvious fixes:
+#          a. INCLUDE/LIB must be set explicitly (vcvars64.bat is unusable), with
+#             Windows-style paths -- MSYS /c/... paths are not accepted.
+#          b. The Windows SDK bin directory must be on PATH, otherwise rc.exe and
+#             mt.exe are missing and CMake reports CMAKE_MT-NOTFOUND and the
+#             link step dies with "no such file or directory".
+#
+# USAGE
+#   bash build-cmake.sh            # configure (if needed) + build Release
+#   bash build-cmake.sh configure  # configure only
+#   bash build-cmake.sh clean      # remove the build tree
+#
+# OUTPUT
+#   native/build-nmake/*.exe   (Release)
+set -uo pipefail
+cd "$(dirname "$0")"
+
+MSVC_VER="14.44.35207"
+SDK_VER="10.0.26100.0"
+MSVC_W="C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/$MSVC_VER"
+SDK_W="C:/Program Files (x86)/Windows Kits/10"
+MSVC_ROOT="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/$MSVC_VER"
+SDK_BIN="/c/Program Files (x86)/Windows Kits/10/bin/$SDK_VER/x64"
+
+export PATH="$MSVC_ROOT/bin/Hostx64/x64:$SDK_BIN:$PATH"
+export INCLUDE="$MSVC_W/include;$SDK_W/Include/$SDK_VER/ucrt;$SDK_W/Include/$SDK_VER/shared;$SDK_W/Include/$SDK_VER/um;$SDK_W/Include/$SDK_VER/winrt"
+export LIB="$MSVC_W/lib/x64;$SDK_W/Lib/$SDK_VER/ucrt/x64;$SDK_W/Lib/$SDK_VER/um/x64"
+
+BUILD=native/build-nmake
+LOG=evidence/cmake-build.log
+mkdir -p evidence
+# The log is appended to during a run but must not accumulate across runs, or
+# the error/warning counts below would report earlier builds as well.
+: > "$LOG"
+
+case "${1:-all}" in
+  clean)
+    # `cmake --build --target clean` rather than `rm -rf`: this sandbox refuses
+    # bulk deletes over 50 files, and a silently blocked rm would leave the
+    # build tree in place, turning the next "clean" build into an incremental
+    # one whose warning count reads 0 for the wrong reason.
+    cmake --build "$BUILD" --target clean >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ]; then echo "clean FAILED (rc=$rc)" >&2; exit "$rc"; fi
+    echo "cleaned $BUILD"; exit 0 ;;
+  configure)
+    cmake -S native -B "$BUILD" -G "NMake Makefiles" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl 2>&1 | tee "$LOG"
+    exit "${PIPESTATUS[0]}" ;;
+esac
+
+if [ "${1:-all}" = "all" ] && [ -f "$BUILD/CMakeCache.txt" ]; then
+  cmake --build "$BUILD" --target clean >/dev/null 2>&1 || exit $?
+fi
+
+if [ ! -f "$BUILD/CMakeCache.txt" ]; then
+  echo "=== configure ==="
+  cmake -S native -B "$BUILD" -G "NMake Makefiles" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl 2>&1 | tee "$LOG"
+fi
+
+echo "=== build (Release, parallel 2) ==="
+cmake --build "$BUILD" --config Release --parallel 2 2>&1 | tee -a "$LOG"
+rc=${PIPESTATUS[0]}
+echo "=== summary ==="
+echo "cmake_build_rc=$rc"
+echo "errors=$(grep -c 'error C' "$LOG" || true)"
+echo "warnings=$(grep -c 'warning C' "$LOG" || true)"
+grep -E 'error C|warning C' "$LOG" | head -30
+ls -la "$BUILD"/*.exe 2>/dev/null | wc -l | sed 's/^/exe_count=/'
+# D-94: A CLEAN BUILD MUST LEAVE THE HEADER STAMP BEHIND.
+#   build-target.sh (see its HEADER DEPENDENCIES note) forces every requested
+#   translation unit to recompile when the header stamp is missing, because this
+#   generator records no header dependencies at all. This script never wrote that
+#   stamp, so the first build-target.sh call after every clean build was a full
+#   recompile and relink: measured 2026-11-10 as the only red in a 219-assertion
+#   build-identity forward run -- the exe kept its bytes (86379f95) and took a
+#   500 s newer mtime, while its sidecar, whose own inputs had not changed, was
+#   not rewritten. The clean build has just compiled every TU against the headers
+#   as they are now, which is exactly what the stamp records, so it is written
+#   here on success and only on success: a failed build must not leave a stamp
+#   claiming the tree is built.
+if [ "$rc" -eq 0 ]; then
+  touch "$BUILD/.headers-stamp"
+  echo "header_stamp=written ($BUILD/.headers-stamp)"
+else
+  echo "header_stamp=skipped (the build did not succeed)"
+fi
+exit "$rc"

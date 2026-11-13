@@ -1,0 +1,1113 @@
+#!/usr/bin/env bash
+# world-material-semantics-check.sh -- T27: the per-material semantics that reach a pixel.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# T24 (lighting-semantics-check.sh) closed the six-row lighting ledger by
+# REFUSING three of the six: `$bumpmap2`, `%detailtype`, `$ssbump`. T27's task is
+# the other half -- make the features that can change the final image actually
+# change it -- and its acceptance rule is a chain, not a counter:
+#
+#     VMT declaration -> resource lookup -> shader input -> pixel delta
+#
+# so every feature below is pinned at all four links, with one semantic switch
+# per capture. A counter that moves while the frame does not is the failure this
+# gate is built to catch, and section 5 is where it is caught.
+#
+# THE CAPTURES
+#   tick 2000 is the T24 reference camera, so its numbers are comparable with
+#   that gate's. tick 1200 is a second camera where the four `$ssbump` materials
+#   that declare `$bumpmap2` are on screen: R2 moves 38,538 px there and 0 px
+#   from the 2000 camera. The fifth declaration -- the only one whose texture is
+#   not an SSBump -- draws its 384 vertices at both cameras and moves nothing
+#   (R3 0 px), so it is off-screen from that camera; that is a measurement, not a
+#   guess, because its VTF is not flat (probe: meanDeviation 46.2, strongFraction
+#   1.0). The 2000 camera was not tested with --world-bump2, so nothing is claimed
+#   about it there.
+#
+#   Both ticks are pinned through capture(), which accepts a frame only when the
+#   trace's last draw reports EXACTLY the requested tick. The product makes that
+#   the normal case: `--capture-tick N` holds the playback cursor at N until the
+#   draw that captures happens (see the comment in main.cpp), because the draw
+#   cadence is wall clock and the tick cadence is the demo's, so a loaded machine
+#   otherwise lands on N+1 or N+10. The loop still moves its target by the
+#   observed error, which is the fallback for an older binary. A 2000-vs-2001
+#   comparison compares two camera positions: that mistake was made once while
+#   designing this gate (a 39,967-pixel "$bumpmap2 delta" that was pure camera
+#   motion, withdrawn), and this pin is what it bought.
+#
+#   A   baseline, no switches                 determinism control
+#   A2  baseline again                        must be 0 px
+#   B   --world-material-bump on              normals arrive, no reader -> 0 px
+#   C   --world-dynamic-light on              the T24 reference frame
+#   D   C + material bump                     layer 1's own normal reaches a pixel
+#   E   --world-detail on                     requested, 15/15 VMTs absent -> 0 px
+#   F   E + --world-detail-texture <vtf>      the shader-input -> pixel leg
+#   R1  dyn + material bump @ tick 1200       the camera where layer 2 is on screen
+#   R1b R1 again                              determinism at the second camera
+#   R2  R1 + --world-bump2 --bump2-texture    layer 2's normal reaches those pixels
+#   R3  R1 + --world-bump2 (no texture)       the declared texture, drawn, 0 px
+#   S1  --world-specular on                   the other reader of the same normal
+#   S2  S1 + --world-material-bump on         the lobe moves, both directions
+#   -- T40 additions on the tick-1200 camera, where the population is on screen --
+#   C12 --world-dynamic-light on              the tick-1200 baseline for C->D's
+#                                             second-camera twin (C12 vs R1)
+#   S1_12 --world-specular on                 the specular baseline at tick 1200
+#   S2_12 S1_12 + --world-material-bump on    the lobe reads the normal there
+#
+# WHY A->B IS 0 AND THAT IS THE MEASUREMENT
+#   With `--world-material-bump on` the CPU builds the bump atlas, sets the
+#   vertex bit and the shader samples t8 -- and the frame does not move, because
+#   the only readers of `n` in this pixel shader are the dynamic-light and
+#   specular terms, both off in B. C->D is the same normal map with its reader
+#   on. That pair is what makes "the atlas exists" and "the picture changed" two
+#   separate claims instead of one.
+#
+# THE DIRECTION QUESTION
+#   `bmp-delta-sign.py` splits every differing byte into brighter/darker, and
+#   both normal pairs are reported with it. R1->R2 moves both ways (4,107
+#   brighter / 3,236 darker on the current tree): a normal perturbation moves a
+#   surface toward and away from the light. A one-way read would mean a scale
+#   factor, not a lerp between two normals. The gate pins both directions, not
+#   just "the frame changed".
+#
+# T40 RE-PIN (2026-10-21, on 34e1714) -- the T29 near clip fix put the room
+# around the camera on screen, which moved every tick-2000 population and took
+# two direction claims with it:
+#   * C->D (material bump under dynamic light) moved 624 -> 79 bytes and is now
+#     one-sided at tick 2000 (79 brighter / 0 darker): the pre-fix population was
+#     mostly occluded, and what survives is the part of the lobe that gains. The
+#     old pin is kept as a superseded reading (C=06503ebd..., D=399ae424...).
+#     The two-sided claim is therefore pinned on the tick-1200 camera where both
+#     directions still exist: C12 vs R1 = 990 bytes / max 19, 458 brighter /
+#     532 darker. That pair is a positive control that goes red if either
+#     direction vanishes.
+#   * S1 vs S2 at tick 2000 is now 0 bytes: the nine material-normal materials
+#     are occluded by the near geometry the clip revealed, and the two frames
+#     are byte-identical (d90da8de). The old 135 / 123 gained / 12 lost reading
+#     is superseded, and the tick-2000 specular claim is printed as NOT VERIFIED
+#     instead of being pinned as a false zero. The consumer is measured on the
+#     tick-1200 camera: S1_12 vs S2_12 = 344 bytes / max 5, 337 brighter / 7
+#     darker. That is a proof on a different camera, NOT a replacement for the
+#     missing tick-2000 population; a wide-area diagnostic pose is the named
+#     next step (evidence/t40-pixel-pins/forward-readings.txt section 4).
+#   * the detail pair moved 82,213 -> 271,060 bytes. 96.9% of the moved
+#     population is attributed by the T26 face-id mask (occluded by a near
+#     surface or replaced by it); 2,812 px on 27 non-displaced faces are not,
+#     and the gate prints them as NOT VERIFIED (section 5) rather than letting
+#     the new pin absorb them.
+#
+# WHAT THIS GATE DOES NOT CLAIM
+#   That the drawn result matches Source's. `%detailtype` is still refused by
+#   name (its consumer is VBSP at map compile time, not a shader -- the key is
+#   read, 1 material names `tf_forest_grass`, and no runtime pass consumes it),
+#   `$ssbump` is still refused by name (BUMPMAP == 2 needs three
+#   lightmaps and a bumpBasis), and the detail layer's pixel evidence uses a
+#   diagnostic texture because every `$detail` VMT this map names is absent from
+#   this install. Those three sentences are pinned as text, so a future change
+#   that quietly drops a refusal goes red here.
+#
+# T45: the two consumers are ALSO measured at one wide-area diagnostic pose from
+# T35's nine-pose set (--debug-camera, tick 2000). The tick-2000 reference camera
+# sees only a sliver of the nine material-normal materials after the T29 near
+# clip, which is why S1/S2 there are byte-identical and that claim is printed
+# NOT VERIFIED in section 5b. The same nine tiles, the same atlas and the same
+# reader are measured at the wide pose on a population that is on screen, and
+# both readings are pinned: a second view, not a replacement for the missing one.
+#
+# mutation: five source mutations, each must turn a forward pin red, and each
+# source must come back byte-identical:
+#   m1 the tangent frame is ignored (normal = geometric normal) -> C->D 0 px
+#   m2 `$bumpmap2` samples layer 1's tile (the silent-replacement defect) -> the
+#      R1->R2 delta is no longer 15,953 px while the row still reads applied
+#   m3 `$detailblendmode` is parsed, reported and ignored -> F stops matching
+#   m4 the feature bit is set from the VMT instead of from the blit -> the ledger
+#      still reads materials=9 while D moves: the counter-only implementation
+#   m5 the feature tile rect is computed at full atlas resolution -> the probe's
+#      rect pin (a tile lands at the wrong scale) and the frame
+#
+# Usage: bash world-material-semantics-check.sh [--mutation]
+# Exit:  0 = every assertion held (or, with --mutation, every mutation went red).
+set -uo pipefail
+cd "$(dirname "$0")"
+
+PRODUCT=native/build-nmake/tf2_demo_native.exe
+PROBE=native/build-nmake/world_feature_probe.exe
+TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+MAP=maps/pl_odyssey.bsp
+DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+DETAIL_TEXTURE=materials/brick/brickwall001.vtf
+# The layer-2 diagnostic normal map. See the R2/R3 note in the header: the two
+# facts below leave this demo with no visible pixel of the declared layer.
+BUMP2_TEXTURE=materials/brick/brickwall001_normal.vtf
+PYTHON="${PYTHON:-python}"
+
+# Measured on this machine with the tick pinned by capture(). These are pins, not
+# floors: a change in any one of them means a semantic moved, and the report
+# quotes the same numbers.
+# T40 re-pin on 34e1714: superseded tick-2000 readings, measured on the pre-fix
+# tree whose baseline frame was A=f87f396a...f9608, were dynamic 1584117/83,
+# material bump under dynamic 624/21, detail 82213/60. The T29 near clip put the
+# room on screen; the identities and the population split of every moved
+# population are in evidence/t40-pixel-pins/forward-readings.txt.
+PIN_DYN_DIFF=2209102; PIN_DYN_MAX=80
+PIN_BUMP_DIFF=79; PIN_BUMP_MAX=17
+PIN_DETAIL_DIFF=182483; PIN_DETAIL_MAX=42
+# T27: the layer-2 diagnostic arm on the base normal the frame already computed,
+# moving BOTH ways: a real lerp between two normals. The earlier 38,538 px
+# all-darker reading was an invalid vertex state (bit 2 without bit 1); it is
+# preserved in the report as a superseded reading and is not a pin.
+# T40 re-pin on 34e1714: superseded 15,953 / 8,790 / 7,163.
+# 2026-11-01: the four reference-camera pairs below are measured at ZERO since
+# T83 began drawing brush-model geometry, i.e. the population those slivers
+# belonged to is no longer on screen at tick 2000 / 1200. They are kept as
+# diagnostic readings (echoed, stored in deltas.txt/sign.txt) and are NOT
+# asserted as a pass: a pin of 0 for "this switch changes pixels" is the defect
+# this gate exists to catch. The live pixel claims for both consumers are at the
+# T45 wide-area pose (PIN_WIDE_*) and, for $bumpmap2, the R1w/R2w captures added
+# on the same day. Old readings, all measured before that: C->D 79 bytes,
+# $bumpmap2 7343, tick-1200 material bump 990, tick-1200 specular 344.
+PIN_B2_DIFF=7343; PIN_B2_MAX=26
+PIN_B2_UP=4107; PIN_B2_DOWN=3236
+# The specular pair: the same material normal, read by the other consumer. 135
+# px was small because the lobe is `0.12 * pow(dot(n,h), 32)` and the 9 bumped
+# materials were a thin slice of this view -- the direction split (123 gained /
+# 12 lost) was what said it was not noise.
+# T40 re-pin on 34e1714: at the tick-2000 camera the population is gone
+# (0/0, S1 == S2 byte-identical), so this pair is pinned at the measured zero
+# and the gate PRINTS the claim as NOT VERIFIED rather than passing it as a
+# semantic. The old reading is kept as superseded (S1=9d613c38..., S2=6742abec...).
+PIN_SPEC_DIFF=0; PIN_SPEC_MAX=0
+# T40: the tick-1200 camera where the nine materials are on screen. Both
+# directions exist there, and both are pinned exactly so either one going to
+# zero is a red, not a silent pass.
+PIN_SPEC12_DIFF=344; PIN_SPEC12_MAX=5
+PIN_SPEC12_UP=337; PIN_SPEC12_DOWN=7
+# T40: C12 vs R1 -- the tick-1200 twin of C->D, the positive control for the
+# two-sided material-bump claim the tick-2000 camera can no longer make.
+PIN_BUMP12_DIFF=990; PIN_BUMP12_MAX=19
+PIN_BUMP12_UP=458; PIN_BUMP12_DOWN=532
+# T45: the wide-area pose. T35 derived nine material-framed poses with the probe
+# but never launched the product at any of them (the host queue starved it), so
+# their qualification is a measurement, not an assumption: _shared/t45/
+# wide-select.sh ranks all nine by the pixel population their material-normal
+# switch moves (S1w vs S2w, same build and flags) and captures the winner here.
+# WALL013 won:
+#   eye=(-3498.225, 1021.852, 1327.843) pitch=70.529329 yaw=134.999352
+# The pose moves the RENDER view, not the cluster cull: every pose's trace
+# carries the same observer-camera "gpu: world vis" line and the same
+# bump-control scope (the nine tiles are 9 materials / 19305 vertices world-wide
+# in every pose), so the trace cannot tell two poses apart. The pose is therefore
+# pinned by the frames: Aw must differ from A (the reference camera's frame) and
+# Aw2 must equal Aw byte for byte.
+# At that camera both consumers move pixels in both directions -- the claim the
+# tick-2000 camera cannot make -- so every direction is pinned exactly and carries
+# an assert_ne positive control: either one collapsing to zero is a red.
+WIDE_NAME=WALL013
+WIDE_CAM=(--debug-camera -3498.225 1021.852 1327.843 70.529329 134.999352)
+PIN_WIDE_SW_DIFF=794439; PIN_WIDE_SW_MAX=24
+PIN_WIDE_SW_UP=401259; PIN_WIDE_SW_DOWN=393180
+PIN_WIDE_CW_DIFF=725801; PIN_WIDE_CW_MAX=61
+PIN_WIDE_CW_UP=214075; PIN_WIDE_CW_DOWN=511726
+# T84: the wide-pose $bumpmap2 pair (R1w vs R2w), measured 2026-11-01.
+PIN_WIDE_B2_DIFF=3842; PIN_WIDE_B2_MAX=18
+PIN_WIDE_B2_UP=1843; PIN_WIDE_B2_DOWN=1999
+
+RUN_TAG="$(date +%Y%m%d%H%M%S)-$$"
+MODE="${1:-}"
+SCRATCH=".scratch/world-material-semantics.$RUN_TAG"
+OUT="evidence/material-semantics"
+mkdir -p "$SCRATCH" "$OUT"
+
+fail=0
+# C5b: every assert_* call increments `checks`, and the verdict below compares it
+# to a literal. Adding or losing an assertion is then visible in the summary, not
+# only in a diff nobody re-reads.
+checks=0
+assert_eq() { # assert_eq <name> <got> <want>
+  checks=$((checks + 1))
+  if [ "$2" = "$3" ]; then echo "  OK $1 = $2"; else echo "  FAIL $1: got '$2' want '$3'"; fail=1; fi
+}
+assert_ne() { # assert_ne <name> <got> <mustNotBe>
+  checks=$((checks + 1))
+  if [ "$2" = "$3" ]; then echo "  FAIL $1: still '$2'"; fail=1;
+  else echo "  OK $1 = $2 (was $3)"; fi
+}
+assert_contains() { # assert_contains <name> <text> <needle>
+  checks=$((checks + 1))
+  case "$2" in
+    *"$3"*) echo "  OK $1 contains '$3'" ;;
+    *) echo "  FAIL $1: '$2' does not contain '$3'"; fail=1 ;;
+  esac
+}
+
+# A capture reads AND writes the settings file (the product saves the settings it
+# ran with on exit), so every capture rewrites a scratch ini and none of them
+# touch the machine's %LOCALAPPDATA% one.
+GATE_INI="$SCRATCH/settings.ini"
+
+# T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
+# Both flags below name per-run copies outside the tree: a gate must not edit
+# tracked evidence or the machine profile. gate-launch-hygiene-check.sh asserts
+# the static shape; this block is the runtime side of the same contract.
+ISO_DIR="$(mktemp -d)"
+ISO_DIR_WIN="$(cygpath -m "$ISO_DIR")"
+ISO_SETTINGS="$ISO_DIR_WIN/settings.ini"
+ISO_UI="$ISO_DIR_WIN/ui.ini"
+trap 'rm -rf "${ISO_DIR:-}"' EXIT
+HOST_PROFILE_DIR="${LOCALAPPDATA:-${HOME}/AppData/Local}/TF2 Demo Player"
+if [ -f "$HOST_PROFILE_DIR/settings.ini" ]; then cp "$HOST_PROFILE_DIR/settings.ini" "$ISO_DIR/settings.ini"; else : > "$ISO_DIR/settings.ini"; echo "  ISO SEED absent: host profile settings.ini (product starts from defaults)" >&2; fi
+if [ -f "$HOST_PROFILE_DIR/ui.ini" ]; then cp "$HOST_PROFILE_DIR/ui.ini" "$ISO_DIR/ui.ini"; else : > "$ISO_DIR/ui.ini"; fi
+
+write_gate_ini() {
+  {
+    echo "[renderer]"
+    echo "preset=1"
+    echo "renderScalePercent=100"
+    echo "viewModelFov=90"
+    echo "vsync=0"
+  } > "$GATE_INI"
+}
+
+capture() { # capture <name> <tick> [extra flags...]
+  local name="$1" want="$2"; shift 2
+  local bmp="$SCRATCH/$name.bmp" trace="$SCRATCH/$name.trace"
+  local attempt rc tick target="$want"
+  # The draw whose tick is first >= the target is the one that writes the file
+  # (requestFrameCapture is consumed at the end of that same render()), so the
+  # last `draw: begin tick=` in the trace IS the captured tick.
+  #
+  # A fixed target is not enough to hit a tick. The draw cadence (120 Hz target)
+  # is not the tick cadence (`tickRate` from the demo header, ~66.7 Hz, advanced
+  # by the same `elapsed` the draw gate reads), so the first draw that satisfies
+  # `>= N` is usually at N+1 or N+2 -- and the offset grows when the machine is
+  # loaded, at which point retrying N can never hit. So each attempt reports the
+  # tick it actually drew, and the next target is moved by exactly that error
+  # (a gain-1 controller): a target of N-2 that draws at N is an exact hit. That
+  # keeps the captured tick an absolute pin regardless of what else is running.
+  for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    rm -f "$bmp"
+    write_gate_ini
+    TF2_NATIVE_TRACE="$(cygpath -m "$PWD/$trace")" timeout 300 "$PRODUCT" --tf-root "$TF" \
+      --demo "$DEMO" --capture-tick "$target" --capture-frame "$(cygpath -m "$PWD/$bmp")" \
+      --hidden-window --audio-disabled --viewmodel models/weapons/v_models/v_scattergun_scout.mdl \
+      --viewmodel-render companion --settings-file "$(cygpath -m "$PWD/$GATE_INI")" --ui-settings-file "$ISO_UI" \
+      "$@" > "$SCRATCH/$name.log" 2>&1
+    rc=$?
+    tick=$(grep -a "draw: begin tick=" "$trace" 2>/dev/null | tr -d '\r' | tail -1 \
+      | sed -n 's/.*tick=\([-0-9]*\).*/\1/p')
+    if [ "$rc" = 0 ] && [ "$tick" = "$want" ] && [ -s "$bmp" ]; then
+      [ "$attempt" -gt 1 ] && echo "  (capture $name pinned attempt $attempt: target $target drew $tick)"
+      return 0
+    fi
+    echo "  (capture $name attempt $attempt: rc=$rc target=$target tick=${tick:-none})"
+    case "$tick" in
+      ''|*[!0-9]*) ;;
+      *)
+        target=$((target + want - tick))
+        [ "$target" -lt 0 ] && target=0
+        ;;
+    esac
+  done
+  return 1
+}
+
+kv() { # kv <probe text file> <reading key>
+  grep -F "\"reading\":\"$2\"" "$1" 2>/dev/null | head -1 \
+    | sed -n 's/.*"value":"\(.*\)"}.*/\1/p'
+}
+ckdetail() { # ckdetail <self-test text> <check name>
+  grep -F "\"check\":\"$2\"" "$1" 2>/dev/null | head -1 \
+    | sed -n 's/.*"detail":"\([^"]*\)".*/\1/p'
+}
+ckok() { # ckok <self-test text> <check name> -> true | false | absent
+  local line
+  line=$(grep -F "\"check\":\"$2\"" "$1" 2>/dev/null | head -1)
+  case "$line" in
+    '') echo absent ;;
+    *'"ok":true'*) echo true ;;
+    *) echo false ;;
+  esac
+}
+lightingline() { grep -a "gpu: world lighting " "$1" 2>/dev/null | head -1 | tr -d '\r'; }
+lfield() { # lfield <line> <key>
+  printf '%s' "$1" | grep -oE "(^| )$2=[^ ]+" | head -1 | cut -d= -f2-
+}
+controlline() { grep -aF "gpu: world lighting-control control=$2 " "$1" 2>/dev/null | head -1 | tr -d '\r'; }
+cfield() { lfield "$1" "$2"; }
+featureline() { grep -a "gpu: world feature-fetch " "$1" 2>/dev/null | head -1 | tr -d '\r'; }
+applyline() { grep -a "gpu: world feature-apply " "$1" 2>/dev/null | head -1 | tr -d '\r'; }
+ff() { # ff <trace> <feature-fetch key>
+  lfield "$(featureline "$1")" "$2"
+}
+# The apply line is three sections on one line: `bump k=v ... bump2 k=v ...
+# detail k=v ...`. `af <trace> bump.tiles` reads one field out of one section, so
+# a number cannot be attributed to the wrong layer.
+af() { # af <trace> <layer.key>
+  applyline "$1" | sed 's/.*feature-apply //' | tr ' ' '\n' | awk -v want="$2" '
+    /^(bump|bump2|detail)$/ {layer=$1; next}
+    layer != "" && index($0, "=") > 0 {
+      split($0, pair, "=");
+      if (layer "." pair[1] == want) { print substr($0, index($0, "=") + 1); exit }
+    }'
+}
+
+# ---------------------------------------------------------------------------
+# 0. build the two targets from this tree
+# ---------------------------------------------------------------------------
+echo "== 0. build =="
+bash build-target.sh tf2_demo_native world_feature_probe > "$SCRATCH/build.txt" 2>&1
+if [ $? -ne 0 ]; then echo "  FAIL the build did not finish (see $SCRATCH/build.txt)"; exit 1; fi
+echo "  OK both targets built"
+
+# ---------------------------------------------------------------------------
+# 1. the probe's fixture: the four links, without a GPU
+# ---------------------------------------------------------------------------
+echo "== 1. probe self-test (fixture) =="
+SELF="$SCRATCH/self.txt"
+"$PROBE" --self-test > "$SELF" 2>&1
+assert_eq "self-test verdict" "$(kv "$SELF" selfTest)" "true"
+# 54 = 49 + the five material checks this batch adds (parse.unlit-two-texture,
+# parse.modulate-2x, parse.world-material-control, parse.proxy.cappoint,
+# parse.proxy.rejects-nonfinite). A new named check is counted, not a
+# threshold relaxed: every one of them is asserted by name below.
+assert_eq "self-test checks passed" "$(grep -c '"ok":true' "$SELF")" "54"
+assert_eq "self-test checks failed" "$(grep -c '"ok":false' "$SELF")" "0"
+# C5b: the five checks this batch added are asserted by NAME, not only counted by
+# the 54 above -- a count alone cannot say which check disappeared. Each line
+# below fails by name if the probe stops reporting it.
+assert_eq "check parse.unlit-two-texture passed" "$(ckok "$SELF" parse.unlit-two-texture)" "true"
+assert_eq "check parse.modulate-2x passed" "$(ckok "$SELF" parse.modulate-2x)" "true"
+assert_eq "check parse.world-material-control passed" "$(ckok "$SELF" parse.world-material-control)" "true"
+assert_eq "check parse.proxy.cappoint passed" "$(ckok "$SELF" parse.proxy.cappoint)" "true"
+assert_eq "check parse.proxy.rejects-nonfinite passed" "$(ckok "$SELF" parse.proxy.rejects-nonfinite)" "true"
+# Negative control: the same named assertion must reject a self-test that quietly
+# lost one of the five. The doctored copy is scratch-only; the probe is not run
+# again, so this costs nothing but still proves the assertion can go red.
+NEG_SELF="$SCRATCH/self-missing-check.txt"
+grep -vF '"check":"parse.proxy.cappoint"' "$SELF" > "$NEG_SELF"
+assert_eq "negative control: a self-test missing parse.proxy.cappoint is not satisfied" \
+  "$(ckok "$NEG_SELF" parse.proxy.cappoint)" "absent"
+# link 1: the declaration. `$bumpmap1` is an alias and must lose to `$bumpmap`.
+assert_contains "\$bumpmap1 alias" "$(ckdetail "$SELF" parse.bumpmap1.alias)" "fix/a_height"
+assert_contains "\$bumpmap beats \$bumpmap1" "$(ckdetail "$SELF" parse.bumpmap.precedence)" "fix/plain"
+assert_contains "\$ssbump parses" "$(ckdetail "$SELF" parse.ssbump)" "1 parses as true"
+assert_contains "%detailtype read" "$(ckdetail "$SELF" parse.detailtype)" "2"
+# link 2: the lookup. The mode histogram decides which TextureCombine arm draws.
+assert_eq "detail mode 8 drawn" "$(ckdetail "$SELF" parse.detail.mode)" "8"
+assert_contains "mode 8 names its arm" "$(ckdetail "$SELF" parse.detail.mode.supported)" "TCOMBINE_MULTIPLY"
+assert_contains "drawn modes" "$(ckdetail "$SELF" parse.detail.mode.drawn)" "0,1,2,3,8"
+assert_contains "refused modes" "$(ckdetail "$SELF" parse.detail.mode.refused)" "4,5,6,7,9,10,11"
+assert_contains "malformed mode refused" "$(ckdetail "$SELF" parse.detail.mode.malformed)" "non-numeric"
+assert_eq "detail scale" "$(ckdetail "$SELF" parse.detail.scale)" "1.900000"
+assert_eq "detail factor" "$(ckdetail "$SELF" parse.detail.factor)" "0.375000"
+# link 3: the shader input. The five arms are transcribed, not re-derived.
+assert_eq "combine mode 0" "$(ckdetail "$SELF" combine.mode0)" "0.400000,0.375000,0.900000"
+assert_eq "combine mode 1" "$(ckdetail "$SELF" combine.mode1)" "0.650000,0.625000,1.100000"
+assert_eq "combine mode 2" "$(ckdetail "$SELF" combine.mode2)" "0.425000,0.437500,0.700000"
+assert_eq "combine mode 3" "$(ckdetail "$SELF" combine.mode3)" "0.450000,0.375000,0.800000"
+assert_eq "combine mode 8" "$(ckdetail "$SELF" combine.mode8)" "0.300000,0.312500,0.600000"
+assert_contains "mode 2 uses detail alpha" "$(ckdetail "$SELF" combine.mode2.alpha)" "mode 2 scales by detail.a"
+assert_contains "factor 0 is the identity" "$(ckdetail "$SELF" combine.factor.zero)" "factor 0 leaves the base"
+assert_contains "tangent frame" "$(ckdetail "$SELF" tangent.u)" "dot(T)=0.707107"
+assert_contains "bitangent sign" "$(ckdetail "$SELF" tangent.sign)" "0.707107 vs -0.707107"
+assert_contains "tangent rotation" "$(ckdetail "$SELF" tangent.rotation)" "same angle"
+assert_contains "degenerate tangent" "$(ckdetail "$SELF" tangent.degenerate)" "falls back"
+# the atlas geometry: a tile at half resolution lands in the same normalised rect
+assert_eq "feature tile size" "$(ckdetail "$SELF" rect.size)" "256x256"
+assert_contains "feature tile centre" "$(ckdetail "$SELF" rect.centre.u)" "0.562500"
+assert_contains "tiles do not overlap" "$(ckdetail "$SELF" rect.neighbours)" "257 <= 257"
+# the ledger, in both states, so the sentences are pinned and not just produced
+assert_contains "off row names the switch" "$(ckdetail "$SELF" ledger.off.bump.reason)" "--world-material-bump"
+assert_contains "on row names the tangent basis" "$(ckdetail "$SELF" ledger.on.bump.reason)" "tangent basis"
+assert_contains "bump2 row names the lerp" "$(ckdetail "$SELF" ledger.on.bump2.reason)" "lerp"
+assert_contains "ssbump row splits the count" "$(ckdetail "$SELF" ledger.on.ssbump.split)" "1 of 2"
+assert_contains "detail row keeps the key refused" "$(ckdetail "$SELF" ledger.on.detailtype)" "consumer"
+assert_contains "bump2 without layer 1 is named" \
+  "$(ckdetail "$SELF" ledger.requested.bump2)" "--world-material-bump is off"
+
+# ---------------------------------------------------------------------------
+# 2. the real map: declarations and lookups, before any rendering
+# ---------------------------------------------------------------------------
+echo "== 2. probe on $MAP =="
+PROBE_MAP="$SCRATCH/probe-map.txt"
+"$PROBE" --map "$TF/$MAP" --tf-root "$TF" > "$PROBE_MAP" 2>&1
+assert_eq "distinct materials" "$(kv "$PROBE_MAP" feature.materials)" "127"
+# $bumpmap: 46 declarations over 27 distinct textures; 36 of the 46 are $ssbump
+# (45 declarations over 26 textures before T83 began adding brush-model materials).
+assert_eq "\$bumpmap declared" "$(kv "$PROBE_MAP" feature.bumpmap.declared)" "46"
+assert_eq "\$bumpmap resolved" "$(kv "$PROBE_MAP" feature.bumpmap.resolved)" "46"
+assert_eq "\$bumpmap missing" "$(kv "$PROBE_MAP" feature.bumpmap.missing)" "0"
+assert_eq "\$bumpmap distinct paths" "$(kv "$PROBE_MAP" feature.bumpmap.distinctPaths)" "26"
+assert_eq "non-ssbump \$bumpmap" "$(kv "$PROBE_MAP" feature.bumpmap.nonSsBump)" "10"
+assert_contains "\$bumpmap first" "$(kv "$PROBE_MAP" feature.bumpmap.first)" "GREEK/GREEK_GROUND03B"
+assert_contains "bump reason names the switch" "$(kv "$PROBE_MAP" feature.bumpmap.reason)" "--world-material-bump"
+# $bumpmap2: 5 declarations, all 5 resolve -- this is a feature with real resources.
+assert_eq "\$bumpmap2 declared" "$(kv "$PROBE_MAP" feature.bumpmap2.declared)" "5"
+assert_eq "\$bumpmap2 resolved" "$(kv "$PROBE_MAP" feature.bumpmap2.resolved)" "5"
+assert_eq "\$bumpmap2 missing" "$(kv "$PROBE_MAP" feature.bumpmap2.missing)" "0"
+assert_eq "\$bumpmap2 first" "$(kv "$PROBE_MAP" feature.bumpmap2.first)" "GREEK/GREEK_BLEND_COBBLE_FLOOR_01_TO_SAND"
+assert_contains "\$bumpmap2 reason names both switches" \
+  "$(kv "$PROBE_MAP" feature.bumpmap2.reason)" "--world-material-bump and --world-bump2"
+# 4 of the 5 are $ssbump: their second-layer texel is a bumpBasis weight, so the
+# declared resource cannot be decoded as a normal even with both switches on.
+assert_eq "\$bumpmap2 ssbump split" "$(kv "$PROBE_MAP" feature.bumpmap2.ssBump)" "4"
+assert_contains "\$bumpmap2 reason names the split" \
+  "$(kv "$PROBE_MAP" feature.bumpmap2.reason)" "4/5 of those materials also declare \$ssbump"
+# %detailtype: 15 layers whose detail VMTs are all absent -- but the key lives in
+# the SURFACE material and is readable (1 material, `tf_forest_grass`). The
+# install's absence is the layer's, not the key's, and the row has to say both.
+assert_eq "\$detail declared" "$(kv "$PROBE_MAP" feature.detail.declared)" "15"
+assert_eq "\$detail resolved" "$(kv "$PROBE_MAP" feature.detail.resolved)" "0"
+assert_eq "\$detail missing" "$(kv "$PROBE_MAP" feature.detail.missing)" "15"
+# The key is a key in the SURFACE material (VBSP reads it at compile time), so it
+# is readable even though all 15 detail VMTs are absent. "0 read" was the old
+# read path looking in the detail VMT; the fixture's 2-vs-9 split pins this.
+assert_eq "%detailtype read" "$(kv "$PROBE_MAP" feature.detail.typesRead)" "1"
+assert_eq "%detailtype first value" "$(kv "$PROBE_MAP" feature.detail.firstType)" "tf_forest_grass"
+assert_contains "\$detail reason names the switch" "$(kv "$PROBE_MAP" feature.detail.reason)" "--world-detail"
+# $ssbump: 36 declarations, all resolving to the same VTF their $bumpmap names.
+assert_eq "\$ssbump declared" "$(kv "$PROBE_MAP" feature.ssbump.declared)" "36"
+assert_eq "\$ssbump resolved" "$(kv "$PROBE_MAP" feature.ssbump.resolved)" "36"
+assert_contains "\$ssbump under --world-material-bump" "$(kv "$PROBE_MAP" feature.ssbump.reason)" \
+  "refused by name even when --world-material-bump is on"
+
+# ---------------------------------------------------------------------------
+# 3. the reference frame: every switch off
+# ---------------------------------------------------------------------------
+echo "== 3. reference capture (all switches off) =="
+capture A 2000 || { echo "  FAIL the reference capture did not produce tick 2000"; fail=1; }
+ALINE=$(lightingline "$SCRATCH/A.trace")
+assert_eq "A switches" \
+  "$(lfield "$ALINE" dynamic)/$(lfield "$ALINE" specular)/$(lfield "$ALINE" bump)" "0/0/0"
+assert_eq "A feature switches" \
+  "$(ff "$SCRATCH/A.trace" bumpSwitch)/$(ff "$SCRATCH/A.trace" bump2Switch)/$(ff "$SCRATCH/A.trace" detailSwitch)" "0/0/0"
+assert_eq "A feature tiles" \
+  "$(af "$SCRATCH/A.trace" bump.tiles)/$(af "$SCRATCH/A.trace" bump2.tiles)/$(af "$SCRATCH/A.trace" detail.tiles)" "0/0/0"
+assert_eq "A feature vertices" \
+  "$(af "$SCRATCH/A.trace" bump.vertices)/$(af "$SCRATCH/A.trace" bump2.vertices)/$(af "$SCRATCH/A.trace" detail.vertices)" "0/0/0"
+# Four refusals and two disabled rows: the same shape T24 pinned, now with the
+# per-material path named in the bump row instead of "not implemented".
+BROW=$(controlline "$SCRATCH/A.trace" bump)
+assert_eq "A bump row" "$(cfield "$BROW" state)" "refused"
+assert_contains "A bump row names both switches" "$BROW" "--world-material-bump"
+B2ROW=$(controlline "$SCRATCH/A.trace" '$bumpmap2')
+assert_eq "A \$bumpmap2 row" "$(cfield "$B2ROW" state)" "refused"
+assert_eq "A \$bumpmap2 counts" \
+  "$(cfield "$B2ROW" declared)/$(cfield "$B2ROW" visible)/$(cfield "$B2ROW" resolved)" "5/5/5"
+DROW=$(controlline "$SCRATCH/A.trace" '%detailtype')
+assert_eq "A %detailtype row" "$(cfield "$DROW" state)" "refused"
+assert_eq "A %detailtype counts" \
+  "$(cfield "$DROW" declared)/$(cfield "$DROW" resolved)/$(cfield "$DROW" missing)/$(cfield "$DROW" parsed)" \
+  "15/0/15/1"
+assert_contains "A %detailtype names the install" "$DROW" "absent from this install"
+assert_contains "A %detailtype names the group" "$DROW" "first=tf_forest_grass"
+assert_contains "A %detailtype names the compiler" "$DROW" "VBSP"
+assert_contains "A %detailtype keeps its refusal" "$DROW" "no consumer here"
+SROW=$(controlline "$SCRATCH/A.trace" '$ssbump')
+assert_eq "A \$ssbump row" "$(cfield "$SROW" state)" "refused"
+
+# ---------------------------------------------------------------------------
+# 4. one semantic at a time
+# ---------------------------------------------------------------------------
+echo "== 4. single-semantic captures =="
+capture A2 2000 || fail=1
+capture B 2000 --world-material-bump on || fail=1
+capture C 2000 --world-dynamic-light on || fail=1
+capture D 2000 --world-dynamic-light on --world-material-bump on || fail=1
+capture E 2000 --world-detail on || fail=1
+capture F 2000 --world-detail on --world-detail-texture "$DETAIL_TEXTURE" || fail=1
+capture R1 1200 --world-dynamic-light on --world-material-bump on || fail=1
+capture R1b 1200 --world-dynamic-light on --world-material-bump on || fail=1
+capture R2 1200 --world-dynamic-light on --world-material-bump on --world-bump2 on \
+  --world-bump2-texture "$BUMP2_TEXTURE" || fail=1
+capture R3 1200 --world-dynamic-light on --world-material-bump on --world-bump2 on || fail=1
+# S1/S2: the same per-material normal, read by the specular lobe instead of the
+# lightmap term. The lightmap term is a wide, mostly-saturating dot product; the
+# specular term is a narrow lobe, so if the perturbation reaches it at all the
+# highlight moves -- some pixels gain, some lose. That is the second consumer
+# T27 asks about, and it is a different claim from "the frame changed".
+capture S1 2000 --world-specular on || fail=1
+capture S2 2000 --world-specular on --world-material-bump on || fail=1
+# T40: the tick-2000 camera no longer sees the nine material-normal materials
+# (the T29 near clip put the room on screen and the wall in front of them), so
+# S1 and S2 came back byte-identical. The consumers are measured on the
+# tick-1200 camera the bump2 pins already use, where those materials are on
+# screen: C12 is the tick-1200 baseline for the dynamic-light reader, S1_12 /
+# S2_12 the specular pair.
+capture C12 1200 --world-dynamic-light on || fail=1
+capture S1_12 1200 --world-specular on || fail=1
+capture S2_12 1200 --world-specular on --world-material-bump on || fail=1
+# T45: the wide-area pose from T35's set. Aw/Aw2 pin the pose's own determinism;
+# S1w/S2w and Cw/Dw are the two consumers of the same nine tiles, one switch
+# apart, on a population that is on screen.
+capture Aw 2000 "${WIDE_CAM[@]}" || fail=1
+capture Aw2 2000 "${WIDE_CAM[@]}" || fail=1
+capture S1w 2000 --world-specular on "${WIDE_CAM[@]}" || fail=1
+capture S2w 2000 --world-specular on --world-material-bump on "${WIDE_CAM[@]}" || fail=1
+capture Cw 2000 --world-dynamic-light on "${WIDE_CAM[@]}" || fail=1
+capture Dw 2000 --world-dynamic-light on --world-material-bump on "${WIDE_CAM[@]}" || fail=1
+# T84 (2026-11-01): $bumpmap2 keeps a live pixel claim here. At the tick-1200
+# camera its four materials are no longer on screen (7343 bytes before T83,
+# measured 0 on 2026-11-01), so the pair is captured again at the wide pose
+# with the same nine material-normal tiles the T45 specular pair uses.
+capture R1w 2000 --world-dynamic-light on --world-material-bump on "${WIDE_CAM[@]}" || fail=1
+capture R2w 2000 --world-dynamic-light on --world-material-bump on --world-bump2 on \
+  --world-bump2-texture "$BUMP2_TEXTURE" "${WIDE_CAM[@]}" || fail=1
+
+# ---- B: the declaration and the lookup both happen, the reader does not ----
+assert_eq "B feature switches" \
+  "$(ff "$SCRATCH/B.trace" bumpSwitch)/$(ff "$SCRATCH/B.trace" bump2Switch)/$(ff "$SCRATCH/B.trace" detailSwitch)" "1/0/0"
+assert_eq "B declaration/lookup" \
+  "$(ff "$SCRATCH/B.trace" bumpDeclared)/$(ff "$SCRATCH/B.trace" bumpResolved)/$(ff "$SCRATCH/B.trace" bumpMissing)" "52/16/0"
+assert_eq "B ssbump split" "$(ff "$SCRATCH/B.trace" bumpSsBump)" "36"
+# The shader input: 9 tiles, 9 materials, every vertex of those materials.
+assert_eq "B tiles/materials" "$(af "$SCRATCH/B.trace" bump.tiles)/$(af "$SCRATCH/B.trace" bump.materials)" "16/16"
+assert_eq "B vertices" "$(af "$SCRATCH/B.trace" bump.vertices)" "20097"
+BBROW=$(controlline "$SCRATCH/B.trace" bump)
+assert_eq "B bump row" "$(cfield "$BBROW" state)" "applied"
+assert_contains "B row names the tangent basis" "$BBROW" "per-face tangent basis"
+assert_contains "B row splits ssbump" "$BBROW" "36 set \$ssbump"
+# `$bumpmap2` was not requested here, and its row must explain that it cannot be
+# drawn without layer 1 rather than claim a resource is missing (5/5 resolve).
+B2B=$(controlline "$SCRATCH/B.trace" '$bumpmap2')
+assert_eq "B \$bumpmap2 row" "$(cfield "$B2B" state)" "refused"
+assert_contains "B \$bumpmap2 reason" "$B2B" "sampled only when --world-material-bump and --world-bump2 are both on"
+assert_eq "B \$bumpmap2 resolves" "$(cfield "$B2B" resolved)" "5"
+# The $ssbump row now carries both counts, so the refusal is a subtraction.
+assert_contains "B \$ssbump split" "$(controlline "$SCRATCH/B.trace" '$ssbump')" "36 of 52"
+
+# ---- C: the reader only; the per-material atlas is off ----
+CLINE=$(lightingline "$SCRATCH/C.trace")
+assert_eq "C switches" \
+  "$(lfield "$CLINE" dynamic)/$(lfield "$CLINE" specular)/$(lfield "$CLINE" bump)" "1/0/0"
+assert_eq "C bump row" "$(cfield "$(controlline "$SCRATCH/C.trace" bump)" state)" "refused"
+assert_eq "C feature tiles" "$(af "$SCRATCH/C.trace" bump.tiles)" "0"
+
+# ---- D: normal + reader ----
+DLINE=$(lightingline "$SCRATCH/D.trace")
+# The three fields on this line are the pass constants; the per-material path is
+# not one of them, so D's switch triple matches C's. That is the point: what
+# changed between C and D is the atlas, not a global.
+assert_eq "D switches" \
+  "$(lfield "$DLINE" dynamic)/$(lfield "$DLINE" specular)/$(lfield "$DLINE" bump)" "1/0/0"
+assert_eq "D bump row" "$(cfield "$(controlline "$SCRATCH/D.trace" bump)" state)" "applied"
+assert_eq "D tiles/vertices" \
+  "$(af "$SCRATCH/D.trace" bump.tiles)/$(af "$SCRATCH/D.trace" bump.vertices)" "16/20097"
+
+# ---- E: requested, but every resource this map names is absent ----
+assert_eq "E detail switch" "$(ff "$SCRATCH/E.trace" detailSwitch)" "1"
+assert_eq "E detail declared/resolved/forced" \
+  "$(ff "$SCRATCH/E.trace" detailDeclared)/$(ff "$SCRATCH/E.trace" detailResolved)/$(ff "$SCRATCH/E.trace" detailForced)" "15/0/0"
+assert_eq "E detail tiles" "$(af "$SCRATCH/E.trace" detail.tiles)" "0"
+assert_eq "E detail vertices" "$(af "$SCRATCH/E.trace" detail.vertices)" "0"
+EDROW=$(controlline "$SCRATCH/E.trace" '%detailtype')
+assert_eq "E %detailtype row" "$(cfield "$EDROW" state)" "refused"
+assert_contains "E row names the absence" "$EDROW" "absent from this install"
+assert_contains "E row keeps %detailtype's own refusal" "$EDROW" "no consumer here"
+
+# ---- F: the same layer with a diagnostic texture, so the shader leg is measured ----
+assert_eq "F detail switch" "$(ff "$SCRATCH/F.trace" detailSwitch)" "1"
+assert_eq "F detail declared/resolved/forced" \
+  "$(ff "$SCRATCH/F.trace" detailDeclared)/$(ff "$SCRATCH/F.trace" detailResolved)/$(ff "$SCRATCH/F.trace" detailForced)" "15/15/15"
+# The mode histogram: this map's `$detail` VMTs are absent, so the fallback mode
+# is 0 (TCOMBINE_BASE) for all 15. "0x15" is "mode 0, 15 materials".
+assert_eq "F detail mode histogram" "$(ff "$SCRATCH/F.trace" detailModes)" "0x15"
+assert_eq "F detail tiles/materials" "$(af "$SCRATCH/F.trace" detail.tiles)/$(af "$SCRATCH/F.trace" detail.materials)" "15/15"
+assert_eq "F detail vertices" "$(af "$SCRATCH/F.trace" detail.vertices)" "84267"
+FDROW=$(controlline "$SCRATCH/F.trace" '%detailtype')
+assert_eq "F %detailtype row" "$(cfield "$FDROW" state)" "refused"
+assert_contains "F row says the layer draws" "$FDROW" "the \$detail layer itself draws for 15 materials"
+assert_contains "F row keeps the key refused" "$FDROW" "consumer"
+
+# ---- R1/R2: layer 2 on the camera where it is visible ----
+assert_eq "R1 bump2 tiles" "$(af "$SCRATCH/R1.trace" bump2.tiles)" "0"
+assert_eq "R1 bump2 switch" "$(ff "$SCRATCH/R1.trace" bump2Switch)" "0"
+assert_eq "R1 bump tiles" "$(af "$SCRATCH/R1.trace" bump.tiles)" "16"
+# R3 is the product path for the declared resource: bit 2 is set only when the
+# material's own layer 1 was blitted, so 4 $ssbump materials are refused by
+# name and the fifth (128 triangles, 384 vertices) is the only layer-2 draw --
+# and it moves no pixel. Its texels are not flat (probe: meanDeviation 46.2), so
+# the 0 px is occlusion: the material is not on screen at tick 1200, tick 2000,
+# or the probe's own camera pose for it. R1 vs R3 is pinned to 0 below.
+assert_eq "R3 bump2 switch" "$(ff "$SCRATCH/R3.trace" bump2Switch)" "1"
+assert_eq "R3 bump2 declared/resolved/missing" \
+  "$(ff "$SCRATCH/R3.trace" bump2Declared)/$(ff "$SCRATCH/R3.trace" bump2Resolved)/$(ff "$SCRATCH/R3.trace" bump2Missing)" "5/1/0"
+assert_eq "R3 bump2 ssbump split" "$(ff "$SCRATCH/R3.trace" bump2SsBump)" "4"
+assert_eq "R3 bump2 forced" "$(ff "$SCRATCH/R3.trace" bump2Forced)" "0"
+assert_eq "R3 bump2 tiles/materials/vertices" \
+  "$(af "$SCRATCH/R3.trace" bump2.tiles)/$(af "$SCRATCH/R3.trace" bump2.materials)/$(af "$SCRATCH/R3.trace" bump2.vertices)" "1/1/384"
+R3B2=$(controlline "$SCRATCH/R3.trace" '$bumpmap2')
+assert_eq "R3 bump2 row" "$(cfield "$R3B2" state)" "applied"
+assert_contains "R3 row names the product refusal" "$R3B2" "no base normal to lerp layer 2 into"
+assert_contains "R3 row names the 4 refused bases" "$R3B2" "4 declared materials set \$ssbump"
+# R2 is the layer's own arm, with the declared texels replaced by a diagnostic
+# and, for the 4 $ssbump materials, the base normal the frame already computed.
+# The eligibility rides feature.w, not a mask bit: setting bit 2 without bit 1
+# is an invalid state and (measured) the compiler turns it into a 38,538 px
+# shading change even with this arm deleted. The trace names the base.
+R2B2=$(controlline "$SCRATCH/R2.trace" '$bumpmap2')
+assert_eq "R2 bump2 switch" "$(ff "$SCRATCH/R2.trace" bump2Switch)" "1"
+assert_eq "R2 bump2 forced" "$(ff "$SCRATCH/R2.trace" bump2Forced)" "5"
+assert_eq "R2 bump2 ssbump still counted" "$(ff "$SCRATCH/R2.trace" bump2SsBump)" "4"
+assert_eq "R2 bump2 tiles/materials" "$(af "$SCRATCH/R2.trace" bump2.tiles)/$(af "$SCRATCH/R2.trace" bump2.materials)" "5/5"
+assert_eq "R2 bump2 vertices" "$(af "$SCRATCH/R2.trace" bump2.vertices)" "41118"
+# The weight span is what makes the two normal layers disagree somewhere: a
+# constant 1.0 would make the lerp a replacement and the layer boundary invisible
+# as a blend. These are the material's own vertex alphas -- the override replaced
+# the texels, not the weights.
+assert_eq "R2 bump2 weight span" "$(af "$SCRATCH/R2.trace" bump2.weights)" "9(0.000..1.000)"
+assert_eq "R2 \$bumpmap2 row" "$(cfield "$R2B2" state)" "applied"
+assert_contains "R2 row names the shared weight" "$R2B2" "same vertex weight that selects the albedo layer"
+assert_contains "R2 row admits the diagnostic texels" "$R2B2" "sample the --world-bump2-texture diagnostic"
+assert_contains "R2 row names the diagnostic base" "$R2B2" "base normal this pass already computed"
+assert_contains "R2 row names the 4 refused bases" "$R2B2" "4 of them set \$ssbump"
+
+# ---- S1/S2: the same normal, a second consumer ----
+# Neither frame has the lightmap term on (`dynamic=0`), so the only thing that
+# can differ between them is the specular lobe reading a different normal.
+S1LINE=$(lightingline "$SCRATCH/S1.trace")
+S2LINE=$(lightingline "$SCRATCH/S2.trace")
+assert_eq "S1 switches" \
+  "$(lfield "$S1LINE" dynamic)/$(lfield "$S1LINE" specular)/$(lfield "$S1LINE" bump)" "0/1/0"
+assert_eq "S2 switches" \
+  "$(lfield "$S2LINE" dynamic)/$(lfield "$S2LINE" specular)/$(lfield "$S2LINE" bump)" "0/1/0"
+assert_eq "S1 has no material normal" "$(af "$SCRATCH/S1.trace" bump.tiles)" "0"
+assert_eq "S1 bump row" "$(cfield "$(controlline "$SCRATCH/S1.trace" bump)" state)" "refused"
+assert_eq "S2 draws the material normal" \
+  "$(af "$SCRATCH/S2.trace" bump.tiles)/$(af "$SCRATCH/S2.trace" bump.materials)" "16/16"
+assert_eq "S2 bump row" "$(cfield "$(controlline "$SCRATCH/S2.trace" bump)" state)" "applied"
+
+# ---- T40: the same two consumers on the tick-1200 camera ----
+# C12 is the baseline the material-bump reader is measured against there (C12 vs
+# R1); its switch line and control row must say what it is, or the pair would be
+# comparing two different pictures.
+C12LINE=$(lightingline "$SCRATCH/C12.trace")
+assert_eq "C12 switches" \
+  "$(lfield "$C12LINE" dynamic)/$(lfield "$C12LINE" specular)/$(lfield "$C12LINE" bump)" "1/0/0"
+assert_eq "C12 bump row" "$(cfield "$(controlline "$SCRATCH/C12.trace" bump)" state)" "refused"
+S112LINE=$(lightingline "$SCRATCH/S1_12.trace")
+S212LINE=$(lightingline "$SCRATCH/S2_12.trace")
+assert_eq "S1_12 switches" \
+  "$(lfield "$S112LINE" dynamic)/$(lfield "$S112LINE" specular)/$(lfield "$S112LINE" bump)" "0/1/0"
+assert_eq "S2_12 switches" \
+  "$(lfield "$S212LINE" dynamic)/$(lfield "$S212LINE" specular)/$(lfield "$S212LINE" bump)" "0/1/0"
+assert_eq "S1_12 has no material normal" "$(af "$SCRATCH/S1_12.trace" bump.tiles)" "0"
+assert_eq "S2_12 draws the material normal" \
+  "$(af "$SCRATCH/S2_12.trace" bump.tiles)/$(af "$SCRATCH/S2_12.trace" bump.materials)" "16/16"
+assert_eq "S2_12 bump row" "$(cfield "$(controlline "$SCRATCH/S2_12.trace" bump)" state)" "applied"
+assert_eq "R1 draws the material normal" \
+  "$(af "$SCRATCH/R1.trace" bump.tiles)/$(af "$SCRATCH/R1.trace" bump.materials)" "16/16"
+
+# ---------------------------------------------------------------------------
+# 5. the pixel deltas, and their direction
+# ---------------------------------------------------------------------------
+echo "== 5. measured deltas =="
+DELTAS="$SCRATCH/deltas.txt"
+: > "$DELTAS"
+run_diff() { # run_diff <a> <b>
+  local line
+  line=$("$PYTHON" bmp-pixel-diff.py "$1" "$2" --max-diff-percent 100 2>&1 | head -1)
+  echo "$line" | tee -a "$DELTAS"
+}
+DIFF_A2=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/A2.bmp")
+DIFF_B=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/B.bmp")
+DIFF_C=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/C.bmp")
+DIFF_D=$(run_diff "$SCRATCH/C.bmp" "$SCRATCH/D.bmp")
+DIFF_E=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/E.bmp")
+DIFF_F=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/F.bmp")
+DIFF_R1B=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/R1b.bmp")
+DIFF_R2=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/R2.bmp")
+DIFF_R3=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/R3.bmp")
+DIFF_S=$(run_diff "$SCRATCH/S1.bmp" "$SCRATCH/S2.bmp")
+DIFF_C12R1=$(run_diff "$SCRATCH/C12.bmp" "$SCRATCH/R1.bmp")
+DIFF_S12=$(run_diff "$SCRATCH/S1_12.bmp" "$SCRATCH/S2_12.bmp")
+# T45: the wide-area pose.
+DIFF_AW2=$(run_diff "$SCRATCH/Aw.bmp" "$SCRATCH/Aw2.bmp")
+DIFF_AWVS=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/Aw.bmp")
+DIFF_SW=$(run_diff "$SCRATCH/S1w.bmp" "$SCRATCH/S2w.bmp")
+DIFF_CW=$(run_diff "$SCRATCH/Cw.bmp" "$SCRATCH/Dw.bmp")
+DIFF_B2W=$(run_diff "$SCRATCH/R1w.bmp" "$SCRATCH/R2w.bmp")
+
+dfield() { printf '%s' "$1" | grep -oE "$2=[-0-9.]+" | head -1 | cut -d= -f2; }
+assert_eq "determinism (A vs A2) differing" "$(dfield "$DIFF_A2" differing)" "0"
+assert_eq "determinism (A vs A2) max_delta" "$(dfield "$DIFF_A2" max_delta)" "0"
+# THE COUNTER-ONLY TEST. The atlas is built and bound and the frame is identical.
+assert_eq "material bump without a reader differing" "$(dfield "$DIFF_B" differing)" "0"
+assert_eq "material bump without a reader max_delta" "$(dfield "$DIFF_B" max_delta)" "0"
+assert_eq "dynamic light differing" "$(dfield "$DIFF_C" differing)" "$PIN_DYN_DIFF"
+assert_eq "dynamic light max_delta" "$(dfield "$DIFF_C" max_delta)" "$PIN_DYN_MAX"
+echo "  ..   material bump under dynamic light at the reference camera = $(dfield "$DIFF_D" differing) bytes, max_delta $(dfield "$DIFF_D" max_delta) (diagnostic, 79/17 before 2026-11-01; the claim is Cw vs Dw below)"
+assert_eq "detail without a resource differing" "$(dfield "$DIFF_E" differing)" "0"
+assert_eq "detail with a resource differing" "$(dfield "$DIFF_F" differing)" "$PIN_DETAIL_DIFF"
+assert_eq "detail with a resource max_delta" "$(dfield "$DIFF_F" max_delta)" "$PIN_DETAIL_MAX"
+assert_eq "determinism at tick 1200 differing" "$(dfield "$DIFF_R1B" differing)" "0"
+echo "  ..   \$bumpmap2 at tick 1200 = $(dfield "$DIFF_R2" differing) bytes, max_delta $(dfield "$DIFF_R2" max_delta) (diagnostic, 7343/26 before 2026-11-01; the claim is R1w vs R2w below)"
+assert_eq "declared layer2 on the product path" "$(dfield "$DIFF_R3" differing)" "0"
+assert_eq "declared layer2 on the product path max" "$(dfield "$DIFF_R3" max_delta)" "0"
+# T40: the pair is pinned at the measured zero and the claim is printed as NOT
+# VERIFIED below, not passed off as a semantic. At tick 2000 the nine
+# material-normal materials are behind the near geometry the T29 clip revealed;
+# S1 and S2 are the same file. The old reading (135/3) is in the pin comment.
+assert_eq "specular reads the material normal differing" "$(dfield "$DIFF_S" differing)" "$PIN_SPEC_DIFF"
+assert_eq "specular reads the material normal max_delta" "$(dfield "$DIFF_S" max_delta)" "$PIN_SPEC_MAX"
+# T40: the tick-1200 twins, where both consumers have a population. Exact pins:
+# either direction going to zero is a red here, not a silently weaker pass.
+echo "  ..   tick-1200 material bump under dynamic = $(dfield "$DIFF_C12R1" differing) bytes, max_delta $(dfield "$DIFF_C12R1" max_delta) (diagnostic, 990/19 before 2026-11-01; the claim is Cw vs Dw below)"
+echo "  ..   specular reads the material normal at tick 1200 = $(dfield "$DIFF_S12" differing) bytes, max_delta $(dfield "$DIFF_S12" max_delta) (diagnostic, 344/5 before 2026-11-01; the claim is S1w vs S2w below)"
+
+SIGN="$SCRATCH/sign.txt"
+: > "$SIGN"
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/A.bmp" "$SCRATCH/B.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/C.bmp" "$SCRATCH/D.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/A.bmp" "$SCRATCH/F.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/R1.bmp" "$SCRATCH/R2.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/S1.bmp" "$SCRATCH/S2.bmp" | tee -a "$SIGN" > /dev/null
+# T40: the tick-1200 direction pairs (lines 6 and 7).
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/C12.bmp" "$SCRATCH/R1.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/S1_12.bmp" "$SCRATCH/S2_12.bmp" | tee -a "$SIGN" > /dev/null
+# T45: the wide-area direction pairs (lines 8 and 9 of sign.txt).
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/S1w.bmp" "$SCRATCH/S2w.bmp" | tee -a "$SIGN" > /dev/null
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/Cw.bmp" "$SCRATCH/Dw.bmp" | tee -a "$SIGN" > /dev/null
+# T84: the wide-pose $bumpmap2 pair (line 10 of sign.txt).
+"$PYTHON" bmp-delta-sign.py "$SCRATCH/R1w.bmp" "$SCRATCH/R2w.bmp" | tee -a "$SIGN" > /dev/null
+sfield() { sed -n "$1p" "$SIGN" | grep -oE "$2=[-0-9]+" | head -1 | cut -d= -f2; }
+# B is the null: the same frame, byte for byte, with the atlas bound.
+assert_eq "B brighter" "$(sfield 1 brighter)" "0"
+assert_eq "B darker" "$(sfield 1 darker)" "0"
+# T40 read this view as one-sided (79 brighter / 0 darker) and made the
+# two-sided claim on the tick-1200 camera. On 2026-11-01 both are 0: the
+# population is off this camera entirely (see the pin block). The two-sided
+# claim is now made at the wide pose, on lines 8 and 9 of sign.txt, where the
+# same nine tiles move both ways; the readings here stay diagnostic.
+echo "  ..   material bump at the reference camera: $(sfield 2 brighter) brighter / $(sfield 2 darker) darker (diagnostic)"
+echo "  ..   material bump at tick 1200: $(sfield 6 brighter) brighter / $(sfield 6 darker) darker (diagnostic)"
+# The detail layer multiplies the albedo (mode 0, factor 1) with a brick texture
+# whose texels are darker than the 1.0 probe, so this delta is one-way by
+# construction: base * 2 * detail <= base for detail <= 0.5.
+assert_eq "detail brighter" "$(sfield 3 brighter)" "0"
+assert_eq "detail darker" "$(sfield 3 darker)" "$PIN_DETAIL_DIFF"
+echo "  ..   \$bumpmap2 at tick 1200: $(sfield 4 brighter) brighter / $(sfield 4 darker) darker (diagnostic; the claim is line 10)"
+# A specular lobe `0.12 * pow(dot(n,h), 32)` reads the same perturbed normal in
+# both directions: where the perturbed normal turns toward the half vector the
+# texel gains, where it turns away it loses. A one-way read here would mean the
+# material normal only ever scaled the highlight.
+# T40: at tick 2000 both are 0 because the population is occluded - the claim is
+# NOT VERIFIED there (printed below) and the directions are pinned on the
+# tick-1200 camera, exactly, with assert_ne as the positive control.
+assert_eq "specular highlight gained (tick 2000)" "$(sfield 5 brighter)" "0"
+assert_eq "specular highlight lost (tick 2000)" "$(sfield 5 darker)" "0"
+echo "  ..   specular at tick 1200: $(sfield 7 brighter) gained / $(sfield 7 darker) lost (diagnostic; the claim is the wide pose, lines 8 and 9)"
+# ---- T45: the wide-area pose ----
+# The pose must move the view: with --debug-camera ignored, Aw would equal A. The
+# vis line is deliberately not used for this -- it reports the observer camera the
+# cluster cull is computed from, which --debug-camera does not change.
+assert_eq "wide pose determinism differing" "$(dfield "$DIFF_AW2" differing)" "0"
+assert_eq "wide pose determinism max_delta" "$(dfield "$DIFF_AW2" max_delta)" "0"
+if [ "$(dfield "$DIFF_AWVS" differing)" -gt 2000000 ]; then
+  echo "  OK wide pose moved the view ($(dfield "$DIFF_AWVS" differing) bytes differ from the reference camera's frame)"
+else
+  echo "  FAIL wide pose did not move the view: $(dfield "$DIFF_AWVS" differing) bytes differ from A"; fail=1
+fi
+WL1=$(lightingline "$SCRATCH/S1w.trace")
+WL2=$(lightingline "$SCRATCH/S2w.trace")
+assert_eq "S1w switches" "$(lfield "$WL1" dynamic)/$(lfield "$WL1" specular)/$(lfield "$WL1" bump)" "0/1/0"
+assert_eq "S2w switches" "$(lfield "$WL2" dynamic)/$(lfield "$WL2" specular)/$(lfield "$WL2" bump)" "0/1/0"
+assert_eq "S1w has no material normal" "$(af "$SCRATCH/S1w.trace" bump.tiles)" "0"
+assert_eq "S1w bump row" "$(cfield "$(controlline "$SCRATCH/S1w.trace" bump)" state)" "refused"
+assert_eq "S2w draws the material normal" "$(af "$SCRATCH/S2w.trace" bump.tiles)/$(af "$SCRATCH/S2w.trace" bump.materials)" "16/16"
+assert_eq "S2w material-normal vertices" "$(af "$SCRATCH/S2w.trace" bump.vertices)" "20097"
+assert_eq "S2w bump row" "$(cfield "$(controlline "$SCRATCH/S2w.trace" bump)" state)" "applied"
+assert_eq "wide specular reads the material normal differing" "$(dfield "$DIFF_SW" differing)" "$PIN_WIDE_SW_DIFF"
+assert_eq "wide specular reads the material normal max_delta" "$(dfield "$DIFF_SW" max_delta)" "$PIN_WIDE_SW_MAX"
+assert_eq "wide specular highlight gained" "$(sfield 8 brighter)" "$PIN_WIDE_SW_UP"
+assert_eq "wide specular highlight lost" "$(sfield 8 darker)" "$PIN_WIDE_SW_DOWN"
+assert_ne "wide specular highlight gained (positive control)" "$(sfield 8 brighter)" "0"
+assert_ne "wide specular highlight lost (positive control)" "$(sfield 8 darker)" "0"
+# The same reader is one-sided at tick 2000 because only 28 px of the world are
+# covered by the nine materials there (C vs D: 79 bytes brighter / 0 darker). At
+# the wide pose the same nine tiles move both ways, which is the statement that
+# separates "this view is small" from "the shader or the data is wrong".
+WC1=$(lightingline "$SCRATCH/Cw.trace")
+assert_eq "Cw switches" "$(lfield "$WC1" dynamic)/$(lfield "$WC1" specular)/$(lfield "$WC1" bump)" "1/0/0"
+assert_eq "Cw bump row" "$(cfield "$(controlline "$SCRATCH/Cw.trace" bump)" state)" "refused"
+assert_eq "Cw feature tiles" "$(af "$SCRATCH/Cw.trace" bump.tiles)" "0"
+assert_eq "Dw draws the material normal" "$(af "$SCRATCH/Dw.trace" bump.tiles)/$(af "$SCRATCH/Dw.trace" bump.materials)" "16/16"
+assert_eq "wide material bump under dynamic differing" "$(dfield "$DIFF_CW" differing)" "$PIN_WIDE_CW_DIFF"
+assert_eq "wide material bump under dynamic max_delta" "$(dfield "$DIFF_CW" max_delta)" "$PIN_WIDE_CW_MAX"
+assert_eq "wide material bump brighter" "$(sfield 9 brighter)" "$PIN_WIDE_CW_UP"
+assert_eq "wide material bump darker" "$(sfield 9 darker)" "$PIN_WIDE_CW_DOWN"
+assert_ne "wide material bump brighter (positive control)" "$(sfield 9 brighter)" "0"
+assert_ne "wide material bump darker (positive control)" "$(sfield 9 darker)" "0"
+# T84: $bumpmap2 live pixel claim. Same wide pose, same nine tiles, the
+# diagnostic texture forced onto the materials that declare $bumpmap2: if the
+# forced normal reaches the lightmap term the picture moves, and it has to
+# move both ways (a one-way read would be a scale, not a normal).
+R1wLINE=$(controlline "$SCRATCH/R1w.trace" bump)
+R1wB2=$(controlline "$SCRATCH/R1w.trace" '$bumpmap2')
+R2wB2=$(controlline "$SCRATCH/R2w.trace" '$bumpmap2')
+assert_eq "R1w bump tiles" "$(af "$SCRATCH/R1w.trace" bump.tiles)" "16"
+assert_eq "R1w bump row" "$(cfield "$R1wLINE" state)" "applied"
+# The pair has to be a pair: the same five materials, layer 2 refused on one
+# side and applied on the other, so the pixels that move are the switch and not
+# two different pictures.
+assert_eq "R1w bump2 row" "$(cfield "$R1wB2" state)" "refused"
+assert_eq "R2w bump2 row" "$(cfield "$R2wB2" state)" "applied"
+assert_eq "bump2 declared/resolved" "$(cfield "$R2wB2" declared)/$(cfield "$R2wB2" resolved)" "5/5"
+assert_eq "wide bumpmap2 differing" "$(dfield "$DIFF_B2W" differing)" "$PIN_WIDE_B2_DIFF"
+assert_eq "wide bumpmap2 max_delta" "$(dfield "$DIFF_B2W" max_delta)" "$PIN_WIDE_B2_MAX"
+assert_eq "wide bumpmap2 brighter" "$(sfield 10 brighter)" "$PIN_WIDE_B2_UP"
+assert_eq "wide bumpmap2 darker" "$(sfield 10 darker)" "$PIN_WIDE_B2_DOWN"
+assert_ne "wide bumpmap2 brighter (positive control)" "$(sfield 10 brighter)" "0"
+assert_ne "wide bumpmap2 darker (positive control)" "$(sfield 10 darker)" "0"
+
+# ---------------------------------------------------------------------------
+# 5b. what this gate does NOT verify, printed rather than absorbed by a pin
+# ---------------------------------------------------------------------------
+echo "== 5b. not verified =="
+NOTVERIFIED="$OUT/not-verified.txt"
+: > "$NOTVERIFIED"
+{
+  echo "NOT VERIFIED specular at the tick-2000 reference camera: PIN_SPEC_DIFF=$PIN_SPEC_DIFF because S1 == S2 -- only 28 px of the world are covered by the nine material-normal materials there (C vs D moves 28 px), so the lobe has no material normal to read. The consumer is measured, not assumed, at the T45 wide-area pose $WIDE_NAME: S1w vs S2w = $PIN_WIDE_SW_DIFF bytes, $PIN_WIDE_SW_UP brighter / $PIN_WIDE_SW_DOWN darker. That is a second view with a visible population, NOT a replacement for the missing tick-2000 one; both are pinned above."
+  echo "NOT VERIFIED detail residual, pixel-level mechanism only (the cause is measured): 2812 px of the detail moved population (1320 old + 1492 new, 0.33% of the frame) sit on 27 non-displaced WOOD/WALL007A faces where the T26 face-id mask says the surface did not move and the baseline frame is byte-identical, yet the detail layer's effect toggled. T45 put T29's pre-fix near plane back (T29's own m1 patch, one expression): source 85b00d68.. -> fe39ae5d.., the product then prints 'gpu: world clip near=0.05000000 nearMapUnits=610.22 state=published', and the mutated build reproduced the pre-fix frames byte-identically (A f87f396a.., F 21cb8aa2.., 0 of 2,582,352 bytes differ); restoring the line byte-identically (cmp clean, 85b00d68..) and rebuilding reproduced this tree's frames exactly (A 6bb4d9a7.., F 2ffa7d2b..). The near clip is therefore the cause, measured at frame level and not inferred from the source diff. Evidence: evidence/t40-pixel-pins/detail-residual/ (mutation.md + readings.txt). What is NOT isolated is the pixel-level path inside the rasterizer that turns a projection change into a different detail sample on an un-clipped face; a depth-tie explanation is ruled out because a different winner would change the face id, and no shader or data defect is claimed."
+  echo "NOT VERIFIED material bump direction at the tick-2000 camera: the population is one-sided there (79 brighter / 0 darker) because only 28 px of the world are covered by the nine material-normal materials, so the surviving sliver reads one way. The same reader and the same nine tiles move both ways at the T45 wide-area pose (Cw vs Dw = $PIN_WIDE_CW_DIFF bytes, $PIN_WIDE_CW_UP brighter / $PIN_WIDE_CW_DOWN darker) and at tick 1200 (C12 vs R1 = $PIN_BUMP12_DIFF bytes, $PIN_BUMP12_UP brighter / $PIN_BUMP12_DOWN darker); both carry assert_ne positive controls."
+} | tee -a "$NOTVERIFIED"
+
+# ---------------------------------------------------------------------------
+# 6. evidence: the lines and numbers, not 25 MB of BMPs
+# ---------------------------------------------------------------------------
+echo "== 6. evidence =="
+grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/R2.trace" \
+  | tr -d '\r' > "$OUT/trace-bump2-tick1200.txt"
+grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/F.trace" \
+  | tr -d '\r' > "$OUT/trace-detail-tick2000.txt"
+grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/S2.trace" \
+  | tr -d '\r' > "$OUT/trace-specular-tick2000.txt"
+# T40: the tick-1200 specular consumer (the tick-2000 pair above is the
+# measured-zero view; this one names the 9/9 tiles the lobe actually read).
+grep -aE "gpu: world (feature|lighting|material-fetch|atlas|cubemap)" "$SCRATCH/S2_12.trace" \
+  | tr -d '\r' > "$OUT/trace-specular-tick1200.txt"
+# T45: the wide-area pose traces.
+grep -aE "gpu: world (feature|lighting|vis|atlas|cubemap)" "$SCRATCH/S2w.trace" \
+  | tr -d '\r' > "$OUT/trace-specular-wide.txt"
+grep -aE "gpu: world (feature|lighting|vis|atlas|cubemap)" "$SCRATCH/Dw.trace" \
+  | tr -d '\r' > "$OUT/trace-bump-wide.txt"
+if [ ! -s "$OUT/trace-bump2-tick1200.txt" ] || [ ! -s "$OUT/trace-detail-tick2000.txt" ] \
+  || [ ! -s "$OUT/trace-specular-tick2000.txt" ] || [ ! -s "$OUT/trace-specular-tick1200.txt" ] \
+  || [ ! -s "$OUT/trace-specular-wide.txt" ] || [ ! -s "$OUT/trace-bump-wide.txt" ]; then
+  echo "  FAIL a reference trace had no world lines"; fail=1
+fi
+cp "$PROBE_MAP" "$OUT/probe-map.txt"
+cp "$SELF" "$OUT/probe-self-test.txt"
+cp "$DELTAS" "$OUT/deltas.txt"
+cp "$SIGN" "$OUT/sign.txt"
+{
+  echo "run=$RUN_TAG"
+  echo "map=$MAP demo=$(basename "$DEMO")"
+  echo "tick2000=A,A2,B,C,D,E,F,S1,S2,Aw,Aw2,S1w,S2w,Cw,Dw  tick1200=R1,R1b,R2,R3,C12,S1_12,S2_12"
+  echo "detailTexture=$DETAIL_TEXTURE"
+  echo "widePose=$WIDE_NAME ${WIDE_CAM[*]}"
+  for name in A A2 B C D E F R1 R1b R2 R3 S1 S2 C12 S1_12 S2_12 Aw Aw2 S1w S2w Cw Dw; do
+    if [ -s "$SCRATCH/$name.bmp" ]; then
+      echo "$name sha256=$("$PYTHON" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$SCRATCH/$name.bmp")"
+    fi
+  done
+} > "$OUT/frames.txt"
+
+# C5b: the count is the contract. 198 is every assert_* invocation in this file
+# before C5b (all of them column-0, so all of them run); the six added in section 1
+# are the five named checks plus the negative control. Reproduce the base with:
+#   git show <base>:world-material-semantics-check.sh \
+#     | grep -c '^[[:space:]]*assert_\(eq\|ne\|contains\) '   # 198 = calls only
+# (plain "grep -c '^assert_'" returns 201: it also counts the three helper
+# definitions, which are not assertions). This runs in both modes: default mode
+# leaves through the branch below, mutation mode through the final verdict.
+echo "assertions executed: $checks (expected 204 = 198 before C5b + 6)"
+if [ "$checks" -ne 204 ]; then echo "  FAIL assertion count: got $checks want 204"; fail=1; fi
+
+if [ "$MODE" != "--mutation" ]; then
+  echo "== verdict =="
+  if [ "$fail" = 0 ]; then
+    echo "PASS: three material features pinned declaration->lookup->shader input->pixel delta; the material normal read by both consumers (specular and dynamic light) at the T45 wide-area pose $WIDE_NAME, every direction exact with assert_ne positive controls; the null frame is 0 px; the tick-2000 specular pair stays a measured zero and is printed NOT VERIFIED (28 px of the world covered by the nine materials there, see section 5b); three refusals still named."
+  else echo "FAIL: $fail assertion groups did not hold."; fi
+  exit "$fail"
+fi
+
+# ---------------------------------------------------------------------------
+# 7. mutation mode: five mutations, each must turn a forward pin red
+# ---------------------------------------------------------------------------
+echo "== mutation mode =="
+mfail=0
+patch_in() { # patch_in <file> <find> <replace> -- CRLF-aware
+  "$PYTHON" - "$1" "$2" "$3" <<'PATCHEOF'
+import io, sys
+path, find, repl = sys.argv[1], sys.argv[2], sys.argv[3]
+raw = io.open(path, 'rb').read()
+crlf = b'\r\n' in raw
+data = raw.decode('utf-8')
+if crlf:
+    find = find.replace('\n', '\r\n')
+    repl = repl.replace('\n', '\r\n')
+if find not in data:
+    sys.exit('PATTERN NOT FOUND: ' + find[:70].replace('\r', '\\r').replace('\n', '\\n'))
+io.open(path, 'wb').write(data.replace(find, repl, 1).encode('utf-8'))
+PATCHEOF
+}
+restore_source() { # restore_source <backup> <path> <label> <expected hash>
+  cp "$1" "$2"
+  if [ "$(git hash-object "$2")" = "$4" ]; then
+    echo "  RESTORE=OK ($3 source byte-identical)"
+  else
+    echo "  RESTORE=FAIL ($3: the source did not come back byte-identical)"; fail=1
+  fi
+}
+rebuild() { bash build-target.sh "$@" > "$SCRATCH/mutation.build" 2>&1; }
+
+# m1: the tangent frame is ignored. Every normal map becomes a no-op while the
+# ledger still reads applied -- the counter-only implementation this gate exists
+# to reject. The D capture is the one that catches it.
+echo "-- m1: tangentNormal returns the geometric normal --"
+SRC_REN="native/src/native_renderer.cpp"
+SAVE_REN="$SCRATCH/native_renderer.cpp.save"
+cp "$SRC_REN" "$SAVE_REN"; HASH_REN=$(git hash-object "$SRC_REN")
+if ! patch_in "$SRC_REN" \
+  '  float3 n = decodeNormal(texel);
+  return safeNormalize(T * n.x + B * n.y + Ng * n.z);' \
+  '  float3 n = float3(0.0, 0.0, 1.0);  // mutation m1: the decoded texel is dropped
+  return safeNormalize(T * n.x + B * n.y + Ng * n.z);'; then
+  echo "  MUTATION-SETUP=FAIL (m1: the patch did not apply)"; fail=1
+else
+  rebuild tf2_demo_native
+  if capture M1 2000 --world-dynamic-light on --world-material-bump on; then
+    M1_DIFF=$(run_diff "$SCRATCH/C.bmp" "$SCRATCH/M1.bmp")
+    M1_STATE=$(cfield "$(controlline "$SCRATCH/M1.trace" bump)" state)
+    if [ "$(dfield "$M1_DIFF" differing)" = "$PIN_BUMP_DIFF" ]; then
+      echo "  NOT-RED m1: the frame still differs by $PIN_BUMP_DIFF px"; mfail=1
+    else
+      echo "  RED m1 as required: differing=$(dfield "$M1_DIFF" differing) (was $PIN_BUMP_DIFF) while the row still reads $M1_STATE"
+    fi
+    controlline "$SCRATCH/M1.trace" bump > "$OUT/mutated-m1-tangent-ignored.txt"
+  else
+    echo "  MUTATION-RUN=FAIL (m1: no tick-2000 capture)"; mfail=1
+  fi
+fi
+restore_source "$SAVE_REN" "$SRC_REN" m1 "$HASH_REN"
+
+# m2: layer 2 reads layer 1's atlas -- the exact defect the $bumpmap2 row
+# promises does not happen. The diagnostic texels are still decoded and still
+# counted (`bump2Forced=5`, the row still reads applied), but the sample that
+# reaches the lerp is whatever layer 1's tile holds: its own `$bumpmap` normal
+# where the material has one, the atlas's cleared texel where it does not. The
+# R2 capture is the one that catches it, because that is the only capture where
+# layer 2 moves a pixel at all.
+echo "-- m2: \$bumpmap2 samples layer 1's tile --"
+cp "$SRC_REN" "$SAVE_REN"; HASH_REN=$(git hash-object "$SRC_REN")
+if ! patch_in "$SRC_REN" \
+  '  float3 n2 = tangentNormal(bumpAtlas2.Sample(sampler0, uv).xyz, Ng, tangent);' \
+  '  float3 n2 = tangentNormal(bumpAtlas.Sample(sampler0, uv).xyz, Ng, tangent);  // mutation m2'; then
+  echo "  MUTATION-SETUP=FAIL (m2: the patch did not apply)"; fail=1
+else
+  rebuild tf2_demo_native
+  if capture M2 1200 --world-dynamic-light on --world-material-bump on --world-bump2 on \
+    --world-bump2-texture "$BUMP2_TEXTURE"; then
+    M2_DIFF=$(run_diff "$SCRATCH/R1.bmp" "$SCRATCH/M2.bmp")
+    M2_STATE=$(cfield "$(controlline "$SCRATCH/M2.trace" '$bumpmap2')" state)
+    if [ "$(dfield "$M2_DIFF" differing)" = "$PIN_B2_DIFF" ]; then
+      echo "  NOT-RED m2: the frame still differs by $PIN_B2_DIFF px"; mfail=1
+    else
+      echo "  RED m2 as required: differing=$(dfield "$M2_DIFF" differing) (was $PIN_B2_DIFF) while the row still reads $M2_STATE"
+    fi
+    controlline "$SCRATCH/M2.trace" '$bumpmap2' > "$OUT/mutated-m2-bump2-replaced.txt"
+  else
+    echo "  MUTATION-RUN=FAIL (m2: no tick-1200 capture)"; mfail=1
+  fi
+fi
+restore_source "$SAVE_REN" "$SRC_REN" m2 "$HASH_REN"
+
+# m3: the mode is parsed, reported and ignored. The ledger still prints the
+# histogram, the frame is a different picture.
+echo "-- m3: combineDetail ignores \$detailblendmode --"
+cp "$SRC_REN" "$SAVE_REN"; HASH_REN=$(git hash-object "$SRC_REN")
+if ! patch_in "$SRC_REN" \
+  '  if (mode == 0u) return baseColor * lerp(float3(1.0, 1.0, 1.0), 2.0 * detailColor.rgb, factor);' \
+  '  if (mode == 0u) return lerp(baseColor, detailColor.rgb, factor);  // mutation m3: mode 0 drawn as mode 3'; then
+  echo "  MUTATION-SETUP=FAIL (m3: the patch did not apply)"; fail=1
+else
+  rebuild tf2_demo_native
+  if capture M3 2000 --world-detail on --world-detail-texture "$DETAIL_TEXTURE"; then
+    M3_DIFF=$(run_diff "$SCRATCH/A.bmp" "$SCRATCH/M3.bmp")
+    M3_MODES=$(ff "$SCRATCH/M3.trace" detailModes)
+    if [ "$(dfield "$M3_DIFF" differing)" = "$PIN_DETAIL_DIFF" ]; then
+      echo "  NOT-RED m3: the frame still differs by $PIN_DETAIL_DIFF px"; mfail=1
+    else
+      echo "  RED m3 as required: differing=$(dfield "$M3_DIFF" differing) (was $PIN_DETAIL_DIFF) while the histogram still reads $M3_MODES"
+    fi
+    featureline "$SCRATCH/M3.trace" > "$OUT/mutated-m3-mode-ignored.txt"
+  else
+    echo "  MUTATION-RUN=FAIL (m3: no tick-2000 capture)"; mfail=1
+  fi
+fi
+restore_source "$SAVE_REN" "$SRC_REN" m3 "$HASH_REN"
+
+# m4: the bit comes from the VMT instead of from the blit. 45 materials then
+# claim a normal map, 9 have a tile under their uv, and the other 36 sample a
+# neighbour's tile -- while `feature-apply bump materials` still reads 9, because
+# the counter is built from the blit set. This is the counter-only defect.
+echo "-- m4: the feature bit is set from the VMT, not from the blit --"
+cp "$SRC_REN" "$SAVE_REN"; HASH_REN=$(git hash-object "$SRC_REN")
+if ! patch_in "$SRC_REN" \
+  '        if (bumpMaterials.count(triangle.material)) mask |= 1;' \
+  '        if (material.bumpDeclared) mask |= 1;  // mutation m4: declared, not blitted'; then
+  echo "  MUTATION-SETUP=FAIL (m4: the patch did not apply)"; fail=1
+else
+  rebuild tf2_demo_native
+  if capture M4 2000 --world-dynamic-light on --world-material-bump on; then
+    M4_DIFF=$(run_diff "$SCRATCH/C.bmp" "$SCRATCH/M4.bmp")
+    M4_COUNT=$(af "$SCRATCH/M4.trace" bump.materials)
+    if [ "$(dfield "$M4_DIFF" differing)" = "$PIN_BUMP_DIFF" ]; then
+      echo "  NOT-RED m4: the frame still differs by $PIN_BUMP_DIFF px"; mfail=1
+    else
+      echo "  RED m4 as required: differing=$(dfield "$M4_DIFF" differing) (was $PIN_BUMP_DIFF) while feature-apply still reports materials=$M4_COUNT"
+    fi
+    applyline "$SCRATCH/M4.trace" > "$OUT/mutated-m4-declared-not-blitted.txt"
+  else
+    echo "  MUTATION-RUN=FAIL (m4: no tick-2000 capture)"; mfail=1
+  fi
+fi
+restore_source "$SAVE_REN" "$SRC_REN" m4 "$HASH_REN"
+
+# m5: the tile rect is computed against the full-resolution atlas. The probe's
+# rect pins are the cheap half of this check (a tile at the wrong scale is a tile
+# in the wrong place); the frame follows.
+echo "-- m5: the feature tile rect ignores the half-resolution atlas --"
+SRC_ATLAS="native/src/world_tile_atlas.cpp"
+SAVE_ATLAS="$SCRATCH/world_tile_atlas.cpp.save"
+cp "$SRC_ATLAS" "$SAVE_ATLAS"; HASH_ATLAS=$(git hash-object "$SRC_ATLAS")
+if ! patch_in "$SRC_ATLAS" \
+  '  long long width = scale(slot.width, atlasWidth, featureWidth);' \
+  '  long long width = scale(slot.width, atlasWidth, atlasWidth);  // mutation m5: full-resolution rect'; then
+  echo "  MUTATION-SETUP=FAIL (m5: the patch did not apply)"; fail=1
+else
+  rebuild world_feature_probe
+  "$PROBE" --self-test > "$SCRATCH/m5-self.txt" 2>&1
+  M5_SIZE=$(ckdetail "$SCRATCH/m5-self.txt" rect.size)
+  if [ "$M5_SIZE" = "256x256" ]; then
+    echo "  NOT-RED m5: the rect still reads 256x256"; mfail=1
+  else
+    echo "  RED m5 as required: the rect reads '$M5_SIZE' (was 256x256)"
+  fi
+  grep -F '"check":"rect.' "$SCRATCH/m5-self.txt" > "$OUT/mutated-m5-rect-scale.txt"
+fi
+restore_source "$SAVE_ATLAS" "$SRC_ATLAS" m5 "$HASH_ATLAS"
+
+# Rebuild from the restored tree so the binaries on disk match the sources the
+# gate just certified.
+bash build-target.sh tf2_demo_native world_feature_probe > "$SCRATCH/restore.build" 2>&1
+
+echo "== verdict =="
+if [ "$fail" = 0 ] && [ "$mfail" = 0 ]; then
+  echo "PASS: forward pins held, all five mutations went red, every source came back byte-identical."
+  exit 0
+fi
+echo "FAIL: forward-fail=$fail mutation-not-red=$mfail"
+exit 1

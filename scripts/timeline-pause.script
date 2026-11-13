@@ -1,0 +1,34 @@
+# timeline-pause.script -- used by timeline-check.sh section 3 (pause / resume).
+# Pause on the first scripted frame, remember the cursor, let three frames pass and
+# assert the cursor did not move by even one tick. Then resume and ask for one
+# playback-state per frame (20 samples). The gate waits for the first sample whose
+# cursor moved: the draw cadence is wall clock while a tick is rate-locked, so
+# "the next frame after resume" can legitimately still read the pause tick, and a
+# frame-count wait would be a flaky assertion. The no-replay clause is bounded by
+# the wall time since the resume, not by a fixed number of ticks.
+pause
+mark-tick
+frames 3
+expect-same-tick
+resume
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+playback-state
+quit
