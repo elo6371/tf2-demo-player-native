@@ -89,6 +89,21 @@ int main(int argc, char** argv) {
     R"(Water { "$bottommaterial" "water/bottom" "$underwateroverlay" "effects/water_warp" })", waterMaterial)
     && waterMaterial.waterShader && waterMaterial.waterBottomMaterial == "water/bottom"
     && waterMaterial.underwaterOverlay == "effects/water_warp";
+  tf2::native::VmtMaterial quotedSlashMaterial;
+  const bool vmtQuotedSlash = tf2::native::VmtParser::parse(
+    R"(VertexLitGeneric { "$basetexture" "foo//bar" })", quotedSlashMaterial)
+    && quotedSlashMaterial.baseTexture == "foo//bar";
+  tf2::native::VmtMaterial commentBraceMaterial;
+  const bool vmtCommentBrace = tf2::native::VmtParser::parse(
+    R"(VertexLitGeneric { "$basetexture" "a" "$envmap" "env_cubemap" // comment } tail })", commentBraceMaterial)
+    && commentBraceMaterial.envMap == "env_cubemap";
+  tf2::native::VmtMaterial commentEofMaterial;
+  const bool vmtCommentToEofRejected = !tf2::native::VmtParser::parse(
+    R"(VertexLitGeneric { "$basetexture" "a" // comment to eof without close)", commentEofMaterial);
+  tf2::native::VmtMaterial emptyValueMaterial;
+  const bool vmtEmptyValue = tf2::native::VmtParser::parse(
+    R"(VertexLitGeneric { "$basetexture" "a" "$lightwarptexture" "" "$envmap" "env_cubemap" })", emptyValueMaterial)
+    && emptyValueMaterial.baseTexture == "a" && emptyValueMaterial.envMap == "env_cubemap";
   bool realBumpDecoded = false;
   bool realEnvDecoded = false;
   std::size_t realMaterials = 0;
@@ -329,6 +344,10 @@ int main(int argc, char** argv) {
     << ",\"noLightingDefault\":" << (noLightingDefault ? "true" : "false")
     << ",\"vmtFeatureMapping\":" << (vmtFeatureMapping ? "true" : "false")
     << ",\"waterFeatureMapping\":" << (waterFeatureMapping ? "true" : "false")
+    << ",\"vmtQuotedSlash\":" << (vmtQuotedSlash ? "true" : "false")
+    << ",\"vmtCommentBrace\":" << (vmtCommentBrace ? "true" : "false")
+    << ",\"vmtCommentToEofRejected\":" << (vmtCommentToEofRejected ? "true" : "false")
+    << ",\"vmtEmptyValue\":" << (vmtEmptyValue ? "true" : "false")
     << ",\"explicitVtfDecoded\":" << (explicitVtfDecoded ? "true" : "false")
     << ",\"explicitVtfWidth\":" << explicitVtfWidth
     << ",\"explicitVtfHeight\":" << explicitVtfHeight
@@ -372,5 +391,6 @@ int main(int argc, char** argv) {
     << ",\"cubemapMode\":\"approximate-2d\",\"lightmapMode\":\"" << reportedLightmapMode
     << "\",\"lightmapToneMap\":\"" << reportedLightmapToneMap << "\"}\n";
   return emptyRejected && corruptRejected && oversizedRejected && cubemapDecodeRejected && emptyBspRejected && noLightingDefault
-    && vmtFeatureMapping && waterFeatureMapping ? 0 : 1;
+    && vmtFeatureMapping && waterFeatureMapping && vmtQuotedSlash && vmtCommentBrace
+    && vmtCommentToEofRejected && vmtEmptyValue ? 0 : 1;
 }
