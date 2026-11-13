@@ -930,19 +930,24 @@ player_checks() { # player_checks <label> <trace-file> <census-json-file>
   # every event it saw was played, skipped or missing, exactly once -- which
   # holds no matter how the frame clock ran. `duplicateTicks` stays printed for
   # the record.
-  local seen2 played2 skipped2 missing2 dt
+  # AUD-10: the disabled class is printed apart from the voice class. The old
+  # field folded both into events_skipped, which made a --audio-disabled run
+  # (played 0, skipped = everything) read exactly like a run that lost its sound.
+  local seen2 played2 skipped2 skipped_disabled2 missing2 dt
   seen2=$(printf '%s' "$mode_line" | grep -o 'events_seen=[0-9]*' | cut -d= -f2)
   played2=$(printf '%s' "$mode_line" | grep -o 'events_played=[0-9]*' | cut -d= -f2)
   skipped2=$(printf '%s' "$mode_line" | grep -o 'events_skipped=[0-9]*' | cut -d= -f2)
+  skipped_disabled2=$(printf '%s' "$mode_line" | grep -o 'events_skipped_disabled=[0-9]*' | cut -d= -f2)
   missing2=$(printf '%s' "$mode_line" | grep -o 'events_missing=[0-9]*' | cut -d= -f2)
   dt=$(printf '%s' "$summary" | grep -o 'duplicateTicks=[0-9]*' | cut -d= -f2)
-  if [ -n "$seen2" ] && [ -n "$played2" ] && [ -n "$skipped2" ] && [ -n "$missing2" ] \
-     && [ "$seen2" -eq $((played2 + skipped2 + missing2)) ]; then
-    ok=$((ok + 1)); printf '  OK   %s (events_seen=%s = played %s + skipped %s + missing %s; duplicateTicks=%s)\n' \
-      "$label" "$seen2" "$played2" "$skipped2" "$missing2" "${dt:-<unparsed>}"
+  if [ -n "$seen2" ] && [ -n "$played2" ] && [ -n "$skipped2" ] \
+     && [ -n "$skipped_disabled2" ] && [ -n "$missing2" ] \
+     && [ "$seen2" -eq $((played2 + skipped2 + skipped_disabled2 + missing2)) ]; then
+    ok=$((ok + 1)); printf '  OK   %s (events_seen=%s = played %s + skippedVoice %s + skippedDisabled %s + missing %s; duplicateTicks=%s)\n' \
+      "$label" "$seen2" "$played2" "$skipped2" "$skipped_disabled2" "$missing2" "${dt:-<unparsed>}"
   else
-    bad=$((bad + 1)); printf '  FAIL %s (accounting: seen=%s played=%s skipped=%s missing=%s)\n' \
-      "$label" "${seen2:-<unparsed>}" "${played2:-<unparsed>}" "${skipped2:-<unparsed>}" "${missing2:-<unparsed>}"
+    bad=$((bad + 1)); printf '  FAIL %s (accounting: seen=%s played=%s skippedVoice=%s skippedDisabled=%s missing=%s)\n' \
+      "$label" "${seen2:-<unparsed>}" "${played2:-<unparsed>}" "${skipped2:-<unparsed>}" "${skipped_disabled2:-<unparsed>}" "${missing2:-<unparsed>}"
   fi
   # A forward run must not report a backwards recovery.
   if printf '%s' "$summary" | grep -qF 'reverseRecoveries=0'; then

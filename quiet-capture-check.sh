@@ -105,7 +105,7 @@ done
 PINNED_TICK=0
 LIVE_TICK=600
 PINNED_CHECKS=39
-LIVE_CHECKS=45
+LIVE_CHECKS=47
 
 # How long a run gets before its capture is declared missing. The load phase
 # (VPK index, demo scan, 52 model uploads) measured ~28 s on this machine, the
@@ -301,18 +301,27 @@ apply_live_assertions() { # apply_live_assertions <probe-out> <probe-rc> <normal
   # The accounting, tied across the two sides. Same timeline in, same seen,
   # same missing; the only difference is the last step, and `skipped` is the
   # answer that names it. Each side also closes on its own.
-  local n_seen q_seen n_played q_played n_skipped q_skipped n_missing q_missing
+  local n_seen q_seen n_played q_played n_skipped q_skipped n_skipped_disabled q_skipped_disabled
+  local n_missing q_missing
   n_seen=$(pvalue "$f" normal.events_seen); q_seen=$(pvalue "$f" quiet.events_seen)
   n_played=$(pvalue "$f" normal.events_played); q_played=$(pvalue "$f" quiet.events_played)
   n_skipped=$(pvalue "$f" normal.events_skipped); q_skipped=$(pvalue "$f" quiet.events_skipped)
+  n_skipped_disabled=$(pvalue "$f" normal.events_skipped_disabled)
+  q_skipped_disabled=$(pvalue "$f" quiet.events_skipped_disabled)
   n_missing=$(pvalue "$f" normal.events_missing); q_missing=$(pvalue "$f" quiet.events_missing)
   assert_eq "events_seen normal == quiet" "$q_seen" "$n_seen"
   assert_eq "events_missing normal == quiet" "$q_missing" "$n_missing"
-  assert_eq "quiet events_skipped == normal events_played" "$q_skipped" "$n_played"
-  assert_eq "quiet accounting closes (seen = played+skipped+missing)" \
-    "$q_seen" "$(( ${q_played:-0} + ${q_skipped:-0} + ${q_missing:-0} ))"
-  assert_eq "normal accounting closes (seen = played+skipped+missing)" \
-    "$n_seen" "$(( ${n_played:-0} + ${n_skipped:-0} + ${n_missing:-0} ))"
+  assert_eq "quiet events_skipped+skipped_disabled == normal events_played" \
+    "$(( ${q_skipped:-0} + ${q_skipped_disabled:-0} ))" "$n_played"
+  # AUD-10: the disabled class is a reading of its own, and on this pair it is
+  # the side that carries the skip. Without these two the folded counter could
+  # come back and nothing here would notice.
+  assert_ge "quiet events_skipped_disabled" "$q_skipped_disabled" 1
+  assert_eq "normal events_skipped_disabled" "$n_skipped_disabled" "0"
+  assert_eq "quiet accounting closes (seen = played+skipped+skippedDisabled+missing)" \
+    "$q_seen" "$(( ${q_played:-0} + ${q_skipped:-0} + ${q_skipped_disabled:-0} + ${q_missing:-0} ))"
+  assert_eq "normal accounting closes (seen = played+skipped+skippedDisabled+missing)" \
+    "$n_seen" "$(( ${n_played:-0} + ${n_skipped:-0} + ${n_skipped_disabled:-0} + ${n_missing:-0} ))"
 
   # The picture, and the fact that both runs really got to the requested tick.
   assert_eq "$tag bmp_identical" "$(pvalue "$f" bmp_identical)" "1"
@@ -475,7 +484,10 @@ apply_expectations() { # apply_expectations <name> <control-probe> <mutated-prob
       # device counter must not move -- the defect is in the accounting, and the
       # accounting is what has to catch it.
       expect_moved "$1" quiet.events_played "$2" "$3"
-      expect_moved "$1" quiet.events_skipped "$2" "$3"
+      # AUD-10: with the classes separated, the sink that answers "played"
+      # empties events_skipped_disabled and fills events_played; the voice
+      # class never moves, so that is not the reading this mutation hits.
+      expect_moved "$1" quiet.events_skipped_disabled "$2" "$3"
       expect_held  "$1" quiet.audio_device_opened "$2" "$3"
       expect_held  "$1" quiet.window_visible "$2" "$3"
       expect_held  "$1" quiet.capture_written "$2" "$3"
