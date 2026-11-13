@@ -409,6 +409,65 @@ live_region() {
 live_count() {
   live_publish "$1" | wc -l | tr -d ' '
 }
+# T126: the HUD names the entity the DIRECTOR watched this frame, not the view
+# entity the server set at load. The reading is change-driven
+# (main_hud.cpp:894, 'hud: name nameEntity=%d ... relay=%d'), so its line count
+# is not a frame count; what can be checked per line is the pairing with the same
+# frame's spectate row -- main.cpp prints 'spectate: tick=... target=N' (the
+# director's traceFields(), spectate_target.cpp:355-359) before it calls
+# hudApplyLive (main.cpp:12773 then :12800). Neither line starts at column 0:
+# traceFmt writes every line as "%.1f %s" (main_trace.cpp:40), so nothing below
+# anchors on '^'.
+name_audit() { # name_audit <trace>: sets the NAMED_* counters
+  local trace="$1" readings kv
+  NAMED_LINES=0 NAMED_PAIRED=0 NAMED_RELAY_FRAMES=0 NAMED_ORPHAN=0
+  NAMED_BAD_FOLLOW=0 NAMED_BAD_SELF=0 NAMED_BAD_KNOWN=0 NAMED_BAD_FALLBACK=0
+  NAMED_FALLBACK_LINES=0
+  [ -s "$trace" ] || return 1
+  readings=$(awk '
+    function val(line, key,   s) {
+      if (!match(line, " " key "=-?[0-9]+")) return ""
+      s = substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 2)
+      return s
+    }
+    /spectate: tick=/ {
+      t = val($0, "target")
+      if (t != "") { target = t; have_target = 1 }
+      next
+    }
+    /hud: name nameEntity=/ {
+      lines++
+      ne = val($0, "nameEntity"); nf = val($0, "nameFallback")
+      rl = val($0, "relay");      nk = val($0, "nameKnown")
+      if (!have_target) { orphan++; next }
+      paired++
+      if (nf + 0 == 0) {
+        relay_frames++
+        if (ne != target || rl != target) bad_follow++
+        if (ne != rl) bad_self++
+        if (nk != "1") bad_known++
+      } else {
+        fallback_lines++
+        # main_hud.cpp:863-865 prints relay=-1 exactly when the relay could not be
+        # used, so a fallback frame that still carries a relay entity is a rescue
+        # that hides a decision, not a reading.
+        if (rl != "-1") bad_fallback++
+      }
+      next
+    }
+    END {
+      printf "NAMED_LINES=%d NAMED_PAIRED=%d NAMED_RELAY_FRAMES=%d NAMED_ORPHAN=%d NAMED_BAD_FOLLOW=%d NAMED_BAD_SELF=%d NAMED_BAD_KNOWN=%d NAMED_BAD_FALLBACK=%d NAMED_FALLBACK_LINES=%d\n", lines, paired, relay_frames, orphan, bad_follow, bad_self, bad_known, bad_fallback, fallback_lines
+    }
+  ' "$trace") || return 1
+  for kv in $readings; do
+    case "$kv" in
+      NAMED_*=[0-9]*) eval "$kv" ;;
+      *) echo "NAME-AUDIT=FAIL malformed reading: $kv" >&2; return 1 ;;
+    esac
+  done
+  return 0
+}
+
 # The exit-time tally. The publish line's skips= is a snapshot taken when the text
 # changed, so a run that publishes once reads skips=0 however many frames it
 # skipped -- reading the skip half of the rule from there measures nothing. This
@@ -591,7 +650,7 @@ assert_eq "the reading says why the name is known" "$L_REASON" "ok"
 # Why the line exists, as opposed to why the name is a question mark: the publish
 # line exists because the reading changed, and it says so in its own field.
 assert_eq "every publish says why it was published" "$L_PUBREASON" "text-changed"
-echo "$L_T3" | grep -qE '^NAME [^?][^ ]*  HP ' \
+echo "$L_T3" | grep -qE '^NAME [^?][^ ]*( [^ ]+)*  HP ' \
   && echo "  OK   text3 prints the demo's name rather than the placeholder" \
   || { echo "  FAIL text3 does not print the demo's name: \"$(val "$L_T3")\""; fail=1; }
 # The clock is either a real M:SS or an honest '?': never a blank or a zero stand-in.
@@ -602,9 +661,42 @@ echo "$L_T1" | grep -qE '^TIME ([0-9]+:[0-9][0-9]|\?)( PAUSED)?$' \
 echo "$L_T2" | grep -qE '^RED ([0-9]+|\?)  BLU ([0-9]+|\?)$' \
   && echo "  OK   text2 has the published score shape" \
   || { echo "  FAIL text2 has no score shape: \"$(val "$L_T2")\""; fail=1; }
-echo "$L_T3" | grep -qE '^NAME (\?|[^ ]+)  HP ([0-9]+|\?)  [A-Z?]*  [A-Z?]*$' \
+echo "$L_T3" | grep -qE '^NAME (\?|[^ ]+( [^ ]+)*)  HP ([0-9]+|\?)  [A-Z?]*  [A-Z?]*$' \
   && echo "  OK   text3 has the published target shape" \
   || { echo "  FAIL text3 has no target shape: \"$(val "$L_T3")\""; fail=1; }
+# T126: THE NAME FOLLOWS THE CAMERA. The old reading printed the view entity the
+# server set once at load (svc_SetView), so the name could belong to a player the
+# director had already stopped watching while every shape assertion above stayed
+# green. These are the semantic readings that defect cannot satisfy: each
+# 'hud: name' line is paired with the spectate row of the same frame, and when the
+# relay was usable (nameFallback=0, main_hud.cpp:863-865) the named entity must be
+# that frame's target and the relay's entity, resolved rather than fallen back.
+NAMED_FALLBACK_CALLS=$(live_summary_field "$SCRATCH/live.trace" nameFallbackCalls)
+if name_audit "$SCRATCH/live.trace"; then
+  echo "  reading: name lines=$NAMED_LINES relayFrames=$NAMED_RELAY_FRAMES fallbackLines=$NAMED_FALLBACK_LINES badFollow=$NAMED_BAD_FOLLOW badSelf=$NAMED_BAD_SELF badKnown=$NAMED_BAD_KNOWN badFallback=$NAMED_BAD_FALLBACK fallbackCalls=$NAMED_FALLBACK_CALLS"
+  assert_ge "the reading names at least one entity" "$NAMED_LINES" 1
+  assert_eq "every hud: name line has the frame's spectate target to pair with" "$NAMED_ORPHAN" 0
+  # A run where every line fell back would satisfy the three assertions below for
+  # the trivial reason that none of them applied -- the vacuous-green shape D-62
+  # warns about. At least one frame must have had a usable relay decision.
+  assert_ge "at least one name line came from a usable relay decision" "$NAMED_RELAY_FRAMES" 1
+  assert_eq "the named entity is the frame's spectate target" "$NAMED_BAD_FOLLOW" 0
+  assert_eq "the named entity is the relay's entity" "$NAMED_BAD_SELF" 0
+  assert_eq "a name resolved through the relay is not a fallback" "$NAMED_BAD_KNOWN" 0
+  assert_eq "a fallback is a missing relay, not a silent rescue" "$NAMED_BAD_FALLBACK" 0
+  # A8 THE AGGREGATE. The audit above only sees fallbacks that reached a printed
+  # name line; the exit tally (main_hud.cpp:498-506, hudLiveSummaryAtExit) also
+  # counts fallbacks on frames whose name did not change and therefore printed
+  # nothing. This demo was measured at nameFallbackCalls=0 on the v4 build
+  # (2026-11-13, snakewater tick 0: `name lines=1 relayFrames=1 fallbackCalls=0`),
+  # so 0 is an observed value, not a guess: if a future change starts falling back,
+  # it shows up here by name instead of only changing which entity the name belongs
+  # to. A run whose tally line is missing reads empty and goes red as well.
+  assert_eq "the exit tally records no name fallback on this demo (measured 0)" "$NAMED_FALLBACK_CALLS" 0
+else
+  echo "  FAIL the T126 name audit could not read $SCRATCH/live.trace"; fail=1
+fi
+
 assert_eq "the clock names its source" "$([ -n "$L_SRC" ] && echo yes)" "yes"
 # glyphs is a reading, so it must agree with the text it claims to publish.
 EXPECT_GLYPHS=$(( $(slen "$L_T1") + $(slen "$L_T2") + $(slen "$L_T3") ))
@@ -848,8 +940,13 @@ if [ -x "$PROBE" ]; then
   echo "  probe row: slot=$(val "$ROW_SLOT") entity=$(val "$N_ENTITY") firstTick=$(val "$ROW_FIRST") name=\"$(val "$ROW_NAME")\""
   assert_eq "the dump carries a userinfo slot for the watched entity" "$([ -n "$ROW" ] && echo yes)" "yes"
   # 8.1 the slot is the decoder's, not one this code recomputed as entity-1.
-  if [ -n "$N_SLOT" ]; then SLOT_PLUS=$(( N_SLOT + 1 )); else SLOT_PLUS=no-slot; fi
-  assert_eq "the HUD read the slot the decoder assigned to that entity" "$SLOT_PLUS" "$N_ENTITY"
+  # NB (D-62 tautology): this demo's userinfo entryIndex is always entityIndex-1
+  # (dump rows 0/1/2 -> entity 1/2/3, entity 4 -> entryIndex 3), so any
+  # 'slot == entity-1' shaped assertion is numerically indistinguishable from the
+  # bug it claims to catch and was green on the defect. The independent sources
+  # are the next line and section 8.3: ROW is found by entityIndex in the
+  # decoder's own dump and its entryIndex is compared with the product's
+  # nameSlot, and nameRawHex must equal that row's name byte for byte.
   assert_eq "the dump and the reading name the same slot" "$ROW_SLOT" "$N_SLOT"
   # 8.2 THE CLOCK. The samples are stamped with the server tick that was in force
   # when their packet was decoded, not with the demo's entry tick: T100 measured
@@ -878,7 +975,7 @@ if [ -x "$PROBE" ]; then
   # 8.4 a reading that is right in the trace and absent on screen is not a
   # readout. The name is the first token of line 3, and it is not '?'.
   assert_ne "the reading publishes a name, not the placeholder" "$N_NAME" "unavailable"
-  echo "$N_T3" | grep -qE '^NAME [^?][^ ]*  HP ' \
+  echo "$N_T3" | grep -qE '^NAME [^?][^ ]*( [^ ]+)*  HP ' \
     && echo "  OK   text3 prints the demo's name" \
     || { echo "  FAIL text3 does not print the demo's name: \"$(val "$N_T3")\""; fail=1; }
   # 8.4b THE DISPLAY FORM IS THE RAW NAME, PROJECTED. hudLiveProjectName keeps
@@ -889,9 +986,9 @@ if [ -x "$PROBE" ]; then
   # name is ASCII and the two coincide -- but the demo's own slots carry a
   # non-ASCII name (slot 3 is UTF-8 CJK), so the wiring that surfaces one is a
   # decision away and this is what would make it checkable.
-  # LIMIT: the name is taken as the first whitespace-delimited token of line 3,
-  # because a space is the separator 8.4's shape check relies on; a projected name
-  # with an internal single space would be mis-parsed here (this demo's is not).
+  # T126: the displayed name can contain a single internal space ('canis canis
+  # familiaris' on this demo), so line 3 is split on its two-space separators
+  # rather than on the first space, and the greedy group keeps the whole name.
   WANT_DISPLAY=$(printf '%s' "$WANT_HEX" | xxd -r -p | od -An -v -tu1 - | tr -s ' ' '\n' | awk '
     { if (NF < 1) next; b = $1 + 0;
       c = (b >= 32 && b <= 126) ? sprintf("%c", b) : "?";
@@ -899,7 +996,7 @@ if [ -x "$PROBE" ]; then
       if (n >= 24) next;
       s = s c; last = c; n++ }
     END { sub(/ +$/, "", s); printf "%s", s }')
-  T3_NAME=$(printf '%s' "$N_T3" | sed -n 's/^NAME \([^ ][^ ]*\)  HP .*/\1/p')
+  T3_NAME=$(printf '%s' "$N_T3" | sed -n 's/^NAME \(.*\)  HP .*/\1/p')
   assert_eq "the displayed name is the raw name projected onto the font" "$T3_NAME" "$WANT_DISPLAY"
   # 8.5 the font is ASCII and the glyph/region arithmetic is byte arithmetic: a
   # non-ASCII byte here would break both, so the line is required to be ASCII.
