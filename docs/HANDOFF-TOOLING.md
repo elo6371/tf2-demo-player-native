@@ -56,8 +56,10 @@ oracle cross-check).
 Locks: `verify-all.sh` takes `.scratch/verify-all.lock`; scripts that need exclusive use
 of the machine go through `hostlock.sh` (`run <owner> ...`, `status`). `verify-lock.sh`
 self-heals a stale lock by checking owner + pid + heartbeat, and refuses with exit 2 while
-the owner is alive. **`hostlock.sh` is not in this repository** -- 31 scripts reference it
-at `/d/TF2_Native_Worktrees/_shared/hostlock.sh`; see `docs/HANDOFF-MISSING.md`.
+the owner is alive. `hostlock.sh` is shipped as `tools/hostlock.sh` (the scripts still default to
+`/d/TF2_Native_Worktrees/_shared/hostlock.sh`; set `HOSTLOCK=tools/hostlock.sh` to use the
+copy in this tree). See `docs/HANDOFF-MISSING.md` for the contract and the caveat that the
+copy has only been syntax-checked, not exercised from a fresh clone.
 
 ## Probes: the second implementation
 

@@ -41,6 +41,12 @@ Referenced by, among others, `build-identity-check.sh`, `class-pixels-check.sh`,
 - it must be re-entrant within a process tree, because `verify-all.sh` sets
   `VERIFY_ALL_LOCK_HELD=1` and expects nested callers not to deadlock.
 
+**This tree now ships a copy**: `tools/hostlock.sh` (sha256 `fa222b6a…0be26`), the exact
+script the gates have been serialising through. Point the callers at it with
+`export HOSTLOCK=tools/hostlock.sh` (they otherwise keep the absolute authoring path as the
+default, so an existing machine is unaffected). Verified with `bash -n` only -- it has not
+been exercised from a fresh clone on a second machine.
+
 Workaround: set `HOSTLOCK` to any script with that contract, or to a stub that just
 `exec "$@"` after dropping the owner argument. A stub is fine on one machine and wrong on
 a build host that runs two gates at once -- the lock exists because two gates writing
