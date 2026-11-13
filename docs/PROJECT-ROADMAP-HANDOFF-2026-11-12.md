@@ -851,9 +851,11 @@ No attachment source or shader text was copied into product files. The implement
   `--world-face-trace-points` and `texelA=`; `8cea550` adds
   `world-black-account-check.sh`. Measured: 1143,132 and 1110,136 are
   TREELINECARD texel `255,255,255` with alpha 0 (transparent sheet over a dark
-  background, not a white texture drawn black); 873,366 is METALGRATE alpha 0.
-  849,396 and 919,379 still disagree between the tile-buffer prediction and the
-  albedo frame and are pinned **OPEN**, not explained away.
+  background, not a white texture drawn black); 1110 additionally has vertex
+  colour 0. 873,366 is METALGRATE alpha 0. `--world-texel` shows 849,396 reads
+  texel `84,83,81` but albedo 0 (vertex colour 0), and 919,379 reads
+  texel=albedo `210,208,197` (face-trace UV disagreement). 849/919 are pinned
+  **OPEN**, not explained away.
 - F2-1 (minimap) landed. `1bfbba7` applies the E9 patch to four files;
   `d15332c` adds `minimap-hud-check.sh`; `17a7ef3` registers it. The gate fixes
   two harness defects found on first run: `${RC_$name}` bad substitution and a
@@ -878,7 +880,7 @@ No attachment source or shader text was copied into product files. The implement
   commits reports `sourceTree=f533293`, `dirty=0`. The earlier build during the
   working batch reported `dirty=1` only because the roadmap document was still
   uncommitted; the exe bytes are identical.
-- Still open: F1-5's 849/919 sampling discrepancy; F1-4 audible device smoke;
+- Still open: F1-5's 849 vertex-colour and 919 UV discrepancy; F1-4 audible device smoke;
   F2-1 A12 mutation and five-map frames; F2-2's 20 argument-bearing probes;
   F2-3's positive Bagel cull scene; F2-4/F2-5/F2-6; F3/F4; one full release
   chain only at freeze.

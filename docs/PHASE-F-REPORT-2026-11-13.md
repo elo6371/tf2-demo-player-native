@@ -21,7 +21,7 @@
 3. **I-24 关闭。** `material-coverage` 的 6 个 PVS 派生 pin 按 `10d1355` 的因果重钉；新增 `inputTriangles=242109` 和 `drawn + hidden == input`。修前 6 红、修后 `MATERIAL-COVERAGE=PASS`（100 断言）。
 4. **I-29 关闭（headless 部分）。** `quiet-capture-check.sh` 默认不再打开音频设备；可听 live pair 改成显式 `--device`。新增 `audio-keys-check.sh`，用真实 `WM_KEYDOWN` 驱动 M / `[` / `]`，验证 ui.ini 持久化和跨重启读回。
 5. **I-23 增加像素证据。** 找到能看见 `glasswindow001a_649_-1016_704` 的相机；rescue on/off 改变 **84,965** 像素，5 个 hole-trace 点归因到该材质，1 个不透明 BRICK/WALL028 作为对照。
-6. **I-20/873 的 alpha 解释成立。** 1143,132 / 1110,136 是 TREELINECARD 的 `255,255,255, alpha=0` 透明 texel；873,366 是 METALGRATE 的 `0,0,0, alpha=0`。它们不是“白纹理被画黑”或“不透明黑纹理”。849,396 / 919,379 的 tile-buffer 预测与 albedo 帧仍不一致，保持 OPEN。
+6. **I-20/873 的 alpha 解释成立。** 1143,132 / 1110,136 是 TREELINECARD 的 `255,255,255, alpha=0` 透明 texel；873,366 是 METALGRATE 的 `0,0,0, alpha=0`。`--world-texel` 进一步分离出：1110 的 albedo 0 是 alpha=0 + vertex colour 0；849 的 texel 是 `84,83,81` 但 albedo 0，原因是 vertex colour 0；919 的 texel 与 albedo 都是 `210,208,197`，问题在 face-trace UV 与实际 pass 不一致。849/919 保持 OPEN。
 7. **小地图产品化落地。** E9 补丁 4 文件落树，`--hud-minimap` 默认关；`minimap-hud-check.sh` 96 断言 PASS，含投影 y 翻转、x 镜像、yaw 旋转、旧 exe 负控和未列表地图。七图只有 Upward/Sunshine 有帧，其余五图 NOT VERIFIED。
 8. **`$nocull` census 完成（只读）。** 七图 BSP pak 中只有 Bagel RC11 有可见候选（3 棵树、tarp、detail-sprite），其余六图只有不可见 `tools/toolstrigger`。没有改 world renderer。
 9. **F2-2 第一批扫描完成。** 52 个 `*_probe.exe` 以 `--self-test` 15 s 超时运行：29 个 rc=0，23 个是 usage/缺输入，没有空输出崩溃。它不是域验收。
@@ -194,18 +194,18 @@ FAIL pixels the control frame changes = 89488, expected 90127
 
 **实测（exe `00ec8b99`，相机 `-600 -600 950 20 45`，tick 0）**：
 
-| 点 | 材质 | texel RGB | texelA | face 帧 | albedo 帧 | 解释 |
+| 点 | 材质 | texel RGB | texelA | texel 帧 | albedo 帧 | 解释 |
 |---|---|---|---:|---|---|---|
-| 1143,132 | SULTRYPROPS/TREELINECARD | 255,255,255 | 0 | 0,0,0 | 255,255,255 | 透明片，alpha=0；黑是背景 |
-| 1110,136 | SULTRYPROPS/TREELINECARD | 255,255,255 | 0 | 0,0,0 | 0,0,0 | 同材质透明片；albedo 帧与预测不一致，OPEN |
-| 873,366 | METAL/METALGRATE013A2 | 0,0,0 | 0 | 3,0,0 | 0,0,0 | 透明黑 texel，不是不透明黑材质 |
-| 849,396 | METAL/METALGRATE013A2 | 84,83,81 | 255 | 0,0,0 | 0,0,0 | 预测与 albedo 帧不一致，OPEN |
-| 902,385 | METAL/METALGRATE013A2 | 64,64,63 | 226 | 40,54,58 | 62,64,64 | 部分透明，未单独定案 |
-| 919,379 | METAL/METALGRATE013A2 | 82,81,79 | 255 | 197,208,210 | 210,208,197 | 预测与 albedo 帧不一致，OPEN |
+| 1143,132 | SULTRYPROPS/TREELINECARD | 255,255,255 | 0 | 255,255,255 | 255,255,255 | 透明片，alpha=0；黑是背景 |
+| 1110,136 | SULTRYPROPS/TREELINECARD | 255,255,255 | 0 | 255,255,255 | 0,0,0 | alpha=0 且 vertex colour 为 0；不是黑纹理 |
+| 873,366 | METAL/METALGRATE013A2 | 0,0,0 | 0 | 0,0,0 | 0,0,0 | 透明黑 texel，不是不透明黑材质 |
+| 849,396 | METAL/METALGRATE013A2 | 84,83,81 | 255 | 84,83,81 | 0,0,0 | texel 非黑；albedo 0 来自 vertex colour，OPEN |
+| 902,385 | METAL/METALGRATE013A2 | 64,64,63 | 226 | 64,64,62 | 62,64,64 | 部分透明，未单独定案 |
+| 919,379 | METAL/METALGRATE013A2 | 82,81,79 | 255 | 210,208,197 | 210,208,197 | texel/albedo 一致；face-trace UV 与实际 pass 不一致，OPEN |
 
 `depthMatch=0` 在这些点是预期的：半透明 surface depth-write off，depth buffer 保留的是背景/近邻，不能拿它判 owner。
 
-**状态**：I-20 的 1143,132 与 I-21 的 873,366 已由 alpha 解释；1110,136、849,396、919,379 仍是 OPEN，不能把“albedo=0”直接写成“黑纹理缺陷”。
+**状态**：I-20 的 1143,132 / 1110,136 由 alpha=0 解释（1110 还叠加 vertex colour 0）；I-21 的 873,366 由 alpha=0 解释；849,396 是 texel 非黑但 vertex colour 0；919,379 的 texel 与 albedo 一致，问题在 face-trace 的 UV/三角形选择，不是黑像素。849 和 919 仍 OPEN，不能把“albedo=0”直接写成“黑纹理缺陷”。
 
 ### F2-1：小地图产品化
 
@@ -290,7 +290,7 @@ FAIL pixels the control frame changes = 89488, expected 90127
 | I-29 | quiet-capture 不可 headless | **CLOSED（headless）** | `ed4beee`；默认 device_opened=0 |
 | I-23 | 计数已修，像素未证 | **FIXED + 一个材质像素证据** | `d18c985`；84,965 px；其余九材质仍结构性 |
 | I-20 | 1143,132 黑点未定 | **解释：透明 texel + 背景** | `texelA=0`；`8cea550` |
-| I-21 | 三 albedo=0 点 | **873 解释；849/919 OPEN** | `texelA`/albedo 差异；`8cea550` |
+| I-21 | 三 albedo=0 点 | **873 解释；849/919 OPEN** | `texelA` + `--world-texel`：873 alpha=0；849 texel 84 / albedo 0（vertex colour 0）；919 texel=albedo，face-trace UV 不一致 |
 | I-28 | 绝对 OUT 影子路径 | **本批触碰的 gate 已修；全树规则仍待 F1-6** | `quiet-capture`/`audio-keys` |
 | I-30 | wall-clock 字段不可 pin | 未改；本批未新增此类精确断言 | — |
 
@@ -413,7 +413,7 @@ bash "$LOCK" run f-probes bash /d/_shared/EXEC-2026-11-13/F2/probe-sweep.sh
 6. **F3-1 双视角**：先两路 split，per-pane target/mode/free-look，再做 PIP/四路。
 7. **F1-4 可听 device-6 smoke**：需要人工在场确认，不在无人值守时跑。
 8. **F2-1 A12 变异 + 五图帧**：补 minimap mutation 和 process/gullywash/sultry/product/bagel 的固定相机帧。
-9. **F1-5 849/919**：单独追 tile-buffer 预测与 albedo 帧的差异；不要把它并进 I-20 的 alpha 结论。
+9. **F1-5 849/919**：849 追 vertex colour 为什么是 0；919 追 face-trace 的 UV/三角形选择为什么与实际 texel pass 不同。不要把这两条并进 I-20 的 alpha 结论。
 10. **最终 F4**：只在所有 P0/P1 关闭或显式接受后，跑**唯一一次** 15 步发布链。
 
 ---
