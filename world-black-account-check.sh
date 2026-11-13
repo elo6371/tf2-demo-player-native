@@ -18,11 +18,13 @@
 #   * 873,366 is METAL/METALGRATE013A2, texel 0,0,0, texelA=0. I-21's black
 #     albedo at this point is also a transparent texel, not an opaque black one.
 #   * 849,396 is the same material but texelA=255 and the trace predicts
-#     84,83,81 while the albedo frame reads 0,0,0. That is still an open
-#     sampling/coverage discrepancy, and this gate keeps it visible instead of
-#     folding it into the alpha explanation.
-#   * 919,379 predicts 82,81,79; the albedo frame reads 197,208,210. Same open
-#     discrepancy in the other direction.
+#     84,83,81 while the albedo frame reads 0,0,0. The `--world-texel` frame
+#     reads the same 84,83,81, so the difference is the vertex-colour
+#     modulation, not the texture or alpha. It is still an open vertex-colour
+#     finding, and this gate keeps it visible instead of folding it into alpha.
+#   * 919,379 predicts 82,81,79 but the texel and albedo frames both read
+#     210,208,197; that point's face-trace UV disagrees with the drawn pass and
+#     is pinned as an OPEN trace/draw discrepancy.
 #
 # This is a diagnostic pin, not a rendering-parity claim. It runs two product
 # captures at one fixed camera and reads only product trace lines and the two
@@ -96,8 +98,10 @@ PY
 echo "=== the shared face trace, at the six named pixels ==="
 RC_FACE=$(run face)
 RC_ALBEDO=$(run albedo --world-albedo)
+RC_TEXEL=$(run texel --world-texel)
 assert_eq "face run rc" "$RC_FACE" "0"
 assert_eq "albedo run rc" "$RC_ALBEDO" "0"
+assert_eq "texel run rc" "$RC_TEXEL" "0"
 for p in $(printf '%s' "$PTS" | tr ';' ' '); do
   [ -n "$(line_for "$p" "$OUT/face.trace")" ] || { echo "  FAIL missing face-trace line $p"; fail=1; }
 done
@@ -115,6 +119,9 @@ done
 # Both are consistent with alpha=0; neither is a claim about the final colour.
 assert_eq "I-20 1143 albedo frame" "$(pixel "$OUT/albedo.bmp" 1143 132)" "255,255,255"
 assert_eq "I-20 1110 albedo frame" "$(pixel "$OUT/albedo.bmp" 1110 136)" "0,0,0"
+# The texel view is the raw t0 sample. Where it differs from albedo, the
+# difference is the vertex colour modulation, not the texture.
+assert_eq "I-20 1110 texel frame" "$(pixel "$OUT/texel.bmp" 1110 136)" "255,255,255"
 
 # I-21 at 873,366: transparent black texel, not an opaque black one.
 line=$(line_for 873,366 "$OUT/face.trace")
@@ -128,10 +135,12 @@ assert_eq "I-21 873 frame pixel" "$(pixel "$OUT/face.bmp" 873 366)" "3,0,0"
 line=$(line_for 849,396 "$OUT/face.trace")
 assert_eq "open 849 texel alpha" "$(field "$line" texelA)" "255"
 assert_eq "open 849 predicted albedo" "$(field "$line" albedo)" "84,83,81"
+assert_eq "open 849 texel frame" "$(pixel "$OUT/texel.bmp" 849 396)" "84,83,81"
 assert_eq "open 849 albedo frame" "$(pixel "$OUT/albedo.bmp" 849 396)" "0,0,0"
 line=$(line_for 919,379 "$OUT/face.trace")
 assert_eq "open 919 texel alpha" "$(field "$line" texelA)" "255"
 assert_eq "open 919 predicted albedo" "$(field "$line" albedo)" "82,81,79"
+assert_eq "open 919 texel frame" "$(pixel "$OUT/texel.bmp" 919 379)" "210,208,197"
 assert_eq "open 919 albedo frame" "$(pixel "$OUT/albedo.bmp" 919 379)" "210,208,197"
 
 echo
