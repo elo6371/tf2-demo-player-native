@@ -1494,8 +1494,10 @@ fi
 # I-32: the translucent rescue gate was added in Phase E and referenced by
 # nothing. It belongs next to the material gate it extends: the same Sultry
 # frame, the product's own off switch as the negative control, and a Sunshine
-# frame where the rescue has no candidate. 121 is the count measured on the
-# first run of the gate; re-measure, never copy, if the gate grows.
+# frame where the rescue has no candidate. F1-5 added section 4: a camera that
+# sees the named glass window, a rescue on/off pixel diff, and hole-trace
+# attribution to that material. 139 is the count measured on 2026-11-13
+# (121 before section 4, +18 pixel/attribution assertions).
 SULTRY_OUT="$COV_OUT/sultry"
 SULTRY_LOG="$COV_OUT/sultry.txt"
 SULTRY_ATLAS_OUT="$SULTRY_OUT/evidence" SULTRY_ATLAS_SCRATCH="$SULTRY_OUT/scratch" \
@@ -1504,10 +1506,10 @@ SULTRY_RC=$?
 tail -6 "$SULTRY_LOG"
 SULTRY_OK=$(grep -c '^  OK ' "$SULTRY_LOG" || true)
 if [ "$SULTRY_RC" -eq 0 ] && grep -q '^SULTRY-TRANSLUCENT-ATLAS=PASS' "$SULTRY_LOG" \
-    && [ "$SULTRY_OK" = "121" ]; then
-  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=PASS (121 assertions)"
+    && [ "$SULTRY_OK" = "139" ]; then
+  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=PASS (139 assertions)"
 else
-  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=FAIL (rc=$SULTRY_RC ok=$SULTRY_OK expected 121)"; rc_all=1
+  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=FAIL (rc=$SULTRY_RC ok=$SULTRY_OK expected 139)"; rc_all=1
 fi
 # 30. the review workspace, driven by the product ---------------------------------
 # T71/T72 shipped as a store plus a probe. Every assertion passed while the only

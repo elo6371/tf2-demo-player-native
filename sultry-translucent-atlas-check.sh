@@ -37,12 +37,11 @@
 # needs a temporary header edit and rebuild, and its evidence is the separate
 # forced-empty run. The off switch above is the in-tree falsifier.
 #
-# NOT ASSERTED HERE: the ten tile sizes and any pixel difference. On the
-# 2026-11-13 reference pose the positive and negative frames are byte-identical
-# (all 18 PVS-visible triangles are occluded or fully transparent at this
-# camera); a pixel assertion would pin a camera accident. The structural
-# readings above are the claim; a camera that sees the windows is a separate
-# task.
+# NOT ASSERTED HERE: the ten tile sizes. The reference pose's positive and
+# negative frames are byte-identical (all 18 PVS-visible triangles are occluded
+# or fully transparent at that camera), so a pixel assertion there would pin a
+# camera accident. Section 4 adds a camera that does see the glass and pins the
+# rescue's pixel difference there, with hole-trace material attribution.
 #
 # WRITES: the readings go under ${SULTRY_ATLAS_OUT:-evidence/sultry-translucent-atlas}.
 # A run in a clean tree will dirty tracked evidence unless the caller redirects
@@ -118,10 +117,29 @@ capture() {
   echo $?
 }
 
+# capture_camera <dir> <demo> <eyeX eyeY eyeZ> <pitch> <yaw> <hole-points> [extra...]
+# Same isolation and product flags as capture(), but a camera chosen to see the
+# rescued glass. The reference camera cannot: its 18 PVS-visible triangles are
+# occluded or fully transparent, which is why its on/off frames are identical.
+capture_camera() {
+  local dir="$1" demo="$2" eye="$3" pitch="$4" yaw="$5" hole="$6"; shift 6
+  mkdir -p "$dir"
+  TF2_NATIVE_TRACE="$(cygpath -m "$dir/points.trace")" timeout 420 "$PRODUCT" \
+    --tf-root "$TF" --demo "$demo" \
+    --audio-disabled --hidden-window --start-paused --capture-tick 0 --world-sky \
+    --settings-file "$(cygpath -m "$ISO_DIR/settings.ini")" \
+    --ui-settings-file "$(cygpath -m "$ISO_DIR/ui.ini")" \
+    --debug-camera $eye $pitch $yaw \
+    --world-hole-trace "$hole" \
+    "$@" \
+    --capture-frame "$(cygpath -m "$dir/points.bmp")" > "$dir/points.log" 2>&1
+  echo $?
+}
+
 MATERIALS='WATERGATE/ILLUSION_SEA maps/cp_sultry_b8a/glass/glasswindow001a_-1409_-44_640 maps/cp_sultry_b8a/glass/glasswindow001a_1346_12_640 maps/cp_sultry_b8a/glass/glasswindow001a_-713_984_704 maps/cp_sultry_b8a/glass/glasswindow001a_649_-1016_704 maps/cp_sultry_b8a/glass/glasswindow001b_-1394_1562_736 maps/cp_sultry_b8a/glass/glasswindow001b_1331_-1594_736 CP_MOUNTAINLAB/MISC/BALLOON maps/cp_sultry_b8a/glass/glasswindow002a_-2017_-483_704 maps/cp_sultry_b8a/glass/glasswindow002a_1954_450_704'
 
 echo
-echo "=== 1/2 the positive frame: the rescue batch exists ==="
+echo "=== 1/4 the positive frame: the rescue batch exists ==="
 POS="$SCRATCH/pos"
 RC_POS=$(capture "$POS" "$DEMO")
 TRACE_POS="$POS/points.trace"
@@ -170,7 +188,7 @@ for m in $MATERIALS; do
 done
 
 echo
-echo "=== 2/2 the negative frame: the off switch still names all ten ==="
+echo "=== 2/4 the negative frame: the off switch still names all ten ==="
 NEG="$SCRATCH/neg"
 RC_NEG=$(capture "$NEG" "$DEMO" --world-atlas-no-translucent-rescue)
 TRACE_NEG="$NEG/points.trace"
@@ -207,7 +225,7 @@ for m in $MATERIALS; do
 done
 
 echo
-echo "=== 3/3 P=0: a map with no budget refusal has nothing to rescue ==="
+echo "=== 3/4 P=0: a map with no budget refusal has nothing to rescue ==="
 P0="$SCRATCH/p0"
 RC_P0=$(capture "$P0" "$P0_DEMO")
 TRACE_P0="$P0/points.trace"
@@ -233,6 +251,54 @@ assert_eq "P=0 atlas totalBytes" "$(field "$ATLAS_P0" totalBytes)" "179653280"
 assert_eq "P=0 alpha blendedTriangles" "$(field "$ALPHA_P0" blendedTriangles)" "977"
 assert_eq "P=0 alpha cutoutTriangles" "$(field "$ALPHA_P0" cutoutTriangles)" "133"
 assert_eq "P=0 alpha blendedBatches" "$(field "$ALPHA_P0" blendedBatches)" "3"
+
+echo
+echo "=== 4/4 pixel attribution: a camera that sees the rescued glass ==="
+# F1-5. The reference camera cannot distinguish the two paths, so this section
+# moves the camera to the glass window named glasswindow001a_649_-1016_704 and
+# compares the same frame with the rescue on and off. Five of the six hole-trace
+# points land on that material; the sixth is an opaque BRICK/WALL028 control, so
+# the changed region is attributed to a named material rather than to "the
+# picture moved".
+PIX_ON="$SCRATCH/pix-on"
+PIX_OFF="$SCRATCH/pix-off"
+PIX_EYE="949 -1016 784"
+PIX_HOLE="1100,300;1150,200;1200,100;1250,400;1050,500;1230,50"
+RC_PIX_ON=$(capture_camera "$PIX_ON" "$DEMO" "$PIX_EYE" 15 180 "$PIX_HOLE")
+RC_PIX_OFF=$(capture_camera "$PIX_OFF" "$DEMO" "$PIX_EYE" 15 180 "$PIX_HOLE" --world-atlas-no-translucent-rescue)
+TRACE_PIX_ON="$PIX_ON/points.trace"
+TRACE_PIX_OFF="$PIX_OFF/points.trace"
+assert_eq "pixel positive rc" "$RC_PIX_ON" "0"
+assert_eq "pixel negative rc" "$RC_PIX_OFF" "0"
+PLAN_PIX_ON=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_PIX_ON" | head -1)
+PLAN_PIX_OFF=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_PIX_OFF" | head -1)
+ISO_PIX_ON=$(grep -ao "gpu: world isolation .*" "$TRACE_PIX_ON" | head -1)
+ISO_PIX_OFF=$(grep -ao "gpu: world isolation .*" "$TRACE_PIX_OFF" | head -1)
+ALPHA_PIX_ON=$(grep -ao "gpu: world alpha frame .*" "$TRACE_PIX_ON" | head -1)
+ALPHA_PIX_OFF=$(grep -ao "gpu: world alpha frame .*" "$TRACE_PIX_OFF" | head -1)
+echo "$PLAN_PIX_ON" > "$OUT/pixel-atlas-plan-on.txt"
+echo "$PLAN_PIX_OFF" > "$OUT/pixel-atlas-plan-off.txt"
+assert_eq "pixel on atlas-plan batches" "$(field "$PLAN_PIX_ON" batches)" "4"
+assert_eq "pixel on atlas-plan translucentRefused" "$(field "$PLAN_PIX_ON" translucentRefused)" "0"
+assert_eq "pixel off atlas-plan batches" "$(field "$PLAN_PIX_OFF" batches)" "3"
+assert_eq "pixel off atlas-plan translucentRefused" "$(field "$PLAN_PIX_OFF" translucentRefused)" "10"
+assert_eq "pixel on batchDraws" "$(field "$ISO_PIX_ON" batchDraws)" "7"
+assert_eq "pixel off batchDraws" "$(field "$ISO_PIX_OFF" batchDraws)" "6"
+assert_eq "pixel on blendedTriangles" "$(field "$ALPHA_PIX_ON" blendedTriangles)" "1376"
+assert_eq "pixel off blendedTriangles" "$(field "$ALPHA_PIX_OFF" blendedTriangles)" "1334"
+PIX_DIFF=$(python bmp-diff-bbox.py "$PIX_ON/points.bmp" "$PIX_OFF/points.bmp" 2>/dev/null)
+echo "$PIX_DIFF" > "$OUT/pixel-diff.txt"
+assert_eq "pixels changed by the rescue" "$(field "$PIX_DIFF" differing_pixels)" "84965"
+# The six points, by name. The five glass points are the attribution; the
+# BRICK/WALL028 point is the control that the probe is not just echoing the
+# material under the whole bbox.
+for p in 1100,300 1150,200 1200,100 1250,400 1230,50; do
+  line=$(grep -a "world hole-trace point=$p " "$TRACE_PIX_ON" | head -1)
+  assert_eq "pixel hole $p material" "$(field "$line" material)" "maps/cp_sultry_b8a/glass/glasswindow001a_649_-1016_704"
+done
+line=$(grep -a "world hole-trace point=1050,500 " "$TRACE_PIX_ON" | head -1)
+assert_eq "pixel hole 1050,500 control material" "$(field "$line" material)" "BRICK/WALL028"
+assert_eq "pixel hole points run" "$(grep -ac 'world hole-trace point=' "$TRACE_PIX_ON")" "6"
 
 echo
 if [ "$fail" -eq 0 ]; then
