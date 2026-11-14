@@ -22,7 +22,7 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run demo-clock-check bash demo-
 
 - 跑前 `hostlock.sh status`：`FREE` / `queue=head=` / `reservation=none` / `product_processes=0`。
 - 跑后同一状态，锁已释放，无残留产品进程。
-- 脚本内断言点 62 处（`grep -c` 计 `assert_` 调用点）；Usage 约定 exit 0 = 每条断言都成立。
+- 脚本内 `assert_` 调用点 62 处 —— 这是**静态调用点计数**（`grep -c`），不是实跑执行的断言数；不得表述成「实跑 62 条断言全部通过」。Usage 约定 exit 0 = 每条断言都成立。
 - 本次 **exit 0**，墙钟约 6 分 45 秒（21:17:41 起，21:24:26 前结束）。
 
 ## 3. 观测到的内容差异（唯一一处）
@@ -56,6 +56,7 @@ VERDICT: CRLF-DAMAGE  FORBIDDEN-WRITE
 生成物（`a1-zero.*`、`a1-one.*`、`a2-zero.*`、`a3.*`、`a5.*`、`selftest.trace`）。
 还原后 `tools/audit-tree.sh` → `VERDICT: OK (no forbidden writes, line endings intact)`。
 **因此本次运行的原始生成物不在仓库里**；要复核请按第 2 节重跑（同样的树、同样的命令）。
+下次受影响的窄门禁重跑时，rc、exe/sidecar、原始日志与 before-history 输出必须保存到**独立 OUT** 并附 SHA；本次只能核对报告与提交，不能重验那次运行的原始字节。
 
 ## 5. 本文件没有证明什么
 
