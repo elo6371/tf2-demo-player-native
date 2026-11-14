@@ -70,8 +70,15 @@ iso_assert_gate_settings() { # iso_assert_gate_settings <directory>
     echo "FATAL: $dir/settings.ini is missing; the product would run with no renderer configuration" >&2
     return 1
   fi
-  want=$(sha256sum "$fixture" | cut -d' ' -f1)
-  got=$(sha256sum "$dir/settings.ini" | cut -d' ' -f1)
+  # HASH VIA STDIN, NOT VIA ARGUMENT. GNU sha256sum prefixes the whole line with
+  # a backslash when the FILE NAME holds a backslash or a newline, and on this
+  # host mktemp hands back a Windows path (C://Users//...//Temp/...), so the copy
+  # hashed as "\\b85f0..." while the fixture hashed as "b85f0..." and every gate
+  # that seeds its isolation directory failed with reason=iso-seed (measured
+  # 2026-11-14 on world-black-account-check.sh). Reading the bytes from stdin
+  # removes the file name from the output, so the escape cannot come back.
+  want=$(sha256sum < "$fixture" | cut -d' ' -f1)
+  got=$(sha256sum < "$dir/settings.ini" | cut -d' ' -f1)
   if [ "$got" != "$want" ]; then
     echo "FATAL: $dir/settings.ini is not the gate fixture ($got != $want)" >&2
     echo "       the identity would record settings=$want while the product renders $got" >&2
