@@ -114,3 +114,15 @@ I-29 的 headless 部分（`QUIET-CAPTURE=PASS`，device-pair=SKIPPED）、F1-1.
 5. **A12 运行日期**：报告标题为 2026-11-13，A12 变异实际在 2026-11-14 跑（Batch 5 已注明）。
 6. **小地图状态**：路线图 P5 仍写"只存在 BSP 派生源数据"，与 F2-1"产品前向路径 PASS 96 断言"看似冲突；
    该矛盾已由 Batch 2 快照声明 + Batch 4/5 取代说明消解，不算未声明的矛盾。
+
+## 本轮结账（2026-11-14，批次 G1 结束时追加）
+
+| 条目 | 变化 | 依据 |
+|---|---|---|
+| D09 小地图 A12 期望 | **CLOSED** | `e3e0b7b`；`MINIMAP-HUD=PASS assertions=104`，m1/m2/m3 分别 red=3/5/4 且各命中预期断言；还原构建复现 exe `00ec8b99` |
+| D10 探针 `loop=false` | **CLOSED**（夹具缺陷） | `68b2555`；`selfTest=true loop=true`，`realLoop/bones=76/anims=1012/motionSequence` 未变 |
+| D06 exe 身份重绑 | **仍 OPEN，但已量化** | `git diff --stat 6d203db..HEAD -- native/src native/include native/CMakeLists.txt` 为空 ⇒ 该 exe 的产品源码内容与当前 HEAD 一致，只有内嵌 `sourceTree` 字符串过期。重建会改哈希并作废全部绑定 `00ec8b99` 的证据，需独立授权窗口 |
+| 基线 HEAD | `94e7612` → `4ba137f`（3 笔：门禁、探针、文档），外加一笔只含文档的收尾提交 | 本轮提交 |
+| D03 849/919 | **仍 OPEN**，机制已证、来源未闭合 | `docs/BLACKPOINT-849-919-2026-11-14.md` |
+
+台账其余条目未变；本表不改变任何未列条目的状态。
