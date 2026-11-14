@@ -245,9 +245,19 @@ check_corpus() {
   # else does, so the two counters must agree exactly. A decoder that silently
   # substitutes something for the name (the slot's text, a placeholder) breaks
   # this without touching either count alone.
+  # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+  # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+  ui_missing=$(field "$line" userinfo_missing_userdata)
+  ui_unparsed=$(field "$line" userinfo_unparsed)
+  case "$ui_missing" in
+    ''|*[!0-9]*) bad "$demo: missing-userdata count is not a count ('$ui_missing')"; ui_missing=0 ;;
+  esac
+  case "$ui_unparsed" in
+    ''|*[!0-9]*) bad "$demo: unparsed count is not a count ('$ui_unparsed')"; ui_unparsed=0 ;;
+  esac
   assert_eq "$demo: empty names are exactly the slots without user data" \
     "$(field "$line" userinfo_empty_names)" \
-    "$(( $(field "$line" userinfo_missing_userdata) + $(field "$line" userinfo_unparsed) ))"
+    "$(( ui_missing + ui_unparsed ))"
   has_field "$demo: sample count reported" "$line" userinfo_samples
   assert_eq "$demo: one sample per named slot in this corpus" "$(field "$line" userinfo_samples)" "$(field "$line" userinfo_named)"
   has_field "$demo: text/slot mismatch count reported" "$line" userinfo_text_slot_mismatches

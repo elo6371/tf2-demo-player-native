@@ -702,9 +702,15 @@ assert_eq "no slot failed to decode" "$(rval "$READINGS" decodeFailure)" "-"
 # track the frame count, not lag it.
 assert_eq "captures at least 100 frames" \
   "$([ "${FRAMES:-0}" -ge 100 ] && echo yes || echo no)" "yes"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+vmm_uploads=$(rval "$READINGS" texturesUploaded)
+case "$vmm_uploads" in
+  ''|*[!0-9]*) echo "  FAIL uploads: texturesUploaded is not a count: '$vmm_uploads'"; fail=1; FAIL_LINES+=("uploads: texturesUploaded '$vmm_uploads' is not a count"); vmm_uploads=0 ;;
+esac
 assert_eq "uploads do not grow with the frame count" \
-  "$([ "$(rval "$READINGS" texturesUploaded)" -gt 0 ] \
-     && [ $(( $(rval "$READINGS" texturesUploaded) * 20 )) -le "${FRAMES:-0}" ] \
+  "$([ "$vmm_uploads" -gt 0 ] \
+     && [ $(( vmm_uploads * 20 )) -le "${FRAMES:-0}" ] \
      && echo yes || echo no)" "yes"
 assert_eq "binds track the frames drawn" \
   "$([ "$(rval "$READINGS" texturesReused)" -ge $(( ${FRAMES:-0} - 1 )) ] && echo yes || echo no)" "yes"
@@ -817,8 +823,14 @@ ensure_paused_run pmissing --viewmodel-material-missing-slot 0
 load_product pmissing
 assert_eq "injected run rc" "$PRODUCT_RC" "0"
 assert_eq "the injection is reported" "$(rval "$READINGS" missingSlotInjected)" "0"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+vmm_slots=$(rval "$READINGS" materialSlots)
+case "$vmm_slots" in
+  ''|*[!0-9]*) echo "  FAIL injected slot: materialSlots is not a count: '$vmm_slots'"; fail=1; FAIL_LINES+=("injected slot: materialSlots '$vmm_slots' is not a count"); vmm_slots=1 ;;
+esac
 assert_eq "the injected slot is no longer resolved" \
-  "$(rval "$READINGS" materialResolved)" "$(( $(rval "$READINGS" materialSlots) - 1 ))"
+  "$(rval "$READINGS" materialResolved)" "$(( vmm_slots - 1 ))"
 assert_eq "the injected slot is counted as a fallback" "$(rval "$READINGS" fallbackSlots)" "1"
 assert_eq "nothing is bound" "$(rval "$READINGS" boundSlots)" "0"
 assert_eq "the range is a fallback range" "$(rval "$READINGS" fallbackRanges)" "1"

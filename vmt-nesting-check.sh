@@ -210,7 +210,17 @@ if [ "$NEGATIVE" -eq 1 ]; then
   rc="$(cat "$OUT/neg-nesting-100000.rc")"
   if [ "$rc" -ne 0 ]; then actual_rc="nonzero"; else actual_rc="zero"; fi
   assert_eq "old.nesting-100000.rc" "$actual_rc" "nonzero"
-  bytes=$(( $(stat -c %s "$OUT/neg-nesting-100000.json") + $(stat -c %s "$OUT/neg-nesting-100000.err") ))
+  # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+  # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+  json_bytes=$(stat -c %s "$OUT/neg-nesting-100000.json")
+  err_bytes=$(stat -c %s "$OUT/neg-nesting-100000.err")
+  case "$json_bytes" in
+    ''|*[!0-9]*) fail "old.nesting-100000.json size unreadable ('$json_bytes')"; json_bytes=0 ;;
+  esac
+  case "$err_bytes" in
+    ''|*[!0-9]*) fail "old.nesting-100000.err size unreadable ('$err_bytes')"; err_bytes=0 ;;
+  esac
+  bytes=$(( json_bytes + err_bytes ))
   assert_eq "old.nesting-100000.output_bytes" "$bytes" "0"
 
   finish

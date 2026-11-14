@@ -448,7 +448,15 @@ retry_selftest() {
   # about the filesystem and not about the log being overwritten.
   stub_deny() { # stub_deny <counter> <denials>
     local counter="$1" denials="$2"
-    local n; n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$counter"
+    # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+    # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+    # The counter file can also hold something that is not a count, so it is guarded.
+    local n raw
+    raw=$(cat "$counter" 2>/dev/null || echo 0)
+    case "$raw" in
+      ''|*[!0-9]*) raw=0 ;;
+    esac
+    n=$(( raw + 1 )); echo "$n" > "$counter"
     if [ "$n" -le "$denials" ]; then
       printf "timeout: failed to run command 'tf2_demo_native.exe': Permission denied\n"
       return 126

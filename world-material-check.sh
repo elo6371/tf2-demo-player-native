@@ -401,8 +401,14 @@ assert_eq "render vertices" "$(rfield vertices)" "726327"
 # stays on the renderer's number: an identity between two sources can read OK
 # while both moved together, and 726093 is what this map is.
 assert_eq "render lightmapped" "$(rfield lightmapped)" "726093"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+full_lit_uv=$(field "$REAL_FULL" lightmap.trianglesWithLightUv)
+case "$full_lit_uv" in
+  ''|*[!0-9]*) echo "  FAIL parse lightmap.trianglesWithLightUv is not a count: '$full_lit_uv'"; fail=1; full_lit_uv=0 ;;
+esac
 assert_eq "render lightmapped = 3 x parse triangles with light uv" \
-  "$(rfield lightmapped)" "$(( 3 * $(field "$REAL_FULL" lightmap.trianglesWithLightUv) ))"
+  "$(rfield lightmapped)" "$(( 3 * full_lit_uv ))"
 # vertices minus lightmapped is 234, i.e. three vertices for each of the map's
 # 78 triangles that carry no lightmap face. Those must stay unlit: if the
 # renderer handed them a uv this gap would collapse to 0, and if it dropped a

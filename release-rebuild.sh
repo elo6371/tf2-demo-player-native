@@ -316,5 +316,15 @@ if [ "$noop_changed" -ne 0 ]; then
 fi
 
 total_newer=0
-for t in "${TARGETS[@]}"; do total_newer=$((total_newer + $(mtime_newer "$(exe_of "$t")" "$t"))); done
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+# mtime_newer() always prints a count, and this reading is a DIAGNOSTIC that never
+# fails the gate on its own, so a bad reading is coerced without a FAIL.
+for t in "${TARGETS[@]}"; do
+  _newer_count=$(mtime_newer "$(exe_of "$t")" "$t")
+  case "$_newer_count" in
+    ''|*[!0-9]*) _newer_count=0 ;;
+  esac
+  total_newer=$((total_newer + _newer_count))
+done
 echo "REBUILD=PASS targets=$N rebuilt=$rebuilt fresh=$N noop=$N basis=$basis mtime_newer=$total_newer exe_sha256=$(sha_of "$(exe_of "$PRIMARY")")"

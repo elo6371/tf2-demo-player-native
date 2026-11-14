@@ -624,8 +624,14 @@ else
 fi
 assert_gt "the entity's table is larger than the drawn one" \
   "$(rfield "$ENTITY_TXT" modelseq sequences)" "$(rfield "$DRAWN_TXT" modelseq sequences)"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+vma_drawn_seqs=$(rfield "$DRAWN_TXT" modelseq sequences)
+case "$vma_drawn_seqs" in
+  ''|*[!0-9]*) echo "  FAIL drawn modelseq sequences is not a count: '$vma_drawn_seqs'"; fail=1; vma_drawn_seqs=1 ;;
+esac
 assert_gt "the observed sequences run past the drawn table" \
-  "$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "$(( $(rfield "$DRAWN_TXT" modelseq sequences) - 1 ))"
+  "$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "$(( vma_drawn_seqs - 1 ))"
 # And the two answers the probe keeps apart: 104 of 141 observed sequences are
 # past the drawn table, 37 are inside it. Those 37 are the trap -- a value from
 # the wrong table that happens to be legal for the right one -- and they are

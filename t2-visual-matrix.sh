@@ -235,7 +235,13 @@ if [ "$VIS_ON_DRAWN" -lt "$VIS_OFF_DRAWN" ] 2>/dev/null; then
 else
   echo "  FAIL the clip left the drawn geometry unchanged ($VIS_ON_DRAWN vs $VIS_OFF_DRAWN)"; fail=1
 fi
-assert_eq "vis identity drawn+hidden=input" "$(( VIS_ON_DRAWN + $(rfield "$VIS_ON" hiddenTriangles) ))" "$(rfield "$VIS_ON" inputTriangles)"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+VIS_ON_HIDDEN=$(rfield "$VIS_ON" hiddenTriangles)
+case "$VIS_ON_HIDDEN" in
+  ''|*[!0-9]*) echo "  FAIL vis identity: hiddenTriangles is not a count: '$VIS_ON_HIDDEN'"; fail=1; VIS_ON_HIDDEN=0 ;;
+esac
+assert_eq "vis identity drawn+hidden=input" "$(( VIS_ON_DRAWN + VIS_ON_HIDDEN ))" "$(rfield "$VIS_ON" inputTriangles)"
 assert_eq "water on state" "$(rtext "$WAT_ON" state)" "active"
 assert_eq "water on faces" "$(rfield "$WAT_ON" faces)" "18"
 assert_eq "water on triangles" "$(rfield "$WAT_ON" triangles)" "36"

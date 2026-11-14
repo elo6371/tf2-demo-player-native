@@ -433,8 +433,21 @@ assert_eq "vis hidden triangles" "$(rval "$T1_VIS" hiddenTriangles)" "15039"
 # The identity T1 pinned, restated here because the water pass is the first
 # thing since T1 to add a draw to the same function: a water pass that split the
 # world buffer or reused its index buffer would break this and nothing else.
-if [ "$(( $(rval "$T1_VIS" drawnTriangles) + $(rval "$T1_VIS" hiddenTriangles) ))" \
-    -eq "$(( $(rval "$T1_VIS" inputTriangles) ))" ] 2>/dev/null; then
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+vim_drawn=$(rval "$T1_VIS" drawnTriangles)
+vim_hidden=$(rval "$T1_VIS" hiddenTriangles)
+vim_input=$(rval "$T1_VIS" inputTriangles)
+case "$vim_drawn" in
+  ''|*[!0-9]*) echo "  FAIL vis drawnTriangles is not a count: '$vim_drawn'"; fail=1; vim_drawn=0 ;;
+esac
+case "$vim_hidden" in
+  ''|*[!0-9]*) echo "  FAIL vis hiddenTriangles is not a count: '$vim_hidden'"; fail=1; vim_hidden=0 ;;
+esac
+case "$vim_input" in
+  ''|*[!0-9]*) echo "  FAIL vis inputTriangles is not a count: '$vim_input'"; fail=1; vim_input=0 ;;
+esac
+if [ "$(( vim_drawn + vim_hidden ))" -eq "$(( vim_input ))" ] 2>/dev/null; then
   echo "  OK   vis drawn + hidden = input ($(rval "$T1_VIS" drawnTriangles) + $(rval "$T1_VIS" hiddenTriangles) = $(rval "$T1_VIS" inputTriangles))"
 else
   echo "  FAIL vis drawn + hidden != input"; fail=1

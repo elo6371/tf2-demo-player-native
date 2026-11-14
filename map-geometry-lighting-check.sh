@@ -722,7 +722,13 @@ for MAP in "${MAPS[@]}"; do
   assert_eq "drawn pixels whose albedo is dark but the frame is not (G7)" "$(field "$llight" albedo_not_lit)" 0
   # Whether a pose has any dark albedo pixel at all feeds the per-map coverage
   # bound; the attribution above is what this pose itself has to get right.
-  cov_dark=$(( cov_dark + $(field "$llight" albedo_dark || echo 0) ))
+  # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+  # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+  pose_dark=$(field "$llight" albedo_dark || echo 0)
+  case "$pose_dark" in
+    ''|*[!0-9]*) failure "$MAP: albedo_dark reading is not a count: '$pose_dark'"; pose_dark=0 ;;
+  esac
+  cov_dark=$(( cov_dark + pose_dark ))
   echo "  reading: this pose has $(field "$llight" albedo_dark || echo NA) dark-albedo pixels (coverage is counted per map)"
 
   # G8: the point oracle explains what the two classes ARE, rather than only that

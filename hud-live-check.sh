@@ -699,7 +699,13 @@ fi
 
 assert_eq "the clock names its source" "$([ -n "$L_SRC" ] && echo yes)" "yes"
 # glyphs is a reading, so it must agree with the text it claims to publish.
-EXPECT_GLYPHS=$(( $(slen "$L_T1") + $(slen "$L_T2") + $(slen "$L_T3") ))
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+# slen() only ever prints digits, so the split needs no non-integer guard.
+L_T1_GLYPHS=$(slen "$L_T1")
+L_T2_GLYPHS=$(slen "$L_T2")
+L_T3_GLYPHS=$(slen "$L_T3")
+EXPECT_GLYPHS=$(( L_T1_GLYPHS + L_T2_GLYPHS + L_T3_GLYPHS ))
 assert_eq "the published glyph count matches the published text" "$L_GLYPHS" "$EXPECT_GLYPHS"
 EXPECT_W=$(slen "$L_T1")
 [ "$(slen "$L_T2")" -gt "$EXPECT_W" ] && EXPECT_W=$(slen "$L_T2")
