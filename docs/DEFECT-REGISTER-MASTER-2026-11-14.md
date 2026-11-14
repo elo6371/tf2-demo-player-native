@@ -69,7 +69,7 @@
 | D41 | P2（文档→功能） | `产品`：小地图面板没有地图线稿/楼层，只有背景+边框+控制点环+观察者+航向点；三处文档曾称 "BSP-derived linework" | OPEN | UI owner | D43 | 面板形状计数 13/14/10/11 与代码推送列表一致；无任何几何 primitive | `docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md` §3 | N14 |
 | D42 | P1（用户可见） | `产品`：`--start-paused` 后第 2 帧起小地图消失（`reason=no-camera-pose`），抓帧与对照逐字节相同 | CLOSED | Playback owner | — | 同图同相机 on/off 两帧：修前相同，修后差 25600 像素全在面板内 | `docs/G2-2026-11-14.md` §1 | 已闭（N15 回归） |
 | D43 | P2（证据缺口） | `证据`：小地图投影用的是 `minimap.h` 声明的可玩区矩形，未用独立来源验证缩放比例 | NOT VERIFIED | UI owner | — | 用 BSP 中两个已知世界点与面板像素反算 scale，与声明矩形比较 | `docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md` §4 | N14 |
-| D44 | P2（工具缺口） | `探针`：仍有 28 处 `std::filesystem::u8path(argv[...])` 分布在约 10 个探针，遇到非 UTF-8 参数会走同一条未捕获异常路径（0xC0000409） | OPEN | Probe owner | D38 的修法 | `grep -rn "u8path(argv" native/tools/*.cpp`；每个探针用非 ASCII 路径跑一次，rc 必须非零且带具名原因，不能是 0xC0000409 | `D:/_shared/EXEC-2026-11-14/G3/n02-matrix.txt` | N02 后续 |
+| D44 | P2（工具缺口） | `探针`：仍有 30 处 `std::filesystem::u8path(argv[...])` 分布在 16 个探针，遇到非 UTF-8 参数会走同一条未捕获异常路径（0xC0000409） | OPEN | Probe owner | D38 的修法 | `grep -rn "u8path(argv" native/tools/*.cpp`；每个探针用非 ASCII 路径跑一次，rc 必须非零且带具名原因，不能是 0xC0000409 | `D:/_shared/EXEC-2026-11-14/G3/n02-matrix.txt` | N02 后续 |
 
 ## 3 D08 拆分（N00 要求：已通过的子集不重做）
 
