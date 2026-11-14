@@ -798,7 +798,24 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
 
 } // namespace
 
-int main(int argc, char** argv) {
+namespace {
+
+// argv arrives in the process ANSI code page (GBK on this host), not UTF-8.
+// std::filesystem::u8path() throws on those bytes and nothing used to catch it:
+// a Chinese or space-containing --map path aborted the process with 0xC0000409
+// and printed nothing at all (measured 2026-11-14, D38). Decode defensively.
+std::filesystem::path pathFromArgv(const char* text) {
+  if (text == nullptr || *text == '\0') return {};
+  try {
+    return std::filesystem::u8path(text);
+  } catch (...) {
+  }
+  return std::filesystem::path(text);
+}
+
+} // namespace
+
+int runMain(int argc, char** argv) {
   bool selfTest = false, listDetail = false, listBump = false;
   bool materialBump = false, bump2 = false, detail = false, decodeStats = false;
   std::string cameraMaterial;
@@ -807,8 +824,8 @@ int main(int argc, char** argv) {
   for (int index = 1; index < argc; ++index) {
     const std::string arg = argv[index];
     if (arg == "--self-test") { selfTest = true; continue; }
-    if (arg == "--map" && index + 1 < argc) { mapPath = std::filesystem::u8path(argv[++index]); continue; }
-    if (arg == "--tf-root" && index + 1 < argc) { tfRoot = std::filesystem::u8path(argv[++index]); continue; }
+    if (arg == "--map" && index + 1 < argc) { mapPath = pathFromArgv(argv[++index]); continue; }
+    if (arg == "--tf-root" && index + 1 < argc) { tfRoot = pathFromArgv(argv[++index]); continue; }
     if (arg == "--resource" && index + 1 < argc) { resource = argv[++index]; continue; }
     if (arg == "--material-bump" && index + 1 < argc) { materialBump = std::string(argv[++index]) == "on"; continue; }
     if (arg == "--bump2" && index + 1 < argc) { bump2 = std::string(argv[++index]) == "on"; continue; }
@@ -869,7 +886,17 @@ int main(int argc, char** argv) {
   }
   if (!mapPath.empty()) {
     if (tfRoot.empty()) { std::cerr << "--map needs --tf-root\n"; return 2; }
-    result |= runMap(mapPath, tfRoot, materialBump, bump2, detail, listDetail, listBump,
+    // N02: the same file spelled two ways must answer the same. A path relative
+    // to --tf-root is the form the geometry probe and the gate table use, so
+    // resolve it against the root when the caller's spelling is not readable;
+    // when neither works the error still names what the caller wrote.
+    std::filesystem::path mapForRun = mapPath;
+    if (mapPath.is_relative()) {
+      std::error_code existsError;
+      const auto joined = tfRoot / mapPath;
+      if (std::filesystem::exists(joined, existsError) && !existsError) mapForRun = joined;
+    }
+    result |= runMap(mapForRun, tfRoot, materialBump, bump2, detail, listDetail, listBump,
       cameraMaterial);
   }
   if (!selfTest && mapPath.empty() && resource.empty()) {
@@ -877,4 +904,18 @@ int main(int argc, char** argv) {
     return 2;
   }
   return result;
+}
+
+// A probe must fail with a reason, not abort: an uncaught exception here used to
+// surface as 0xC0000409 with empty stdout, which a caller reads as "no answer".
+int main(int argc, char** argv) {
+  try {
+    return runMain(argc, argv);
+  } catch (const std::exception& error) {
+    std::cerr << "error: " << error.what() << "\n";
+    return 2;
+  } catch (...) {
+    std::cerr << "error: unknown exception\n";
+    return 2;
+  }
 }

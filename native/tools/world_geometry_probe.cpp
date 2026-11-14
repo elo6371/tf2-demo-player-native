@@ -27,6 +27,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -37,6 +38,24 @@ using tf2::native::AssetRoot;
 using tf2::native::BspMap;
 using tf2::native::BspTriangle;
 using tf2::native::BspVertex;
+
+namespace {
+
+// argv arrives in the process ANSI code page (GBK on this host), not UTF-8.
+// std::filesystem::u8path() throws on those bytes -- measured 2026-11-14: a
+// Chinese or space-containing path aborted world_feature_probe with 0xC0000409
+// -- so decode defensively: UTF-8 when it parses, the native narrow conversion
+// (which is the ANSI code page) otherwise.
+std::filesystem::path pathFromArgv(const char* text) {
+  if (text == nullptr || *text == '\0') return {};
+  try {
+    return std::filesystem::u8path(text);
+  } catch (...) {
+  }
+  return std::filesystem::path(text);
+}
+
+} // namespace
 
 std::vector<std::uint8_t> readFile(const std::filesystem::path& path) {
   std::vector<std::uint8_t> bytes;
@@ -54,6 +73,14 @@ std::vector<std::uint8_t> readFile(const std::filesystem::path& path) {
 }
 
 std::vector<std::uint8_t> readAsset(const AssetRoot& root, const std::string& path) {
+  // N02: the same file spelled two ways must answer the same. An absolute path
+  // is read as given (that is what world_feature_probe already does, and what a
+  // caller who names a loose BSP outside the TF root expects); a relative one
+  // keeps the archive-then-root contract below.
+  const auto direct = pathFromArgv(path.c_str());
+  if (direct.is_absolute()) {
+    if (auto bytes = readFile(direct); !bytes.empty()) return bytes;
+  }
   const auto& archives = root.archives();
   std::vector<std::filesystem::path> holders;
   archives.collectContaining(path, holders);

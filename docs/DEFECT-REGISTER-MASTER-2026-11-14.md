@@ -2,7 +2,7 @@
 
 **本文件是唯一台账。** `docs/DEFECT-REGISTER-2026-11-14.md` 转为历史附录（保留原文，不再更新），两者冲突时以本文件为准。
 
-- 生成依据：旧登记册主表 35 行（D01–D35）+ 本批 G1/G2 追加 8 条（D36–D43），合并去重后 **43 个唯一问题**。
+- 生成依据：旧登记册主表 35 行（D01–D35）+ 本批 G1/G2 追加 8 条（D36–D43）+ N02 追加 D44，合并去重后 **44 个唯一问题**。
 - 编号规则：**D01–D35 保持旧登记册原义不变**；本批新增从 **D36** 起连续分配；与旧号冲突的三条已改号（见 §1）。
 - `级别` 即风险等级（P0 崩溃/数据丢失/安全；P1 阻断发布或首图可见；P2 单图/单功能或门禁无法表述结论；P3 工程卫生或证据缺口）。
 
@@ -63,12 +63,13 @@
 | D35 | P3（范围未决） | `范围`：T55 视频裁剪/导出既未完成也未排除，产品 owner 未决定是否进首发 | OPEN | Product owner + Playback | 与 D20 播放路径相关；不阻塞其余项 | 先做播放/导出设计估算，再由产品 owner 裁量；未决期间不得暗示已完成或已排除 | 路线图 scope limits 末条 | N27 |
 | D36 | P2（证据缺口） | `证据`：暂停缺陷的父提交二进制负控 | CLOSED | Playback owner | — | 父提交 `94e7612` 独立目录构建 `d8bbaa05…`，同命令复现 `reason=no-camera-pose` 且 on/off 逐字节同 `df05b7e3…` | `D:/_shared/EXEC-2026-11-14/G2/parent-paused/` | 已闭（N00 记录） |
 | D37 | P2（门禁） | `门禁`：`verify-iso.sh` 用 `sha256sum "$file"`，文件名含反斜杠时整行加 `\` 前缀，27 个门禁在本机 `iso-seed` 失败 | CLOSED | Gate owner | — | `bash world-black-account-check.sh`：修前 `FAIL reason=iso-seed`，修后 `PASS` | `docs/G2-2026-11-14.md` §5 | 已闭（N03） |
-| D38 | P2（工具缺口） | `探针`：`world_geometry_probe` 要 TF 相对路径、`world_feature_probe` 要绝对路径，且后者无法打开非 ASCII 路径 | OPEN | Probe owner | — | 同一 BSP 用相对/绝对/中文路径各跑一次，比较 rc 与读数 | `docs/G2-2026-11-14.md` §3 | N02 |
+| D38 | P2（工具缺口） | `探针`：`world_geometry_probe` 要 TF 相对路径、`world_feature_probe` 要绝对路径，且后者无法打开非 ASCII 路径（实测为 0xC0000409 崩溃） | CLOSED（N02） | Probe owner | — | 同一 BSP 用相对/绝对/中文路径各跑一次，比较 rc 与读数 | `docs/G2-2026-11-14.md` §3 | N02 |
 | D39 | P2（证据缺口） | `产品(未归因)`：七图世界帧出现三族异常——高频白噪（Gullywash/Bagel/Sultry）、黑区（Process/Gullywash/Product）、Sunshine 疑似水面浅蓝平面 | OPEN | Map renderer owner | D03/N05 的归因方法 | 每族一个具名材质/几何的最小例 + 同机位 on/off | `docs/G2-2026-11-14.md` §7 | N06 |
-| D40 | P3（流程/卫生） | `流程`：产品退出时写回 `--settings-file`，脚本把 tracked fixture 直接传入会改脏仓库 | OPEN | Gate owner | — | 跑一次产品后 `git status --porcelain native/tests/fixtures` 必须为空 | `docs/G2-2026-11-14.md` §8 | N03 |
+| D40 | P3（流程/卫生） | `流程`：产品退出时写回 `--settings-file`，脚本把 tracked fixture 直接传入会改脏仓库 | CLOSED（N03，`tools/lockrun.sh` 守卫） | Gate owner | — | 跑一次产品后 `git status --porcelain native/tests/fixtures` 必须为空 | `docs/G2-2026-11-14.md` §8 | N03 |
 | D41 | P2（文档→功能） | `产品`：小地图面板没有地图线稿/楼层，只有背景+边框+控制点环+观察者+航向点；三处文档曾称 "BSP-derived linework" | OPEN | UI owner | D43 | 面板形状计数 13/14/10/11 与代码推送列表一致；无任何几何 primitive | `docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md` §3 | N14 |
 | D42 | P1（用户可见） | `产品`：`--start-paused` 后第 2 帧起小地图消失（`reason=no-camera-pose`），抓帧与对照逐字节相同 | CLOSED | Playback owner | — | 同图同相机 on/off 两帧：修前相同，修后差 25600 像素全在面板内 | `docs/G2-2026-11-14.md` §1 | 已闭（N15 回归） |
 | D43 | P2（证据缺口） | `证据`：小地图投影用的是 `minimap.h` 声明的可玩区矩形，未用独立来源验证缩放比例 | NOT VERIFIED | UI owner | — | 用 BSP 中两个已知世界点与面板像素反算 scale，与声明矩形比较 | `docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md` §4 | N14 |
+| D44 | P2（工具缺口） | `探针`：仍有 28 处 `std::filesystem::u8path(argv[...])` 分布在约 10 个探针，遇到非 UTF-8 参数会走同一条未捕获异常路径（0xC0000409） | OPEN | Probe owner | D38 的修法 | `grep -rn "u8path(argv" native/tools/*.cpp`；每个探针用非 ASCII 路径跑一次，rc 必须非零且带具名原因，不能是 0xC0000409 | `D:/_shared/EXEC-2026-11-14/G3/n02-matrix.txt` | N02 后续 |
 
 ## 3 D08 拆分（N00 要求：已通过的子集不重做）
 
@@ -98,12 +99,12 @@
 
 | 状态 | 数量 | 编号 |
 |---|---:|---|
-| OPEN | 22 | D02 D03 D04 D06 D11 D12 D17 D19 D21 D22 D23 D28 D29 D30 D31 D32 D33 D35 D38 D39 D40 D41 |
+| OPEN | 21 | D02 D03 D04 D06 D11 D12 D17 D19 D21 D22 D23 D28 D29 D30 D31 D32 D33 D35 D39 D41 D44 |
 | NOT VERIFIED | 14 | D01 D05 D07 D13 D14 D15 D16 D18 D20 D24 D25 D26 D27 D43 |
-| CLOSED | 5 | D09 D10 D36 D37 D42 |
+| CLOSED | 7 | D09 D10 D36 D37 D38 D40 D42 |
 | PARTIAL | 1 | D08（见 §3） |
 | UNSUPPORTED | 1 | D34 |
-| **合计** | **43** | D01–D43，无重号、无"同号既关又未关" |
+| **合计** | **44** | D01–D44，无重号、无"同号既关又未关" |
 
 D33（18 vs 15 笔提交）复核：`git rev-list --count 9deed76..68a206a` = **15**，与旧登记册判断一致；报告正文的 18 应视为笔误，历史报告不改写。
 
