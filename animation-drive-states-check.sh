@@ -133,7 +133,12 @@ done
 for path in "$EXE" "$DEMO" ${COVER_DEMO:+"$COVER_DEMO"}; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 2; }
 done
-[ -d "$TF" ] || { echo "FATAL: missing TF root: $TF"; exit 2; }
+# NOTE (2026-11-14): on this host the bash builtin `[ -d "$TF" ]` is FALSE for the TF
+# root while `[ -e "$TF" ]` is TRUE (measured: -e/-r/-w/-x true, /usr/bin/test -d true,
+# bash builtin -d false; the directory also lists and cds normally; mechanism unknown).
+# The sibling input loop above already uses -e. Testing -d here aborted the gate with
+# exit 2 before OUT was created, so the gate produced zero readings on this host.
+[ -e "$TF" ] || { echo "FATAL: missing TF root: $TF"; exit 2; }
 command -v md5sum >/dev/null 2>&1 || { echo "FATAL: md5sum not on PATH"; exit 2; }
 
 mkdir -p "$OUT"

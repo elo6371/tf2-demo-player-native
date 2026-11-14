@@ -326,7 +326,18 @@ ticks=$(grep '^animticks mode=synthetic ' "$SCOUT_LOG" | head -1)
 echo "  $ticks"
 assert_eq "E synthetic ticks" "$(field "$ticks" ticks)" "61"
 assert_ge "E synthetic movingTicks" "$(field "$ticks" movingTicks)" 1
-moving_min=$(( $(field "$ticks" movingTicks) - 1 ))
+# NOTE (2026-11-14): do NOT nest a command substitution that contains a quoted word
+# inside `$(( ))` on this host. bash 5.3.20(1)-release (x86_64-pc-msys) silently leaves
+# the literal text "$(( 31 - 1 ))" unexpanded for that shape (reproducer:
+# D:/_shared/EXEC-2026-11-15/LEAD/arith-probe.sh), which made this assertion report a
+# nonsense "expected >= $(( 31 - 1 ))". Compute the value in two steps instead.
+moving_ticks=$(field "$ticks" movingTicks)
+case "$moving_ticks" in
+  ''|*[!0-9]*)
+    echo "  FAIL E synthetic movingTicks is not a non-negative integer: '${moving_ticks}'"; fail=1; moving_min=0 ;;
+  *)
+    moving_min=$(( moving_ticks - 1 )) ;;
+esac
 assert_ge "E synthetic movingAdvanced (baseline excluded)" "$(field "$ticks" movingAdvanced)" "$moving_min"
 assert_eq "E synthetic idleAdvanced" "$(field "$ticks" idleAdvanced)" "0"
 assert_eq "E synthetic maxIdleDelta" "$(field "$ticks" maxIdleDelta)" "0.000000000"
