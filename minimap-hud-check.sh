@@ -39,7 +39,9 @@
 #   A11 a map with no tabulated bounds draws NOTHING and says why: a byte-identical
 #       frame plus reason=bounds-not-tabulated.
 #   A12 three product mutations are caught: no yFlip (A5/A6 red), the arrow sign
-#       flipped (A9/A9b red), the panel anchored left instead of right (A3 red).
+#       flipped (A9 "ahead" red -- flipping the sign puts the dots behind, so the
+#       ahead assertion is the one that must fail, not the absence one), the panel
+#       anchored left instead of right (A2 bbox red).
 #
 # EIGHT WAYS THIS COULD BE VACUOUSLY GREEN, AND WHAT STOPS EACH
 #   V1 "the trace says it drew" is treated as drawing.       -> A2 is a pixel count
@@ -588,6 +590,22 @@ section_a2() {
   assert_eq "the panel is 160 pixels tall" "$A2_PH" 160
   assert_eq "the panel sits at the top-right corner (W-172)" "$A2_X" "$((A2_W - 172))"
   assert_eq "the panel starts at the 8+4 inset" "$A2_Y" 12
+  # A2b: the PANEL line above is computed by panel_rect() from the frame size
+  # alone, so on its own it asserts the SPEC and would still say "top-right" if
+  # the product drew the panel in the other corner. The BBOX is measured from the
+  # two frames, so these four assertions are the positional half of A2: the
+  # differently-painted pixels must occupy exactly the rectangle the spec names.
+  # Added for A12 m3-anchor (2026-11-14): anchoring the panel left left the
+  # pixel-count assertions as the only red, which is a side effect, not the
+  # defect. With the panel anchored left, the first red is now "the changed
+  # pixels start at the panel's left edge".
+  A2_BBOX="$(printf '%s\n' "$out" | sed -n 's/^BBOX x0=\(-*[0-9]*\) y0=\(-*[0-9]*\) x1=\(-*[0-9]*\) y1=\(-*[0-9]*\).*/\1 \2 \3 \4/p')"
+  set -- $A2_BBOX
+  A2_BX0="${1:-}"; A2_BY0="${2:-}"; A2_BX1="${3:-}"; A2_BY1="${4:-}"
+  assert_eq "the changed pixels start at the panel's left edge" "$A2_BX0" "$A2_X"
+  assert_eq "the changed pixels start at the panel's top edge" "$A2_BY0" "$A2_Y"
+  assert_eq "the changed pixels end at the panel's right edge" "$A2_BX1" "$((A2_X + A2_PW - 1))"
+  assert_eq "the changed pixels end at the panel's bottom edge" "$A2_BY1" "$((A2_Y + A2_PH - 1))"
   assert_ge "pixels changed inside the panel" "$A2_INSIDE" 20000
   assert_le "pixels changed inside the panel" "$A2_INSIDE" 25600
   # A shape that hung over the panel edge would paint on the world, because the HUD
@@ -879,6 +897,21 @@ pixel_selftest() {
 # line, rebuilds, re-runs only the sections that judge that line, and requires both a
 # non-zero exit AND a red line naming the intended assertion. The source is restored
 # by byte copy and compared, and the final rebuild must reproduce the forward exe.
+#
+# THE EXPECTED REASON MUST BE THE ASSERTION THAT NAMES THE DEFECT
+#   2026-11-14: the first A12 run caught all three mutations but judged FAIL, because
+#   m2 and m3 named the wrong red line. Both were harness errors, and fixing them
+#   needed more than editing a string:
+#     m2-heading flipped the arrow sign. That moves the dots BEHIND the camera, so
+#     "a heading dot Npx ahead" is the assertion that must fail; "no heading dot Npx
+#     behind" is the assertion that then PASSES. The old expectation named the
+#     assertion the defect satisfies, so no run could ever match it.
+#     m3-anchor moved the panel to the other corner. Section A2's PANEL rectangle is
+#     computed from the frame size by panel_rect(), so its "top-right" line asserts
+#     the spec, not the drawing, and stays green; only the pixel counts moved. A2 now
+#     also compares the measured BBOX with that rectangle, which is the positional
+#     assertion the mutation must trip. See A2b in section_a2. m3 keeps --sections=2
+#     because that is the section whose assertions are supposed to judge the anchor.
 mutation_one() {
   local id="$1" file="$2" from="$3" to="$4" sections="$5" expect="$6"
   local backup="$SCRATCH/mut-$id.bak"
@@ -936,13 +969,13 @@ section_a12() {
     "const float forwardY = -static_cast<float>(std::sin(radians));" \
     "const float forwardY = static_cast<float>(std::sin(radians));" \
     "9" \
-    "no heading dot"
+    "a heading dot 4.0px ahead"
   mutation_one m3-anchor \
     native/include/hud_panel.h \
     "spec.anchor = 1;" \
     "spec.anchor = 0;" \
     "2" \
-    "top-right"
+    "the changed pixels start at the panel's left edge"
   echo "   rebuilding the forward tree"
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mut-restore-build.log" 2>&1; then
     fail_one "the restore rebuild failed (mut-restore-build.log)"; return 0
