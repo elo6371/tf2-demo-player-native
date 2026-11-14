@@ -127,7 +127,14 @@ for class in "${CLASSES[@]}"; do
         failure "$class $family seq $idx: asked for ${want}, decoder reported ${got:-nothing}"
         continue
       fi
-      stats=$(awk '
+      # D53 (2026-11-15): this probe writes its trace through MSVC text-mode stdio,
+      # so on disk every line ends CRLF and a trailing field reaches awk as "1\r".
+      # The host carries two GNU Awk builds -- 5.4.1 on PATH (niubash, 4,647,424 B)
+      # and 5.4.0 (Git, 1,219,175 B) -- that differ in whether they translate CRLF
+      # while reading a FILE, so the same input produced two different verdicts
+      # (measured 2026-11-15: "0 116.193001 4" vs "1 116.193001 4" on one trace).
+      # Normalise the input here, not the probe: historical traces stay comparable.
+      stats=$(tr -d '\r' < "$frame_log" | awk '
         /^animpose / {
           n++
           for (i = 1; i <= NF; ++i) {
@@ -136,7 +143,7 @@ for class in "${CLASSES[@]}"; do
             if ($i ~ /^checksum=/) { split($i, a, "="); cs[a[2]] = 1 }
           }
         }
-        END { d = 0; for (k in cs) d++; printf "%d %.6f %d\n", (bad ? 0 : (n > 0 ? 1 : 0)), max, d }' "$frame_log")
+        END { d = 0; for (k in cs) d++; printf "%d %.6f %d\n", (bad ? 0 : (n > 0 ? 1 : 0)), max, d }')
       finite=$(echo "$stats" | cut -d" " -f1)
       maxdelta=$(echo "$stats" | cut -d" " -f2)
       distinct=$(echo "$stats" | cut -d" " -f3)

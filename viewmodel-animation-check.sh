@@ -86,10 +86,29 @@ cd "$(dirname "$0")"
 # move are named there. It is wired rather than tolerated, because a gate whose
 # `--mutation` is silently ignored would let `verify-render.sh --mutation` and
 # the acceptance chain's step claim a check that never ran.
+# SAMPLING DENSITY (D59; docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md section 9)
+# ---------------------------------------------------------------------------
+# Two readings in this gate are EDGE quantities: max_frames reports the longest
+# vmAnim clip a trace contains, asserted as EXACT clip lengths (0 / 31 / 61) in
+# section 5. A clip length is a count of drawn frames, so it follows how densely the
+# playback was sampled -- exactly what --playback-speed changes -- and running this
+# gate faster would move the reading with no product change. --playback-speed is
+# REFUSED in the argument loop below. If a different speed is ever really needed,
+# change those criteria in the same commit and re-take every reading; never compare
+# readings taken at different speeds.
+#
 MUTATION=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --mutation) MUTATION=1 ;;
+    --playback-speed|--playback-speed=*)
+      echo "FATAL: --playback-speed is refused by this gate (D59): max_frames is asserted" >&2
+      echo "       as an exact clip length (0/31/61), and a clip length follows sampling" >&2
+      echo "       density, so a faster playback moves the reading with no product change." >&2
+      echo "       Change those criteria in the same commit if a different speed is ever" >&2
+      echo "       really needed, and re-take every reading (see the SAMPLING DENSITY" >&2
+      echo "       block in this file's header)." >&2
+      exit 2 ;;
     *) echo "unknown argument: $1"; exit 2 ;;
   esac
   shift

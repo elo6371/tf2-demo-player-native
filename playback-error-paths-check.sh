@@ -150,6 +150,17 @@ judge_B() { # <trace> <rc> <before.bmp> <after.bmp>
   AB=$(fnum "$T" "camera: mode applied=free-look" "tick=")
   MK=$(fnum "$T" "camera: mark tick=" "tick=")
   if [ "$MK" != "-" ] && [ "$MK" != "-1" ] && [ "$MK" = "$AB" ]; then green B-mark; else red B-mark "mark-tick recorded tick=$MK, the mode change landed at tick=$AB (want the same, and not the -1 initial value)"; fi
+  # D56 (2026-11-15; registration WITHDRAWN by the lead, same date): the field IS
+  # real -- do not "fix" this line by reading a different one. The producer writes
+  # this format as three physical lines and modeApplies=%u is the last field of the
+  # last one: native/src/main.cpp:13033-13035 in the current worktree (at 6dd853e it
+  # was 13012-13014; the Q5 patch at 10186-10217 added 21 lines above it). A check
+  # that quotes only the FIRST physical line, as the registration did, misses it.
+  # modeApplies arrived with bbf3559 (2026-11-07); the frozen pre-fix binary behind
+  # the RED readings in evidence/t93-playback/pre-gate.log printed no such field at
+  # all (0 occurrences in pre-*.trace), so modeApplies=- there was a TRUE reading of
+  # that binary, not a broken extraction. The two real causes of a RED reading here
+  # are that older binary, and the D53-family CR. Reading and assertion unchanged.
   local MA
   MA=$(fnum "$T" "camera: summary" "modeApplies=")
   if [ "$MA" != "-" ] && [ "$MA" != "0" ]; then green B-summary; else red B-summary "camera: summary modeApplies=$MA (want >=1)"; fi
@@ -229,6 +240,11 @@ judge_E() { # <trace> <rc> <captured.bmp>
   DO=$(fnum "$T" "mode: summary" "audio_device_opened=")
   if [ "$DO" = 0 ]; then green E-device; else red E-device "audio_device_opened=$DO (want 0: --audio-disabled must never open the device)"; fi
   if nhas "$T" "audio: seek reset"; then green E-noseek; else red E-noseek "an unseeked run printed 'audio: seek reset'"; fi
+  # D56 follow-up: if this line reads RED as modeApplies=0<CR> that is the D53 family
+  # (an awk that does not translate CRLF makes "0\r" != "0"), NOT a missing field:
+  # modeApplies is the LAST field of the camera: summary line and fnum takes the last
+  # match. The D53 repair here is the same tr -d '\r' on fnum's input; it is NOT
+  # applied in this window because it changes seven readings of this file at once.
   MA=$(fnum "$T" "camera: summary" "modeApplies=")
   if [ "$MA" = 0 ]; then green E-modeapplies; else red E-modeapplies "camera: summary modeApplies=$MA (want 0 on a run that never changes mode)"; fi
   if [ -s "$B" ]; then green E-capture; else red E-capture "no capture frame written to $B"; fi

@@ -104,7 +104,11 @@
 4. **§2.2 的十步走查要加一步**：只装核心 → 导出必须报具名缺失；再装组件 → 同一命令成功。这一步是「可选」这个设计真正被验证的地方。
 5. **构建测量（N26）不与核心共用输出目录**：组件是独立模块，若把它的目标塞进 `native/build-nmake`，N26 那份缓存读数立刻失效。
 
-技术前提已在真机成立（mfprobe，2026-11-14 20:44，`D:/_shared/EXEC-2026-11-15/mf-probe/`）：独立 exe 只链接 `mfplat/mfreadwrite/mfuuid/ole32/user32`，从磁盘 BMP 序列 + WAV 直接出 MP4 —— `AddStream(video) S_OK`、`SetInputMediaType(RGB32) S_OK`（**不必自写 NV12 转换**）、`AddStream(audio) S_OK`、`Finalize S_OK`，2 秒 1280×720@30 样片 239,516 B / 327 ms，`MFCreateSourceReaderFromURL` 回读 `streamCount=2 firstFrameDecoded=yes duration=2.005s`，两次同输入编码产物**逐字节相同**（207,556 B）。这只证明「可分离 + 系统自带 MFT + RGB32 直入」成立，**不证明**在产品进程内集成、不证明 AAC 在所有干净环境都在、不证明吞吐够 60 fps 长片（见 mfprobe 报告落盘后补的吞吐数）。
+技术前提已在真机成立（mfprobe，2026-11-14 20:48，报告 `D:/_shared/EXEC-2026-11-15/LEAD/mf-export-probe.md` 306 行）：独立 exe 只链接 `mfplat/mfreadwrite/mfuuid/ole32/user32`（`dumpbin /dependents` 实测只有 `MFPlat.DLL` / `MFReadWrite.dll` / `ole32.dll` / `KERNEL32.dll`），从 60 张 BMP + 1 个 WAV 直接出 239,516 B MP4 —— `AddStream(video) S_OK`、`SetInputMediaType(RGB32) S_OK`（**不必自写 NV12 转换**，RGB32/NV12/YUY2 三种全被接受）、`AddStream(audio) S_OK`、`Finalize S_OK`，`MFCreateSourceReaderFromURL` 回读 `streamCount=2 firstFrameDecoded=yes`。H.264 与 AAC 都由系统自带 MFT 提供（各至少一条）。
+
+**两条会直接影响发布链判据的实测结论**（细节见 `docs/N27-SCOPE-DECISIONS-2026-11-15.md` §8.2 / §8.4）：① 默认不写 `MF_MT_MPEG2_PROFILE`（Constrained Baseline，音画起点 0.000，代价约 +15% 体积）；显式 `Main` 会引入 B 帧把视频起点推后 33.3 ms。② **文件 sha256 不能当导出确定性判据** —— 跨秒编码只差 `moov` 内 10 字节的创建/修改时间。N30 若要断言「两次导出相同」，必须写「解码后逐帧像素 + 帧数 + 音频采样数相同」，写成文件 sha 相等会在真机上随机红。
+
+这只证明「可分离 + 系统自带 MFT + RGB32 直入」成立，**不证明**在产品进程内集成、不证明 AAC/H.264 在所有干净环境都在、不证明 60 fps 1080p 长片的吞吐与内存（已测编码 3.08 ms/帧，未测渲染/读回/写盘）、不证明 30 秒以上音画同步。
 ## 4 本文件没有证明什么
 
 - 没有跑 `verify-release.sh`，连 `DRY_RUN` 都没跑（今天树不干净，跑了也只是计划）。

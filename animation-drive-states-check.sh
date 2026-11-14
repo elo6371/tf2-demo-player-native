@@ -33,6 +33,18 @@
 #      needle vocabulary must be the T61/T84 one (crouch|flinch|idle|moving), not
 #      an invented label.
 #
+# SAMPLING DENSITY (D59; docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md section 9)
+# ---------------------------------------------------------------------------
+# One reading in this gate is an EDGE quantity, not a count of what the product
+# did: the flinchStarts peak (peak_of over the animdsum frames, asserted >=1 by the
+# C-section criterion) counts a state entry only if a sampled frame lands inside the
+# window in which it is true. Its value is therefore a function of how finely the
+# playback was sampled -- exactly what --playback-speed changes -- so running this
+# gate faster would move the reading with no product change, in either direction.
+# --playback-speed is REFUSED in the argument loop below. If a different speed is
+# ever really needed, change the criterion in the same commit and re-take every
+# reading; never compare readings taken at different speeds.
+#
 # NEGATIVE CONTROLS: a reading that has never been seen to fail is not evidence
 # (docs/READ-THE-PLAYBOOK-FIRST.md). Four controls run after the readings and each
 # must make the checker FAIL, for its OWN named reason (the helper greps for the
@@ -105,6 +117,13 @@ for arg in "$@"; do
   case "$arg" in
     --skip-negative-controls) SKIP_NEG=1 ;;
     --dry-run) DRY_RUN=1 ;;
+    --playback-speed|--playback-speed=*)
+      echo "FATAL: --playback-speed is refused by this gate (D59): the flinchStarts peak" >&2
+      echo "       it asserts is an EDGE reading that depends on sampling density, so a" >&2
+      echo "       faster playback moves it with no product change. Change the criterion" >&2
+      echo "       in the same commit if a different speed is ever needed, and re-take" >&2
+      echo "       every reading (see the SAMPLING DENSITY block in this file's header)." >&2
+      exit 2 ;;
     *) echo "FATAL: unknown argument: $arg"; exit 2 ;;
   esac
 done

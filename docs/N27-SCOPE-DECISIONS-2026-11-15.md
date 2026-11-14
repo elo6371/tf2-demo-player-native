@@ -94,26 +94,38 @@
 2. **确定性与实时必须分开。** 导出时不能靠 `elapsed` 走时钟：同一份 demo 两次导出必须逐字节一致（否则 QA 无从判定）。实现上要用固定步长推进（每帧 1/fps，且 tick 由 playback ledger 按同一速率推），并把 `--capture-tick` 那套「钳住 tick」的语义扩展到每一帧。
 3. **干净环境不能假设 Codec Pack。** H.264 编码器与 AAC 编码器在 Windows 10/11 上是系统自带 MFT，但「本机有」不等于「干净环境有」。**必须先探测再实现**（见 8.2），探测不到就不能答应这条需求。
 
-### 8.2 第一步不是写编码器，是探测能力（已派）
+### 8.2 第一步不是写编码器，是探测能力（**已做**，2026-11-14 20:48）
 
-要回答的可测问题（每一条都要探针实测输出，不许推断）：
+探针 `native/tools/mf_export_probe.cpp` + `.sh`（`cl.exe` 直编，未改 `native/CMakeLists.txt`，未启动产品），报告 `D:/_shared/EXEC-2026-11-15/LEAD/mf-export-probe.md`（306 行，逐条 HRESULT/GUID/ffprobe 原文）：
 
-- `MFTEnumEx` / `MFTEnum` 在 `MFT_CATEGORY_VIDEO_ENCODER` 下有没有 H.264 编码器？`MFT_CATEGORY_AUDIO_ENCODER` 下有没有 AAC？
-- `IMFSinkWriter` 能否创建 MP4（`MF_TRANSCODE_CONTAINERTYPE` = `MPEG4`）并同时添加 H.264 + AAC 两条流？
-- 输入用 CPU 缓冲 RGB32（避免自写 NV12 转换与 GPU 互操作），SinkWriter 是否接受（即系统有色彩转换 MFT）？
-- 输出 1 秒样片后能否用 `MFSinkWriter` 之外的通路回读（内容源 `IMFSourceReader`）确认帧数与时长？
+| 问题 | 实测（真机） | 判 |
+|---|---|---|
+| H.264 编码器存在？ | 19 个视频编码器 MFT 里 **4 条输出 H.264**：Intel QSV `{4BE8D3C0-0515-4A37-AD55-E4BAE19AF471}`（两条）、NVIDIA `{60F44560-5A20-4857-BFEF-D29773CB8040}`、微软软件 `H264 Encoder MFT` `{6CA50344-051A-4DED-9779-A43305165E35}`。输入子类型**没拿到**：硬件 MFT `0xC00D6D77 MF_E_TRANSFORM_ASYNC_LOCKED`，软件 MFT `0xC00D36E6 MF_E_ATTRIBUTENOTFOUND` —— 记为未获得，不是缺陷 | 是 |
+| AAC 编码器存在？ | `count=1`，`Microsoft AAC Audio Encoder MFT` `{93AF0C51-2275-45D2-A35B-F2BA21CAED00}`，输入子类型枚举成功（PCM/Float 共 64 条） | 是 |
+| MP4 容器 + 双流？ | `MFTranscodeContainerType_MPEG4` 下 `AddStream(H.264)` 与 `AddStream(AAC)` 均 `S_OK`，`Finalize S_OK` | 是 |
+| RGB32 被接受？ | RGB32 / NV12 / YUY2 三种全部 `SetInputMediaType S_OK` —— **不必自写 NV12 转换** | 是 |
+| 独立回读？ | `MFCreateSourceReaderFromURL` 回读 2 流、首帧解码成功（`bytes=1382400` = 1280×720×1.5 NV12）；**逐流 `MF_PD_DURATION` 返回 0.000 s**，逐流时长只能用第三方 ffprobe 核对（video 2.000 / audio 2.005313）—— ffprobe 是 QA 工具，**不是产品依赖** | 是（一处空缺） |
+| 可分离性（组件方案的前提） | 独立进程从 60 张 BMP + 1 个 WAV 出 239,516 B MP4；`dumpbin /dependents` 只有 `MFPlat.DLL` / `MFReadWrite.dll` / `ole32.dll` / `KERNEL32.dll` | 是 |
 
-任一条为否，本需求的实现形状就要改（例如必须自写 NV12 转换，或只能出 AVI/MKV），**必须在动手写产品代码前把否证拿到**。
+**四条没有一条为否 → 方案 C 的实现形状不变**：不需要自写 NV12、不需要退回 AVI/MKV、不需要 ffmpeg。成片样片 `sample_720p_2s.mp4` = 207,556 B，h264 Main 1280×720@30（`nb_frames=60`，722,776 bps）+ aac LC 48 kHz 立体声（`nb_frames=94`，97,221 bps）；音频不是静音（`mean_volume: -15.1 dB`、`max_volume: -11.5 dB`，与设计正弦 RMS −15.06 dB 吻合）；抽第 0 帧肉眼核对渐变方向、白条位置（x=0、rows 120–600）全对，无上下颠倒/BGR 互换。吞吐：100 帧 1280×720 = **308 ms（3.08 ms/帧）**，外推 1800 帧（30 s@60 fps）≈ 4.3–5.5 s，**仅编码**，不含每帧渲染与混音。
 
 ### 8.3 这次裁决没有改变的事
 
 - PIP / 四视角、LOD1+ 仍在后续里程碑（§5），不因为「首发含导出」而进本批。
 - N22 工具链便携、N29 干净环境两条约束仍然有效：方案 C 正是为了不与它们冲突才被选，**如果探测发现系统不带 H.264/AAC，冲突就回来了**，那时要回到用户重新裁决，而不是偷偷退回方案 A。
 
+### 8.4 探测带出来的两条裁决（lead，2026-11-14 20:52）
+
+**一、B 帧 / profile：默认不写 `MF_MT_MPEG2_PROFILE`。** 探针实测两条路 —— 显式写 `Main` 会启用 B 帧，**视频起始晚 1 帧（33.3 ms）**、容器 2.0333 s，而音频仍从 0 开始（音画起点差 33.3 ms）；不写该属性（默认 Constrained Baseline，`has_b_frames=0`）则起始 **0.000000**、容器 2.005313 s，代价是同内容大约 **15% 体积**（239,516 vs 207,556 B）。裁决理由：这是一条「让人看回放」的导出，**音画起点对齐比文件大小重要**，2 秒样片上 15% 不过 32 KB。第三条路（自建 topology 设 `CODECAPI_AVEncMPVDefaultBPictureCount=0`）本探针**没验**；若将来体积成硬指标，先测它再谈改判。**任何 profile 变更必须同时重跑音画起点检查。**
+
+**二、文件 sha256 不能当导出确定性的判据。** 同一秒内两次编码逐字节相同（sha256 `02ef1a59…`）；跨秒比差 **10 个字节**，全在 `moov` 内（205,167–206,722），值 `0x15`→`0x16`，对应 `mvhd/tkhd/mdhd` 的 `creation_time`/`modification_time`（ffprobe 证实 `2026-11-14T12:44:05Z` vs `…:06Z`）。裁决：导出 QA 的确定性断言必须是「**解码后逐帧像素 sha 相同 + 帧数相同 + 音频采样数相同**」；容器时间戳允许不同，但报告里要显式写成「预期不同」，不许写成「不稳定」。若将来要文件级可比，做法是把这 10 字节归零（探针未验）。
+
 ## 八、本文件没有证明什么
 
 - **没有估工期**。§2 的"未估"是因为 §4 三件事一次都没测过，不是保守措辞。
-- **没有测过一帧的渲染/读回/写盘耗时**，也没有测过连续多帧是否可行。
-- **没有验证过音频离线渲染的时钟一致性**（音频事件现在只存在于播放期调度里）。
-- **没有验证 ffmpeg 在这台机器上的可用性**，只从 CMake 配置日志里读到它的搜索路径。
+- **已测编码吞吐**（3.08 ms/帧，§8.2），但**仍未测**每帧渲染 / 读回 / 写盘耗时，也未测 60 fps 1080p 与长片的编码内存。
+- **音频离线渲染的时钟一致性仍未验证**：§8.2 只证明容器能装 AAC 流、能装正弦波，**不证明**产品能按 tick 算出正确的采样偏移（音频事件今天只存在于播放期调度里）。
+- **干净环境 / N 版 Windows 未验**：H.264 与 AAC 由系统自带 MFT 提供只在这台机器上验过；sink 实际选了哪个编码器 MFT 也未验（探针没读回选中项的 CLSID）。
+- **A/V 漂移未验**：只测了 2 秒样片的起点与容器时长，没有测 30 秒以上音画是否同步。
+- **ffmpeg 在这台机器上的可用性仍未验证** —— 方案 C 不需要它，所以也没有用它作交叉核对。
 - 不含任何"导出功能已实现/已排除"的结论 —— 这两件事只能由产品负责人裁决后写。
