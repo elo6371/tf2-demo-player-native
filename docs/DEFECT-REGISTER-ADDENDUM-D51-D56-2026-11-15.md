@@ -86,14 +86,16 @@
 
 ---
 
-## D56 — 两条恒红断言，引用了 producer 根本不打印的字段
+## D56 —（**已撤回**，2026-11-14 20:43）曾登记为「引用了 producer 根本不打印的字段」，实为 D53 的 CR 家族
 
-- **发现者**：e17-e20-char（同一轮普查）
-- **缺陷位置与证据**：
-  - `playback-error-paths-check.sh:154` / `:232` 取 `camera: summary` 的 `modeApplies=`；producer `native/src/main.cpp:12908` 的格式串是 `mode=%s modeChanges=%u spacePresses=%u spaceSingles=%u` —— **没有这个字段**。
-  - `playback-error-paths-check.sh:227` 取 `mode: summary` 的 `events_seen=`；producer `native/src/main.cpp:12857` 只有 `window_created= window_visible= audio_mode= audio_device_opened=` —— **同样没有**。
-- **后果**：取不到就是 `-`，于是 `B-summary`、`E-modeapplies`、`E-events` 三条**永远红**。**剥干净 CR 也不会变绿**——它与换行无关。
-- **与 D53 的区别**：D53 是「解析被环境改变」，D56 是「解析的目标根本不存在」。两者都会让门禁失去信号，但修法完全不同。
+- **原发现者**：e17-e20-char（同一轮普查）。**撤回者**：lead，复核 gatefix 的门禁实读结果时推翻。
+- **原登记（保留以便追溯，结论已作废）**：`playback-error-paths-check.sh:154` / `:232` 取 `camera: summary` 的 `modeApplies=`、`:227` 取 `mode: summary` 的 `events_seen=`，判为 producer 不打印 → `B-summary` / `E-modeapplies` / `E-events` 恒红。
+- **实测事实（两处都查过格式串原文）**：
+  - `camera: summary` 的格式串在 HEAD 上是**三个物理源码行**：`native/src/main.cpp:13033` `traceFmt("camera: summary mode=%s modeChanges=%u spacePresses=%u spaceSingles=%u"`、`:13034` `" spaceDoubles=%u doubleWindowMs=%u pauseToggles=%u follows=%u holdsNoTarget=%u"`、`:13035` `" freezeFrames=%u modeApplies=%u",` → **`modeApplies` 存在**，是最后一行的最后一个字段。
+  - `mode: summary` 的格式串同样跨两行：`native/src/main.cpp:12982` + `:12983`，而 `:12983` 内就有 `events_seen=%zu events_played=%zu` → **`events_seen` 也存在**（原登记写 `:12857`，`:13012` 的场合同样是漂移后的旧行号）。
+- **原登记错在哪一步**：用 grep 在**源码**里查 `modeApplies=`，只匹配到 `camera: summary` 所在的第一个物理行，而那段 C 字符串字面量被拆成三行 → 判成「producer 不打印」。**源码里跨行的 C 字符串不是输出行**；把一种表示当成另一种表示，与 D51（注释当证据）、D53（环境当常量）同族。
+- **这两条读数为什么确实是红的（真实机制）**：① 冻结的**修复前二进制**里确实没有该字段 —— `modeApplies` 随提交 `bbf3559`（2026-11-07）才进产品，`evidence/t93-playback/pre-*.trace` 中 `modeApplies` 出现 0 次，所以那时的 `modeApplies=-` 是**该二进制的真实读数**，不是提取坏了；② 在 HEAD 上再读时末字段是 `0\r`（MSVC 文本模式），与 `0` 比不等 → 红，属 **D53**。
+- **结论与动作**：D56 **不作为独立缺陷存在**，`playback-error-paths-check.sh` 的读取与断言一律不改（改字段只会掩盖真实原因）。D53 的修复会连带修好这两条；`playback-error-paths-check.sh:154` 附近已留注释，禁止后人「换个字段碰运气」。
 
 ---
 
@@ -132,7 +134,7 @@
 - **附带发现（逻辑漏洞，当前不可触发）**：丢弃规则只判 y 不判 x —— 客户区宽 <16 时面板被「放置」成 `w=0` 且仍报 `state=ready`。`--window-size` 拒绝 <320x240，故不可触发，仍记在案。
 ---
 
-## 共同前置（D53 / D55 / D56 / D57）
+## 共同前置（D53 / D55 / D57；D56 已于 2026-11-14 撤回，见该节）
 
 e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 末尾提出一条建议，lead 采纳为**待批准提议**：
 

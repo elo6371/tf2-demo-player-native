@@ -211,11 +211,20 @@
 
 ### N12　POV/STV 相机与播放（D）
 
-- [x] **输入眼位 vs 实际渲染眼位（2026-11-15，独立 oracle）**：产品 POV 相机 == demo cmdinfo（双解析实现 + 原始字节三方一致，Δ≤0.042 u / 0.003°），但 cmdinfo 的 `viewOrigin` 就是玩家 `m_vecOrigin`（4 样本逐位相同），而产品不读 `m_vecViewOffset` ⇒ 相机比眼位低 75.03 u（Sniper）/ 68.03 u（Demoman）/ 0（viewOffset=0 的死亡观战帧）。STV 无录制相机（cmdinfo 全零），产品按 `origin + kSpectatorEyeHeight(68) + m_angEyeAngles` 合成：新鲜快照吻合 ≤0.032 u，蹲伏 +23.006 u，陈旧快照（t20000 落后 1100 tick）≈600 u。三候选修复（POV 加 viewOffset / STV 用 netprop 而非常量 / STV 不用 archive Checkpoint）待开卡；证据 `D:/_shared/EXEC-2026-11-15/N12-CAMERA-ORACLE-REPORT-2026-11-15.md`。
+- [x] **独立相机眼位对照（2026-11-15，证据子项完成；不代表 N12 整卡完成）**：POV 产品值与 demo cmdinfo 一致（双解析实现 + 原始字节实现交叉确认；Δ≤0.042 u / 0.003°），但 cmdinfo `viewOrigin` 是玩家 `m_vecOrigin`，不是眼位；当前 POV 渲染缺 `m_vecViewOffset`，Sniper / Demoman 样本分别低 75.03 / 68.03 u。STV 没有录制相机真值，只能确认跟随相机合成公式；新鲜站立快照吻合 ≤0.032 u，蹲伏时多 23.006 u，t20000 实际使用的实体快照落后 1100 tick（约 600 u）。报告：`D:/_shared/EXEC-2026-11-15/N12-CAMERA-ORACLE-REPORT-2026-11-15.md`。**结论是 POV 眼位缺陷已证实、STV 仍无真实相机真值；不得把该证据子项写成产品通过。**
+- [ ] **N12-A 修复 POV 眼位**（D 实现，B 验收）：沿当前 POV 相机所选的实体状态 tick/插值规则读取 `m_vecViewOffset[2]` 并加到 `m_vecOrigin`；不得从最新状态跨 tick 拼接，也不得用固定职业高度替代录制状态。明确属性缺失、死亡/观战、插值边界和无效值的回退，并让 trace 区分 origin、viewOffset、最终 eye、各自来源 tick。
+- [ ] N12-A 验收：在报告登记的 POV-f12 与 POV-upward 样本及 stand/crouch/`viewOffset=0` 状态上，最终 eye 与独立 oracle 的 `m_vecOrigin + m_vecViewOffset` 在预注册 2.0 u 容差内；角度继续符合 direct oracle 的 0.5° 容差。保留 N1 错 tick、N2 POV/STV 互换、N3 全零负控，新增缺 viewOffset / 错 tick 不得误 PASS 的负控；检查 seek、暂停恢复和实体切换不会跨 tick 串值。
+- [ ] **N12-B 修复 STV 蹲伏眼高**（D 实现，B 验收）：跟随目标相机优先使用与目标位置同一 resolved snapshot 的 `m_vecViewOffset[2]`；只有字段缺失或无效时才退回 68，并在 trace 中标明 fallback 原因。不要把站立常量当作蹲伏眼位。
+- [ ] N12-B 验收：对报告中的 STV-f12 t40000 及独立 stand/crouch 样本，和同一 resolved tick 的 `D_follow` oracle 比较，位置差 ≤2.0 u、角度差 ≤0.5°；负控覆盖错误目标、错 tick、缺失 viewOffset fallback 与 `viewOffset=0`，不得把 fallback 伪装成 oracle 匹配。
+- [ ] **N12-C 修复 STV 陈旧快照选取**（D 实现，B 验收）：审查 `entityHistoryArchive` / `Checkpoint` 与 live packet/history 的查询优先级；相机查询优先取不晚于目标播放 tick 的最近有效目标状态，不用过旧 archive checkpoint 冒充当前状态。保留目标实体 serial/身份；若没有可接受的新鲜状态，显式报告 stale/无相机并按定义冻结或回退，不读取未来状态。
+- [ ] N12-C 验收：报告中的 t20000 stale=1100 负例应选到与请求时间最近的有效状态，fresh-window 正例保持位置/角度连续；可用时要求 resolved snapshot stale ≤1 tick。增加“只有旧 checkpoint”“目标消失/serial 改变”“未来样本存在”负控，验证不串目标、不向未来跳、不静默声称新鲜；若语料无法达到 ≤1 tick，明确标 NOT VERIFIED 并记录实际上界，不放宽阈值掩盖缺数据。
+- [ ] N12-A/B/C 通过后再复跑 N12 的 viewEntity、observer target/mode、实体 serial、userdata、第一/第三/自由视角、目标切换、暂停/seek/逐帧/倍速矩阵；独立 oracle 能证明 POV 的录制眼位，**不能**证明 STV 的真实导播相机（demo 未记录该值）。
 - [ ] 矩阵覆盖 viewEntity、observer target/mode、实体 serial、userdata；区分输入眼位与实际渲染眼位。
 - [ ] 验证第一/第三/自由视角、跟随目标切换、失效目标回退、暂停后恢复、seek 前后状态。
 - [ ] play/pause/seek/逐帧/倍速/结束/错误索引分别验证；reverse 仅在产品宣称支持时纳入，未实现需写明。
 - [ ] `--start-paused` + 非零 `--capture-tick` 不会推进 tick：取中间帧按已有播放/seek能力设置，不让脚本无限等待。
+
+调度：N12-A/B/C 都涉及 `native/src/main.cpp` 的相机状态选择/构造，产品代码必须由同一负责人按 A→B→C 串行修改并逐项提交；QA 可并行补独立 oracle fixture、负控和验收脚本，但不得同时改同一 gate/helper。每项先跑相关 probe/gate 与短样本，不因此启动完整发布链；三项合入后再跑 N12 受影响矩阵。报告及当前基线绑定 `candidate/e5` / `a901ece` / exe `cfcdbe5d…`；产品修复后旧 exe 的相机证据不能代替新构建读数。
 
 ### N13　HUD 身份与普通用户路径（D + B）
 
@@ -354,6 +363,7 @@
 | P1 | G | N01 f12 POV 和缺材质资源 | 与其他只读任务并行；不替换错误地图 |
 | P1 | F | N02 Unicode probe、N22 工具链/CI 草案 | 实现不抢 renderer 写域；构建窗口排队 |
 | P1 | D+B | N03 设置副本和可维护回归入口 | 公共 helper 单写；不重复整链 |
+| P1 | D+B | N12-A/B/C POV/STV 眼位与新鲜快照修复；先做相机状态查询/序列契约，QA 并行准备 oracle 与负控 | `main.cpp` 产品改动同一负责人按 A→B→C 串行；短 gate 分段跑，合并后跑 N12 受影响矩阵 |
 | P1 | C | N05 两黑点、N06 每族一个具名实验 | 与资产盘点并行，产品抓帧串行 |
 | P2 | D | N14 独立底图/比例、N15 DPI 与连续状态 | 与 N16 设计可并行；共享 UI 写入串行 |
 | P2 | E | N17/N18 真实动作与武器样本、N19 容量实测 | 盘点并行，shader/model 与地图分窗口 |
