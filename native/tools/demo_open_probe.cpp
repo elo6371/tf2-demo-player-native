@@ -606,6 +606,32 @@ int wmain(int argc, wchar_t** argv) {
     cameraTick = static_cast<std::int32_t>(parsed);
     firstPath += 2;
   }
+  // N12-C step 2 evidence: --camera-row dumps the camera track's own row at one or
+  // more EXACT server ticks (comma separated). That row is what the product's eye
+  // now reads, so it is the independent value the product trace is compared
+  // against, printed at four/six decimals instead of the trace's 0.1 u quantum.
+  std::vector<std::int32_t> cameraRowTicks;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--camera-row") {
+    const std::wstring list(argv[firstPath + 1]);
+    std::size_t start = 0;
+    while (start <= list.size()) {
+      const std::size_t comma = list.find(L',', start);
+      const std::wstring item = list.substr(start, comma == std::wstring::npos ? std::wstring::npos : comma - start);
+      if (!item.empty()) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(item.c_str(), &end, 10);
+        if (end == item.c_str() || *end != L'\0' || parsed < 0
+            || parsed > std::numeric_limits<std::int32_t>::max()) {
+          std::wcerr << L"invalid camera row tick\n";
+          return 2;
+        }
+        cameraRowTicks.push_back(static_cast<std::int32_t>(parsed));
+      }
+      if (comma == std::wstring::npos) break;
+      start = comma + 1;
+    }
+    firstPath += 2;
+  }
 
   std::vector<std::int32_t> serverTickAts;
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--server-tick-at") {
@@ -933,6 +959,36 @@ int wmain(int argc, wchar_t** argv) {
                    << L" camera_rows_before_first_entities=" << cameraRowsBeforeEntities
                    << L" camera_first5_ticks=" << cameraFirst5
                    << L" camera_bytes=" << (summary.cameraTickSamples.size() * sizeof(tf2::native::CameraTickSample));
+      }
+      // N12-C step 2: the track's own row at each requested exact tick. Printed
+      // only when --camera-row was given, so every other scan line stays
+      // byte-identical to the step-1 output.
+      for (const std::int32_t requestedCameraRow : cameraRowTicks) {
+        const tf2::native::CameraTickQueryResult rowResult =
+            tf2::native::queryCameraTickSample(summary, requestedCameraRow);
+        std::wcout << L" camera_row_req=" << requestedCameraRow
+                   << L" camera_row_hit=" << (rowResult.hit ? 1 : 0)
+                   << L" camera_row_rows_at_tick=" << rowResult.rowsAtTick
+                   << L" camera_row_prev=" << rowResult.previousTick
+                   << L" camera_row_next=" << rowResult.nextTick;
+        if (rowResult.sample != nullptr) {
+          const tf2::native::CameraTickSample& row = *rowResult.sample;
+          char numbers[512];
+          std::snprintf(numbers, sizeof numbers,
+            " camera_row_tick=%d camera_row_entity=%d camera_row_class=%d"
+            " camera_row_generation=%u camera_row_flags=%u"
+            " camera_row_origin=%.4f,%.4f,%.4f camera_row_view_offset_z=%.6f"
+            " camera_row_eye_z=%.6f camera_row_angles=%.4f,%.4f,%.4f"
+            " camera_row_life=%d camera_row_obs=%d",
+            static_cast<int>(row.tick), static_cast<int>(row.entityIndex),
+            static_cast<int>(row.classId), static_cast<unsigned>(row.generation),
+            static_cast<unsigned>(row.flags), row.origin[0], row.origin[1], row.origin[2],
+            static_cast<double>(row.viewOffsetZ),
+            static_cast<double>(row.origin[2] + row.viewOffsetZ),
+            row.angles[0], row.angles[1], row.angles[2],
+            static_cast<int>(row.lifeState), static_cast<int>(row.observerMode));
+          std::wcout << numbers;
+        }
       }
       {
         std::wstring first5, last5;

@@ -527,6 +527,108 @@ EyeOffsetReading readEyeOffsetZ(const tf2::native::EntityState& state) {
   return reading;
 }
 
+// N12-C step 2: how far the camera row track is allowed to backfill one tick.
+//
+// A scene tick can only be missing a row when that packet produced none (no view
+// target, no final tick, or a packet that did not decode end to end), and the
+// track holds one row per packet, so the nearest older row is normally one packet
+// away -- one tick, occasionally a few when several packets share a server tick.
+// Two ticks is about 30 ms at the demo's 66 Hz, which is under one interpolation
+// step (cl_interp ~0.031 s): a backfilled eye is still the pose of this frame and
+// not a camera from the past. Anything older is the snapshot's job. The next
+// NEWER row is never used -- an eye from the future would be a guess wearing a
+// number, and it is the one mistake this limit cannot make.
+constexpr std::int32_t kCameraEyeBackfillMaxTicks = 2;
+
+// What the eye resolution did, per consumer (POV and relay each own a set).
+//
+// The eye is three floats; these are the reasons it is those three floats, and
+// they are the only place the difference between "read at exactly this tick" and
+// "the old snapshot derivation answered" is visible. Printed once at exit.
+struct CameraEyeStats {
+  std::size_t queries = 0;                 // exact-track queries made (an unresolved tick is not one)
+  std::size_t exact = 0;                   // the requested tick had a row
+  std::size_t backfill = 0;                // nearest older row taken, within kCameraEyeBackfillMaxTicks
+  std::int32_t backfillMaxTicks = -1;      // largest backfill distance actually taken
+  std::size_t fallbackNoSample = 0;        // no row at or before the tick: the track starts later
+  std::size_t fallbackDistance = 0;        // an older row exists but is further than the backfill limit
+  std::size_t fallbackTickUnresolved = 0;  // the scene had no tick: the track was never asked
+  std::size_t identityMismatch = 0;        // the row describes another entity than the one wanted
+  std::size_t rowMissingOrigin = 0;        // kCameraHasOrigin unset
+  std::size_t rowMissingOffset = 0;        // kCameraHasViewOffset unset
+  std::size_t rowOffsetOutOfRange = 0;     // offset outside (0, 300]
+  std::size_t rowIncomplete = 0;           // a slot the row could not describe (origin/angles/offset)
+  std::size_t rowDead = 0;                 // the row says this eye is dead: no lift
+  std::size_t rowObserving = 0;            // the row says this eye is observing: no lift
+  std::size_t applied = 0;                 // the camera row produced the eye
+  std::size_t snapshotFallbacks = 0;       // fell through to the entity-snapshot path
+};
+CameraEyeStats g_cameraPovEyeStats;
+CameraEyeStats g_cameraRelayEyeStats;
+
+// One decision about which row describes a tick, shared by both eyes so the POV
+// and the relay cannot disagree about what "the row for tick N" means.
+struct CameraEyeRow {
+  const tf2::native::CameraTickSample* sample = nullptr;
+  std::int32_t requestedTick = -1;  // the scene tick that was asked for
+  std::int32_t rowTick = -1;       // the row's own tick (equals the request on an exact hit)
+  std::int32_t previousTick = -1;  // nearest older row tick, as the query reported it
+  std::int32_t nextTick = -1;      // nearest newer row tick: reported, never taken
+  std::size_t rowsAtTick = 0;      // rows sharing rowTick; the query answers with the last
+  bool backfilled = false;
+  const char* miss = "";           // "no-sample" | "distance-exceeded" | "tick-unresolved"
+};
+
+CameraEyeRow lookupCameraEyeRow(const tf2::native::DemoNetworkSummary& summary,
+                                std::int32_t requestedTick, CameraEyeStats& stats) {
+  CameraEyeRow out;
+  out.requestedTick = requestedTick;
+  // Q5's lesson, applied BEFORE the track instead of after the snapshot: an
+  // unresolved scene tick is -1, and -1 is not a tick. Asking the track for it
+  // would answer "no sample" for a tick that was never known, which reads like a
+  // measured miss and hides the real reason.
+  if (requestedTick < 0) {
+    out.miss = "tick-unresolved";
+    ++stats.fallbackTickUnresolved;
+    return out;
+  }
+  ++stats.queries;
+  const tf2::native::CameraTickQueryResult exact =
+      tf2::native::queryCameraTickSample(summary, requestedTick);
+  out.previousTick = exact.previousTick;
+  out.nextTick = exact.nextTick;
+  if (exact.hit) {
+    out.sample = exact.sample;
+    out.rowTick = requestedTick;
+    out.rowsAtTick = exact.rowsAtTick;
+    ++stats.exact;
+    return out;
+  }
+  if (exact.previousTick >= 0
+      && requestedTick - exact.previousTick <= kCameraEyeBackfillMaxTicks) {
+    const tf2::native::CameraTickQueryResult previous =
+        tf2::native::queryCameraTickSample(summary, exact.previousTick);
+    if (previous.hit) {
+      out.sample = previous.sample;
+      out.rowTick = exact.previousTick;
+      out.rowsAtTick = previous.rowsAtTick;
+      out.backfilled = true;
+      const std::int32_t distance = requestedTick - exact.previousTick;
+      if (distance > stats.backfillMaxTicks) stats.backfillMaxTicks = distance;
+      ++stats.backfill;
+      return out;
+    }
+  }
+  if (exact.previousTick >= 0) {
+    out.miss = "distance-exceeded";
+    ++stats.fallbackDistance;
+  } else {
+    out.miss = "no-sample";
+    ++stats.fallbackNoSample;
+  }
+  return out;
+}
+
 // The POV eye this scene tick is drawn with, plus the reasons it may be the
 // bare origin.
 //
@@ -547,6 +649,29 @@ struct PovEye {
   std::int32_t lifeState = -1;
   std::int32_t observerMode = -1;
   const char* reason = "no-demo-view";
+  // N12-C step 2 provenance. None of it is printed on the frozen "scene: eye"
+  // line: source names which derivation produced the eye, origin is the vector it
+  // was built from, originTick is that source's own tick, and ageTick is the tick
+  // offsetAge is measured against. They exist so the reader can tell an eye read
+  // at exactly the scene tick from one derived out of a checkpoint.
+  const char* source = "none";  // "camera" | "camera-backfill" | "snapshot" | "none"
+  float origin[3] = {0.0f, 0.0f, 0.0f};
+  std::int32_t originTick = -1;
+  std::int32_t ageTick = -1;
+  std::int32_t rowTick = -1;      // camera row tick used (== request unless backfilled)
+  std::int32_t requestedTick = -1;
+  std::uint32_t flags = 0;        // the row's kCameraHas* mask, 0 when no row was used
+  bool backfilled = false;
+  // What the row itself carried, as sampled and unmodified -- a rejected row still
+  // reports it, which is the point: it lets a reader compare the row the product
+  // found against the row the probe dumps for the same tick. Read them together
+  // with flags: a field is only meaningful when its kCameraHas bit is set, and a
+  // zero offset here means "the slot could not be read", not "the eye is on the
+  // floor". The origin the eye was actually built from is origin above (printed as
+  // srcOrigin); these two are never substituted into it.
+  float rowOrigin[3] = {0.0f, 0.0f, 0.0f};
+  float rowOffsetZ = 0.0f;
+  const char* rowMiss = "";       // why no row answered: query miss, or why a row was rejected
 };
 
 // Same rank-then-deref shape as readMapInt below (main.cpp:10139-10146): the
@@ -564,20 +689,129 @@ bool readIntSlot(const tf2::native::EntityState& state, const char* suffix, std:
   return true;
 }
 
-// origin from the demo view sample (entry-tick space, the sample the camera
-// decision consumes); the offset from the snapshot resolved at the SERVER tick.
-// The two tick spaces are deliberately kept apart (main.cpp:9890-9902) and the
-// offset is allowed to be older than the origin, which is why its own stamp is
-// carried out and printed.
+// N12-C step 2: ask the per-tick camera row track for this scene tick's eye.
+//
+// The track holds one row per data packet, stamped with the packet's final server
+// tick -- the same tick the playback clock publishes in "scene: clock". Asking it
+// at EXACTLY that tick therefore returns the eye as the recording wrote it, where
+// the snapshot derivation below answers with a checkpoint that can be thousands
+// of ticks old (measured: 2372 ticks at POV tick 20000, whose offset was 343
+// ticks older than even that checkpoint).
+//
+// Returns true when this tick's eye is decided: either the row produced it, or the
+// row is an authoritative "do not lift this eye" (dead / observing). Returns false
+// when the caller must fall back to the snapshot path -- no row, a row for another
+// entity, a row that could not read the slots, or an implausible offset.
+bool applyCameraPovEye(const tf2::native::DemoNetworkSummary& summary,
+                       std::int32_t sceneServerTick, std::uint32_t viewEntity,
+                       PovEye& out) {
+  CameraEyeStats& stats = g_cameraPovEyeStats;
+  const CameraEyeRow row = lookupCameraEyeRow(summary, sceneServerTick, stats);
+  out.requestedTick = sceneServerTick;
+  out.rowMiss = row.miss;
+  if (row.sample == nullptr) return false;
+  const tf2::native::CameraTickSample& sample = *row.sample;
+  out.rowTick = row.rowTick;
+  out.backfilled = row.backfilled;
+  out.flags = sample.flags;
+  // Publish what the row held before any gate below can reject it, so the trace
+  // can be diffed against the probe's dump of the same tick. Unreadable fields are
+  // copied as-is; flags says which ones mean anything.
+  out.rowOrigin[0] = sample.origin[0];
+  out.rowOrigin[1] = sample.origin[1];
+  out.rowOrigin[2] = sample.origin[2];
+  out.rowOffsetZ = sample.viewOffsetZ;
+  // The row describes the view target that was current when it was captured. A
+  // SetView inside the same packet can move the target after the entity table was
+  // read, and which order the wire uses is UNMEASURED (step 1: 0 packets carried
+  // both). So a mismatch is never guessed past -- it is counted, and the snapshot
+  // (keyed by the same lastViewEntity) answers instead. Using the row anyway would
+  // place the camera at another player's eye and print it as this player's.
+  if (static_cast<std::uint32_t>(sample.entityIndex) != viewEntity) {
+    ++stats.identityMismatch;
+    out.rowMiss = "identity-mismatch";
+    return false;
+  }
+  if ((sample.flags & tf2::native::kCameraHasOrigin) == 0) {
+    ++stats.rowMissingOrigin;
+    out.rowMiss = "origin-missing";
+    return false;
+  }
+  if ((sample.flags & tf2::native::kCameraHasViewOffset) == 0) {
+    ++stats.rowMissingOffset;
+    out.rowMiss = "offset-missing";
+    return false;
+  }
+  // The same (0, 300] policy readEyeOffsetZ applies to the snapshot value: a view
+  // offset is a body height, 0 is exactly what a whole-vector read produces, and
+  // the tallest TF2 eye is 75.
+  const float offsetZ = sample.viewOffsetZ;
+  if (!std::isfinite(offsetZ) || !(offsetZ > 0.0f) || offsetZ > 300.0f) {
+    ++stats.rowOffsetOutOfRange;
+    out.rowMiss = "offset-out-of-range";
+    return false;
+  }
+  // kCameraHas* unset means the row could not READ the slot: unknown, never 0.
+  // Writing 0 here would claim "alive" and "not observing" for a tick that never
+  // said either, so the field stays -1 and the gate below does not fire.
+  const bool hasLifeState = (sample.flags & tf2::native::kCameraHasLifeState) != 0;
+  const bool hasObserverMode = (sample.flags & tf2::native::kCameraHasObserverMode) != 0;
+  out.lifeState = hasLifeState ? sample.lifeState : -1;
+  out.observerMode = hasObserverMode ? sample.observerMode : -1;
+  out.source = row.backfilled ? "camera-backfill" : "camera";
+  out.ageTick = sceneServerTick;
+  if (hasLifeState && sample.lifeState != 0) {
+    // A death camera is not lifted, and that verdict is this tick's, not the
+    // checkpoint's: the eye keeps the demo view sample's origin exactly as the
+    // snapshot path leaves it.
+    ++stats.rowDead;
+    out.reason = "dead-no-eye-offset";
+    return true;
+  }
+  if (hasObserverMode && sample.observerMode != 0) {
+    ++stats.rowObserving;
+    out.reason = "observing-no-eye-offset";
+    return true;
+  }
+  out.origin[0] = sample.origin[0];
+  out.origin[1] = sample.origin[1];
+  out.origin[2] = sample.origin[2];
+  out.eye[0] = sample.origin[0];
+  out.eye[1] = sample.origin[1];
+  out.eye[2] = sample.origin[2] + offsetZ;
+  out.originTick = sample.tick;
+  out.offsetApplied = true;
+  out.offsetZ = offsetZ;
+  // The eye height and the tick it came from are the same row, so the age printed
+  // for it is the row's distance from the requested tick: 0 on an exact hit.
+  out.offsetTick = sample.tick;
+  out.reason = "applied";
+  ++stats.applied;
+  return true;
+}
+
+// The eye: the per-tick camera row when the track has one for this tick (N12-C
+// step 2), otherwise the pre-existing derivation -- origin from the demo view
+// sample (entry-tick space, the sample the camera decision consumes) and the
+// offset from the snapshot resolved at the SERVER tick. On the snapshot path the
+// two tick spaces are deliberately kept apart (main.cpp:9890-9902) and the offset
+// is allowed to be older than the origin, which is why its own stamp is carried
+// out and printed.
 PovEye resolvePovEye(const std::vector<tf2::native::EntityState>& states,
                      std::uint32_t viewEntity, bool viewEntityKnown,
-                     const tf2::native::DemoViewSample& view) {
+                     const tf2::native::DemoViewSample& view,
+                     const tf2::native::DemoNetworkSummary& summary,
+                     std::int32_t sceneServerTick) {
   PovEye out;
   if (!view.hasOrigin) return out;
   out.hasOrigin = true;
+  out.origin[0] = view.origin[0];
+  out.origin[1] = view.origin[1];
+  out.origin[2] = view.origin[2];
   out.eye[0] = view.origin[0];
   out.eye[1] = view.origin[1];
   out.eye[2] = view.origin[2];
+  out.originTick = view.tick;
   // summary.lastViewEntity defaults to 0, so "no svc_SetView was ever read"
   // must be tested before the index is trusted: otherwise entity 0 is the
   // camera on every recording that never names one.
@@ -589,8 +823,13 @@ PovEye resolvePovEye(const std::vector<tf2::native::EntityState>& states,
     out.reason = "view-entity-out-of-range";
     return out;
   }
-  const tf2::native::EntityState& row = states[static_cast<std::size_t>(viewEntity)];
   out.entityIndex = static_cast<std::int32_t>(viewEntity);
+  // N12-C step 2: the track first, in the tick space of the packet being drawn.
+  if (applyCameraPovEye(summary, sceneServerTick, viewEntity, out)) return out;
+  ++g_cameraPovEyeStats.snapshotFallbacks;
+  // From here on this is the derivation that shipped before step 2, unchanged.
+  out.source = "snapshot";
+  const tf2::native::EntityState& row = states[static_cast<std::size_t>(viewEntity)];
   std::int32_t lifeState = 0;
   const bool hasLifeState = readIntSlot(row, "m_lifeState", lifeState);
   if (hasLifeState) out.lifeState = lifeState;
@@ -659,10 +898,62 @@ struct RelayEye {
   std::int32_t lifeState = -1;
   std::int32_t observerMode = -1;
   const char* reason = "view-offset-missing";
+  // N12-C step 2 provenance, deliberately kept OFF the frozen relay line: the
+  // gate parses target= from it and the B-series acceptance reads offsetSrc /
+  // offsetTick / offsetAge there. rowSource says which tick the height came from.
+  const char* rowSource = "snapshot";  // "camera" | "camera-backfill" | "snapshot"
+  std::int32_t requestedTick = -1;
+  std::int32_t rowTick = -1;
+  std::uint32_t flags = 0;
+  bool backfilled = false;
+  const char* rowReject = "";  // why a camera row that existed was not used
 };
 
-RelayEye resolveRelayEye(const tf2::native::EntityState& row) {
+// The relay's eye height for one frame.
+//
+// When the caller accepted a camera row for THIS target, the height comes from
+// that row -- the same tick the eye is placed at, so origin and offset cannot be
+// stitched across two moments. kCameraHas* unset means the slot was unreadable:
+// it stays -1 and the gate below does not fire, rather than becoming a 0 that
+// would claim "alive" and "not observing".
+RelayEye resolveRelayEye(const tf2::native::EntityState& row,
+                         const tf2::native::CameraTickSample* cameraRow,
+                         const CameraEyeRow& lookup,
+                         const char* rowReject) {
   RelayEye out;
+  out.requestedTick = lookup.requestedTick;
+  out.rowReject = rowReject;
+  if (cameraRow != nullptr) {
+    out.rowSource = lookup.backfilled ? "camera-backfill" : "camera";
+    out.rowTick = lookup.rowTick;
+    out.flags = cameraRow->flags;
+    out.backfilled = lookup.backfilled;
+    const bool hasLifeState = (cameraRow->flags & tf2::native::kCameraHasLifeState) != 0;
+    const bool hasObserverMode = (cameraRow->flags & tf2::native::kCameraHasObserverMode) != 0;
+    out.lifeState = hasLifeState ? cameraRow->lifeState : -1;
+    out.observerMode = hasObserverMode ? cameraRow->observerMode : -1;
+    if (hasLifeState && cameraRow->lifeState != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "dead-no-eye-offset";
+      ++g_cameraRelayEyeStats.rowDead;
+      return out;
+    }
+    if (hasObserverMode && cameraRow->observerMode != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "observing-no-eye-offset";
+      ++g_cameraRelayEyeStats.rowObserving;
+      return out;
+    }
+    out.offsetZ = cameraRow->viewOffsetZ;
+    out.offsetTick = cameraRow->tick;
+    out.source = "netprop";
+    out.reason = "applied";
+    ++g_cameraRelayEyeStats.applied;
+    return out;
+  }
+  ++g_cameraRelayEyeStats.snapshotFallbacks;
   std::int32_t lifeState = 0;
   if (readIntSlot(row, "m_lifeState", lifeState)) {
     out.lifeState = lifeState;
@@ -717,7 +1008,9 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
                         std::int32_t targetIndex,
                         const float focus[3],
                         float outEye[3],
-                        float outAngles[2]) {
+                        float outAngles[2],
+                        const tf2::native::DemoNetworkSummary& summary,
+                        std::int32_t sceneServerTick) {
   // The snapshot is a dense vector: the entity index IS the slot. That is the
   // same rule the spectate slot builder above uses, so the two cannot disagree
   // about which row belongs to the player the relay picked.
@@ -725,23 +1018,75 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
   const tf2::native::EntityState& row = states[static_cast<std::size_t>(targetIndex)];
   const tf2::native::ModelInstanceTransform transform =
     tf2::native::EntityModelResolver::extractTransform(row);
-  if (!transform.hasOrigin || !transform.hasAngles) return false;
-  float forward[3] = {0.0f, 0.0f, 0.0f};
-  tf2::native::demoViewForward(transform.angles[0], transform.angles[1], forward);
-  // N12-B: the height is the demo's own m_vecViewOffset[2] read from THIS row,
-  // so origin and offset come from one snapshot (never stitched across ticks,
-  // and never the frozen spectator entity's zero -- see resolveRelayEye).
-  const RelayEye relayEye = resolveRelayEye(row);
+  // N12-C step 2: a per-tick camera row that describes THIS target places the
+  // relay from the row itself -- origin, facing and eye height all from one tick,
+  // instead of from a checkpoint whose properties may be thousands of ticks old.
+  //
+  // A row describing another entity is rejected, never used: the relay follows a
+  // player the recording names (svc_SetView), so a row for someone else would
+  // stand the camera inside a stranger's head -- a mistake that looks exactly like
+  // a working camera. Which packets can even produce that (SetView after
+  // PacketEntities) is unmeasured, so it is counted, not reasoned about.
+  const CameraEyeRow cameraLookup =
+      lookupCameraEyeRow(summary, sceneServerTick, g_cameraRelayEyeStats);
+  const tf2::native::CameraTickSample* cameraRow = nullptr;
+  const char* cameraReject = "";
+  if (cameraLookup.sample != nullptr) {
+    const tf2::native::CameraTickSample& candidate = *cameraLookup.sample;
+    if (static_cast<std::uint32_t>(candidate.entityIndex) != static_cast<std::uint32_t>(targetIndex)) {
+      ++g_cameraRelayEyeStats.identityMismatch;
+      cameraReject = "identity-mismatch";
+    } else if ((candidate.flags & tf2::native::kCameraHasOrigin) == 0) {
+      ++g_cameraRelayEyeStats.rowMissingOrigin;
+      cameraReject = "origin-missing";
+    } else if ((candidate.flags & tf2::native::kCameraHasAngles) == 0) {
+      ++g_cameraRelayEyeStats.rowIncomplete;
+      cameraReject = "angles-missing";
+    } else if ((candidate.flags & tf2::native::kCameraHasViewOffset) == 0) {
+      ++g_cameraRelayEyeStats.rowMissingOffset;
+      cameraReject = "offset-missing";
+    } else if (!std::isfinite(candidate.viewOffsetZ) || !(candidate.viewOffsetZ > 0.0f)
+               || candidate.viewOffsetZ > 300.0f) {
+      ++g_cameraRelayEyeStats.rowOffsetOutOfRange;
+      cameraReject = "offset-out-of-range";
+    } else {
+      cameraRow = &candidate;
+    }
+  }
+  // Origin and facing are taken from the SAME source: a row's origin under a
+  // snapshot's angles would put the camera at one tick's position looking along
+  // another tick's facing.
+  float origin[3] = {0.0f, 0.0f, 0.0f};
+  float angles[2] = {0.0f, 0.0f};
+  if (cameraRow != nullptr) {
+    origin[0] = cameraRow->origin[0];
+    origin[1] = cameraRow->origin[1];
+    origin[2] = cameraRow->origin[2];
+    angles[0] = cameraRow->angles[0];
+    angles[1] = cameraRow->angles[1];
+  } else {
+    // N12-B: no camera row, so the snapshot answers -- its origin, its facing and
+    // its own m_vecViewOffset[2] (see resolveRelayEye), one row throughout.
+    if (!transform.hasOrigin || !transform.hasAngles) return false;
+    origin[0] = transform.origin[0];
+    origin[1] = transform.origin[1];
+    origin[2] = transform.origin[2];
+    angles[0] = transform.angles[0];
+    angles[1] = transform.angles[1];
+  }
+  const RelayEye relayEye = resolveRelayEye(row, cameraRow, cameraLookup, cameraReject);
   g_sceneRelayEye = relayEye;
+  float forward[3] = {0.0f, 0.0f, 0.0f};
+  tf2::native::demoViewForward(angles[0], angles[1], forward);
   const float eye[3] = {
-    transform.origin[0] - forward[0] * kSpectatorBackUnits,
-    transform.origin[1] - forward[1] * kSpectatorBackUnits,
-    transform.origin[2] + relayEye.offsetZ - forward[2] * kSpectatorBackUnits
+    origin[0] - forward[0] * kSpectatorBackUnits,
+    origin[1] - forward[1] * kSpectatorBackUnits,
+    origin[2] + relayEye.offsetZ - forward[2] * kSpectatorBackUnits
   };
   for (const float value : eye) {
     if (!std::isfinite(value)) return false;
   }
-  renderer.setObserverDemoViewWorld(eye[0], eye[1], eye[2], transform.angles[0], transform.angles[1]);
+  renderer.setObserverDemoViewWorld(eye[0], eye[1], eye[2], angles[0], angles[1]);
   // T79: hand the pose back so the frame's trace line can name the lens the
   // frame is actually drawn with. Callers that only want the side effects pass
   // nullptr.
@@ -751,8 +1096,8 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
     outEye[2] = eye[2];
   }
   if (outAngles != nullptr) {
-    outAngles[0] = transform.angles[0];
-    outAngles[1] = transform.angles[1];
+    outAngles[0] = angles[0];
+    outAngles[1] = angles[1];
   }
   // The camera is inside this player's head, so their body must not be submitted.
   g_spectateCameraHiddenEntity = targetIndex;
@@ -780,11 +1125,36 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
         ? g_sceneResolvedServerTick - g_sceneRelayEye.offsetTick
         : -1;
     traceFmt("spectate: camera relay target=%d eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f behind=%.0f offsetZ=%.4f offsetSrc=%s offsetTick=%d offsetAge=%d life=%d obs=%d reason=%s",
-      static_cast<int>(targetIndex), eye[0], eye[1], eye[2], transform.angles[0],
-      transform.angles[1], kSpectatorBackUnits, g_sceneRelayEye.offsetZ,
+      static_cast<int>(targetIndex), eye[0], eye[1], eye[2], angles[0],
+      angles[1], kSpectatorBackUnits, g_sceneRelayEye.offsetZ,
       g_sceneRelayEye.source, static_cast<int>(g_sceneRelayEye.offsetTick),
       static_cast<int>(offsetAge), static_cast<int>(g_sceneRelayEye.lifeState),
       static_cast<int>(g_sceneRelayEye.observerMode), g_sceneRelayEye.reason);
+    // N12-C step 2: the line above keeps its exact shape (the gate parses
+    // target= and the B-series acceptance reads its offset fields), so which tick
+    // the eye really came from is published on this new one, printed on the same
+    // throttled cadence: "src=camera rowTick=REQ" is the claim that the eye is the
+    // recording's own eye at exactly this scene tick.
+    //
+    // Every row field here describes the row the LOOKUP found, never the accepted
+    // one: when a row exists but is rejected (the STV case -- the row names the
+    // recording's own observer while the relay follows a player), the fact worth
+    // recording is "a row was there at this tick, and here is whose it was".
+    // Printing the accepted row's values instead renders that case as
+    // rowTick=-1 camEntity=-1 -- indistinguishable from "no row at all", which is
+    // the opposite of what happened.
+    const tf2::native::CameraTickSample* const cameraCandidate = cameraLookup.sample;
+    const std::int32_t rowAge =
+      (cameraLookup.requestedTick >= 0 && cameraLookup.rowTick >= 0)
+        ? cameraLookup.requestedTick - cameraLookup.rowTick : -1;
+    traceFmt("spectate: camera row src=%s reqTick=%d rowTick=%d rowAge=%d backfill=%d flags=%u camEntity=%d target=%d used=%d miss=%s reject=%s",
+      g_sceneRelayEye.rowSource, static_cast<int>(cameraLookup.requestedTick),
+      static_cast<int>(cameraLookup.rowTick), static_cast<int>(rowAge),
+      cameraLookup.backfilled ? 1 : 0,
+      static_cast<unsigned>(cameraCandidate != nullptr ? cameraCandidate->flags : 0u),
+      static_cast<int>(cameraCandidate != nullptr ? cameraCandidate->entityIndex : -1),
+      static_cast<int>(targetIndex), cameraRow != nullptr ? 1 : 0, cameraLookup.miss,
+      g_sceneRelayEye.rowReject);
   }
   (void)focus;  // kept for the caller's symmetry; the eye is derived from the row
   return true;
@@ -3485,6 +3855,12 @@ bool outlineVertexExtent = false;
   tf2::native::DemoHeader demoHeader;
   tf2::native::DemoIndex demoIndex;
   tf2::native::DemoNetworkSummary demoNetworkSummary;
+  // N12-C step 2: the product's eyes (POV and relay) read the per-tick camera row
+  // track, so the product opts in BEFORE the scan below -- scanKnownDemoMessages
+  // keeps cameraTrackLimits across its own summary reset, so setting it here is
+  // what makes the rows exist. Cost on the POV sample: 300,642 rows x 56 B =
+  // 16.8 MB, capped at maxSamples (400k rows / 22.4 MB).
+  demoNetworkSummary.cameraTrackLimits.enabled = true;
   if (!commandDemo.empty()) {
     if (tf2::native::parseDemoHeaderFile(commandDemo, demoHeader)) {
       tf2::native::indexDemoFile(commandDemo, demoHeader, demoIndex);
@@ -10266,8 +10642,16 @@ bool outlineVertexExtent = false;
       // snapshot resolved at the SERVER tick while the origin comes from the
       // entry-tick view sample: the offset may be older than the origin, which
       // is why its own stamp is printed.
+      // N12-C step 2: the eye is read from the per-tick camera row track when it
+      // has a row for exactly this scene tick, and only falls back to the
+      // snapshot derivation below when it does not (see applyCameraPovEye).
       g_scenePovEye = resolvePovEye(currentEntityStates, demoNetworkSummary.lastViewEntity,
-        demoNetworkSummary.setViewCount > 0, observerView);
+        demoNetworkSummary.setViewCount > 0, observerView, demoNetworkSummary,
+        sceneTickKnown ? sceneTick : -1);
+      // The snapshot path's offset age is measured against the snapshot's tick,
+      // which is what the line below has always printed; the camera path already
+      // named its own base tick (the scene tick it read).
+      if (g_scenePovEye.ageTick < 0) g_scenePovEye.ageTick = resolvedSceneTick;
       if (haveObserverView) {
         cameraEyeX = g_scenePovEye.eye[0];
         cameraEyeY = g_scenePovEye.eye[1];
@@ -10282,19 +10666,44 @@ bool outlineVertexExtent = false;
         traceFmt("scene: eye origin=%.1f,%.1f,%.1f offsetZ=%.4f eye=%.1f,%.1f,%.1f"
                  " viewEntity=%d originTick=%d offsetTick=%d offsetAge=%d"
                  " life=%d obs=%d reason=%s",
-          observerView.origin[0], observerView.origin[1], observerView.origin[2],
+          g_scenePovEye.origin[0], g_scenePovEye.origin[1], g_scenePovEye.origin[2],
           g_scenePovEye.offsetApplied ? g_scenePovEye.offsetZ : 0.0f,
           g_scenePovEye.eye[0], g_scenePovEye.eye[1], g_scenePovEye.eye[2],
-          static_cast<int>(g_scenePovEye.entityIndex), static_cast<int>(observerView.tick),
+          static_cast<int>(g_scenePovEye.entityIndex), static_cast<int>(g_scenePovEye.originTick),
           static_cast<int>(g_scenePovEye.offsetTick),
           // offsetAge is measured in the SERVER tick space, not the entry tick
-          // space: resolvedSceneTick - offsetTick, both stamps coming from the
-          // entity history (lastWriteTick is a packet server tick). It is the
-          // quantity a reader compares against the oracle's prop_tick column.
-          g_scenePovEye.offsetTick >= 0 && resolvedSceneTick >= 0
-            ? static_cast<int>(resolvedSceneTick - g_scenePovEye.offsetTick) : -1,
+          // space: ageTick - offsetTick, both stamps coming from the entity
+          // history (lastWriteTick is a packet server tick). It is the quantity a
+          // reader compares against the oracle's prop_tick column. ageTick is the
+          // snapshot's resolved tick on the snapshot path and the requested scene
+          // tick on the camera-row path, so the number keeps its meaning.
+          g_scenePovEye.offsetTick >= 0 && g_scenePovEye.ageTick >= 0
+            ? static_cast<int>(g_scenePovEye.ageTick - g_scenePovEye.offsetTick) : -1,
           static_cast<int>(g_scenePovEye.lifeState), static_cast<int>(g_scenePovEye.observerMode),
           g_scenePovEye.reason);
+        // N12-C step 2: which tick the eye above was really read at. The line
+        // above keeps its exact shape -- its origin/originTick fields now describe
+        // whichever source produced the eye (the camera row's own tick in SERVER
+        // space, or the demo view sample's tick in entry space) -- so the
+        // provenance that a reader needs to tell the two apart is published here.
+        // rowOrigin/rowOffsetZ are the ROW's own fields at four decimals, i.e. the
+        // values the probe's --camera-row prints for the same tick, so a reader can
+        // confirm the product found the row the probe read instead of trusting the
+        // 0.1 u print quantum of the frozen line. They are reported even when the
+        // row was rejected -- flags says whether either can be used. srcOrigin is
+        // the vector the eye was actually built from, which equals rowOrigin only
+        // when the camera path applied.
+        traceFmt("scene: eye row src=%s reqTick=%d rowTick=%d backfill=%d flags=%u"
+                 " rowOrigin=%.4f,%.4f,%.4f rowOffsetZ=%.4f"
+                 " srcOrigin=%.4f,%.4f,%.4f offsetAge=%d miss=%s",
+          g_scenePovEye.source, static_cast<int>(g_scenePovEye.requestedTick),
+          static_cast<int>(g_scenePovEye.rowTick), g_scenePovEye.backfilled ? 1 : 0,
+          g_scenePovEye.flags, g_scenePovEye.rowOrigin[0], g_scenePovEye.rowOrigin[1],
+          g_scenePovEye.rowOrigin[2], g_scenePovEye.rowOffsetZ,
+          g_scenePovEye.origin[0], g_scenePovEye.origin[1], g_scenePovEye.origin[2],
+          g_scenePovEye.offsetTick >= 0 && g_scenePovEye.ageTick >= 0
+            ? static_cast<int>(g_scenePovEye.ageTick - g_scenePovEye.offsetTick) : -1,
+          g_scenePovEye.rowMiss);
       }
       // T84: the debug camera below REPLACES whatever this tick resolved, and it
       // is re-stated immediately before the draw, so these are the numbers that
@@ -12600,9 +13009,13 @@ bool outlineVertexExtent = false;
             && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
           float relayEye[3] = {0.0f, 0.0f, 0.0f};
           float relayAngles[2] = {0.0f, 0.0f};
+          // N12-C step 2: the relay asks the camera row track at the tick its
+          // snapshot resolved to -- the tick the bodies it draws belong to -- so a
+          // row can only describe the player at the moment that player is drawn.
           if (!placeSpectatorView(renderer, currentEntityStates,
                                   g_spectateDirector.targetIndex(), spectateFocus,
-                                  relayEye, relayAngles)) {
+                                  relayEye, relayAngles, demoNetworkSummary,
+                                  g_sceneResolvedServerTick)) {
             // No readable facing for the target: fall back to the orbit, but at
             // a distance in map units rather than a fraction of the map.
             renderer.setObserverOrbitDistanceWorld(kSpectateOrbitWorldUnits);
@@ -13210,6 +13623,40 @@ bool outlineVertexExtent = false;
     g_reviewSession.reset();
   }
 
+  // N12-C step 2: the eye counters, once, on the same exit path as the other
+  // summaries. The eyes themselves are three floats in the trace; this is the
+  // account of where each one came from, and it is the only reading that can tell
+  // "the camera track answered every scene tick" from "the snapshot answered and
+  // the track was never consulted".
+  {
+    const CameraEyeStats& pov = g_cameraPovEyeStats;
+    const CameraEyeStats& relay = g_cameraRelayEyeStats;
+    traceFmt("camera: eye summary trackEnabled=%d trackRows=%zu trackBytes=%zu trackOrdered=%d"
+      " povQueries=%zu povExact=%zu povBackfill=%zu povBackfillMaxTicks=%d"
+      " povFallbackNoSample=%zu povFallbackDistance=%zu povFallbackTickUnresolved=%zu"
+      " povIdentityMismatch=%zu povRowMissingOrigin=%zu povRowMissingOffset=%zu"
+      " povRowOffsetOutOfRange=%zu povRowIncomplete=%zu povRowDead=%zu povRowObserving=%zu"
+      " povApplied=%zu povSnapshotFallbacks=%zu"
+      " relayQueries=%zu relayExact=%zu relayBackfill=%zu relayBackfillMaxTicks=%d"
+      " relayFallbackNoSample=%zu relayFallbackDistance=%zu relayFallbackTickUnresolved=%zu"
+      " relayIdentityMismatch=%zu relayRowMissingOrigin=%zu relayRowMissingOffset=%zu"
+      " relayRowOffsetOutOfRange=%zu relayRowIncomplete=%zu relayRowDead=%zu relayRowObserving=%zu"
+      " relayApplied=%zu relaySnapshotFallbacks=%zu",
+      demoNetworkSummary.cameraTrackLimits.enabled ? 1 : 0,
+      demoNetworkSummary.cameraTickSamples.size(),
+      demoNetworkSummary.cameraTickSamples.size() * sizeof(tf2::native::CameraTickSample),
+      tf2::native::cameraTickOrderingHolds(demoNetworkSummary, nullptr) ? 1 : 0,
+      pov.queries, pov.exact, pov.backfill, static_cast<int>(pov.backfillMaxTicks),
+      pov.fallbackNoSample, pov.fallbackDistance, pov.fallbackTickUnresolved,
+      pov.identityMismatch, pov.rowMissingOrigin, pov.rowMissingOffset,
+      pov.rowOffsetOutOfRange, pov.rowIncomplete, pov.rowDead, pov.rowObserving,
+      pov.applied, pov.snapshotFallbacks,
+      relay.queries, relay.exact, relay.backfill, static_cast<int>(relay.backfillMaxTicks),
+      relay.fallbackNoSample, relay.fallbackDistance, relay.fallbackTickUnresolved,
+      relay.identityMismatch, relay.rowMissingOrigin, relay.rowMissingOffset,
+      relay.rowOffsetOutOfRange, relay.rowIncomplete, relay.rowDead, relay.rowObserving,
+      relay.applied, relay.snapshotFallbacks);
+  }
   g_renderer = nullptr;
   // A scripted run reports its own failures through this code; every other run
   // keeps the historical WM_QUIT code.

@@ -347,3 +347,13 @@ EX-3、EX-5、EX-6、EX-7 是「不得误判」类；N1a–N3 是「判据本身
 | accept-oldexe.json / accept-table-oldexe.md / accept-preB.json / accept-table-preB.md | 两列历史对照 | — |
 
 状态：**未提交**（按分工，n12-qa 不 commit；改动留在工作树，由 lead 统一提交）。本轮不启动产品 exe、不起 hostlock、不碰 native/。
+
+## 16. N12-C 第二步对验收的增量要求（lead，2026-11-14 22:50）
+
+§1–§15 描述的是 exe `1c3580e2…`（2,991,616 B）上的 A/B 终态。第二步落了消费端（`native/src/main.cpp` +480），产品 trace 与验收脚本都要跟着改口径：
+
+- **`accept.py` 的会计恒等式只在快照来源上成立**：`D:/_shared/EXEC-2026-11-15/N12-QA/accept.py:1143-1144` 断言 `resolved_server == offsetTick + offsetAge`（`resolved_server = serv - stale`）。相机路径命中时 `offsetTick = row.tick = scene tick`、`offsetAge = 0`，只有 `stale = 0` 时恒等式才成立 ⇒ **一旦命中就 FAIL**。本语料 0 次命中，所以这问题是潜伏的。验收脚本必须按新增行里的 `src=camera | camera-backfill | snapshot` 分支：camera 行断言 `offsetTick == clock serverTick && offsetAge == 0`，snapshot 行才用 §7 的恒等式。**不改产品去凑门禁**（lead 裁决）。
+- **新增两行，既有行不变**：每帧 `scene: eye row src=… reqTick=… rowTick=… backfill=… flags=… rowOrigin=… rowOffsetZ=… srcOrigin=… offsetAge=… miss=…`（紧跟 frozen `scene: eye` 行），退出时一次 `camera: eye summary …`（30 个计数器）。frozen `scene: eye origin=` / `scene: snapshot` / `spectate: camera relay target=` 的格式串与逐 tick 取值都未变（247/247、247/247、105/105 共同 tick 逐字节相同，见 §6 与 EXEC-PLAN 22:50 节）。
+- **A/B 结论的 binding exe 要写清**：本轮 A/B 读数绑定 `1c3580e2…`；第二步之后的产品 exe 是 `ba109055…`（2,996,736 → 3,002,880 B）。A/B 没有在这个新 exe 上重跑，**不得把 A/B 结论直接挂到新 exe 上**。
+- **`scene: eye` 行的数值仍然是快照推导来的**：本语料每行相机样本 `flags=25`，`kCameraHasViewOffset`/`kCameraHasAngles` 从未置位，`povApplied=0`。也就是说 §4/§5 那套"眼高来自 `m_vecViewOffset[2]`"的读数**没有变成**"眼高来自相机 tick 行"。要等数据面修好（接受扁平分量并置位）才能改这句话。
+- **因此本卡的下一步验收判据**：先看新行 `src` 是否为 `camera`/`camera-backfill`、`povApplied > 0`，再看 `eye[2] - rowOrigin[2]` 是否等于 `rowOffsetZ`（print 量子：frozen 行 `%.1f`、`offsetZ` `%.4f`、新行 4 dp/6 dp）。在 `povApplied` 仍为 0 的 exe 上继续用 §4/§5 的判据。
