@@ -9694,6 +9694,20 @@ bool outlineVertexExtent = false;
   // damaged without printing a line per frame on a healthy run.
   std::size_t tracedResourceRefusals = 0;
   std::size_t tracedResourceMapRefusals = 0;
+  // E9 follow-up (2026-11-14): the minimap keeps the last pose it was handed for
+  // the map the demo names. A paused demo does not recompute a camera, so the
+  // frame drawn after the pause has no pose of its own; the panel then refused to
+  // draw and the map vanished the moment the clock stopped. Measured on
+  // cp_process_f12 and cp_gullywash_f9 with --start-paused: loop n=1 published
+  // state=ready shapes=14, loop n=2 published reason=no-camera-pose shapes=0, and
+  // the captured frame was byte-identical to the no-flag control. The pose is
+  // reused only for the same map name, so a demo change cannot put one map's
+  // viewer dot on another map's floor plan.
+  bool minimapPoseValid = false;
+  std::string minimapPoseMap;
+  float minimapPoseEyeX = 0.0f;
+  float minimapPoseEyeY = 0.0f;
+  float minimapPoseYaw = 0.0f;
   while (running) {
     ++mainLoopIterations;
     traceFmt("loop n=%llu tick=%d", static_cast<unsigned long long>(mainLoopIterations),
@@ -12379,14 +12393,29 @@ bool outlineVertexExtent = false;
     // the player is standing.
     if (hudMinimapCli) {
       tf2::native::MinimapHudFrame minimapFrame;
-      minimapFrame.valid = cameraTraceReady;
+      if (cameraTraceReady) {
+        minimapPoseValid = true;
+        minimapPoseMap = demoHeader.mapName;
+        minimapPoseEyeX = cameraTraceEye[0];
+        minimapPoseEyeY = cameraTraceEye[1];
+        minimapPoseYaw = cameraTraceYaw;
+      }
+      // A frame with no camera reading still has a camera: the one the last frame
+      // was drawn with, on a stopped clock. Reuse it when it belongs to this map,
+      // and draw nothing only when no pose has ever been produced for this map.
+      const bool reusePose = !cameraTraceReady && minimapPoseValid
+        && minimapPoseMap == demoHeader.mapName;
+      minimapFrame.valid = cameraTraceReady || reusePose;
       minimapFrame.mapName = demoHeader.mapName;
-      // Read only when the pose is this frame's: on a frame with no camera reading
-      // these locals hold whatever the last branch left, and copying that would be an
-      // uninitialised read even though the panel refuses to draw it.
-      minimapFrame.eyeX = cameraTraceReady ? cameraTraceEye[0] : 0.0f;
-      minimapFrame.eyeY = cameraTraceReady ? cameraTraceEye[1] : 0.0f;
-      minimapFrame.yawDegrees = cameraTraceReady ? cameraTraceYaw : 0.0f;
+      // Read only a pose a frame actually produced. The locals below carry
+      // whatever the last branch left, so this frame's reading is used when it has
+      // one, the tracked last pose of this map when it does not, and nothing else.
+      minimapFrame.eyeX = cameraTraceReady ? cameraTraceEye[0]
+        : (reusePose ? minimapPoseEyeX : 0.0f);
+      minimapFrame.eyeY = cameraTraceReady ? cameraTraceEye[1]
+        : (reusePose ? minimapPoseEyeY : 0.0f);
+      minimapFrame.yawDegrees = cameraTraceReady ? cameraTraceYaw
+        : (reusePose ? minimapPoseYaw : 0.0f);
       minimapFrame.tick = g_playback.tick;
       tf2::native::minimapHudSetFrame(minimapFrame);
     }
