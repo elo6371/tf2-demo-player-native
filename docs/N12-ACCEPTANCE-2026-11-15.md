@@ -357,3 +357,52 @@ EX-3、EX-5、EX-6、EX-7 是「不得误判」类；N1a–N3 是「判据本身
 - **A/B 结论的 binding exe 要写清**：本轮 A/B 读数绑定 `1c3580e2…`；第二步之后的产品 exe 是 `ba109055…`（2,996,736 → 3,002,880 B）。A/B 没有在这个新 exe 上重跑，**不得把 A/B 结论直接挂到新 exe 上**。
 - **`scene: eye` 行的数值仍然是快照推导来的**：本语料每行相机样本 `flags=25`，`kCameraHasViewOffset`/`kCameraHasAngles` 从未置位，`povApplied=0`。也就是说 §4/§5 那套"眼高来自 `m_vecViewOffset[2]`"的读数**没有变成**"眼高来自相机 tick 行"。要等数据面修好（接受扁平分量并置位）才能改这句话。
 - **因此本卡的下一步验收判据**：先看新行 `src` 是否为 `camera`/`camera-backfill`、`povApplied > 0`，再看 `eye[2] - rowOrigin[2]` 是否等于 `rowOffsetZ`（print 量子：frozen 行 `%.1f`、`offsetZ` `%.4f`、新行 4 dp/6 dp）。在 `povApplied` 仍为 0 的 exe 上继续用 §4/§5 的判据。
+## 17. 第三步之后：相机命中已触发，A1 按新 exe 重基线（lead，2026-11-14 23:40）
+
+第三步（`native/src/demo_header_camera.cpp` +37，`docs/N12-C-STEP3-IMPL-2026-11-15.md`）修好了数据面：Source 把 `m_vecViewOffset` / `m_angEyeAngles` 发成**扁平分量**（`DT_LocalPlayerExclusive.m_vecViewOffset[0..2]`、`DT_TFLocalPlayerExclusive.m_angEyeAngles[0..1]`，由 `--props 9` 实测，676 条属性里没有整向量名），解码器现在按实测名补回 `viewOffsetZ`/`angles`，行 `flags` 由 25 变 31。结果：
+
+| 运行 | exe | `src=camera` 行 | `povApplied` | 越界回退 | exe sha256 |
+| --- | --- | --- | --- | --- | --- |
+| pov t20000 | `90f781b5…` | **1407** | 1407 | 22 | `90f781b54c96ac88cbef2502afd06a159b9d643d01579bddf85cff94a97551df` |
+| pov t8415 | 同上 | **599** | 599 | 15 | 同上 |
+| pov t2000 | 同上 | **146** | 146 | 8 | 同上 |
+| stv t20000 | 同上 | 0（全部 `identity-mismatch`） | 0 | 999 | 同上 |
+
+### 17.1 A1/A2/A3 的当前行（新 exe，按 playback tick 末条）
+
+```
+scene: eye origin=2119.7,-265.6,662.5 offsetZ=75.0001 eye=2119.7,-265.6,737.5 viewEntity=9 originTick=22203 offsetTick=22203 offsetAge=0 life=0 obs=0 reason=applied   # A1 (t=20000)
+scene: eye origin=596.0,1512.0,576.0  offsetZ=75.0001 eye=596.0,1512.0,651.0  viewEntity=9 originTick=10617 offsetTick=10617 offsetAge=0 life=0 obs=0 reason=applied   # A2 (t=8415)
+scene: eye origin=1797.4,-1398.0,312.9 offsetZ=75.0001 eye=1797.4,-1398.0,387.9 viewEntity=9 originTick=4203 offsetTick=4203 offsetAge=0 life=0 obs=0 reason=applied   # A3 (t=2000)
+```
+
+与 §4 的 `1c3580e2` 行相比：**eye 的 z 三个样本都没变**（737.5 / 651.0 / 387.9，因为这三个 tick 的轨道 `viewOffsetZ` 本来就是 75.0001），变的是 tick 三字段（`originTick`/`offsetTick` 现在是轨道行的 server tick，`offsetAge=0`）。**所以 A1/A2/A3 的数值判据继续成立**，只是 provenance 换了来源。
+
+### 17.2 眼高在 30 个 tick 上真的变了（这是修复生效，不是回归）
+
+旧 exe 在这些 tick 上用快照推导的 75.0001；新 exe 用该 tick 轨道行的真实值。例：
+
+```
+scene: eye origin=210.0,-2078.2,297.3 offsetZ=45.0000 eye=210.0,-2078.2,342.3 viewEntity=9 originTick=2416 offsetTick=2416 offsetAge=0 life=0 obs=0 reason=applied
+scene: eye row  src=camera reqTick=2416 rowTick=2416 backfill=0 flags=31 rowOrigin=210.0067,-2078.1704,297.3045 rowOffsetZ=45.0000 srcOrigin=210.0067,-2078.1704,297.3045 offsetAge=0 miss=
+```
+
+`probe.dense.rows.txt` 显示 tick 2425–2432 为 `45.000042`、2433–2440 为 `75.000069`，是阶跃；另有 71.1273 / 74.5191 / 74.9446 / 65.5079 / 68.5201 / 62.2425 / 48.8728 等过渡值分布在别的 tick。**45 的物理含义（蹲/站）标 NOT VERIFIED**，本卡的判据只许写成「eye = 该 tick 轨道行的 `rowOrigin_z + rowOffsetZ`」，不许写成「与零售渲染一致」。
+
+### 17.3 accept.py 必须按 src 分支（硬要求，不改产品）
+
+`accept.py:1143-1144` 的 `resolved_server == offsetTick + offsetAge` 是**快照来源专用**会计。相机行满足 `offsetTick == originTick == row.tick`、`offsetAge == 0`，代入恒等式会得到 `serv == serv` 只在 `stale == 0` 时成立，而 A1 的 `stale=2372` ⇒ 一旦命中必然 FAIL（本语料在第二步是 0 命中所以潜伏）。要求的实现：
+
+- 读同一帧配对的 `scene: eye row … src=…`；`src in {camera, camera-backfill}` → 断言 `originTick == offsetTick == rowTick`、`offsetAge == 0`、`eye_z − rowOrigin_z − rowOffsetZ` 在 **0.1 u** 内（frozen 行 origin/eye 各 1 位小数，量子 0.05+0.05）。
+- `src == snapshot` → 用原恒等式（`offsetTick + offsetAge == serverTick − stale`），§7 的 TICK-ALIGN 表不变。
+- 断言不得回读 `povApplied` 的**整数行数**做等价比较（每次运行帧数不同）；按 tick 归键比对。
+
+### 17.4 回归护栏（必须在后续 exe 上继续成立）
+
+- `scene: clock tick=` 与 `scene: snapshot` 在 POV 运行里**逐字节不变**（第三步 keyed diff：149/149、75/75、28/28 全同）。
+- STV 的 `spectate: camera relay target=` 4 条**逐字节不变**（`offsetSrc=netprop`、`offsetTick=11057`）。
+- `demo_open_probe.exe --scan`（3171 B `8007b92b…`）与 `--scan --camera-track`（3763 B `3ef091d5…`）与第一步基线 `cmp` 通过。
+
+### 17.5 §1–§15 的效力边界
+
+§1–§15 的证据绑定 exe `1c3580e2…`（2,991,616 B）。第三步之后：**数值判据（A1/A2/A3 的 eye、offsetZ、x/y、角度）仍然有效**；**provenance 判据（tick 字段、会计恒等式、`povApplied=0` 的描述）失效**，以本节为准。§16 描述的「下一步判据」现已满足（`povApplied > 0`、`src=camera`），故 §16 转为历史记录。

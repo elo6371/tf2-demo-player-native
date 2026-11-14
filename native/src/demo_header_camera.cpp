@@ -83,6 +83,19 @@ bool readIntRanked(const EntityState& state, const char* suffix, std::int32_t* o
   return true;
 }
 
+// Same selection rule as readIntRanked, for the Float scalars Source sends when it
+// flattens a vector: the best-ranked candidate's x (Float) or intValue (Int), never
+// a positional guess. Used for the components a whole-vector read cannot see.
+bool readFloatRanked(const EntityState& state, const char* suffix, float* out) {
+  const EntityPropertyValue* value = findRankedProperty(state, suffix, false);
+  if (!value) return false;
+  const double raw = value->type == SendPropType::Int
+      ? static_cast<double>(value->intValue) : static_cast<double>(value->x);
+  if (!std::isfinite(raw)) return false;
+  *out = static_cast<float>(raw);
+  return true;
+}
+
 // Reads one row's worth of state for `entityIndex` out of the live table. Returns
 // false when there is nothing to describe: the index is beyond the table, or the
 // slot holds no entity (classId -1). A row of zeros would be a claim that the
@@ -111,16 +124,40 @@ bool buildCameraTickSample(const DemoNetworkSummary& summary, std::uint32_t enti
   // range the POV camera applies to it is the consumer's policy (main.cpp:517-523),
   // and a retention that silently dropped an implausible value would hide the very
   // readings that policy is tested against.
+  //
+  // Source flattens this vector, so the whole-vector read above cannot see it: on
+  // pov_f12 the live table holds DT_LocalPlayerExclusive.m_vecViewOffset[0], [1] and
+  // [2] as Float scalars and no m_vecViewOffset property at all (measured with
+  // demo_open_probe --props 9, which prints the names the decoder actually stored).
+  // PRIORITY, and why: a ranked whole vector wins because it is one slot read in
+  // full; the flat components are consulted only when no ranked vector exists. A flat
+  // [2] is a complete answer for the only component a row stores, so the flag goes
+  // on rather than becoming a zero offset. Components [0]/[1] are deliberately not
+  // synthesized: nothing consumes them, and inventing them here would make the row
+  // claim knowledge of a vector the demo sent only in pieces.
   float viewOffset[3] = {};
   complete = false;
   if (readVectorRanked(state, "m_vecViewOffset", viewOffset, &complete) && complete) {
     sample.viewOffsetZ = viewOffset[2];
     sample.flags |= kCameraHasViewOffset;
+  } else if (readFloatRanked(state, "m_vecViewOffset[2]", &viewOffset[2])) {
+    sample.viewOffsetZ = viewOffset[2];
+    sample.flags |= kCameraHasViewOffset;
   }
   // Eye angles are what the camera is turned with; m_angRotation is the fallback
   // for entities that carry no eye angles (a non-player observer body).
+  //
+  // Flattened the same way: DT_TFLocalPlayerExclusive.m_angEyeAngles[0] / [1] are the
+  // only eye-angle properties in the table (measured, same dump as above). Order is
+  // entity_model.cpp's: whole vector, then the flat pitch/yaw pair, then the body
+  // rotation. Roll is not transmitted, so the flat pair leaves angles[2] at 0 --
+  // exactly what extractTransform does at native/src/entity_model.cpp:233.
   complete = false;
   if (readVectorRanked(state, "m_angEyeAngles", sample.angles, &complete) && complete) {
+    sample.flags |= kCameraHasAngles;
+  } else if (readFloatRanked(state, "m_angEyeAngles[0]", &sample.angles[0]) &&
+             readFloatRanked(state, "m_angEyeAngles[1]", &sample.angles[1])) {
+    sample.angles[2] = 0.0f;
     sample.flags |= kCameraHasAngles;
   } else {
     complete = false;

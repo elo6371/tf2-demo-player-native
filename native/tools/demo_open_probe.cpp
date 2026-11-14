@@ -633,6 +633,24 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
 
+  // N12-C step 3 evidence: --props <entityIndex> dumps every property the engine
+  // actually put in the LIVE entity table for that index, sorted by name, with the
+  // stored type and values. The camera row builder reads the SAME table, so this is
+  // the only honest way to learn which names this engine sends: a guessed alias
+  // ("m_vecViewOffset_Z", "m_vecViewOffset2", ...) would miss silently and the
+  // flags counter would still read zero without saying why.
+  int propsEntity = -1;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--props") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0 || parsed > 65535) {
+      std::wcerr << L"invalid props entity index\n";
+      return 2;
+    }
+    propsEntity = static_cast<int>(parsed);
+    firstPath += 2;
+  }
+
   std::vector<std::int32_t> serverTickAts;
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--server-tick-at") {
     const std::wstring list(argv[firstPath + 1]);
@@ -725,6 +743,8 @@ int wmain(int argc, wchar_t** argv) {
     // mangle the UTF-8 player names that golden rows contain.
     std::string eventDump;
     std::string userInfoDumpText;
+    // N12-C step 3 evidence: sorted property-name dump (see --props).
+    std::string propsDumpText;
     std::size_t eventRows = 0;
     std::size_t eventDupes = 0;
     tf2::native::DemoHeader header;
@@ -1190,12 +1210,40 @@ int wmain(int argc, wchar_t** argv) {
           }
         }
       }
+      if (propsEntity >= 0) {
+        const auto& table = summary.entityStates;
+        if (static_cast<std::size_t>(propsEntity) < table.size()) {
+          const tf2::native::EntityState& state = table[static_cast<std::size_t>(propsEntity)];
+          std::set<std::string> names;
+          for (const auto& entry : state.properties) names.insert(entry.first);
+          propsDumpText += "props\tentity\t" + std::to_string(propsEntity)
+            + "\tclass\t" + std::to_string(state.classId)
+            + "\tcount\t" + std::to_string(names.size()) + "\n";
+          for (const std::string& name : names) {
+            const auto found = state.properties.find(name);
+            if (found == state.properties.end()) continue;
+            char buffer[256];
+            std::snprintf(buffer, sizeof(buffer),
+              "prop\t%s\ttype\t%d\tx\t%.6f\ty\t%.6f\tz\t%.6f\tint\t%lld\tlastWriteTick\t%d",
+              name.c_str(), static_cast<int>(found->second.type),
+              static_cast<double>(found->second.x), static_cast<double>(found->second.y),
+              static_cast<double>(found->second.z),
+              static_cast<long long>(found->second.intValue), found->second.lastWriteTick);
+            propsDumpText += buffer;
+            propsDumpText += "\n";
+          }
+        } else {
+          propsDumpText += "props\tentity\t" + std::to_string(propsEntity)
+            + "\tclass\t-1\tcount\t0\tout_of_range\t1\n";
+        }
+      }
     }
     std::wcout << L'\n';
-    if (!eventDump.empty() || !userInfoDumpText.empty()) {
+    if (!eventDump.empty() || !userInfoDumpText.empty() || !propsDumpText.empty()) {
       std::wcout.flush();
       std::cout.write(eventDump.data(), static_cast<std::streamsize>(eventDump.size()));
       std::cout.write(userInfoDumpText.data(), static_cast<std::streamsize>(userInfoDumpText.size()));
+      std::cout.write(propsDumpText.data(), static_cast<std::streamsize>(propsDumpText.size()));
       std::cout.flush();
     }
   }
