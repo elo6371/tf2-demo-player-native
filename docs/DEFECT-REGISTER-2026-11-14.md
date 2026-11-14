@@ -138,3 +138,15 @@ I-29 的 headless 部分（`QUIET-CAPTURE=PASS`，device-pair=SKIPPED）、F1-1.
 | D06 身份 | **00ec8b99 由 cfcdbe5d 取代** | 产品修复后重建：exe `cfcdbe5d…`、2,988,544 B、`sourceTree=a15303062d5e`、`dirty=1`（脏文件仅两份文档）。绑定 00ec8b99 的小地图证据已全部作废并在新 exe 上重跑 |
 | 七图 demo 配对 | **更正：Upward 缺的是 POV，不是 STV** | `a9630c…pl_upward_f12.dem` 头部 `client="SourceTV Demo"`（serveme.tf #1570108，85,204 ticks），已归档 `E:/demo测试/pl_upward_f12/STV/`；Upward POV 仍缺 |
 | **D36 暂停缺陷的父提交负控** | 新增 **OPEN**（证据缺口） | 修复前后都有 trace 记录，但未在独立构建目录重建父提交 `94e7612` 的二进制做二次负控（与门禁写窗口冲突）。做一次即可关闭 |
+
+## 第三批（G2，同日）：负控、resize、探针矩阵
+
+| 条目 | 变化 | 依据 |
+|---|---|---|
+| **D37 `verify-iso.sh` 哈希读取（门禁在本机跑不起来）** | 新增并 **CLOSED** | `sha256sum "$file"` 在文件名含反斜杠时给整行加 `\` 前缀，而 `mktemp -d` 在本机给 Windows 路径；改了 `sha256sum < "$file"`。27 个门禁受影响，`world-black-account-check.sh` 由 `iso-seed` FAIL 变 PASS。对照：HEAD 版跑 `iso-trap-selftest` 同样 4 项失败（沙箱 safe-delete，与本改动无关） |
+| **D36 暂停缺陷父提交负控** | **CLOSED** | 父提交 `94e7612` 在独立目录构建 `d8bbaa05…`，同命令复现 `reason=no-camera-pose` 且 on/off 逐字节相同（`df05b7e3…`）；修复后 `cfcdbe5d` 差 25600/0 |
+| **D08 resize** | **CLOSED（两种尺寸）** | `--window-size 800x600`：面板 `612,12,160,160`、`inside=25600 outside=0`、39 项检查 0 失败。**DPI 仍 NOT VERIFIED**（无设置开关，需改显示设置） |
+| **D03 849/919** | **仍 OPEN，但门禁可跑了** | `WORLD-BLACK-ACCOUNT=PASS`，919 读数 `predicted albedo=82,81,79` vs `texel/albedo frame=210,208,197`，量化了 trace 与 draw 的分叉；849 的 0 来源仍未闭合 |
+| **D38 探针路径/编码缺口** | 新增 **OPEN**（工具缺口） | `world_geometry_probe` 要 TF 相对路径、`world_feature_probe` 要绝对路径，且后者无法打开非 ASCII 路径（`E:/demo测试/...` 空输出） |
+| **D01 输入** | 新增七图探针矩阵 | 七图全部 rc=0、预算 `within`、`dropped=0`、bump `missing=0`。**不是**渲染验收 |
+| **Upward POV** | **仍缺（用户提供的不是 f12）** | 新 demo 头部 `map="pl_upward"`（125,508 ticks，`708683e1…`），归档到 `E:/demo测试/pl_upward/POV/`；`pl_upward_f12` 的 POV 仍缺，不得替代 |

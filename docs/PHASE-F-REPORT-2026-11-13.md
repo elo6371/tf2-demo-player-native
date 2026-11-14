@@ -230,7 +230,7 @@ FAIL pixels the control frame changes = 89488, expected 90127
 
 **限制**：
 - 七图只有 Upward / Sunshine 有帧；process/gullywash/sultry/product/bagel 只有表，NOT VERIFIED。
-- 没有 radar/overview 底图，第一版是 BSP-derived linework。
+- 没有 radar/overview 底图。**更正（2026-11-14）**：本节当时写的「第一版是 BSP-derived linework」不成立——面板只画背景、边框、控制点环、观察者点和航向点，没有任何地图几何；形状计数 13/14/10 与之一致，见 `docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md` §3（缺陷台账 D33）。
 - A12 已跑，但 m2/m3 期望红因不匹配，gate harness 需修。
 
 **状态**：产品前向路径 PASS（96 断言）；A12 mutation 判 FAIL（m2/m3 期望写错）；七图完整视觉验收未完成。
