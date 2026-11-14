@@ -58,8 +58,11 @@ void finish(std::vector<std::uint8_t>& bytes) {
   writeAt<std::uint32_t>(bytes, 76, static_cast<std::uint32_t>(bytes.size()));
 }
 
-void bindSequence(std::vector<std::uint8_t>& bytes, int sequence, const char* label, int flags, int anim) {
-  const std::size_t sequenceAt = 408u + 216u + 100u;
+// sequenceAt defaults to the one-bone/one-anim layout every caller but
+// loopAndOnce() builds. That case needs a child bone, which moves both the anim
+// block and the sequence block, so it passes its own offset in.
+void bindSequence(std::vector<std::uint8_t>& bytes, int sequence, const char* label, int flags, int anim,
+    std::size_t sequenceAt = 408u + 216u + 100u) {
   const auto offset = sequenceAt + static_cast<std::size_t>(sequence) * 212u;
   writeText(bytes, offset + 160, label);
   writeAt<std::int32_t>(bytes, offset + 4, 160);
@@ -99,13 +102,27 @@ bool parentChainMoves() {
 }
 
 bool loopAndOnce() {
-  auto bytes = studioShell(1, 1, 1);
-  writeAt<float>(bytes, 624 + 8, 10.0f);
-  writeAt<std::int32_t>(bytes, 624 + 16, 4);
-  writeAt<std::int32_t>(bytes, 624 + 56, static_cast<std::int32_t>(bytes.size() - 624));
+  // WHY TWO BONES (2026-11-14): readBoneFrame() returns the reference transform
+  // for a skeleton root and never reads that bone's animated channels -- a root
+  // channel is authored in the model's own world frame (T62, see
+  // animation_decoder.cpp:289). studioShell(1, 1, 1) made the ONLY bone the root,
+  // so every frame produced the same modelPosition and the last assertion below
+  // ("frame 0 and frame 3 must differ") could not hold for any input. That is the
+  // synthetic loop=false the F2-2 sweep recorded on 2026-11-13; the loop/once
+  // frame arithmetic it was written to test was never exercised. realLoop=true
+  // covers a real 76-bone model separately. Animate bone 1, a child of the root,
+  // so the frame difference is observable without changing what is asserted.
+  constexpr int kBones = 2;
+  constexpr int kAnims = 1;
+  auto bytes = studioShell(kBones, kAnims, 1);
+  const std::size_t animAt = 408u + static_cast<std::size_t>(kBones) * 216u;
+  const std::size_t sequenceAt = animAt + static_cast<std::size_t>(kAnims) * 100u;
+  writeAt<float>(bytes, animAt + 8, 10.0f);
+  writeAt<std::int32_t>(bytes, animAt + 16, 4);
+  writeAt<std::int32_t>(bytes, animAt + 56, static_cast<std::int32_t>(bytes.size() - animAt));
   const auto data = bytes.size();
   bytes.resize(data + 20, 0);
-  bytes[data] = 0;
+  bytes[data] = 1;
   bytes[data + 1] = 0x04;
   writeAt<std::int16_t>(bytes, data + 2, 0);
   writeAt<std::int16_t>(bytes, data + 4, 6);
@@ -115,7 +132,7 @@ bool loopAndOnce() {
   writeAt<std::int16_t>(bytes, data + 14, 100);
   writeAt<std::int16_t>(bytes, data + 16, 200);
   writeAt<std::int16_t>(bytes, data + 18, 300);
-  bindSequence(bytes, 0, "loop", 1, 0);
+  bindSequence(bytes, 0, "loop", 1, 0, sequenceAt);
   finish(bytes);
   tf2::native::AnimationModel looping;
   if (tf2::native::decodeAnimationModel(bytes.data(), bytes.size(), looping) != tf2::native::AnimationStatus::Ok) {
@@ -130,7 +147,7 @@ bool loopAndOnce() {
   if (!samePositions(wrapped.modelPosition, again.modelPosition)) return false;
 
   auto onceBytes = bytes;
-  writeAt<std::int32_t>(onceBytes, 408 + 216 + 100 + 12, 0);
+  writeAt<std::int32_t>(onceBytes, sequenceAt + 12, 0);
   tf2::native::AnimationModel once;
   if (tf2::native::decodeAnimationModel(onceBytes.data(), onceBytes.size(), once) != tf2::native::AnimationStatus::Ok) {
     return false;
