@@ -232,6 +232,12 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
 } // namespace
 
 bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
+  // N12-C: this packet carries svc_PacketEntities, so the live table may be
+  // half-updated until it finishes. Recorded at entry rather than at the
+  // successful return so the stamp can tell "this packet carried none at all"
+  // (the live table still describes this tick) from "one that did not finish"
+  // (it does not, and reading it would describe a half-applied update).
+  summary.cameraCaptureSeen = true;
   std::uint32_t maxEntries = 0, isDelta = 0, deltaFrom = 0, baseline = 0, updatedEntries = 0, payloadBits = 0, updateBaseline = 0;
   if (!bits.read(11, maxEntries) || !bits.read(1, isDelta)) return false;
   if (isDelta && !bits.read(32, deltaFrom)) return false;
@@ -419,6 +425,9 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   // on exactly the packets that decoded completely -- the same condition
   // entityHistory uses. It touches no existing field.
   appendProjectileTrackSamples(summary, packetTick);
+  // N12-C: same placement, same condition -- one camera row per completely
+  // decoded packet, after the incomplete-packet early return above.
+  captureCameraTickSample(summary, packetTick);
   return true;
 }
 

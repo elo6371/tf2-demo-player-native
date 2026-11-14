@@ -37,6 +37,8 @@ add_library(tf2_core STATIC
   src/demo_header_sound.cpp
   src/demo_header_events.cpp
   src/demo_header_track.cpp
+  # N12-C: the camera tick track (capture, stamp, exact-tick query).
+  src/demo_header_camera.cpp
   src/audio_timeline.cpp
   src/audio_resource.cpp
   src/vpk_archive.cpp

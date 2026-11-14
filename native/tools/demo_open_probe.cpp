@@ -574,6 +574,10 @@ int wmain(int argc, wchar_t** argv) {
     return runParserBoundsSelfTest();
   }
   bool scan = false;
+  // --camera-track: opt in to the N12-C per-tick camera row track. Recording it
+  // costs a row per stamped packet (56 B each) and nothing reads it in the
+  // product, so like the other dump switches it is off unless asked for.
+  bool cameraTrack = false;
   std::int32_t snapshotTick = -1;
   std::int32_t cameraTick = -1;
   int firstPath = 1;
@@ -587,6 +591,10 @@ int wmain(int argc, wchar_t** argv) {
     }
     snapshotTick = static_cast<std::int32_t>(parsed);
     firstPath += 2;
+  }
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--camera-track") {
+    cameraTrack = true;
+    firstPath += 1;
   }
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--camera-tick") {
     wchar_t* end = nullptr;
@@ -719,6 +727,7 @@ int wmain(int argc, wchar_t** argv) {
     if (scan && indexOk) {
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
+      summary.cameraTrackLimits.enabled = cameraTrack;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       std::string firstTempClassName;
       for (const auto& serverClass : summary.serverClassSchemas) {
@@ -881,6 +890,50 @@ int wmain(int argc, wchar_t** argv) {
                  << L" fixangle_samples=" << summary.fixAngleSamples.size()
                  << L" packets_with_own_net_tick=" << summary.packetsWithOwnNetTick
                  << L" first_data_packet_own_net_tick=" << summary.firstDataPacketOwnNetTick;
+      if (cameraTrack) {
+        std::size_t cameraFirstInversion = 0;
+        const bool cameraOrdered =
+            tf2::native::cameraTickOrderingHolds(summary, &cameraFirstInversion);
+        const long long cameraFirstRowTick = summary.cameraTickSamples.empty()
+            ? -1 : static_cast<long long>(summary.cameraTickSamples.front().tick);
+        const long long cameraLastRowTick = summary.cameraTickSamples.empty()
+            ? -1 : static_cast<long long>(summary.cameraTickSamples.back().tick);
+        // N12-C: the track is expected to start where the first PacketEntities
+        // carries a view target. Count what sits below that line and echo the
+        // first ticks, so a head gap is measured rather than argued about.
+        std::size_t cameraRowsBeforeEntities = 0;
+        for (const tf2::native::CameraTickSample& cameraRow : summary.cameraTickSamples) {
+          if (static_cast<long long>(cameraRow.tick) < static_cast<long long>(summary.firstPacketEntitiesTick)) {
+            ++cameraRowsBeforeEntities;
+          }
+        }
+        std::wstring cameraFirst5;
+        for (std::size_t i = 0; i < summary.cameraTickSamples.size() && i < 5u; ++i) {
+          if (i != 0) cameraFirst5 += L",";
+          cameraFirst5 += std::to_wstring(summary.cameraTickSamples[i].tick);
+        }
+        std::wcout << L" camera_rows=" << summary.cameraRows
+                   << L" camera_rows_dropped=" << summary.cameraRowsDropped
+                   << L" camera_row_tick_mismatch=" << summary.cameraRowTickMismatch
+                   << L" camera_identity_mismatch=" << summary.cameraIdentityMismatch
+                   << L" camera_identity_rebuilt=" << summary.cameraIdentityRebuilt
+                   << L" camera_rows_no_tick=" << summary.cameraRowsNoTick
+                   << L" camera_rows_incomplete_packet=" << summary.cameraRowsIncompletePacket
+                   << L" camera_rows_no_target=" << summary.cameraRowsNoTarget
+                   << L" camera_first_no_target_tick=" << summary.cameraFirstNoTargetTick
+                   << L" camera_duplicate_tick_rows=" << summary.cameraDuplicateTickRows
+                   << L" camera_packets_with_set_view=" << summary.cameraPacketsWithSetView
+                   << L" camera_set_view_before_entities=" << summary.cameraPacketsSetViewBeforeEntities
+                   << L" camera_set_view_after_entities=" << summary.cameraPacketsSetViewAfterEntities
+                   << L" camera_tick_ordering=" << (cameraOrdered ? 1 : 0)
+                   << L" camera_first_inversion=" << cameraFirstInversion
+                   << L" camera_tick_samples=" << summary.cameraTickSamples.size()
+                   << L" camera_first_row_tick=" << cameraFirstRowTick
+                   << L" camera_last_row_tick=" << cameraLastRowTick
+                   << L" camera_rows_before_first_entities=" << cameraRowsBeforeEntities
+                   << L" camera_first5_ticks=" << cameraFirst5
+                   << L" camera_bytes=" << (summary.cameraTickSamples.size() * sizeof(tf2::native::CameraTickSample));
+      }
       {
         std::wstring first5, last5;
         const std::size_t sampleCount = summary.viewSamples.size();
@@ -971,11 +1024,23 @@ int wmain(int argc, wchar_t** argv) {
           }
           return L"unknown";
         };
+        // N12-C/Q5 cross-end spelling of "no snapshot": the query leaves
+        // resolvedTick untouched on Gap / NoHistory / TickBeforeHistory, so the
+        // old seed (snapshotTick) printed stale=0 for a tick that resolved to
+        // NOTHING. The product publishes g_sceneResolvedServerTick = -1 on exactly
+        // these statuses, and demo-clock-check.sh A3 compares the two numbers, so
+        // both ends spell it -1: -1 means UNRESOLVED, it does not mean zero
+        // staleness. snapshot_resolved_tick is left as it was (raw), because other
+        // readers of this line bind to it.
+        const bool snapshotResolved = status == tf2::native::EntitySnapshotQueryStatus::Available
+            || status == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
+        const long long snapshotStale = snapshotResolved
+            ? static_cast<long long>(snapshotTick) - resolvedTick : -1LL;
         std::wcout << L" snapshot_tick=" << snapshotTick
                    << L" snapshot_status=" << statusName(status)
                    << L" snapshot_states=" << states.size()
                    << L" snapshot_resolved_tick=" << resolvedTick
-                   << L" snapshot_stale=" << (snapshotTick - resolvedTick);
+                   << L" snapshot_stale=" << snapshotStale;
       }
       if (userInfo || userInfoDumpLimit >= 0 || !userInfoAtTicks.empty()) {
         std::size_t named = 0;

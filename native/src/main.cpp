@@ -10177,11 +10177,21 @@ bool outlineVertexExtent = false;
         traceFmt("scene: clock tick=%d entryTick=%d serverTick=-1 serverTickKnown=0 reason=%s",
           static_cast<int>(g_playback.tick), static_cast<int>(sceneEntryTick), sceneClockReason);
       }
-      std::int32_t resolvedSceneTick = sceneTick;
+      // N12-C / Q5: the query below writes a tick only on the two branches that
+      // actually resolve a snapshot (Available, Checkpoint); Gap, NoHistory and
+      // TickBeforeHistory leave the out-parameter untouched. Seeding it with
+      // sceneTick therefore made "no snapshot" indistinguishable from "the
+      // snapshot is exactly this tick": stale read 0, and the publish below
+      // claimed a resolved tick for a snapshot that was never resolved. Start
+      // unknown and let the status decide.
+      std::int32_t resolvedSceneTick = -1;
       if (sceneTickKnown) {
         entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
             demoNetworkSummary, sceneTick, currentEntityStates, &resolvedSceneTick);
-        entitySnapshotStaleness = sceneTick - resolvedSceneTick;
+        // Staleness is defined only when a tick was resolved. With the -1 seed,
+        // the old expression would read sceneTick + 1 here -- a value that looks
+        // like a measurement and is an artifact of the sentinel.
+        entitySnapshotStaleness = resolvedSceneTick >= 0 ? sceneTick - resolvedSceneTick : -1;
       } else {
         // A packet before the first svc_NetTick has no server tick. Querying it
         // would quietly use an entry tick as a server tick, which is the defect;
@@ -10197,7 +10207,18 @@ bool outlineVertexExtent = false;
       // N12-B: the relay reads its offset out of exactly this snapshot, so the
       // age it prints must be measured against exactly this tick, not against
       // whatever the playback clock says by the time the relay runs.
-      g_sceneResolvedServerTick = sceneTickKnown ? resolvedSceneTick : -1;
+      //
+      // N12-C / Q5: publish only a tick a query actually produced. After Gap /
+      // NoHistory / TickBeforeHistory the states in hand are the previous query's
+      // survivors and no tick describes them, so publishing sceneTick made the
+      // relay's age arithmetic look current on a snapshot that was stale or
+      // absent. -1 is the value every reader already treats as unknown: the relay
+      // gate at :779 requires >= 0 and the POV eye gate at :10273 does too, and
+      // snapshotDrawable (:10390) already reads the status rather than this tick.
+      const bool sceneTickResolved =
+          entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
+          || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
+      g_sceneResolvedServerTick = sceneTickResolved ? resolvedSceneTick : -1;
       tf2::native::DemoViewSample observerView;
       // T34: the eye this scene tick resolved, in map units, read from the
       // same observer view the camera decision below consumes. Defaults keep

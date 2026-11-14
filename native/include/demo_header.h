@@ -411,6 +411,85 @@ struct ProjectileTrackLimits {
   bool measureAppendCost = false;
 };
 
+// ===========================================================================
+// N12-C: THE CAMERA TICK TRACK -- one narrow row per packet for the ONE entity
+// the camera is looking at.
+// ===========================================================================
+//
+// WHY THIS EXISTS. The first-person camera reads one entity's properties at the
+// tick being drawn, and the only retention that answers "those properties at
+// tick T" is entityHistory above -- whose entries are checkpoints spaced
+// EntityHistoryLimits::checkpointStride apart and then thinned to archiveMax
+// rows. So the answer is an at-or-before answer, and its age grows with that
+// spacing: on the POV demo measured for this round, 96 archived rows sit 3152
+// ticks apart (worst 4612), so a playback tick reads a snapshot 1707.8 ticks
+// old on average and 4576 at worst (LEAD/n12c-retention-rootcause.md). The
+// spacing is not loose by accident: one checkpoint of that demo is 8,701,402 B,
+// and retaining every tick at that width is 2.41 TiB for one recording.
+//
+// WHAT IT IS INSTEAD. The camera needs ONE entity per tick, not every entity's
+// properties per tick, so this retains a fixed-width row for the view target
+// only -- the same trade T53 makes just above for projectiles, for the same
+// reason. A row's tick is the packet's finalNetworkTick, which is the SAME value
+// the playback clock publishes for that packet in packetServerTicks[row], so a
+// playback position names its row by equality instead of falling back to the
+// nearest older answer.
+//
+// WHAT IT IS NOT. It does not change what queryEntitySnapshotAtOrBeforeTick
+// answers, what entityHistory retains, when it flushes, or how resolvePovEye
+// reads today. It is a second retention with its own reader; the reader is step
+// two and is not wired here.
+//
+// SIZING: 56 B per row (asserted in demo_header_camera.cpp). The POV demo
+// appends 300,618 rows -- 16.1 MiB -- against entityHistoryArchive's 96 rows.
+struct CameraTickSample {
+  // The packet's server tick. Non-decreasing across the vector; see
+  // cameraTickOrderingHolds.
+  std::int32_t tick = -1;
+  // WHICH entity this row is about, and which lifetime of it. entityIndex alone
+  // is not an identity -- the slot can be recycled -- so (entityIndex,
+  // generation) is, with generation the per-slot counter bumped on every Enter
+  // and Delete (projectileTrackSlotGeneration, which this shares rather than
+  // duplicating).
+  std::uint16_t entityIndex = 0;
+  std::uint16_t reserved = 0;  // explicit padding: keeps the row 4-byte aligned
+  std::int32_t classId = -1;
+  std::uint32_t generation = 0;
+  float origin[3] = {};  // m_vecOrigin, map units
+  // The player's own view offset, AS READ. This is a reading, not a camera:
+  // the (0, 300] plausibility gate the POV path applies to it is consumer
+  // policy (main.cpp:517-523) and is deliberately not applied here.
+  float viewOffsetZ = 0.0f;
+  float angles[3] = {};  // m_angEyeAngles / m_angRotation, degrees
+  std::int32_t lifeState = 0;    // m_lifeState / m_iLifeState raw, when present
+  std::int32_t observerMode = 0; // m_iObserverMode raw, when present
+  // Which readings above were actually present in the entity state. A set bit
+  // means "the value was read", never "the value is plausible"; see the note on
+  // viewOffsetZ. Bits are the kCameraHas* constants below.
+  std::uint32_t flags = 0;
+};
+
+// Bit values for CameraTickSample::flags. constexpr rather than enum class so a
+// row reads as a plain mask (row.flags & kCameraHasOrigin) with no cast.
+constexpr std::uint32_t kCameraHasOrigin = 1u << 0;
+constexpr std::uint32_t kCameraHasViewOffset = 1u << 1;
+constexpr std::uint32_t kCameraHasAngles = 1u << 2;
+constexpr std::uint32_t kCameraHasLifeState = 1u << 3;
+constexpr std::uint32_t kCameraHasObserverMode = 1u << 4;
+
+struct CameraTrackLimits {
+  // OPT-IN RETENTION, DEFAULT OFF -- the same contract and the same reason as
+  // ProjectileTrackLimits::enabled above: the product does not read these rows
+  // (step two does), so a product scan must not pay 16 MiB of retention and a
+  // per-packet append for a reading nobody asked for. The probe turns it on
+  // explicitly, which is why the product's default reading is zero.
+  bool enabled = false;
+  // Rows retained, oldest dropped first. 400k rows covers the longest recording
+  // measured here (300,618 rows) with headroom; the collision is counted, never
+  // absorbed silently.
+  std::size_t maxSamples = 400000;
+};
+
 // True when `className` is one of the projectile classes T53 tracks. THE TEST IS
 // THE NAME, NEVER THE ID: class ids belong to one recording's server class table
 // (CTFViewModel measures 320 on one demo and 18 on another), so a pinned id is a
@@ -865,6 +944,47 @@ struct DemoNetworkSummary {
   // copies every retained row, and it lands on a handful of specific packets, so
   // if the tail is algorithmic it is here.
   std::vector<std::uint32_t> projectileTrackAppendGrew;
+  // N12-C additive camera retention. Appended by readPacketEntities at the point
+  // the packet decodes completely, stamped by scanKnownDemoMessages where the
+  // packet's final tick is written, read by queryCameraTickSample. Independent of
+  // the entityHistory* fields above, which keep their own semantics.
+  std::vector<CameraTickSample> cameraTickSamples;
+  CameraTrackLimits cameraTrackLimits{};
+  std::size_t cameraRows = 0;                 // rows ever appended (may exceed size() after eviction)
+  std::size_t cameraRowsDropped = 0;          // evicted because maxSamples was reached
+  std::size_t cameraRowsNoTick = 0;           // data packet whose final server tick is unknown
+  std::size_t cameraRowsIncompletePacket = 0; // svc_PacketEntities present, packet did not decode
+  std::size_t cameraRowsNoTarget = 0;         // no view target, or its slot holds no entity
+  std::size_t cameraRowTickMismatch = 0;      // captured packet tick != the packet's final tick
+  // A row's identity is the (entityIndex, slot generation) pair the packet ENDS
+  // with. When svc_SetView ran after svc_PacketEntities the capture still
+  // describes the OLD target, so the row is rebuilt at the stamp point from the
+  // packet's final state instead of being discarded: discarding would punch
+  // holes in exactly the ticks where the camera moved. cameraIdentityMismatch
+  // counts the rows that needed that rebuild, cameraIdentityRebuilt the ones it
+  // produced; the difference is the ticks the track could not describe.
+  std::size_t cameraIdentityMismatch = 0;
+  std::size_t cameraIdentityRebuilt = 0;
+  std::int32_t cameraFirstNoTargetTick = -1;  // tick of the first cameraRowsNoTarget row
+  std::size_t cameraDuplicateTickRows = 0;    // row whose tick equals the previous row's
+  // Packet-internal order of svc_SetView against svc_PacketEntities, which decides
+  // whether the target read at capture time is the target that applies to this
+  // packet's row. Counted, not assumed: the ordering is a property of the wire
+  // this layer does not control, and on this corpus it was not measured before
+  // this round.
+  std::size_t cameraPacketsWithSetView = 0;
+  std::size_t cameraPacketsSetViewBeforeEntities = 0;
+  std::size_t cameraPacketsSetViewAfterEntities = 0;
+  // One packet's worth of scratch, carried between readPacketEntities (capture,
+  // demo_header_entity.cpp) and scanKnownDemoMessages (stamp, demo_header.cpp).
+  // Those are different translation units, so it lives here rather than on the
+  // stack. Reset at the top of every message stream by
+  // resetCameraCaptureForPacket.
+  bool cameraCaptureSeen = false;      // this packet carried an svc_PacketEntities
+  bool cameraCaptureComplete = false;  // ... and readPacketEntities reached its end
+  bool cameraCaptureValid = false;     // ... and the capture built a row
+  CameraTickSample cameraCaptureSample{};
+  std::int32_t cameraCapturePacketTick = -1;  // tick readPacketEntities was given
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
   bool serverInfoReplayBit = false;
@@ -1114,7 +1234,60 @@ struct DemoMessageStreamResult {
   std::int32_t finalNetworkTick = -1;
   bool finalNetworkTickKnown = false;
   bool sawNetTick = false;  // this packet itself carried svc_NetTick
+  // N12-C: bit offset of the last svc_SetView / svc_PacketEntities inside this
+  // packet, -1 when absent. Comparing the two answers "was the view target
+  // updated before or after the entity update" for this packet -- see
+  // cameraPacketsSetViewBeforeEntities.
+  std::int64_t lastSetViewMessageBit = -1;
+  std::int64_t lastPacketEntitiesMessageBit = -1;
 };
+
+// ---------------------------------------------------------------------------
+// N12-C: the camera tick track's API. Same shape as the projectile track above --
+// a capture on the decode path, a stamp where the packet's tick becomes known, and
+// an exact-tick query.
+// ---------------------------------------------------------------------------
+
+// Called from readPacketEntities once the packet has decoded COMPLETELY: the same
+// return site, and the same condition, as appendProjectileTrackSamples. A packet
+// that fails to decode returns before this, so a half-applied live table is never
+// read as a row.
+void captureCameraTickSample(DemoNetworkSummary& summary, std::int32_t packetTick);
+
+// Clears the one-packet scratch; called at the top of decodeDemoMessageStream so
+// the stamp can tell "this packet carried no svc_PacketEntities" (the live table
+// still describes this tick) from "it carried one that did not complete" (it does
+// not).
+void resetCameraCaptureForPacket(DemoNetworkSummary& summary);
+
+// Called from scanKnownDemoMessages at the point packetServerTicks[row] is written.
+// Stamps the row with the packet's final tick, or counts why it cannot.
+void stampCameraTickRow(DemoNetworkSummary& summary, const DemoMessageStreamResult& stream,
+                        std::size_t row, bool tickKnown);
+
+// What an exact-tick lookup found. hit is the only success signal: a miss carries
+// the nearest retained ticks so a caller can report the distance, but sample stays
+// null on purpose. There is deliberately no at-or-before fallback -- that fallback
+// is the defect this retention exists to remove, and it lives in entityHistory
+// where the measured age is 1707.8 ticks on average.
+struct CameraTickQueryResult {
+  bool hit = false;
+  const CameraTickSample* sample = nullptr;
+  std::int32_t previousTick = -1;  // nearest retained tick < tick, -1 when none
+  std::int32_t nextTick = -1;      // nearest retained tick > tick, -1 when none
+  // How many rows carry the sampled tick. A recording whose packets hold one
+  // server tick across several playback rows appends several rows with the same
+  // tick; this query returns the LAST of them, the one packet order puts latest.
+  std::size_t rowsAtTick = 0;
+};
+CameraTickQueryResult queryCameraTickSample(const DemoNetworkSummary& summary, std::int32_t tick);
+
+// The invariant the query's binary search rests on: tick is non-decreasing across
+// cameraTickSamples, because rows are appended in packet order. Exposed for the
+// same reason projectileTrackTickOrderingHolds is -- it is easy to break without
+// noticing, and a broken order yields wrong answers rather than slow ones.
+bool cameraTickOrderingHolds(const DemoNetworkSummary& summary,
+                             std::size_t* firstInversion = nullptr);
 
 // Decodes a raw message stream exactly the way scanKnownDemoMessages does.
 // Exists so tools/entity_message_fixture_probe.cpp can drive the decoders with
