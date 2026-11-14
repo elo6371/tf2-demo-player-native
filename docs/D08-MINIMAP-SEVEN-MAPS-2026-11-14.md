@@ -75,8 +75,10 @@ the restored build reproduces the forward exe (cfcdbe5d…)
 
 ## 6 身份与后续
 
-- 本批证据全部绑定 `cfcdbe5d…`（`sourceTree=a15303062d5e`）。绑定旧 exe `00ec8b99` 的小地图证据到此作废，不得与新证据混用。
-- sidecar 的 `dirty=1` 只来自两份文档（`PROJECT-ROADMAP-HANDOFF-2026-11-12.md` 的本地改动、未跟踪的 `PROJECT-HANDOFF-2026-11-14.md`）与本任务新增的文档；`native/src`、`native/include`、CMake 全干净。
+- 本批证据全部绑定 `cfcdbe5d…`。该 exe 链接自 `a153030` 的产品源码；其后的收尾提交只动 `docs/`，可用
+  `git diff --stat a153030..HEAD -- native/src native/include native/CMakeLists.txt`（预期为空）复核。
+  sidecar 在收尾时用 `bash build-target.sh tf2_identity` 刷新到最终 HEAD，`dirty=1` 只来自两份用户文档；`native/src`、`native/include`、CMake 全干净。
+- 绑定旧 exe `00ec8b99` 的小地图证据到此作废，不得与新证据混用。
 - 下一步（UI owner）：resize/DPI 两档抓帧；若要线稿，先写 `sky_camera`/floor 选择的设计与像素 oracle，再动 `main_hud.cpp`（与 H2 的世界渲染同属单写者窗口）。
 
 ## 7 附录：命令与完成记录
