@@ -126,3 +126,15 @@ I-29 的 headless 部分（`QUIET-CAPTURE=PASS`，device-pair=SKIPPED）、F1-1.
 | D03 849/919 | **仍 OPEN**，机制已证、来源未闭合 | `docs/BLACKPOINT-849-919-2026-11-14.md` |
 
 台账其余条目未变；本表不改变任何未列条目的状态。
+
+## 第二批（G1-6，同日）：七图小地图帧
+
+| 条目 | 变化 | 依据 |
+|---|---|---|
+| **D34 暂停丢面板** | 新增并 **CLOSED** | 缺陷：`--start-paused` 第 2 帧起 `reason=no-camera-pose`、`shapes=0`，抓帧与对照逐字节相同；修复 `a153030`（复用同图最后位姿）。七图 205 项检查 0 失败，`docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md` |
+| **D33 文档称 BSP 线稿、实际无线稿** | 新增 **OPEN**（文档/口径缺陷，非产品回归） | 面板只推 背景+边框+控制点环+观察者+航向点；形状计数 13/14/10/11 与之一致。`PHASE-F-REPORT:233`、`PROJECT-HANDOFF:334`、`PROJECT-ROADMAP:784` 的 "BSP-derived linework" 不成立 |
+| **D35 小地图缩放比例** | 新增 **NOT VERIFIED** | 投影用的是 `minimap.h` 声明的可玩区矩形；未独立验证（BSP 世界包围盒本就不同：Upward 声明 ±3072/±4096 vs 世界 -3328..9344） |
+| D08 七图帧 | **PARTIAL→大部分 CLOSED** | 七图面板位置/投影朝向/控制点落位 PASS；resize/DPI、线稿、载荷车图标仍 NOT VERIFIED/UNSUPPORTED |
+| D06 身份 | **00ec8b99 由 cfcdbe5d 取代** | 产品修复后重建：exe `cfcdbe5d…`、2,988,544 B、`sourceTree=a15303062d5e`、`dirty=1`（脏文件仅两份文档）。绑定 00ec8b99 的小地图证据已全部作废并在新 exe 上重跑 |
+| 七图 demo 配对 | **更正：Upward 缺的是 POV，不是 STV** | `a9630c…pl_upward_f12.dem` 头部 `client="SourceTV Demo"`（serveme.tf #1570108，85,204 ticks），已归档 `E:/demo测试/pl_upward_f12/STV/`；Upward POV 仍缺 |
+| **D36 暂停缺陷的父提交负控** | 新增 **OPEN**（证据缺口） | 修复前后都有 trace 记录，但未在独立构建目录重建父提交 `94e7612` 的二进制做二次负控（与门禁写窗口冲突）。做一次即可关闭 |
