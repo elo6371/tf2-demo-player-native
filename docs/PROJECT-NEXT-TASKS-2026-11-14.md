@@ -211,6 +211,7 @@
 
 ### N12　POV/STV 相机与播放（D）
 
+- [x] **输入眼位 vs 实际渲染眼位（2026-11-15，独立 oracle）**：产品 POV 相机 == demo cmdinfo（双解析实现 + 原始字节三方一致，Δ≤0.042 u / 0.003°），但 cmdinfo 的 `viewOrigin` 就是玩家 `m_vecOrigin`（4 样本逐位相同），而产品不读 `m_vecViewOffset` ⇒ 相机比眼位低 75.03 u（Sniper）/ 68.03 u（Demoman）/ 0（viewOffset=0 的死亡观战帧）。STV 无录制相机（cmdinfo 全零），产品按 `origin + kSpectatorEyeHeight(68) + m_angEyeAngles` 合成：新鲜快照吻合 ≤0.032 u，蹲伏 +23.006 u，陈旧快照（t20000 落后 1100 tick）≈600 u。三候选修复（POV 加 viewOffset / STV 用 netprop 而非常量 / STV 不用 archive Checkpoint）待开卡；证据 `D:/_shared/EXEC-2026-11-15/N12-CAMERA-ORACLE-REPORT-2026-11-15.md`。
 - [ ] 矩阵覆盖 viewEntity、observer target/mode、实体 serial、userdata；区分输入眼位与实际渲染眼位。
 - [ ] 验证第一/第三/自由视角、跟随目标切换、失效目标回退、暂停后恢复、seek 前后状态。
 - [ ] play/pause/seek/逐帧/倍速/结束/错误索引分别验证；reverse 仅在产品宣称支持时纳入，未实现需写明。
