@@ -3,7 +3,7 @@
 - 窗口：2026-11-14 09:36 – 13:00（GMT+8）
 - 依据：`docs/PROJECT-HANDOFF-2026-11-14.md`（§5 H0-H7、§6 指派顺序）、`docs/PROJECT-ROADMAP-HANDOFF-2026-11-12.md`（F1/F2）
 - Worktree：`D:/TF2_Native_Worktrees/t105-e5`，分支 `candidate/e5`
-- HEAD：`94e7612` → `a92b1bd`（12 笔提交）
+- HEAD：`94e7612` → `a92b1bd`（12 笔代码/文档提交），外加本报告这一笔（只动 `docs/`）
 - 产品 exe：`00ec8b99…`（2,988,544 B）→ `cfcdbe5d…`（2,988,544 B）
 - 分册：`docs/BATCH-G1-2026-11-14.md`、`docs/G1-COMPLETE-REPORT-2026-11-14.md`、`docs/G2-2026-11-14.md`、`docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md`、`docs/TRIAGE-LOOPFALSE-2026-11-14.md`、`docs/BLACKPOINT-849-919-2026-11-14.md`、`docs/DEFECT-REGISTER-2026-11-14.md`
 
@@ -197,7 +197,7 @@
 
 ---
 
-## 10 提交清单（`94e7612..a92b1bd`，12 笔）
+## 10 提交清单（`94e7612..a92b1bd` 共 12 笔，另有本报告 1 笔）
 
 | 提交 | 类型 | 内容 |
 |---|---|---|
@@ -213,6 +213,7 @@
 | `1dfefb1` | docs | G2 结账 + 线稿口径更正 |
 | `1dff78e` | docs | 七图世界帧筛查 |
 | `a92b1bd` | docs | 设置写回事故与脚本修复 |
+| 本报告 | docs | 本次合并报告（只动 `docs/`） |
 
 未推送、未打 tag、未跑 15 步发布链。
 
