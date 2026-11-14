@@ -151,3 +151,4 @@ I-29 的 headless 部分（`QUIET-CAPTURE=PASS`，device-pair=SKIPPED）、F1-1.
 | **D01 输入** | 新增七图探针矩阵 | 七图全部 rc=0、预算 `within`、`dropped=0`、bump `missing=0`。**不是**渲染验收 |
 | **Upward POV** | **仍缺（用户提供的不是 f12）** | 新 demo 头部 `map="pl_upward"`（125,508 ticks，`708683e1…`），归档到 `E:/demo测试/pl_upward/POV/`；`pl_upward_f12` 的 POV 仍缺，不得替代 |
 | **D39 世界帧里的未归因异常族** | 新增 **OPEN**（证据缺口） | 七图世界帧（tick 30000，STV 相机）显示：Gullywash/Bagel/Sultry 有成片高频白噪、Process/Gullywash/Product 有黑区、Sunshine 有疑似水面的浅蓝平面。均未做具名材质归因与 on/off 对照，不得称为缺陷。见 `docs/G2-2026-11-14.md` §7 |
+| **D40 产品写回 `--settings-file`** | 新增 **OPEN**（流程/卫生） | 本轮世界帧脚本把 tracked 的 `gate-settings.ini` 直接当 `--settings-file`，产品退出时写回 126 键（原 10 键值未变）。已恢复并改为副本。建议：脚本层统一走 `iso_seed_gate_settings`，并在 `--settings-file` 指向 tracked 路径时由产品在 trace 里告警 |
