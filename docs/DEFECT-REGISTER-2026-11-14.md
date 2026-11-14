@@ -150,3 +150,4 @@ I-29 的 headless 部分（`QUIET-CAPTURE=PASS`，device-pair=SKIPPED）、F1-1.
 | **D38 探针路径/编码缺口** | 新增 **OPEN**（工具缺口） | `world_geometry_probe` 要 TF 相对路径、`world_feature_probe` 要绝对路径，且后者无法打开非 ASCII 路径（`E:/demo测试/...` 空输出） |
 | **D01 输入** | 新增七图探针矩阵 | 七图全部 rc=0、预算 `within`、`dropped=0`、bump `missing=0`。**不是**渲染验收 |
 | **Upward POV** | **仍缺（用户提供的不是 f12）** | 新 demo 头部 `map="pl_upward"`（125,508 ticks，`708683e1…`），归档到 `E:/demo测试/pl_upward/POV/`；`pl_upward_f12` 的 POV 仍缺，不得替代 |
+| **D39 世界帧里的未归因异常族** | 新增 **OPEN**（证据缺口） | 七图世界帧（tick 30000，STV 相机）显示：Gullywash/Bagel/Sultry 有成片高频白噪、Process/Gullywash/Product 有黑区、Sunshine 有疑似水面的浅蓝平面。均未做具名材质归因与 on/off 对照，不得称为缺陷。见 `docs/G2-2026-11-14.md` §7 |
