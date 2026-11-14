@@ -680,6 +680,10 @@ int wmain(int argc, wchar_t** argv) {
     std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
+  // N04/D46: a caller that checks the exit status must be able to tell a parsed
+  // file from one that could not be opened; this probe used to answer 0 for all
+  // four cases. 2 = could not open, 1 = opened but did not parse, 0 = parsed.
+  int failureCode = 0;
   for (int i = firstPath; i < argc; ++i) {
     const std::filesystem::path path(argv[i]);
     // Raw UTF-8 row dump, written with the narrow stream after the wide summary
@@ -693,6 +697,9 @@ int wmain(int argc, wchar_t** argv) {
     const bool headerOk = tf2::native::parseDemoHeaderFile(path, header);
     tf2::native::DemoIndex index;
     const bool indexOk = headerOk && tf2::native::indexDemoFile(path, header, index);
+    if (!headerOk || !indexOk) {
+      if (failureCode == 0) failureCode = headerOk ? 1 : 2;
+    }
     // Keep probe output ASCII-compatible; the input path itself may contain
     // characters unsupported by the active console code page.
     std::wcout << L"path=<wide-path>"
@@ -1071,5 +1078,5 @@ int wmain(int argc, wchar_t** argv) {
       std::cout.flush();
     }
   }
-  return 0;
+  return failureCode;
 }

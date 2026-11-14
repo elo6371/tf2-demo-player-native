@@ -2,7 +2,7 @@
 
 **本文件是唯一台账。** `docs/DEFECT-REGISTER-2026-11-14.md` 转为历史附录（保留原文，不再更新），两者冲突时以本文件为准。
 
-- 生成依据：旧登记册主表 35 行（D01–D35）+ 本批 G1/G2 追加 8 条（D36–D43）+ N02 追加 D44、N03 追加 D45，合并去重后 **45 个唯一问题**。
+- 生成依据：旧登记册主表 35 行（D01–D35）+ 本批 G1/G2 追加 8 条（D36–D43）+ N02 追加 D44、N03 追加 D45、N04 追加 D46–D48，合并去重后 **48 个唯一问题**。
 - 编号规则：**D01–D35 保持旧登记册原义不变**；本批新增从 **D36** 起连续分配；与旧号冲突的三条已改号（见 §1）。
 - `级别` 即风险等级（P0 崩溃/数据丢失/安全；P1 阻断发布或首图可见；P2 单图/单功能或门禁无法表述结论；P3 工程卫生或证据缺口）。
 
@@ -71,6 +71,9 @@
 | D43 | P2（证据缺口） | `证据`：小地图投影用的是 `minimap.h` 声明的可玩区矩形，未用独立来源验证缩放比例 | NOT VERIFIED | UI owner | — | 用 BSP 中两个已知世界点与面板像素反算 scale，与声明矩形比较 | `docs/D08-MINIMAP-SEVEN-MAPS-2026-11-14.md` §4 | N14 |
 | D44 | P2（工具缺口） | `探针`：仍有 30 处 `std::filesystem::u8path(argv[...])` 分布在 16 个探针，遇到非 UTF-8 参数会走同一条未捕获异常路径（0xC0000409） | OPEN | Probe owner | D38 的修法 | `grep -rn "u8path(argv" native/tools/*.cpp`；每个探针用非 ASCII 路径跑一次，rc 必须非零且带具名原因，不能是 0xC0000409 | `D:/_shared/EXEC-2026-11-14/G3/n02-matrix.txt` | N02 后续 |
 | D45 | P3（数据丢失） | `产品`：设置保存会丢弃未知键——`--settings-file` 里加 `zzz_future_key=42`，跑一次产品后该键消失（已知键 `preset`/`viewModelFov` 保留） | OPEN | Settings owner | — | 复制 fixture 加一个未知键跑一次产品，检查该键是否仍在；再检查降级场景（新版本写的键被旧版本读过后是否丢失） | `D:/_shared/EXEC-2026-11-14/G3/rt.ini`（跑前/跑后） | N03 后续 |
+| D46 | P2（门禁/探针） | `探针`：`demo_open_probe` 对"打不开/解析失败"也返回 0，只看退出码的门禁会把缺失文件读成成功 | CLOSED（N04） | Probe owner | — | valid=0 / truncated=1 / badmagic=2 / missing=2，输出行与修前逐字相同 | `docs/G4-N04-2026-11-14.md` §2 | N04 |
+| D47 | P2（用户可见） | `产品`：启动期参数拒绝（`--audio-device`/`--capture-tick`/`--window-size`/`--settings-file`/`--ui-settings-file`/`--animation-drive`）只写 `OutputDebugStringW`，rc=13 但 stdout+stderr 为空、trace 无原因 | OPEN | Playback owner | D46 的契约口径 | 六条命令各跑一次，要求 stderr 有一行具名原因且 trace 有对应行 | `docs/G4-N04-2026-11-14.md` §3 | N04 后续 |
+| D48 | P3（证据缺口） | `门禁`：`--renderer-fault hud.createbuffer:0` 注入确实触发（trace 有 refuse 行），但 `--renderer-resize-selftest` 仍 `RESULT=PASS refused=1`，没有断言画面缺了什么 | OPEN | Renderer owner | — | 故障注入运行时额外断言受影响区域的像素/形状，否则该用例只证明"没崩" | `docs/G4-N04-2026-11-14.md` §4 | N23 |
 
 ## 3 D08 拆分（N00 要求：已通过的子集不重做）
 
@@ -100,12 +103,12 @@
 
 | 状态 | 数量 | 编号 |
 |---|---:|---|
-| OPEN | 22 | D02 D03 D04 D06 D11 D12 D17 D19 D21 D22 D23 D28 D29 D30 D31 D32 D33 D35 D39 D41 D44 D45 |
+| OPEN | 24 | D02 D03 D04 D06 D11 D12 D17 D19 D21 D22 D23 D28 D29 D30 D31 D32 D33 D35 D39 D41 D44 D45 D47 D48 |
 | NOT VERIFIED | 14 | D01 D05 D07 D13 D14 D15 D16 D18 D20 D24 D25 D26 D27 D43 |
-| CLOSED | 7 | D09 D10 D36 D37 D38 D40 D42 |
+| CLOSED | 8 | D09 D10 D36 D37 D38 D40 D42 D46 |
 | PARTIAL | 1 | D08（见 §3） |
 | UNSUPPORTED | 1 | D34 |
-| **合计** | **45** | D01–D45，无重号、无"同号既关又未关" |
+| **合计** | **48** | D01–D48，无重号、无"同号既关又未关" |
 
 D33（18 vs 15 笔提交）复核：`git rev-list --count 9deed76..68a206a` = **15**，与旧登记册判断一致；报告正文的 18 应视为笔误，历史报告不改写。
 
