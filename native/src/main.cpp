@@ -623,6 +623,83 @@ PovEye resolvePovEye(const std::vector<tf2::native::EntityState>& states,
 // are the diagnosis: "the camera is at the feet" and "the camera is at the feet
 // because this player is dead" are the same three numbers and different bugs.
 PovEye g_scenePovEye;
+// N12-B: the server tick the current scene snapshot resolved to, published so
+// the relay can state offsetAge in the same tick space as the POV line. -1 when
+// the scene had no server tick and no snapshot was queried. Declared next to
+// g_scenePovEye because both are "what the last scene tick resolved".
+std::int32_t g_sceneResolvedServerTick = -1;
+
+// N12-B: the eye height the relay lifts a followed player by, and where that
+// number came from.
+//
+// The relay used to add the framing constant kSpectatorEyeHeight (68) to every
+// followed player. 68 is the STANDING height of Soldier/Demoman/Pyro/Engineer
+// and 23 units too high for a crouched player: m_vecViewOffset[2] reads
+// 45.000043 crouched, 68.000065 standing, 75.000072 for Sniper/Medic/Heavy/Spy
+// and 65.000060 for Scout, all out of the demo's own property stream. A
+// crouched target therefore got a camera floating 23 u above its own eye for
+// as long as it stayed crouched -- measured as +23.0059 u on stv-t40000.
+//
+// The reading comes from the SAME EntityState row the origin came from
+// (placeSpectatorView's `row`), so origin and offset cannot come from two
+// different ticks. The origin was correct all along; only the height added to
+// it was a constant.
+//
+// offsetSrc is the distinction this trace exists for:
+//   netprop  -- m_vecViewOffset[2] was read; offsetZ is that value.
+//   fallback -- nothing readable; offsetZ is kSpectatorEyeHeight and reason
+//               names which of the failed reads produced it.
+//   none     -- the row is dead or observing; NO height is added, because
+//               lifting the camera 68 u over a corpse is the defect that
+//               branch exists to avoid (the same rule as resolvePovEye).
+struct RelayEye {
+  float offsetZ = kSpectatorEyeHeight;
+  const char* source = "fallback";
+  std::int32_t offsetTick = -1;
+  std::int32_t lifeState = -1;
+  std::int32_t observerMode = -1;
+  const char* reason = "view-offset-missing";
+};
+
+RelayEye resolveRelayEye(const tf2::native::EntityState& row) {
+  RelayEye out;
+  std::int32_t lifeState = 0;
+  if (readIntSlot(row, "m_lifeState", lifeState)) {
+    out.lifeState = lifeState;
+    if (lifeState != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "dead-no-eye-offset";
+      return out;
+    }
+  }
+  std::int32_t observerMode = 0;
+  if (readIntSlot(row, "m_iObserverMode", observerMode)) {
+    out.observerMode = observerMode;
+    if (observerMode != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "observing-no-eye-offset";
+      return out;
+    }
+  }
+  const EyeOffsetReading offset = readEyeOffsetZ(row);
+  out.offsetTick = offset.lastWriteTick;
+  if (!offset.hasValue) {
+    out.reason = offset.reason;
+    return out;
+  }
+  out.offsetZ = offset.z;
+  out.source = "netprop";
+  out.reason = "applied";
+  return out;
+}
+
+// The reading the relay used on the frame that just ran, published for the
+// scene-tick trace line below. A struct for the same reason g_scenePovEye is
+// one: "45 because this player is crouched" and "45 because the read failed
+// and 45 is the fallback" are the same number and different facts.
+RelayEye g_sceneRelayEye;
 
 // Place the camera behind the relayed player, looking where that player looks.
 //
@@ -651,10 +728,15 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
   if (!transform.hasOrigin || !transform.hasAngles) return false;
   float forward[3] = {0.0f, 0.0f, 0.0f};
   tf2::native::demoViewForward(transform.angles[0], transform.angles[1], forward);
+  // N12-B: the height is the demo's own m_vecViewOffset[2] read from THIS row,
+  // so origin and offset come from one snapshot (never stitched across ticks,
+  // and never the frozen spectator entity's zero -- see resolveRelayEye).
+  const RelayEye relayEye = resolveRelayEye(row);
+  g_sceneRelayEye = relayEye;
   const float eye[3] = {
     transform.origin[0] - forward[0] * kSpectatorBackUnits,
     transform.origin[1] - forward[1] * kSpectatorBackUnits,
-    transform.origin[2] + kSpectatorEyeHeight - forward[2] * kSpectatorBackUnits
+    transform.origin[2] + relayEye.offsetZ - forward[2] * kSpectatorBackUnits
   };
   for (const float value : eye) {
     if (!std::isfinite(value)) return false;
@@ -682,9 +764,27 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
     g_spectateCameraLastEye[1] = eye[1];
     g_spectateCameraLastEye[2] = eye[2];
     g_spectateCameraEyePrinted = true;
-    traceFmt("spectate: camera relay target=%d eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f behind=%.0f",
+    // N12-B appends the height provenance to the SAME line rather than starting a
+    // second one: "the camera is at 585.7" and "585.7 is origin+45.0000 read from
+    // this player's own m_vecViewOffset[2]" have to be readable as one fact, and
+    // the fields the gates parse (target=) stay in the same place.
+    //
+    // offsetAge is measured in the SERVER tick space: g_sceneResolvedServerTick
+    // is the tick queryEntitySnapshotAtOrBeforeTick resolved to, and offsetTick
+    // is the server tick that property was last written on the wire. Their
+    // difference is "how old was the height I just used", which is exactly the
+    // question a crouch-stand flick raises and the oracle's prop_tick column
+    // cannot answer on its own (different tick space).
+    const std::int32_t offsetAge =
+      (g_sceneResolvedServerTick >= 0 && g_sceneRelayEye.offsetTick >= 0)
+        ? g_sceneResolvedServerTick - g_sceneRelayEye.offsetTick
+        : -1;
+    traceFmt("spectate: camera relay target=%d eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f behind=%.0f offsetZ=%.4f offsetSrc=%s offsetTick=%d offsetAge=%d life=%d obs=%d reason=%s",
       static_cast<int>(targetIndex), eye[0], eye[1], eye[2], transform.angles[0],
-      transform.angles[1], kSpectatorBackUnits);
+      transform.angles[1], kSpectatorBackUnits, g_sceneRelayEye.offsetZ,
+      g_sceneRelayEye.source, static_cast<int>(g_sceneRelayEye.offsetTick),
+      static_cast<int>(offsetAge), static_cast<int>(g_sceneRelayEye.lifeState),
+      static_cast<int>(g_sceneRelayEye.observerMode), g_sceneRelayEye.reason);
   }
   (void)focus;  // kept for the caller's symmetry; the eye is derived from the row
   return true;
@@ -10094,6 +10194,10 @@ bool outlineVertexExtent = false;
       traceFmt("scene: snapshot status=%d stale=%d states=%zu",
         static_cast<int>(entitySnapshotStatus), static_cast<int>(entitySnapshotStaleness),
         currentEntityStates.size());
+      // N12-B: the relay reads its offset out of exactly this snapshot, so the
+      // age it prints must be measured against exactly this tick, not against
+      // whatever the playback clock says by the time the relay runs.
+      g_sceneResolvedServerTick = sceneTickKnown ? resolvedSceneTick : -1;
       tf2::native::DemoViewSample observerView;
       // T34: the eye this scene tick resolved, in map units, read from the
       // same observer view the camera decision below consumes. Defaults keep
