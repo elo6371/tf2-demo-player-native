@@ -475,6 +475,155 @@ bool g_spectateCameraEyePrinted = false;
 std::int32_t g_spectateCameraHiddenEntity = -1;
 std::uint32_t g_spectateCameraHiddenInstances = 0;
 
+// N12-A: the demo's eye is the origin PLUS m_vecViewOffset[2].
+//
+// The cmdinfo viewOrigin a demo packet carries is the player's FOOT origin: the
+// oracle's dem_packet decode measured viewOrigin - m_vecOrigin == (0,0,0) on
+// every comparable tick (N12-ORACLE/README.md:22-24). The 6/6 axis agreement
+// recorded before this change therefore proves the cmdinfo chain parses
+// correctly and, in the same measurement, that the camera was standing on the
+// player's feet. The offset is a real netprop and not a per-class table:
+// 75.000072 on a Sniper, 68.000065 on a Demoman, 45.000043 crouched, all read
+// out of the demo's own property stream.
+//
+// Read it in two steps, exactly like m_vecOrigin (entity_model.cpp:87-91): the
+// vector's z lands in the scalar sibling "m_vecViewOffset[2]" and its value is
+// in that Float's .x field. Reading "m_vecViewOffset" as one whole vector
+// returns z = 0 forever -- the state this fix exists to remove -- so the
+// negative control for this change is a trace line whose offsetZ is 0 on a
+// living player.
+struct EyeOffsetReading {
+  bool hasValue = false;
+  float z = 0.0f;
+  std::int32_t lastWriteTick = -1;
+  const char* reason = "view-offset-missing";
+};
+
+EyeOffsetReading readEyeOffsetZ(const tf2::native::EntityState& state) {
+  EyeOffsetReading reading;
+  const std::vector<tf2::native::PropertyCandidate> ranked =
+    tf2::native::rankPropertyCandidates(state, "m_vecViewOffset[2]");
+  if (ranked.empty()) return reading;
+  reading.lastWriteTick = ranked.front().lastWriteTick;
+  const auto found = state.properties.find(ranked.front().name);
+  if (found == state.properties.end()) return reading;
+  const tf2::native::EntityPropertyValue& value = found->second;
+  const float z = value.type == tf2::native::SendPropType::Int
+    ? static_cast<float>(value.intValue) : value.x;
+  if (!std::isfinite(z)) {
+    reading.reason = "view-offset-non-finite";
+    return reading;
+  }
+  // A view offset is a body height in map units. Outside (0, 300] it is not
+  // one -- 0 is exactly what a whole-vector read produces, and the tallest TF2
+  // eye is 75 -- and adding it would put the camera where no player can stand.
+  if (!(z > 0.0f) || z > 300.0f) {
+    reading.reason = "view-offset-out-of-range";
+    return reading;
+  }
+  reading.hasValue = true;
+  reading.z = z;
+  reading.reason = "";
+  return reading;
+}
+
+// The POV eye this scene tick is drawn with, plus the reasons it may be the
+// bare origin.
+//
+// A camera that is not standing inside a living, self-controlled player must
+// not be lifted. Two recorded cases: the player is dead and the demo is showing
+// a death camera, and the recording is a spectator whose own entity never moves
+// (SourceTV: one signon svc_SetView(index=1) onto entity 1, which is frozen at
+// OBS_MODE 7). POV-upward tick 20000 is the first case -- its view_origin is a
+// static map entity's origin and its viewOffset is a 253-tick-old zero -- and
+// lifting that one by 68 units would put the camera above a corpse.
+struct PovEye {
+  bool hasOrigin = false;
+  float eye[3] = {0.0f, 0.0f, 0.0f};
+  bool offsetApplied = false;
+  float offsetZ = 0.0f;
+  std::int32_t offsetTick = -1;
+  std::int32_t entityIndex = -1;
+  std::int32_t lifeState = -1;
+  std::int32_t observerMode = -1;
+  const char* reason = "no-demo-view";
+};
+
+// Same rank-then-deref shape as readMapInt below (main.cpp:10139-10146): the
+// selection rule is asked which slot wins, so this reader cannot drift from the
+// model resolver's idea of which duplicate is freshest.
+bool readIntSlot(const tf2::native::EntityState& state, const char* suffix, std::int32_t& out) {
+  const std::vector<tf2::native::PropertyCandidate> ranked =
+    tf2::native::rankPropertyCandidates(state, suffix);
+  if (ranked.empty()) return false;
+  const auto found = state.properties.find(ranked.front().name);
+  if (found == state.properties.end()) return false;
+  const tf2::native::EntityPropertyValue& value = found->second;
+  out = value.type == tf2::native::SendPropType::Int
+    ? static_cast<std::int32_t>(value.intValue) : static_cast<std::int32_t>(value.x);
+  return true;
+}
+
+// origin from the demo view sample (entry-tick space, the sample the camera
+// decision consumes); the offset from the snapshot resolved at the SERVER tick.
+// The two tick spaces are deliberately kept apart (main.cpp:9890-9902) and the
+// offset is allowed to be older than the origin, which is why its own stamp is
+// carried out and printed.
+PovEye resolvePovEye(const std::vector<tf2::native::EntityState>& states,
+                     std::uint32_t viewEntity, bool viewEntityKnown,
+                     const tf2::native::DemoViewSample& view) {
+  PovEye out;
+  if (!view.hasOrigin) return out;
+  out.hasOrigin = true;
+  out.eye[0] = view.origin[0];
+  out.eye[1] = view.origin[1];
+  out.eye[2] = view.origin[2];
+  // summary.lastViewEntity defaults to 0, so "no svc_SetView was ever read"
+  // must be tested before the index is trusted: otherwise entity 0 is the
+  // camera on every recording that never names one.
+  if (!viewEntityKnown) {
+    out.reason = "set-view-missing";
+    return out;
+  }
+  if (static_cast<std::size_t>(viewEntity) >= states.size()) {
+    out.reason = "view-entity-out-of-range";
+    return out;
+  }
+  const tf2::native::EntityState& row = states[static_cast<std::size_t>(viewEntity)];
+  out.entityIndex = static_cast<std::int32_t>(viewEntity);
+  std::int32_t lifeState = 0;
+  const bool hasLifeState = readIntSlot(row, "m_lifeState", lifeState);
+  if (hasLifeState) out.lifeState = lifeState;
+  std::int32_t observerMode = 0;
+  const bool hasObserverMode = readIntSlot(row, "m_iObserverMode", observerMode);
+  if (hasObserverMode) out.observerMode = observerMode;
+  if (hasLifeState && lifeState != 0) {
+    out.reason = "dead-no-eye-offset";
+    return out;
+  }
+  if (hasObserverMode && observerMode != 0) {
+    out.reason = "observing-no-eye-offset";
+    return out;
+  }
+  const EyeOffsetReading offset = readEyeOffsetZ(row);
+  if (!offset.hasValue) {
+    out.reason = offset.reason;
+    return out;
+  }
+  out.offsetApplied = true;
+  out.offsetZ = offset.z;
+  out.offsetTick = offset.lastWriteTick;
+  out.eye[2] = view.origin[2] + offset.z;
+  out.reason = "applied";
+  return out;
+}
+
+// The eye the current scene tick resolved, published for the trace line printed
+// after the camera decision. A struct rather than floats because the reasons
+// are the diagnosis: "the camera is at the feet" and "the camera is at the feet
+// because this player is dead" are the same three numbers and different bugs.
+PovEye g_scenePovEye;
+
 // Place the camera behind the relayed player, looking where that player looks.
 //
 // The relay resolves WHICH player to watch; this turns that into a camera when
@@ -9987,10 +10136,40 @@ bool outlineVertexExtent = false;
         g_playbackControl.noteSceneResolved(sceneRequestId, queryStatus, sceneTick,
           resolvedSceneTick, haveObserverView ? observerView.tick : -1, haveObserverView);
       }
+      // N12-A: the demo view sample is a FOOT origin, so the eye is that origin
+      // plus the player's own m_vecViewOffset[2]. The offset is read from the
+      // snapshot resolved at the SERVER tick while the origin comes from the
+      // entry-tick view sample: the offset may be older than the origin, which
+      // is why its own stamp is printed.
+      g_scenePovEye = resolvePovEye(currentEntityStates, demoNetworkSummary.lastViewEntity,
+        demoNetworkSummary.setViewCount > 0, observerView);
       if (haveObserverView) {
-        cameraEyeX = observerView.origin[0];
-        cameraEyeY = observerView.origin[1];
-        cameraEyeZ = observerView.origin[2];
+        cameraEyeX = g_scenePovEye.eye[0];
+        cameraEyeY = g_scenePovEye.eye[1];
+        cameraEyeZ = g_scenePovEye.eye[2];
+      }
+      // Printed on every resolved scene tick, beside the eye it explains: the
+      // origin, the offset, the final eye, and each source's tick. The negative
+      // controls read this line -- offsetZ=0 on a living player means the
+      // offset was read as a whole vector (z lands in the scalar sibling), and
+      // reason=dead-no-eye-offset means a death camera was lifted.
+      if (haveObserverView) {
+        traceFmt("scene: eye origin=%.1f,%.1f,%.1f offsetZ=%.4f eye=%.1f,%.1f,%.1f"
+                 " viewEntity=%d originTick=%d offsetTick=%d offsetAge=%d"
+                 " life=%d obs=%d reason=%s",
+          observerView.origin[0], observerView.origin[1], observerView.origin[2],
+          g_scenePovEye.offsetApplied ? g_scenePovEye.offsetZ : 0.0f,
+          g_scenePovEye.eye[0], g_scenePovEye.eye[1], g_scenePovEye.eye[2],
+          static_cast<int>(g_scenePovEye.entityIndex), static_cast<int>(observerView.tick),
+          static_cast<int>(g_scenePovEye.offsetTick),
+          // offsetAge is measured in the SERVER tick space, not the entry tick
+          // space: resolvedSceneTick - offsetTick, both stamps coming from the
+          // entity history (lastWriteTick is a packet server tick). It is the
+          // quantity a reader compares against the oracle's prop_tick column.
+          g_scenePovEye.offsetTick >= 0 && resolvedSceneTick >= 0
+            ? static_cast<int>(resolvedSceneTick - g_scenePovEye.offsetTick) : -1,
+          static_cast<int>(g_scenePovEye.lifeState), static_cast<int>(g_scenePovEye.observerMode),
+          g_scenePovEye.reason);
       }
       // T84: the debug camera below REPLACES whatever this tick resolved, and it
       // is re-stated immediately before the draw, so these are the numbers that
@@ -10035,8 +10214,10 @@ bool outlineVertexExtent = false;
         && g_spectateDirector.targetIndex() >= 0;
       switch (tf2::native::decideCameraSceneAction(cameraMode, haveObserverView)) {
         case tf2::native::CameraSceneAction::SetDemoView:
-          renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
-            observerView.origin[2], observerView.angles[0], observerView.angles[1]);
+          // The eye the trace above explains, not the raw foot origin: the
+          // rendered camera and the printed camera must be the same camera.
+          renderer.setObserverDemoViewWorld(g_scenePovEye.eye[0], g_scenePovEye.eye[1],
+            g_scenePovEye.eye[2], observerView.angles[0], observerView.angles[1]);
           ++g_cameraFollows;
           break;
         case tf2::native::CameraSceneAction::SetOrbitFocus:
@@ -10084,11 +10265,11 @@ bool outlineVertexExtent = false;
         // makes the adoption explicit for the record and re-asserts it, so the
         // command has the same effect whether the mode was already first-person
         // or the handler had just set it.
-        renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
-          observerView.origin[2], observerView.angles[0], observerView.angles[1]);
+        renderer.setObserverDemoViewWorld(g_scenePovEye.eye[0], g_scenePovEye.eye[1],
+          g_scenePovEye.eye[2], observerView.angles[0], observerView.angles[1]);
         traceFmt("camera: reset-to-player applied=1 tick=%d eye=%.1f,%.1f,%.1f",
-          static_cast<int>(g_playback.tick), observerView.origin[0],
-          observerView.origin[1], observerView.origin[2]);
+          static_cast<int>(g_playback.tick), g_scenePovEye.eye[0],
+          g_scenePovEye.eye[1], g_scenePovEye.eye[2]);
       }
       // T10 diagnostic camera, applied EVERY frame rather than once: the
       // one-shot apply after the world upload lost to an ordering this file
