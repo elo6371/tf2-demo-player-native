@@ -63,6 +63,8 @@
 # frame-capture-check.sh: the runner holds it).
 #
 # Usage: bash animation-drive-states-check.sh [--skip-negative-controls]
+#        --playback-speed is REFUSED (exit 2): the flinchStarts peak it asserts is
+#        an edge reading whose value follows sampling density (D59).
 # Exit:  0 = every reading held and all four controls failed for their named
 #            reason; the last line is ANIMATION-DRIVE-STATES=PASS.
 #        1 = a reading or a control did not hold.

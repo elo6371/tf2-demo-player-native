@@ -61,6 +61,8 @@
 #              it with a second patch that neuters the companion adoption).
 #
 # Usage: bash viewmodel-animation-check.sh [--mutation]
+#        --playback-speed is REFUSED (exit 2): max_frames is asserted as exact clip
+#        lengths (0/31/61), which follow sampling density (D59).
 #   --mutation reintroduces the defect this round exists to remove -- the proof
 #   that the pass is drawing the model the entity named -- rebuilds, and requires
 #   the named readings to move while the named controls hold. It prints
