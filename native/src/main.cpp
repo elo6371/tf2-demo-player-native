@@ -74,6 +74,7 @@
 #include "main_internal.h"
 #include "playback_state.h"
 #include "main_hud.h"
+#include "target_identity.h"
 // E9: the minimap panel's tables, projection and frame hand-off. Header-only by
 // design -- the product does not link src/minimap.cpp (that object belongs to the
 // probe target), so the drawing half calls the inline rules the header carries.
@@ -1169,6 +1170,557 @@ std::int32_t g_spectateManualTarget = -1;
 std::uint32_t g_spectateArgumentRejected = 0;
 std::int32_t g_spectateLastTarget = -2;
 std::int32_t g_spectateLastTransitioning = -1;
+
+// ---------------------------------------------------------------------------
+// N13 step 1 (2026-11-15): the follow command's own state.
+//
+// A follow command is the user SAYING which player to watch. The relay director
+// answers the same question every frame and has to, or a death would freeze the
+// camera on a corpse. The two must not share one variable: a handover would
+// silently un-pin the user, and a pin that OUTRANKS the director is step 2's
+// precedence rule, not this change. So the pin lives here, the director is
+// untouched, and step 1 changes no camera behaviour. The only thing a command
+// hands the relay is a pickManual() request, through a variable of its own,
+// because two writers on g_spectateManualTarget could not be told apart in a
+// trace (design section 7).
+//
+// What is new in the trace is the follow: line: what the pin is, what happened
+// to it, and -- when it was refused -- that nothing was applied. A run that
+// issued no follow command prints no follow: line at all, and no existing line
+// changes: that is this step's A8 guardrail.
+// ---------------------------------------------------------------------------
+tf2::native::FollowTarget g_followTarget;
+tf2::native::FollowState g_followState = tf2::native::FollowState::Unset;
+tf2::native::FollowReason g_followLastReason = tf2::native::FollowReason::None;
+// True when this frame has a snapshot the director would accept. Both the command
+// path and the trace read it rather than re-deriving it, so "there is nothing to
+// follow yet" cannot mean two different things in one frame.
+bool g_followSnapshotReady = false;
+// N13 step 1 (revision 2): the argument scan QUEUES commands instead of latching
+// one. A gate has to drive sequences -- "select 7, select 7" for A2, "select 7,
+// next" for A3 -- and a single latch can only hold the last flag written, so argv
+// order was already lost before the first frame ran. The queue is bounded because
+// this is a command line, not a script engine: past the bound an item is dropped and
+// counted, so an overflowing run is visible instead of silently truncated.
+struct FollowQueuedCommand {
+  tf2::native::FollowAction action = tf2::native::FollowAction::None;
+  std::int32_t entity = -1;
+};
+constexpr std::size_t kFollowQueueMax = 16;
+FollowQueuedCommand g_followQueue[kFollowQueueMax];
+std::size_t g_followQueueHead = 0;
+std::size_t g_followQueueCount = 0;
+std::uint32_t g_followQueueOverflows = 0;
+
+// Declared here because followQueuePush counts an overflow on it; the single
+// definition is in the counter block below.
+extern std::uint32_t g_followArgumentRejected;
+
+// Append one command, in the order its flag appeared on the command line.
+// Overflow is counted both where every unusable argument is counted
+// (followArgumentRejected) and on its own counter: "the command line asked for 17
+// commands" is not the same reading as "one of them did not parse".
+bool followQueuePush(tf2::native::FollowAction action, std::int32_t entity) {
+  if (g_followQueueCount >= kFollowQueueMax) {
+    ++g_followArgumentRejected;
+    ++g_followQueueOverflows;
+    return false;
+  }
+  FollowQueuedCommand& slot = g_followQueue[(g_followQueueHead + g_followQueueCount) % kFollowQueueMax];
+  slot.action = action;
+  slot.entity = entity;
+  ++g_followQueueCount;
+  return true;
+}
+
+// Take the OLDEST queued command. The frame site calls this at most once per
+// frame and only when the snapshot is ready -- that is what "one command per
+// frame, held until it can be applied" means: five flags in one argv spread over
+// five frames, and each prints its own follow: line.
+bool followQueuePop(tf2::native::FollowAction& action, std::int32_t& entity) {
+  if (g_followQueueCount == 0) return false;
+  action = g_followQueue[g_followQueueHead].action;
+  entity = g_followQueue[g_followQueueHead].entity;
+  g_followQueue[g_followQueueHead] = FollowQueuedCommand();
+  g_followQueueHead = (g_followQueueHead + 1) % kFollowQueueMax;
+  --g_followQueueCount;
+  return true;
+}
+// The pick a successful command asks the director to adopt. Separate from
+// g_spectateManualTarget so a --spectate-target run and a --follow-target run can
+// never overwrite each other's hand-off.
+std::int32_t g_followPendingEntity = -1;
+// One command's print intent, set by handleFollowAction and consumed by
+// followPublishTrace. A refusal prints even though nothing changed: "the command
+// was refused" is a reading no state comparison can express.
+bool g_followCommandRefused = false;
+std::int32_t g_followCommandEntity = -1;
+tf2::native::FollowReason g_followCommandReason = tf2::native::FollowReason::None;
+// Latched so the director-refused line prints once on the transition into "the
+// pin is not what the relay is watching", never per frame (design section 5.1).
+bool g_followDirectorRefused = false;
+// The tuple the follow: line last printed. A line that repeats an unchanged tuple
+// is exactly the per-frame print the design forbids.
+struct FollowPrintKey {
+  std::int32_t target = -2;
+  std::uint32_t serial = 0;
+  tf2::native::SpectateSource source = tf2::native::SpectateSource::None;
+  bool pinned = false;
+  bool valid = false;
+  tf2::native::FollowState state = tf2::native::FollowState::Unset;
+  bool nameKnown = false;
+};
+bool followPrintKeyEqual(const FollowPrintKey& left, const FollowPrintKey& right) {
+  return left.target == right.target && left.serial == right.serial
+    && left.source == right.source && left.pinned == right.pinned
+    && left.valid == right.valid && left.state == right.state
+    && left.nameKnown == right.nameKnown;
+}
+FollowPrintKey g_followPrintKey;
+bool g_followHavePrintKey = false;
+// The counters of design section 5.1, one name each. The reject reasons are
+// bucketed so the summary can print every one of them, zeros included: a gate
+// asserts no-slot=0, it does not infer it from a missing line.
+std::uint32_t g_followPicks = 0;
+std::uint32_t g_followIdempotent = 0;
+std::uint32_t g_followRejects = 0;
+std::uint32_t g_followFallbacks = 0;
+std::uint32_t g_followPinnedDeaths = 0;
+std::uint32_t g_followNameMissing = 0;
+std::uint32_t g_followArgumentRejected = 0;
+// index-out-of-range, no-slot, not-observable, is-observer, dead, no-candidates,
+// no-pov-eye -- followRejectBucket()'s order, which the summary repeats.
+std::uint32_t g_followRejectByBucket[7] = {0, 0, 0, 0, 0, 0, 0};
+
+// N13 step 1: the two --follow-* flags, consumed BEFORE the argument ladder for the
+// reason the flags above it already give: that ladder sits at MSVC's block-nesting
+// limit (C1061), and four more rungs put it over the top. Consuming them here is
+// behaviour-preserving by construction -- argv is still read left to right; each
+// flag still queues exactly the command it queued in the ladder; a spelling only
+// these branches match cannot observe where in the loop it was tested; and no other
+// branch in the loop reads or writes either name.
+bool followConsumeArgument(LPWSTR* arguments, int argumentCount, int& i) {
+  if (wcscmp(arguments[i], L"--follow-target") == 0) {
+    if (i + 1 < argumentCount) {
+      wchar_t* end = nullptr;
+      const long parsed = std::wcstol(arguments[++i], &end, 10);
+      // The same 0..2047 entity range --spectate-target accepts, refused rather
+      // than clamped when it does not parse: "the gate asked for player 5" and
+      // "the gate asked for nothing" must not read the same in the trace. This
+      // does NOT write g_spectateManualTarget: the follow command has its own
+      // hand-off, and two writers could not be told apart in a trace.
+      if (end && *end == L'\0' && parsed >= 0 && parsed <= 2047) {
+        // Naming a target is asking to watch it: one Select item, queued where
+        // the flag appeared, so argv order is the command order.
+        followQueuePush(tf2::native::FollowAction::Select, static_cast<std::int32_t>(parsed));
+      } else {
+        ++g_followArgumentRejected;
+      }
+    } else {
+      ++g_followArgumentRejected;
+    }
+    return true;
+  }
+  if (wcscmp(arguments[i], L"--follow-action") == 0) {
+    // Compared in wide characters, like every other value in this scan. An
+    // unknown action is COUNTED, not defaulted to select: a misspelled action
+    // that silently followed somebody would be the worse of the two failures.
+    if (i + 1 < argumentCount) {
+      const wchar_t* value = arguments[++i];
+      tf2::native::FollowAction action = tf2::native::FollowAction::None;
+      if (wcscmp(value, L"select") == 0) {
+        action = tf2::native::FollowAction::Select;
+      } else if (wcscmp(value, L"next") == 0) {
+        action = tf2::native::FollowAction::Next;
+      } else if (wcscmp(value, L"prev") == 0) {
+        action = tf2::native::FollowAction::Prev;
+      } else if (wcscmp(value, L"unfollow") == 0) {
+        action = tf2::native::FollowAction::Unfollow;
+      } else if (wcscmp(value, L"back-to-pov") == 0 || wcscmp(value, L"backToPov") == 0) {
+        action = tf2::native::FollowAction::BackToPov;
+      }
+      if (action != tf2::native::FollowAction::None) {
+        // Queued with entity -1. A bare select therefore reaches the validator
+        // with no target and refuses as index-out-of-range -- observable and
+        // counted, never silently paired with some other flag.
+        followQueuePush(action, -1);
+      } else {
+        ++g_followArgumentRejected;
+      }
+    } else {
+      ++g_followArgumentRejected;
+    }
+    return true;
+  }
+  return false;
+}
+
+// Which summary bucket a refusal lands in; 7 for a token that is not a refusal
+// (the printer only asks for refusals, so 7 is only ever a guard).
+std::size_t followRejectBucket(tf2::native::FollowReason reason) {
+  using tf2::native::FollowReason;
+  switch (reason) {
+    case FollowReason::IndexOutOfRange: return 0;
+    case FollowReason::NoSlot: return 1;
+    case FollowReason::NotObservable: return 2;
+    case FollowReason::IsObserver: return 3;
+    case FollowReason::Dead: return 4;
+    case FollowReason::NoCandidates: return 5;
+    case FollowReason::NoPovEye: return 6;
+    default: return 7;
+  }
+}
+
+// The same linear scan the director uses (spectate_target.cpp:322). One row per
+// entity, and a command must not answer a different question than the frames
+// that follow it -- two lookups is how a command and a camera come to disagree.
+const tf2::native::SpectateSlot* followSlotAt(
+    const std::vector<tf2::native::SpectateSlot>& slots, std::int32_t entityIndex) {
+  if (entityIndex < 0) return nullptr;
+  for (const tf2::native::SpectateSlot& slot : slots) {
+    if (slot.entityIndex == entityIndex) return &slot;
+  }
+  return nullptr;
+}
+
+// N13 step 1: there is no serial source yet. SpectateSlot
+// (include/spectate_target.h:53) and EntityState (include/demo_header.h:111)
+// carry no CBaseHandle, and the only decoded handle the product has is the
+// camera's own m_hObserverTarget. 0 therefore means UNKNOWN, and the reuse gate
+// reads it as unverifiable rather than as evidence of reuse: a gate that fired on
+// missing data would un-pin every user on the first frame. Filling this in needs
+// a per-entity handle in the snapshot and belongs to a later step.
+std::uint32_t followSlotSerial(const tf2::native::SpectateSlot& /*slot*/) {
+  return 0;
+}
+
+// N13 step 1 revision 2: WHICH CAMERA OWNS THIS FRAME, as the follow line reports
+// it. "The pin was accepted" and "the picture moved to the pin" are two readings,
+// and a step-1 run can have the first without the second: a POV demo publishes its
+// own eye (g_cameraDemoViewUsable) and the pin cannot outrank it until step 2. Without
+// this field such a run reads as "following works" in the trace.
+//
+// The relay branch repeats the three readings the placement guard itself uses
+// (main.cpp, the !g_debugCamera && !g_cameraDemoViewUsable && FirstPerson guard)
+// rather than calling into the camera: no camera function is invoked here and no
+// camera state is written. "unknown" covers the camera paths this step does not name:
+// a snapshot-ready frame whose mode is not FirstPerson (free look, a mode the relay
+// will not place) is neither the demo's eye nor the relay, and saying so is better
+// than calling it relay.
+const char* followCameraEffectName(bool snapshotReady) {
+  if (!snapshotReady) return "no-snapshot";
+  if (g_cameraDemoViewUsable) return "pov-eye-wins";
+  if (!g_debugCamera && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
+    return "relay";
+  }
+  return "unknown";
+}
+
+// The four gates of design section 3, in order: index range, slot present,
+// observable (which is where the spectator/team-1 refusal lives), alive. The
+// second gate is what makes out-of-range and no-slot different readings: past the
+// end of the entity table is a stale pin, a gap inside it is a snapshot that
+// skipped a row. Every caller refuses on the returned reason and leaves the pin
+// untouched, so "refused" and "dropped" are never reachable from one command.
+tf2::native::FollowState followValidate(
+    const std::vector<tf2::native::SpectateSlot>& slots, std::int32_t entityIndex,
+    tf2::native::FollowReason& reason) {
+  using tf2::native::FollowReason;
+  using tf2::native::FollowState;
+  reason = FollowReason::None;
+  // gate 1: the entity table's own range.
+  if (entityIndex < 0 || static_cast<std::size_t>(entityIndex) >= slots.size()) {
+    reason = FollowReason::IndexOutOfRange;
+    return FollowState::GoneIndexOutOfRange;
+  }
+  // gate 2: the row exists.
+  const tf2::native::SpectateSlot* slot = followSlotAt(slots, entityIndex);
+  if (slot == nullptr) {
+    reason = FollowReason::NoSlot;
+    return FollowState::GoneNoSlot;
+  }
+  // gate 3: a camera-side slot is not somebody to watch. The team boundary is
+  // slotObservable's own (spectate_target.cpp:50), so observer and not-observable
+  // cannot come to mean different players.
+  if (!slot->isPlayer) {
+    reason = FollowReason::NotObservable;
+    return FollowState::GoneNotObservable;
+  }
+  if (slot->hasTeam && slot->team < 2) {
+    reason = FollowReason::IsObserver;
+    return FollowState::Observer;
+  }
+  if (!tf2::native::slotObservable(*slot)) {
+    reason = FollowReason::NotObservable;
+    return FollowState::GoneNotObservable;
+  }
+  // gate 4: a dead player is not a target. slotAlive also refuses a row that
+  // carries no evidence of life, which is the same denial the relay makes.
+  if (!tf2::native::slotAlive(*slot)) {
+    reason = FollowReason::Dead;
+    return FollowState::Dead;
+  }
+  return FollowState::Ok;
+}
+
+// A refusal: counted, bucketed, named, and remembered so this frame's trace can
+// say the command was refused even though no state moved.
+bool followRefuse(tf2::native::FollowReason reason, std::int32_t entity, std::string& out) {
+  ++g_followRejects;
+  const std::size_t bucket = followRejectBucket(reason);
+  if (bucket < 7) ++g_followRejectByBucket[bucket];
+  g_followCommandRefused = true;
+  g_followCommandEntity = entity;
+  g_followCommandReason = reason;
+  g_followLastReason = reason;
+  out = tf2::native::followReasonName(reason);
+  return false;
+}
+
+// One follow command. True when it was applied or already was the case, false on
+// a refusal with reason naming it. Counters move in both cases -- a refusal
+// nobody counted is a command that vanished -- and the PRINT decision is the
+// caller's: an idempotent success changes no state and prints nothing, which is
+// A2 (two selects print one line).
+bool handleFollowAction(tf2::native::FollowAction action, std::int32_t entity,
+    const std::vector<tf2::native::SpectateSlot>& slots, std::string& reason) {
+  using tf2::native::FollowAction;
+  using tf2::native::FollowReason;
+  using tf2::native::FollowState;
+  using tf2::native::SpectateSource;
+  reason = "ok";
+  g_followCommandRefused = false;
+  g_followCommandEntity = -1;
+  g_followCommandReason = FollowReason::None;
+  ++g_followPicks;
+  if (action == FollowAction::Unfollow) {
+    // Not following is a no-op SUCCESS with its own reason, not a refusal: the
+    // user asked for a state the product is already in.
+    if (!g_followTarget.valid || !g_followTarget.pinned) {
+      ++g_followIdempotent;
+      g_followLastReason = FollowReason::NotFollowing;
+      reason = "not-following";
+      return true;
+    }
+    // Only this and backToPov clear the identity: they are the user saying
+    // "nobody". A lost target keeps the identity so the line can still name it.
+    g_followTarget = tf2::native::FollowTarget();
+    g_followState = FollowState::Unset;
+    g_followDirectorRefused = false;
+    g_followLastReason = FollowReason::Ok;
+    reason = "unfollow";
+    return true;
+  }
+  if (action == FollowAction::BackToPov) {
+    if (!g_cameraDemoViewUsable) {
+      // No demo eye means there is no POV to go back to. Refusing is the only
+      // answer that does not quietly pick a different camera instead.
+      return followRefuse(FollowReason::NoPovEye, entity, reason);
+    }
+    g_followTarget = tf2::native::FollowTarget();
+    g_followState = FollowState::Unset;
+    g_followDirectorRefused = false;
+    // The action F10 dispatches, not a second copy of what it does (main.cpp:213):
+    // "back to POV" must not drift from "reset to player".
+    std::string cameraReason;
+    const bool applied = handleCameraAction(tf2::native::camera_actions::kResetToPlayer, cameraReason);
+    g_followLastReason = FollowReason::Ok;
+    reason = applied ? "back-to-pov" : cameraReason;
+    return applied;
+  }
+  // select / next / prev share everything once the identity is chosen.
+  std::int32_t wanted = entity;
+  if (action == FollowAction::Next || action == FollowAction::Prev) {
+    std::vector<std::int32_t> candidates;
+    for (const tf2::native::SpectateSlot& slot : slots) {
+      if (slot.entityIndex < 0) continue;
+      if (!tf2::native::slotObservable(slot) || !tf2::native::slotAlive(slot)) continue;
+      candidates.push_back(slot.entityIndex);
+    }
+    if (candidates.empty()) return followRefuse(FollowReason::NoCandidates, entity, reason);
+    // Ascending entity index, wrapping: the order pickStable() walks
+    // (spectate_target.cpp:334), so next agrees with what a handover would have
+    // chosen. Two orders in one product is how the camera and the command come to
+    // disagree.
+    std::sort(candidates.begin(), candidates.end());
+    const std::int32_t from = (g_followTarget.valid && g_followTarget.pinned
+        && g_followState == FollowState::Ok) ? g_followTarget.entityIndex
+      : g_spectateDirector.targetIndex();
+    wanted = -1;
+    if (action == FollowAction::Next) {
+      for (const std::int32_t candidate : candidates) {
+        if (from < 0 || candidate > from) { wanted = candidate; break; }
+      }
+      if (wanted < 0) wanted = candidates.front();
+    } else {
+      for (const std::int32_t candidate : candidates) {
+        if (from >= 0 && candidate < from) wanted = candidate;
+      }
+      if (wanted < 0) wanted = candidates.back();
+    }
+  }
+  FollowReason why = FollowReason::None;
+  const FollowState state = followValidate(slots, wanted, why);
+  if (state != FollowState::Ok) return followRefuse(why, wanted, reason);
+  // Idempotent select: success, counted, and silent (A2).
+  if (g_followTarget.valid && g_followTarget.pinned
+      && g_followTarget.entityIndex == wanted && g_followState == FollowState::Ok) {
+    ++g_followIdempotent;
+    g_followLastReason = FollowReason::AlreadyFollowing;
+    reason = "already-following";
+    return true;
+  }
+  g_followTarget.entityIndex = wanted;
+  // 0 = unknown today (followSlotSerial); written from the slot the day a source
+  // exists, so the reconciliation gate has something real to compare.
+  const tf2::native::SpectateSlot* pinnedSlot = followSlotAt(slots, wanted);
+  g_followTarget.serial = pinnedSlot != nullptr ? followSlotSerial(*pinnedSlot) : 0;
+  g_followTarget.source = SpectateSource::Manual;
+  g_followTarget.pinned = true;
+  g_followTarget.valid = true;
+  g_followState = FollowState::Ok;
+  g_followDirectorRefused = false;
+  g_followLastReason = FollowReason::Ok;
+  // The director adopts the pick through the same one-shot path its own manual
+  // pick uses; the relay's decision is never written directly.
+  g_followPendingEntity = wanted;
+  reason = "ok";
+  return true;
+}
+
+// design section 6.2: the pin's own state machine, run on this frame's slots
+// before the director is asked to decide (the call site is after the scene block
+// built the slots and before the director's update()), so the state this frame
+// prints describes the snapshot this frame draws.
+//
+// DRIFT, deliberate: the design gates no-snapshot on resolvedTick<0. Here the
+// evidence is snapshotReady instead, because a scene can resolve to a snapshot
+// with no server tick at all (g_sceneResolvedServerTick is -1 for exactly that
+// case, main.cpp:865-869) and the slots are still perfectly usable -- gating on
+// the tick would report no-snapshot for a frame that has one.
+void followReconcile(const std::vector<tf2::native::SpectateSlot>& slots, bool snapshotReady) {
+  using tf2::native::FollowState;
+  if (!g_followTarget.valid) {
+    g_followState = FollowState::Unset;
+    return;
+  }
+  // A snapshot that did not resolve is not evidence about anybody: the pin
+  // survives it untouched (design section 6.2, first clause).
+  if (!snapshotReady) {
+    g_followState = FollowState::NoSnapshot;
+    return;
+  }
+  const std::int32_t index = g_followTarget.entityIndex;
+  if (index < 0 || static_cast<std::size_t>(index) >= slots.size()) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneIndexOutOfRange;
+    return;
+  }
+  const tf2::native::SpectateSlot* slot = followSlotAt(slots, index);
+  if (slot == nullptr) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneNoSlot;
+    return;
+  }
+  // Only a KNOWN serial can contradict a known one; see followSlotSerial. The
+  // branch is coded and unreachable in this step, which the report says out loud.
+  const std::uint32_t serial = followSlotSerial(*slot);
+  if (g_followTarget.serial != 0 && serial != 0 && serial != g_followTarget.serial) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneIndexReused;
+    return;
+  }
+  if (slot->isPlayer && slot->hasTeam && slot->team < 2) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::Observer;
+    return;
+  }
+  if (!slot->isPlayer || !tf2::native::slotObservable(*slot)) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneNotObservable;
+    return;
+  }
+  if (!tf2::native::slotAlive(*slot)) {
+    // A pin that dies is a different reading from a pin that was never alive: the
+    // counter is what says "your player died" instead of "your command was wrong".
+    if (g_followTarget.pinned) ++g_followPinnedDeaths;
+    g_followTarget.pinned = false;
+    g_followState = FollowState::Dead;
+    return;
+  }
+  g_followState = FollowState::Ok;
+}
+
+// design section 5.1: one line, fixed field order, printed when the tuple it
+// describes changed or when a command ran (success or refusal), and never
+// otherwise -- a line per frame makes the trace a frame counter and hides the
+// transitions it exists to show. The name comes through hudFollowResolveName,
+// the HUD readout's own resolution (main_hud.cpp), so the pinned player's name
+// and the readout's name cannot disagree.
+//
+// force/forceReason exist for the one cause that is not a command: a pin the
+// relay declined (step 1 cannot outrank it). That line reuses this shape with
+// state=unchanged on purpose: the pin's state did not move, and no field is added
+// for a cause the design already names in reason=.
+void followPublishTrace(const tf2::native::DemoNetworkSummary& summary,
+    std::int32_t resolvedTick, bool force, tf2::native::FollowReason forceReason,
+    const char* cameraEffect, int pinAccepted) {
+  const bool refused = g_followCommandRefused || force;
+  const std::int32_t nameEntity = g_followCommandRefused ? g_followCommandEntity
+    : g_followTarget.entityIndex;
+  const tf2::native::main_internal::FollowNameInfo name =
+    hudFollowResolveName(summary, nameEntity, resolvedTick);
+  FollowPrintKey key;
+  key.target = g_followTarget.entityIndex;
+  key.serial = g_followTarget.serial;
+  key.source = g_followTarget.source;
+  key.pinned = g_followTarget.pinned;
+  key.valid = g_followTarget.valid;
+  key.state = g_followState;
+  key.nameKnown = name.known;
+  const bool keyChanged = !g_followHavePrintKey || !followPrintKeyEqual(key, g_followPrintKey);
+  const bool neverFollowed = !g_followHavePrintKey && !g_followTarget.valid
+    && g_followState == tf2::native::FollowState::Unset;
+  if (neverFollowed && !refused) return;
+  bool printed = false;
+  if (refused) {
+    if (!name.known) ++g_followNameMissing;
+    const tf2::native::FollowReason why = g_followCommandRefused ? g_followCommandReason
+      : forceReason;
+    traceFmt("follow: target=%d serial=%u src=%s pinned=%d valid=%d state=%s reason=%s"
+      " nameKnown=%d nameSource=%s nameReason=%s name=\"%s\" tick=%d cameraEffect=%s"
+      " pinAccepted=%d",
+      static_cast<int>(g_followCommandRefused ? g_followCommandEntity : g_followTarget.entityIndex),
+      static_cast<unsigned>(g_followTarget.serial),
+      tf2::native::spectateSourceName(g_followTarget.source),
+      g_followTarget.pinned ? 1 : 0, g_followTarget.valid ? 1 : 0,
+      tf2::native::kFollowStateUnchanged, tf2::native::followReasonName(why),
+      name.known ? 1 : 0, name.source.c_str(), name.reason.c_str(),
+      name.display.c_str(), static_cast<int>(resolvedTick), cameraEffect, pinAccepted);
+    printed = true;
+  }
+  if (keyChanged && (g_followHavePrintKey || !printed)) {
+    if (!name.known && !refused) ++g_followNameMissing;
+    traceFmt("follow: target=%d serial=%u src=%s pinned=%d valid=%d state=%s reason=%s"
+      " nameKnown=%d nameSource=%s nameReason=%s name=\"%s\" tick=%d cameraEffect=%s"
+      " pinAccepted=%d",
+      static_cast<int>(g_followTarget.entityIndex),
+      static_cast<unsigned>(g_followTarget.serial),
+      tf2::native::spectateSourceName(g_followTarget.source),
+      g_followTarget.pinned ? 1 : 0, g_followTarget.valid ? 1 : 0,
+      tf2::native::followStateName(g_followState),
+      tf2::native::followReasonName(g_followLastReason),
+      name.known ? 1 : 0, name.source.c_str(), name.reason.c_str(),
+      name.display.c_str(), static_cast<int>(resolvedTick), cameraEffect, pinAccepted);
+    printed = true;
+  }
+  if (!printed) return;
+  g_followPrintKey = key;
+  g_followHavePrintKey = true;
+  g_followCommandRefused = false;
+  g_followCommandEntity = -1;
+  g_followCommandReason = tf2::native::FollowReason::None;
+}
 
 // T66: --spectate-pause-at <playback tick> stops the demo once, keeps rendering
 // for --spectate-pause-seconds, then resumes. The pause is not the point: the
@@ -3002,6 +3554,9 @@ bool outlineVertexExtent = false;
       // --strict-args changes nothing by itself; it only decides what happens to the
       // arguments this loop would otherwise ignore (see the block after the loop).
       if (wcscmp(arguments[i], L"--strict-args") == 0) { strictArguments = true; continue; }
+      // N13 step 1: the two --follow-* flags are consumed here, outside the ladder,
+      // so the ladder keeps the exact nesting depth it had before this step.
+      if (followConsumeArgument(arguments, argumentCount, i)) continue;
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"standard") == 0) {
           persistent.render = tf2::native::RenderSettings::fromPreset(
@@ -12975,6 +13530,35 @@ bool outlineVertexExtent = false;
         traceFmt("spectate: resume-after tick=%d wall=%.6f", static_cast<int>(g_playback.tick), wallSeconds);
       }
     }
+    // N13 step 1: a follow command is applied HERE, because this is the first place
+    // in the frame where the slot table, the snapshot verdict and the demo network
+    // summary are all in scope at once -- after the scene block built the slots and
+    // before the director decides, which is the order design section 7 requires. The
+    // queue is drained only when a snapshot exists: having none yet is not a refusal of
+    // a command nobody could have applied.
+    g_followSnapshotReady = spectateSnapshotDrawable && spectateSceneTick >= 0;
+    followReconcile(spectateSlots, g_followSnapshotReady);
+    // N13 step 1 revision 2: at most ONE queued command per frame, and only when a
+    // snapshot exists -- commands are held, not refused, while there is none. One per
+    // frame is what makes a sequence observable: select then next prints two follow:
+    // lines on two frames, in argv order.
+    if (g_followSnapshotReady) {
+      tf2::native::FollowAction queuedAction = tf2::native::FollowAction::None;
+      std::int32_t queuedEntity = -1;
+      if (followQueuePop(queuedAction, queuedEntity)) {
+        std::string followReason;
+        handleFollowAction(queuedAction, queuedEntity, spectateSlots, followReason);
+      }
+    }
+    if (g_followPendingEntity >= 0) {
+      g_spectateDirector.pickManual(g_followPendingEntity);
+      g_followPendingEntity = -1;
+    }
+    const char* followEffect = followCameraEffectName(g_followSnapshotReady);
+    const int followPinAccepted = (g_followTarget.entityIndex >= 0
+        && g_spectateDirector.targetIndex() == g_followTarget.entityIndex) ? 1 : 0;
+    followPublishTrace(demoNetworkSummary, g_sceneResolvedServerTick, false,
+      tf2::native::FollowReason::None, followEffect, followPinAccepted);
     if (g_spectateManualTarget >= 0) {
       g_spectateDirector.pickManual(g_spectateManualTarget);
       g_spectateManualTarget = -1;
@@ -12986,6 +13570,29 @@ bool outlineVertexExtent = false;
       // 16x replay reads as continuous playback instead of a seek on every frame.
       g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick,
                                 static_cast<double>(g_playback.speed));
+      // N13 step 1 cannot make a pin outrank the relay's own decision -- that
+      // precedence is step 2 -- so a pin the director declines is COUNTED, not
+      // forced: followFallbacks is the number saying the pin is not being honoured,
+      // and the line printed once per transition names the cause, so a run with
+      // fallbacks>0 can never be read as "following works". Read after update()
+      // above because the director's answer for this frame only exists once it has
+      // decided.
+      if (g_followTarget.pinned && g_followTarget.valid
+          && g_followState == tf2::native::FollowState::Ok
+          && g_spectateDirector.targetIndex() != g_followTarget.entityIndex) {
+        ++g_followFallbacks;
+        if (!g_followDirectorRefused) {
+          g_followDirectorRefused = true;
+          // pinAccepted is 0 by construction on THIS line: the branch condition above
+          // is the director's target differing from the pin, i.e. the director saying
+          // no. No comparison is repeated for a value the branch already decided.
+          followPublishTrace(demoNetworkSummary, g_sceneResolvedServerTick, true,
+            tf2::native::FollowReason::DirectorRefused,
+            followCameraEffectName(g_followSnapshotReady), 0);
+        }
+      } else if (g_followDirectorRefused) {
+        g_followDirectorRefused = false;
+      }
     }
     if (g_spectateDirector.focusValid()) {
       float spectateFocus[3] = {0.0f, 0.0f, 0.0f};
@@ -13459,6 +14066,39 @@ bool outlineVertexExtent = false;
     traceFmt("spectate: summary rejectedFlags=%u corpses=%d hiddenInstances=%u %s",
       g_spectateArgumentRejected, g_spectateShowCorpses ? 1 : 0,
       g_spectateHiddenInstances, g_spectateDirector.traceFields().c_str());
+    // N13 step 1, design section 5.1: the follow counters. Both lines are gated on
+    // "this run did something with follow", and that gate is the A8 guardrail in its
+    // strictest form: a run that never mentioned a follow flag prints NEITHER line,
+    // so its trace is byte-identical to what step 1 found -- not merely compatible
+    // line by line. When they do print they print together, every reject bucket
+    // present with its zeros: a gate asserts noSlot=0, it does not infer it from an
+    // absent field.
+    const bool followActivity = g_followPicks > 0 || g_followFallbacks > 0
+      || g_followTarget.valid || g_followArgumentRejected > 0;
+    if (followActivity) {
+      traceFmt("follow: summary picks=%u idempotent=%u rejects=%u fallbacks=%u pinnedDeaths=%u"
+        " nameMissing=%u rejectedFlags=%u state=%s target=%d serial=%u",
+        static_cast<unsigned>(g_followPicks), static_cast<unsigned>(g_followIdempotent),
+        static_cast<unsigned>(g_followRejects), static_cast<unsigned>(g_followFallbacks),
+        static_cast<unsigned>(g_followPinnedDeaths), static_cast<unsigned>(g_followNameMissing),
+        static_cast<unsigned>(g_followArgumentRejected),
+        tf2::native::followStateName(g_followState),
+        static_cast<int>(g_followTarget.entityIndex),
+        static_cast<unsigned>(g_followTarget.serial));
+      traceFmt("follow: rejects indexOutOfRange=%u noSlot=%u notObservable=%u isObserver=%u"
+        " dead=%u noCandidates=%u noPovEye=%u",
+        static_cast<unsigned>(g_followRejectByBucket[0]),
+        static_cast<unsigned>(g_followRejectByBucket[1]),
+        static_cast<unsigned>(g_followRejectByBucket[2]),
+        static_cast<unsigned>(g_followRejectByBucket[3]),
+        static_cast<unsigned>(g_followRejectByBucket[4]),
+        static_cast<unsigned>(g_followRejectByBucket[5]),
+        static_cast<unsigned>(g_followRejectByBucket[6]));
+      traceFmt("follow: queue capacity=%u overflow=%u pending=%u",
+        static_cast<unsigned>(kFollowQueueMax),
+        static_cast<unsigned>(g_followQueueOverflows),
+        static_cast<unsigned>(g_followQueueCount));
+    }
     // T50: the contract this round adds, on its own line so the T4 gate's
     // readings above are untouched. `frozenFrames` counts main-loop iterations
     // that ran while paused with the tick holding; `violations` counts the ones

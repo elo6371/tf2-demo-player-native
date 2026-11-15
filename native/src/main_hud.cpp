@@ -1090,6 +1090,28 @@ void hudMinimapTrace(const HudMinimapDraw& draw) {
 
 }  // namespace
 
+// N13 step 1 (2026-11-15): the follow trace line names the player it pinned.
+//
+// The name is already resolved for the HUD readout by hudLiveResolveName, above,
+// and the pinned player is by definition the player the readout is watching once
+// the pin agrees with the relay -- so this reuses that resolution instead of
+// building a second one against the same user-info table. Nothing here is a new
+// lookup and hudLiveResolveName is neither moved nor changed; HudLiveName lives
+// in the anonymous namespace closed just above, which is still visible here.
+FollowNameInfo hudFollowResolveName(const DemoNetworkSummary& summary,
+    std::int32_t entityIndex, std::int32_t playbackTick) {
+  FollowNameInfo out;
+  const HudLiveName name = hudLiveResolveName(summary, entityIndex, playbackTick);
+  out.known = name.known;
+  out.display = name.display;
+  // The only source this resolution has today is the user-info table, so a
+  // resolved name is "userinfo" and anything else says so instead of implying a
+  // source that does not exist.
+  out.source = name.known ? "userinfo" : "none";
+  out.reason = name.reason != nullptr ? name.reason : "no-userinfo-slot";
+  return out;
+}
+
 // T97, lead ruling 2026-11-09: a readout that is on by default must not deform the
 // frames this tree treats as evidence. Every pixel gate here launches the product
 // with --capture-frame and compares the captured bitmap byte-for-byte against a pin

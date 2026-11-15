@@ -100,4 +100,24 @@ void hudImportInteractive(HWND window);
 void hudTogglePreview(HWND window);
 void hudResetToDefault(HWND window);
 
+// N13 step 1 (2026-11-15): the follow trace line's name fields.
+//
+// The player a follow command pinned is normally also the player the HUD readout
+// is watching, and that readout's name is ALREADY resolved by hudLiveResolveName
+// (main_hud.cpp). This is a thin accessor over that same function -- not a second
+// resolver -- so the readout and the follow line can never disagree about what
+// entity 5 is called. The reason token is passed through verbatim, which is what
+// lets a gate grep the readout's own vocabulary out of the follow line.
+struct FollowNameInfo {
+  bool known = false;
+  std::string display;
+  // "userinfo" when the name came out of the demo's user-info table, "none" when
+  // it did not. Printed so nameKnown=1 with an empty name can never be read as a
+  // resolved name.
+  std::string source;
+  std::string reason;
+};
+FollowNameInfo hudFollowResolveName(const tf2::native::DemoNetworkSummary& summary,
+  std::int32_t entityIndex, std::int32_t playbackTick);
+
 }  // namespace tf2::native::main_internal

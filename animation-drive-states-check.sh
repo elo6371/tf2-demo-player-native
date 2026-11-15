@@ -115,10 +115,18 @@ TIMEOUT=420
 
 SKIP_NEG=0
 DRY_RUN=0
+# --controls-only re-drives the negative controls (and re-reads the artifacts) over an
+# OUT this gate already filled, WITHOUT starting the nine product runs (67 min). Added
+# 2026-11-15: the four control reasons came back empty because of a glued grep flag
+# (grep -m1E), and a fix to that reporting must be provable without paying for a full
+# re-capture every attempt. It refuses an OUT that lacks any frame or trace the
+# checker reads, so a stale or partial OUT fails loudly instead of "passing".
+CONTROLS_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --skip-negative-controls) SKIP_NEG=1 ;;
     --dry-run) DRY_RUN=1 ;;
+    --controls-only) CONTROLS_ONLY=1 ;;
     --playback-speed|--playback-speed=*)
       echo "FATAL: --playback-speed is refused by this gate (D59): the flinchStarts peak" >&2
       echo "       it asserts is an EDGE reading that depends on sampling density, so a" >&2
@@ -142,10 +150,19 @@ done
 command -v md5sum >/dev/null 2>&1 || { echo "FATAL: md5sum not on PATH"; exit 2; }
 
 mkdir -p "$OUT"
-: > "$OUT/gate.txt"
+# The record is opened by the FIRST REAL READING below, never here. Until 2026-11-15 the
+# truncation sat on this line, above the --dry-run exit, so merely checking the plan
+# emptied the committed evidence file (caught by git status showing the tracked
+# evidence/t84-animdrive/animation-drive-states/gate.txt modified by a dry run).
+GATE_LOG="$OUT/gate.txt"
+# A dry run must not touch the record even through the three header lines printed above
+# the run plan, so the override happens here and not inside the dry-run branch.
+[ "$DRY_RUN" -eq 1 ] && GATE_LOG=/dev/null
 failures=0
-say() { echo "$@" | tee -a "$OUT/gate.txt"; }
-failure() { echo "  FAIL $*" | tee -a "$OUT/gate.txt"; failures=$((failures + 1)); }
+controls_run=0
+controls_ok=0
+say() { echo "$@" | tee -a "$GATE_LOG"; }
+failure() { echo "  FAIL $*" | tee -a "$GATE_LOG"; failures=$((failures + 1)); }
 md5_of() { md5sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
 run_capture() { # run_capture <name> <tick> [extra args...]
@@ -168,9 +185,9 @@ run_capture() { # run_capture <name> <tick> [extra args...]
   local rc=$?
   echo "$rc" > "$OUT/$name.rc"
   if [ -s "$bmp" ]; then
-    echo "  RUN $name tick=$tick rc=$rc bytes=$(wc -c < "$bmp")" | tee -a "$OUT/gate.txt"
+    echo "  RUN $name tick=$tick rc=$rc bytes=$(wc -c < "$bmp")" | tee -a "$GATE_LOG"
   else
-    echo "  RUN $name tick=$tick rc=$rc BMP-MISSING" | tee -a "$OUT/gate.txt"
+    echo "  RUN $name tick=$tick rc=$rc BMP-MISSING" | tee -a "$GATE_LOG"
   fi
   return $rc
 }
@@ -401,6 +418,27 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
+if [ "$CONTROLS_ONLY" -eq 1 ]; then
+  # A controls-only rerun is not a full gate record, so it is written beside the record
+  # instead of over it (2026-11-15: a partial log overwrote the evidence file once).
+  GATE_LOG="$OUT/gate-controls.txt"
+fi
+: > "$GATE_LOG"
+if [ "$CONTROLS_ONLY" -eq 1 ]; then
+  # Reuse guard: every frame and trace the checker reads must already be here. A
+  # partial OUT (an aborted capture) must stop the gate, not be judged as if it were
+  # a complete run -- the missing-artifact FAIL lines would otherwise look like a
+  # product regression.
+  reuse_missing=0
+  for nm in default legacy legacy-crouch states-flinch states-flinch-repeat \
+            states-crouch states-crouch-b states-cover early; do
+    [ -s "$OUT/$nm.bmp" ]   || { echo "FATAL: --controls-only but frame missing: $OUT/$nm.bmp" >&2; reuse_missing=1; }
+    [ -s "$OUT/$nm.trace" ] || { echo "FATAL: --controls-only but trace missing: $OUT/$nm.trace" >&2; reuse_missing=1; }
+  done
+  [ "$reuse_missing" -eq 0 ] || exit 2
+  say "  REUSED-OUT $OUT (nine captures already present; this invocation starts no product process)"
+  say "  reused exe: $EXE"
+else
 run_capture default          "$FLINCH_TICK" || failure "default run did not capture"
 # The legacy frame AT THE CROUCH TICK. B3 needs the same tick as states-crouch,
 # otherwise "the layer reached the frame" would compare two different moments.
@@ -412,10 +450,11 @@ run_capture states-crouch    "$CROUCH_TICK" --animation-drive states || failure 
 run_capture states-crouch-b  "$SAME_STATE_TICK_B" --animation-drive states || failure "states same-state run did not capture"
 RUN_DEMO="$COVER_DEMO" run_capture states-cover "$COVER_TICK" --animation-drive states || failure "states cover run did not capture"
 run_capture early            "$EARLY_TICK" --animation-drive states || failure "early run did not capture"
+fi
 
 say ""
 say "== readings"
-if check_artifacts "$OUT" | tee -a "$OUT/gate.txt"; then
+if check_artifacts "$OUT" | tee -a "$GATE_LOG"; then
   say "  READINGS=PASS"
 else
   failure "one or more readings failed (see the FAIL lines above)"
@@ -426,6 +465,7 @@ fi
 # ---------------------------------------------------------------------------
 control_failed_as_required() { # <label> <dir> <expected FAIL text (grep -E)>
   local label="$1" dir="$2" expect="$3"
+  controls_run=$((controls_run + 1))
   if check_artifacts "$dir" > "$dir/check.txt" 2>&1; then
     failure "negative control $label did NOT fail: the checker is blind to it (see $dir/check.txt)"
     return 1
@@ -442,7 +482,12 @@ control_failed_as_required() { # <label> <dir> <expected FAIL text (grep -E)>
     failure "negative control $label failed for the wrong reason: expected /$expect/ (see $dir/check.txt)"
     return 1
   fi
-  echo "  OK   negative control $label failed as required: $(grep -m1E -- "$expect" "$dir/check.txt")" | tee -a "$OUT/gate.txt"
+  # grep -m1E was the 2026-11-14 bug: on this host grep parses "-m1E" as -m with the
+  # argument "1E" (invalid argument '1E' for '-m'), so the reason text came out empty
+  # on all four controls while they had in fact failed for their own reasons. Two
+  # separate flags, spelled apart, so no implementation can glue them together.
+  echo "  OK   negative control $label failed as required: $(grep -m 1 -E -- "$expect" "$dir/check.txt")" | tee -a "$GATE_LOG"
+  controls_ok=$((controls_ok + 1))
   return 0
 }
 
@@ -487,8 +532,13 @@ fi
 # ---------------------------------------------------------------------------
 say ""
 readings_summary="failures=$failures"
+# ${SKIP_NEG:+skipped} used to print "controls=skipped" for the normal case too: SKIP_NEG
+# is 0, and "0" is not empty, so the parameter expansion always expanded. Report what
+# actually happened instead of a value that cannot distinguish ran from skipped.
+controls_label=skipped
+if [ "$SKIP_NEG" -eq 0 ]; then controls_label="$controls_ok/$controls_run"; fi
 if [ "$failures" -eq 0 ]; then
-  say "  SUMMARY $readings_summary controls="${SKIP_NEG:+skipped}""
+  say "  SUMMARY $readings_summary controls=$controls_label"
   echo "ANIMATION-DRIVE-STATES=PASS default==legacy byte-identical with the T61 lines intact, the states trace names state=flinch and plays a_flinch sequence frames while the legacy trace names neither, states crouch frame differs from legacy at the same tick and repeats byte-identically, crouch/crouchwalk/flinch each named with needle+reason and each reached by the per-frame counters, four negative controls failed for their own reasons"
   exit 0
 fi
