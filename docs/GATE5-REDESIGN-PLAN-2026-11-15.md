@@ -135,3 +135,19 @@ assert_ne "mutation model-class-flip: the entity's model reads as a viewmodel" \
 2. 接受基线 2，把变异断言改成 `> 2` 并补一次实测。
 
 **不建议**直接把 0 改成 2：那会让配对变异恒真，属于任务单禁止的"放宽断言换绿"。
+
+## 9 复跑确认（2026-11-15 17:10，`gate5e.log`）
+
+重钉三条基线后再跑一次全门禁：
+
+```text
+OK=157  FAIL=1
+VIEWMODEL-ANIMATION=FAIL
+唯一红：pov entity models that are v_* viewmodels = 2, expected 0
+```
+
+- 三条变异基线（21 / 21 / 91）**已成立**，`mutation ... does not move` 全部通过；
+- 切换半（627 / 41 / 0）与 `and a recording that switches carries it` 全部通过；
+- 只剩一条**前提冲突**，不是计数陈旧。
+
+门禁演化：`pin 缺失无法启动` → `8 红` → `4 红` → **`1 红`**，且剩下这条的处置已写清（找 `v_*=0` 的 POV，或接受基线 2 并把配对变异改成 `> 2` 再实测）。
