@@ -209,7 +209,7 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 
 ---
 
-> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D71**（D57–D62 见上；D63–D67 见下；D68–D71 在 D57/D58 补充说明之前，来自实例1 的 R1/E1 两片）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
+> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D73**（D57–D62 见上；D63–D67 见下；D68–D71 在 D57/D58 补充说明之前，来自实例1 的 R1/E1 两片；D72–D73 同样在 D57/D58 补充说明之前，来自实例4 的 P1a N17）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
 
 ---
 
@@ -301,6 +301,28 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 - **本条没有证明什么**：没有逐个核实那 9 个脚本在实测 gate 运行里是否真的污染过 evidence（历史记录未清点）；没有提出把 `OUT` 缺省改到 `.scratch` 的代价（会改 9 个脚本的行为契约，且部分 gate 的"产物进 evidence 供复现"是有意设计）。
 
 ---
+
+## D72　共享主机锁写的是 MSYS pid，别人在另一个 bash 里判活会得出「owner 已死」
+
+- **发现者**：e17-e20-char（P1a N17，`docs/N17-N20-CHAR-COVERAGE-2026-11-15.md:192` 与 §2.6.6）；lead 复核代码成立
+- **证据**：`verify-lock.sh:69` 用 `printf '%s\n' "$$" > "$d/pid"` 写锁的属主 pid，`:80`/`:104` 的 `VERIFY-LOCK=ACQUIRED` 行打印的也是 `$$`；判活只有 `vlock_pid_alive()`（`verify-lock.sh:33-38`）里的 `kill -0 "$p"`，回收走 `:83-97`（`vlock_pid_alive "$old_pid"` → 不活则 `reason=owner-dead` → `STALE-LOCK=RECLAIMED` → `rm` 锁目录）。
+  实测对照（实例4 记录）：同一个 msys pid 1728，在默认 niubash bash 里 `kill -0` 判 **DEAD**，在 Git Bash 里判 **ALIVE**，Windows 层 `tasklist` 显示 `sleep.exe 43448` 活着 —— **MSYS pid 与 niubash bash 的 pid 空间不互通**。
+  现场后果：22:30–22:40 期间实例4 的产品进程（PID 9868 起于 22:30:32、PID 55400 起于 22:35:04，`--player-animation --animation-drive states` 的 capture）在跑，而 `.scratch/verify-all.lock` **整个消失**，`tools/lockrun.sh` 的独占性在窗口内是失效的。实例4 自己的日志则是 `STALE-LOCK=RECLAIMED owner=inst3-n13 pid=4216 age=4s reason=owner-dead` + `VERIFY-LOCK=ACQUIRED owner=e17-e20-char pid=2017`，即它包了锁、锁被别人判死后收回。
+- **为什么记缺陷**：`tools/lockrun.sh:7` `. ./verify-lock.sh` + `:12` 的锁目录是全仓唯一的「同时只有一个构建/产品运行」机制，`verify-lock.sh:22-24` 的文件头还把 pid+heartbeat 写成「SIGKILL 也能被下一个人清理」的设计基础。pid 空间不互通意味着**这个机制在跨 bash 的常见调用下会把活锁判死并 rm 掉**，正是它声称要防的那类并发。心跳（`:53-63`，每 `VLOCK_HEARTBEAT_SECONDS=30` 秒刷新、上限 `VLOCK_STALE_DEFAULT=900`）只能把窗口缩小到「判死 + 认领」之间，**不能修正 pid 判错本身**。
+- **建议修法（未实施）**：锁目录同时写 winpid（Git Bash 下 `/proc/$$/winpid`）并用 `tasklist`/`/proc` 判活；`vlock_pid_alive` 在两种 pid 都试。属共享 lock helper 修复域，**本轮未动代码**。
+- **本条没有证明什么**：没有在干净环境里复现「A 持锁 → B 判死 → B 拿锁 → A 仍在跑」的完整时序（证据是现场观察 + pid 空间对照）；没有清点历史上被误回收的锁有多少次；修法代价未评估（会改所有调用 lockrun 的脚本的行为）。
+
+---
+
+## D73　medic 蹲姿冻结：族里有会动的循环，pick 落在静态那条
+
+- **发现者**：e17-e20-char（P1a N17，`docs/N17-N20-CHAR-COVERAGE-2026-11-15.md:164`）；lead 复核选序代码成立
+- **证据**：`native/include/animation_sequence_match.h:389-409` `chooseCrouchLocomotionSequence` 遍历序列，命中条件依次是「首 token 是 `crouch`」（`:396` `sequenceLabelIsCrouchLocomotion`，见 `:345-347`）、「不是 one-shot」（`:397`）、「`frameCountAt(index) > 1`」（`:398`）→ **第一个满足者直接 return**，`:402-405` 的 posed 回退只用于「全族都只有 1 帧」的情况。
+  对 `models/player/medic.mdl` 该循环命中 **seq 65 `crouch_PRIMARY`（31 帧）**；产品 trace 坐实它就是上屏那条：`anim: staterefs model=models/player/medic.mdl crouchMoveSeq=65 crouchMoveLabel=crouch_PRIMARY`。
+  该序列的四姿态 cycle checksum **全是 `7af1c3641faccfd1`**，而 frame 游标确实在走（0→7→15→23、`localFrame` 同步、`sectionFrames=0`）；同族的 `crouch_SECONDARY`(66) 四姿态互不相同（`25d5b9ee… / 4d49f534… / 7ce55bf1… / ea3db11b…`），medic 的 `crouch_walk_PRIMARY`(81) 四姿态也全不同（`0967a7cb52072dca / 59b9f20bbc392cbf / 4cff7e2dc02ed243 / 11ea65f46d25bea5`）→ **解码路径没坏、族里有会动的替代，pick 落在静态那条**。注释 `animation_sequence_match.h:333-336` 自称「only pyro/heavy/medic carry the crouch locomotion family」，实测**九职业全有**多帧循环（同族注释与实际资产不符）。
+- **为什么记缺陷**：这是本轮唯一一条「画面级可复现的产品缺陷候选」——玩家蹲着走时身体姿势不变，只滑行。选序规则本身没错（「取第一个多帧 crouch 循环」是合理的），错在**没有对「四个 cycle 姿态完全相同」做排除**，而资产里恰好有满足条件的替代序列。
+- **建议修法（未实施）**：在 `chooseCrouchLocomotionSequence` 的选择条件里加一条「该序列的多 cycle 姿态不是常量」判据（需把 cycle 采样结果传进选序，或把选序挪到能读到解码姿态的层）；要动共享头 `native/include/animation_sequence_match.h`，会影响 model_pose_probe 与产品两个消费者，**本轮未动代码，等派单**。同时修正 `:333-336` 那条与资产不符的注释。
+- **本条没有证明什么**：没有逐像素证明「蹲走时身体不动」（读数是四姿态 checksum 相等 + 帧游标在走，不是屏幕差分）；没有检查其余八职业是否也有同族静态 pick；没有评估修法对 `crouch` 状态门禁（`animation-drive-states-check.sh` B3 只比 states vs legacy 的 677 px）的影响。
 
 ## D57 / D58 补充说明
 
