@@ -334,18 +334,28 @@ struct Reader {
       out.stage = out.bytes.empty() ? "read-failed" : "ok";
       return out;
     }
+    // The archive is asked with readEntry rather than read, because read folds
+    // "no such name" and "the name is here but it has no bytes" into the same
+    // empty vector. That fold is how an asset that exists and is empty used to
+    // reach the ledger as absent: measured through this chain before the change,
+    // a zero-length tree entry read absent/none (control
+    // emptyAsset.vpkZeroLengthChain). The first archive that HAS the name now
+    // answers, and an empty or refused answer is a refusal, not a miss.
     std::vector<std::filesystem::path> holders;
     archives.collectContaining(path, holders);
     for (const auto& holder : holders) {
       const auto* archive = archives.find(holder);
       if (!archive) continue;
-      auto bytes = archive->read(path);
-      if (!bytes.empty()) {
-        out.bytes = std::move(bytes);
-        out.source = "vpk:" + holder.filename().string();
+      const auto entry = archive->readEntry(path);
+      if (!entry.found) continue;
+      out.source = "vpk:" + holder.filename().string();
+      if (entry.error.empty() && !entry.bytes.empty()) {
+        out.bytes = entry.bytes;
         out.stage = "ok";
-        return out;
+      } else {
+        out.stage = "read-failed";
       }
+      return out;
     }
     std::vector<std::uint8_t> packed;
     if (!bspBytes.empty() && bspPakfileEntry(bspBytes, path, packed, nullptr)) {
@@ -368,14 +378,365 @@ struct Reader {
     for (const auto& holder : holders) {
       const auto* archive = archives.find(holder);
       if (!archive) continue;
-      auto bytes = archive->read(path);
-      if (!bytes.empty()) return bytes;
+      // Same rule as readTraced: the first archive that has the name answers,
+      // even when its answer is no bytes.
+      const auto entry = archive->readEntry(path);
+      if (entry.found) return entry.bytes;
     }
     std::vector<std::uint8_t> packed;
     if (!bspBytes.empty() && bspPakfileEntry(bspBytes, path, packed, nullptr)) return packed;
     return {};
   }
 };
+
+// ---------------------------------------------------------------------------
+// 3. the controls the closure rests on
+// ---------------------------------------------------------------------------
+// A map that reports zero missing materials is worth reading only if the same
+// ladder can still say no. Every control below pairs a case that must resolve
+// with the same shape one key away that must be refused, and each one is
+// self-contained: the store is a temporary directory this code writes and
+// removes, so the control runs on any machine and needs no install.
+const char* const kGoodVmt =
+  "\"LightmappedGeneric\"\n{\n  \"$basetexture\" \"controls/good\"\n}\n";
+const char* const kGoodInclude =
+  "\"LightmappedGeneric\"\n{\n  \"$basetexture\" \"controls/included\"\n  \"$translucent\" \"1\"\n}\n";
+const char* const kPatchVmt =
+  "\"patch\"\n{\n  \"include\" \"materials/controls/include_target.vmt\"\n"
+  "  \"replace\"\n  {\n    \"$envmap\" \"controls/cube\"\n  }\n}\n";
+const char* const kWaterVmt =
+  "\"Water\"\n{\n  \"$abovewater\" \"0\"\n  \"$underwateroverlay\" \"effects/water_warp\"\n}\n";
+
+// emit()/check() write JSON by hand, so a refusal message carrying a quote would
+// truncate the record instead of reporting it. Flatten before printing; the
+// message itself is evidence and is not rewritten.
+std::string oneLine(const std::string& text) {
+  std::string out;
+  out.reserve(text.size());
+  for (const char c : text) {
+    if (c == '"' || c == '\n' || c == '\r' || c == '\\') out.push_back('\'');
+    else out.push_back(c);
+  }
+  return out;
+}
+
+std::vector<std::uint8_t> textBytes(const std::string& text) {
+  return std::vector<std::uint8_t>(text.begin(), text.end());
+}
+
+bool writeFileBytes(const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes) {
+  std::ofstream out(path, std::ios::binary | std::ios::trunc);
+  if (!out) return false;
+  out.write(reinterpret_cast<const char*>(bytes.data()),
+    static_cast<std::streamsize>(bytes.size()));
+  return static_cast<bool>(out);
+}
+
+// A VTF the decoder accepts: version 7.1, 64-byte header, one mip, RGBA8888.
+// The same shape terrain_blend_probe.cpp:80 builds, kept here so this probe's
+// controls do not depend on another tool's fixture.
+std::vector<std::uint8_t> controlVtf(std::uint16_t width, std::uint16_t height) {
+  std::vector<std::uint8_t> bytes(64u + static_cast<std::size_t>(width) * height * 4u, 0u);
+  std::memcpy(bytes.data(), "VTF\0", 4);
+  const auto put32 = [&bytes](std::size_t at, std::uint32_t value) {
+    std::memcpy(bytes.data() + at, &value, 4);
+  };
+  const auto put16 = [&bytes](std::size_t at, std::uint16_t value) {
+    std::memcpy(bytes.data() + at, &value, 2);
+  };
+  put32(4, 7);          // major
+  put32(8, 1);          // minor
+  put32(12, 64);        // header size
+  put16(16, width);
+  put16(18, height);
+  put32(20, 0);         // flags: not a cubemap
+  put16(24, 1);         // frames
+  put32(52, 0);         // format: RGBA8888
+  bytes[56] = 1;        // mip count
+  for (std::size_t at = 64; at < bytes.size(); ++at) {
+    bytes[at] = static_cast<std::uint8_t>(at * 7u);
+  }
+  return bytes;
+}
+
+struct VpkName {
+  std::string extension;
+  std::string path;
+  std::string filename;
+};
+
+VpkName splitVpkName(const std::string& name) {
+  VpkName out;
+  std::string stem = name;
+  const auto dot = stem.find_last_of('.');
+  const auto slashInFull = stem.find_last_of('/');
+  if (dot != std::string::npos && (slashInFull == std::string::npos || dot > slashInFull)) {
+    out.extension = stem.substr(dot + 1);
+    stem = stem.substr(0, dot);
+  }
+  const auto slash = stem.find_last_of('/');
+  if (slash == std::string::npos) {
+    out.path = " ";
+    out.filename = stem;
+  } else {
+    out.path = stem.substr(0, slash);
+    out.filename = stem.substr(slash + 1);
+  }
+  // The format spells "no path" and "no extension" as a single space.
+  if (out.extension.empty()) out.extension = " ";
+  return out;
+}
+
+// A VPK v2 directory file with every entry inline (archive index 0x7fff). The
+// tree grammar is the one VpkArchive::open reads: an extension string, then per
+// path a string, then per filename a string plus an 18-byte record, with an
+// empty extension string closing the whole tree. Inline entries keep the fixture
+// to one file, so the control exercises the reader and not the numbered-volume
+// naming. Nothing in native/ could write a VPK before this, which is why the
+// priority control had to be written by hand or not at all.
+std::vector<std::uint8_t> buildVpkDirectory(
+    const std::map<std::string, std::vector<std::uint8_t>>& entries) {
+  using Files = std::map<std::string, const std::vector<std::uint8_t>*>;
+  std::map<std::string, std::map<std::string, Files>> tree;
+  for (const auto& entry : entries) {
+    const auto split = splitVpkName(entry.first);
+    tree[split.extension][split.path][split.filename] = &entry.second;
+  }
+  std::vector<std::uint8_t> text;
+  std::vector<std::uint8_t> data;
+  const auto putText = [&text](const std::string& value) {
+    text.insert(text.end(), value.begin(), value.end());
+    text.push_back(0);
+  };
+  const auto put16 = [&text](std::uint16_t value) {
+    text.push_back(static_cast<std::uint8_t>(value & 0xFFu));
+    text.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFFu));
+  };
+  const auto put32 = [&text](std::uint32_t value) {
+    for (int byte = 0; byte < 4; ++byte) {
+      text.push_back(static_cast<std::uint8_t>((value >> (byte * 8)) & 0xFFu));
+    }
+  };
+  for (const auto& extension : tree) {
+    putText(extension.first);
+    for (const auto& path : extension.second) {
+      putText(path.first);
+      for (const auto& file : path.second) {
+        putText(file.first);
+        put32(0u);                                       // crc: no reader here verifies it
+        put16(0u);                                       // preload length
+        put16(0x7FFFu);                                  // archive index: inline
+        put32(static_cast<std::uint32_t>(data.size()));  // offset from the tree end
+        put32(static_cast<std::uint32_t>(file.second->size()));
+        put16(0xFFFFu);                                  // record terminator
+        data.insert(data.end(), file.second->begin(), file.second->end());
+      }
+      putText("");                                     // end of this filename table
+      putText("");                                     // end of this path table
+    }
+  }
+  putText("");                                           // terminal extension
+
+  std::vector<std::uint8_t> bytes;
+  const auto put32v = [&bytes](std::uint32_t value) {
+    for (int byte = 0; byte < 4; ++byte) {
+      bytes.push_back(static_cast<std::uint8_t>((value >> (byte * 8)) & 0xFFu));
+    }
+  };
+  put32v(0x55AA1234u);                                   // signature
+  put32v(2u);                                            // version
+  put32v(static_cast<std::uint32_t>(text.size()));       // tree size
+  put32v(static_cast<std::uint32_t>(data.size()));       // data section size
+  put32v(0u);                                            // md5 section
+  put32v(0u);                                            // other section
+  put32v(0u);                                            // signature section
+  bytes.insert(bytes.end(), text.begin(), text.end());
+  bytes.insert(bytes.end(), data.begin(), data.end());
+  return bytes;
+}
+
+int runControls() {
+  const auto chk = [](const char* name, bool ok, const std::string& detail) {
+    check(name, ok, oneLine(detail));
+  };
+  // ---- 1. bad VMT text ----------------------------------------------------
+  {
+    VmtMaterial good;
+    const bool parsed = VmtParser::parse(kGoodVmt, good);
+    chk("control.vmtText.positive",
+      parsed && good.valid && good.baseTexture == "controls/good",
+      "a well-formed VMT parses and names its $basetexture");
+    VmtMaterial broken;
+    const bool accepted = VmtParser::parse("\"LightmappedGeneric\" \"$basetexture\" \"x\"", broken);
+    chk("control.vmtText.negative", !accepted && !broken.valid && !broken.error.empty(),
+      "a header with no block is refused (" + broken.error + ")");
+    VmtMaterial empty;
+    const bool acceptedEmpty = VmtParser::parse("", empty);
+    chk("control.vmtText.empty", !acceptedEmpty && !empty.valid && !empty.error.empty(),
+      "an empty file is refused (" + empty.error + ")");
+  }
+  // ---- 2. a patch whose include is missing --------------------------------
+  {
+    VmtParser::IncludeReader supplyOne = [](const std::string&) {
+      return textBytes(kGoodInclude);
+    };
+    VmtMaterial resolved;
+    const bool parsed = VmtParser::parse(kPatchVmt, resolved, supplyOne);
+    chk("control.include.positive",
+      parsed && resolved.patch.declared && resolved.patch.resolved
+        && resolved.baseTexture == "controls/included",
+      "a patch resolves through the store and takes the include's $basetexture");
+    VmtParser::IncludeReader supplyNothing = [](const std::string&) {
+      return std::vector<std::uint8_t>();
+    };
+    VmtMaterial missing;
+    const bool accepted = VmtParser::parse(kPatchVmt, missing, supplyNothing);
+    chk("control.include.negative",
+      !accepted && missing.patch.declared && !missing.patch.resolved,
+      "a patch whose include cannot be read is refused, not drawn from the wrapper ("
+        + missing.error + ")");
+    VmtMaterial storeless;
+    const bool acceptedNoStore = VmtParser::parse(kPatchVmt, storeless);
+    chk("control.include.noStore", !acceptedNoStore && !storeless.patch.resolved,
+      "a patch with no store given is refused (" + storeless.error + ")");
+  }
+  // ---- 3. an empty or corrupt asset --------------------------------------
+  {
+    VtfTexture emptyTexture;
+    std::string whyEmpty;
+    chk("control.emptyAsset.emptyVtf",
+      !emptyTexture.parse(std::vector<std::uint8_t>(), &whyEmpty),
+      "zero bytes never parse as a texture (" + whyEmpty + ")");
+    VtfTexture corrupt;
+    std::string whyCorrupt;
+    chk("control.emptyAsset.corruptVtf", !corrupt.parse(textBytes("NOTAVTF"), &whyCorrupt),
+      "a wrong magic is refused (" + whyCorrupt + ")");
+    VtfTexture real;
+    const auto vtfBytes = controlVtf(8, 8);
+    chk("control.emptyAsset.positive",
+      real.parse(vtfBytes) && real.header().width == 8 && real.header().height == 8,
+      "a header-only VTF of the same size parses, so the two refusals above are about the bytes");
+  }
+  // ---- 4. tf before hl2, and loose before both ---------------------------
+  // tf is mounted first and hl2 second (vpk_archive.cpp:308, :315), so a name
+  // present in both must be answered by tf. That claim used to be a comment, and
+  // a comment cannot go red; these checks can.
+  {
+    std::error_code error;
+    const auto root = std::filesystem::temp_directory_path(error)
+      / "tf2-n07-material-controls";
+    std::filesystem::remove_all(root, error);
+    const auto tf = root / "tf";
+    const auto hl2 = root / "hl2";
+    std::filesystem::create_directories(tf / "materials" / "controls", error);
+    std::filesystem::create_directories(hl2, error);
+
+    const std::string tfText =
+      "\"LightmappedGeneric\"\n{\n  \"$basetexture\" \"controls/from_tf\"\n}\n";
+    const std::string hl2Text =
+      "\"LightmappedGeneric\"\n{\n  \"$basetexture\" \"controls/from_hl2\"\n}\n";
+    const std::string looseText =
+      "\"LightmappedGeneric\"\n{\n  \"$basetexture\" \"controls/from_loose\"\n}\n";
+
+    std::map<std::string, std::vector<std::uint8_t>> tfEntries;
+    tfEntries["materials/controls/priority.vmt"] = textBytes(tfText);
+    tfEntries["materials/controls/shadowed.vmt"] = textBytes(tfText);
+    // A zero-length tree entry: the archive can answer "found, preload only, no
+    // bytes", which is not the same answer as "no such name".
+    tfEntries["materials/controls/zero_length.vmt"] = {};
+    std::map<std::string, std::vector<std::uint8_t>> hl2Entries;
+    hl2Entries["materials/controls/priority.vmt"] = textBytes(hl2Text);
+    hl2Entries["materials/controls/shadowed.vmt"] = textBytes(hl2Text);
+    hl2Entries["materials/controls/hl2_only.vmt"] = textBytes(hl2Text);
+
+    const bool wroteTf = writeFileBytes(tf / "components_dir.vpk", buildVpkDirectory(tfEntries));
+    const bool wroteHl2 = writeFileBytes(hl2 / "hl2_misc_dir.vpk", buildVpkDirectory(hl2Entries));
+    const bool wroteEmpty = writeFileBytes(tf / "materials" / "controls" / "empty.vmt",
+      std::vector<std::uint8_t>());
+    const bool wroteLoose = writeFileBytes(tf / "materials" / "controls" / "shadowed.vmt",
+      textBytes(looseText));
+    chk("control.store.fixture", wroteTf && wroteHl2 && wroteEmpty && wroteLoose,
+      "the temporary store was written under " + root.string());
+
+    Reader reader;
+    reader.tfRoot = tf;
+    reader.archives = VpkArchiveSet::openDirectory(tf);
+    chk("control.store.mounted", reader.archives.totalEntryCount() >= 5,
+      std::to_string(reader.archives.totalEntryCount()) + " entries across "
+        + std::to_string(reader.archives.size()) + " archives (tf and hl2)");
+
+    const auto priority = reader.readTraced("materials/controls/priority.vmt");
+    chk("control.priority.tfWins",
+      priority.stage == "ok" && priority.source == "vpk:components_dir.vpk"
+        && std::string(priority.bytes.begin(), priority.bytes.end()) == tfText,
+      "a name in both archives is answered by tf, source=" + priority.source);
+
+    const auto hl2Only = reader.readTraced("materials/controls/hl2_only.vmt");
+    chk("control.priority.hl2Fallback",
+      hl2Only.stage == "ok" && hl2Only.source == "vpk:hl2_misc_dir.vpk"
+        && std::string(hl2Only.bytes.begin(), hl2Only.bytes.end()) == hl2Text,
+      "a name only hl2 has still resolves, so the second mount is live, source="
+        + hl2Only.source);
+
+    const auto loose = reader.readTraced("materials/controls/shadowed.vmt");
+    chk("control.priority.looseFirst",
+      loose.stage == "ok" && loose.source == "loose"
+        && std::string(loose.bytes.begin(), loose.bytes.end()) == looseText,
+      "a loose file outranks both archives, source=" + loose.source);
+
+    const auto emptyLoose = reader.readTraced("materials/controls/empty.vmt");
+    chk("control.emptyAsset.looseEmpty",
+      emptyLoose.stage == "read-failed" && emptyLoose.source == "loose",
+      "an existing but empty file is a refusal, not a pass, stage=" + emptyLoose.stage);
+
+    std::vector<std::filesystem::path> holders;
+    reader.archives.collectContaining("materials/controls/zero_length.vmt", holders);
+    bool zeroFound = false;
+    bool zeroPreloadOnly = false;
+    if (!holders.empty()) {
+      if (const auto* archive = reader.archives.find(holders.front())) {
+        const auto entry = archive->readEntry("materials/controls/zero_length.vmt");
+        zeroFound = entry.found;
+        zeroPreloadOnly = entry.store == VpkArchive::Store::PreloadOnly;
+      }
+    }
+    chk("control.emptyAsset.vpkZeroLength", zeroFound && zeroPreloadOnly,
+      "the archive answers found-preload-only for a zero-length entry");
+    // The same entry through the chain runMap actually uses. This was a reading
+    // (and read absent/none) until the chain was taught to ask readEntry, so the
+    // check is what keeps that fix from silently reverting: a name that exists
+    // with no bytes must never come back as "absent", which is the answer that
+    // sends a material down the missing-asset path.
+    const auto zeroTraced = reader.readTraced("materials/controls/zero_length.vmt");
+    chk("control.emptyAsset.vpkZeroLengthChain",
+      zeroTraced.stage == "read-failed" && zeroTraced.source == "vpk:components_dir.vpk",
+      "an empty archived asset reads a refusal, not a miss, stage="
+        + zeroTraced.stage + " source=" + zeroTraced.source);
+
+    std::filesystem::remove_all(root, error);
+  }
+  // ---- 5. water is classified, not assumed -------------------------------
+  {
+    VmtMaterial water;
+    const bool parsed = VmtParser::parse(kWaterVmt, water);
+    chk("control.water.positive",
+      parsed && water.waterShader && water.baseTexture.empty()
+        && water.baseTexture2.empty(),
+      "a Water shader with no $basetexture is classified water, shader=" + water.shader);
+    VmtMaterial opaque;
+    VmtParser::parse(kGoodVmt, opaque);
+    chk("control.water.negative", !opaque.waterShader,
+      "a LightmappedGeneric with a $basetexture is not classified water");
+    VmtMaterial bottom;
+    VmtParser::parse(
+      "\"LightmappedGeneric\"\n{\n  \"$basetexture\" \"controls/x\"\n"
+      "  \"$bottommaterial\" \"water/water_beneath\"\n}\n", bottom);
+    chk("control.water.byBottomMaterial", bottom.waterShader,
+      "a material naming a $bottommaterial is water even when its shader is not Water");
+  }
+  emit("controlTest", failures == 0 ? "true" : "false");
+  return failures == 0 ? 0 : 1;
+}
 
 int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tfRoot,
     const std::string& expectMaterial) {
@@ -414,6 +775,9 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
   // independent counts that happen to look similar.
   std::size_t listed = 0, stageOk = 0, stageAbsent = 0, stageReadFail = 0;
   std::size_t stageVmtParse = 0, stageIncludeMissing = 0, stageNoBase = 0;
+  // R3: water draws through the water pass, so it is its own stage and counts
+  // toward closure instead of being reported as a material missing a texture.
+  std::size_t stageWater = 0;
   std::size_t stageVtfAbsent = 0, stageVtfParse = 0;
   for (const auto& entry : order) {
     const std::string& name = entry.second;
@@ -429,6 +793,7 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
       else if (std::string(stage) == "vmt-parse") ++stageVmtParse;
       else if (std::string(stage) == "vmt-include-missing") ++stageIncludeMissing;
       else if (std::string(stage) == "vmt-no-basetexture") ++stageNoBase;
+      else if (std::string(stage) == "vmt-water") ++stageWater;
       else if (std::string(stage) == "vtf-absent") ++stageVtfAbsent;
       else if (std::string(stage) == "vtf-parse") ++stageVtfParse;
       if (listMaterials) {
@@ -461,6 +826,17 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
     ++vmtResolved;
     if (material.patch.declared && !material.patch.resolved) {
       note("vmt-include-missing", "patch include " + material.patch.includePath);
+      materials.push_back(material);
+      continue;
+    }
+    // R3 (main.cpp:6185-6194): a Water shader names no $basetexture on purpose --
+    // the surface is the refracted scene, drawn by the water pass. Same test the
+    // product applies, so the two ledgers agree instead of this probe calling
+    // water a defect while the product calls it a shader.
+    if (material.waterShader && material.baseTexture.empty()
+        && material.baseTexture2.empty()) {
+      note("vmt-water", "Water shader " + material.shader
+        + " draws through the water pass and names no $basetexture");
       materials.push_back(material);
       continue;
     }
@@ -506,7 +882,7 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
   }
   emitNumber("map.vmtResolved", static_cast<long long>(vmtResolved));
   const std::size_t staged = stageOk + stageAbsent + stageReadFail + stageVmtParse
-    + stageIncludeMissing + stageNoBase + stageVtfAbsent + stageVtfParse;
+    + stageIncludeMissing + stageNoBase + stageWater + stageVtfAbsent + stageVtfParse;
   emitNumber("map.materialsListed", static_cast<long long>(listed));
   emitNumber("map.stage.ok", static_cast<long long>(stageOk));
   emitNumber("map.stage.vmtAbsent", static_cast<long long>(stageAbsent));
@@ -514,6 +890,7 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
   emitNumber("map.stage.vmtParse", static_cast<long long>(stageVmtParse));
   emitNumber("map.stage.includeMissing", static_cast<long long>(stageIncludeMissing));
   emitNumber("map.stage.noBasetexture", static_cast<long long>(stageNoBase));
+  emitNumber("map.stage.water", static_cast<long long>(stageWater));
   emitNumber("map.stage.vtfAbsent", static_cast<long long>(stageVtfAbsent));
   emitNumber("map.stage.vtfParse", static_cast<long long>(stageVtfParse));
   // The list and the summary must close: every named material lands in exactly one
@@ -521,6 +898,7 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
   emitNumber("map.stage.closure", static_cast<long long>(staged == listed ? 1 : 0));
   emitNumber("map.vmtMissing", static_cast<long long>(vmtMissing));
   emitNumber("map.vmtNoBase", static_cast<long long>(vmtNoBase));
+  emitNumber("map.vmtWater", static_cast<long long>(stageWater));
   emitNumber("map.vtfResolved", static_cast<long long>(vtfResolved));
   emitNumber("map.vtfMissing", static_cast<long long>(vtfMissing));
 
@@ -597,27 +975,29 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
 } // namespace
 
 int main(int argc, char** argv) {
-  bool selfTest = false, fixture = false;
+  bool selfTest = false, fixture = false, controls = false;
   std::filesystem::path mapPath, tfRoot;
   std::string expectMaterial;
   for (int index = 1; index < argc; ++index) {
     const std::string arg = argv[index];
     if (arg == "--self-test") { selfTest = true; continue; }
     if (arg == "--fixture") { fixture = true; continue; }
+    if (arg == "--controls") { controls = true; continue; }
     if (arg == "--map" && index + 1 < argc) { mapPath = std::filesystem::u8path(argv[++index]); continue; }
     if (arg == "--tf-root" && index + 1 < argc) { tfRoot = std::filesystem::u8path(argv[++index]); continue; }
     if (arg == "--expect-material" && index + 1 < argc) { expectMaterial = argv[++index]; continue; }
     if (arg == "--list-materials") { listMaterials = true; continue; }
-    std::cerr << "usage: material_coverage_probe --self-test | --fixture |"
-                 " --map <map.bsp> --tf-root <dir> [--expect-material <name>]\n";
+    std::cerr << "usage: material_coverage_probe --self-test | --fixture | --controls |"
+                 " --map <map.bsp> --tf-root <dir> [--expect-material <name>] [--list-materials]\n";
     return 2;
   }
   int result = 0;
   if (selfTest) result |= runSelfTest();
   if (fixture) result |= runFixture();
   if (!mapPath.empty()) result |= runMap(mapPath, tfRoot, expectMaterial);
-  if (!selfTest && !fixture && mapPath.empty()) {
-    std::cerr << "nothing to do: pass --self-test, --fixture or --map\n";
+  if (controls) result |= runControls();
+  if (!selfTest && !fixture && !controls && mapPath.empty()) {
+    std::cerr << "nothing to do: pass --self-test, --fixture, --controls or --map\n";
     return 2;
   }
   return result;
