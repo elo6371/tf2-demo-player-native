@@ -72,3 +72,22 @@ cycle=<sequence 内归一化时间 0..1>  frame=<当前帧号>
 
 - 方案与字段缺口已写清；**没有改 gate5**，因为 3.1 的第 3 步要先有"切换样本"，3.2 要改 probe，两者都需一次独立窗口和一次 gate5 全跑（30+ 分钟）。
 - gate5 保持 `BLOCKED-INPUT` 的现状描述作废，改为 `MEASUREMENT-TO-REDO`：它的红不是资产缺失，是**量错了东西**。
+
+## 6 切换样本已实测（2026-11-15 16:00）
+
+用 `viewmodel_animation_probe --tf-root <TF> --demo <dem>` 直接读，两条 STV 都满足"有序列切换"且 `vStarModels=0`：
+
+| 录像 | observations | changes | distinctSequences | modelPaths | entities | vStarModels |
+|---|---:|---:|---:|---:|---:|---:|
+| `koth_bagel_rc11` STV（`dfbce608…`） | 1800 | **290** | **35** | 4 | 24 | 0 |
+| `cp_process_f12` STV（`1338f5de…`） | 520 | **78** | **26** | 4 | 26 | 0 |
+| 现 POV（upward f12） | — | **0** | 1 | 9 | 21 | 2 |
+
+所以 §6 拆两半是有素材的：
+
+- **POV 半**：只证"同一序列内姿态在推进"（`applied pose changes the frame = 44169`），不再要求 changes≥1；
+- **切换半**：用 bagel STV（changes=290、35 个序列）证"换序列时读数跟着变"，与 POV 解耦。
+
+注意两处差异要在实现时写清：STV 的 `entitiesOwnedByViewEntity=0`（没有 svc_SetView 归属），所以 §4/§5 的归属断言仍只能用 POV；§6 的切换断言只需要 `changes`/`distinctSequences`，不需要归属。
+
+**本轮仍不改 gate5**：改动要同时动 §2 的 v_* 前提、§6 的两半结构、以及第 7 节的变异周期（它们按 POV 的序列号写死），而一次全跑 35 分钟；把这些拆成两次提交会让中间态不可判定。留作独立窗口，方案与素材已备齐。
