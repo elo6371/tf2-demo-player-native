@@ -27,16 +27,14 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
-MSVC_VER="14.44.35207"
-SDK_VER="10.0.26100.0"
-MSVC_W="C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/$MSVC_VER"
-SDK_W="C:/Program Files (x86)/Windows Kits/10"
-MSVC_ROOT="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/$MSVC_VER"
-SDK_BIN="/c/Program Files (x86)/Windows Kits/10/bin/$SDK_VER/x64"
-
-export PATH="$MSVC_ROOT/bin/Hostx64/x64:$SDK_BIN:$PATH"
-export INCLUDE="$MSVC_W/include;$SDK_W/Include/$SDK_VER/ucrt;$SDK_W/Include/$SDK_VER/shared;$SDK_W/Include/$SDK_VER/um;$SDK_W/Include/$SDK_VER/winrt"
-export LIB="$MSVC_W/lib/x64;$SDK_W/Lib/$SDK_VER/ucrt/x64;$SDK_W/Lib/$SDK_VER/um/x64"
+# Toolchain (MSVC + Windows SDK): defined ONCE, in tools/tf2-toolchain.sh. It
+# discovers the installed toolchain and asserts cl.exe / nmake.exe / rc.exe /
+# mt.exe BEFORE it exports anything, so a broken install fails here with a named
+# reason instead of exporting half an environment and dying inside cl.exe later
+# (that is exactly how the two bugs in the header above were found).
+# NOTE: the clean action also needs the toolchain to be discoverable (cmake only;
+# cl is not invoked) -- discovery is what makes this entry point portable.
+. ./tools/tf2-toolchain.sh || { echo "build-cmake.sh: no usable MSVC/SDK toolchain (see tools/tf2-toolchain.sh above)" >&2; exit 1; }
 
 BUILD=native/build-nmake
 LOG=evidence/cmake-build.log
