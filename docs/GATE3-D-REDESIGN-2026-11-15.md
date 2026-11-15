@@ -64,4 +64,12 @@ PLAYBACK-ERROR-PATHS=PASS        rc=0, 278 s
 
 **证明**：首次 advance 消费的事件数落在独立解码给出的窗口内；丢弃会被判红（starved 夹具 + M4）；重复进入会被判红（dup）；拿不到独立预期时不会静静地通过。
 
-**没证明**：整条 gate3 全绿。完整跑（6 个用例）在 20 分钟处被我自己的超时切断，已跑到的 27 PASS / 1 RED 里那条红就是上面这个半开区间的 bug（tick=9 saw=2），改闭区间后 D 单独复跑通过；A/B/C/E 本轮没有重跑，不据此宣布整门结果。
+**已补**：整条 gate3 全绿。2026-11-15 17:45 完整跑（6 个用例）：
+
+```text
+GATE tag=green cases=6 pass=35 red=0 seconds=542
+GATE-RESULT=PASS
+PLAYBACK-ERROR-PATHS=PASS
+```
+
+这条 PASS 的前提是 §2 的 census 窗口与 §3 的自检同步改完（36/36 变异被杀、35/0 净、M4 12/12），三者缺一不可。
