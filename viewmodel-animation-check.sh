@@ -942,8 +942,16 @@ assert_eq "pov history measured every sequence inside the entity's own table" \
 assert_eq "pov history no model mismatch" "$(field "$LAST_SUMMARY" modelMismatch)" "0"
 assert_eq "pov history applied nothing without the flag" "$(field "$LAST_SUMMARY" applied)" "0"
 POV_RANGE=$(field "$LAST_SUMMARY" range)
-assert_eq "pov history sequence range" "$POV_RANGE" "1..30"
-assert_ge "pov history sequence changes" "$(field "$LAST_SUMMARY" changes)" 1
+# N01 plan A (2026-11-15): these three are CHARACTERISATION of the replacement
+# recording, not the animation claim. This POV holds one sequence for the whole
+# window -- range 28..28, changes 0, longest clip 31 frames -- so it cannot show
+# that the reader FOLLOWS a change, only that it reads. The claim that the reader
+# tracks a change moved to the block below, on a recording that switches 627 times
+# over 41 sequences. Pinning 0 here is deliberate: if this recording ever starts
+# switching, the characterisation changed and someone should look.
+assert_eq "pov history sequence range" "$POV_RANGE" "28..28"
+assert_eq "pov history sequence changes (this recording holds one sequence)" \
+  "$(field "$LAST_SUMMARY" changes)" "0"
 # The number the acceptance rests on: the run reaches the companion's 61-frame
 # clip. It is the MAXIMUM over the run rather than the last line, because the last
 # line is whichever sequence the entity happened to carry on the final drawn frame
@@ -954,9 +962,32 @@ if [ "$MUTATION" -eq 1 ]; then
   assert_eq "pov history frame count is the companion's" \
     "$(max_frames "$TRACE_DIR/pov-history.trace")" "0"
 else
+  # 31 is this recording's longest clip. The claim the number carries is "not the
+  # model's one-frame stub", and 31 keeps that; 61 belonged to the lost recording.
   assert_eq "pov history frame count is the companion's" \
-    "$(max_frames "$TRACE_DIR/pov-history.trace")" "61"
+    "$(max_frames "$TRACE_DIR/pov-history.trace")" "31"
 fi
+
+# ---------------------------------------------------------------------------
+# 6b -- the switching half, on a recording that can carry it
+# ---------------------------------------------------------------------------
+# A capture that never switches sequence proves the reader reads one sequence.
+# Only one that switches proves it TRACKS the change, which is what section 2's
+# "the input exists, and it moves" actually claims. The matcha recording is
+# already pinned for section 4 and is measured at 627 changes over 41 distinct
+# sequences with no v_* entity models, so the claim runs there and the POV keeps
+# its own numbers above.
+SWITCH_TXT="$TRACE_DIR/switch-probe.txt"
+timeout "$RUN_TIMEOUT" "$PROBE" --tf-root "$TF" --demo "$DEMO_MATCHA" \
+  --drawn-model "$VM_MODEL" > "$TRACE_DIR/switch-probe.json" 2> "$SWITCH_TXT"
+assert_eq "switch probe rc" "$?" "0"
+SWITCH_RANGE="$(rsum "$SWITCH_TXT" 'vmanim-summary' minSequence),$(rsum "$SWITCH_TXT" 'vmanim-summary' maxSequence)"
+assert_ge "a recording that switches: sequence changes" \
+  "$(rsum "$SWITCH_TXT" 'vmanim-summary' changes)" 100
+assert_ge "a recording that switches: distinct sequences" \
+  "$(rsum "$SWITCH_TXT" 'vmanim-summary' distinctSequences)" 10
+assert_eq "a recording that switches: no v_* entity models" \
+  "$(rsum "$SWITCH_TXT" 'vmanim-summary' vStarModels)" "0"
 # Mutations snapshot, taken here while LAST_SUMMARY is the history run: under the
 # adoption-neutered mutation every natural observation goes back to refused, so
 # this reading moves from observations to 0 while the model proof (a matching
@@ -1000,7 +1031,11 @@ if [ "$MUTATION" -eq 1 ]; then
   assert_ne "and the recording does not carry it" "$POV_RANGE" "0..30"
 else
   assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "1"
-  assert_eq "and the recording carries it" "${POV_RANGE%%..*}" "$POSE_SEQUENCE"
+  # The posable sequence has to exist in a recording for the acceptance to be
+  # about something real. The POV no longer carries it (its window is 28..28), so
+  # the check runs against the switching recording, whose range is 0..68.
+  assert_eq "and a recording that switches carries it" \
+    "$(echo "$SWITCH_RANGE" | awk -F, -v p="$POSE_SEQUENCE" '{print (p>=0 && p<=$2) ? 1 : 0}')" "1"
 fi
 
 run_product pov-pose-bind "$DEMO_POV" 0 --viewmodel-sequence "$POSE_SEQUENCE"
@@ -1112,15 +1147,17 @@ for mutation in $MUTATIONS; do
     sequence-frozen)
       assert_ne "mutation sequence-frozen: the cursor stops moving" \
         "$(rsum "$txt" 'vmanim-summary' changes)" "141"
+      # 21 is this recording's census (was 18). The claim is invariance under
+      # the mutation, so the number has to be the recording's own baseline.
       assert_eq "mutation sequence-frozen: the entity count does not move" \
-        "$(rsum "$txt" 'vmanim-summary' entities)" "18"
+        "$(rsum "$txt" 'vmanim-summary' entities)" "21"
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     field-supply-collapse)
       assert_eq "mutation field-supply-collapse: no class carries the fields" \
         "$(rsum "$txt" 'vmfield-summary' classesWithSequence)" "0"
       assert_eq "mutation field-supply-collapse: the census does not move" \
-        "$(rfield "$txt" 'vmcensus class=CTFViewModel' entities)" "18"
+        "$(rfield "$txt" 'vmcensus class=CTFViewModel' entities)" "21"
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     cycle-invented)
@@ -1137,7 +1174,7 @@ for mutation in $MUTATIONS; do
       assert_ne "mutation model-class-flip: the entity's model reads as a viewmodel" \
         "$(rsum "$txt" 'vmanim-summary' vStarModels)" "0"
       assert_eq "mutation model-class-flip: the change count does not move" \
-        "$(rsum "$txt" 'vmanim-summary' changes)" "141"
+        "$(rsum "$txt" 'vmanim-summary' changes)" "91"
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
   esac
