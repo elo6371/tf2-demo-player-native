@@ -1,8 +1,8 @@
 # N17 / N18 / N19 / N20 覆盖矩阵（2026-11-15）
 
 - 执行：`e17-e20-char`（N17/N18/N19/N20 责任子智能体）
-- 工作树：`D:/TF2_Native_Worktrees/t105-e5`　分支：`candidate/e5`　HEAD：`a901ece`（初稿）→ **`0d0747c3`（2026-11-15 23:00 复核时就地更新，见 §2.6）**
-- 证据目录：`D:/_shared/EXEC-2026-11-16/e17-e20-char/`
+- 工作树：`D:/TF2_Native_Worktrees/t105-e5`　分支：`candidate/e5`　HEAD：`a901ece`（初稿）→ `0d0747c3`（2026-11-15 23:00 复核）→ **`32aa54de`（§3.7 产品帧的采集时点）→ `e5fe2219`（2026-11-16 00:05 当前，n05 提交 N05 step 3 后）**。§3 的全部行号已在 `e5fe2219` 上逐条复核。
+- 证据目录：**`D:/_shared/EXEC-2026-11-15/INST4/`**（`p1a-n17/` = N17 普查与诊断脚本；`p1b-n18/` = N18 的 37 项只读普查产物 + `draw/` 三条产品帧与 trace）；早期一次性诊断包装在 `D:/_shared/EXEC-2026-11-16/e17-e20-char/tools/`
 - 状态词汇：**PASS / NOT VERIFIED / UNSUPPORTED**（`docs/T85-SUPPORT-SCOPE.md` 只认这三种），外加本批 N20 裁决指定的 **OPEN（未实现）**。PASS 只对具名门禁成立，不等于可发布。
 
 **阅读约定（这是本文件的硬规则）**：每一格要么给出「文件:行号」或「探针命令 + 实测输出」，要么写「无」/「未证」。**全文不出现「应该有」。**
@@ -35,7 +35,7 @@
 | 卡 | 资产存在 | 解析器存在 | 绘制/驱动实现存在 | 可复现格 |
 |---|---|---|---|---|
 | **N17** 人物动作与服务器数据边界 | 有：九职业 `models/player/<class>.mdl` + `<class>_animations.mdl` 伴生（`model_pose_probe --player-animation-test` 九职业全通，rc=0） | 有：本地序列标签选择器 `native/src/main.cpp:315` `choosePlayerAnimationSequence`，谓词与匹配本体在 `native/include/animation_sequence_match.h`（探针与产品共用同一份） | **部分**：idle / moving / crouch / flinch 四种有选择逻辑；jump / fall / land / turn / taunt / attack / death 无 | 见 §2 |
-| **N18** 第一人称与武器全槽位 | 有：`models/weapons/v_models/` **37 个**第一人称 `.mdl`（`v_hm_watch` 在子目录）+ `models/weapons/c_models/` **319 个**第三人称 `.mdl`（含 9 个 `c_<class>_arms.mdl`） | 有：`viewmodel_range_probe --all-lods` 37 个全部 `resolution=found-vpk` / `vtxOutOfBounds=0` / `meshBuilt=1`；材质解析 `VmtParser::resourcePath`（`native/src/vmt_material.cpp:435`）对 `v_medigun_medic` 实测 **7/7 槽 status=ok** | **部分**：网格可建、材质可解析；**动画层 refused**（`--viewmodel-apply-animation` 在两份钉住录制上 changes nothing measurable，`native/src/main.cpp:2018-2026`）；LOD1+ 未实现且资产本身只有 LOD0 | 见 §3 |
+| **N18** 第一人称与武器全槽位 | 有：`models/weapons/v_models/` **37 个**第一人称 `.mdl`（`v_hm_watch` 在子目录）+ `models/weapons/c_models/` **319 个**第三人称 `.mdl`（含 9 个 `c_<class>_arms.mdl`） | 有：`viewmodel_range_probe --all-lods` 37 个全部 `resolution=found-vpk` / `vtxOutOfBounds=0` / `meshBuilt=1`；材质解析 37/37 全 `status=ok`（147 槽零失败）；契约 `meshReady 37/37`、`contractOk 25/37`（12 个 false 全是**右手放置锚缺失**，`--hand left` 可救回 9 个） | **部分**：网格可建、材质可解析、**材质 GPU 上传已证**、**像素已证（2 职业）**；**动画层 refused**（`--viewmodel-apply-animation` changes nothing measurable，`native/src/main.cpp:3044`）；**世界 FOV 被 `--viewmodel-fov` 污染**（`native/src/native_renderer_frame.cpp:179`）；**团队涂装无输入**；**手臂骨合并未实现**；LOD：ViewModel 无 LOD 数据（101 descriptor 全 lod=0），玩家侧无选择器 | 见 §3，产品帧见 §3.7 |
 | **N19** 网格/实例/纹理容量 | 有：三只 OOM 武器 `.mdl` 在 VPK 内可读（`c_flamethrower` 4452 B、`c_sapper_xmas` 2892 B、`c_shogun_warhorn` 2052 B） | 有：四层预算账目 + 优先级分类（见 §4.1 / §4.2） | **部分**：T85 分支实测 `0x8007000E` 601 行 → 0 行；**但那不是本 HEAD 的读数** | **无**（等 host 锁） |
 | **N20** 三指定效果 | 有：`particles/flamethrower.pcf`、`medicgun_beam.pcf`、`medicgun_attrib.pcf`、`blood_impact.pcf`、`blood_trail.pcf`、`burningplayer.pcf`（pcf 总 135） | **只有事件记账**：`native/src/effects_timeline.cpp:41/57/70` 三个 `add*Event` + `:35` `countThrough` | **无**：全仓 grep `drawEffect|renderEffect|particleSystem|effectPass` 命中 **0**；产品唯一相关输出是 `native/src/main.cpp:10111` 的计数行 | **无**（OPEN） |
 
@@ -324,20 +324,162 @@ native/build-nmake/viewmodel_range_probe.exe --tf-root "D:/.../tf" \
 
 按 N18 要求：**蹲站眼位只记录、不改**。FOV 常数在自测层是自洽的（90/40/120、legacy 80 迁移），但在真实模型上 `contractOk=false` —— 这是**待查**项，不是可以直接改常数的证据。
 
+#### 3.4.1 世界相机 FOV 就是 ViewModel FOV（N18 的「独立投影」槽 —— 结构性缺陷，不是未测）
+
+这是本轮新增的决定性读数，**推翻了初稿把「独立 viewmodel 投影」当作已实现**的写法。
+
+- `native/src/native_renderer_frame.cpp:179`：`const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, worldNearPlane, worldFarPlane);` → `:180 const XMMATRIX mvp = view * projection;` → `:182 XMStoreFloat4x4(&constants.mvp, mvp);`。**世界 pass 的投影矩阵用的就是 ViewModel 的 FOV。**
+- 全仓 `XMMatrixPerspectiveFovLH` 只有三处：`native/src/native_renderer_frame.cpp:179`（世界）、`native/src/native_renderer_viewmodel.cpp:571`（手臂，near=`max(radius*0.05,0.01)`、far=`distance+radius*4`）、`native/src/native_renderer_viewmodel.cpp:804`（weapon body，near=`max(weaponRadius*0.05,0.01)`、far=`distance+weaponRadius*4`）。**手臂与武器各有自己的投影，唯独世界复用 ViewModel FOV。**
+- `settings_.viewModelFov` 全仓只有两个读者：`native/src/native_renderer_camera.cpp:184`（`reading.fovDegrees = settings_.viewModelFov;`，只读数）与上面 `native_renderer_frame.cpp:179`。
+- `RenderSettings`（`native/include/native_renderer.h:60-75`）只有 `float viewModelFov = 90.0f;`（`:71`）与 `int modelLod = 4;`（`:69`），**没有独立的 camera / world FOV 字段**；`constexpr float clampViewModelFov(float value)`（`:34`）夹 40..120。
+- 两个写入口共享同一字段：`native/src/main.cpp:1832`（`applyCamera` 里 `g_renderer->setViewModelFov(camera.fov);`）与 `native/src/main_camera.cpp:123`（bookmark.fov）→ bookmark / director 的镜头 FOV 也会改世界投影。
+- 世界 near/far 是独立的：`native/src/native_renderer_frame.cpp:172-177`，`const float kWorldNearMapUnits = 4.0f;`、worldFarPlane=100.0f —— **只有 FOV 被耦合，near/far 没有**。
+
+**像素证据（同一次运行内部比较，历史已提交帧）**：`evidence/t1-viewmodel-acceptance/frames/fov-40.png` vs `fov-120.png` → **156670 / 860784 像素不同（18.20%）**，8x8 网格几乎全格（左半 x<372 为 0，只有最左条带不动）；对照 `vm-off.png` vs `vm-command.png` 只差 **24907 px（2.89%）**且 8x8 网格**集中在一列竖直条带**（x 约 632–704）。→ 换 FOV 动的是整个画面（含世界几何），不是只动武器。
+
+**门禁覆盖缺口**：`grep -ho "viewmodel-fov [0-9]*" *.sh` 全仓 **34 次 90 / 3 次 40 / 2 次 120 / 2 次 10 / 1 次 200 / 2 次无值**；**唯一会变 FOV 的门禁是 `viewmodel-contract-check.sh`（distinct=6）**，而它的断言全是读数与 clamp（`:581-582` probe FOV low/high=40/120；`:586-593` fov 90 kept、fov 10→40 fovClamped=true、fov 200→120；`:632-638` `assert_eq "product vm90 fov" "$(field "$LAST_READING" fov)" "90.0"`；`:659-707` vmdefault/vmstored(60)/vmlegacy(80→90)/vm40/vm120/vmleft/vmfov10/vmfov200）。**没有任何一条比对两个 FOV 下的世界像素** —— 这条缺口仍在。
+
+落点（不在本卡修）：`native/src/native_renderer_frame.cpp:179` 应读一个独立的 camera/world FOV；`RenderSettings`（`native/include/native_renderer.h:59-74`，`int modelLod = 4;` 在 `:69`、`float viewModelFov = 90.0f;` 在 `:71`）需要新字段。**注意 `--viewmodel-fov` 的文档语义**（`native/src/main.cpp:2961` `clamped to 40..120; omitted means the stored`）是 ViewModel 专用，`native/src/main.cpp:7987-7988` / `:13300-13301` / `:13421-13422` 三处只把它传给 `buildViewModelRequest` / `buildViewModelCompanionRequest` —— **flag 的意图是 ViewModel 专用，实现却污染了世界**。
+
 ### 3.5 动画层：这是 N18 真正的缺口
 
-- `--viewmodel-apply-animation` 在两份钉住录制上「changes nothing measurable」（`native/src/main.cpp:2018-2026` 原文），每帧仍被 refused、画 bind pose。
-- `--viewmodel-sequence <n>` 是**输入覆盖，不是功能**（`main.cpp:2004-2012` 注释）：钉住录制上 ViewModel 实体只带 sequence 1/29/30，而它指的模型只能摆 sequence 0。
-- 产品**确实读** `m_nSequence`：`native/src/entity_model.cpp:409` `readIntSlot(state, "m_nSequence", hasSequence)`；`native/src/animation_binding.cpp:444` 无序列 → `MissingSequence` 拒绝，`:486` 用序列号采样；`native/src/viewmodel.cpp:504/508/531` 三处诊断文本。
-- 而**玩家身体**走本地标签匹配，因为「the demos this product can play carry no per-player m_nSequence or m_flCycle」（`native/src/main.cpp:2029-2031` 原文）。**两条路并存：ViewModel 走服务器序列号，玩家身体走本地标签。**
+- `--viewmodel-apply-animation` 在两份钉住录制上「changes nothing measurable」（`native/src/main.cpp:3040-3049`，原句在 `:3044`：`On both pinned recordings, turning it on changes nothing measurable`），每帧仍被 refused、画 bind pose。（初稿此处写 `main.cpp:2018-2026`，行号已随 HEAD 漂移，本轮更正。）
+- `--viewmodel-sequence <n>` 是**输入覆盖，不是功能**（`native/src/main.cpp:3026-3034` 注释：`an input OVERRIDE, not a feature`）：钉住录制上 ViewModel 实体带 sequence 1/29/30，而它指的模型只能摆 sequence 0。覆盖点在 `native/src/main.cpp:13284-13287`（`if (viewModelSequenceOverride >= 0) { animationInput.hasSequence = true; animationInput.sequence = viewModelSequenceOverride; }`，注释说明它**REPLACES a value rather than supplying one**）。（初稿此处写 `main.cpp:2004-2012`，已更正。）
+- 产品**确实读** `m_nSequence`：`native/src/entity_model.cpp:409` 起（`lookup.input.entityIndex = bestIndex; lookup.input.entityPresent = true; bool hasSequence …`，`readIntSlot(state, "m_nSequence", hasSequence)`）；`native/src/animation_binding.cpp:444-446`（`if (request.sequence < 0) return refuse(AnimationInputStatus::MissingSequence, "entity carried no m_nSequence");`），`:447` 越界分支、`:486` 用序列号采样；`native/src/viewmodel.cpp:504-508`（`"the viewmodel entity at index … carries no m_nSequence"`）与 `:531`（`m_nSequence` out of range）。
+- 而**玩家身体**走本地标签匹配，因为「the demos this product can play carry no per-player m_nSequence or m_flCycle」（`native/src/main.cpp:3050-3057`，T61 注释；初稿写 `main.cpp:2029-2031`，已更正）。**两条路并存：ViewModel 走服务器序列号，玩家身体走本地标签。**
 
-### 3.6 结论
+### 3.6 结论（本轮修订）
 
-- 槽位（model / arms / companion / team）：**数据层 PASS**（37 个第一人称 + 319 个第三人称全部可读、可建网格；九职业手臂复合模型齐）。
-- material：**解析器 PASS（7/7）**；**GPU 上传未证**。
-- sequence（第一人称动画）：**NOT VERIFIED** —— 通道被 refused，画的是 bind pose。
-- LOD1+：**UNSUPPORTED** —— 资产里只有 LOD0（D34 记为 legacy 限制）。
-- 像素：**未证**。身体像素不代替武器像素，本轮两者都没测。
+- 槽位（model / arms / companion / team）：**数据层 PASS**（37 个第一人称 + 319 个第三人称全部可读、可建网格；九职业手臂复合模型齐）。**但「真正被画过」的槽位原本只有 1 个**（门禁历史只用过 `v_scattergun_scout.mdl`），本轮补了 2 个（见 §3.7）。
+- material：**解析器 PASS（7/7）**；**GPU 上传本轮首次证到**（见 §3.7：`materialResolved=3 uploads=3 phongAppliedRanges=2`，cls-soldier `6/6/4`）。历史 t1 证据里没有 `gpu: viewmodel materials` 行（那条 trace 是后来才加的），所以旧证据**不能**当上传证据 —— 这条判级本轮从「未证」改为「已证」。
+- sequence（第一人称动画）：**NOT VERIFIED** —— 通道被 refused，画 bind pose。本轮的产品帧进一步坐实：`skinning=0 boneTableCoverage=0/0 bindPose=1`。
+- **独立投影**：**不存在** —— 世界相机 FOV 被 `--viewmodel-fov` 控制（§3.4.1）。这是结构缺陷，不是未测。
+- LOD1+：**两边要分开说**。① 事实：`native/src/model_loader.cpp:1483-1495` 取文件声明的**最低 LOD** 并只挑该 LOD 的 descriptor（`:1531-1537` 范围数不符则 refuse）；37 个 `v_models` 共 101 个 VTX descriptor **全部 lod=0、零 LOD1** —— 对 ViewModel 而言**没有可选 LOD 数据，LOD 切换无对象**。② 缺失能力：玩家/世界模型侧**才是选择策略缺失** —— `grep -rn "modelLod"` 只命中 `native/src/native_renderer_settings.cpp:42/52` 与 `native/include/native_renderer.h:69`，**没有任何读者把 modelLod 传给绘制**，没有距离/屏幕尺寸/预算判据；而玩家模型确实有 LOD（scout 50 desc/9 target、soldier 50/9、heavy 43/8、spy 31/7、medic 29/6；lod=0 计 39、lod=1 计 39、lod=2 计 33、lod=3..6 各 23）。
+- **团队涂装**：**结构缺失** —— ViewModel 材质解析完全不经 MDL 皮肤家族表（`native/src/viewmodel_material.cpp:318` 只按 `metadata.textureCandidates[slot]` 取槽；`grep -n skinFamil\|teamNumber\|m_iTeamNum\|paintIndex` 对四个 viewmodel 文件 **0 命中**；`grep -n "viewmodel-team\|--team"` 对 `main.cpp` **0 命中**），上传键只有 `slot.vtfPath`（`native/src/viewmodel_material.cpp:367`）。数据侧：9 个 `c_<class>_arms.mdl` **全部 skinFamilies=10**，**7/9 的 family1≠family0**（红→蓝；例外 `c_scout_arms` textures=1、`c_heavy_arms` textures=2）；37 个 `v_models` 里 **29/37** family1≠family0，family0 恒等 37/37。→ **两队 ViewModel 手臂/袖子都画 family0（红）**。团队信号在产品里**已可用**（`native/include/playback_hud.h:15-16 bool teamKnown; std::int32_t team;`，`native/src/main.cpp:7347` 已写进 trace），缺的只是 ViewModel 材质侧不消费。
+- **手臂骨合并**：**没有对象** —— `grep -rni "bonemerge\|bone_merge\|mergeBone\|LayerBone\|arm layer\|armslayer"` 在 `native/src/*.cpp` `native/include/*.h` 里除 `animation_sequence_match.h` 三处讲 `armslayer_*` 序列名（`:36 / :118 / :344`）外**无任何骨合并代码**。属于**未实现**，不是未测。已实现的挂点只有世界 pass 的持握点 `findHoldPoint`（`native/src/main.cpp:12014` 定义、`:12067` 调用，只认 `attachment.name == "weapon_bone"` 或同名 BONE，两者都没有就**不挂**，注释明写 no guessed bone, no weapon at the origin）。
+- **像素**：**本轮首次证到**（§3.7：vmoff 负控 vs 两个职业帧，差异 8952 px / 5926 px，集中在画面中下偏右）。但只覆盖 2 个职业的 1 个槽位，**不代替全 37 槽位**。
+
+
+### 3.7 产品实跑：3 条真帧（12 条计划里 9 条 BLOCKED-by-D72）
+
+这一节是 N18 的**像素级实跑证据**。初稿写「本环境无产品运行窗口」，本轮拿到了窗口，但**只跑成 3 条**：锁被 D72（MSYS pid 命名空间缺陷）反复判死，三次事故让 12 条计划里的 9 条必须留空。
+
+#### 3.7.1 共同身份（每一帧都成立）
+
+| 项 | 值 |
+|---|---|
+| 产品 exe | `native/build-nmake/tf2_demo_native.exe`，`sha256=e61c7fd9e5dba5167463f493937b23be799c96bcdd35bee7e0970d747a3bb078`，3,025,408 B，mtime 2026-11-15 22:58:31 |
+| 录制 | `D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem`，51,834,617 B，`sha256=308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f` |
+| HEAD | **采集时 `32aa54de`**；本文件全部行号已在 **`e5fe2219`**（n05 的 N05-step-3 提交之后）上逐条复核过，`native_renderer_frame.cpp:179` 的世界 FOV 行未移动 |
+| 共同参数 | `--start-paused --capture-tick 0 --viewmodel-fov 90 --hidden-window --audio-disabled` + 每次一个 `mktemp -d` 隔离的 `--settings-file` / `--ui-settings-file` |
+| 帧尺寸 | **1264x681**，BMP 2,582,406 B |
+| 产物目录 | `D:/_shared/EXEC-2026-11-15/INST4/p1b-n18/draw/` |
+
+#### 3.7.2 三条帧（全部 rc=0、全部带 trace）
+
+| 帧 | 命令差异 | BMP sha256 | trace 字节 |
+|---|---|---|---:|
+| `vmoff` | （无 `--viewmodel`）**负控：没有第一人称模型** | `8a40433c5bc18ce6ab97903a35a2377fb6ef2ac8280c4e82409324f067cf4284` | 124894 |
+| `cls-scout` | `--viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render command` | `2e6147c6d24c5adc57b2bb2906c116f820f1521a466631dd3f75db9370443f49` | 132953 |
+| `cls-soldier` | `--viewmodel models/weapons/v_models/v_rocketlauncher_soldier.mdl --viewmodel-render command` | `d6c7940e3b820039f226566f663fc9454feb1815430a047dd7e8ee1f34b8aa2d` | 133214 |
+
+- `vmoff.trace` 里 `gpu: viewmodel` 行 **0 条** —— 负控的行为正确：不加 `--viewmodel` 就没有这条 pass。
+- 每次 `--metrics-file` 都只有一行数据：`0.564881,1,1.77028,0,…` / `0.619234,1,1.6149,0,…`（暂停态单帧渲染，符合预期）。
+
+#### 3.7.3 `cls-scout` 的完整 viewmodel 读数（trace 原文）
+
+```
+gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=1 vertices=23169 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=missing meshRadius=24.98 alignment=weapon_bone vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 sequenceAccepted=0 sequenceOverride=-1 modelMismatch=1 boneMismatch=0 bindPose=1 ranges=2 boundSlots=2
+gpu: viewmodel materials path=models/weapons/v_models/v_scattergun_scout.mdl slots=3 resolved=3 decoded=3 decodeFailed=0 uploadSlot=-2 uploads=3 cache=3 drawnSlot=0 source=mdl-mesh-table meshTable=1 meshStride=116 meshStrideExercised=1 meshCount=2 descriptorsValidated=2 strideSource=unexercised reason=-
+gpu: viewmodel materialReadings passRan=1 materialSlots=3 materialResolved=3 texturesUploaded=3 texturesReused=2 fallbackSlots=0 alphaSlots=2 alphaAppliedRanges=0 phongSlots=3 phongAppliedRanges=2 bumpSlots=1 bumpAppliedRanges=0 selfillumSlots=0 selfillumAppliedRanges=0 decodedSlots=3 drawRanges=2 fallbackRanges=0 boundSlots=2 blendedRanges=0 alphaTestedRanges=0 flatColor=0 slotOverride=-1 missingSlotInjected=-1 decodeFailure=-
+gpu: viewmodel ranges path=models/weapons/v_models/v_scattergun_scout.mdl ranges=2 firstRange=(slot 0, 9723 vertices, textured=1 translucent=0 alphatest=0) uploaded=1 rangeSlots=0,1 rangeVertices=9723,13446 rangeTextured=1,1
+gpu: viewmodel request path=models/weapons/v_models/v_scattergun_scout.mdl status=ok resolution=3 companions=1 meshReady=1 attachments=5 valid=5 partial=0 invalid=0 alignment=weapon_bone fov=90.0 hand=right reason=-
+gpu: viewmodel upload mesh=1 vertices=23169 bones=45 alignment=weapon_bone enabled=1 reason=-
+gpu: viewmodel centre viewSpace=(7.49,-5.36,56.17) clip=(4.038,-5.361,55.367,56.170) ndc=(0.072,-0.095) onScreen=1
+gpu: viewmodel frame eye=(0.45,-0.48,0.85) forward=(-0.043,0.974,-0.220) placement=(-9.42,52.74,-16.74) fov=90.00 near=1.2491 far=154.8857 distance=54.9594 radius=24.9816 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=weapon_bone
+gpu: viewmodel weaponBodyReading armDrawCalls=1 weaponDrawCalls=0 weaponFallback=noViewModelEntity weaponVisible=0 weaponReason=no ViewModel entity was selected, so no weapon entity can be named weaponEntity=-1 weaponVertices=0
+scene: vmAnim entity=-1 sequence=-1 ... status=missing poseAvailable=0 applied=0 ... entityRule=no ViewModel entity names the view entity in m_hOwner reason=no viewmodel entity owned by the view entity drawnModel=models/weapons/v_models/v_scattergun_scout.mdl entityModelMatchesDrawn=0 sequenceInRange=0 bindPose=1
+```
+
+读法：**`--viewmodel` 在 `--viewmodel-render command` 下画的确实是 `v_scattergun_scout`，但实体自己的模型（`c_scout_arms`）不在，所以 `entityModelMatchesDrawn=0 modelMismatch=1`、序列永远 `missing`、`bindPose=1 skinning=0`。** 这解释了 §3.5 的 refused —— **不是「动画没实现」，而是 command 通道下根本没有实体模型提供序列。**
+
+#### 3.7.4 `cls-soldier` 的完整 viewmodel 读数（**`alignment=-` 是真实回退现场**）
+
+```
+gpu: viewmodel pass order ... vertices=13428 ... meshRadius=40.73 alignment=- vmAnimInput=missing vmAnimApplied=0 drawnModel=models/weapons/v_models/v_rocketlauncher_soldier.mdl entityModelMatchesDrawn=0 modelMismatch=1 bindPose=1 ranges=4 boundSlots=4
+gpu: viewmodel materials ... slots=6 resolved=6 decoded=6 decodeFailed=0 uploadSlot=-2 uploads=6 cache=6 drawnSlot=0 meshStride=116 meshCount=4 descriptorsValidated=4
+gpu: viewmodel materialReadings ... materialSlots=6 materialResolved=6 texturesUploaded=6 texturesReused=4 fallbackSlots=0 alphaSlots=4 phongSlots=6 phongAppliedRanges=4 bumpSlots=2 bumpAppliedRanges=4 selfillumSlots=0 drawRanges=4 fallbackRanges=0 boundSlots=4
+gpu: viewmodel ranges ... ranges=4 rangeSlots=0,1,2,3 rangeVertices=684,5439,6453,852 rangeTextured=1,1,1,1
+gpu: viewmodel request ... meshReady=1 attachments=0 valid=0 partial=0 invalid=0 alignment=- fov=90.0 hand=right reason=-
+gpu: viewmodel upload mesh=1 vertices=13428 bones=29 alignment=- enabled=1 reason=-
+gpu: viewmodel centre viewSpace=(12.22,-8.74,91.57) clip=(6.582,-8.740,90.260,91.569) ndc=(0.072,-0.095) onScreen=1
+gpu: viewmodel frame eye=(0.45,-0.48,0.85) forward=(-0.043,0.974,-0.220) placement=(-15.64,86.28,-27.83) fov=90.00 near=2.0363 far=252.4971 distance=89.5958 radius=40.7253 hand=(1,0,0,0,0,1,0,0,0,0,1,0) attachment=-
+```
+
+- `rangeVertices=684,5439,6453,852` 与 §3.1 表格的 `soldier_sleeves_red(153/684)+soldier_hands(1030/5439)+v_rocketlauncher01(2499/6453)+v_rocket(517/852)` **逐个对上** —— 包括最后那段 **852 顶点的独立弹体**。→ **4 个 range 全部真画（`boundSlots=4 fallbackRanges=0`），材质也是 4 个各自绑定。**
+- `attachments=0 alignment=-` 与只读探查的 `contractOk=false`（§3.1 的 12 个 false 之一：v_rocketlauncher_soldier 模型**真没有附着点**）在**产品画面**上互为对照：没有锚 → 用模型自身变换放置 → 但**照样画全部 4 段**。这条是「偏好集顺序/锚缺失是放置问题不是绘制问题」的直接证据。
+
+#### 3.7.5 像素证据（vmoff 是「没有第一人称模型」的负控）
+
+| 对比 | 差异像素 | 占比 | bbox |
+|---|---:|---:|---|
+| vmoff vs cls-scout | 8952 / 860784 | **1.040%** | (580,283)-(789,477) |
+| vmoff vs cls-soldier | 5926 / 860784 | **0.688%** | (624,331)-(777,490) |
+| cls-scout vs cls-soldier | 11847 / 860784 | 1.376% | (580,283)-(789,490) |
+
+8x8 网格（每格差异像素数）：差异**只落在 grid[3..5][3..4] 这 4–5 格**，其余 **56 格全 0**。逐格读数（vmoff vs cls-scout）：`grid[3][4]=1720`、`grid[4][3]=697`、`grid[4][4]=3564`、`grid[5][3]=1116`、`grid[5][4]=1855`。→ 与手臂/武器在画面中下偏右的位置一致，**不是全画布抖动**。
+
+肉眼（`draw/vmoff-crop.png`、`draw/cls-scout-crop.png`、`draw/cls-soldier-crop.png`，ROI (500,200)-(900,560) 再 NEAREST ×2）：
+- `vmoff` = 一双空手（红袖子 + 露指手套），**没有枪**。
+- `cls-scout` = 双手举一把**黑色散弹枪**。
+- `cls-soldier` = 右手一只红色拳头 + 一把**黑色火箭筒**（可见扳机护圈与灰色扳机，右侧）。
+
+→ **这是「ViewModel 真的被画到屏幕上了」的像素证据，不是计数器**。也是本轮首次把 §3.6 的「像素未证」变成「已证（2 个职业 / 1 个槽位/职业）」。
+
+#### 3.7.6 9 条没跑成的 + 锁与残留进程（原样照抄，不抹）
+
+计划 12 条，落地 3 条，**剩 9 条标 `BLOCKED-by-D72`**：pyro / demo / heavy / engineer / medic / sniper / spy 七个职业，加 `cls-scout-flat`（`--viewmodel-flat-color` 正控）与 `cls-scout-repeat`（可重复性控制）。**没有一条是在我持锁期间被别人打断的，打断发生在取锁/释放本身。**
+
+`LOCK-NOTES/e17-e20-char.txt` 全量（「锁与残留进程」栏原文）：
+```
+2026-11-15 23:33 e17-e20-char P1b N18: 37-slot draw sweep, 12 paused captures (--start-paused --capture-tick 0), est 12-25 min
+2026-11-15 23:54 e17-e20-char P1b N18: batched draw sweep (12 paused captures + vmoff baseline), est 12-25 min. Lock was FREE at start, product_processes=0.
+2026-11-15 23:57 START P1b N18 sweep v2
+2026-11-15 23:58 END P1b N18 sweep v2: STOPPED at vmoff+1. First line was STALE-LOCK=RECLAIMED owner=ui-d-n14-basemap pid=59684 age=22s reason=owner-dead -- I did not own that lock and did not run on it.
+2026-11-15 23:59 START P1b N18 sweep v3
+2026-11-16 00:00 END P1b N18 sweep v3 rc=9 (LOCK-OWNER-CHANGED after cls-soldier: n05-n06-maps reclaimed my live lock, age=18s)
+```
+
+三次 D72 现场（**这条缺陷的实际受害者序列**，D72 条目见缺陷台账）：
+1. **23:53 我回收 n05**：`VERIFY-LOCK=FAIL (… owner=n05-n06-maps pid=58372 age=5s heartbeat_limit=900s)` → 同一次调用内 `STALE-LOCK=RECLAIMED owner=n05-n06-maps pid=59700 age=3s reason=owner-dead` → `VERIFY-LOCK=ACQUIRED owner=e17-e20-char pid=1949`。
+2. **23:57 我回收 ui-d**：`sweep-v2.log` 首行 `STALE-LOCK=RECLAIMED owner=ui-d-n14-basemap pid=59684 age=22s reason=owner-dead` → `VERIFY-LOCK=ACQUIRED owner=e17-e20-char pid=925`。`LOCK-NOTES/ui-d-n14-basemap.txt` **不存在**。
+3. **00:00 n05 回收我**：`VERIFY-LOCK=ACQUIRED owner=e17-e20-char pid=1570`（23:59:35）→ 跑完 `cls-soldier rc=0` → `LOCK-OWNER-CHANGED cls-soldier owner=n05-n06-maps` → `VERIFY-LOCK=RELEASE-SKIPPED … (owned by pid 54920, not 1570)` → `LOCKRUN-RC=9`。n05 笔记里同一条：`STALE-LOCK=RECLAIMED owner=e17-e20-char pid=1570 age=18s reason=owner-dead (not mine; I did not run on it)`。
+
+机制（`tools/verify-lock.sh:87-98`）：`vlock_pid_alive "$old_pid" && alive=yes`（`:88`，`kill -0`）→ `:89` 要求 `alive=yes` 才打 FAIL → alive=no 就 `:94 reason=owner-dead`、`:98 rm -rf "$d"`。**锁里存的是 MSYS pid，跨 bash 安装 `kill -0` 必失手，于是 age=3s/18s/22s 的活心跳全被判死。** 这是执行基础设施缺陷，不是捕获内容问题。
+
+**残留进程状态**：sweep 结束后 `tasklist | grep -ci tf2_demo_native` = **0**；锁目录 `.scratch/verify-all.lock` = **不存在**（00:02:27 复核）。跑之前我误启动过一次**没包 lockrun** 的裸跑，3 秒内就 `job_kill` 掉，**没有产出任何帧**（那次产物只有 0 字节的 `vmoff.log`）。
+
+#### 3.7.7 一条必须记下的自伤：D-40 路径 bug
+
+前两条 sweep（v1/v2）的 12 次调用全部 `rc=15 bmp=0`，**是我自己的 bug**：脚本里 `TF2_NATIVE_TRACE="$ROOTW/$OUT/<name>.trace"`，而 `$OUT` 是 POSIX 绝对路径 `/d/_shared/…`，拼成了 `D:/TF2_Native_Worktrees/t105-e5//d/_shared/…`，产品打不开 metrics/trace 就 `return 15`（`native/src/main.cpp:10676`）。先例与解法都在 `material-coverage-check.sh:541`（D-40 注释）+ `:545-550`（`abs_win_path()` 用 `cygpath -m`）。v3 起 `OUTW=$(cygpath -m "$OUT")`、`ISOW=$(cygpath -m "$ISO")`。**那 12 次读数全部作废，不进任何分母。**
+
+#### 3.7.8 本节证明什么 / 不证明什么
+
+**证明**：① 产品确实把 `v_<weapon>_<class>.mdl` 画到了屏幕上（两条独立证据：trace 的 `vertices=23169/13428 drawCalls=1`，以及负控 vmoff 的像素差 1.04% / 0.688% 且集中在手臂区域）；② 多 range 多材质槽各自绑定的路径在真实资产上走通（scout 2 range 2 槽、soldier 4 range 4 槽，`fallbackRanges=0`）；③ 材质解码→GPU 上传确实发生（`texturesUploaded=3/6`、`phongAppliedRanges=2/4`、`bumpAppliedRanges=0/4`）；④ 无放置附着点的模型（soldier）在 `alignment=-` 下**仍然画全部 range**，说明锚缺失只影响摆放不影响绘制。
+
+**不证明**：① 不证明 37 个槽位都能画 —— 只测了 2 个职业各 1 个槽位，剩 35 个未画；② 不证明任何动画 —— 三条帧全是 `skinning=0 bindPose=1`，command 通道下实体模型不在，序列必然 missing；③ 不证明团队涂装 —— `cls-scout` 的 `scout_hands` 只有 1 张纹理（`c_scout_arms` family1 也与 family0 相同），要证涂装必须用有红蓝差异的模型（如 medic / soldier），那 7 个都在这 9 条 BLOCKED 里；④ 不证明 LOD 选择；⑤ 不证明 weapon body（`weaponDrawCalls=0 weaponFallback=noViewModelEntity`，因为 command 通道下没有 ViewModel 实体可命名）；⑥ 不证明可重复性（`cls-scout-repeat` 没跑成，**只有 1 次观测**）。
+#### 3.7.9 N18 卡片判据逐条对账
+
+| 卡上要求 | 本轮状态 | 证据或缺口 |
+|---|---|---|
+| 先一个职业一个槽位**实际绘制** | **部分达成：2 / 9** | `cls-scout`（`v_scattergun_scout`）、`cls-soldier`（`v_rocketlauncher_soldier`）有 trace + 像素（§3.7.2/3.7.5）；其余 7 个职业 `BLOCKED-by-D72` |
+| 再扩**九职业 / 槽位** | **未达** | 37 槽位里画过 2 个；门禁历史只画过 `v_scattergun_scout` |
+| **手臂骨合并** | **未实现（不是未测）** | 全仓 0 处骨合并代码（§3.6）；已实现的只有世界 pass 的持握点 `findHoldPoint` |
+| **团队 skin** | **结构缺失** | 材质解析 4 个文件里 `skinFamil/teamNumber/m_iTeamNum/paintIndex` **0 命中**；数据侧 7/9 个 `c_<class>_arms` 有红蓝 family1（§3.6） |
+| **独立 viewmodel 投影** | **不成立：被耦合** | 世界 pass 投影读 `settings_.viewModelFov`（`native/src/native_renderer_frame.cpp:179`）；换 FOV 画面差 18.20%（§3.4.1） |
+| **LOD1 明确补实现** | **ViewModel 侧无对象；玩家侧缺选择器** | 37 个 `v_models` 的 101 个 descriptor 全 `lod=0`；`modelLod` 全仓无绘制读者（§3.6） |
+| **配对 probe 成功 ≠ GPU 有模型；要用实际 draw / 材质 / 骨骼输出定位** | **本轮照做并给出对照** | 正是这条把「37 槽位 probe 全绿」和「只有 1 个槽位被画过」分开：`contractOk 25/37`、`meshReady 37/37` 都是 probe 结论，而 `drawCalls=1 vertices=23169` + 像素差 1.04% 才是「画上去了」；反过来 `materialResolved=3` 单独看也不能当上传证据，必须配 `texturesUploaded=3` 与 `phongAppliedRanges=2` |
+| **高光 / 光影暂不扩范围** | **本轮不声称** | `phongAppliedRanges=2/4` 是**读数**，不构成「光影质量」结论 |
 
 ---
 
@@ -438,9 +580,11 @@ header_validated=false parsed=false rendered=false mapping=false
 3. 产品侧四个动作（idle/moving/crouch/flinch）有真实的输入→选序→骨骼链路，其余七个动作没有。**其中 idle/run/crouch 已有画面级证据（§2.6.5 的 677 px 与 0 px 两组），flinch 只有 trace 级**。
 3b. **九职业 × 6 stance × 4 姿态的 checksum 普查（§2.6.2）**：产品实际会播的 18 条 stand/run clip 全部 distinct=4；同时给出两条**反例**（medic crouch 冻结、scout/medic jump float 单姿态）与一条**对照**（medic crouch_walk 四姿态全不同，证明解码路径没坏）。
 3c. **「空中态」的三层分界（§2.6.4）**：资产齐（九职业 jump 家族）+ wire 有 `FL_ONGROUND` 位（168 条 state 行里 8 条该位为清）+ 产品代码 0 处读取。这是「数据齐 ≠ 已实现」最硬的一条证据。
-4. 37 个第一人称模型 + 9 个手臂复合模型的逐条读数；材质解析对真实资产 7/7 成功。
-5. N19 四层预算的常量、读数行、优先级枚举、三例 OOM 的复现口径与判据。
-6. N20 只有记账、零绘制的代码事实与 PCF 能力读数。
+4. 37 个第一人称模型 + 9 个手臂复合模型的逐条读数；材质解析 37/37（147 槽零失败）；契约 `contractOk 25/37` 且 12 个 false **全部**是右手放置锚缺失（`--hand left` 救回 9 个，剩 5 个是模型真没有可用锚）。
+5. **N18 的三条产品帧（§3.7）**：`v_scattergun_scout` 与 `v_rocketlauncher_soldier` 确实被画到屏幕上 —— trace 侧 `drawCalls=1 vertices=23169/13428 ranges=2/4 boundSlots=2/4 fallbackRanges=0`，像素侧对 vmoff 负控差 1.04% / 0.688% 且**只落在 8x8 网格的 4–5 格里**。材质解码→GPU 上传（`texturesUploaded=3/6`）与 phong 应用（`phongAppliedRanges=2/4`）也是首次证到。
+6. **N18 的三条结构性缺口**（全部有代码行号，不是「未测」）：① **世界相机 FOV 就是 ViewModel FOV**（`native/src/native_renderer_frame.cpp:179` 世界投影读 `settings_.viewModelFov`；`settings_.viewModelFov` 全仓只有 2 个读者），像素后果 18.20% 全画面差；② **团队涂装无输入**（viewmodel 材质 4 个文件里 `skinFamil/teamNumber/m_iTeamNum/paintIndex` **0 命中**，9 个 `c_<class>_arms` 里 7 个有红蓝 family1）；③ **手臂骨合并未实现**（全仓 0 处骨合并代码）。
+7. N19 四层预算的常量、读数行、优先级枚举、三例 OOM 的复现口径与判据。
+8. N20 只有记账、零绘制的代码事实与 PCF 能力读数。
 
 **不证明：**
 
@@ -453,7 +597,11 @@ header_validated=false parsed=false rendered=false mapping=false
 3. **death-respawn** —— 本语料 POV demo 里死亡样本为 0（`spectate_probe` 实测）。
 4. **jump/fall/land/turn/taunt/attack 的任何实现** —— 全部没有驱动逻辑。
 5. **key 命名空间 / 重复注册** —— 未测。
-6. **LOD1+** —— 资产本身只有 LOD0。
+6. **LOD1+** —— ViewModel 侧 101 个 descriptor 全是 lod=0（**无对象**）；玩家/世界侧才是**选择器缺失**（`modelLod` 无读者）。这两句必须分开说。
+7. **37 个槽位都能画** —— 产品帧只覆盖 2 个职业各 1 个槽位，剩 35 个未画；那 9 条 `BLOCKED-by-D72` 里包含全部 7 个「有红蓝 family1」的职业模型所需的一半。
+8. **任何动画 / 蒙皮** —— 三条帧全是 `skinning=0 boneTableCoverage=0/0 bindPose=1`。
+9. **可重复性** —— `cls-scout-repeat` 没跑成，每条帧只有 **1 次观测**。
+10. **weapon body 通道** —— 三条帧都是 `weaponDrawCalls=0 weaponFallback=noViewModelEntity`（command 通道下没有 ViewModel 实体可命名），N18 卡里那一条**完全未测**。
 
 **方法学（§2.4 那两处注释冲突的教训，适用于全项目）**：当代码注释与探针实测冲突时，**以实测为准**，并把注释当作待修的文档缺陷登记，不要反过来用注释去解释读数。具体到本批：`native/include/animation_sequence_match.h` 声称 crouch locomotion 只有 pyro/heavy/medic 三个职业、flinch 只有 scout/soldier/pyro/demo 四个职业，实测分别是九个职业全有（spy 走 `crouch_SECONDARY`）与八个职业有 `a_flinch01`（heavy 用 `PRIMARY_flinch` 等四个）。用注释去推断就会漏掉 6 个职业的 crouch 与 5 个职业的 flinch。
 
@@ -488,20 +636,31 @@ $B/viewmodel_material_probe.exe --tf-root "$TF" \
 $B/pcf_capability_probe.exe "$TF"
 ```
 
-**需要产品窗口的（等 host 锁）**：
+**产品捕获（必须包 `tools/lockrun.sh`，仓库根执行）**：
 
 ```bash
-bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run e17-e20-char \
-  bash attach-weapon-budget-check.sh
-bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run e17-e20-char \
-  bash animation-drive-states-check.sh
+# 单条 ViewModel 绘制捕获（§3.7 用的就是这个形态；注意所有交给产品的路径
+# 必须是 Windows 形式，POSIX /d/... 会被拼成 "D:/<cwd>//d/..." 并让产品 rc=15 —— D-40）
+EXE=native/build-nmake/tf2_demo_native.exe
+TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
+OUT="D:/_shared/EXEC-2026-11-15/INST4/p1b-n18/draw"
+ISO=$(cygpath -m "$(mktemp -d)")
+bash tools/lockrun.sh e17-e20-char -- \
+  "$EXE" --tf-root "$TF" --audio-device "" --demo "$DEMO" --hidden-window --audio-disabled \
+    --settings-file "$ISO/x-settings.ini" --ui-settings-file "$ISO/ui.ini" \
+    --capture-frame "$OUT/cls-scout.bmp" --capture-tick 0 --metrics-file "$OUT/cls-scout.csv" \
+    --viewmodel-fov 90 --start-paused \
+    --viewmodel models/weapons/v_models/v_scattergun_scout.mdl --viewmodel-render command
 ```
+
+**门禁（同样要锁）**：`bash tools/lockrun.sh e17-e20-char -- bash animation-drive-states-check.sh`、`… -- bash attach-weapon-budget-check.sh`。
 
 ---
 
 ## 8. 本轮不落盘的东西与本文件的关系
 
-本文件是本批四卡的**唯一汇总交付**。证据原件在 `D:/_shared/EXEC-2026-11-16/e17-e20-char/`（目前只有 `n08-n10-maps` 旁目录）。探针输出都是标准输出，未逐条落文件；需要时可照 §7 原样重跑，读数是确定性的（同一 exe + 同一资产）。
+本文件是本批四卡的**唯一汇总交付**。证据原件在 `D:/_shared/EXEC-2026-11-15/INST4/`：`p1a-n17/`（N17 的 census.awk、bmpdiff/regiondiff/crop 三个诊断脚本）与 `p1b-n18/`（37 项普查产物 `vmodels.list` `all-lods.txt` `player-lods.txt` `contract-37.tsv` `contract-handleft.txt` `material-37.txt` `sequences-37.txt` `skinfamily-37.txt` `armsfamily-fixed.txt`，以及 `draw/` 下三条产品帧 + trace + `diff-readings.json`）。探针输出若未逐条落文件，可照 §7 原样重跑，读数是确定性的（同一 exe + 同一资产）。
 
 ### 8.1 `class-pose-family-check.sh`：**D53 已修，本机复跑 GREEN**（本节先给当前状态，再保留初稿那次 RED 的完整诊断作为 D53 的立案材料）
 
@@ -558,13 +717,15 @@ rc=1
 
 （我在证据目录里放了一个只用于诊断的一次性包装 `D:/_shared/EXEC-2026-11-16/e17-e20-char/tools/awk`，功能是先把文件参数里的 CR 去掉再交给 `/usr/bin/awk`。**它不是产品的一部分，也没有被门禁真正调用成功过**——把它记在这里只是因为上面的对照读数是用它复现的。）
 
-**下一步（当前状态：N17 已推进，其余待锁）**：
+**下一步（当前状态：N17 / N18 已推进，N19 / N20 待锁）**：
 
 1. ~~跑 `class-pose-family-check.sh`~~ **已完成（§8.1，PASS）**。
-2. ~~跑 `animation-drive-states-check.sh`~~ **跑了 7/9 条后因锁被抢而中止（§2.6.6）**。要拿到门禁自身的 PASS/FAIL，需要**在锁真正独占的条件下重跑全部 9 条**（约 40 分钟），并先修 `verify-lock.sh` 的 pid 命名空间缺陷，否则同样的事会再发生一次。**本轮不出这个 PASS。**
-3. 跑 `attach-weapon-budget-check.sh` → 补 §4.5 的「本 HEAD」读数与 exe sha256（**仍未跑**）。
-4. 若拿到 STV 语料，补 death-respawn 的观测窗口（**仍未**）。
-5. **`medic crouch` 冻结（§2.6.3）是本轮唯一一条画面级产品缺陷候选**，按卡的「只在复现后修」规则已经复现，但修复要动 `chooseCrouchLocomotionSequence`（共享 `animation_sequence_match.h`），属公共写域，**本轮不动代码，交给派单**。
+2. ~~跑 `animation-drive-states-check.sh`~~ **跑了 7/9 条后因锁被抢而中止（§2.6.6）**。要拿到门禁自身的 PASS/FAIL，需要**在锁真正独占的条件下重跑全部 9 条**（约 40 分钟），并先修 D72（`verify-lock.sh` 的 pid 命名空间缺陷），否则同样的事会再发生一次。**本轮不出这个 PASS。**
+3. ~~N18 产品帧~~ **3 条已落（§3.7），9 条 `BLOCKED-by-D72`**。补齐这 9 条后可把 §3.6 的「像素已证 2/37」推进到 9/37，并首次覆盖有红蓝 family1 的模型（medic / soldier / pyro 等），从而把「团队涂装画的是红队」从**代码结构缺失**升级成**像素级实锤**。
+4. 跑 `attach-weapon-budget-check.sh` → 补 §4.5 的「本 HEAD」读数与 exe sha256（**仍未跑**）。
+5. 若拿到 STV 语料，补 death-respawn 的观测窗口（**仍未**）。
+6. **`medic crouch` 冻结（§2.6.3）是本轮唯一一条画面级人物动画缺陷候选**，按卡的「只在复现后修」规则已经复现，但修复要动 `chooseCrouchLocomotionSequence`（共享 `animation_sequence_match.h`），属公共写域，**本轮不动代码，交给派单**（已登记 D73）。
+7. **本轮新登记的三条 N18 结构缺口**（§3.4.1 / §3.6）都要动别人正在改的文件，**一律不动代码、只交派单**：① 世界 FOV 与 ViewModel FOV 解耦（`native_renderer_frame.cpp:179` + `RenderSettings` 新字段，属 renderer 写域）；② ViewModel 团队涂装（`viewmodel_material.cpp` 需要 skin-family 参数，属动画/model 写域）；③ 手臂骨合并（全新功能，未实现）。
 
-**排期状态（lead 裁决，仍未变）**：`animation-drive-states-check.sh` 与 `attach-weapon-budget-check.sh` **都要 host 锁**。lead 已明确「**先不排，等 N12-A 提交完统一放锁**」。所以 N19 本 HEAD 读数与 N20 可复现格**保持 NOT VERIFIED / 无**；N17 因本轮已用自持锁跑了 7 条，**像素格不再是「未证」**（§2.6.5），但门禁级 PASS 仍缺。
+**排期状态（lead 裁决，仍未变）**：`animation-drive-states-check.sh` 与 `attach-weapon-budget-check.sh` **都要 host 锁**。lead 已明确「**先不排，等 N12-A 提交完统一放锁**」，且在 D72 修好前由 lead **手工分时**方可跑产品。所以 N19 本 HEAD 读数与 N20 可复现格**保持 NOT VERIFIED / 无**；N17 因本轮已用自持锁跑了 7 条，**像素格不再是「未证」**（§2.6.5），N18 有 3 条真帧（§3.7），但两者的门禁级 PASS 仍缺。
 
