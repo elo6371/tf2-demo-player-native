@@ -3795,6 +3795,8 @@ bool outlineVertexExtent = false;
         else ++invalidWorldGeometryArgument;
       } else if (wcscmp(arguments[i], L"--world-geometry") == 0) {
         ++invalidWorldGeometryArgument;
+      } else if (wcscmp(arguments[i], L"--world-magenta") == 0) {
+        ++worldDebugViewGiven; worldDebugView = 10;
       } else if (wcscmp(arguments[i], L"--world-isolate") == 0) {
         worldIsolationRequested = true;
       } else if (wcscmp(arguments[i], L"--world-triangle") == 0 && i + 1 < argumentCount) {
@@ -10144,7 +10146,9 @@ bool outlineVertexExtent = false;
         " vertexColour=%s vertexColourKnown=%d"
         " triScreen=%.2f,%.2f;%.2f,%.2f;%.2f,%.2f"
         " bufPos=%.3f,%.3f,%.3f bufferPosKnown=%d"
-        " mapA=%.3f,%.3f,%.3f box=%.6f,%.3f,%.3f,%.3f,%.3f drawn=%d",
+        " mapA=%.3f,%.3f,%.3f box=%.6f,%.3f,%.3f,%.3f,%.3f drawn=%d"
+        " bufAll=%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f"
+        " mapAll=%.3f,%.3f,%.3f;%.3f,%.3f,%.3f;%.3f,%.3f,%.3f",
         px, py, bestTriangle, triangle.material.c_str(),
         chain.vmtPath.empty() ? "-" : chain.vmtPath.c_str(), chain.vmtStore.c_str(),
         chain.vtfPath.empty() ? "-" : chain.vtfPath.c_str(), chain.vtfStore.c_str(),
@@ -10166,7 +10170,13 @@ bool outlineVertexExtent = false;
         bufferPosition[0], bufferPosition[1], bufferPosition[2], haveBufferPosition ? 1 : 0,
         triangle.a.x, triangle.a.y, triangle.a.z,
         projection.scale, projection.centerX, projection.centerY, projection.minZ, projection.spanZ,
-        renderer.worldTriangleDrawnAt(static_cast<std::size_t>(bestTriangle)));
+        renderer.worldTriangleDrawnAt(static_cast<std::size_t>(bestTriangle)),
+        bufferPosition[0], bufferPosition[1], bufferPosition[2],
+        bufferPosition[3], bufferPosition[4], bufferPosition[5],
+        bufferPosition[6], bufferPosition[7], bufferPosition[8],
+        triangle.a.x, triangle.a.y, triangle.a.z,
+        triangle.b.x, triangle.b.y, triangle.b.z,
+        triangle.c.x, triangle.c.y, triangle.c.z);
     }
     // Named refusals, weighted by the pvs-visible triangles they cost. The
     // aggregate material-fetch line says `vmtMissing=3`; this says how much of

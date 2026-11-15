@@ -388,6 +388,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         : worldDebugView_ == 5 ? 1.0f
         : worldDebugView_ == 6 ? 8.0f
         : worldDebugView_ == 7 ? 9.0f
+        // N05 step 2: mode 10 is the magenta isolation view -- one flat opaque
+        // colour, so "did this triangle paint this pixel" is a colour equality
+        // rather than a difference from a background that other passes also fill.
+        : worldDebugView_ == 10 ? 12.0f
         // Coverage mode (8) knowingly falls through to 4.0 so the world
         // never wears the sentinel; only the entity pass sits above it.
         // The id view (9) falls through for the same reason: the world is

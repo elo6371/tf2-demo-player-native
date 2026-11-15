@@ -147,6 +147,10 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // model can be carried by another with no reading to show it. This arm
   // sits ABOVE the sentinel because the entity pass hands it 11.0 and
   // 11.0 > 9.5: an arm placed below would be unreachable.
+  // N05 step 2: the magenta isolation view. Placed above every other arm because
+  // it is the one that must be unambiguous: a pixel is 255,0,255 only if this
+  // pass wrote it.
+  if (envFeatures.x > 11.5) return float4(1.0, 0.0, 1.0, 1.0);
   if (envFeatures.x > 10.5) {
     return float4(colour.rgb, 1.0);
   }
