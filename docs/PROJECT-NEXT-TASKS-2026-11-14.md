@@ -1,9 +1,43 @@
 # 全项目验收结论与下一阶段任务清单
 
-日期：2026-11-14（北京时间）
+初版日期：2026-11-14（北京时间）；状态快照更新至 2026-11-15（北京时间）
 依据：`TASK-REPORT-2026-11-14.md`、G1/G2 分册、现有缺陷登记册、实际 Git 历史与磁盘证据。
 用途：交给下一位执行者的中文工作入口；配套详细交接为 `PROJECT-HANDOFF-2026-11-14.md`。
 本文件中的安排是建议执行顺序，不代表已启动任务或已向其他聊天派发任务。
+
+## 当前执行快照（2026-11-15，优先于下文旧快照）
+
+当前树：`candidate/e5` @ `0974860`。本轮八个交付提交均在历史中；复核期间另有独立文档更正提交 `0974860`，只改执行计划与 Q5 证据措辞。`tools/audit-tree.sh` 已实跑 `VERDICT: OK`。工作树保留用户两份 handoff 文档、另一执行中的 `native/src/main.cpp` 与 `native/tools/demo_open_probe.cpp` 修改、未跟踪的 N05 draw 盘点草稿，以及本轮两份任务清单修改；本轮没有改动两个产品文件，也未将它们或草稿计入 N12-C/N05 验收。`.gitattributes` 当前与 HEAD 相同，行尾策略尚未落文件。
+
+| 工作 | 当前判定 | 证据边界与下一步 |
+|---|---|---|
+| N05 849/919 | **OPEN：现象确证，机制未定** | 静态诊断否证了两条候选解释，但没有定位实际 GPU draw；补实际 pass/triangle/UV/覆盖证据后逐点修复。D01 不得关闭 |
+| N06 世界帧异常分组 | **缺少交付** | `N05-N06-MAP-DEFECTS` 正文只有 N05 三卡；另开白噪、黑区、蓝面族群表和同机位 on/off，不把文件名误当 N06 完成 |
+| N07–N11 地图 | **盘点/矩阵文档完成，产品签收未完成** | N08–N10 主要为静态证据；推车 NOT VERIFIED、`sky_camera` UNSUPPORTED；七图 14 格仅 2 格合格，证据跨四个 exe，D01 仍 OPEN |
+| N12 相机 | **A/B PASS；C 第一步完成，第二步未做** | A/B 报告绑定 exe `1c3580e2…`。C 已加相机 tick 轨道和 Q5 哨兵；`demo-clock-check.sh` 一次 exit 0 / 62 断言。C 的精确 tick 消费端未改；SetView/PacketEntities 次序在 POV 样本为 0，stale 仍实测 1100/15 tick |
+| N13–N16 UI | **侦察/契约为主，功能未闭环** | N13 没有 follow/选人命令；N14 底图与独立比例未签收；N15 DPI/HUD 遮挡未过；N16 只有多视角契约、没有产品实现 |
+| N17–N21 角色/音频 | **覆盖报告，产品证据不足** | ViewModel 动画仍 bind pose/NOT VERIFIED；OOM 当前 HEAD 未跑；N20 三指定效果未实现；N21 听感需人在场 |
+| N22–N26 工程 | **计划与部分门禁修复已落地，工程验收未完成** | N22 CI 未远端运行；N23 `/W4` 覆盖不足；N24 拆分仅有方案；N25 五门禁修复没有真实 verdict（本轮只跑 demo-clock）；N26 构建缓存实测待做 |
+| N27 导出 | **范围和组件契约已裁决，产品实现未开始** | MF 探针支持方案 C；须实现产品内音视频导出、可选组件安装/卸载和缺组件的明确失败路径 |
+| N28–N30 发布 | **N28 文档就绪；N29/N30 阻塞** | 还未集成冻结，未做干净环境走查，未跑 `verify-release.sh`；禁止写成发布验收完成 |
+| `.gitattributes` 行尾规则 | **策略已定，文件改动待安全窗口** | 选定仅约束 `native/src`、`native/include`、`native/tools`、`native/cmake`、根目录门禁脚本及 `tools` 为 LF；证据目录保留 `-text`，不动 Markdown、不做全树 renormalize。本轮补丁在共享工作树并发写入时两次消失，当前 `.gitattributes` 与 HEAD 相同，不能宣称已生效 |
+
+本轮提交：`d8b10a3`、`ed20a7e`、`b6d8e55`、`5931247`、`51e4421`、`9672e13`、`db0f384`、`3901ddf`。`b6d8e55` 曾误带 `native/src/demo_header_camera.cpp`，`db0f384` 已补齐声明、调用和 CMake 登记；历史未改写，当前文件参与 `tf2_core` 编译。门禁修复只做了局部语法/拒绝分支核验，**不等于五个门禁有真实 verdict 或全绿**。
+
+### 下一批派工顺序
+
+| 顺序 | 负责人 | 任务 | 可并行/必须串行 |
+|---|---|---|---|
+| 1 | D + B | 完成 N12-C 第二步：`resolvePovEye` / `resolveRelayEye` 消费精确 tick 相机轨道；补顺序未知时的明确定义和 counters | 相机生产代码由一人独占；QA 可并行设计包顺序夹具，但不可同时改 `main.cpp`/同一 gate |
+| 2 | F + B | 先为门禁确认独立 OUT/scratch 和设置副本，不写 tracked evidence；再对五个修复门禁逐条取真实 verdict 与具名负控，不跑完整发布链 | 可与只读任务并行；产品构建、mutation、GPU 抓帧按 hostlock 串行 |
+| 3 | C + B | 补 N06 分组交付，同时继续 N05 实际 draw 归因 | 静态资产盘点可并行；产品诊断字段和抓帧需同一产品写域预约 |
+| 4 | D | 推进 N13 用户可选跟随，再做 N14/N15 UI 缺口 | 先产品命令/状态模型，再 UI 接线；N16 可先只读审查契约 |
+| 5 | D/E + F | N27 导出实现；N17–N20 按用户首发范围实现人物/武器/指定效果 | Media Foundation 探针已不是阻塞；共享 renderer 和 CMake 按接口窗口集成 |
+| 6 | A + 各 owner | N28 集成，确认受影响证据后再做 N29 干净环境；最后 N30 一次发布链 | 全员停写冻结候选后串行执行 |
+
+行尾规则的技术边界：决策是仅对维护中的源码、构建定义和门禁工具设 `text eol=lf`；不对 Markdown、证据目录或全仓所有文本设规则，也不运行全树 renormalize。规则尚未保留在当前 `.gitattributes`，所以当前检出行为尚未改变。Git 属性约束 add/checkout 转换，不能阻止程序在工作目录生成 CRLF，因此门禁仍必须写独立 OUT/scratch 并由 `audit-tree.sh` 检查。证据目录的专用 `-text` 规则应保留且优先；其他 worktree 不会被本地编辑即时改写，只有拿到此规则并对匹配文件执行 checkout/add 时才会采用。`core.autocrlf` 在本次 PowerShell 环境读到 `true`，另一个执行 shell 读到 unset；因此不把它当作 CRLF 事故根因，只把 LF 属性作为一致性策略。
+
+Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 个未跟踪产物已删除；本次只能核对报告和提交，不能重验那次运行的原始字节。下次受影响的窄门禁重跑时，把 rc、exe/sidecar、原始日志和 before-history 输出保存到独立 OUT 并附 SHA；62 是静态断言调用点数量，不冒充实跑断言计数。
 
 ## 一、验收结论
 
@@ -151,7 +185,8 @@
 
 ### N05　Sultry 849/919 draw-path 闭环（C，legacy D03）
 
-- [ ] 固定原 demo/tick/相机和输出尺寸，保留 texel、albedo、face-id 与覆盖对照。
+- [x] 静态诊断与候选机制筛查（2026-11-15）：`docs/N05-N06-MAP-DEFECTS-2026-11-15.md` 否证了 METALGRATE alpha 未消费解释 919 亮白、以及 tiled colour=1 解释 849 黑点；这只是排除候选，不是定位根因或修复。
+- [ ] 固定原 demo/tick/相机和输出尺寸，重新取得同一产品身份下 texel、albedo、face-id 与实际覆盖证据；旧报告缺少 2026-11-15 运行帧/日志，不可据它声称当前行为已复现。
 - [ ] 确认已有 ordinal→face 结果；919 不能再简单称“face 选错”，已知问题是预测与实际采样分叉。
 - [ ] 若缺必要信息，最小增加实际 draw 的 face/triangle/pass、UV、atlas tile、COLOR0/乘子来源；先核查两个点是否落入同一真实覆盖路径。
 - [ ] 849 追踪零乘子来源；919 追踪插值/UV/覆盖差异；一次只修一个证实根因。
@@ -161,6 +196,7 @@
 
 ### N06　七图世界帧异常分组（C + B，G2-D39）
 
+- [ ] 单独建立 N06 正文分组表；目前 `N05-N06-MAP-DEFECTS` 正文只有 N05 三卡，不能以文件名或 N11 静态表替代此交付。
 - [ ] 白噪：Gullywash/Bagel/Sultry 各选具名材质区域，查 UV/alpha/filter/depth/重复几何，先验证是否真为同一原因。
 - [ ] 黑区：Process/Gullywash/Product 分别查覆盖、sky、alpha、PVS、vertex color；不要合并为“所有洞已修”。
 - [ ] Sunshine 蓝面：定位真实几何/材质，做水面有/无的同相机对照，比较游戏内基础外观；不扩展到反射/折射。
@@ -211,12 +247,14 @@
 
 ### N12　POV/STV 相机与播放（D）
 
-- [x] **独立相机眼位对照（2026-11-15，证据子项完成；不代表 N12 整卡完成）**：POV 产品值与 demo cmdinfo 一致（双解析实现 + 原始字节实现交叉确认；Δ≤0.042 u / 0.003°），但 cmdinfo `viewOrigin` 是玩家 `m_vecOrigin`，不是眼位；当前 POV 渲染缺 `m_vecViewOffset`，Sniper / Demoman 样本分别低 75.03 / 68.03 u。STV 没有录制相机真值，只能确认跟随相机合成公式；新鲜站立快照吻合 ≤0.032 u，蹲伏时多 23.006 u，t20000 实际使用的实体快照落后 1100 tick（约 600 u）。报告：`D:/_shared/EXEC-2026-11-15/N12-CAMERA-ORACLE-REPORT-2026-11-15.md`。**结论是 POV 眼位缺陷已证实、STV 仍无真实相机真值；不得把该证据子项写成产品通过。**
-- [ ] **N12-A 修复 POV 眼位**（D 实现，B 验收）：沿当前 POV 相机所选的实体状态 tick/插值规则读取 `m_vecViewOffset[2]` 并加到 `m_vecOrigin`；不得从最新状态跨 tick 拼接，也不得用固定职业高度替代录制状态。明确属性缺失、死亡/观战、插值边界和无效值的回退，并让 trace 区分 origin、viewOffset、最终 eye、各自来源 tick。
+- [x] **历史独立相机眼位对照（修复前 exe `cfcdbe5d…`）**：所测 POV 样本 cmdinfo 与玩家 origin 一致，修复前缺 viewOffset；该发现已推动下列 A/B 修复，不能继续写成当前实现仍缺加法。STV 没有真实导播相机数据，跟随眼位推导与导播真值分开验收；archive 的 1100/15 tick 陈旧问题仍待 C 解决。原报告：`D:/_shared/EXEC-2026-11-15/N12-CAMERA-ORACLE-REPORT-2026-11-15.md`。
+- [x] **N12-A POV 眼高修复，有限样本通过**：`docs/N12-ACCEPTANCE-2026-11-15.md` 的三个有效 POV 帧在 exe `1c3580e2…` 上通过；证据包括 offsetZ 四位读数与修前后约 +75 u 位移，死亡零偏移帧不计判别分母。以下扩展验收仍待补齐，不把历史样本当作当前 HEAD 全部通过。
 - [ ] N12-A 验收：在报告登记的 POV-f12 与 POV-upward 样本及 stand/crouch/`viewOffset=0` 状态上，最终 eye 与独立 oracle 的 `m_vecOrigin + m_vecViewOffset` 在预注册 2.0 u 容差内；角度继续符合 direct oracle 的 0.5° 容差。保留 N1 错 tick、N2 POV/STV 互换、N3 全零负控，新增缺 viewOffset / 错 tick 不得误 PASS 的负控；检查 seek、暂停恢复和实体切换不会跨 tick 串值。
-- [ ] **N12-B 修复 STV 蹲伏眼高**（D 实现，B 验收）：跟随目标相机优先使用与目标位置同一 resolved snapshot 的 `m_vecViewOffset[2]`；只有字段缺失或无效时才退回 68，并在 trace 中标明 fallback 原因。不要把站立常量当作蹲伏眼位。
+- [x] **N12-B STV 蹲伏眼高修复，有限样本通过**：同报告 B2 眼高由 609.0 改为 586.0（offset 68→45），B1 站立帧保持不变；B1 的一致不提供区分力，不计 PASS 分母。过渡帧、缺属性和实体切换仍需以下扩展验收。
 - [ ] N12-B 验收：对报告中的 STV-f12 t40000 及独立 stand/crouch 样本，和同一 resolved tick 的 `D_follow` oracle 比较，位置差 ≤2.0 u、角度差 ≤0.5°；负控覆盖错误目标、错 tick、缺失 viewOffset fallback 与 `viewOffset=0`，不得把 fallback 伪装成 oracle 匹配。
-- [ ] **N12-C 修复 STV 陈旧快照选取**（D 实现，B 验收）：审查 `entityHistoryArchive` / `Checkpoint` 与 live packet/history 的查询优先级；相机查询优先取不晚于目标播放 tick 的最近有效目标状态，不用过旧 archive checkpoint 冒充当前状态。保留目标实体 serial/身份；若没有可接受的新鲜状态，显式报告 stale/无相机并按定义冻结或回退，不读取未来状态。
+- [x] **N12-C 第一步：相机 tick 轨道与 Q5 哨兵**：`db0f384` 已登记新 TU、采样/查询 API 和探针，轨道默认 opt-in，产品尚未消费。Q5 的单次 `demo-clock-check.sh` exit 0；before-history 负例由伪 stale=0 改为 -1，62 为脚本断言调用点数，不是运行日志统计。
+- [ ] **N12-C 第二步：产品消费精确 tick 查询**（D 实现，B 验收）：改 `resolvePovEye` / `resolveRelayEye` 及 POV/relay 调用处，让实体身份、origin、offset 和角度来自一致的查询状态；先核实轨道记录的目标能否覆盖用户选择的 follow 目标，明确无精确 tick、无属性、死亡/观战、generation 变化与容量淘汰的行为，禁止退回陈旧 checkpoint 后自称新鲜。
+- [ ] **N12-C 包顺序与轨道负控**：现有 pov_f12 的 SetView-before/after-PacketEntities 均为 0 样本；补能区分这两种顺序的 packet 夹具或独立语料，另测 Delete+Enter 复用槽、同 tick 多包、完整/不完整包、跨 demo 重置、容量上限与错 tick。零 mismatch 计数不能替代从未进入的身份重建分支验证。
 - [ ] N12-C 验收：报告中的 t20000 stale=1100 负例应选到与请求时间最近的有效状态，fresh-window 正例保持位置/角度连续；可用时要求 resolved snapshot stale ≤1 tick。增加“只有旧 checkpoint”“目标消失/serial 改变”“未来样本存在”负控，验证不串目标、不向未来跳、不静默声称新鲜；若语料无法达到 ≤1 tick，明确标 NOT VERIFIED 并记录实际上界，不放宽阈值掩盖缺数据。
 - [ ] N12-A/B/C 通过后再复跑 N12 的 viewEntity、observer target/mode、实体 serial、userdata、第一/第三/自由视角、目标切换、暂停/seek/逐帧/倍速矩阵；独立 oracle 能证明 POV 的录制眼位，**不能**证明 STV 的真实导播相机（demo 未记录该值）。
 - [ ] 矩阵覆盖 viewEntity、observer target/mode、实体 serial、userdata；区分输入眼位与实际渲染眼位。
@@ -224,10 +262,12 @@
 - [ ] play/pause/seek/逐帧/倍速/结束/错误索引分别验证；reverse 仅在产品宣称支持时纳入，未实现需写明。
 - [ ] `--start-paused` + 非零 `--capture-tick` 不会推进 tick：取中间帧按已有播放/seek能力设置，不让脚本无限等待。
 
-调度：N12-A/B/C 都涉及 `native/src/main.cpp` 的相机状态选择/构造，产品代码必须由同一负责人按 A→B→C 串行修改并逐项提交；QA 可并行补独立 oracle fixture、负控和验收脚本，但不得同时改同一 gate/helper。每项先跑相关 probe/gate 与短样本，不因此启动完整发布链；三项合入后再跑 N12 受影响矩阵。报告及当前基线绑定 `candidate/e5` / `a901ece` / exe `cfcdbe5d…`；产品修复后旧 exe 的相机证据不能代替新构建读数。
+调度：A/B 已有有限样本证据，继续由一名相机负责人串行完成 C 第二步，QA 可并行补独立 fixture/负控。记录构建、exe/sourceContent 与采集身份；先短 probe/oracle，再按改动影响跑 `timeline-check.sh`、`history-coverage-check.sh`、`spectate-check.sh` 与相机消费者，不因此跑完整发布链。A/B 的历史读数绑定 exe `1c3580e2…`；C 第一步/Q5 证据见 `docs/N12-C-STEP1-IMPL-2026-11-15.md`、`docs/N12-C-Q5-RUNTIME-EVIDENCE-2026-11-15.md`，不能互相改标签当作同一 exe 的完整验收。
 
 ### N13　HUD 身份与普通用户路径（D + B）
 
+- [x] 只读通路调查已完成：`docs/N13-IDENTITY-HUD-UI-2026-11-15.md` 确认缺选人/follow/下一玩家命令及 broadcaster 概念，部分 `nameReason` 早退为空；这是产品缺口，不是等待按钮验收。
+- [ ] 先在产品命令/相机目标状态层实现玩家选择与 follow，再接 UI，区分 broadcaster、POV 主体、被跟随者的身份来源；处理实体消失/serial 变化与无 userinfo。与 N12-C 的目标轨道范围保持一致，之后复用到 N16 每窗目标，避免双份不一致状态。
 - [ ] 真实 broadcaster、POV 主体、STV followed player 的名称不混用；缺失 userinfo 显式未知，不伪造玩家名。
 - [ ] timer/round/team/class/health/weapon/事件流核对 source 与 stale/缺失策略，Unicode/resize/DPI 分别检查。
 - [ ] 打开 demo→选择 TF 根→找图→播放→seek→跟随→设置重启→异常恢复，必须能经产品 UI 完成，不能只有测试 CLI。
@@ -316,6 +356,9 @@
 
 ### N25　门禁与证据效率（F + B）
 
+- [x] D53/D55/D56/D59 的五脚本修复与部分拒绝分支自测已提交；真实整门禁 verdict 未取，修复入库与运行通过分两列记录。
+- [ ] 顺序核验 `class-pose-family-check.sh`、`player-animation-check.sh`、`playback-error-paths-check.sh`、`animation-drive-states-check.sh`、`viewmodel-animation-check.sh`：先检查脚本实际 OUT 参数和输入要求，再安排一个有判别力的正控/负控；没有支持隔离 OUT 的脚本先做最小路径修复，不把正常写脏后的 exit 97 忽略或改为 PASS。
+- [ ] 保存原始日志、退出码、exe/gate/input SHA、必要输出到仓外独立运行目录；禁止先清掉仅有的失败证据再说可复核。共同 helper 修复后选代表验证，其他脚本按影响面扩展，不每日跑完整发布链。
 - [ ] 修复 stale blocked 注册说明、OUT 路径契约、wall-clock 计数精确 pin 等 legacy D12/D31/D32；一次迁移小组，不一口气改 50 runner。
 - [ ] 为可复用帧定义输入身份：产品/资源/设置/demo/map/tick/实际相机/viewport；不能只靠文件 mtime 或输出文件名。
 - [ ] gate 与产品分开身份：仅文档/门禁变更不自动导致 exe 像素重抓；改公共 helper 时选代表正/负控，再按影响扩展。
@@ -329,10 +372,12 @@
 
 ## 十、集成、最终验收与落地
 
-### N27　范围未决项（产品负责人 + D/E）
+### N27　已裁决的可选音视频导出组件（D/E + F，范围边界由 A 维护）
 
-- [ ] legacy D35 的 T55 视频裁剪/导出列为独立需求卡：输入区间、音画同步、格式/编码、输出失败/取消/磁盘不足恢复、依赖与工期。
-- [ ] 给出最小可交付方案与成本后由用户裁决是否纳入首发；其他无关任务继续，不等待这一决定。
+- [x] 范围与组件契约已记录：首发包含有音轨的视频导出，不依赖用户自备 ffmpeg；MF 方案 C + 离线音频；组件独立清单，核心卸载遇组件拒绝，缺组件具名 reason + exit 13，见 `docs/N27-SCOPE-DECISIONS-2026-11-15.md` 与 `docs/N27-OPTIONAL-COMPONENT-CONTRACT-2026-11-15.md`。
+- [x] MF 探针实测：本机 H.264/AAC、MP4 双流、RGB32 直入与独立进程成立；仅为可行性，非产品导出功能。默认 profile/起点规则与容器时间戳例外已记录。
+- [ ] 按契约实现产品固定步长渲染、离线音频、区间选择、导出取消与磁盘/编码器失败恢复；组件未安装/安装/升级/卸载分别正负控，不把探针程序改名当产品完成。
+- [ ] 用真实 demo 验证至少 30 秒音画同步、帧数/音频采样数、读回/编码/写盘吞吐与内存；确定性先比编码输入帧/PCM，再审解码结果，容器时间戳差异不可当画面回归，音轨存在也不等于声音内容正确。
 - [ ] PIP/四视角、LOD1+ 保持明确的实现/后续里程碑，不以本轮未做暗中排除。
 
 ### N28　集成批次与证据继承（A + 各 owner）
@@ -363,7 +408,7 @@
 | P1 | G | N01 f12 POV 和缺材质资源 | 与其他只读任务并行；不替换错误地图 |
 | P1 | F | N02 Unicode probe、N22 工具链/CI 草案 | 实现不抢 renderer 写域；构建窗口排队 |
 | P1 | D+B | N03 设置副本和可维护回归入口 | 公共 helper 单写；不重复整链 |
-| P1 | D+B | N12-A/B/C POV/STV 眼位与新鲜快照修复；先做相机状态查询/序列契约，QA 并行准备 oracle 与负控 | `main.cpp` 产品改动同一负责人按 A→B→C 串行；短 gate 分段跑，合并后跑 N12 受影响矩阵 |
+| P1 | D+B | N12-C 第二步精确 tick 消费与包顺序/身份负控；N12-A/B 已有有限样本 PASS，需随 C 集成重验 | `main.cpp` 相机写域同一负责人；QA 并行准备 packet fixture，产品构建与 GPU 采集串行排 hostlock |
 | P1 | C | N05 两黑点、N06 每族一个具名实验 | 与资产盘点并行，产品抓帧串行 |
 | P2 | D | N14 独立底图/比例、N15 DPI 与连续状态 | 与 N16 设计可并行；共享 UI 写入串行 |
 | P2 | E | N17/N18 真实动作与武器样本、N19 容量实测 | 盘点并行，shader/model 与地图分窗口 |
@@ -390,3 +435,23 @@ exe/sourceContent/sidecar 与 BSP/demo/设置/相机身份：
 ```
 
 本次仅更新交接/任务文档并离线复核七图已有帧；未修改产品代码，未构建，未全链，未提交或推送。
+
+## 十三、第二窗口完成标记（2026-11-15 10:55，HEAD `10f8e28`）
+
+本节只追加标记与证据，不改上文任何判定；详细报告见 `docs/TASK-REPORT-2026-11-15.md`。
+图例：✅ 完成（带边界）／◐ 部分／⛔ 阻塞／○ 未做。
+
+| 任务 | 本轮状态 | 关键证据 |
+|---|---|---|
+| N12-A POV eye = origin + viewOffset | ✅ | `full90` 三帧全 PASS（A1/A2/A3），eyes 行 `offsetZ=75.0001/75.0001/68.0001 dz=+75.0000/…`，exe `90f781b5…` |
+| N12-B STV crouch eye | ✅（有限） | `stv-t40000` 45.000043（距 68.0 常量 23 u）；`stv-t20000` 68.000065 与常量只差 0.0001 u ⇒ COINCIDENT/NOT VERIFIED，不计绿不计红 |
+| N12-C stale snapshot selection | ◐ | BOUNDED-STALE；三步骤（tick 轨道 → 消费端 → 解码扁平分量）落地且行为变更已被裁决接受；SetView/PacketEntities 次序仍 0 样本，STV 无导播真值 |
+| N13 第一步（命令/状态 + `follow:` 行） | ✅ | 提交 `4bf830a`；exe `6d15c566…` 3,010,048 B；A8 按 tick 归键全绿（eye row 387 tick、eye 387 key 0 差分、帧 md5 三态同、`follow` 0 vs 5、probe 两 sha 与 N12 §17.4 同）；边界：A1–A7 未验、相机优先级未改 |
+| N25 门禁 | ◐ | gate2 `PASS` 67 s / 235 OK；gate4 `PASS` 4002 s / 20 OK / `READINGS=PASS`，四条负控 `controls=4/4` 具名原因，空 OUT `rc=2`；gate1 沿用真绿；gate3/gate5 ⛔ 缺录制；**12 道被算术清扫改过的门禁真实整轮未复跑** |
+| 嵌套算术清扫 | ✅ | 14/14 修复（12 个脚本）+ `tools/check-nested-arith.sh`（`--selftest` PASS、`sites=0`、旧版回放 14/14） |
+| N06 分组交付 | ✅（边界：同机位对照未做） | `docs/N06-GROUPING-2026-11-15.md`（`ed419f6`） |
+| `.gitattributes` | ⛔ | 策略已裁决，改动仍未提交，等负责人确认 |
+
+本轮完成的两个「收口」事项：**N12 覆盖率不再是 NOT VERIFIED 的一整片**（A2/A3/B2 有样本了）、
+**gate4 自带负控首次能按预期红并报出具名原因**。仍然 NOT-YET 的：N05 根因、N13 A1–A7、
+N14–N20、N22–N24、N26、N27 实现、N28–N30。
