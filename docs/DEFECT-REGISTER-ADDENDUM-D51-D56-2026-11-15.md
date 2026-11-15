@@ -209,6 +209,55 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 
 ---
 
+> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D67**（D57–D62 见上，D63–D67 见下）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
+
+---
+
+## D63 — `FollowReason::PinnedDead` 有枚举、有名字，但没有赋值点
+
+- **发现者**：ui-d（N13 A1–A7 验证，`docs/N13-A1A7-VERIFICATION-2026-11-15.md:199-201`）；lead 复核代码成立
+- **证据**：`native/include/target_identity.h:97` 有 `PinnedDead` 枚举成员、`:115` 有 `case FollowReason::PinnedDead: return "pinned-dead";`。`g_followLastReason` 的写点只有 `native/src/main.cpp:1194`（初值 `None`）、`:1475`（`followRefuse`）、`:1501`、`:1510`、`:1527`、`:1569`、`:1583`，**全部在命令路径上**。`followReconcile` 的死分支（`native/src/main.cpp:1643-1650`）只做 `++g_followPinnedDeaths`（`:1646`）、`pinned=false`（`:1647`）、`FollowState::Dead`（`:1648`），**不写 reason**；因此 `:1712` 打印的 `reason=` 是上一次命令留下的值，通常是 `ok`。
+- **为什么记缺陷**：`docs/N13-COMMAND-STATE-MODEL-2026-11-15.md:135/:176/:258/:303` 把 `reason=pinned-dead` 写成状态机契约的一部分，A4 的判据直接引用它。数值侧（`pinnedDeaths=1`、`state=dead`）是对的，语义侧是假的：**产品知道"你钉的人死了"，trace 说"一切正常"**。
+- **本条没有证明什么**：没有证明 pin 解除本身有错（A4 已用三条独立读数证明它确实解除）；没有证明修法只是一行（`forceReason` 通路与 `g_followLastReason` 的取舍要设计决定，见 D64）。
+
+---
+
+## D64 — 同一次发布里，状态行可能串上一次拒绝的 reason
+
+- **发现者**：ui-d；lead 复核 `followPublishTrace` 全文成立
+- **证据**：`native/src/main.cpp:1665-1723` 的 `followPublishTrace` 有两条打印路径：`refused` 分支（`:1686-1701`）用 `g_followCommandReason`，随后的 `keyChanged` 分支（`:1702-1716`）用 `g_followLastReason`，判据是 `keyChanged && (g_followHavePrintKey || !printed)`，所以"拒绝且 key 也变了"时同一调用会出两条。命令拒绝走 `followRefuse`（`:1468-1478`）时 `:1475` 同步了 `g_followLastReason`，两条一致；但 **force 路径**（relay 拒绝的 pin，`:1661-1664` 注释所指）不经过 `followRefuse`，`g_followLastReason` 保持上一次命令的值，第二行就带着无关的 reason。
+- **为什么记缺陷**：这是"静默错误"的第二形态——行数对了、字段齐全，但第二行的 reason 描述的是另一件事。任何按 `reason` 归类的 gate 会把一次 relay 拒绝算成上一次命令的原因。
+- **本条没有证明什么**：没有穷举 force 路径的全部调用点；也没有证明 A1–A8 现有的哪些读数受影响（实测里未出现两条不一致的样本）。
+
+---
+
+## D65 — `hudLiveResolveName` 两处早返回共用默认 reason，两种"没有名字"无法区分
+
+- **发现者**：ui-d；lead 复核
+- **证据**：`native/src/main_hud.cpp:674-683` 的 `HudLiveName` 把 `reason` 默认成 `"no-userinfo-slot"`。`:730` `if (viewEntity < 1) return name;`（**没有视图实体**）与 `:742` `if (slot == nullptr) return name;`（**有实体但 userinfo 里没有该 slot**）都不写 reason，于是两件事在 trace 里是同一个词元。
+- **为什么记缺陷**：A6 的判据是"没有名字时 `nameReason` 必须说清是哪一种"。同一函数里 `:731-734`、`:754-762`（`no-tick`）、`:765-768`（`no-userinfo-tick`）、`:769-772`（`no-userinfo-empty`）都各写了专属 reason，只有这两处没有，属**同函数内口径不一致**，不是"没有更好的名字"。
+- **本条没有证明什么**：没有测过这两种情况在真实 gate 里的出现频率；A6 实测只覆盖到 `no-userinfo-tick` / `no-userinfo-slot` 两个可观测值。
+
+---
+
+## D66 — `serial` 没有数据源，恒为 0
+
+- **发现者**：ui-d；lead 复核
+- **证据**：`native/src/main.cpp:1393-1395` `followSlotSerial` 直接 `return 0;`，`:1386-1392` 的注释写明原因（`SpectateSlot` 与 `EntityState` 都不带 `CBaseHandle`，产品唯一解出的 handle 是相机自己的 `m_hObserverTarget`）。调用点 `native/src/main.cpp:1577`。`0` 的语义是 UNKNOWN，不是"序号 0"。
+- **为什么记缺陷**：index-reused 判定依赖 serial 比对，恒 0 使该判定**结构性不可断言**（A5 因此记 UNSUPPORTED 而不是 PASS）。这不是"还没实现"：读数里看起来是一个值，其实是占位符，按值归类会得到假结论。
+- **本条没有证明什么**：没有估过补一条 per-entity handle 的代价；也没有证明现有 reuse 分支在 serial 恒 0 下是否还有别的证据可用。
+
+---
+
+## D67 — CLI 越界被吞进 `rejectedFlags`，`index-out-of-range` 词元从命令行不可达
+
+- **发现者**：ui-d；lead 复核
+- **证据**：`native/src/main.cpp:1302-1356` 的 `followConsumeArgument`：`--follow-target` 的值不落在 `0..2047`（`:1312`）或根本没有下一个参数（`:1319-1321`）时只 `++g_followArgumentRejected`，**不入命令队列、不经过 `followRefuse`**，于是 `FollowReason::IndexOutOfRange` 不会从 CLI 出现。汇总在 `:14155-14162` 的 `follow: summary ... rejectedFlags=`。
+- **为什么记缺陷**：`:1307-1311` 的注释把这条设计写成"拒绝而不是夹取，因为'要 5 号'和'什么都没要'在 trace 里必须看得出不同"——但两者现在落在同一个计数器上，**注释承诺的可区分性没有实现**。A5 的 index-out-of-range 一侧因此测不到。
+- **本条没有证明什么**：没有证明命令队列里 `Select` 带 `-1`（`:1346`）那条路径的 `index-out-of-range` 是否可观测；也没有定量测过 `rejectedFlags` 在真实 gate 里的出现频率。
+
+---
+
 ## D57 / D58 补充说明
 
 D57（门禁不钉播放速度）与 D58（控件与面板无人负责不重叠）是在本文件初版之后追加的，编号延续主表，**主表本身未改动**。D57 属共享 gate helper 修复域，D58 的产品侧修复须改 `native/src/main_hud.cpp` 与布局函数，两者都归入门禁修复窗口与后续派工，**本轮均未动代码**。
