@@ -405,6 +405,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     worldBatchDrawCalls_ = 0;
     worldBatchTexturedDrawCalls_ = 0;
     const bool batchesIndexed = worldIndexBuffer_ && worldIndexCount_ > 0 && !worldDrawBatches_.empty();
+    worldBatchesIndexedAtDraw_ = batchesIndexed ? 1 : 0;
+    worldIndexCountAtDraw_ = worldIndexCount_;
     if (batchesIndexed) {
       context_->IASetIndexBuffer(worldIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
       bool blendedStateSet = false;

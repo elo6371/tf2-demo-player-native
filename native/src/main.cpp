@@ -9331,6 +9331,9 @@ bool outlineVertexExtent = false;
     // The two cross-pass questions, read from the ledger the draws fill. A
     // zero here is the statement the task asks for; the mutation makes one of
     // them non-zero so the zero can be trusted.
+    traceFmt("gpu: world draw branch batchesIndexed=%d indexCount=%u batchDrawCalls=%zu isolated=%d",
+      renderer.worldBatchesIndexedAtDraw(), renderer.worldIndexCountAtDraw(),
+      renderer.worldBatchDrawCallCount(), renderer.worldIsolatedTriangle());
     traceFmt("gpu: world isolation weaponDrawsWithWorldAtlas=%zu worldDrawsWithWeaponTexture=%zu"
       " slot0Binds=%zu batchDraws=%zu texturedBatchDraws=%zu",
       sample.weaponDrawsWithWorldAtlas, sample.worldDrawsWithWeaponTexture,

@@ -1029,6 +1029,11 @@ public:
   std::size_t worldDrawsWithWeaponTexture() const { return worldDrawsWithWeaponTexture_; }
   std::size_t slot0BindCount() const { return slot0Binds_; }
   std::size_t worldBatchDrawCallCount() const { return worldBatchDrawCalls_; }
+  // N05: what the draw branch decided, recorded where it decides. The upload-time
+  // index count said 3 and the frame still drew the map, so the question is which
+  // branch ran -- and only the frame knows.
+  int worldBatchesIndexedAtDraw() const { return worldBatchesIndexedAtDraw_; }
+  unsigned int worldIndexCountAtDraw() const { return worldIndexCountAtDraw_; }
   std::size_t worldAtlasBatchCount() const { return worldAtlasBatches_; }
   std::size_t worldAtlasBlendBatchCount() const { return worldAtlasBlendBatches_; }
   bool saveCameraPreset(std::size_t slot);
@@ -2117,6 +2122,8 @@ private:
   std::size_t weaponDrawsWithWorldAtlas_ = 0;
   std::size_t worldDrawsWithWeaponTexture_ = 0;
   std::size_t worldBatchDrawCalls_ = 0;
+  int worldBatchesIndexedAtDraw_ = -1;
+  unsigned int worldIndexCountAtDraw_ = 0;
   std::size_t worldBatchTexturedDrawCalls_ = 0;
   void bindSlot0(ID3D11ShaderResourceView* view, const char* pass);
   bool isWorldAtlasView(const ID3D11ShaderResourceView* view) const;
