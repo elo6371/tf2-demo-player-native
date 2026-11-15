@@ -9793,6 +9793,7 @@ bool outlineVertexExtent = false;
       float bestDepth = 2.0f;
       float bestBary[3] = {0.0f, 0.0f, 0.0f};
       float bestInvW[3] = {1.0f, 1.0f, 1.0f};
+      float bestScreen[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
       const auto consider = [&](std::size_t ordinal) {
         if (ordinal >= displayMap.triangles.size()) return;
         const auto& triangle = displayMap.triangles[ordinal];
@@ -9815,6 +9816,13 @@ bool outlineVertexExtent = false;
         bestTriangle = static_cast<int>(ordinal);
         bestBary[0] = w0; bestBary[1] = w1; bestBary[2] = w2;
         bestInvW[0] = aw; bestInvW[1] = bw; bestInvW[2] = cw;
+        // N05: the projected corners of the winning triangle. The id frame says
+        // which face covers the pixel; these say where the oracle THINKS the
+        // triangle is, which is the only way to tell a fill-rule case from a
+        // projection that disagrees with the rasterizer.
+        bestScreen[0] = ax; bestScreen[1] = ay;
+        bestScreen[2] = bx; bestScreen[3] = by;
+        bestScreen[4] = cx; bestScreen[5] = cy;
       };
       if (clipApplied) {
         for (const std::size_t ordinal : worldVisKeptIndices) consider(ordinal);
@@ -10111,7 +10119,8 @@ bool outlineVertexExtent = false;
         " vtfStore=%s src=%dx%d tile=%d/%d size=%dx%d rect=%d,%d atlas=%dx%d uv=%s uvInside=%d texel=%s texelA=%s"
         " blend=%s luv=%.4f,%.4f light=%d,%d,%d albedo=%s albedoTile=%s expected=%s reason=%s"
         " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x"
-        " vertexColour=%s vertexColourKnown=%d",
+        " vertexColour=%s vertexColourKnown=%d"
+        " triScreen=%.2f,%.2f;%.2f,%.2f;%.2f,%.2f",
         px, py, bestTriangle, triangle.material.c_str(),
         chain.vmtPath.empty() ? "-" : chain.vmtPath.c_str(), chain.vmtStore.c_str(),
         chain.vtfPath.empty() ? "-" : chain.vtfPath.c_str(), chain.vtfStore.c_str(),
@@ -10128,7 +10137,8 @@ bool outlineVertexExtent = false;
         tiled ? "tiled" : (tile != nullptr ? tile->reason.c_str() : chain.reason.c_str()),
         chain.beyondOldCap ? 1 : 0, chain.oldOrderAccepted, bestDepth, frameDepth, finalDepth,
         depthMatch ? 1 : 0, renderer.capturedDepthRawAt(px, py),
-        vertexColourBuffer, haveVertexColour ? 1 : 0);
+        vertexColourBuffer, haveVertexColour ? 1 : 0,
+        bestScreen[0], bestScreen[1], bestScreen[2], bestScreen[3], bestScreen[4], bestScreen[5]);
     }
     // Named refusals, weighted by the pvs-visible triangles they cost. The
     // aggregate material-fetch line says `vmtMissing=3`; this says how much of
