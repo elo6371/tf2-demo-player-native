@@ -581,8 +581,12 @@ assert_eq "pov observed sequence range" \
 # Every model the ViewModel entities name is a c_*_arms model, i.e. NOT the model
 # the pass draws. Five distinct paths, none of them a v_* one.
 assert_eq "pov distinct entity model paths" "$(rsum "$POV_TXT" 'vmanim-summary' modelPaths)" "9"
-assert_eq "pov entity models that are v_* viewmodels" \
-  "$(rsum "$POV_TXT" 'vmanim-summary' vStarModels)" "0"
+# N01 plan A: the ASSET count and the PAIRING behaviour are two different claims
+# and must not share a number. This POV names two v_* models, so 2 is the asset
+# count; whether the entity's model is the drawn one is asserted separately below
+# ("entity model equals the drawn model" == 0), which is the claim that matters.
+assert_eq "pov entity models that are v_* viewmodels (asset count)" \
+  "$(rsum "$POV_TXT" 'vmanim-summary' vStarModels)" "2"
 
 # ---------------------------------------------------------------------------
 # Section 3 -- two index spaces, measured from the models themselves
@@ -1028,7 +1032,15 @@ if [ "$MUTATION" -eq 1 ]; then
   # Neutered: the only posable sequence is the stub's own index, which the
   # recording does not carry.
   assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "0"
-  assert_ne "and the recording does not carry it" "$POV_RANGE" "0..30"
+  # Same trap as the sequence-frozen literal: "the range is not 0..30" was true of
+  # the replacement recording (28..28) before the mutation ran, so it could not
+  # fail. State the claim directly instead -- the stub's sequence 0 must fall
+  # outside the range the recording carries. On this asset the claim is trivially
+  # true (28..28 never contains 0), so it is NOT the discriminating assertion
+  # here; `POSE_SEQUENCE == 0` above is. It is kept because it states the premise
+  # out loud and would fail on an asset whose range covers 0.
+  assert_eq "and the recording does not carry it" \
+    "$(echo "$POV_RANGE" | awk -F'\.\.' -v p="$POSE_SEQUENCE" '{print (p>=$1 && p<=$2) ? 1 : 0}')" "0"
 else
   assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "1"
   # The posable sequence has to exist in a recording for the acceptance to be
@@ -1145,8 +1157,13 @@ for mutation in $MUTATIONS; do
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     sequence-frozen)
+      # Baseline for this recording is 91 changes; under the mutation it is 21.
+      # Comparing against the LOST recording's 141 made the assertion vacuous: a
+      # normal run (91) passed it too. The comparison has to be against the
+      # baseline this run was measured with, which is what makes the assertion
+      # reject an unmutated log.
       assert_ne "mutation sequence-frozen: the cursor stops moving" \
-        "$(rsum "$txt" 'vmanim-summary' changes)" "141"
+        "$(rsum "$txt" 'vmanim-summary' changes)" "91"
       # 21 is this recording's census (was 18). The claim is invariance under
       # the mutation, so the number has to be the recording's own baseline.
       assert_eq "mutation sequence-frozen: the entity count does not move" \
@@ -1171,8 +1188,12 @@ for mutation in $MUTATIONS; do
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     model-class-flip)
-      assert_ne "mutation model-class-flip: the entity's model reads as a viewmodel" \
-        "$(rsum "$txt" 'vmanim-summary' vStarModels)" "0"
+      # Baseline 2 (this recording's asset count), mutated 9: the flip marks the
+      # drawn model and its companions as viewmodels. Pinning 9 rather than "!= 0"
+      # because 2 != 0 is already true without the mutation, which is how the
+      # assertion silently stopped discriminating.
+      assert_eq "mutation model-class-flip: the entity's model reads as a viewmodel" \
+        "$(rsum "$txt" 'vmanim-summary' vStarModels)" "9"
       assert_eq "mutation model-class-flip: the change count does not move" \
         "$(rsum "$txt" 'vmanim-summary' changes)" "91"
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))

@@ -127,21 +127,49 @@
 
 结合 §7 的 10/12：oracle 在这两个像素上选中的三角形，光栅器既没画、天空遍也没让位——**是点选本身错**，与材质、cull、clip、天空遮挡都无关。剩下的唯一入口是给 oracle 打印选中三角形的屏幕坐标（产品诊断字段）。
 
-## 11 负结果：face-id 不是 dface 索引，离线映射行不通
+## 11 工具纠错：face-id 就是 dface 索引，原“离线不可映射”结论撤回
 
-为了不跑产品就查清 6343/15566 是什么，写了 `tools/bsp_face.py` 直接读 BSP 的 dface/texinfo/texdata。结论是**这条路不通，但原因本身有用**：
+本次在 HEAD `03d8082c` 上核到工具缺陷，未重建/启动产品：`tools/bsp_face.py` 原版不解码 Source LZMA lump，把 lump 7 的压缩字节长度直接除以 56。原 **4477** 不是有效条目数；另有字符串数据/索引 lump 43/44 对调、plane 有符号读取和 styles 偏移错误，一并修正。工具复用现有 `tools/n14-oracle/bsp_oracle.py` 解码器，增加所用 lump 边界/解码尺寸/步长检查，越界 face 返回非零。
 
-| 项 | 值 |
+| 同一 BSP 的读数 | 实测值 |
 |---|---|
-| `cp_sultry_b8a.bsp` 的 LUMP_FACES 条目数 | **4477** |
-| 探针报告的 faces | **21289** |
-| hole-trace 里的 `face=` 最大值 | 21288 |
+| 输入 | `E:/demo测试/cp_sultry_b8a/地图/cp_sultry_b8a.bsp` |
+| SHA-256 | `49bab2feeb53f102cd79601b38f3cbd9a30b79d19184fcb1baa24ac139aa66b2` |
+| lump 7 存储字节数 | 250724（以 `LZMA` 开头，含 17 字节封装） |
+| 解压字节数 | 1192184 |
+| dface 数 | **1192184 / 56 = 21289**（无余数） |
+| face 6343 | `METAL/METALGRATE013A2`，dispinfo=-1，texinfo=8506，4 edges |
+| face 15566 | `SULTRYPROPS/GOTHIC_FENCE`，dispinfo=-1，texinfo=4154，4 edges |
+| face 17804 | `METAL/METALGRATE013A2`，dispinfo=-1，texinfo=5639，4 edges |
 
-所以产品在 trace 与 face-id 帧里用的 `face=` **不是 dface 索引**，而是它自己的面表（含位移展开）。拿 BSP 的 dface 去对 6343/15566 会得到完全不同的东西，**不能用**。
+代码依据：`BspParser::parse` 的 `allFaceCount=faces.size()/56` 使用解压 lump，`emitTriangle` 直接赋 `triangle.faceIndex=faceIndex`；位移只增加三角形，不重新编号 face。`native_renderer_world.cpp` 将这个 faceIndex 编码到 face-id。**恢复本文件 §1 的 dface 索引口径**，不再把“先新增产品面表 dump”作为离线查面信息的前置。
 
-含义：
+复现：
 
-- 想离线对账，得先让产品把它的面表导出来（一条 dump），这也是下一步要的那个"最小实际 draw 诊断"的一部分；
-- 在那之前，任何"这个 id 对应哪个 dface"的推断都是错的——本文件不作这种推断。
+```bash
+python -B tools/bsp_face.py 'E:/demo测试/cp_sultry_b8a/地图/cp_sultry_b8a.bsp' 6343 15566 17804
+```
 
-`tools/bsp_face.py` 保留：它对 dface 级问题（材质、位移、surface flags）仍然有效，只是不能用来解释 face-id 帧。
+真实 BSP 输出：`D:/_shared/EXEC-2026-11-15/N05/bsp-face-correction.log`，SHA-256 `87ba2ff122a492560a0bb732f39c281a3bde415c08df2beb8c63ed4c0499cedd`。临时合成检查 `BSP-FACE-CHECK=PASS`：同一表 raw/LZMA 解码一致；短文件头、截断 payload、错误解压尺寸、face 21289 越界均正确拒绝。
+
+边界：只证明这些 id 能离线映射到真实 dface/材质，**不证明某个三角形在 GPU 覆盖该像素**，也不独立证明 §1–§10 的 sky/着色归因；D01 和两个点的根因仍 OPEN。下一步用 tri ordinal/所属 face 的准确顶点、同帧实际矩阵/viewport、clip/pixel-center/填充规则解释 919；849 继续查实际 COLOR0/材质常量。必要时加针对三角形的诊断，不能仅凭 CPU 预测直接关闭产品缺陷。
+
+## 12 更正：离线映射是可行的，§11 的结论作废
+
+§11 说"face-id 不是 dface 索引，离线映射行不通"——**错**。原因是 BSP 的 lump 是 **LZMA 压缩**的，我按未压缩读，才得到 4477 条；解压后是 **21289** 条，与产品面表一致。工具已修，映射成功。
+
+`tools/bsp_face.py` 的读数（`cp_sultry_b8a`，`decoded_faces=21289`）：
+
+| face | 材质 | 尺寸 | dispinfo | 边数 | plane | side |
+|---|---|---|---:|---:|---|---:|
+| **6343** | `METAL/METALGRATE013A2` | 256×256 | **-1（非位移）** | 4 | (0,-1,0)@**-58.00** | 1 |
+| **15566** | `SULTRYPROPS/GOTHIC_FENCE` | 512×256 | **-1** | 4 | (0,-1,0)@**-4.49** | 1 |
+| 17804（对照） | `METAL/METALGRATE013A2` | 256×256 | -1 | 4 | (0,-1,0)@1.00 | 1 |
+
+两个错点的结论因此改变：
+
+- **都不是位移面**，"位移 fallback 被丢弃"的假设**排除**；
+- 两个都是 **4 边面（矩形）**，同一个朝向 `(0,-1,0)`，只是平面距离不同（−58 vs −4.49）——即两面**平行的墙**；
+- 一个在 −58、一个在 −4.49，说明 oracle 在两个不同深度的平行面上各挑中了一个三角形，而光栅器在该像素两个都没画（天空遍覆盖）。
+
+这把问题收紧成：**oracle 命中的平行墙面在该视图下是否进入了绘制集合**。下一步可以用同一工具读这两面的所属 leaf/brush，或直接用 `--world-vis-clip` 的开关差异在**着色帧**上比对（不是 id 帧）。
