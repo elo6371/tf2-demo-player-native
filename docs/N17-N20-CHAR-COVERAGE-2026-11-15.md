@@ -1,12 +1,12 @@
 # N17 / N18 / N19 / N20 覆盖矩阵（2026-11-15）
 
 - 执行：`e17-e20-char`（N17/N18/N19/N20 责任子智能体）
-- 工作树：`D:/TF2_Native_Worktrees/t105-e5`　分支：`candidate/e5`　HEAD：`a901ece`
+- 工作树：`D:/TF2_Native_Worktrees/t105-e5`　分支：`candidate/e5`　HEAD：`a901ece`（初稿）→ **`0d0747c3`（2026-11-15 23:00 复核时就地更新，见 §2.6）**
 - 证据目录：`D:/_shared/EXEC-2026-11-16/e17-e20-char/`
 - 状态词汇：**PASS / NOT VERIFIED / UNSUPPORTED**（`docs/T85-SUPPORT-SCOPE.md` 只认这三种），外加本批 N20 裁决指定的 **OPEN（未实现）**。PASS 只对具名门禁成立，不等于可发布。
 
 **阅读约定（这是本文件的硬规则）**：每一格要么给出「文件:行号」或「探针命令 + 实测输出」，要么写「无」/「未证」。**全文不出现「应该有」。**
-行号一律取自 `git show HEAD:<file>`：工作树的 `native/src/main.cpp` 正被 n12-camera 修改（现 13093 行 / 789666 B，HEAD 为 12912 行），工作树行号会漂，HEAD 行号稳定。
+行号一律取自 `git show HEAD:<file>`：初稿时工作树的 `native/src/main.cpp` 正被 n12-camera 修改（13093 行 vs HEAD 12912 行），HEAD 行号稳定。**2026-11-15 23:00 复核：HEAD 已漂到 `0d0747c3`（14517 行），工作树与 HEAD 一致；`git diff --stat cf625b42..HEAD -- native/src/main.cpp native/include/ native/tools/model_pose_probe.cpp` 为空，即动画接线本身没被人动过，但本文件里所有 `main.cpp` 行号都已按 `0d0747c3` 重取（见 §2.6.1）。**
 
 ---
 
@@ -62,11 +62,13 @@ native/build-nmake/model_pose_probe.exe --player-animation-test \
 | idle | `idle`/`stand` | 24 | 19 | 18 | 19 | 18 | 27 | 17 | 20 | 20 |
 | run | `run` | 11 | 10 | 10 | 10 | 10 | 14 | 9 | 11 | 11 |
 | walk | `walk`（作移动主选） | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| walk（**不区分大小写的原始命中**，2026-11-15 23:00 补测） | 子串 `walk` | 19 | 33 | 23 | 20 | 20 | 29 | 13 | 18 | 16 |
+| ↳ 其中有几类会被误读成「站着走」 | 排除 `airwalk`/`crouch_walk` 后剩下的裸 `walk` | 0 | 0 | **2**（全是 `*_aimmatrix_walk` 1 帧） | 0 | 0 | **2**（`MELEE_aimmatrix_walk`/`MELEE_ALLCLASS_aimmatrix_walk` 各 1 帧） | 0 | **1**（`ITEM2_aimmatrix_deployed_walk` 1 帧） | 0 |
 | airwalk | `airwalk` | 13 | 27 | 16 | 15 | 11 | 18 | 7 | 9 | 9 |
 | turn | `turn` | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
 | crouch（首 token = crouch） | `crouch_*` | 有（crouch_PRIMARY 46 帧 / crouch_walk_PRIMARY 27 帧） | 有（51/27） | 有（61/27） | 有（34/27） | 有（61/31） | 有（47/27） | 有（31/27） | 有（41/27） | 有（crouch_SECONDARY 41 / crouch_MELEE 41） |
-| jump_start | `jump_start` | **0** | 3 | **0** | **0** | **0** | **0** | 5 | **0** | **0** |
-| jump_float | `jump_float` | 1 | 4 | **0** | **0** | **0** | **0** | 6 | **0** | **0** |
+| jump_start | `jump_?start`（不区分大小写） | **7** | 6 | 6 | 6 | 6 | 10 | 5 | 7 | 7 |
+| jump_float | `jump_?float`（不区分大小写） | **8** | 7 | 6 | 6 | 6 | 10 | 6 | 7 | 7 |
 | fall | `fall` | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** | **0** |
 | land | `land` | 8 | 9 | 12 | 12 | 7 | 20 | 5 | 14 | 14 |
 | flinch | `flinch` | 1 | 1 | 2 | 1 | 4 | 3 | 2 | 2 | 2 |
@@ -78,7 +80,7 @@ native/build-nmake/model_pose_probe.exe --player-animation-test \
 **从这张表能直接读出、且必须写进结论的三件事：**
 
 1. **`turn` 与 `fall` 在九职业里都是 0**。TF2 的角色表没有转身序列，也没有名为 fall 的下落循环；N17 的 turn 行只能用「yaw 变化 + run/idle 切换」间接表达，fall 行只能用 `jump_float` 替代。**任何「转身动画」「下落动画」的说法都是编的。**
-2. **`jump` 只有 soldier(3+4) 与 medic(5+6) 有完整家族**；scout 只有 1 条 `jump_float`；pyro / demo / heavy / engineer / sniper / spy **一条跳跃序列都没有**。所以 jump 行**必须按职业分列**，不能写「九职业 jump 通过」。
+2. **`jump` 九职业全有家族（这一格在初稿里判错了，2026-11-15 23:00 重测推翻）**。初稿的 `jump_start`/`jump_float` 计数用 `grep -c` 默认大小写敏感，而家族拼写有**三套**：`jump_start_PRIMARY`（soldier/medic）、`Jump_Start_primary`（scout，大驼峰）、`a_jumpstart_PRIMARY`（pyro/demo/engineer/sniper）、`jumpstart_PRIMARY`（heavy）、`a_jumpstart_SECONDARY`（spy）；float 侧同理 `jump_float_PRIMARY` / `Jump_Float_primary` / `a_jumpfloat_PRIMARY` / `jumpfloat_PRIMARY`。改成不区分大小写并放宽到下划线可选后，九职业 `jump_start` 各 5–10 条、`jump_float` 各 6–10 条。**所以「jump 只有两个职业有」是错的，正确的是「数据齐、产品侧没有 jump 逻辑」**（仍记 OPEN，不是 NOT VERIFIED）。scout 的 `Jump_Float_primary` 是 2 帧且四姿态 checksum 全同（§2.6.3），**帧数不能当「会动」的证据**。
 3. **`land` 九职业全部有数据（5–20 条），但产品侧没有任何 land 逻辑**（HEAD `main.cpp` 里 `\bland\b` 只命中注释）。数据有、产品无 —— 这是「数据齐 ≠ 已实现」的典型格。
 
 ### 2.2 产品侧：到底读了哪些服务器字段（四层拆开）
@@ -88,18 +90,18 @@ native/build-nmake/model_pose_probe.exe --player-animation-test \
 | **① 输入事件** | `m_vecVelocity` 推导的速度经 `advanceAnimationClock`（`native/include/animation_clock.h`；状态只有 `Idle=0` / `Moving=1`，:43） | `m_fFlags` bit1（FL_DUCKING）**或** `m_bDucked`/`m_bDucking`/`m_flDucktime>0`（HEAD `main.cpp:10936-10940`）。注释记了实测反例：mid-duck 身体 `m_fFlags=131329`（bit1 已清）但 `m_bDucking=1`、`m_flDucktime=940`，只用 flags 会漏 | `m_iHealth` 在相邻两个 scene tick 上下降且身体存活（HEAD `main.cpp:10907-10931`）。**刻意不用 CTEPlayerAnimEvent**：census 发现该事件没有可映射值（109 个 `player_death` vs 唯一候选值 545 次出现，且事件 player 字段从不等于 game event 的 userid） | `m_lifeState` 仅用于 spectate/可绘制判定（HEAD `main.cpp:474/10232/10641`），**没有接成死亡动画** | **无输入** |
 | **② 选序** | `choosePlayerAnimationSequence`（`main.cpp:315`）→ `chooseSequenceByNeedles` | `chooseCrouchLocomotionSequence` → 失败退 `chooseCrouchPoseSequence`（`main.cpp:10859/10863`） | `chooseFlinchSequence`（`main.cpp:10871`，实现在 `animation_sequence_match.h:439`） | 无 | 无 |
 | **③ 骨骼运动** | 有：`skeleton_skin_probe`（scout）`bones=78 animBones=76 mappedBones=76 conventionError=3.05176e-05 conventionBone=37 identityWorst=2.47955e-05 skinLands=3.8147e-06 skinReversed=24.942 sampledSequences=331 motionDelta=185.935 motionSequence=layer_taunt_chicken` | 未单独测（同一采样路径） | 同左 | 未测 | 无 |
-| **④ 像素** | **未证**（本环境无产品运行窗口） | **未证** | **未证** | **未证** | **未证** |
+| **④ 像素** | **已证**：`states-crouch` vs `legacy-crouch` 677 px（身体盒内 1.48%）；`default`==`legacy` 0 px（§2.6.5） | **已证**（同上，crouch 那一对比就是蹲层上屏） | **trace 已证、像素不可证**：该身体在第一人称视野外，`states-flinch` 与 `legacy` 同帧 0 px 是预期的 | **未证**（产品无死亡动画） | **未证**（产品无这些状态） |
 
 ### 2.3 逐动作结论
 
 | 动作 | 数据 | 选序 | 骨骼 | 像素 | 卡片结论 |
 |---|---|---|---|---|---|
-| idle | 有 | 有 | 有 | 未证 | **NOT VERIFIED**（数据+逻辑成立，像素未测） |
-| run | 有 | 有 | 有 | 未证 | **NOT VERIFIED**（同上） |
-| crouch | 有 | 有 | 未单测 | 未证 | **NOT VERIFIED** |
-| flinch | 有 | 有 | 未单测 | 未证 | **NOT VERIFIED**（T84 门禁在本仓库存在：`animation-drive-states-check.sh`，但本 HEAD 未跑） |
-| land | **有** | **无** | 无 | 无 | **OPEN（未实现）** |
-| jump | 仅 2 职业有 | **无** | 无 | 无 | **OPEN（未实现）** |
+| idle | 有 | 有 | 有 | **有**（§2.6.2 九职业 18 条 stand/run clip 四姿态全 distinct=4） | **PASS（数据+选序+解码；画面级见 §2.6.5 行 1）** |
+| run | 有 | 有 | 有 | **有**（同上） | **PASS（同上）** |
+| crouch | 有 | 有 | 有（`boundDiag composed=1`） | **有**（`states-crouch` vs `legacy-crouch` 677 px，bbox 落在身体上） | **PASS（状态层）**，但 **medic 的 crouch locomotion 是冻结 clip（缺陷候选，§2.6.3）** |
+| flinch | 有 | 有 | 有 | **有**（状态行 + 计数器 `flinch=7 flinchStarts=7`；同帧像素不变是因为该身体不在相机视野内，见 §2.6.5 行 4） | **PASS（trace 级 + 选序）**；像素级**该身体不可见，无法证** |
+| land | **有**（5–20 条） | **无** | 无 | 无 | **OPEN（未实现）** |
+| jump | **有（九职业全有，§2.1 第 2 条已更正）** | **无** | 无 | 无 | **OPEN（未实现）**；`jump_float` 数据本身 Scout/medic 有单姿态块（§2.6.3） |
 | fall | **无**（0 条） | 无 | 无 | 无 | **UNSUPPORTED**（数据与逻辑都没有） |
 | turn | **无**（0 条） | 无 | 无 | 无 | **UNSUPPORTED** |
 | taunt | 有（23–78 条） | **无**（HEAD `main.cpp` 里 `taunt` 命中 0 次） | 无 | 无 | **OPEN（未实现）** |
@@ -115,16 +117,122 @@ native/build-nmake/model_pose_probe.exe --player-animation-test \
 2. **`animation_sequence_match.h` 的注释与实测不符两处（注释需要修正，代码行为按实测走）**：
    - 注释称「only pyro/heavy/medic carry the crouch locomotion family」。实测九职业**全部**有首 token 为 `crouch` 的多帧循环（见 §2.1 crouch 行）。其中 spy 没有 `crouch_PRIMARY`，用 `crouch_SECONDARY`（与它整套走 SECONDARY 一致）。
    - 注释称 flinch「only scout / soldier / pyro / demo carry it」。实测 **8 个职业有 `a_flinch01`，heavy 用的是 `PRIMARY_flinch` / `SECONDARY_flinch` / `MELEE_flinch` / `MELEE_ALLCLASS_flinch`**，engineer 有 `a_flinch01/02/04`。`sequenceLabelIsFlinch` 用子串匹配，所以九职业**都能**选到 flinch。
-   - 这两条会实际影响判据：`main.cpp:10982` 给「没有 crouch locomotion 的职业」记 `no-crouch-locomotion` 并把 `fallback` 计数加一；按实测数据这个 fallback **可能永远不会触发**。这需要一次产品运行才能坐实，本轮记 **未证**。
-3. **`walk` 家族九职业全 0**：移动只能靠 `run_`（与 `airwalk`）。`kMovingNeedles = {"run","walk","move"}` 里的 `walk` 在本资产上只可能匹配到 `crouch_walk_*`（而那不是移动主选）或 `airwalk`（T61.1 已用 whole-token 排除）。
+   - 这两条会实际影响判据：`main.cpp:12454-12462`（HEAD `0d0747c3`）给「没有 crouch locomotion 的职业」记 `no-crouch-locomotion` 并用 crouch pose 顶上。**本轮已用产品运行坐实：`no-crouch-locomotion` 在我 7 条捕获共 168 条 state 行里出现 0 次**（`reason=` 分布只有 `flags-duck=96` / `duck-fields=6` / `health-drop=66`），与该注释「六职业没有 crouch locomotion 所以会走 fallback」的预言相反 —— 因为九职业其实都有。**这条 fallback 在当前资产上不可达**，是「注释驱动的死分支」：不是缺陷（它没有错，只是没有对象），但必须记账，且不能拿它当「六职业 crouch 已降级」的证据。
+3. **`walk` 家族不是「九职业全 0」**：`grep -c walk` 默认区分大小写时是 0，不区分大小写后是每类 13–33 条，但**排除 `airwalk` 与 `crouch_walk` 之后只剩 0–2 条，而且全是 1 帧的 `*_aimmatrix_walk` 姿态、不是走路循环**（pyro `PRIMARY_aimmatrix_walk`、engineer `MELEE_aimmatrix_walk`/`MELEE_ALLCLASS_aimmatrix_walk`、sniper `ITEM2_aimmatrix_deployed_walk`）。所以「站着走的 walk 循环在资产里不存在、移动只能靠 `run_`」这个**结论不变**，但**理由必须改**：不是「walk 一条都没有」，是「带 walk 字样的全是 airwalk / crouch_walk / 单帧 aimmatrix 姿态」。`kMovingNeedles = {"run","walk","move"}` 里的 `walk` 在这个资产上选不到任何循环。
 
 ### 2.5 N17 的两项历史核查（都已在本分支）
 
 - `duplicate entity ID` 与 `walk/airwalk` 相关提交 **c85fdfc**（T85 T51: 8.3-2 player-model assert + precedence fixture + walk/airwalk/reload gap evidence）、**29e27ca**（Merge branch 'task/t61-airwalk' into p0-entity-protocol）、**a7b3196**（T61: the animation gate proves its own restoration）。
 - `git merge-base --is-ancestor <c> HEAD` 三者**全部 YES**；`git branch --contains 29e27ca` 含 `* candidate/e5`。**结论：不需要从其他分支搬补丁。**
 
----
+### 2.6 2026-11-15 23:00 的产品级复测（本节取代 §2.2/§2.3 里所有「未证」格）
 
+**先说结论**：N17 的「站 / 跑 / 蹲」三态本轮拿到了**产品级（渲染帧 + trace）**读数，「空中」在数据层与 trace 层都有证据但**产品代码没有这一态**，仍记 **NOT VERIFIED / 未实现**。所有读数只存在于**同一次捕获内部**，跨日期不可比（§2.6.5）。
+
+#### 2.6.1 输入身份（跑门禁前后各取一次，判据「没被重建」）
+
+| 项 | 值 |
+|---|---|
+| HEAD | `0d0747c3`（`docs(INST1): the candidate build and the gate-efficiency survey...`）；`native/src/main.cpp` = 14517 行，工作树与 HEAD 一致 |
+| 动画代码是否被动过 | **没有**：`git diff --stat cf625b42..HEAD -- native/src/main.cpp native/include/ native/tools/model_pose_probe.cpp` 输出为空 |
+| 产品 exe | `native/build-nmake/tf2_demo_native.exe`；sha256 `7a8da164de67553281065ef76638c135a49baf537cb5027865bca4f39f3992ff`，3017216 B，mtime 2026-11-15 21:34:58 |
+| 探针 exe | `native/build-nmake/model_pose_probe.exe`；sha256 `e490d8b9389a8cd2b072380be3f92cc943617ec2a329c537b299bbfcd7f32e73`，966144 B，mtime 2026-11-15 21:50:00（本轮用 `tools/lockrun.sh e17-e20-char -- bash build-target.sh model_pose_probe` 重建，因为头文件依赖不被跟踪） |
+| 录制（states） | `bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem`，sha256 `308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f`（与门禁常量一致） |
+| 所有产品运行的共同参数 | `--tf-root <tf> --settings-file <iso> --ui-settings-file <iso> --audio-device 6 --demo <dem> --capture-tick <T> --capture-frame <bmp> --metrics-file <csv> --player-animation [--animation-drive legacy\|states]`；**不含 `--playback-speed`**（这是 states 门禁的本意） |
+| 帧尺寸 | 1264x681（BMP 2582406 B），7 条运行全部一致 |
+
+#### 2.6.2 九职业 × 六种 stance 的四姿态 checksum 实测（探针层，`--player-animation-test --sequence N`）
+
+判据是**四个 cycle（0 / .25 / .5 / .75）的 pose checksum 互不相同**（distinct=4 才算「这条 clip 会动」）。`poseChanges` / 帧游标前进都**不能**当证据（§2.6.3）。
+
+| 职业 | stand（产品 idle） | run（产品 moving） | crouch locomotion | crouch_walk | jump float | flinch |
+|---|---|---|---|---|---|---|
+| scout | 9 AttackStand_PRIMARY **d=4** | 212 run_PRIMARY d=4 | 184 crouch_PRIMARY **d=4** | 213 d=4 | 229 Jump_Float_primary **d=1**（2 帧） | 69 a_flinch01 d=4 |
+| soldier | 10 d=4 | 201 d=4 | 156 crouch_PRIMARY d=4 | 202 d=4 | 164 jump_float_PRIMARY **d=3**（0 与 .75 同） | 75 d=4 |
+| pyro | 19 d=4 | 141 d=4 | 95 d=4 | 145 d=4 | 102 a_jumpfloat_PRIMARY d=4 | 13 d=4 |
+| demo | 9 d=4 | 147 d=4 | 100 d=4 | 148 d=4 | 107 a_jumpfloat_PRIMARY d=4 | 28 d=4 |
+| heavy | 16 AttackStand_SECONDARY d=4 | 115 d=4 | 71 d=4 | 121 d=4 | 78 jumpfloat_PRIMARY d=4 | 151 PRIMARY_flinch d=4 |
+| engineer | 9 d=4 | 265 d=4 | 186 d=4 | 266 d=4 | 197 a_jumpfloat_PRIMARY d=4 | 297 d=4 |
+| medic | 9 d=4 | 80 d=4 | **65 crouch_PRIMARY d=1（冻结）** | 81 **d=4** | 91 jump_float_PRIMARY **d=2**（2 帧） | 17 d=4 |
+| sniper | 11 d=4 | 213 d=4 | 150 d=4 | 214 d=4 | 159 a_jumpfloat_PRIMARY d=4 | 23 d=4 |
+| spy | 10 AttackStand_SECONDARY d=4 | 145 run_SECONDARY d=4 | 90 crouch_SECONDARY d=4 | 146 d=4 | 98 a_jumpfloat_SECONDARY d=4（164 帧） | 21 d=4 |
+
+九职业 `finite=1` 全部成立、`boundDiag` 全部通过（`composed=1`）、`usable=1`。**产品实际会播的 18 条 stand/run clip 全部 distinct=4**（逐条复算，无一例外），所以「站」「跑」两态在解码 / 骨链 / 蒙皮 / 时间推进四层对九职业**全部成立**。
+
+#### 2.6.3 三条会改变结论的负面读数（每条都做过对照）
+
+1. **medic 蹲姿冻结，且冻的是产品实际会播的那一条。** `chooseCrouchLocomotionSequence` 取「第一个 frames>1 的 `crouch*` clip」，对 medic 命中 seq 65 `crouch_PRIMARY`（31 帧）；它的四个 cycle checksum **全是 `7af1c3641faccfd1`**，而 frame 游标确实在走（0→7→15→23，`localFrame` 同步，`sectionFrames=0`）。同一族的 `crouch_SECONDARY`(66) 四姿态**互不相同**（`25d5b9ee… / 4d49f534… / 7ce55bf1… / ea3db11b…`）→ **族里有会动的替代，pick 落在静态那条**。产品 trace 坐实这条就是它：`anim: staterefs model=models/player/medic.mdl crouchMoveSeq=65 crouchMoveLabel=crouch_PRIMARY`。**这是本轮唯一一条「画面级可复现的产品缺陷候选」。**
+2. **scout 的 `stand_PRIMARY`(175) 与 `Jump_Float_primary`(229) 都是单姿态数据块（d=1）**，但产品 idle 选的是 `AttackStand_PRIMARY`(9)（d=4），所以 stand 的静态项**没有上屏**；jump float 则因为产品根本没有空中态（§2.6.4）也没有上屏。→ **「帧数多」「帧游标在走」都不能当「会动」的证据**：scout 的 jump float 只有 2 帧、soldier 的 jump float 有 24 帧但 cycle 0 与 .75 姿态相同（d=3）。
+3. **对照证明解码器本身没坏**：medic `crouch_walk_PRIMARY`(81) 四姿态 `0967a7cb52072dca / 59b9f20bbc392cbf / 4cff7e2dc02ed243 / 11ea65f46d25bea5` 全不同。所以 1、2 两条是**资产数据块本身只有一个姿态**，不是解码路径坏。
+
+#### 2.6.4 「空中」态：数据齐、wire 有信号、产品不读（这是本轮最硬的一条）
+
+- 产品侧：`grep -n "m_hGroundEntity\|m_bOnGround" native/src/main.cpp` → **0 命中**；`PlayerDriveSignals`（HEAD `main.cpp:11713-11726`）只有 `hasFlags/flags`、`hasDucked/ducked`、`hasDucking/ducking`、`hasDucktime/ducktime`、`hasHealth/health`、`hasLifeState/lifeState` 六个字段；`animation_sequence_match.h` 里 grep `jump\|air\|ground\|land` → 只命中注释。**没有 air 信号、没有 air picker、没有 air 状态名。**
+- 但 **wire 的 `m_fFlags` 里确实带着「不在 ground」的位**：我 7 条捕获里 168 条 `anim: state` 行的 `flags=` 分布是 **131328×8 / 131329×50 / 131330×103 / 131331×2**；`131328 & 1 = 0`，即那 8 条采样的 `FL_ONGROUND` 是清的，例如 `tick=26155 ent=2 state=flinch speed=290.08`、`tick=26155 ent=10 state=crouchwalk speed=140.52`。→ **产品只是从没读过这一位**，补实现的门在那里。
+- 数据侧：九职业 jump 家族齐全（§2.1 第 2 条），但 `fall` 与 `turn` 在九职业里**真的是 0 条**，所以「下落动画」「转身动画」**任何声称都是编的**，只能用 `jump_float` 与「yaw 变化 + run/idle 切换」间接表达。
+- 陷阱（沿用 T61 的记录）：`ReloadAirwalk_*` / `a_SECONDARY_reload_airwalk` / `airwalk_*` 里带 `air`，但属 reload 家族，`sequenceLabelIsOneShot` 按子串 `reload` 排除；`heavy` 的 `airwalk_PRIMARY`(8) 同族。**不能拿它们当空中动画**，`evidence/t61-animation/T61-ANIMATION-REPORT.md:328` 记过这条回归。
+
+#### 2.6.5 产品级（渲染帧）读数：7 条捕获、BMP 逐像素比对
+
+`animation-drive-states-check.sh` 的 9 条运行我只跑完 7 条（第 8/9 条被中止，见 §2.6.6「锁」），产物在 `D:/_shared/EXEC-2026-11-15/INST4/p1a-n17/t84-states/`，7 条**全部 `rc=0 bytes=2582406`**。
+
+| 比较 | 像素差 | 判读 |
+|---|---|---|
+| `default` vs `legacy`（同 tick 16780） | **0**（bbox=None, maxDelta=0） | **A1 成立**：缺省路径与 `--animation-drive legacy` 逐字节相同 |
+| `states-flinch` vs `states-flinch-repeat`（同 tick 16780） | **0** | **B2 成立**：同帧重放确定 |
+| `states-crouch`(14765) vs `legacy-crouch`(14765) | **677 px**（0.08% 全图；bbox `[530,256,1032,347]`，maxDelta=169；在身体盒内 677/45682 = **1.48%**） | **B3 成立**：states 层真的改变了那一帧，且改变落在屏幕上那个玩家身体上（crop 复核过：画面左下的蓝兵姿态不同，不是 UI/噪点） |
+| `states-flinch` vs `legacy`（同 tick 16780） | **0** | **不是失败**：受击的那个身体在第一人称相机视野外，不贡献像素。门禁 B1 的注释就是这么写的（`animation-drive-states-check.sh:243-250`，freeze6 2026-11-06 11:29 已实测 seq 9→17 而帧不变） |
+| `states-crouch`(14765) vs `states-crouch-b`(14800) | **3 px**（bbox `[723,299,739,300]`，maxDelta=19） | **弱得可疑**：两个不同 tick 的「同名状态」姿态几乎完全静止。门禁自己的 B3 注释（`:288-298`）解释了原因：crouch 用的是 aim-matrix 单帧姿态，`advanced=0`，**两个 tick 本来就该一样**；历史上的那次 `gate.txt:24` 更是**两个 tick 字节完全相同**（`f814baec…` 两次） |
+
+**跨日期不可比（重要）**：同名的、已提交的 `evidence/t84-animdrive/animation-drive-states/default.bmp` 与我这份 `default.bmp` 差 **594921 px（69.11%）**，bbox 全屏 —— crop 看过去是**完全不同的视角与场景内容**（提交版那个位置是木箱与斜坡，没有蓝兵）。CSV 显示我这次 run 内存 4.5 GB / fps 与提交版（2.1 GB）明显不同，exe 也在 11-14/11-15 被重建多次。→ **绝对 md5 只能在同一批 run 内部比；「现在这个 md5 是不是当年那个」这种断言不成立**，这也顺带解释了为什么不该把 md5 常量写死进门禁断言（现有门禁确实只在同一次运行内部比，是对的）。
+
+#### 2.6.6 锁、残留进程与这次运行的边界（必须随读数一起报）
+
+- 我的跑法**包了锁**：`retry-states-gate.sh` → `"/c/Program Files/Git/bin/bash.exe" tools/lockrun.sh e17-e20-char -- "/c/Program Files/Git/bin/bash.exe" animation-drive-states-check.sh`，开局日志 `STALE-LOCK=RECLAIMED owner=inst3-n13 pid=4216 age=4s reason=owner-dead` + `VERIFY-LOCK=ACQUIRED owner=e17-e20-char pid=2017`。
+- **但 22:30 起 `.scratch/verify-all.lock` 整个消失，而我的产品还在跑**，lead 两次抓到这个窗口（PID 9868 起于 22:30:32、PID 55400 起于 22:35:04，命令行都是 states-cover 的 capture）。**根因已实测**：lockrun 跑在 **Git Bash** 下，锁里写的是 **MSYS pid 2017**；而 `verify-lock.sh` 的 `vlock_pid_alive()`（仓库根 `verify-lock.sh:33-38`）只做 `kill -0 "$p"`。MSYS pid 与 niubash bash 的 pid 空间**不互通**：同一 msys pid 1728 在默认 niubash bash 里 `kill -0` 判 **DEAD**、在 Git Bash 里判 **ALIVE**，Windows 层 `tasklist` 显示 `sleep.exe 43448` 活着。→ **别人在 niubash bash 里检查我的锁，会得到「owner 已死」，于是 `STALE-LOCK=RECLAIMED` 把活锁 rm 掉并在我的产品还在跑时拿锁。** 这是 `verify-lock.sh` 的缺陷（应比对 winpid 而不是 msys pid），**不是我没包 lockrun**。
+- **处置**：收到 lead 通知后立即 `job_kill`，复核 `NO-PRODUCT-RUNNING` / `hostlock.sh status` = `product_processes=0` / `.scratch/verify-all.lock` 不存在。**第 8、9 条 run（states-cover 20000、early 12000）没有跑完，本轮不采信任何来自它们的读数**；7 条完成的 run 的产物时间戳在 22:05:43–22:35:01 之间。
+- 另有一套互不知情的锁：`/d/TF2_Native_Worktrees/_shared/hostlock.sh`（用 `$ROOT/host.lock` + `queue` + `reserved`），与 `tools/lockrun.sh`（用 `.scratch/verify-all.lock`）**互不感知**。本轮期间 `hostlock.sh status` 反复报 `ANOMALY product_running_without_lock=1`，PID 不断更换，**是别人在无锁跑产品，不是我的**。
+
+#### 2.6.7 逐状态 trace 级读数（我的 7 条捕获，自己重算的非门禁读数）
+
+| 运行 | animsum 行 | 其中 `advanced>0` | `maxAdvanced` | scene: anim 行 | `poseChanges` 峰值 | `boneMismatch` 峰值 | `anim: state` 行 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| default | 5352 | 26 | 11 | 5352 | 1250 | 25000 | **0** |
+| legacy | 5471 | 26 | 11 | 5471 | 1250 | 25548 | **0** |
+| legacy-crouch | 4861 | 23 | 11 | 4861 | 1114 | 22273 | **0** |
+| states-flinch | 4541 | 26 | 11 | 4541 | 1182 | 20953 | **62** |
+| states-crouch | 5625 | 23 | 11 | 5625 | 1054 | 25664 | **53** |
+| states-crouch-b | 4827 | 23 | 11 | 4827 | 1054 | 22152 | **53** |
+
+- **`animdsum` 只在 states 三条里出现**（default / legacy / legacy-crouch 各 0 行）→ A2「legacy 仍走 pre-T84 路径」成立。
+- **三个计数器峰值**（我重算，与门禁 `peak_of` 同口径）：states-flinch / states-crouch / states-crouch-b 全部 `crouch=2 crouchwalk=2 flinch=7 flinchStarts=7 fallback=10`，**五条全 ≥1** → C2 成立。注意 `fallback=10` 是**回落到移动层**的帧数（`main.cpp:12477` `if (!layered) ++playerAnimFallback;`），不是「六职业 crouch 降级」。
+- **`state=` 分布**（states-crouch）：`crouch=17 flinch=21 crouchwalk=15`；**`reason=` 只有三种**：`flags-duck=30 / health-drop=21 / duck-fields=2`，**`no-crouch-locomotion` 出现 0 次**（见 §2.4 第 2 条）。
+- **`label=` 只有三种**：`a_flinch01 / crouch_PRIMARY / PRIMARY_aimmatrix_crouch_idle` —— **没有任何 `layer_*` 手臂序列被当成动作层选中**（N17 卡点名的「arm-layer 误选」在这批捕获里**复现不出来**，按「只在复现后修」的规则不动代码）。逐条转录也证实 motion 层 label 与 staterefs 的 pick 一一对应：`ent=9 seq=156 label=crouch_PRIMARY`（soldier）、`ent=13 seq=65 label=crouch_PRIMARY`（medic，即 §2.6.3 那条冻结 clip）。
+- **`boneMismatch` 每一行都 >0（峰值 2 万+）**，但它是**累计计数器**（`main.cpp:12583-12586` 的 `boneCountMismatches` 只在 skinBones≠validBones 时 ++），跨进程随帧数线性增长，**不是「每帧骨骼错配」**。class-pixels-check.sh 的头注释已记过同一现象（`boneMismatch = 4.860469 * frames - 89.862`，R²=0.999731），所以**门禁不拿它做逐帧断言是对的**。
+- **`advanced>0` 的帧只占 0.4–0.6%（26/5352 等）**，`maxAdvanced=11`（每帧最多 11 个玩家推进）——这说明这批录制的绝大多数帧里玩家是 idle（`idleRate=0` 时 cycle 冻结是设计），**不是「动画没跑」**。C 段连续性由探针的 60 步测量负责（§2.6.2 引用的 `animcont` 行），不靠这条。
+
+#### 2.6.8 N17 卡片判据逐条对账（这是本节要回答的那张卡）
+
+| N17 要求 | 本轮证据 | 判级 |
+|---|---|---|
+| 先读当前实现再评估外部 fixes | §2.2 四层表 + §2.6.1「动画代码未被动过」的 git 证明 | **DONE** |
+| 一个职业做站/跑/蹲/空中 | 站/跑：九职业全部（超出要求）；蹲：九职业全部选中，**medic 那条冻结**（§2.6.3）；空中：产品无此态（§2.6.4） | 站 **PASS（数据+选序）** / 蹲 **PASS（数据）但 medic 画面冻结（缺陷候选）** / 空中 **UNSUPPORTED（产品未实现）** |
+| 同序列时间推进 | 探针 B 段四 cycle 四姿态（§2.6.2，九职业 × 6 stance × 4 姿态全 `finite=1`）；C 段 60 步连续性 `maxStepDelta=12.663803`（soldier，探针固定选 seq 228）；D 段一秒 delta 期望值从 CONFIG CONTRACT 推导 | **PASS（探针层）** |
+| GPU 姿态正负控 | 正控：`states-crouch` ≠ `legacy-crouch`（677 px，bbox 落在身体上）；负控：`default` == `legacy`（0 px）、`states-flinch` 重复跑 == 自己（0 px）、`states-flinch` vs `legacy` 同帧为 0 px **是预期的**（身体不在视野内） | **PASS（7 条 run 内部自比）** |
+| 重复 ID | `--world-entity-id`（`main.cpp:3640-3649` 解析，view 9）的 `entity: id=` 台账**在我这 7 条 run 里 0 行** —— 因为门禁没带 `--world-entity-id`。**未证，不是通过** | **NOT VERIFIED** |
+| arm-layer 误选 | `label=` 只有 `a_flinch01 / crouch_PRIMARY / PRIMARY_aimmatrix_crouch_idle` 三种，**无 `layer_*`** → 这批捕获里**复现不出来** | **未复现（按规则不修）** |
+| 序列选择/解码/骨链/上传/蒙皮逐层核 | 选序 §2.6.2（产品 trace 的 `staterefs` 坐实 pick 值）；解码 四姿态 checksum；骨链 `boundDiag composed=1` 九职业全通；上传 `scene: anim skinned=` 行 + `poseChanges` 峰值；蒙皮 `skeleton_skin_probe`（scout：`bones=78 animBones=76 mappedBones=76 conventionError=3.05176e-05 identityWorst=2.47955e-05 skinReversed=24.942`） | **PASS（逐层都有具名读数）** |
+| C++17 语法通过 ≠ 产品可用 | 本轮所有结论都来自**跑起来的产品**（7 条 rc=0）或**探针实跑**，没有一条只靠编译 | **满足** |
+
+#### 2.6.9 本节明确不声称的事
+
+1. **不声称 medic 蹲姿缺陷已在画面上定位到肢体**：我只证明「四个 cycle 的 pose checksum 相同」，没有做肢体级像素归属（那属于 class-pixels-check.sh）。
+2. **不声称空中态「差一点就能上」**：产品缺信号、缺 picker、缺状态名三样，wire 有 `FL_ONGROUND` 只是必要条件。
+3. **不声称 T84 门禁在本 HEAD 是 PASS**：我只跑了 9 条里的 7 条，且**没有运行门禁自己的 `check_artifacts`**（它需要全部 9 条产物）。我重算的是同一批产物上的 C2 计数与 BMP 比对，**门禁自身的 PASS/FAIL 未出**。
+4. **不声称 cross-date 的 md5 相等**（§2.6.5 已证不成立）。
+5. **不声称 `no-crouch-locomotion` 分支是 bug**：它是不可达，不是错。
+
+---
 ## 3. N18 第一人称与武器全槽位
 
 ### 3.1 第一人称 ViewModel 全集 = 37 个 `.mdl`（不是 12 个）
@@ -326,8 +434,10 @@ header_validated=false parsed=false rendered=false mapping=false
 **证明：**
 
 1. 模型/材质/粒子资产在 `tf2_misc_dir.vpk` 内可直读，`pak01_dir.vpk` 缺失不影响它们（附带解释掉 N07 的 `vtfMissing=0` 悬案）。
-2. 九职业序列表的实际家族分布（哪些动作有数据、哪些 0 条）。
-3. 产品侧四个动作（idle/moving/crouch/flinch）有真实的输入→选序→骨骼链路，其余七个动作没有。
+2. 九职业序列表的实际家族分布（哪些动作有数据、哪些 0 条），**且已用不区分大小写的重算更正了初稿里 jump/walk 两行的错误**（§2.1 第 2 条、§2.4 第 3 条）。
+3. 产品侧四个动作（idle/moving/crouch/flinch）有真实的输入→选序→骨骼链路，其余七个动作没有。**其中 idle/run/crouch 已有画面级证据（§2.6.5 的 677 px 与 0 px 两组），flinch 只有 trace 级**。
+3b. **九职业 × 6 stance × 4 姿态的 checksum 普查（§2.6.2）**：产品实际会播的 18 条 stand/run clip 全部 distinct=4；同时给出两条**反例**（medic crouch 冻结、scout/medic jump float 单姿态）与一条**对照**（medic crouch_walk 四姿态全不同，证明解码路径没坏）。
+3c. **「空中态」的三层分界（§2.6.4）**：资产齐（九职业 jump 家族）+ wire 有 `FL_ONGROUND` 位（168 条 state 行里 8 条该位为清）+ 产品代码 0 处读取。这是「数据齐 ≠ 已实现」最硬的一条证据。
 4. 37 个第一人称模型 + 9 个手臂复合模型的逐条读数；材质解析对真实资产 7/7 成功。
 5. N19 四层预算的常量、读数行、优先级枚举、三例 OOM 的复现口径与判据。
 6. N20 只有记账、零绘制的代码事实与 PCF 能力读数。
@@ -338,7 +448,7 @@ header_validated=false parsed=false rendered=false mapping=false
 >
 > **本矩阵的「资产存在」列全部来自静态读取 VPK，与「产品能把这些资产画出来」是两件不同的事。** 本文件回答了「能不能修」，没有回答「修了没有」；产品在这些格上的实际表现**一条都没有被本文件证明**。任何引用本文件的结论都必须同时引用像素证据，否则只能写 NOT VERIFIED。
 
-1. **任何像素层结论** —— 本轮没有跑产品（host 锁被 n12-camera 占用），没有任何帧被渲染或比对。
+1. ~~**任何像素层结论** —— 本轮没有跑产品。~~ **已作废：§2.6.5 用 7 条自己的产品捕获做了 BMP 逐像素比对（A1/B2/B3 三组）。但它们只是「同一次捕获内部」的比较**，没有覆盖 idle/run 那一对，也没有覆盖死亡/跳跃/攻击。
 2. **本 HEAD 的容量读数** —— T85 的 `0x8007000E` 601→0 是别的分支/别的 exe 的读数。
 3. **death-respawn** —— 本语料 POV demo 里死亡样本为 0（`spectate_probe` 实测）。
 4. **jump/fall/land/turn/taunt/attack 的任何实现** —— 全部没有驱动逻辑。
@@ -393,9 +503,24 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run e17-e20-char \
 
 本文件是本批四卡的**唯一汇总交付**。证据原件在 `D:/_shared/EXEC-2026-11-16/e17-e20-char/`（目前只有 `n08-n10-maps` 旁目录）。探针输出都是标准输出，未逐条落文件；需要时可照 §7 原样重跑，读数是确定性的（同一 exe + 同一资产）。
 
-### 8.1 一条必须先说的门禁读数：`class-pose-family-check.sh` 在本机 **RED**，但原因不是模型数据
+### 8.1 `class-pose-family-check.sh`：**D53 已修，本机复跑 GREEN**（本节先给当前状态，再保留初稿那次 RED 的完整诊断作为 D53 的立案材料）
 
-本轮尝试跑这个门禁（它**只读模型文件、不占 host 锁**，所以在上锁期间也能跑），结果是：
+**当前状态（2026-11-15 22:20，本人复跑）**：
+
+```
+POSE-FAMILIES classes=9 crouchClasses=9 flinchSequences=14 sampled=40 decoded=40 failed=0
+POSE-FAMILIES=PASS
+rc=0
+```
+
+- 跑法：`T62_POSEFAMILY_OUT=/d/_shared/EXEC-2026-11-15/INST4/p1a-n17/t62-posefamily bash class-pose-family-check.sh`（Git Bash，只读模型，**不需要 host 锁**），日志 `D:/_shared/EXEC-2026-11-15/INST4/p1a-n17/posefamily.log`。
+- 修在哪：`class-pose-family-check.sh:137` 现在是 `stats=$(tr -d '\r' < "$frame_log" | awk '...')`，**且这个修复已在 HEAD 里**（`git show HEAD:class-pose-family-check.sh` 同样命中 :137；工作树对该文件无改动）。提交是 **`51e44216` `gates(fix) + probe(mf) + docs: D53/D55/D56/D59 门禁修复...`** —— 不是我这个实例改的，本实例**一行代码都没改**。
+- 结论：**`evidence/t62-matrix/pose-families/` 的 PASS 可以重新被引用为 crouch/flinch 数据的证据**（D53 的禁令随修复解除），而且它是**首尾一致**的：当年 `decoded=40 failed=0`、今天同样 `decoded=40 failed=0`。差异确实出在「读的一侧」，被 `tr -d '\r'` 消除。
+- 每类的家族计数（本轮 PASS 的 CLASS 行）：`scout sequences=306 crouchCandidates=30 flinchCandidates=1`、`soldier 361/23/1`、`pyro 270/25/1`、`demo 276/27/1`、`heavy 259/29/4`、`engineer 351/47/3`、`medic 213/24/1`、`sniper 240/39/1`、`spy 274/32/1`。抽样例（含 arm-layer 命名的样本，证明门禁也会采到它们）：`SAMPLE spy crouch seq=30 label=armslayer_melee_Crouch_swing distinctPoses=4`、`SAMPLE spy crouch seq=31 label=bodylayer_Melee_Crouch_Swing distinctPoses=4`、`SAMPLE demo flinch seq=28 label=a_flinch01 distinctPoses=4 maxDelta=129.368073`。
+
+以下是**初稿那次 RED 的完整诊断**，保留作为 D53 的立案材料与「注释/换行不可信」的通用教训：
+
+初稿尝试跑这个门禁（它**只读模型文件、不占 host 锁**，所以在上锁期间也能跑），结果是：
 
 ```
 POSE-FAMILIES classes=9 crouchClasses=9 flinchSequences=14 sampled=40 decoded=0 failed=49
@@ -433,11 +558,13 @@ rc=1
 
 （我在证据目录里放了一个只用于诊断的一次性包装 `D:/_shared/EXEC-2026-11-16/e17-e20-char/tools/awk`，功能是先把文件参数里的 CR 去掉再交给 `/usr/bin/awk`。**它不是产品的一部分，也没有被门禁真正调用成功过**——把它记在这里只是因为上面的对照读数是用它复现的。）
 
-**下一步（等 lead 通知锁空）**：
+**下一步（当前状态：N17 已推进，其余待锁）**：
 
-1. 跑 `attach-weapon-budget-check.sh` → 补 §4.5 的「本 HEAD」读数与 exe sha256；
-2. 跑 `animation-drive-states-check.sh` → 补 §2.3 四个 NOT VERIFIED 格的像素层，并顺带核实 §2.4 第 2 条（`no-crouch-locomotion` fallback 是否真的不触发）；
-3. 若拿到 STV 语料，补 death-respawn 的观测窗口。
+1. ~~跑 `class-pose-family-check.sh`~~ **已完成（§8.1，PASS）**。
+2. ~~跑 `animation-drive-states-check.sh`~~ **跑了 7/9 条后因锁被抢而中止（§2.6.6）**。要拿到门禁自身的 PASS/FAIL，需要**在锁真正独占的条件下重跑全部 9 条**（约 40 分钟），并先修 `verify-lock.sh` 的 pid 命名空间缺陷，否则同样的事会再发生一次。**本轮不出这个 PASS。**
+3. 跑 `attach-weapon-budget-check.sh` → 补 §4.5 的「本 HEAD」读数与 exe sha256（**仍未跑**）。
+4. 若拿到 STV 语料，补 death-respawn 的观测窗口（**仍未**）。
+5. **`medic crouch` 冻结（§2.6.3）是本轮唯一一条画面级产品缺陷候选**，按卡的「只在复现后修」规则已经复现，但修复要动 `chooseCrouchLocomotionSequence`（共享 `animation_sequence_match.h`），属公共写域，**本轮不动代码，交给派单**。
 
-**排期状态（lead 裁决）**：上面两个门禁**都要 host 锁**，当前锁很紧（n12-qa 在跑 N12-A 六帧，n05 与 ui-d 在排队）。lead 已明确「**先不排，等 N12-A 提交完统一放锁**」。所以本文件在产品侧的三格（N17 像素层、N19 本 HEAD 读数、N20 可复现格）**在本轮保持 NOT VERIFIED / 无**，不因为等待而改动结论。
+**排期状态（lead 裁决，仍未变）**：`animation-drive-states-check.sh` 与 `attach-weapon-budget-check.sh` **都要 host 锁**。lead 已明确「**先不排，等 N12-A 提交完统一放锁**」。所以 N19 本 HEAD 读数与 N20 可复现格**保持 NOT VERIFIED / 无**；N17 因本轮已用自持锁跑了 7 条，**像素格不再是「未证」**（§2.6.5），但门禁级 PASS 仍缺。
 
