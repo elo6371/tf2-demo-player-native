@@ -1210,6 +1210,12 @@ public:
   // pixel" is to draw N and nothing else. -1 disables.
   void setWorldIsolatedTriangle(int triangle) { worldIsolatedTriangle_ = triangle; }
   int worldIsolatedTriangle() const { return worldIsolatedTriangle_; }
+  // N05: what the draw will actually see. The isolation flag reached the renderer
+  // but the frame still drew 1027 faces, so the next reading is whether the buffer
+  // was built with three indices and the draw ignores it, or never rebuilt at all.
+  unsigned int worldIndexCount() const { return worldIndexCount_; }
+  std::size_t worldDrawBatchCount() const { return worldDrawBatches_.size(); }
+  unsigned int worldFirstBatchIndices() const { return worldDrawBatches_.empty() ? 0u : worldDrawBatches_.front().indexCount; }
   // T17: the lightmap is the one shading term the product had no off switch for,
   // so "the world is dark" could not be attributed to it. `false` keeps the same
   // geometry, materials and uvs and replaces the sample with white, which turns

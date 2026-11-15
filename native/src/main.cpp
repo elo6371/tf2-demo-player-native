@@ -8172,6 +8172,11 @@ bool outlineVertexExtent = false;
     if (!uploadedWorld && worldGeometry == WorldGeometryFilter::All) {
       uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
     }
+    // N05: outside the fallback branch -- inside it, the reading only existed when
+    // the atlas overload had failed, which is the case that never runs here.
+    traceFmt("gpu: world isolation indexCount=%u batches=%zu firstBatchIndices=%u isolated=%d",
+      renderer.worldIndexCount(), renderer.worldDrawBatchCount(), renderer.worldFirstBatchIndices(),
+      renderer.worldIsolatedTriangle());
     traceFmt("gpu: world geometry=%s blend=%s",
       worldGeometry == WorldGeometryFilter::Terrain ? "terrain"
         : worldGeometry == WorldGeometryFilter::Sky ? "sky"
