@@ -26,5 +26,8 @@
 # FORMAT: size  sha256  root  name
 #   root = steam     -> $TF/demos
 #   root = testdata  -> D:/TF2_Demo_Player/testdata/demos
-21856667  c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e  steam     autorecord_2026-07-02_13-26-46.dem
+# N01 plan A (2026-11-15): the 07-02 Sniper POV is gone from every root this host
+# can see, so the POV slot is pinned to the pl_upward_f12 recording the user made
+# instead. Its hash and size are measured, not asserted from memory.
+146853666  14b4943a8d7e866677091bb5a4843882bfed1105bc5ef27d955bbc4cd3ad00e8  archive-pov  autorecord_2026-08-08_21-43-59.dem
 51834617  308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f  testdata  bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem

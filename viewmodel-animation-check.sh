@@ -432,6 +432,9 @@ while read -r size sha256 root name; do
   case "$root" in
     steam)    path="$TF/demos/$name" ;;
     testdata) path="$TESTDATA_ROOT/$name" ;;
+    # N01 plan A: the archive root names the directory, not a tree, because the
+    # replacement POV lives under a per-map folder there.
+    archive-pov) path="E:/demo测试/pl_upward_f12/POV/$name" ;;
     *) echo "  FAIL unknown root '$root' for $name"; fail=1; continue ;;
   esac
   if [ ! -f "$path" ]; then
@@ -448,7 +451,7 @@ while read -r size sha256 root name; do
   echo "  OK   $name pinned ($size bytes, ${sha256:0:16}...)"
   PINNED=$((PINNED + 1))
   case "$name" in
-    autorecord_2026-07-02_13-26-46.dem) DEMO_POV="$path" ;;
+    autorecord_2026-08-08_21-43-59.dem) DEMO_POV="$path" ;;
     *matcha*)                           DEMO_MATCHA="$path" ;;
   esac
 done < "$INPUTS"
@@ -559,20 +562,25 @@ assert_eq "target classes found in the class table" \
 # reports ZERO ViewModel entities on a demo that has hundreds, because
 # DT_BaseViewModel has no m_vecOrigin and the dump only prints entities that carry
 # one. That is not a hypothesis; it happened while this probe was written.
+# N01 plan A (2026-11-15): re-pinned for the replacement POV recording
+# (pl_upward_f12, client Sinister Mark, 306,131 ticks). Every number below is a
+# property of the recording, so it moves with the recording; the one claim that
+# is NOT re-pinned is the v_* count in section 2, because that one asserts what
+# kind of models the POV carries and this asset violates its premise.
 assert_eq "pov CTFViewModel entities seen" \
-  "$(rfield "$POV_TXT" 'vmcensus class=CTFViewModel' entities)" "18"
+  "$(rfield "$POV_TXT" 'vmcensus class=CTFViewModel' entities)" "21"
 assert_ge "pov snapshots answered" "$(rsum "$POV_TXT" 'vmcensus-summary' ticksWithSnapshot)" 1
 assert_ge "pov ViewModel observations" "$(rsum "$POV_TXT" 'vmanim-summary' observations)" 1
 # The cursor moves. `changes` counts per-entity changes rather than samples, so a
 # cursor that repeats cannot read as motion.
 assert_ge "pov ViewModel sequence changes" "$(rsum "$POV_TXT" 'vmanim-summary' changes)" 2
 assert_ge "pov distinct sequences" "$(rsum "$POV_TXT" 'vmanim-summary' distinctSequences)" 2
-assert_eq "pov distinct playback rates" "$(rsum "$POV_TXT" 'vmanim-summary' distinctRates)" "5"
+assert_eq "pov distinct playback rates" "$(rsum "$POV_TXT" 'vmanim-summary' distinctRates)" "4"
 assert_eq "pov observed sequence range" \
-  "$(rsum "$POV_TXT" 'vmanim-summary' minSequence),$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "0,34"
+  "$(rsum "$POV_TXT" 'vmanim-summary' minSequence),$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "0,47"
 # Every model the ViewModel entities name is a c_*_arms model, i.e. NOT the model
 # the pass draws. Five distinct paths, none of them a v_* one.
-assert_eq "pov distinct entity model paths" "$(rsum "$POV_TXT" 'vmanim-summary' modelPaths)" "5"
+assert_eq "pov distinct entity model paths" "$(rsum "$POV_TXT" 'vmanim-summary' modelPaths)" "9"
 assert_eq "pov entity models that are v_* viewmodels" \
   "$(rsum "$POV_TXT" 'vmanim-summary' vStarModels)" "0"
 
@@ -637,9 +645,9 @@ assert_gt "the observed sequences run past the drawn table" \
 # the wrong table that happens to be legal for the right one -- and they are
 # reported as their own count precisely so they are visible rather than flattering.
 assert_eq "observed sequences inside the drawn table" \
-  "$(rsum "$POV_TXT" 'vmmapping-summary' inRange)" "37"
+  "$(rsum "$POV_TXT" 'vmmapping-summary' inRange)" "34"
 assert_eq "observed sequences past the drawn table" \
-  "$(rsum "$POV_TXT" 'vmmapping-summary' outOfRange)" "104"
+  "$(rsum "$POV_TXT" 'vmmapping-summary' outOfRange)" "57"
 assert_eq "entity model equals the drawn model" \
   "$(rsum "$POV_TXT" 'vmmapping-summary' entityModelMatchesDrawn)" "0"
 assert_eq "index space verdict" "$(rsum "$POV_TXT" 'vmmapping-summary' indexSpace)" "mismatch"
@@ -654,7 +662,7 @@ MUT_INDEXSPACE=$(rsum "$POV_TXT" 'vmmapping-summary' indexSpace)
 echo
 echo "=== 4/7 the owning ViewModel entity is read, not guessed ==="
 assert_eq "pov svc_SetView count" "$(rsum "$POV_TXT" 'vmlocal' setViewCount)" "1"
-assert_eq "pov view entity" "$(rsum "$POV_TXT" 'vmlocal' viewEntity)" "18"
+assert_eq "pov view entity" "$(rsum "$POV_TXT" 'vmlocal' viewEntity)" "9"
 # Two, not one: Source's MAX_VIEWMODELS is 2, so "the ViewModel entity" is a
 # choice rather than a lookup. The product's rule for that choice is asserted in
 # section 5, where it names the rule it used.
@@ -773,7 +781,7 @@ POV_READING=$(grep -a "viewModelPath=" "$TRACE_DIR/pov-refusal.trace" 2>/dev/nul
 assert_eq "pov refusal drawn" "$(field "$POV_READING" drawn)" "1"
 # The entity the lookup selected and the state it carried are unchanged by the
 # refusal: what the proof rejects is the drawing, not the input.
-assert_eq "pov refusal entity" "$(field "$LAST_VMANIM" entity)" "1077"
+assert_eq "pov refusal entity" "$(field "$LAST_VMANIM" entity)" "685"
 # The reported sequence is the entity's own index, and the two fields on the line
 # come from different places (`animationInput.sequence`, `lookup.input.sequence`),
 # so they must agree. This used to be pinned to the literal 29 -- a snapshot of

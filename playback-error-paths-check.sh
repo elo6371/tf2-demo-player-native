@@ -52,7 +52,12 @@ EXE=${TF2_EXE:-}
 if [ -z "$EXE" ]; then EXE=$REPO/native/build-nmake/tf2_demo_native.exe; fi
 TF=${TF2_ROOT:-}
 if [ -z "$TF" ]; then TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"; fi
-AUDIO_DEMO="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+# N01 plan A (2026-11-15): the 07-02 Sniper POV this gate pinned is gone from
+# disk (Steam tf/demos, E:/demo测试 and D:/TF2_Demo_Player all searched). The
+# pl_upward_f12 POV the user recorded replaces it: same client-side recording
+# kind, 306,131 ticks, and it is the only POV in the archive that is known to
+# play. E's two counts are re-pinned to this recording's readings, not relaxed.
+AUDIO_DEMO="E:/demo测试/pl_upward_f12/POV/autorecord_2026-08-08_21-43-59.dem"
 CAM_DEMO="D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem"
 OUT=${PLAYBACK_OUT:-$REPO/evidence/t93-playback}
 TAG=green
@@ -234,9 +239,13 @@ judge_E() { # <trace> <rc> <captured.bmp>
   if [ "$R" = 0 ]; then green E-exit; else red E-exit "rc=$R want 0"; fi
   local SC ES DO MA
   SC=$(fnum "$T" "audio: timeline" "scheduled=")
-  if [ "$SC" = 5323 ]; then green E-timeline; else red E-timeline "audio: timeline scheduled=$SC (want 5323)"; fi
+  # Re-pinned 2026-11-15 for the N01 replacement recording (upward f12 POV,
+  # 306,131 ticks). The old 5323 belonged to the lost 07-02 Sniper POV; the number
+  # is a property of the recording, not of the scheduler, so it moves with it.
+  if [ "$SC" = 4615 ]; then green E-timeline; else red E-timeline "audio: timeline scheduled=$SC (want 4615)"; fi
   ES=$(fnum "$T" "mode: summary" "events_seen=")
-  if [ "$ES" = 759 ]; then green E-events; else red E-events "mode: summary events_seen=$ES (want 759)"; fi
+  # Same re-pin: 186 events by tick 600 in the replacement recording (old 759).
+  if [ "$ES" = 186 ]; then green E-events; else red E-events "mode: summary events_seen=$ES (want 186)"; fi
   DO=$(fnum "$T" "mode: summary" "audio_device_opened=")
   if [ "$DO" = 0 ]; then green E-device; else red E-device "audio_device_opened=$DO (want 0: --audio-disabled must never open the device)"; fi
   if nhas "$T" "audio: seek reset"; then green E-noseek; else red E-noseek "an unseeked run printed 'audio: seek reset'"; fi
