@@ -209,7 +209,7 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 
 ---
 
-> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D73**（D57–D62 见上；D63–D67 见下；D68–D71 在 D57/D58 补充说明之前，来自实例1 的 R1/E1 两片；D72–D73 同样在 D57/D58 补充说明之前，来自实例4 的 P1a N17）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
+> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D74**（D57–D62 见上；D63–D67 见下；D68–D71 在 D57/D58 补充说明之前，来自实例1 的 R1/E1 两片；D72–D73 同样在 D57/D58 补充说明之前，来自实例4 的 P1a N17；D74 在 D57/D58 补充说明之前，来自实例2 的 M2a 遮挡归属）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
 
 ---
 
@@ -325,6 +325,18 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 - **为什么记缺陷**：这是本轮唯一一条「画面级可复现的产品缺陷候选」——玩家蹲着走时身体姿势不变，只滑行。选序规则本身没错（「取第一个多帧 crouch 循环」是合理的），错在**没有对「四个 cycle 姿态完全相同」做排除**，而资产里恰好有满足条件的替代序列。
 - **建议修法（未实施）**：在 `chooseCrouchLocomotionSequence` 的选择条件里加一条「该序列的多 cycle 姿态不是常量」判据（需把 cycle 采样结果传进选序，或把选序挪到能读到解码姿态的层）；要动共享头 `native/include/animation_sequence_match.h`，会影响 model_pose_probe 与产品两个消费者，**本轮未动代码，等派单**。同时修正 `:333-336` 那条与资产不符的注释。
 - **本条没有证明什么**：没有逐像素证明「蹲走时身体不动」（读数是四姿态 checksum 相等 + 帧游标在走，不是屏幕差分）；没有检查其余八职业是否也有同族静态 pick；没有评估修法对 `crouch` 状态门禁（`animation-drive-states-check.sh` B3 只比 states vs legacy 的 677 px）的影响。
+
+## D74　`--world-entity-id` 静默漏掉 static prop 与 map model：帧里它们是纯白，台账里它们 `id=0`
+
+- **发现者**：n05-n06-maps（M2a 遮挡归属，`D:/_shared/EXEC-2026-11-15/INST2/m2a/`）；lead 复核着色器与两处写点成立
+- **证据**：实体像素着色器按 `envFeatures.x` 分臂，`native/src/native_renderer_shaders.cpp:226` `if (envFeatures.x > 11.5) return float4(1.0, 0.0, 1.0, 1.0);`（view 10 洋红）、`:227-229` `if (envFeatures.x > 10.5) { return float4(colour.rgb, 1.0); }`（view 11 → 输出**顶点色**）、`:230-232` `> 9.5` 洋红（view 8）。
+  view 9 给实体 pass 的常量是 11.0，所以画出来的是顶点色。而顶点色只有三处写点：玩家/武器走 `tf2::native::encodeEntityId(entityId, draw.color)`（`native/src/main.cpp:12837` 与 `attachDraw` 的 `:12879`，把 id 写进红通道），而 **static prop 是 `native/src/main.cpp:12975` `draw.color[0] = draw.color[1] = draw.color[2] = draw.color[3] = 1.0f;`**、**map model 实体是 `native/src/main.cpp:11725` 同一句**，两者都从不写 id。
+  实测（tick 2000，`--no-world-sky --hud-off --world-water off`，rc=0，bmp 2,582,406 B，台账 73 行）：`(919,379)` 读 **(255,255,255) 纯白**、不在台账里；同帧 `scene: staticProps … drawn=466`、`scene: mapModels submitted=20 hidden=0`；全帧 595 个 id 色像素**全部**命中台账（15 个不同 id，例如 `id=70 model=models/player/demo.mdl ent=10 team=3`、`id=26 models/items/medkit_medium.mdl ent=565`）。
+- **为什么记缺陷**：这是 T61.1 的**覆盖盲区**。view 9 的设计意图（`native/src/main.cpp:3640-3646` 注释）是"每个被画的实例有唯一红值 + 台账一行，颜色能解码回实体"；实际上 `staticProps`/`mapModels` 这两类（本帧 486 个）**既没有红值也没有台账行**，读者看到纯白只能得出"这里没有实体"，而真相恰好相反——M2a 那个 109 px 的遮挡物就在里面。任何用 view 9 做"这块像素归谁"的判据，只要遮挡物是静态几何就会得到**反向结论**。0 个落空是正控（id 通道本身完好），不构成"覆盖完整"的证据。
+- **建议修法（未实施）**：把 `draws` 之外的两个容器（`staticProps`、`mapNetworkDraws`）也纳入 id 分配，并在台账行里加 `kind=staticprop|mapmodel|entity` 区分；或至少在 view 9 下把这两类画成一个**区别于白色的保留色**并在 trace 里打一行总数，让"白=没有实体"这句话失效得可见。属 renderer/main 写域，**本轮未动代码**。
+- **本条没有证明什么**：没有证明 static prop 的顶点色在别的 debug view 下也被误用；没有清点全仓还有多少处 `draw.color = 1,1,1,1` 的写点；没有测过 view 9 在 HUD/天空开启时的行为（n05 是关着跑的，两次跑开关不一致曾导致一次读错，已重跑对齐）。
+
+---
 
 ## D57 / D58 补充说明
 
