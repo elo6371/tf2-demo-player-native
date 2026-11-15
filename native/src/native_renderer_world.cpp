@@ -994,6 +994,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // (mode 1). The texture is the same atlas; only the device state differs.
     std::vector<std::vector<std::uint32_t>> perBatch(plan.batches.size() * 2u);
     for (std::size_t triangle = 0; triangle < worldTriangleBatch_.size(); ++triangle) {
+      // N05 step 2: one triangle, nothing else. This is the default index path --
+      // the filter in setWorldVisDrawList only covers the pvs-clipped one, and
+      // without this the "isolated" frame still drew 1027 distinct faces.
+      if (worldIsolatedTriangle_ >= 0 && triangle != static_cast<std::size_t>(worldIsolatedTriangle_)) continue;
       const int batch = worldTriangleBatch_[triangle];
       if (batch < 0) continue;
       auto& target = perBatch[static_cast<std::size_t>(batch)];
@@ -1243,6 +1247,7 @@ bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
   std::vector<std::vector<std::uint32_t>> perBatch(entryCount);
   for (const std::uint32_t index : drawList.indices) {
     const std::size_t triangle = static_cast<std::size_t>(index) / 3u;
+    if (worldIsolatedTriangle_ >= 0 && triangle != static_cast<std::size_t>(worldIsolatedTriangle_)) continue;
     const int sub = triangle < worldTriangleBatch_.size()
       ? worldTriangleBatch_[triangle] : (worldDrawBatches_.empty() ? -1 : 0);
     if (sub < 0) continue;

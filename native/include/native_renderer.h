@@ -1204,6 +1204,11 @@ public:
   // is what the `none` frame used to show instead of the background), and the
   // entity, marker and projectile passes. Measured, all three.
   void setWorldDiagnosticIsolation(bool isolated) { worldDiagnosticIsolation_ = isolated; }
+  // N05 step 2: draw exactly one triangle. The point oracle says triangle N covers
+  // a pixel the rasterizer leaves empty; the only way to tell "the rasterizer
+  // disagrees about where that triangle is" from "something else is covering the
+  // pixel" is to draw N and nothing else. -1 disables.
+  void setWorldIsolatedTriangle(int triangle) { worldIsolatedTriangle_ = triangle; }
   // T17: the lightmap is the one shading term the product had no off switch for,
   // so "the world is dark" could not be attributed to it. `false` keeps the same
   // geometry, materials and uvs and replaces the sample with white, which turns
@@ -1674,6 +1679,7 @@ private:
   // showed no face at a pixel whose triangle IS in the vertex buffer at the right
   // ordinal, so this flag is what separates "not drawn" from "drawn and hidden".
   std::vector<char> worldTriangleDrawn_;
+  int worldIsolatedTriangle_ = -1;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;

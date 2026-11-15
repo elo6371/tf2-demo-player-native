@@ -3267,6 +3267,7 @@ bool outlineVertexExtent = false;
   enum class WorldGeometryFilter { All, Terrain, Sky, None };
   WorldGeometryFilter worldGeometry = WorldGeometryFilter::All;
   bool worldIsolationRequested = false;
+  long isolatedTriangle = -1;
   int invalidWorldGeometryArgument = 0;
   // T17: the lightmap A/B. The product had no way to draw the world with the
   // lightmap term removed, so "this surface is dark because its lightmap is
@@ -3796,6 +3797,10 @@ bool outlineVertexExtent = false;
         ++invalidWorldGeometryArgument;
       } else if (wcscmp(arguments[i], L"--world-isolate") == 0) {
         worldIsolationRequested = true;
+      } else if (wcscmp(arguments[i], L"--world-triangle") == 0 && i + 1 < argumentCount) {
+        // N05 step 2: draw one triangle and nothing else, so "does the rasterizer
+        // cover this pixel with it" is a picture rather than an inference.
+        isolatedTriangle = std::wcstol(arguments[++i], nullptr, 10);
       } else if (wcscmp(arguments[i], L"--tf-root") == 0 && i + 1 < argumentCount) {
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
@@ -8083,6 +8088,7 @@ bool outlineVertexExtent = false;
     renderer.setWorldAtlasTranslucentRescue(worldAtlasTranslucentRescue);
     renderer.setWorldDiagnosticIsolation(
       worldIsolationRequested || worldGeometry != WorldGeometryFilter::All);
+    renderer.setWorldIsolatedTriangle(static_cast<int>(isolatedTriangle));
     // T17: this one changes a draw-time constant, not the upload. It is set here
     // so the reading and the frames of one run describe one configuration.
     renderer.setWorldLightmapEnabled(worldLightmapGiven ? worldLightmapRequested : true);
