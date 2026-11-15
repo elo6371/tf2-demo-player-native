@@ -209,7 +209,7 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 
 ---
 
-> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D74**（D57–D62 见上；D63–D67 见下；D68–D71 在 D57/D58 补充说明之前，来自实例1 的 R1/E1 两片；D72–D73 同样在 D57/D58 补充说明之前，来自实例4 的 P1a N17；D74 在 D57/D58 补充说明之前，来自实例2 的 M2a 遮挡归属）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
+> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D75**（D57–D62 见上；D63–D67 见下；D68–D71 在 D57/D58 补充说明之前，来自实例1 的 R1/E1 两片；D72–D73 同样在 D57/D58 补充说明之前，来自实例4 的 P1a N17；D74 在 D57/D58 补充说明之前，来自实例2 的 M2a 遮挡归属；D75 在 D57/D58 补充说明之前，来自实例4 的 P1b N18，**表述经 lead 复核后纠正**，见该节）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
 
 ---
 
@@ -336,8 +336,21 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 - **建议修法（未实施）**：把 `draws` 之外的两个容器（`staticProps`、`mapNetworkDraws`）也纳入 id 分配，并在台账行里加 `kind=staticprop|mapmodel|entity` 区分；或至少在 view 9 下把这两类画成一个**区别于白色的保留色**并在 trace 里打一行总数，让"白=没有实体"这句话失效得可见。属 renderer/main 写域，**本轮未动代码**。
 - **本条没有证明什么**：没有证明 static prop 的顶点色在别的 debug view 下也被误用；没有清点全仓还有多少处 `draw.color = 1,1,1,1` 的写点；没有测过 view 9 在 HUD/天空开启时的行为（n05 是关着跑的，两次跑开关不一致曾导致一次读错，已重跑对齐）。
 
----
+## D75　名为 `viewModelFov` 的设置项同时决定世界相机 FOV，而同名的 CLI 旗标碰不到它
 
+- **发现者**：e17-e20-char（P1b N18，`docs/N17-N20-CHAR-COVERAGE-2026-11-15.md`；它当初的表述是「`--viewmodel-fov` 同时是世界 FOV」）。lead 逐条复核代码后**纠正了表述**，本条按纠正后的口径登记——这不是文字游戏：两个说法的修法完全不同。
+- **证据（代码，逐条核过）**：
+  - `native/include/native_renderer.h:71` `float viewModelFov = 90.0f;` 是 `RenderSettings` 里**唯一**的 fov 字段（同结构没有世界 fov 字段，`:69` 是 `int modelLod`、`:70` 是 `float renderScale`）。
+  - 它有两个读者：`native/src/native_renderer_frame.cpp:179` `const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, worldNearPlane, worldFarPlane);` —— 这是**世界 pass 的相机投影**（near/far 才是独立的，`:173-177` `kWorldNearMapUnits = 4.0f` / `worldFarPlane = 100.0f`）；以及 `native/src/native_renderer_camera.cpp:184` `reading.fovDegrees = settings_.viewModelFov;`（相机读数）。全仓 `settings_.viewModelFov` 只有这两个读者。
+  - 另有两条投影走自己的 fov：`native/src/native_renderer_viewmodel.cpp:571`（手臂）与 `:804`（武器 body），各自带自己的 near/far。全仓 `XMMatrixPerspectiveFovLH` 只有这三处。
+  - 写它的四条通路，**没有一条来自 CLI**：`native/src/settings_store.cpp:84-85`（读 ini 键 `viewModelFov`，经 `migrateLegacyViewModelFov` 把旧默认 80 迁成 90）、`native/src/settings_store.cpp:132`（唯一的 ini 写者 `writeInt(temporary, L"viewModelFov", …)`）、`native/src/main.cpp:1832` `g_renderer->setViewModelFov(camera.fov);`（相机读数回写，`camera.fov` 来自 `:1818` `camera.fov = reading.fovDegrees;`）、`native/src/main_camera.cpp:123` `g_renderer->setViewModelFov(bookmark.fov);`（相机书签）。`setViewModelFov` 全仓只有这两个调用点，两处都夹 `clampViewModelFov`（`native/include/native_renderer.h:34-36`，40..120）。
+  - **`--viewmodel-fov` 从不碰它**：`viewModelFovGiven` 全仓只有 4 个读点——`native/src/main.cpp:8063`、`:13377`、`:13498` 全部只剩「喂请求」一种用法（`buildViewModelRequest` / `buildViewModelCompanionRequest`，终点 `native/src/viewmodel.cpp:276` `request.fov = normalizeViewModelFov(fov.value_or(kDefaultViewModelFov));`），第四处即 `:3860-3871` 的解析本身。`git log -S "persistent.render.viewModelFov ="` **0 命中** ⇒ 这个旗标从落地起就只服务 ViewModel，从不改持久设置。
+- **为什么记缺陷**：两个同名字面量指向**相反的作用域**。CLI 叫 `--viewmodel-fov`，却只改 ViewModel 的 `request.fov`；设置项叫 `viewModelFov`，却决定世界相机投影。任何人想把「世界 FOV」和「ViewModel FOV」分开调，都会先改错那一个，而且**改错时没有报错、也没有读数提示**：改 CLI 只让武器大小变（世界纹丝不动），改 ini 让整个世界视角变（武器也跟着变，因为请求缺省会回落 `persistent.render.viewModelFov`）。更硬的一层：世界 FOV **因此没有独立旋钮**——它被绑在一个语义上属于 ViewModel 的字段上。
+- **建议修法（未实施）**：把世界相机 FOV 拆成自己的字段（或在 `RenderSettings` 里加 `worldFov` 并让 `native_renderer_frame.cpp:179` 读它，`viewModelFov` 只留给 `native_renderer_camera.cpp:184` 的读数与 ViewModel 请求），同时在 trace 里各打一行 provenance，让「这一帧的视角是谁给的」可读。属 renderer 设置面变更，牵 `settings_store` 的 ini 键与默认值迁移，**本轮未动代码**。
+- **本条没有证明什么**：没有跑决定性像素实验（当前 HEAD 上 `--viewmodel-fov 40` vs `120` 且 ViewModel 关闭，两帧是否逐字节相同）——**代码事实已足以定机制，但"旗标完全不影响世界"这句仍需两帧实测收口**；没有跑正控（改 ini 键 `viewModelFov=40|120` 后世界几何应明显随动）；没有清点全仓还有多少设置项存在同类「名字与作用域不一致」；`native/include/native_renderer.h:343` 的 `float fov = 90.0f;`（`ViewModelDrawState`）与 `:1405` `setViewModelFov` 本身的 clamp 语义未评估。
+- **旁注（不是缺陷，是证据边界）**：e17 用来支撑该结论的 18.20% 像素差（`evidence/t1-viewmodel-acceptance/frames/fov-40.png` vs `fov-120.png`，1264×681，156670/860784）**数字可复现但不构成世界几何位移的证据**：该批帧来自提交 `e0d07117`，而该提交上 `native/src/native_renderer_frame.cpp` 根本不存在（世界投影当时在 `native/src/native_renderer.cpp:3220`，同样读 `settings_.viewModelFov`），且 ViewModel 自身在 40/120 下尺寸变化极大（同 trace 的 `gpu: viewmodel centre` ndc 从 `(0.205,-0.276)` 到 `(0.043,-0.058)`），18.20% 里分不开「武器变大」与「世界移动」。分区读数：差分 bbox (372,0)-(1230,680)，左侧 x<372 两帧**逐像素相同**（253332 px 全 0，该带是 UI/边框，主导色 `(252,252,252)`/`(222,222,222)`/`(14,18,22)`），CENTER box (400,300)-(900,500) 占 58.43%。
+
+---
 ## D57 / D58 补充说明
 
 D57（门禁不钉播放速度）与 D58（控件与面板无人负责不重叠）是在本文件初版之后追加的，编号延续主表，**主表本身未改动**。D57 属共享 gate helper 修复域，D58 的产品侧修复须改 `native/src/main_hud.cpp` 与布局函数，两者都归入门禁修复窗口与后续派工，**本轮均未动代码**。
