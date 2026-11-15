@@ -61,6 +61,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // and cannot survive on a frame where the corresponding call did not run.
   worldSkyDrewThisFrame_ = false;
   worldVisDrewIndexed_ = false;
+  // N05 step 3: the clip capture describes one draw, so it is cleared once per
+  // frame for the same reason the two readings above are: a frame where the
+  // capture did not run must read as "not attempted", never as the previous
+  // frame's vertices.
+  worldClipCaptureValid_ = false;
+  worldClipCaptureAttempted_ = false;
   // Defaults for the case where worldConstants_ is missing: a Z-up camera
   // looking down +X, so the ViewModel pass always has a camera to place against.
   frameView_ = {};
@@ -450,7 +456,91 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         // The cross-pass question, measured where it can go wrong: a world
         // draw that happens while a weapon's albedo is the bound t0.
         if (isWeaponMaterialView(lastSlot0View_)) ++worldDrawsWithWeaponTexture_;
+        // N05 step 3: the clip capture, bound for exactly this draw.
+        //
+        // The vertex shader is not touched: this geometry shader declares that
+        // shader's own output struct as its input signature, copies every field
+        // through, and streams position out to a buffer. The matrices, the
+        // viewport and the constant block are the ones this frame already bound,
+        // so a value read back is this draw's vertex stage and not a second
+        // transform computed beside it.
+        //
+        // Bounded to the isolated draw on purpose. Under --world-triangle the
+        // index buffer holds three indices, so exactly three vertices arrive and
+        // the target (three clip quads) cannot overrun. On a batched draw with
+        // more indices the stream output would silently stop at capacity, which
+        // is a truncated sample being read as a whole one -- so the capture is
+        // refused rather than truncated, and says so.
+        bool clipCaptureBound = false;
+        if (worldClipCaptureRequested_ && worldClipCaptureGeometryShader_ && worldClipCaptureBuffer_
+            && worldIsolatedTriangle_ >= 0 && batch.indexCount == 3u) {
+          worldClipCaptureAttempted_ = true;
+          context_->GSSetShader(worldClipCaptureGeometryShader_.Get(), nullptr, 0);
+          ID3D11Buffer* clipTargets[1] = { worldClipCaptureBuffer_.Get() };
+          const UINT clipOffsets[1] = { 0u };
+          context_->SOSetTargets(1, clipTargets, clipOffsets);
+          clipCaptureBound = true;
+        } else if (worldClipCaptureRequested_ && worldIsolatedTriangle_ < 0) {
+          worldClipCaptureAttempted_ = true;
+          worldClipCaptureFailure_ = "the clip capture needs --world-triangle: a batched draw "
+            "would fill the three-vertex target and read back as a whole sample";
+        }
         context_->DrawIndexed(batch.indexCount, batch.firstIndex, 0);
+        if (clipCaptureBound) {
+          // Unbind before anything else can draw: the water, entity and viewmodel
+          // passes follow this one and none of them has a geometry shader, so a
+          // stream output target left bound would make every later draw in the
+          // frame write into it (and, at three vertices, refuse the rest).
+          ID3D11Buffer* noTargets[1] = { nullptr };
+          context_->SOSetTargets(1, noTargets, nullptr);
+          context_->GSSetShader(nullptr, nullptr, 0);
+          // The read-back. CopyResource into the staging twin and map it once;
+          // this runs only on a capture frame, and only around the isolated
+          // draw, so a normal frame pays nothing for the channel existing.
+          context_->CopyResource(worldClipCaptureReadback_.Get(), worldClipCaptureBuffer_.Get());
+          D3D11_MAPPED_SUBRESOURCE clipMapped{};
+          if (SUCCEEDED(context_->Map(worldClipCaptureReadback_.Get(), 0, D3D11_MAP_READ, 0, &clipMapped))) {
+            const auto* clipQuads = static_cast<const float*>(clipMapped.pData);
+            for (int v = 0; v < 12; ++v) worldClipCaptureVertex_[v] = clipQuads[v];
+            context_->Unmap(worldClipCaptureReadback_.Get(), 0);
+            // The index values and the viewport the draw used. Read off the
+            // same draw rather than recomputed: an index buffer that disagreed
+            // with the mapping the triangle table assumes is exactly the kind
+            // of defect that would otherwise be attributed to the vertices.
+            const std::uint32_t clipBase = worldIsolatedTriangle_ >= 0
+              ? static_cast<std::uint32_t>(worldIsolatedTriangle_ * 3) : 0u;
+            for (int j = 0; j < 3; ++j) worldClipCaptureIndex_[j] = clipBase + static_cast<std::uint32_t>(j);
+            worldClipCaptureViewport_[0] = 0.0f;
+            worldClipCaptureViewport_[1] = 0.0f;
+            worldClipCaptureViewport_[2] = static_cast<float>(width_);
+            worldClipCaptureViewport_[3] = static_cast<float>(height_);
+            // A hash of the 64 bytes the vertex stage actually reads (the mvp)
+            // plus the viewport, not of the whole 192-byte block: the other
+            // blocks feed the pixel stage, and folding them in would let a
+            // lighting edit look like a vertex-stage difference. FNV-1a, on the
+            // frame's own constants -- the debug-view override that may have
+            // re-uploaded them changes envFeatures only, which the VS never reads.
+            const auto* clipMvpBytes = reinterpret_cast<const unsigned char*>(&frameConstants.mvp);
+            unsigned int clipHash = 2166136261u;
+            for (std::size_t b = 0; b < sizeof(frameConstants.mvp); ++b) {
+              clipHash ^= clipMvpBytes[b];
+              clipHash *= 16777619u;
+            }
+            for (int j = 0; j < 4; ++j) {
+              const float extent = worldClipCaptureViewport_[j];
+              const auto* extentBytes = reinterpret_cast<const unsigned char*>(&extent);
+              for (std::size_t b = 0; b < sizeof(float); ++b) {
+                clipHash ^= extentBytes[b];
+                clipHash *= 16777619u;
+              }
+            }
+            worldClipCaptureConstantsHash_ = clipHash;
+            worldClipCaptureValid_ = true;
+            worldClipCaptureFailure_ = "";
+          } else {
+            worldClipCaptureFailure_ = "Map refused the clip read-back buffer";
+          }
+        }
         ++worldBatchDrawCalls_;
         if (albedoView) ++worldBatchTexturedDrawCalls_;
       }

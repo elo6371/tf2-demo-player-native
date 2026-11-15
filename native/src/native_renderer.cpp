@@ -233,11 +233,26 @@ bool Renderer::createPipeline() {
   Microsoft::WRL::ComPtr<ID3DBlob> entityModelVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> viewModelVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> viewModelPixelBytecode;
+  // N05 step 3: the clip-capture geometry shader. Its bytecode is declared here
+  // with the others because the create block below builds the shader object from
+  // it, and compiled with the world pair because a bad edit to it should fail at
+  // startup with a stage name rather than on the one frame a capture was asked
+  // for. Nothing binds it unless --world-clip-capture was passed.
+  Microsoft::WRL::ComPtr<ID3DBlob> worldClipCaptureBytecode;
   HRESULT worldShaderResult = S_OK;
   initStage_ = "compileShaders.world";
   const bool worldShadersCompiled = compileShader(worldVertexSource, "main", "vs_5_0", worldVertexBytecode, &worldShaderResult)
       && compileShader(worldPixelSource, "main", "ps_5_0", worldPixelBytecode, &worldShaderResult);
   if (!worldShadersCompiled) { lastError_ = worldShaderResult; return false; }
+  initStage_ = "compileShaders.worldClipCapture";
+  {
+    HRESULT clipCaptureResult = S_OK;
+    if (!compileShader(worldClipCaptureGeometrySource, "main", "gs_5_0",
+        worldClipCaptureBytecode, &clipCaptureResult)) {
+      lastError_ = clipCaptureResult;
+      return false;
+    }
+  }
   HRESULT modelShaderResult = S_OK;
   if (!compileShader(modelVertexSource, "main", "vs_5_0", modelVertexBytecode, &modelShaderResult)) {
     lastError_ = modelShaderResult;
@@ -350,6 +365,51 @@ bool Renderer::createPipeline() {
     const bool shadersCreated = SUCCEEDED(device_->CreateVertexShader(worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), nullptr, worldVertexShader_.GetAddressOf()))
       && SUCCEEDED(device_->CreatePixelShader(worldPixelBytecode->GetBufferPointer(), worldPixelBytecode->GetBufferSize(), nullptr, worldPixelShader_.GetAddressOf()));
     if (!shadersCreated) { lastError_ = E_FAIL; return false; }
+    // N05 step 3: the stream output object. pSignature is NULL because the GS's
+    // input signature is already in its own bytecode; the stream output
+    // declaration narrows what is written to position (clip xyzw) alone, and
+    // RasterizedStream=0 keeps the same triangle going on to the rasteriser --
+    // a declaration with D3D11_SO_NO_RASTERIZED_STREAM would capture the vertices
+    // and draw nothing, which is a frame that cannot be compared to the CPU.
+    initStage_ = "createShaders.worldClipCapture";
+    {
+      const D3D11_SO_DECLARATION_ENTRY clipEntry = {
+        0, "SV_POSITION", 0, 0, 4, 0
+      };
+      const UINT clipStride = sizeof(float) * 4u;
+      const bool clipCreated = SUCCEEDED(device_->CreateGeometryShaderWithStreamOutput(
+        worldClipCaptureBytecode->GetBufferPointer(), worldClipCaptureBytecode->GetBufferSize(),
+        &clipEntry, 1, &clipStride, 1, 0, nullptr,
+        worldClipCaptureGeometryShader_.GetAddressOf()));
+      if (!clipCreated) {
+        worldVertexShader_.Reset(); worldPixelShader_.Reset();
+        lastError_ = E_FAIL;
+        return false;
+      }
+      // The capture target and its read-back twin. Both are sized for one
+      // triangle because the draw they hook is --world-triangle, whose index
+      // buffer holds exactly three indices (native_renderer_world.cpp:1000).
+      D3D11_BUFFER_DESC clipTarget{};
+      clipTarget.ByteWidth = static_cast<UINT>(clipStride * 3u);
+      clipTarget.Usage = D3D11_USAGE_DEFAULT;
+      clipTarget.BindFlags = D3D11_BIND_STREAM_OUTPUT;
+      if (FAILED(device_->CreateBuffer(&clipTarget, nullptr, worldClipCaptureBuffer_.GetAddressOf()))) {
+        worldClipCaptureGeometryShader_.Reset();
+        lastError_ = E_FAIL;
+        return false;
+      }
+      D3D11_BUFFER_DESC clipReadback{};
+      clipReadback.ByteWidth = clipTarget.ByteWidth;
+      clipReadback.Usage = D3D11_USAGE_STAGING;
+      clipReadback.BindFlags = 0;
+      clipReadback.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+      if (FAILED(device_->CreateBuffer(&clipReadback, nullptr, worldClipCaptureReadback_.GetAddressOf()))) {
+        worldClipCaptureGeometryShader_.Reset();
+        worldClipCaptureBuffer_.Reset();
+        lastError_ = E_FAIL;
+        return false;
+      }
+    }
     const D3D11_INPUT_ELEMENT_DESC worldElements[] = {
       {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -372,6 +432,9 @@ bool Renderer::createPipeline() {
     const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 9, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
     if (!layoutCreated) {
       worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
+      worldClipCaptureGeometryShader_.Reset();
+      worldClipCaptureBuffer_.Reset();
+      worldClipCaptureReadback_.Reset();
       lastError_ = E_FAIL;
       return false;
     }
@@ -954,6 +1017,20 @@ void Renderer::shutdown() {
   worldDisplacedTriangleCount_ = 0;
   worldWaterTriangleCount_ = 0;
   worldVertexBuffer_.Reset();
+  // N05 step 3: the clip-capture channel. The cached reading describes a device
+  // that no longer exists, so it goes with the resources -- a stale clip quad
+  // surviving a device reset would be read as "this frame's vertex stage". The
+  // request flag is a caller setting like worldIsolatedTriangle_ and survives.
+  worldClipCaptureGeometryShader_.Reset();
+  worldClipCaptureBuffer_.Reset();
+  worldClipCaptureReadback_.Reset();
+  worldClipCaptureValid_ = false;
+  worldClipCaptureAttempted_ = false;
+  worldClipCaptureFailure_ = "no capture has run on this device";
+  for (int i = 0; i < 12; ++i) worldClipCaptureVertex_[i] = 0.0f;
+  for (int i = 0; i < 3; ++i) worldClipCaptureIndex_[i] = 0u;
+  worldClipCaptureViewport_[0] = 0.0f; worldClipCaptureViewport_[1] = 0.0f;
+  worldClipCaptureViewport_[2] = 0.0f; worldClipCaptureViewport_[3] = 0.0f;
   projectileVertexBuffer_.Reset();
   projectileVertexCapacity_ = 0;
   projectileVertexCount_ = 0;

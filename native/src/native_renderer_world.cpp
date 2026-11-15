@@ -1332,4 +1332,22 @@ bool Renderer::worldTrianglePositionAt(std::size_t triangle, float out[9]) const
   return true;
 }
 
+// N05 step 3: the clip-space quads the vertex stage actually produced on the
+// last captured frame. False when no capture has run, so a caller cannot read
+// an unwritten buffer as "all four vertices landed at the origin".
+bool Renderer::worldClipCaptureSample(float out[12]) const {
+  if (!worldClipCaptureValid_) return false;
+  for (int i = 0; i < 12; ++i) out[i] = worldClipCaptureVertex_[i];
+  return true;
+}
+
+bool Renderer::worldClipCaptureDrawState(unsigned int outIndices[3], float outViewport[4],
+                                         unsigned int& outConstantsHash) const {
+  if (!worldClipCaptureValid_) return false;
+  for (int i = 0; i < 3; ++i) outIndices[i] = worldClipCaptureIndex_[i];
+  for (int i = 0; i < 4; ++i) outViewport[i] = worldClipCaptureViewport_[i];
+  outConstantsHash = worldClipCaptureConstantsHash_;
+  return true;
+}
+
 } // namespace tf2::native

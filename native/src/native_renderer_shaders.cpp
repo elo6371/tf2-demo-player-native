@@ -42,6 +42,79 @@ struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv
 Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; output.feature = input.feature; output.tangent = input.tangent; return output; }
 )HLSL";
 
+  // N05 step 3: the stream output channel.
+  //
+  // The world vertex shader above is left byte for byte alone -- it is the one
+  // that draws, and a capture that changed it would be measuring a different
+  // draw. This geometry shader declares the world VS output struct as its input
+  // and copies every field straight through, so nothing downstream sees a
+  // different vertex; the only thing narrowed is the stream output declaration,
+  // which emits position (clip xyzw) and nothing else. A pixel that disagrees
+  // with the CPU prediction can then be attributed to the vertex stage with a
+  // reading rather than by inference.
+  //
+  // The output stream is a TRIANGLE stream, not a point stream, and that is the
+  // whole reason the captured frame is still the frame: after a geometry shader
+  // the rasteriser draws the primitive the output stream type declares, so a
+  // point stream would replace the triangle under test with three dots and the
+  // bitmap would no longer be the picture these clip values describe.
+  //
+  // The nine input fields must match the world VS Output exactly, including the
+  // order of the semantics: a GS input signature that drifts from the VS output
+  // signature is a silently mismatched pairing (the stage still runs, reading
+  // whatever the VS wrote under that semantic name), which is why this block is
+  // written out in full rather than trimmed to the one field that is used.
+  extern const char worldClipCaptureGeometrySource[] = R"HLSL(
+struct WorldOutput {
+  float4 position : SV_POSITION;
+  float4 colour : COLOR0;
+  float2 uv : TEXCOORD0;
+  float3 normal : NORMAL0;
+  float3 worldPosition : TEXCOORD2;
+  float2 lightUv : TEXCOORD3;
+  float blend : TEXCOORD4;
+  float blendModulate : TEXCOORD5;
+  float4 feature : TEXCOORD6;
+  float4 tangent : TEXCOORD7;
+};
+struct ClipSample {
+  float4 position : SV_POSITION;
+  float4 colour : COLOR0;
+  float2 uv : TEXCOORD0;
+  float3 normal : NORMAL0;
+  float3 worldPosition : TEXCOORD2;
+  float2 lightUv : TEXCOORD3;
+  float blend : TEXCOORD4;
+  float blendModulate : TEXCOORD5;
+  float4 feature : TEXCOORD6;
+  float4 tangent : TEXCOORD7;
+};
+[maxvertexcount(3)]
+void main(triangle WorldOutput input[3], inout TriangleStream<ClipSample> stream) {
+  [unroll] for (uint i = 0; i < 3; ++i) {
+    ClipSample sample;
+    // Every field is copied through, not just the one that gets streamed out.
+    // The pixel shader consumes the interpolants below SV_POSITION, and a
+    // geometry shader that dropped them would leave the pixel stage reading
+    // elements its producer never wrote -- the captured frame would then differ
+    // from the frame without the channel for a reason that has nothing to do
+    // with the vertices under test.
+    sample.position = input[i].position;
+    sample.colour = input[i].colour;
+    sample.uv = input[i].uv;
+    sample.normal = input[i].normal;
+    sample.worldPosition = input[i].worldPosition;
+    sample.lightUv = input[i].lightUv;
+    sample.blend = input[i].blend;
+    sample.blendModulate = input[i].blendModulate;
+    sample.feature = input[i].feature;
+    sample.tangent = input[i].tangent;
+    stream.Append(sample);
+  }
+  stream.RestartStrip();
+}
+)HLSL";
+
   extern const char worldPixelSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
   row_major float4x4 mvp;

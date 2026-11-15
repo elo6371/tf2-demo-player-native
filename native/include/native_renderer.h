@@ -1215,6 +1215,33 @@ public:
   // pixel" is to draw N and nothing else. -1 disables.
   void setWorldIsolatedTriangle(int triangle) { worldIsolatedTriangle_ = triangle; }
   int worldIsolatedTriangle() const { return worldIsolatedTriangle_; }
+  // N05 step 3: take the clip-space position out of the vertex stage of the draw
+  // that is actually happening, instead of predicting it. Off by default. When
+  // on, the world draw binds one passthrough geometry shader (which copies every
+  // field of the world VS output through, so the rasteriser sees the same
+  // triangle) and a three-vertex stream-output target around the isolated
+  // triangle's DrawIndexed, reads the three clip quads back, and unbinds both
+  // before the next pass runs -- the water and entity passes never see this.
+  void setWorldClipCaptureEnabled(bool enabled) { worldClipCaptureRequested_ = enabled; }
+  bool worldClipCaptureEnabled() const { return worldClipCaptureRequested_; }
+  // 1 = a sample was captured this frame, 0 = not attempted, -1 = attempted and
+  // refused. Three answers rather than a bool, because "no channel" and "the
+  // channel said nothing" are different facts, and a caller that could not tell
+  // them apart would read zeros as "the vertices landed on the origin".
+  int worldClipCaptureStatus() const {
+    return worldClipCaptureValid_ ? 1 : (worldClipCaptureAttempted_ ? -1 : 0);
+  }
+  const char* worldClipCaptureFailure() const { return worldClipCaptureFailure_.c_str(); }
+  // The three clip-space quads the vertex stage produced, x,y,z,w per vertex in
+  // vertex-buffer order. False when nothing was captured, so a failed channel
+  // cannot be mistaken for a successful capture at the origin.
+  bool worldClipCaptureSample(float out[12]) const;
+  // What the draw referenced and drew through: the three index values from the
+  // index buffer, the viewport in effect, and a hash of the 192-byte constant
+  // block that was bound. A clip value without these is a number with no frame
+  // attached to it -- the same rule the capture gate follows for its bitmaps.
+  bool worldClipCaptureDrawState(unsigned int outIndices[3], float outViewport[4],
+                                 unsigned int& outConstantsHash) const;
   // N05: what the draw will actually see. The isolation flag reached the renderer
   // but the frame still drew 1027 faces, so the next reading is whether the buffer
   // was built with three indices and the draw ignores it, or never rebuilt at all.
@@ -1692,6 +1719,21 @@ private:
   // ordinal, so this flag is what separates "not drawn" from "drawn and hidden".
   std::vector<char> worldTriangleDrawn_;
   int worldIsolatedTriangle_ = -1;
+  // N05 step 3: the clip-capture channel. The shader is a passthrough geometry
+  // shader over the world VS (see native_renderer_shaders.cpp); the target is a
+  // three-vertex stream-output buffer with a staging twin to read it back. All
+  // of it is released in shutdown() with the world buffer it describes.
+  Microsoft::WRL::ComPtr<ID3D11GeometryShader> worldClipCaptureGeometryShader_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldClipCaptureBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldClipCaptureReadback_;
+  bool worldClipCaptureRequested_ = false;
+  bool worldClipCaptureValid_ = false;
+  bool worldClipCaptureAttempted_ = false;
+  std::string worldClipCaptureFailure_ = "no capture has run on this device";
+  float worldClipCaptureVertex_[12] = {};
+  unsigned int worldClipCaptureIndex_[3] = {};
+  float worldClipCaptureViewport_[4] = {};
+  unsigned int worldClipCaptureConstantsHash_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;

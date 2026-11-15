@@ -3227,6 +3227,12 @@ bool outlineVertexExtent = false;
   // Off by default: a per-face trace is a diagnostic, and a normal run's trace
   // should not carry 24 lines nobody asked for.
   bool worldFaceTraceRequested = false;
+  // N05 step 3: ask the renderer to take the clip-space position out of the
+  // vertex stage of the isolated draw. Separate from the face trace because it
+  // is a different instrument: the face trace predicts a screen point from the
+  // same matrix on the CPU, and this reads what the GPU produced with that
+  // matrix, so the two together can say whether they agree.
+  bool worldClipCaptureRequested = false;
   // T26: the screen points the empty-pixel trace names, as "x,y;x,y;...". They
   // come from the accounting mask rather than from a fixed grid: the point of
   // the trace is to name the face under a pixel the frame does not fill.
@@ -3642,6 +3648,12 @@ bool outlineVertexExtent = false;
         ++worldDebugViewGiven; worldDebugView = 9;
       } else if (wcscmp(arguments[i], L"--world-face-trace") == 0) {
         worldFaceTraceRequested = true;
+      } else if (wcscmp(arguments[i], L"--world-clip-capture") == 0) {
+        // Refused without --world-triangle: the stream output target holds three
+        // vertices, and a batched draw would stop at capacity and read back as a
+        // whole sample. Refusing at parse time makes that a startup error rather
+        // than a silently truncated number on a capture frame.
+        worldClipCaptureRequested = true;
       } else if (wcscmp(arguments[i], L"--world-face-trace-points") == 0 && i + 1 < argumentCount) {
         // "x,y;x,y;..." -- same strict parse as --world-hole-trace. A typo that
         // produced zero points would silently fall back to the fixed grid and
@@ -8091,6 +8103,7 @@ bool outlineVertexExtent = false;
     renderer.setWorldDiagnosticIsolation(
       worldIsolationRequested || worldGeometry != WorldGeometryFilter::All);
     renderer.setWorldIsolatedTriangle(static_cast<int>(isolatedTriangle));
+    renderer.setWorldClipCaptureEnabled(worldClipCaptureRequested && isolatedTriangle >= 0);
     traceFmt("gpu: world isolation requested=%ld stored=%d",
       isolatedTriangle, renderer.worldIsolatedTriangle());
     // T17: this one changes a draw-time constant, not the upload. It is set here
@@ -10267,6 +10280,125 @@ bool outlineVertexExtent = false;
   // barycentrics, keep the nearest. `frameDepth` is the depth the capture
   // actually holds, so a point the oracle calls empty and the buffer calls
   // occupied is a reading that contradicts itself and is printed as such.
+  // ---- N05 step 3: the clip-space capture and its known-answer control ----
+  //
+  // Two numbers per vertex: what the GPU vertex stage produced (streamed out of
+  // the draw that actually ran) and what the CPU predicts from the same mvp and
+  // the same box-space vertex. Agreement is the control that makes the channel
+  // usable; disagreement is the reading that says the difference already exists
+  // before the rasteriser sees anything, which is what the isolation frames
+  // could not distinguish from a clipping or state defect.
+  //
+  // The CPU arm multiplies the vertex BUFFER value, not a map point: the world
+  // VS does `mul(float4(input.position, 1.0), mvp)` on the thing the buffer
+  // holds, and `worldTrianglePositionAt` reports exactly that thing.
+  // The frame number is a parameter, not a capture: `renderedFrames` is
+  // declared further down the loop than this lambda, so a capture would name it
+  // before it exists. Passing it in keeps the reading tied to the frame that
+  // drew the sample rather than to whatever counter exists at call time.
+  const auto traceWorldClipCapture = [&](std::uint64_t frameNumber) {
+    if (!worldClipCaptureRequested) return;
+    const int clipStatus = renderer.worldClipCaptureStatus();
+    if (clipStatus == 0) {
+      traceFmt("gpu: world clip-capture status=not-attempted reason=no-isolated-indexed-draw");
+      return;
+    }
+    if (clipStatus < 0) {
+      const char* why = renderer.worldClipCaptureFailure();
+      traceFmt("gpu: world clip-capture status=unavailable reason=%s",
+        (why && *why) ? why : "the channel reported failure without a reason");
+      return;
+    }
+    const auto clipProjection = worldTraceProjection();
+    if (!clipProjection.valid) {
+      traceFmt("gpu: world clip-capture status=unavailable reason=no-world-constants");
+      return;
+    }
+    float clipSample[12] = {};
+    if (!renderer.worldClipCaptureSample(clipSample)) {
+      traceFmt("gpu: world clip-capture status=unavailable reason=no-sample");
+      return;
+    }
+    unsigned int clipIndices[3] = {};
+    float clipViewport[4] = {};
+    unsigned int clipHash = 0u;
+    if (!renderer.worldClipCaptureDrawState(clipIndices, clipViewport, clipHash)) {
+      traceFmt("gpu: world clip-capture status=unavailable reason=no-draw-state");
+      return;
+    }
+    const long clipTriangle = renderer.worldIsolatedTriangle();
+    float clipBuffer[9] = {};
+    const bool clipHasBuffer = clipTriangle >= 0
+      && renderer.worldTrianglePositionAt(static_cast<std::size_t>(clipTriangle), clipBuffer);
+    // The frame, the index triple, the viewport and the constant hash travel
+    // with the values: a clip number with no frame attached cannot be compared
+    // to anything, which is the same rule the capture gate applies to bitmaps.
+    traceFmt("gpu: world clip-capture status=ok tri=%ld indices=%u,%u,%u"
+      " viewport=%.1f,%.1f,%.1f,%.1f constants=0x%08x frame=%llu",
+      clipTriangle, clipIndices[0], clipIndices[1], clipIndices[2],
+      clipViewport[0], clipViewport[1], clipViewport[2], clipViewport[3],
+      clipHash, static_cast<unsigned long long>(frameNumber));
+    if (!clipHasBuffer) {
+      traceFmt("gpu: world clip-capture control=unavailable reason=no-vertex-buffer-position");
+      return;
+    }
+    int clipMatched = 0;
+    int clipCompared = 0;
+    float clipWorstRelative = 0.0f;
+    for (int v = 0; v < 3; ++v) {
+      const float bx = clipBuffer[v * 3 + 0];
+      const float by = clipBuffer[v * 3 + 1];
+      const float bz = clipBuffer[v * 3 + 2];
+      const float* m = clipProjection.m;
+      const float cpx = bx * m[0] + by * m[4] + bz * m[8] + m[12];
+      const float cpy = bx * m[1] + by * m[5] + bz * m[9] + m[13];
+      const float cpz = bx * m[2] + by * m[6] + bz * m[10] + m[14];
+      const float cpw = bx * m[3] + by * m[7] + bz * m[11] + m[15];
+      const float gx = clipSample[v * 4 + 0];
+      const float gy = clipSample[v * 4 + 1];
+      const float gz = clipSample[v * 4 + 2];
+      const float gw = clipSample[v * 4 + 3];
+      // Relative error against the magnitude actually being compared. w is the
+      // divisor for the perspective divide, so an error in it moves a screen
+      // point by more than the same error in x; the tile below prints all four
+      // so a small-but-load-bearing w difference is visible rather than averaged
+      // away.
+      const auto clipRel = [](float a, float b) {
+        const float scale = std::max(std::fabs(a), std::fabs(b));
+        if (!(scale > 1.0e-9f)) return 0.0f;
+        return std::fabs(a - b) / scale;
+      };
+      const float relX = clipRel(cpx, gx);
+      const float relY = clipRel(cpy, gy);
+      const float relZ = clipRel(cpz, gz);
+      const float relW = clipRel(cpw, gw);
+      const float worst = std::max(std::max(relX, relY), std::max(relZ, relW));
+      clipWorstRelative = std::max(clipWorstRelative, worst);
+      ++clipCompared;
+      const bool vertexAgrees = std::isfinite(gw) && std::isfinite(cpw) && worst < 1.0e-5f;
+      if (vertexAgrees) ++clipMatched;
+      traceFmt("gpu: world clip-capture vertex=%d box=%.6f,%.6f,%.6f"
+        " gpu=%.6f,%.6f,%.6f,%.6f cpu=%.6f,%.6f,%.6f,%.6f"
+        " relX=%.3e relY=%.3e relZ=%.3e relW=%.3e agree=%d",
+        v, bx, by, bz, gx, gy, gz, gw, cpx, cpy, cpz, cpw,
+        relX, relY, relZ, relW, vertexAgrees ? 1 : 0);
+      // Inside the clip volume, per this frame's own w: -w <= x,y <= w and
+      // 0 <= z <= w. Reported separately from the CPU agreement because the two
+      // answer different questions -- "does the CPU know where this vertex is"
+      // and "will the rasteriser keep it".
+      const bool insideClip = std::isfinite(gw) && gw > 0.0f
+        && gx >= -gw && gx <= gw && gy >= -gw && gy <= gw && gz >= 0.0f && gz <= gw;
+      const float screenX = (gx / gw * 0.5f + 0.5f) * static_cast<float>(clipProjection.width);
+      const float screenY = (0.5f - gy / gw * 0.5f) * static_cast<float>(clipProjection.height);
+      traceFmt("gpu: world clip-capture screen vertex=%d x=%.3f y=%.3f depth=%.6f inside=%d",
+        v, screenX, screenY, gz / gw, insideClip ? 1 : 0);
+    }
+    traceFmt("gpu: world clip-capture control compared=%d matched=%d worstRelative=%.3e"
+      " threshold=1.0e-05 verdict=%s",
+      clipCompared, clipMatched, clipWorstRelative,
+      (clipCompared == 3 && clipMatched == 3) ? "agree" : "disagree");
+  };
+
   const auto traceWorldHoles = [&]() {
     if (worldHoleTracePoints.empty()) return;
     const auto projection = worldTraceProjection();
@@ -13989,6 +14121,11 @@ bool outlineVertexExtent = false;
       // T21: the face trace is taken on the same frame, after the draw. Its
       // screen points are pixels of the bitmap the capture just wrote.
       if (captureRequested) traceWorldFaces();
+      // N05 step 3: the clip-space capture and its control, on the same frame as
+      // the bitmap. Emitted beside the face trace because the two are one
+      // instrument: the face trace predicts a screen point from the matrix, this
+      // reads what the GPU produced with that matrix.
+      if (captureRequested) traceWorldClipCapture(renderedFrames);
       // T26: the same frame, the other question. Emitted after the capture so
       // `frameDepth` is the depth buffer of the frame on disk.
       if (captureRequested) traceWorldHoles();
