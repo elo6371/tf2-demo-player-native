@@ -307,10 +307,57 @@ int runFixture() {
 // ---------------------------------------------------------------------------
 // 3. a real map
 // ---------------------------------------------------------------------------
+// N07: --list-materials is read by the map analysis, which is a free function, so
+// the flag lives at file scope rather than being threaded through every call.
+static bool listMaterials = false;
+
 struct Reader {
   std::filesystem::path tfRoot;
   VpkArchiveSet archives;
   std::vector<std::uint8_t> bspBytes;
+
+  // N07: the same chain, but it says which store answered and where it failed.
+  // "not found" and "found but unreadable" are different defects, and the summary
+  // counter alone cannot tell them apart.
+  struct Traced {
+    std::vector<std::uint8_t> bytes;
+    std::string source;   // loose | vpk:<file> | bsp-pak | none
+    std::string stage;    // ok | absent | read-failed
+  };
+  Traced readTraced(const std::string& path) const {
+    Traced out;
+    std::error_code error;
+    const auto loose = tfRoot / std::filesystem::u8path(path);
+    if (std::filesystem::exists(loose, error)) {
+      out.bytes = readFile(loose);
+      out.source = "loose";
+      out.stage = out.bytes.empty() ? "read-failed" : "ok";
+      return out;
+    }
+    std::vector<std::filesystem::path> holders;
+    archives.collectContaining(path, holders);
+    for (const auto& holder : holders) {
+      const auto* archive = archives.find(holder);
+      if (!archive) continue;
+      auto bytes = archive->read(path);
+      if (!bytes.empty()) {
+        out.bytes = std::move(bytes);
+        out.source = "vpk:" + holder.filename().string();
+        out.stage = "ok";
+        return out;
+      }
+    }
+    std::vector<std::uint8_t> packed;
+    if (!bspBytes.empty() && bspPakfileEntry(bspBytes, path, packed, nullptr)) {
+      out.bytes = std::move(packed);
+      out.source = "bsp-pak";
+      out.stage = "ok";
+      return out;
+    }
+    out.source = "none";
+    out.stage = "absent";
+    return out;
+  }
 
   std::vector<std::uint8_t> read(const std::string& path) const {
     std::error_code error;
@@ -362,26 +409,83 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
   std::vector<std::string> materialNames;  // every material, in coverage order
   std::vector<std::string> sourceNames;    // the subset that asked for a tile, same order
   std::size_t vmtResolved = 0, vmtMissing = 0, vmtNoBase = 0, vtfResolved = 0, vtfMissing = 0;
+  // N07: one line per material, same order and same scope as the counters below,
+  // so the named list and the summary close on each other instead of being two
+  // independent counts that happen to look similar.
+  std::size_t listed = 0, stageOk = 0, stageAbsent = 0, stageReadFail = 0;
+  std::size_t stageVmtParse = 0, stageIncludeMissing = 0, stageNoBase = 0;
+  std::size_t stageVtfAbsent = 0, stageVtfParse = 0;
   for (const auto& entry : order) {
     const std::string& name = entry.second;
+    const std::size_t triangles = entry.first;
     materialNames.push_back(name);
     VmtMaterial material;
-    const auto vmtBytes = reader.read(VmtParser::resourcePath(name, ".vmt"));
-    if (vmtBytes.empty()) { ++vmtMissing; materials.push_back(material); continue; }
-    if (!VmtParser::parse(std::string(vmtBytes.begin(), vmtBytes.end()), material)) {
-      ++vmtNoBase; materials.push_back(material); continue;
+    const auto vmt = reader.readTraced(VmtParser::resourcePath(name, ".vmt"));
+    auto note = [&](const char* stage, const std::string& reason) {
+      ++listed;
+      if (std::string(stage) == "ok") ++stageOk;
+      else if (std::string(stage) == "absent") ++stageAbsent;
+      else if (std::string(stage) == "read-failed") ++stageReadFail;
+      else if (std::string(stage) == "vmt-parse") ++stageVmtParse;
+      else if (std::string(stage) == "vmt-include-missing") ++stageIncludeMissing;
+      else if (std::string(stage) == "vmt-no-basetexture") ++stageNoBase;
+      else if (std::string(stage) == "vtf-absent") ++stageVtfAbsent;
+      else if (std::string(stage) == "vtf-parse") ++stageVtfParse;
+      if (listMaterials) {
+        std::printf("material=%s triangles=%zu source=%s stage=%s reason=%s\n",
+          name.c_str(), triangles, vmt.source.c_str(), stage, reason.c_str());
+      }
+    };
+    if (vmt.stage != "ok") {  // absent | read-failed
+      ++vmtMissing;
+      note(vmt.stage.c_str(), "vmt " + vmt.stage + " in loose, vpk and bsp-pak");
+      materials.push_back(material);
+      continue;
+    }
+    // N07: the include reader matters. Without it every patch VMT fails with
+    // "no store was given" -- 133 of sultry's 263 materials read as parse errors
+    // while the product resolves them through the same chain used here.
+    VmtParser::IncludeReader readInclude = [&](const std::string& resource) {
+      return reader.read(resource);
+    };
+    if (!VmtParser::parse(std::string(vmt.bytes.begin(), vmt.bytes.end()), material, readInclude)) {
+      ++vmtNoBase;
+      if (material.patch.declared && !material.patch.resolved) {
+        note("vmt-include-missing", "patch include " + material.patch.includePath);
+      } else {
+        note("vmt-parse", "VMT parser refused the file");
+      }
+      materials.push_back(material);
+      continue;
     }
     ++vmtResolved;
+    if (material.patch.declared && !material.patch.resolved) {
+      note("vmt-include-missing", "patch include " + material.patch.includePath);
+      materials.push_back(material);
+      continue;
+    }
     if (material.baseTexture.empty() && material.baseTexture2.empty()) {
-      ++vmtNoBase; materials.push_back(material); continue;
+      ++vmtNoBase;
+      note("vmt-no-basetexture", "no $basetexture and no $basetexture2");
+      materials.push_back(material);
+      continue;
     }
     // The tile is the layer that resolved, and its size is the VTF's own,
     // halved the way main.cpp's boxDownscale halves it.
     std::string baseName = material.baseTexture.empty() ? material.baseTexture2 : material.baseTexture;
-    const auto vtfBytes = reader.read(VmtParser::resourcePath(baseName, ".vtf"));
+    const auto vtf = reader.readTraced(VmtParser::resourcePath(baseName, ".vtf"));
     VtfTexture texture;
-    if (vtfBytes.empty() || !texture.parse(vtfBytes)) {
-      ++vtfMissing; materials.push_back(material); continue;
+    if (vtf.stage != "ok") {
+      ++vtfMissing;
+      note("vtf-absent", "vtf " + vtf.stage + " for " + baseName);
+      materials.push_back(material);
+      continue;
+    }
+    if (!texture.parse(vtf.bytes)) {
+      ++vtfMissing;
+      note("vtf-parse", "VTF parser refused " + baseName);
+      materials.push_back(material);
+      continue;
     }
     ++vtfResolved;
     std::uint32_t width = texture.header().width, height = texture.header().height;
@@ -397,9 +501,24 @@ int runMap(const std::filesystem::path& mapPath, const std::filesystem::path& tf
     source.rgbaBytes = static_cast<std::size_t>(width) * height * 4u;
     sources.push_back(std::move(source));
     sourceNames.push_back(name);
+    note("ok", "vmt=" + vmt.source + " vtf=" + vtf.source);
     materials.push_back(material);
   }
   emitNumber("map.vmtResolved", static_cast<long long>(vmtResolved));
+  const std::size_t staged = stageOk + stageAbsent + stageReadFail + stageVmtParse
+    + stageIncludeMissing + stageNoBase + stageVtfAbsent + stageVtfParse;
+  emitNumber("map.materialsListed", static_cast<long long>(listed));
+  emitNumber("map.stage.ok", static_cast<long long>(stageOk));
+  emitNumber("map.stage.vmtAbsent", static_cast<long long>(stageAbsent));
+  emitNumber("map.stage.readFailed", static_cast<long long>(stageReadFail));
+  emitNumber("map.stage.vmtParse", static_cast<long long>(stageVmtParse));
+  emitNumber("map.stage.includeMissing", static_cast<long long>(stageIncludeMissing));
+  emitNumber("map.stage.noBasetexture", static_cast<long long>(stageNoBase));
+  emitNumber("map.stage.vtfAbsent", static_cast<long long>(stageVtfAbsent));
+  emitNumber("map.stage.vtfParse", static_cast<long long>(stageVtfParse));
+  // The list and the summary must close: every named material lands in exactly one
+  // stage, and the stages sum to the number of lines printed.
+  emitNumber("map.stage.closure", static_cast<long long>(staged == listed ? 1 : 0));
   emitNumber("map.vmtMissing", static_cast<long long>(vmtMissing));
   emitNumber("map.vmtNoBase", static_cast<long long>(vmtNoBase));
   emitNumber("map.vtfResolved", static_cast<long long>(vtfResolved));
@@ -488,6 +607,7 @@ int main(int argc, char** argv) {
     if (arg == "--map" && index + 1 < argc) { mapPath = std::filesystem::u8path(argv[++index]); continue; }
     if (arg == "--tf-root" && index + 1 < argc) { tfRoot = std::filesystem::u8path(argv[++index]); continue; }
     if (arg == "--expect-material" && index + 1 < argc) { expectMaterial = argv[++index]; continue; }
+    if (arg == "--list-materials") { listMaterials = true; continue; }
     std::cerr << "usage: material_coverage_probe --self-test | --fixture |"
                  " --map <map.bsp> --tf-root <dir> [--expect-material <name>]\n";
     return 2;
