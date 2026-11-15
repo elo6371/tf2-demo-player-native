@@ -10095,10 +10095,23 @@ bool outlineVertexExtent = false;
       std::snprintf(expectedBuffer, sizeof(expectedBuffer), "%d,%d,%d", expected[0], expected[1], expected[2]);
       expectedText = expectedBuffer;
       ++hits;
+      // N05: the colour the vertex buffer actually carries for this triangle.
+      // `albedo` above is computed from the material chain on the CPU; the pixel
+      // shader multiplies by COLOR0, so "the frame is black where the CPU says
+      // 84,83,81" is only answerable with this number in the same line.
+      float vertexColour[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+      const bool haveVertexColour = renderer.worldTriangleColourAt(static_cast<std::size_t>(bestTriangle), vertexColour);
+      char vertexColourBuffer[64];
+      std::snprintf(vertexColourBuffer, sizeof(vertexColourBuffer), "%d,%d,%d,%d",
+        static_cast<int>(std::lround(vertexColour[0] * 255.0f)),
+        static_cast<int>(std::lround(vertexColour[1] * 255.0f)),
+        static_cast<int>(std::lround(vertexColour[2] * 255.0f)),
+        static_cast<int>(std::lround(vertexColour[3] * 255.0f)));
       traceFmt("gpu: world face-trace point=%d,%d tri=%d material=%s vmt=%s vmtStore=%s vtf=%s"
         " vtfStore=%s src=%dx%d tile=%d/%d size=%dx%d rect=%d,%d atlas=%dx%d uv=%s uvInside=%d texel=%s texelA=%s"
         " blend=%s luv=%.4f,%.4f light=%d,%d,%d albedo=%s albedoTile=%s expected=%s reason=%s"
-        " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x",
+        " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x"
+        " vertexColour=%s vertexColourKnown=%d",
         px, py, bestTriangle, triangle.material.c_str(),
         chain.vmtPath.empty() ? "-" : chain.vmtPath.c_str(), chain.vmtStore.c_str(),
         chain.vtfPath.empty() ? "-" : chain.vtfPath.c_str(), chain.vtfStore.c_str(),
@@ -10114,7 +10127,8 @@ bool outlineVertexExtent = false;
         albedoText.c_str(), albedoTileText.c_str(), expectedText.c_str(),
         tiled ? "tiled" : (tile != nullptr ? tile->reason.c_str() : chain.reason.c_str()),
         chain.beyondOldCap ? 1 : 0, chain.oldOrderAccepted, bestDepth, frameDepth, finalDepth,
-        depthMatch ? 1 : 0, renderer.capturedDepthRawAt(px, py));
+        depthMatch ? 1 : 0, renderer.capturedDepthRawAt(px, py),
+        vertexColourBuffer, haveVertexColour ? 1 : 0);
     }
     // Named refusals, weighted by the pvs-visible triangles they cost. The
     // aggregate material-fetch line says `vmtMissing=3`; this says how much of

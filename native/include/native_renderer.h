@@ -788,6 +788,10 @@ public:
   void setObserverOrbitDistanceWorld(float worldUnits);
   void setObserverDemoViewWorld(float x, float y, float z, float pitchDegrees, float yawDegrees);
   void clearObserverDemoView();
+  // N05: what COLOR0 carried for a triangle, i.e. what the pixel shader received.
+  // False for an out-of-range triangle so "no such triangle" and "black" cannot
+  // be read as the same answer.
+  bool worldTriangleColourAt(std::size_t triangle, float out[4]) const;
   bool observerFocusWorld(float& x, float& y, float& z) const;
   // T10 fix: the observer focus converted BACK to map coordinates. The pvs
   // clip asks the BSP which cluster a point sits in, and the BSP speaks map
@@ -1653,6 +1657,11 @@ private:
   Microsoft::WRL::ComPtr<ID3D11InputLayout> worldInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> modelInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> entityModelInputLayout_;
+  // N05 (2026-11-15): the per-triangle vertex colour the buffer was built with.
+  // Kept because the GPU buffer is D3D11_USAGE_DEFAULT and cannot be read back,
+  // and the black point at 849 needs exactly this number: the CPU trace computes
+  // albedo from the material chain, while the pixel shader multiplies by COLOR0.
+  std::vector<std::array<float, 4>> worldTriangleColour_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;

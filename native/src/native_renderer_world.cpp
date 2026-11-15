@@ -170,6 +170,13 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   }
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
+  // N05: keep what the shader will receive. All three vertices of a triangle are
+  // built with the same r,g,b,a, so the first one is the whole answer.
+  worldTriangleColour_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f});
+  for (std::size_t at = 0; at + 2 < vertices.size(); at += 3u) {
+    const WorldVertex& v = vertices[at];
+    worldTriangleColour_[at / 3u] = {v.r, v.g, v.b, v.a};
+  }
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   {
     float cx0 = 1e30f, cy0 = 1e30f, cz0 = 1e30f, cx1 = -1e30f, cy1 = -1e30f, cz1 = -1e30f;
@@ -944,6 +951,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   }
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
+  // N05: same table as the first upload path -- this one runs on the pvs-clipped
+  // re-upload, which is the path a real capture takes, so leaving it out made the
+  // face-trace report vertexColourKnown=0 on every point.
+  worldTriangleColour_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f});
+  for (std::size_t at = 0; at + 2 < vertices.size(); at += 3u) {
+    const WorldVertex& v = vertices[at];
+    worldTriangleColour_[at / 3u] = {v.r, v.g, v.b, v.a};
+  }
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   // ---- T19: the index buffer, grouped by batch -----------------------------
   if (worldTerrainOnly_)
@@ -1271,6 +1286,16 @@ bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
   worldIndexCount_ = needed;
   worldVisClipApplied_ = true;
   worldVisDrawnTriangles_ = drawList.outputTriangles;
+  return true;
+}
+
+// N05: the colour the vertex buffer carries for one triangle, for the face-trace.
+// Out-of-range is false rather than a zero, so "no such triangle" cannot read as
+// "the vertex colour is black".
+bool Renderer::worldTriangleColourAt(std::size_t triangle, float out[4]) const {
+  if (triangle >= worldTriangleColour_.size()) return false;
+  const auto& c = worldTriangleColour_[triangle];
+  out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; out[3] = c[3];
   return true;
 }
 
