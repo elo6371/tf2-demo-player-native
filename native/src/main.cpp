@@ -9852,6 +9852,19 @@ bool outlineVertexExtent = false;
           px, py);
         continue;
       }
+      // N05: a self-contained line, printed where the values are still in scope.
+      // The first attempt appended these to the big face-trace format string and
+      // the arguments shifted, so the readings were other fields' numbers -- an
+      // instrument bug that looked exactly like a product bug.
+      traceFmt("gpu: world tri-proj point=%d,%d tri=%d w=%.5f,%.5f,%.5f screen=%.2f,%.2f;%.2f,%.2f;%.2f,%.2f",
+        px, py, bestTriangle, 1.0f / bestInvW[0], 1.0f / bestInvW[1], 1.0f / bestInvW[2],
+        bestScreen[0], bestScreen[1], bestScreen[2], bestScreen[3], bestScreen[4], bestScreen[5]);
+    // The matrix, one row per line, so a shifted argument cannot hide inside it.
+    for (int row = 0; row < 4; ++row) {
+      traceFmt("gpu: world mvp row=%d % .6f % .6f % .6f % .6f", row,
+        projection.m[row * 4 + 0], projection.m[row * 4 + 1],
+        projection.m[row * 4 + 2], projection.m[row * 4 + 3]);
+    }
       const auto& triangle = displayMap.triangles[static_cast<std::size_t>(bestTriangle)];
       // Does the frame's own depth agree that this face owns the pixel? A model,
       // the water pass or a nearer triangle would answer no. Unmeasured (-1)
