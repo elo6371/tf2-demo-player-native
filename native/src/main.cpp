@@ -8089,6 +8089,8 @@ bool outlineVertexExtent = false;
     renderer.setWorldDiagnosticIsolation(
       worldIsolationRequested || worldGeometry != WorldGeometryFilter::All);
     renderer.setWorldIsolatedTriangle(static_cast<int>(isolatedTriangle));
+    traceFmt("gpu: world isolation requested=%ld stored=%d",
+      isolatedTriangle, renderer.worldIsolatedTriangle());
     // T17: this one changes a draw-time constant, not the upload. It is set here
     // so the reading and the frames of one run describe one configuration.
     renderer.setWorldLightmapEnabled(worldLightmapGiven ? worldLightmapRequested : true);

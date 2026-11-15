@@ -1209,6 +1209,7 @@ public:
   // disagrees about where that triangle is" from "something else is covering the
   // pixel" is to draw N and nothing else. -1 disables.
   void setWorldIsolatedTriangle(int triangle) { worldIsolatedTriangle_ = triangle; }
+  int worldIsolatedTriangle() const { return worldIsolatedTriangle_; }
   // T17: the lightmap is the one shading term the product had no off switch for,
   // so "the world is dark" could not be attributed to it. `false` keeps the same
   // geometry, materials and uvs and replaces the sample with white, which turns
