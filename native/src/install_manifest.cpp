@@ -161,7 +161,7 @@ std::string sha256Bytes(const std::string& bytes) {
   BCRYPT_ALG_HANDLE algorithm = nullptr;
   BCRYPT_HASH_HANDLE hash = nullptr;
   std::string result;
-  DWORD objectSize = 0, dataSize = 0, produced = 0;
+  DWORD objectSize = 0, produced = 0;
   std::vector<unsigned char> object, digest;
   if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0) return {};
   if (BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH,

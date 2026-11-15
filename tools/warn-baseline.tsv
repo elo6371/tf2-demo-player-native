@@ -1,0 +1,13 @@
+# tools/warn-baseline.tsv -- the /W4 warnings that already exist.
+# <count> TAB <file>:<line>:<code>. Regenerate with: bash tools/warn-check.sh --emit-baseline
+# Measured 2026-11-15 on native/build-nmake; a warning that disappears is reported as
+# FIXED and must not be treated as an improvement until the site is deleted.
+2	native/src/native_renderer_viewmodel.cpp:C4267
+1	native/src/native_renderer_overlay.cpp:C4456
+1	native/src/native_renderer_overlay.cpp:C4100
+1	<external>/xutility:C4244
+1	native/src/native_renderer.cpp:C4456
+2	native/src/native_renderer_viewmodel.cpp:C4456
+1	native/src/main.cpp:C4456
+5	native/src/main.cpp:C4244
+1	native/src/main.cpp:C4457

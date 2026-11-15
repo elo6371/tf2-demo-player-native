@@ -373,7 +373,7 @@ void logsPanelShutdown() {
 // thread.
 namespace {
 
-void pumpFor(HWND window, int milliseconds) {
+void pumpFor(HWND /*window*/, int milliseconds) {
   const ULONGLONG deadline = GetTickCount64() + static_cast<ULONGLONG>(std::max(0, milliseconds));
   do {
     MSG message{};

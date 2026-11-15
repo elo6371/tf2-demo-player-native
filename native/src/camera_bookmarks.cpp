@@ -131,9 +131,9 @@ bool CameraBookmarkStore::loadFromSettings(const std::filesystem::path& file) {
       // cannot disagree about what "a pose" is.
       std::string poseText;
       const char* fields[6] = { "focusX", "focusY", "focusZ", "yaw", "pitch", "distance" };
-      for (int index = 0; index < 6; ++index) {
-        if (index) poseText += ",";
-        poseText += readString(section, slotKey(slot, fields[index]));
+      for (int field = 0; field < 6; ++field) {
+        if (field) poseText += ",";
+        poseText += readString(section, slotKey(slot, fields[field]));
       }
       const std::string fovText = readString(section, slotKey(slot, "fov"));
       float fov = kDefaultBookmarkFov;
@@ -188,9 +188,9 @@ bool CameraBookmarkStore::saveToSettings(const std::filesystem::path& file) cons
     const char* fields[6] = { "focusX", "focusY", "focusZ", "yaw", "pitch", "distance" };
     const float values[6] = { bookmark.pose.focusX, bookmark.pose.focusY, bookmark.pose.focusZ,
       bookmark.pose.yaw, bookmark.pose.pitch, bookmark.pose.distance };
-    for (int index = 0; index < 6; ++index) {
-      if (!utf8ToWide(bookmark.saved ? formatPoseField(values[index]) : std::string(), value)) return false;
-      section.emplace_back(slotKey(slot, fields[index]), value);
+    for (int field = 0; field < 6; ++field) {
+      if (!utf8ToWide(bookmark.saved ? formatPoseField(values[field]) : std::string(), value)) return false;
+      section.emplace_back(slotKey(slot, fields[field]), value);
     }
     if (!utf8ToWide(bookmark.saved ? formatPoseField(bookmark.fov) : std::string(), value)) return false;
     section.emplace_back(slotKey(slot, "fov"), value);
