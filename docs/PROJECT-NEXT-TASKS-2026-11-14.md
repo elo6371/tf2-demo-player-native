@@ -155,6 +155,8 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 
 验收：七图 POV/STV 矩阵逐格有路径、哈希、能力和限制；缺 f12 POV 只阻塞该格。
 
+- **替换方案（2026-11-15 标注，待批准）**：gate5 的 pov pin 与 gate3 的 `AUDIO_DEMO` 指向已不存在的 `autorecord_2026-07-02_13-26-46.dem`（21,856,667 B / sha256 `c8a58501…`，Sniper POV）。已实测替代：`pl_upward_f12/POV/autorecord_2026-08-08_21-43-59.dem`（146,853,666 B，实体模型同为 `c_sniper_arms.mdl`，tick 28795 实体 685 `sequence=30`）；代价是 6 处「录像自身属性」读数重钉 + §2 `v_*=0` 断言处置（新录像默认全扫 2 条 `v_*`，原为 0）。备选：只换 gate3（方案 B）；或从 2056 条 Steam 录像筛一条 `vStarModels=0` 的 Sniper POV（方案 C）。逐项改动清单与验收判据见 `docs/TASK-REPORT-2026-11-15.md` §2.5 的「替换方案」表。
+
 ### N02　修探针 Unicode/路径与失败契约（F，G2-D38）
 
 - [ ] 在相同小输入下对比 ASCII、中文、带空格路径、TF 相对/绝对路径及不存在路径，先记录 rc/stdout/stderr。

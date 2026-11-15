@@ -99,6 +99,22 @@
 pin 行的 size+sha+name；§2 的 census 实体数、速率数、序列范围、模型路径数、`v_*` 断言；§5 的 `entity=`（实体 id）；§6 的 `pov history sequence range`。§3 的模型表读数（43/58/38）与 §5 的 modelMismatch 逻辑**不用改**（实体模型同源）。
 **代价与边界**：这是把 gate5 的输入基准从「一条已不存在的录像」换成「一条可复现的录像」，必须在文件头写明替换原因、旧基准值、替换后的实测值；替换后 gate5 需整轮重跑（约 10–20 分钟产品运行）。
 
+**替换方案（标注：待批准，未执行）**
+
+| 方案 | 内容 | 代价 | 状态 |
+|---|---|---|---|
+| **A（推荐）** | gate5 pin 换 `pl_upward_f12/POV/autorecord_2026-08-08_21-43-59.dem`（146,853,666 B；sha256 待量），gate3 `AUDIO_DEMO` 用同一条 | 6 处「录像自身属性」读数重钉 + §2 `v_*=0` 断言须处置（新录像默认全扫实测 2 条 `v_*`）；gate5 整轮重跑 10–20 min | **待批准** |
+| **B（保守）** | 只换 gate3（任意 POV 都满足它），gate5 继续记环境假红 | gate5 保持不可测；`v_*` 语义不动 | 待批准 |
+| **C（最严）** | 从 Steam 2056 条 autorecord 里筛一条 `vStarModels=0` 的 Sniper POV，保住 §2 原断言 | 每条探针 1–2 min，需批量扫描，最贵 | 未开始 |
+
+方案 A 的逐项改动清单（已定位到文件/行）：
+- `evidence/viewmodel/animation-inputs.txt`：pov 行的 `size`+`sha256`+`name` 改为新录像（gate5 `:451` 的 `case` 分支同步改文件名）。
+- §2 断言：`census CTFViewModel entities` 18→实测、`distinct playback rates` 5→实测、`observed sequence range` 0,34→实测、`distinct entity model paths` 5→实测、`entity models that are v_*` 0→实测（若为 2，措辞须改成「2 条 `v_*` 路径逐条点名，且都不是 pass 要画的那条」，不能只把数字改大）。
+- §5 `pov refusal entity` `1077`→实测；§6 `pov history sequence range` `1..30`→实测。
+- **不改**：§3 的 43/58/38（实体模型同为 `c_sniper_arms.mdl`）、§5 的 modelMismatch 逻辑、§6 的 61 帧（序列 30 同源）。
+
+验收判据：`viewmodel-animation-check.sh` 整轮 `rc=0` / `VIEWMODEL-ANIMATION=PASS`；脚本头注释写入替换记录（旧基准值、新基准值、替换原因）；报告给出替换前/后读数对照；只改 pin 不改断言的方案不算替换完成。
+
 ## 三、明确没做完的（按优先级）
 
 1. **12 道被清扫门禁的真实整轮复跑**（gate1/2/3/4/5 之外的 `hud-live`、`map-geometry-lighting`、`player-model`、`t2-visual-matrix`、`release-rebuild`、`userinfo`、`world-material`、`world-material-effects`、`vmt-nesting`、`viewmodel-material`、`viewmodel-animation`、`viewmodel-companion`）。其中两道依赖缺失录制。
