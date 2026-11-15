@@ -91,3 +91,47 @@ cycle=<sequence 内归一化时间 0..1>  frame=<当前帧号>
 注意两处差异要在实现时写清：STV 的 `entitiesOwnedByViewEntity=0`（没有 svc_SetView 归属），所以 §4/§5 的归属断言仍只能用 POV；§6 的切换断言只需要 `changes`/`distinctSequences`，不需要归属。
 
 **本轮仍不改 gate5**：改动要同时动 §2 的 v_* 前提、§6 的两半结构、以及第 7 节的变异周期（它们按 POV 的序列号写死），而一次全跑 35 分钟；把这些拆成两次提交会让中间态不可判定。留作独立窗口，方案与素材已备齐。
+
+## 7 执行结果（2026-11-15 16:20，`gate5d.log`）
+
+§6 已按本方案拆分并跑完一次全门禁：
+
+| 断言 | 结果 |
+|---|---|
+| `switch probe rc` | OK |
+| `a recording that switches: sequence changes = 627 (>= 100)` | **OK** |
+| `a recording that switches: distinct sequences = 41 (>= 10)` | **OK** |
+| `a recording that switches: no v_* entity models = 0` | **OK** |
+| POV 的 range/changes/frame count | 已按本录像重钉（28..28 / 0 / 31），不再是红 |
+| `and a recording that switches carries it` | 改为对 matcha 的 0..68 判，OK |
+
+全门禁结果：**154 OK / 4 FAIL**，四条全部是"旧录像的基线"：
+
+| 红 | 实读 | 旧期望 | 处置 |
+|---|---:|---:|---|
+| `pov entity models that are v_* viewmodels` | 2 | 0 | **保持红**，见 §8 |
+| `mutation sequence-frozen: the entity count does not move` | 21 | 18 | 已重钉 21 |
+| `mutation field-supply-collapse: the census does not move` | 21 | 18 | 已重钉 21 |
+| `mutation model-class-flip: the change count does not move` | 91 | 141 | 已重钉 91 |
+
+三条基线已改（`9c1217ec`），它们断言的是"变异不改变基线"，数值必须取本录像自己的。
+
+## 8 剩下那一条为什么不能靠重钉解决
+
+`pov entity models that are v_* viewmodels == 0` 不是数量，是**类别前提**：它要证明"实体命名的模型都不是 pass 要画的那一类"。这段 POV 带 2 个 v_* 模型，前提为假。
+
+更麻烦的是它的配对变异断言：
+
+```bash
+assert_ne "mutation model-class-flip: the entity's model reads as a viewmodel" \
+  "$(rsum "$txt" 'vmanim-summary' vStarModels)" "0"
+```
+
+基线一旦是 2，`!= 0` 在任何情况下都成立——**变异判定失去判别力**。正确写法应是 `> 基线`（2），但那个值需要再跑一次变异才知道；而"基线为 0"的写法在那之前一直是有效的。
+
+所以这一条留给 owner 二选一：
+
+1. 找一条 `vStarModels = 0` 的 POV（恢复原断言与变异判别力）；
+2. 接受基线 2，把变异断言改成 `> 2` 并补一次实测。
+
+**不建议**直接把 0 改成 2：那会让配对变异恒真，属于任务单禁止的"放宽断言换绿"。
