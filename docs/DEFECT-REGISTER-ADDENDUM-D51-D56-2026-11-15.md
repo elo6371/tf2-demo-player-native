@@ -209,7 +209,7 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 
 ---
 
-> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D67**（D57–D62 见上，D63–D67 见下）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
+> **编号说明**：本文件名沿用初版的 `D51-D56`，实际内容已延续到 **D71**（D57–D62 见上；D63–D67 见下；D68–D71 在 D57/D58 补充说明之前，来自实例1 的 R1/E1 两片）。主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md` 止于 D50，**本次仍未改动主表**。
 
 ---
 
@@ -255,6 +255,50 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 - **证据**：`native/src/main.cpp:1302-1356` 的 `followConsumeArgument`：`--follow-target` 的值不落在 `0..2047`（`:1312`）或根本没有下一个参数（`:1319-1321`）时只 `++g_followArgumentRejected`，**不入命令队列、不经过 `followRefuse`**，于是 `FollowReason::IndexOutOfRange` 不会从 CLI 出现。汇总在 `:14155-14162` 的 `follow: summary ... rejectedFlags=`。
 - **为什么记缺陷**：`:1307-1311` 的注释把这条设计写成"拒绝而不是夹取，因为'要 5 号'和'什么都没要'在 trace 里必须看得出不同"——但两者现在落在同一个计数器上，**注释承诺的可区分性没有实现**。A5 的 index-out-of-range 一侧因此测不到。
 - **本条没有证明什么**：没有证明命令队列里 `Select` 带 `-1`（`:1346`）那条路径的 `index-out-of-range` 是否可观测；也没有定量测过 `rejectedFlags` 在真实 gate 里的出现频率。
+
+---
+
+## D68　世界材质的归档链不含 hl2，probe 绿而产品红
+
+- **发现者**：arch-ci（实例1 R1）；lead 复核代码与读数
+- **证据（产品侧）**：pl_upward POV、`--capture-tick 400`、走锁，trace `D:/_shared/EXEC-2026-11-15/INST1/R1-controls/prod-pl_upward.trace`（2,538,245 B / 15,430 行）——
+  `gpu: world visible-refusal reason=vmt-missing materials=2 visibleTriangles=15`
+  `gpu: world refused material=DEV/REFLECTIVITY_30 visible=15 reason=vmt-missing vmt=materials/DEV/REFLECTIVITY_30.vmt vmtStore=none vtf=- vtfStore=none src=0x0`
+  聚合行 `distinct=82 tiled=79 vmtMissing=2 fromPakfile=5`；标题行 `[VPK entries: 104343]`。
+- **证据（probe 侧）**：同图同名的 `material_coverage_probe --list-materials` 报 `source=vpk:hl2_misc_dir.vpk stage=ok`，且 `DEV/REFLECTIVITY_10B` 有 `expect.tile=12`、`GLASS/GLASSWINDOW008D` `expect.tile=15`。**同一个名字，probe 说能画，产品说没有。**
+- **机制**：世界材质走 `AssetStoreChain`，它的归档由 `native/src/main.cpp:5572` 的**固定五名名单**逐个 `open` 后 `assetChain.addArchive(...)`（`:5577`）装填（`pak01_dir.vpk`/`tf2_misc_dir.vpk`/`tf2_textures_dir.vpk`/`tf2_sound_misc_dir.vpk`/`tf2_sound_vo_english_dir.vpk`）；N07 新加的 `VpkArchiveSet::openDirectory`（`native/src/vpk_archive.cpp:292-317`，`:315` `mount(tfDirectory.parent_path() / "hl2")`）只服务 `AssetRoot::archives()`，**完全没有进入世界材质链**。
+- **为什么记缺陷**：N07 的 hl2 挂载是当天为"这些材质读成不存在"修的，修到的三个消费者（probe、模型、音效）都绿，**唯独真正画世界的那个链没接上**，于是同一个缺陷在屏幕上仍然存在。这不是"还没做"，是"做了且自证已完成"。
+- **修法要点（不要照最直觉的方式改）**：`soundArchives` 是**一个容器喂四个消费者** —— `:5611` `vpk: archives opened=%zu`、`:5621` 地图 pakfile 查找、`:5731-5732` `indexedVpkEntries`、`:7026` 音效解码。把 hl2 塞进 `:5572` 的循环会让 `archives opened` 从 5 变 9，并移动 `install-lifecycle-check.sh:233-234`、`install-readiness-check.sh:182/:185/:633`、`resource-reachability-check.sh:80`、`stability-release-check.sh:572`、`visual-baseline-check.sh:275/280-284` 五处 pin；而音效本来也不该从 hl2 取。**正确切口是把「世界材质用的 chain」与「地图 pakfile/音效用的 soundArchives」拆开，只给 chain 追加 hl2，`indexedVpkEntries` 语义保持不变。**
+- **本条没有证明什么**：没有做修复，因此**没有正控**（`vmtStore` 从 `none` 变成 vpk 形态、`VPK entries` 从 104,343 变化）。没有测过修复后那 5 处 pin 的新值应该是多少。没有证明 pl_upward 那 2 个材质就是屏幕上肉眼可见的缺陷——只有 `visibleTriangles=15` 这一个量的间接支持。**改点在 `native/src/main.cpp`，属实例3（ui-d）写域，本条未派工。**
+
+---
+
+## D69　`material_coverage_probe` 不校验 `--tf-root`，伪根照样打"成功"读数
+
+- **发现者**：arch-ci（实例1 R1）；lead 复核代码
+- **证据**：`--tf-root` 指向不含 `materials`/`models`/`maps` 与任何 VPK 的目录，探针 rc=0，照常打出 `{"reading":"map.stage.ok","value":"48"}`、`{"reading":"plan.tiled","value":"48"}`、`{"reading":"plan.refused","value":"0"}`（`R1-controls/n2-badroot.txt`）。伴随 `map.vpkEntries=0`、`map.vmtMissing=97`、`map.vtfMissing=79`、`map.stage.vmtAbsent=97`。
+- **机制**：`native/tools/material_coverage_probe.cpp:750` 直接 `reader.archives = VpkArchiveSet::openDirectory(tfRoot);`，`runMap`（`:741`）从不检查根是否成立。仓库里现成的判定是 `AssetRoot::valid()`（`native/src/asset_root.cpp:121-127`：目录存在 且 `materials`/`models`/`maps` 三个 store 都在），**探针没调它**。对照产品侧：显式 `--tf-root` 有拒绝语义（`native/src/main.cpp:4325-4336` 注释「An explicit command-line root is an operator decision. Do not silently switch to another Steam installation」+ `:4387` `resources: … valid=%d`）。
+- **为什么记缺陷**：读者拿到 `plan.tiled=48 refused=0` 会以为"48 个材质被证明可画"，实际是**一个都没解析到**的副产品；判据是 rc 与 `vmtAbsent` 这类字段的话还算能识破，判据是 `stage.ok` 就会被骗。与 D52「`> file` 启动瞬间截断致慢启动假绿」同族：**工具在错输入上给成功形状的输出**。
+- **本条没有证明什么**：没有清点哪些现有 gate 用 `stage.ok` 或 `plan.tiled` 当正判据（若全是 `vmtMissing=0` 类判据则本条风险较低）。没有提出修法代码。
+
+---
+
+## D70　`material_coverage_probe` 在非 ASCII 路径上崩溃（D38 的 CLOSED 没有覆盖到它）
+
+- **发现者**：arch-ci（实例1 R1）；lead 记录编号
+- **证据**：`cp_sultry_b8a` 的 BSP 只存在于 `E:/demo测试/cp_sultry_b8a/地图/cp_sultry_b8a.bsp`（`tf/maps/` 下没有），探针 rc=`-1073740791`（0xC0000409）。七图普查里唯一崩的一张，其余六张（全 ASCII 路径）rc 全 0。
+- **与 D38/D44 的关系**：主表 `docs/DEFECT-REGISTER-MASTER-2026-11-14.md:66` 把 D38（"探针无法打开非 ASCII 路径，实测 0xC0000409 崩溃"）记作 **CLOSED（N02）**，`:72` 的 D44 记"仍有 30 处 `std::filesystem::u8path(argv[...])` 分布在 16 个探针"。本条**不主张 D38 的修法无效**，只记录：**2026-11-15 在 `material_coverage_probe` 上仍然复现同一 rc**，说明 N02 的验收范围没有覆盖这个探针。
+- **为什么记缺陷**：一个仍能拿到 0xC0000409 的探针，其崩溃与"路径不存在"在调用方看来都是"没结果"，而这一条的具体后果是**七图普查缺了 sultry 一整行**。
+- **本条没有证明什么**：没有定位到崩溃点（是 argv→path 的转换、还是 `directory_iterator`、还是下游）。没有验证 D44 所说的 30 处是否含本探针。
+
+---
+
+## D71　9 个门禁脚本的 `OUT` 缺省直接写进被跟踪的 `evidence/`，其中一个不可覆盖
+
+- **发现者**：arch-ci（实例1 E1）；lead 记录编号
+- **证据**：12 个被算术清扫改过的脚本里，**9 个**的 `OUT` 缺省落在被跟踪的 `evidence/` 下，只有 3 个落 `.scratch`。最硬的一例是 `userinfo-check.sh:29`——**没有环境变量覆盖入口**，跑一次就写一次仓库内证据。其余可在调用时用 `<NAME>_OUT=…` 改道。
+- **为什么记缺陷**：这一条同时违反两件已定的事 ——（a）`tools/lockrun.sh:22` 把 `evidence` 与 `native/tests/fixtures` 当前后比对对象，**任何写进 evidence 的门禁跑都会让同一次 lockrun 以 `LOCKRUN=TRACKED-DIRTY` exit 97 收尾**；（b）`tools/audit-tree.sh:70-74` 把被跟踪目录变脏记为 `VIOLATION`。也就是说这些脚本的**缺省调用方式本身**就与仓库的两条规定冲突，只能靠调用者每次手工改道。
+- **本条没有证明什么**：没有逐个核实那 9 个脚本在实测 gate 运行里是否真的污染过 evidence（历史记录未清点）；没有提出把 `OUT` 缺省改到 `.scratch` 的代价（会改 9 个脚本的行为契约，且部分 gate 的"产物进 evidence 供复现"是有意设计）。
 
 ---
 
