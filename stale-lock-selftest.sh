@@ -8,6 +8,11 @@
 #   - a SIGKILLed owner must be reclaimed on the next acquire (the 22:56 case),
 #   - an empty lock directory with no owner file must be reclaimed too.
 #
+# RUN THIS UNDER GIT BASH. Under the niubash runtime (the one the agents run in)
+# `bash -c 'sleep 30 & echo hi'` does not return until the background child exits, so the
+# first command substitution here blocks forever. 2026-11-16 measured: this file hangs at
+# L1 under niubash (only the banner prints) and finishes in seconds under Git Bash.
+#
 # Usage: bash stale-lock-selftest.sh
 # Exit: 0 all assertions held, 1 one did not.
 # Token: STALE-LOCK-SELFTEST=PASS|FAIL assertions=N
@@ -107,6 +112,44 @@ out=$(bash -c '. ./verify-lock.sh; vlock_release "$1"' _ "$L7" 2>&1)
 expect_has "L7 non-owner release is skipped" "$out" "VERIFY-LOCK=RELEASE-SKIPPED"
 if [ -d "$L7" ]; then ok "L7 foreign lock survives a bad release"; else bad "L7 foreign lock was deleted by a non-owner"; fi
 
+# L8 (D72): a lock whose recorded runtime pid does not resolve in THIS pid space but whose
+# Windows pid is alive must be refused. A Git Bash holder records a pid from its own space;
+# a checker in another runtime used to see "no such process" and reclaim a live and working
+# lock -- three times on 2026-11-15, at ages of 3 s, 18 s and 22 s. Constructed
+# deterministically instead of by starting a second runtime: the runtime pid cannot exist,
+# the Windows pid is this shell own.
+L8="$W/lock-xruntime"
+mkdir -p "$L8"
+printf 'owner-h\n' > "$L8/owner"
+printf '999999\n' > "$L8/pid"
+printf '%s\n' "$(vlock_winpid)" > "$L8/winpid"
+printf 'nonce-h\n' > "$L8/nonce"
+date +%s > "$L8/started"
+date +%s > "$L8/heartbeat"
+out=$(vlock_acquire "$L8" owner-i 900); rc=$?
+expect_rc "L8 foreign pid space with a live Windows pid is refused" "$rc" 2
+expect_lacks "L8 live foreign lock is not reclaimed" "$out" "STALE-LOCK=RECLAIMED"
+rm -rf "$L8"
+
+# L9 (D72): both ids unresolvable but the heartbeat is fresh and no gone stamp exists -- the
+# heartbeat child is then the proof of life, so the lock is refused. Once that child stamps
+# gone, the dead lock is reclaimed at once instead of waiting out the 900 s limit.
+L9="$W/lock-grace"
+mkdir -p "$L9"
+printf 'owner-j\n' > "$L9/owner"
+printf '999999\n' > "$L9/pid"
+printf '999999\n' > "$L9/winpid"
+printf 'nonce-j\n' > "$L9/nonce"
+date +%s > "$L9/started"
+date +%s > "$L9/heartbeat"
+out=$(vlock_acquire "$L9" owner-k 900); rc=$?
+expect_rc "L9 fresh heartbeat without a gone stamp is refused" "$rc" 2
+expect_lacks "L9 the grace window does not reclaim" "$out" "STALE-LOCK=RECLAIMED"
+date +%s > "$L9/gone"
+out=$(vlock_acquire "$L9" owner-l 900); rc=$?
+expect_rc "L9 gone stamp lets the dead lock be reclaimed at once" "$rc" 0
+expect_has "L9 gone reclaim is named" "$out" "STALE-LOCK=RECLAIMED"
+vlock_release "$L9" >/dev/null 2>&1
 echo
 if [ "$failures" -ne 0 ]; then
   echo "STALE-LOCK-SELFTEST=FAIL assertions=$count failures=$failures"
