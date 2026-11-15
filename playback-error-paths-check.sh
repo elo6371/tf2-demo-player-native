@@ -119,6 +119,48 @@ firstf() {
 }
 sha() { sha256sum "$1" 2>/dev/null | cut -d" " -f1; }
 
+# census_bounds <demo> <tick> -> "lo hi", the half-open window an independent
+# decode of the recording says the first advance must consume.
+#
+# WHY THIS EXISTS (2026-11-15): D-first used to compare against a literal 700,
+# which was a property of one lost recording (746 events clamped to tick 0) and
+# not of the contract. The contract is "a resume must not drop the events of the
+# ticks it re-enters", so the expected count has to come from the recording
+# itself, decoded by something other than the product. sound_timeline_census_probe
+# is that something: it reads svc_Sounds and reports cumulative counts at fixed
+# checkpoints, so the window for tick T is [cum at the last checkpoint <= T,
+# cum at the next checkpoint). A dropped tick lands at 0 and is below the window;
+# a replayed tick lands above it.
+census_bounds() { # <demo> <tick>
+  local demo=$1 tick=$2
+  local probe="$REPO/native/build-nmake/sound_timeline_census_probe.exe"
+  [ -x "$probe" ] || return 1
+  "$probe" --demo "$demo" 2>/dev/null | python -c '
+import json,sys
+tick=int(sys.argv[1])
+try: d=json.load(sys.stdin)
+except Exception: raise SystemExit(1)
+ts=d.get("cumulativeTicks") or []; cs=d.get("cumulative") or []
+if not ts or not cs: raise SystemExit(1)
+lo=0; hi=d.get("timelineSize", cs[-1])
+for t,c in zip(ts,cs):
+    if t<=tick: lo=c
+    elif c>lo: hi=c; break
+print(lo,hi)
+' "$tick"
+}
+
+census_size() { # <demo> -> the timeline size the independent decode reports
+  local probe="$REPO/native/build-nmake/sound_timeline_census_probe.exe"
+  [ -x "$probe" ] || return 1
+  "$probe" --demo "$1" 2>/dev/null | python -c '
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: raise SystemExit(1)
+print(d.get("timelineSize",""))
+'
+}
+
 # ---------------------------------------------------------------- judgements
 # One function per case, taking the artefacts it reads. They exist as functions so
 # --selftest can hand them synthetic traces: the selftest exercises the shipping
@@ -212,8 +254,8 @@ judge_C() { # <trace> <rc>
   if has "$T" "audio: advance tick=3000"; then green C-landing; else red C-landing "no audio: advance at the seek target (want tick=3000)"; fi
 }
 
-judge_D() { # <trace> <rc>
-  local T=$1 R=$2
+judge_D() { # <trace> <rc> [lo] [hi]  (window from census_bounds; no window = red)
+  local T=$1 R=$2 LO=${3:-} HI=${4:-}
   if [ "$R" = 0 ]; then green D-exit; else red D-exit "rc=$R want 0"; fi
   # The tick the first advance lands on is not pinned: after --start-paused the loop is
   # already at tick 16 by the frame the resume is applied (measured), so the claim is
@@ -229,7 +271,22 @@ judge_D() { # <trace> <rc>
   local FT S0 DUP
   FT=$(firstf "$T" "audio: advance" "tick=")
   S0=$(firstf "$T" "audio: advance" "seen=")
-  if [ "$S0" != "-" ] && [ "$S0" -ge 700 ]; then green D-first; else red D-first "the first advance after the resume (tick=$FT) saw=$S0 events (want >=700: the 746 tick-0 events must not be dropped)"; fi
+  # The window is supplied by the caller from an independent decode of the same
+  # recording. No window is a red, not a skip: "we could not state the expectation"
+  # and "the expectation held" must never read the same.
+  if [ -z "$LO" ] || [ -z "$HI" ]; then
+    red D-first "no independent expectation for tick=$FT: census_bounds returned nothing (the probe is missing or the recording has no timeline)"
+  # CLOSED window, because both ends come from sparse checkpoints: LO is the
+  # cumulative count at the last checkpoint <= tick (a lower bound for that tick)
+  # and HI is the count at the NEXT checkpoint (an upper bound for every tick
+  # before it). Measured 2026-11-15: the same case lands on tick 7 or tick 9
+  # depending on how many frames the resume takes, and between checkpoints 6 and
+  # 10 the true count at tick 9 is 2, which a half-open window rejected.
+  elif [ "$S0" != "-" ] && [ "$S0" -ge "$LO" ] && [ "$S0" -le "$HI" ]; then
+    green D-first
+  else
+    red D-first "the first advance after the resume (tick=$FT) saw=$S0 events, want [$LO,$HI] from the independent sound timeline"
+  fi
   DUP=$(firstf "$T" "audio: advance" "dup=")
   if [ "$DUP" = 0 ]; then green D-dup; else red D-dup "the first advance after the resume (tick=$FT) saw dup=$DUP (want 0: a resume must not consume the tick it re-enters at)"; fi
 }
@@ -437,13 +494,13 @@ EOF
   sed 's/dup=0/dup=2/' "$ST/d.trace" >"$ST/d-dup.trace"
 
   cat >"$ST/e.trace" <<'EOF'
-audio: timeline scheduled=5323 thirdParty=0
-mode: summary events_seen=759 events_scheduled=5323 audio_device_opened=0 audio_device_open_attempts=0
+audio: timeline scheduled=4615 thirdParty=0
+mode: summary events_seen=186 events_scheduled=4615 audio_device_opened=0 audio_device_open_attempts=0
 camera: summary mode=first-person modeChanges=0 modeApplies=0
 EOF
   printf 'CAPTURE-FRAME' >"$ST/e.bmp"
-  sed 's/scheduled=5323/scheduled=5000/' "$ST/e.trace" >"$ST/e-sched.trace"
-  sed 's/events_seen=759/events_seen=758/' "$ST/e.trace" >"$ST/e-events.trace"
+  sed 's/scheduled=4615/scheduled=5000/' "$ST/e.trace" >"$ST/e-sched.trace"
+  sed 's/events_seen=186/events_seen=185/' "$ST/e.trace" >"$ST/e-events.trace"
   sed 's/audio_device_opened=0/audio_device_opened=1/' "$ST/e.trace" >"$ST/e-device.trace"
   sed 's/modeApplies=0/modeApplies=1/' "$ST/e.trace" >"$ST/e-modeapplies.trace"
   { cat "$ST/e.trace"; echo "audio: seek reset from=1 to=2"; } >"$ST/e-seek.trace"
@@ -454,7 +511,7 @@ EOF
     judge_A2 "$ST/a2.trace" 0
     judge_B  "$ST/b.trace" 0 "$ST/b1.bmp" "$ST/b2.bmp"
     judge_C  "$ST/c.trace" 0
-    judge_D  "$ST/d.trace" 0
+    judge_D  "$ST/d.trace" 0 700 760
     judge_E  "$ST/e.trace" 0 "$ST/e.bmp"
   )
   CLEAN_RED=$(printf '%s\n' "$CLEAN" | grep -c "^RED   " || true)
@@ -510,9 +567,9 @@ EOF
   self_red "C dumped burst"       C-burst    judge_C "$ST/c-burst.trace" 0
   self_red "C no landing"         C-landing  judge_C "$ST/c-noland.trace" 0
 
-  self_red "D rc=1"               D-exit     judge_D "$ST/d.trace" 1
-  self_red "D starved tick 0"     D-first    judge_D "$ST/d-starved.trace" 0
-  self_red "D duplicate re-entry" D-dup      judge_D "$ST/d-dup.trace" 0
+  self_red "D rc=1"               D-exit     judge_D "$ST/d.trace" 1 700 760
+  self_red "D starved tick 0"     D-first    judge_D "$ST/d-starved.trace" 0 700 760
+  self_red "D duplicate re-entry" D-dup      judge_D "$ST/d-dup.trace" 0 700 760
 
   self_red "E rc=1"               E-exit     judge_E "$ST/e.trace" 1 "$ST/e.bmp"
   self_red "E scheduled drifted"  E-timeline judge_E "$ST/e-sched.trace" 0 "$ST/e.bmp"
@@ -690,7 +747,9 @@ if want D; then
   run D-start-paused "$EXE" --tf-root "$TF" --demo "$AUDIO_DEMO" --start-paused --hidden-window --audio-disabled --camera-script "$OUTW/$TAG-d.script"
   T=$OUT/$TAG-D-start-paused.trace
   R=$(cat "$OUT/$TAG-D-start-paused.rc" 2>/dev/null || echo -)
-  judge_D "$T" "$R"
+  D_FT=$(firstf "$T" "audio: advance" "tick=")
+  D_BOUNDS=$(census_bounds "$AUDIO_DEMO" "${D_FT:--1}" || true)
+  judge_D "$T" "$R" ${D_BOUNDS:-}
 fi
 
 # -------------------------------------------------------------- E: unchanged runs
