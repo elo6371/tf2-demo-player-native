@@ -30,6 +30,17 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
+# EOL GUARD (D93): this gate builds the product command with line continuations.
+# A CRLF checkout (core.autocrlf=true on this host turns every root *.sh CRLF)
+# makes bash run each continued line as its own command: "--demo: command not
+# found" per line, rc=0, no frame, and the gate then reports FAIL as though the
+# product had refused. Measured 2026-11-16 on this very gate. Fail by name.
+if grep -q $'\r' "$0" 2>/dev/null; then
+  echo "FATAL: $0 has CRLF line endings -- the bash line continuations below break;" >&2
+  echo "       convert first: sed -i 's/\r$//' $0" >&2
+  exit 2
+fi
+
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 # The testdata copy, not the Downloads one: no gate in this repo points at a user's
 # Downloads folder (third-person-weapon-check.sh:85, player-body-appearance-check.sh:42,
