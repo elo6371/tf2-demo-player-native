@@ -173,9 +173,13 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   // N05: keep what the shader will receive. All three vertices of a triangle are
   // built with the same r,g,b,a, so the first one is the whole answer.
   worldTriangleColour_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f});
+  worldTrianglePosition_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
   for (std::size_t at = 0; at + 2 < vertices.size(); at += 3u) {
     const WorldVertex& v = vertices[at];
     worldTriangleColour_[at / 3u] = {v.r, v.g, v.b, v.a};
+    const WorldVertex& vb = vertices[at + 1];
+    const WorldVertex& vc = vertices[at + 2];
+    worldTrianglePosition_[at / 3u] = {v.x, v.y, v.z, vb.x, vb.y, vb.z, vc.x, vc.y, vc.z};
   }
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   {
@@ -955,9 +959,13 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   // re-upload, which is the path a real capture takes, so leaving it out made the
   // face-trace report vertexColourKnown=0 on every point.
   worldTriangleColour_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f});
+  worldTrianglePosition_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
   for (std::size_t at = 0; at + 2 < vertices.size(); at += 3u) {
     const WorldVertex& v = vertices[at];
     worldTriangleColour_[at / 3u] = {v.r, v.g, v.b, v.a};
+    const WorldVertex& vb = vertices[at + 1];
+    const WorldVertex& vc = vertices[at + 2];
+    worldTrianglePosition_[at / 3u] = {v.x, v.y, v.z, vb.x, vb.y, vb.z, vc.x, vc.y, vc.z};
   }
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   // ---- T19: the index buffer, grouped by batch -----------------------------
@@ -1250,6 +1258,14 @@ bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
     worldDrawBatches_[batch].indexCount = static_cast<UINT>(perBatch[batch].size());
     regrouped.insert(regrouped.end(), perBatch[batch].begin(), perBatch[batch].end());
   }
+  // N05: mark what the index buffer references. Everything before this point is
+  // a claim about the vertex buffer; this is the only place that knows what the
+  // draw will actually call.
+  worldTriangleDrawn_.assign(worldTriangleBatch_.size(), 0);
+  for (const std::uint32_t index : regrouped) {
+    const std::size_t triangle = static_cast<std::size_t>(index) / 3u;
+    if (triangle < worldTriangleDrawn_.size()) worldTriangleDrawn_[triangle] = 1;
+  }
   const UINT needed = static_cast<UINT>(regrouped.size());
   if (needed == 0) {
     worldVisClipApplied_ = false;
@@ -1296,6 +1312,18 @@ bool Renderer::worldTriangleColourAt(std::size_t triangle, float out[4]) const {
   if (triangle >= worldTriangleColour_.size()) return false;
   const auto& c = worldTriangleColour_[triangle];
   out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; out[3] = c[3];
+  return true;
+}
+
+int Renderer::worldTriangleDrawnAt(std::size_t triangle) const {
+  if (triangle >= worldTriangleDrawn_.size()) return -1;
+  return worldTriangleDrawn_[triangle] ? 1 : 0;
+}
+
+bool Renderer::worldTrianglePositionAt(std::size_t triangle, float out[9]) const {
+  if (triangle >= worldTrianglePosition_.size()) return false;
+  const auto& p = worldTrianglePosition_[triangle];
+  for (int i = 0; i < 9; ++i) out[i] = p[i];
   return true;
 }
 

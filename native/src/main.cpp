@@ -10107,6 +10107,12 @@ bool outlineVertexExtent = false;
       // `albedo` above is computed from the material chain on the CPU; the pixel
       // shader multiplies by COLOR0, so "the frame is black where the CPU says
       // 84,83,81" is only answerable with this number in the same line.
+      // N05: the box-space positions the buffer holds for this ordinal. The
+      // oracle projects displayMap's vertices; if the two orders differ, the
+      // comparison is between different triangles and every reading below is
+      // meaningless -- so print both and let the numbers say it.
+      float bufferPosition[9] = {0.0f};
+      const bool haveBufferPosition = renderer.worldTrianglePositionAt(static_cast<std::size_t>(bestTriangle), bufferPosition);
       float vertexColour[4] = {0.0f, 0.0f, 0.0f, 0.0f};
       const bool haveVertexColour = renderer.worldTriangleColourAt(static_cast<std::size_t>(bestTriangle), vertexColour);
       char vertexColourBuffer[64];
@@ -10120,7 +10126,9 @@ bool outlineVertexExtent = false;
         " blend=%s luv=%.4f,%.4f light=%d,%d,%d albedo=%s albedoTile=%s expected=%s reason=%s"
         " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x"
         " vertexColour=%s vertexColourKnown=%d"
-        " triScreen=%.2f,%.2f;%.2f,%.2f;%.2f,%.2f",
+        " triScreen=%.2f,%.2f;%.2f,%.2f;%.2f,%.2f"
+        " bufPos=%.3f,%.3f,%.3f bufferPosKnown=%d"
+        " mapA=%.3f,%.3f,%.3f box=%.6f,%.3f,%.3f,%.3f,%.3f drawn=%d",
         px, py, bestTriangle, triangle.material.c_str(),
         chain.vmtPath.empty() ? "-" : chain.vmtPath.c_str(), chain.vmtStore.c_str(),
         chain.vtfPath.empty() ? "-" : chain.vtfPath.c_str(), chain.vtfStore.c_str(),
@@ -10138,7 +10146,11 @@ bool outlineVertexExtent = false;
         chain.beyondOldCap ? 1 : 0, chain.oldOrderAccepted, bestDepth, frameDepth, finalDepth,
         depthMatch ? 1 : 0, renderer.capturedDepthRawAt(px, py),
         vertexColourBuffer, haveVertexColour ? 1 : 0,
-        bestScreen[0], bestScreen[1], bestScreen[2], bestScreen[3], bestScreen[4], bestScreen[5]);
+        bestScreen[0], bestScreen[1], bestScreen[2], bestScreen[3], bestScreen[4], bestScreen[5],
+        bufferPosition[0], bufferPosition[1], bufferPosition[2], haveBufferPosition ? 1 : 0,
+        triangle.a.x, triangle.a.y, triangle.a.z,
+        projection.scale, projection.centerX, projection.centerY, projection.minZ, projection.spanZ,
+        renderer.worldTriangleDrawnAt(static_cast<std::size_t>(bestTriangle)));
     }
     // Named refusals, weighted by the pvs-visible triangles they cost. The
     // aggregate material-fetch line says `vmtMissing=3`; this says how much of

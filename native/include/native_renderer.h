@@ -792,6 +792,8 @@ public:
   // False for an out-of-range triangle so "no such triangle" and "black" cannot
   // be read as the same answer.
   bool worldTriangleColourAt(std::size_t triangle, float out[4]) const;
+  bool worldTrianglePositionAt(std::size_t triangle, float out[9]) const;
+  int worldTriangleDrawnAt(std::size_t triangle) const;  // 1 drawn, 0 not, -1 unknown
   bool observerFocusWorld(float& x, float& y, float& z) const;
   // T10 fix: the observer focus converted BACK to map coordinates. The pvs
   // clip asks the BSP which cluster a point sits in, and the BSP speaks map
@@ -1662,6 +1664,16 @@ private:
   // and the black point at 849 needs exactly this number: the CPU trace computes
   // albedo from the material chain, while the pixel shader multiplies by COLOR0.
   std::vector<std::array<float, 4>> worldTriangleColour_;
+  // N05: the box-space positions the buffer holds for each triangle. The oracle
+  // projects displayMap's vertices; the id frame numbers the buffer's. If those
+  // two orders ever drift, every downstream comparison is between different
+  // triangles -- which is exactly what tri=19539 landing on "no face" looks like.
+  std::vector<std::array<float, 9>> worldTrianglePosition_;
+  // N05: which triangles the index buffer actually references. The vertex buffer
+  // holding a triangle is not the same claim as the draw calling it: the id frame
+  // showed no face at a pixel whose triangle IS in the vertex buffer at the right
+  // ordinal, so this flag is what separates "not drawn" from "drawn and hidden".
+  std::vector<char> worldTriangleDrawn_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;
