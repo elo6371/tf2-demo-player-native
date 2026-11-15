@@ -16,6 +16,11 @@ WHAT IT DOES NOT DO
 """
 import struct
 import sys
+from pathlib import Path
+
+# Reuse the independent reader's Source LZMA wrapper, not a product decoder.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "n14-oracle"))
+from bsp_oracle import lump as decode_lump
 
 LUMP_ENTITIES = 0
 LUMP_PLANES = 1
@@ -23,8 +28,8 @@ LUMP_TEXDATA = 2
 LUMP_TEXINFO = 6
 LUMP_FACES = 7
 LUMP_DISPINFO = 26
-LUMP_TEXDATA_STRING_TABLE = 43
-LUMP_TEXDATA_STRING_DATA = 44
+LUMP_TEXDATA_STRING_DATA = 43
+LUMP_TEXDATA_STRING_TABLE = 44
 
 SURF_SKY = 0x4
 SURF_NODRAW = 0x80
@@ -34,13 +39,34 @@ SURF_NOLIGHT = 0x400
 
 def lumps(data):
     # VBSP header: magic 'VBSP' at 0, version at 4, 64 lump directory entries from 8.
+    if len(data) < 1036:
+        raise ValueError("truncated BSP header")
     if data[:4] != b"VBSP":
         raise SystemExit("not a Source BSP: magic=%r" % data[:4])
     version = struct.unpack_from("<i", data, 4)[0]
     out = {}
-    for i in range(64):
+    for i, stride in ((LUMP_PLANES, 20), (LUMP_TEXDATA, 32),
+                      (LUMP_TEXINFO, 72), (LUMP_FACES, 56),
+                      (LUMP_TEXDATA_STRING_DATA, 1),
+                      (LUMP_TEXDATA_STRING_TABLE, 4)):
         off, length = struct.unpack_from("<ii", data, 8 + i * 16)
-        out[i] = (off, length)
+        if off < 0 or length < 0 or off > len(data) or length > len(data) - off:
+            raise ValueError("lump %d lies outside BSP" % i)
+        raw = data[off:off + length]
+        expected = length
+        if raw[:4] == b"LZMA":
+            if len(raw) < 17:
+                raise ValueError("lump %d has a truncated LZMA header" % i)
+            expected, packed = struct.unpack_from("<II", raw, 4)
+            dictionary = struct.unpack_from("<I", raw, 13)[0]
+            if packed != length - 17 or not 0 < expected <= 128 * 1024 * 1024:
+                raise ValueError("lump %d has invalid LZMA sizes" % i)
+            if dictionary > 128 * 1024 * 1024:
+                raise ValueError("lump %d has an excessive LZMA dictionary" % i)
+        payload = decode_lump(data, i)
+        if len(payload) != expected or len(payload) % stride:
+            raise ValueError("lump %d has invalid decoded size" % i)
+        out[i] = payload
     return version, out
 
 
@@ -54,56 +80,61 @@ def main():
         print(__doc__)
         return 2
     path = sys.argv[1]
-    data = open(path, "rb").read()
+    data = Path(path).read_bytes()
     version, lump = lumps(data)
     print("map=%s version=%d size=%d" % (path, version, len(data)))
 
     # texture names: string table gives offsets into the string data block
-    so, sl = lump[LUMP_TEXDATA_STRING_TABLE]
-    do, dl = lump[LUMP_TEXDATA_STRING_DATA]
-    strtab = [struct.unpack_from("<i", data, so + i * 4)[0] for i in range(sl // 4)]
-    strdata = data[do:do + dl]
+    strings = lump[LUMP_TEXDATA_STRING_TABLE]
+    strtab = [value[0] for value in struct.iter_unpack("<i", strings)]
+    strdata = lump[LUMP_TEXDATA_STRING_DATA]
 
     # texdata: 3 floats reflectivity, int nameId, 4 ints dims
-    to, tl = lump[LUMP_TEXDATA]
+    textures = lump[LUMP_TEXDATA]
     texdata = []
-    for i in range(tl // 32):
-        base = to + i * 32
-        name_id = struct.unpack_from("<i", data, base + 12)[0]
-        w, h = struct.unpack_from("<ii", data, base + 16)
+    for base in range(0, len(textures), 32):
+        name_id = struct.unpack_from("<i", textures, base + 12)[0]
+        w, h = struct.unpack_from("<ii", textures, base + 16)
         name = cstr(strdata, strtab[name_id]) if 0 <= name_id < len(strtab) else "?"
         texdata.append((name, w, h))
 
     # texinfo: 2 x (4 floats texture vecs) + 2 x (4 floats lightmap vecs) + flags + texdata
-    io, il = lump[LUMP_TEXINFO]
+    infos = lump[LUMP_TEXINFO]
     texinfo = []
-    for i in range(il // 72):
-        base = io + i * 72
-        flags, td = struct.unpack_from("<ii", data, base + 64)
+    for base in range(0, len(infos), 72):
+        flags, td = struct.unpack_from("<ii", infos, base + 64)
         texinfo.append((flags, td))
 
-    po, pl = lump[LUMP_PLANES]
-    fo, fl = lump[LUMP_FACES]
+    planes = lump[LUMP_PLANES]
+    faces = lump[LUMP_FACES]
     face_size = 56
-    face_count = fl // face_size
+    face_count = len(faces) // face_size
+    print("decoded_faces=%d decoded_face_bytes=%d" % (face_count, len(faces)))
+
+    if sys.argv[2] == "--materials":
+        # N07: every material the map names, one per line, ready for vpk_lookup.
+        for name, w, h in texdata:
+            print("materials/%s.vmt" % name)
+        return 0
 
     for arg in sys.argv[2:]:
         face = int(arg)
         if not (0 <= face < face_count):
-            print("face %d: out of range (0..%d)" % (face, face_count - 1))
-            continue
-        base = fo + face * face_size
-        plane, side, on_node = struct.unpack_from("<hbb", data, base)
-        firstedge = struct.unpack_from("<i", data, base + 4)[0]
-        numedges = struct.unpack_from("<h", data, base + 8)[0]
-        texinf, dispinfo = struct.unpack_from("<hh", data, base + 10)
-        styles = data[base + 14:base + 18]
+            raise ValueError("face %d: out of range (0..%d)" % (face, face_count - 1))
+        base = face * face_size
+        plane, side, on_node = struct.unpack_from("<HBB", faces, base)
+        firstedge = struct.unpack_from("<i", faces, base + 4)[0]
+        numedges = struct.unpack_from("<h", faces, base + 8)[0]
+        texinf, dispinfo = struct.unpack_from("<hh", faces, base + 10)
+        styles = faces[base + 16:base + 20]
         flags, td = texinfo[texinf] if 0 <= texinf < len(texinfo) else (0, -1)
         name = texdata[td][0] if 0 <= td < len(texdata) else "?"
         size = texdata[td][1:] if 0 <= td < len(texdata) else ("?", "?")
-        pbase = po + plane * 20
-        normal = struct.unpack_from("<fff", data, pbase)
-        dist = struct.unpack_from("<f", data, pbase + 12)[0]
+        pbase = plane * 20
+        if pbase + 20 > len(planes):
+            raise ValueError("face %d references an invalid plane" % face)
+        normal = struct.unpack_from("<fff", planes, pbase)
+        dist = struct.unpack_from("<f", planes, pbase + 12)[0]
         surf = []
         for bit, label in ((SURF_SKY, "sky"), (SURF_NODRAW, "nodraw"),
                            (SURF_TRIGGER, "trigger"), (SURF_NOLIGHT, "nolight")):
@@ -118,4 +149,9 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import lzma
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, struct.error, lzma.LZMAError) as exc:
+        print("ERROR: %s" % exc, file=sys.stderr)
+        sys.exit(2)
