@@ -129,6 +129,67 @@
 - **R2 已跑，判据 C 有结论**：N2=g3 复现 A 帧（`757f5aa2…`）；N1=g5、N3=g4 同帧（`b194973c…`）。在 N2 足迹上量 N1 深度：interior nearer/farther/equal = **1/1164/16**、ribbon = **0/103/6** ⇒ **常规路径不复制 109/1181 这个二值边界**（判据 C 成立），但「三角形在 1290 px 内不进深度缓冲」在常规路径同样成立（1267 px 严格更远）。最小区分实验设计已写进 `docs/N05-R2-NORMAL-PATH-DESIGN-2026-11-16.md §8.1`。
 - **audit 已回 OK**：`(every changed text file matches HEAD's line endings)` + `VERDICT: OK (no forbidden writes, line endings intact)` ⇒ 之前那条 `CRLF-DAMAGE  FORBIDDEN-WRITE` 的两条来源（card-maps 的矩阵证据 CRLF 写入端、我的 docs 检出侧行尾）都已消解。
 
+### 3.7 map-geometry p2 裁决：UNVERIFIED / 3-5 图语料阻塞，但不改判几何结论（19:4x，只审口径与语料，本轮未跑门）
+
+**一句话**：p2 在本门禁里**不产生 PASS/FAIL**（计数只发生在 p1）；它在当前二进制上**一次也没有跑完**；而今天 **3/5 图连起跑都不行**——源录制已从盘上消失。语料缺失**不阻塞**已记录的几何结论，它阻塞的是**复验**，因此 p2 应从"待跑的裁决"改判为"语料阻塞的第二视锥覆盖"。
+
+**1 口径（门禁自己写的，先看这个再谈裁决）**
+
+- `map-geometry-lighting-check.sh:884` `if [[ $failures -eq $geo_before && $POSE == p1 ]]; then geometry_ok=…`；`:943` 光照同形；`:961` 只有本轮无新失败才 `maps_judged++` ⇒ `maps=5 geometry=5 lighting=5` 这个计数**只由 p1 决定**，p2 不参与。
+- 覆盖率三轴（空像素 G4 / 暗 albedo G7 / cull 移除 P1-2a）**按图计、不按姿势计**（`:492-496`、`:947-956`）；只跑一个姿势时它们降级为 reading（`:953-958`）。
+- p2 的用途写在 `:478-489`：第二个相机（默认后一 tick 12000；yaw+90 兜底），并在 `:101-126` 明说"两姿势每图成立仍不是扫遍所有姿势、覆盖率按图不按姿势"。
+
+⇒ 所以"p2 裁决"只能是"p2 组有没有失败项、读数是多少"，**不存在 p2 自己的 PASS/FAIL**；拿 p2 去凑或去否决 `maps=5` 都不合口径。
+
+**2 历史读数（C15/C16 的底座，不是今天的读数）**
+
+- 五图两姿势的参考来自 **2026-11-05 head `14c0f1c` 的一次干净全跑**：`evidence/t62-map-matrix/cp_snakewater_final1/frame-pins-p2.txt` 头行 `pinned=2026-11-05T05:49:20Z head=14c0f1c reason=T62 P1-1/P1-2a/P1-2b first reference on head 14c0f1c (clean five-map run; pl_odyssey pose 2 is the pose-1 eye turned 90 degrees per lead rule m01509)`；`cull-reference-p2.txt` 同 head（rc11 那份是 head `4b34f1e` / 06:55:45Z）。
+- 每图每姿势 10 个世界帧哈希：`frame-pins-p2.txt` 20 行 = 1 条 pin 头 + 1 条 previous-pin 注释 + 1 条 product_sha256 注释 + map/pose/tick/speed/camera/eye/demo 七行 + 10 条 `frame <name> sha256=… bytes=2582406` ⇒ 五图两姿势共 100 个哈希（`docs/T85-COVERAGE-MANIFEST.md:52` C16 的口径）。
+- 一处容易误读：`koth_bagel_rc11/cull-reference-p2.txt` 只有 8 行**不是缺行**——它记的是 `cull removed=0`、`removedFront=-1 removedBack=-1 distinctRemovedFaces=0`，即该姿势 cull 一个面都没摘掉。P1-2a 的空洞性由该图 p1 满足，不是 p2。
+
+**3 当前二进制上的 p2：没有一次跑完**
+
+- 第 4 轮：起于 14:18:40，1470 s 到窗口上限，只写了 31 captures / 2 个姿势组（`cp_snakewater_final1` p1+p2、`koth_bagel_rc11` p1 进行中），**WINDOW-DEADLINE**；该轮证据已 `git checkout -- evidence` 还原（`docs/INST1-E1-ROUND4-TRIAGE-2026-11-16.md:147-153`）。
+- 第 5 轮（exe `75dae10e…`）：`cp_snakewater_final1` **p1 PASS**（24 OK / 0 FAIL）；p2 在 620 s 被 TERM、到 **10/11 帧**、**无裁决**，跑中重写的 `frame-pins-p2.txt`（11 条 sha 变化）按未背书参考还原（`docs/INST1-E1-ROUND5-TRIAGE-2026-11-16.md:367-368`）。
+- 合并窗口（`a14ea967`，16:37）与之后两次重建都没有跑 map-geometry（§2.7 门表里没有它；§7.3 记 exe 已经走到 `06afc166`）。
+
+⇒ **当前主树 exe `06afc166…`（`06afc166cac53a6b3243559c0dadb2f7a10b29c6d7670cfe311e5ce632cc9227`，3066368 B）上 map-geometry 零读数**；最后的门读数只有第 5 轮 snakewater p1（exe `75dae10e…`）。盘上也没有 p2 的运行产物：`evidence/t62-map-matrix/<map>/` 只有 `camera.txt`/`camera2.txt`/`frame-pins-{p1,p2}.txt`/`cull-reference-{p1,p2}.txt`/`status.txt` 这些参考与登记文件，没有按姿势的输出目录（p2 的两次运行输出都没留下）。
+
+**4 语料盘点（今天实测；这是"为什么跑不动"）**
+
+门禁在捕获前就要求 `camera.txt` 的 demo 存在（`:434-437`），并要求 `camera2.txt` 的 `demo=` 与 p1 同一条（`:451-457`，非空且不同即 failure）。p1 的 tick 是隐式的 `TICK_P1=2000`（`:184`），p2 的 tick 写在 `camera2.txt`（`:185` + `:453`）。
+
+| 图 | p1 demo（`camera.txt`） | p2 demo（`camera2.txt`） | 今天能否起跑 |
+|---|---|---|---|
+| cp_snakewater_final1 | 在：`D:/TF2_Demo_Player/testdata/demos/bb841c6d…cp_snakewater_final1.dem`（51,834,617 B） | 同一条，在 | **能**（两姿势语料齐） |
+| koth_bagel_rc11 | 在：`…/dfbce608…koth_bagel_rc11.dem`（64,600,031 B） | 同一条，在 | **能**（但 p2 cull 参考是 0 移除） |
+| cp_sunshine | 在：`E:/demo测试/cp_sunshine/POV/autorecord_2026-05-17_16-32-36.dem` | **不在**：`tf/demos/autorecord_2026-05-14_23-09-16.dem` | 不能：两姿势 demo 行不一致，`:454-457` 在捕获前就拒 |
+| pl_odyssey | **不在**：`tf/demos/autorecord_2026-05-26_23-14-06.dem` | 同一条（也不在） | 不能：`:434-437` 拒（p2 规则 `yaw+90-fallback`、tick 2000） |
+| koth_bagel_rc12 | **不在**：`tf/demos/autorecord_2026-05-14_21-28-01.dem` | 同一条（也不在） | 不能：`:434-437` 拒 |
+
+失联输入本身已有登记（`evidence/t62-map-matrix/<map>/status.txt`，由 map-material 矩阵写）：odyssey `status=BLOCKED-INPUT reason=demo-not-found`，原文记 pinned POV `27,718,172 B / 55,294 ticks / header-scan.csv:131`、全机普查没有该图别的录制、BSP 在；rc12 同形（`51,759,919 B / 153,502 ticks / header-scan.csv:10`）；sunshine `status=BLOCKED-CAMERA`（p1 已换替换件，p2 的 demo 行仍指向失联录制）⇒ **p2 的语料缺失与 map-material 的失联输入是同一件事**，不是 p2 特有的新问题。
+
+**5 裁决**
+
+- **p2 = UNVERIFIED（当前二进制）+ CORPUS-BLOCKED（3/5 图）+ 历史已钉（2026-11-05 head `14c0f1c`，五图两姿势）。**
+- **不改判任何已有结论**：`maps=5 geometry=5 lighting=5` 与 100 个帧哈希都是 2026-11-05 的读数，其计数按图、只由 p1 产生（见 1）。p2 缺席**不会**把 PASS 变成未验证，也不会把红变成绿；反过来，p2 全绿也**不会**让 `maps=5` 多出一票。
+- **语料缺失不阻塞几何结论，阻塞的是复验**：那些读数的复现前提（五份源录制 + 当时的 head + 当时 exe）今天有 3/5 图不成立。所以引用必须带 **head + 日期 + exe**。
+- 本轮**没有**为结案去跑门，也没有动任何 pin / 期望值（窗口留给 R1b 逐 range 归因，见 §3.6 之后的 R1b 提交）。
+
+**6 要恢复 p2 覆盖，各图需要什么**
+
+- **snakewater**：语料全在，可直接 `--only=cp_snakewater_final1 --poses=p2`；先**不带** `--re-pin` 跑一次，看是否 THE PICTURE MOVED。
+- **rc11**：语料在，但 `cull-reference-p2` 是 0 移除，p2 补跑只能证明"算术仍成立"，不能证明 cull 行为；cull 的空洞性由图级 P1-2a 承担。
+- **sunshine**：把 `camera2.txt` 的 `demo=` 改指现存 POV（或**留空**——`:454` 只在非空且不等时报错），并先确认 tick 8000 在该录像里可达。**这是改参考文件（证据变更），需 lead 批理由**；改完还要 `--re-pin` 才会重写 pins-p2。
+- **odyssey / rc12**：只能重录或换替换件（参照 sunshine 在 map-material 的 REPLACED 处理 `d325ff0f`），否则建议在 T85 的 C15/C16 备注里**永久登记 CORPUS-BLOCKED**（改支持声明需 lead 同意）。
+- 无论哪张图：**"恢复 p2 覆盖"应写成"恢复第二个视锥的读数与帧哈希复验"，不是"把 p2 跑绿"**——它没有 PASS/FAIL 可跑绿。
+
+**7 三条口径禁令**
+
+1. 不写"map-geometry 全绿"，要写 `maps=5 geometry=5 lighting=5 @ 2026-11-05 head 14c0f1c`。
+2. 不写"p2 只是窗口没跑完"：窗口是历史原因（第 4/5 轮），**今天的主因是语料失联**。
+3. 不写"当前 exe 几何已验"：`06afc166…` 上 map-geometry 零读数。
+
 ## 4. task-3 交互 UI（card-ui）
 
 ### 4.1 已提交的里程碑
@@ -280,7 +341,7 @@ c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary 
 
 ### 7.3 未完成清单（诚实版）
 1. task-1：**viewmodel-material 已全绿**（§7/§8 28/0 `61fec89` + §9 re-pin `3fd6b86` + 9 节 **226 OK/0 FAIL** full PASS，每步配负控）；仍欠 companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 修法落地；exe 身份**已再次变更**：`216d7f98` → **`06afc166`**（U4 第 3 步 + E9 修法并入后重建，`basis=identity-agrees`，3,066,368 B / 19:33:25；矩阵 pin 已更新 `16b04592`，dry-run `DRY-RUN=OK gates=4` 无 SKIP）。
-2. task-2：**R1/R2 均已出结论、map-material 完整重跑 PASS**（`1b762057`/`05ece883`/`66f5017f`，audit 回 OK）；仍欠 50-entities 内逐 range 归属、水面 pass（需 `--capture-tick` 另跑）、map-geometry p2 裁决、cp_sunshine 需一段带正常视点的 POV（现在的替补件是 BLOCKED-CAMERA）、odyssey/rc12 需补录像。
+2. task-2：**R1/R2 均已出结论、map-material 完整重跑 PASS**（`1b762057`/`05ece883`/`66f5017f`，audit 回 OK）；**逐 range 归属已做**（§3.6 之后的 R1b 仪器：worktree 分支 `work/card-maps-r1b` 提交 `1f78e213`，6 文件 +442/−1、新文档 `docs/N05-M2B-RANGE-ATTRIBUTION-2026-11-16.md`；259 次 range draw 里只有 3 次写 interior 的 1181 px，109 px ribbon 无任何 entity draw 写过；**未并入 candidate/e5**）；**map-geometry p2 已裁决为 UNVERIFIED / CORPUS-BLOCKED（§3.7）**——今天只有 snakewater 与 rc11 能起跑，sunshine 需改 `camera2.txt` 的 demo 行（待批准），odyssey/rc12 需补录像；水面 pass（需 `--capture-tick` 另跑）仍欠。
 3. task-3：A1 面集规则、t2 判据修正（配负控）、PIP→四窗预算、hidden-body 并集正解、split ViewModel（已裁决 defer）。
 4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
 5. 横切：D75 世界 FOV 修法、N24 main 拆分、N26 按口径重测。
