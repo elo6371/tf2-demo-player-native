@@ -5690,7 +5690,31 @@ bool outlineVertexExtent = false;
       std::size_t floorRejectedTool = 0;
       std::size_t floorRejectedSky = 0;
       std::size_t floorRejectedPlane = 0;
+      // U3a window 2: a census of the whole triangle table before any floor test.
+      // The floor counters below cannot say whether the materials the filter looks
+      // for exist at all -- a test that rejects nothing is indistinguishable from a
+      // test that matches nothing. These counts are taken on every triangle, so
+      // "the exclusion had no target on this map" is a reading and not a guess.
+      std::vector<std::string> floorTripletKeys;
+      std::size_t censusTriangles = 0;
+      std::size_t censusToolRaw = 0;
+      std::size_t censusToolLower = 0;
+      std::size_t censusSkyRaw = 0;
+      std::size_t censusSkyLower = 0;
+      const auto materialLowered = [](const std::string& text) {
+        std::string lowered = text;
+        for (char& ch : lowered) {
+          ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        }
+        return lowered;
+      };
       for (const tf2::native::BspTriangle& triangle : displayMap.triangles) {
+        ++censusTriangles;
+        if (triangle.material.rfind("tools/", 0) == 0) ++censusToolRaw;
+        const std::string loweredMaterial = materialLowered(triangle.material);
+        if (loweredMaterial.rfind("tools/", 0) == 0) ++censusToolLower;
+        if (triangle.material.find("skybox") != std::string::npos) ++censusSkyRaw;
+        if (loweredMaterial.find("skybox") != std::string::npos) ++censusSkyLower;
         if (triangle.planeIndex < 0
             || static_cast<std::size_t>(triangle.planeIndex) >= displayMap.planes.size()) {
           ++floorRejectedPlane;
@@ -5715,6 +5739,13 @@ bool outlineVertexExtent = false;
           ++floorRejectedSky;
           continue;
         }
+        // U3a window 2: the identity triple, taken where the triangle still knows
+        // its own plane. Compared against the dface header offline, this says
+        // whether a triangle's plane pair is its face's, which is the one thing a
+        // face count alone cannot show.
+        floorTripletKeys.push_back(std::to_string(triangle.faceIndex) + ":"
+          + std::to_string(triangle.planeIndex) + ":"
+          + std::to_string(static_cast<int>(triangle.planeSide)));
         tf2::native::MinimapFloorTriangle entry;
         entry.ax = triangle.a.x; entry.ay = triangle.a.y; entry.az = triangle.a.z;
         entry.bx = triangle.b.x; entry.by = triangle.b.y; entry.bz = triangle.b.z;
@@ -5740,10 +5771,78 @@ bool outlineVertexExtent = false;
         seen.erase(std::unique(seen.begin(), seen.end()), seen.end());
         floorFaces = seen.size();
       }
+      // U3a window 2: the identity reading. A face count below the map's dface
+      // count cannot by itself say whether those ids ARE dface ids -- a count over
+      // a foreign id space looks the same. These fields make the difference
+      // readable against the BSP's own numbers (pl_upward_f12 15155 dface,
+      // cp_sunshine 20449), and against displayMap.faceCount which the parser set
+      // from the same lump this map was loaded from.
+      std::size_t floorIdsOutOfRange = 0;
+      std::size_t floorIdsNegative = 0;
+      std::int32_t floorIdMin = -1;
+      std::int32_t floorIdMax = -1;
+      std::size_t floorTriPerFaceMax = 0;
+      std::string floorFirstIds;
+      {
+        std::vector<std::int32_t> ids;
+        ids.reserve(floorTriangles.size());
+        for (const tf2::native::MinimapFloorTriangle& entry : floorTriangles) {
+          ids.push_back(entry.face);
+        }
+        std::sort(ids.begin(), ids.end());
+        if (!ids.empty()) {
+          floorIdMin = ids.front();
+          floorIdMax = ids.back();
+        }
+        for (std::size_t index = 0; index < ids.size();) {
+          std::size_t end = index;
+          while (end < ids.size() && ids[end] == ids[index]) ++end;
+          floorTriPerFaceMax = std::max(floorTriPerFaceMax, end - index);
+          index = end;
+        }
+        for (const auto id : ids) {
+          if (id < 0) { ++floorIdsNegative; continue; }
+          if (static_cast<std::size_t>(id) >= displayMap.faceCount) ++floorIdsOutOfRange;
+        }
+        std::int32_t last = 0;
+        bool haveLast = false;
+        std::size_t written = 0;
+        for (const auto id : ids) {
+          if (haveLast && id == last) continue;
+          last = id;
+          haveLast = true;
+          if (written >= 8) break;
+          if (!floorFirstIds.empty()) floorFirstIds += ',';
+          floorFirstIds += std::to_string(id);
+          ++written;
+        }
+      }
       traceFmt("minimap: floor triangles=%zu of %zu faces=%zu rejectedPlane=%zu"
         " rejectedSide=%zu rejectedTool=%zu rejectedSky=%zu",
         floorTriangles.size(), displayMap.triangles.size(), floorFaces, floorRejectedPlane,
         floorRejectedSide, floorRejectedTool, floorRejectedSky);
+      traceFmt("minimap: floor identity faces=%zu idsOutOfRange=%zu idsNegative=%zu"
+        " idMin=%d idMax=%d triPerFaceMax=%zu firstIds=%s mapFaces=%zu worldFaces=%zu"
+        " brushFaces=%zu planes=%zu triangles=%zu",
+        floorFaces, floorIdsOutOfRange, floorIdsNegative, static_cast<int>(floorIdMin),
+        static_cast<int>(floorIdMax), floorTriPerFaceMax, floorFirstIds.c_str(),
+        displayMap.faceCount, displayMap.worldFaceCount, displayMap.brushFaceCount,
+        displayMap.planes.size(), displayMap.triangleCount);
+      {
+        std::sort(floorTripletKeys.begin(), floorTripletKeys.end());
+        floorTripletKeys.erase(std::unique(floorTripletKeys.begin(), floorTripletKeys.end()),
+          floorTripletKeys.end());
+        std::string joined;
+        for (const std::string& key : floorTripletKeys) {
+          if (!joined.empty()) joined += ';';
+          joined += key;
+        }
+        traceFmt("minimap: floor triplets count=%zu list=%s", floorTripletKeys.size(),
+          joined.c_str());
+      }
+      traceFmt("minimap: floor materials allTriangles=%zu toolRaw=%zu toolLower=%zu"
+        " skyRaw=%zu skyLower=%zu",
+        censusTriangles, censusToolRaw, censusToolLower, censusSkyRaw, censusSkyLower);
       tf2::native::minimapHudSetFloorGeometry(std::move(floorTriangles));
     }
     // T24: the bytes now live in an owner that survives this block, because the
