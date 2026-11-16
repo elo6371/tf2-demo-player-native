@@ -312,6 +312,17 @@ void checkPaneBoundary(Readings& readings) {
   pristine.camera = PaneCameraSource::DemoView;
   pristine.hudPasses = 1;
   pristine.hudScissorApplied = true;
+  // Step 2a: the single-pane reading is also a ONE-PANE record now. R4 checks
+  // that the legacy extent pair and panes[0] agree, so a renderer that fills
+  // one and not the other is refused rather than passing on the half it filled.
+  pristine.panes[0].x = 0u;
+  pristine.panes[0].y = 0u;
+  pristine.panes[0].width = 1280u;
+  pristine.panes[0].height = 720u;
+  pristine.panes[0].camera = PaneCameraSource::DemoView;
+  pristine.panes[0].viewHash = 0x1234u;
+  pristine.panes[0].cameraFingerprint = 0x5678u;
+  pristine.panes[0].cameraSlot = 0u;
   check(paneBoundaryMismatches(pristine) == kPaneMismatchNone,
     "pane: one target, one depth view, one client-sized viewport, a camera and a scissored HUD pass is clean");
 
@@ -341,7 +352,41 @@ void checkPaneBoundary(Readings& readings) {
     expectOnly(bad, kPaneMismatchHudPasses, "pane: two HUD passes break exactly that rule"); }
   { PaneBoundaryReadings bad = pristine; bad.hudScissorApplied = false;
     expectOnly(bad, kPaneMismatchHudScissor, "pane: a HUD pass that did not scissor breaks exactly that rule"); }
-  check(covered == kPaneMismatchAll, "pane: all seven rules are separately reachable");
+  // Step 2a: the three defects a second pane can introduce (plus the two ways
+  // a split can fail to tile the client), each fed through the predicate on
+  // its own. These are the negative controls the pane step rests on: a
+  // predicate that cannot name them cannot refuse them, and an implementation
+  // that half-builds a second pane fails here instead of drawing one camera
+  // twice.
+  PaneBoundaryReadings split = pristine;
+  split.paneCount = 2u;
+  split.viewports = 2u;
+  split.viewportWidth = 640u;
+  split.viewportHeight = 720u;
+  split.panes[0].width = 640u;
+  split.panes[0].height = 720u;
+  split.panes[1].x = 640u;
+  split.panes[1].width = 640u;
+  split.panes[1].height = 720u;
+  split.panes[1].camera = PaneCameraSource::Orbit;
+  split.panes[1].viewHash = 0x1111u;
+  split.panes[1].cameraFingerprint = 0x2222u;
+  split.panes[1].cameraSlot = 1u;
+  check(paneBoundaryMismatches(split) == kPaneMismatchNone,
+    "pane: two panes with disjoint viewports, their own matrices and their own camera slots are clean");
+  { PaneBoundaryReadings bad = split; bad.viewports = 1u;
+    expectOnly(bad, kPaneMismatchViewportCount, "pane: two panes sharing one viewport breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = split;
+    bad.panes[1].viewHash = bad.panes[0].viewHash;
+    expectOnly(bad, kPaneMismatchSharedView, "pane: a second pane reporting the first pane's view matrix breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = split;
+    bad.panes[1].cameraSlot = bad.panes[0].cameraSlot;
+    expectOnly(bad, kPaneMismatchSharedCamera, "pane: two panes drawing from one camera state slot breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = split; bad.panes[1].x = 0u;
+    expectOnly(bad, kPaneMismatchPaneLayout, "pane: two panes claiming the same half break the layout rule"); }
+  { PaneBoundaryReadings bad = split; bad.panes[1].width = 639u;
+    expectOnly(bad, kPaneMismatchPaneLayout, "pane: a split that leaves a strip uncovered breaks the layout rule"); }
+  check(covered == kPaneMismatchAll, "pane: all ten rules are separately reachable");
 
   // A frame with the HUD off must stay clean: the scissor rule is about a pass
   // that RAN, not about the HUD being enabled.
@@ -359,8 +404,8 @@ void checkPaneBoundary(Readings& readings) {
   // The readings prune nothing: every field that is checked above must be the
   // field a draw fills. Proving the predicate and proving the fill are two
   // different claims; this one is the product trace's `pane:` line.
-  readings.set("paneBoundaryRules", 7u);
-  readings.set("paneBoundaryNegatives", 8u);
+  readings.set("paneBoundaryRules", 10u);
+  readings.set("paneBoundaryNegatives", 13u);
   readings.set("paneCameraSources", 3u);
 }
 } // namespace

@@ -168,6 +168,34 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // weapon in this camera's space and reuses this view matrix, so the two
     // passes cannot drift apart.
     XMStoreFloat4x4(&frameView_, view);
+    // U4 step 2a: record this frame as ONE pane in the pane-aware readings --
+    // the entry a second pane will get its own copy of. The fingerprint is the
+    // camera input set the view above was built from, and the view hash is the
+    // matrix that was actually stored, so the predicate can tell "two panes
+    // reported one matrix" from "two panes asked for one camera".
+    PaneCameraState primaryCamera;
+    primaryCamera.demoView = observerDemoView_;
+    primaryCamera.demoEye[0] = observerDemoEyeX_;
+    primaryCamera.demoEye[1] = observerDemoEyeY_;
+    primaryCamera.demoEye[2] = observerDemoEyeZ_;
+    primaryCamera.demoPitchDeg = observerDemoPitchDeg_;
+    primaryCamera.demoYawDeg = observerDemoYawDeg_;
+    primaryCamera.focusValid = observerFocusValid_;
+    primaryCamera.focus[0] = observerFocusX_;
+    primaryCamera.focus[1] = observerFocusY_;
+    primaryCamera.focus[2] = observerFocusZ_;
+    primaryCamera.orbitYaw = cameraYaw_;
+    primaryCamera.orbitPitch = cameraPitch_;
+    primaryCamera.orbitDistance = cameraDistance_;
+    paneBoundary_.paneCount = 1u;
+    paneBoundary_.panes[0].x = 0u;
+    paneBoundary_.panes[0].y = 0u;
+    paneBoundary_.panes[0].width = width_;
+    paneBoundary_.panes[0].height = height_;
+    paneBoundary_.panes[0].camera = paneBoundary_.camera;
+    paneBoundary_.panes[0].viewHash = paneHashFloats(&frameView_.m[0][0], 16u);
+    paneBoundary_.panes[0].cameraFingerprint = paneCameraFingerprint(primaryCamera);
+    paneBoundary_.panes[0].cameraSlot = 0u;
     const XMVECTOR forwardVector = XMVector3Normalize(XMVectorSubtract(target, eye));
     // Left-handed basis: right = up x forward.
     const XMVECTOR rightVector = XMVector3Normalize(XMVector3Cross(up, forwardVector));
