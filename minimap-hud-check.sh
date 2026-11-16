@@ -91,6 +91,10 @@
 #                           repository root and every read would fail (that cost a
 #                           whole window in T126)
 #   MINIMAP_CHECK_OLD_EXE   same as --old-exe
+#   MINIMAP_CHECK_DEMO_SUNSHINE
+#                           the cp_sunshine recording (default: the user's install at
+#                           $TF/demos/SUNSHINE.dem); override when the same recording
+#                           lives outside the install tree
 #
 # EXIT 0 only when every assertion that ran held. A skipped control is counted and
 # printed; it never silently counts as a pass.
@@ -107,7 +111,10 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 # and A7 have something to look at. On cp_sunshine the flipped positions fall off
 # the panel and those two assertions would pass by having nothing to check (V6).
 DEMO="D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem"
-DEMO_SUNSHINE="$TF/demos/SUNSHINE.dem"
+# The canonical home of this recording is the user's TF install. The environment
+# variable overrides only where the bytes are read from; the default is unchanged
+# (lead ruling 2026-11-16). No assertion, camera, threshold or section list below changed.
+DEMO_SUNSHINE="${MINIMAP_CHECK_DEMO_SUNSHINE:-$TF/demos/SUNSHINE.dem}"
 # koth_bagel_rc13 is NOT koth_bagel_rc11: it is a different BSP, its bounds were
 # never measured, and that is A11's whole point.
 DEMO_UNLISTED="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
