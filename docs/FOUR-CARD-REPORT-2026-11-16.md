@@ -7,9 +7,9 @@
 
 | 卡 | 任务 | 已落地（有证据） | 仍欠/阻塞 | 当前判定 |
 | --- | --- | --- | --- | --- |
-| task-1 | 工程与集成（card-arch） | 工具链唯一入口、/W4 告警门、故障注入门、E1 第 3/4 轮门禁矩阵、E4 复用、五探针 same-bytes 复核、**合并窗口（三支并入 → 全量重建 exe `a14ea967` → 同一 exe 6 门读数，单/双 pane 不吞功能）** | viewmodel-material 10 红逐条定性、release-rebuild 新鲜度判据改内容哈希 + 负控、companion witness、t2/userinfo/map-geometry/world-material-effects 本轮未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 自缺陷 | 未完成（多门 PASS，判据缺陷已定性未修） |
-| task-2 | 地图（card-maps） | M2a 顶点变换一致（e5fe2219）；M2b **否证**遮挡假设（cec27931）；像素口径闭环更正 | R1 per-pass 深度回读仪（需改码重编，未开工）；R2 常规渲染路径复现性；map-geometry-lighting 两类红（参考移动需带理由 re-pin / 语料缺失）；map-material POV 语料三缺（一份有替补、两份 BLOCKED） | 未完成（M2b 是否证，不是修复） |
-| task-3 | 交互 UI（card-ui） | U1（f1365199）、U2（76d55078）、U3a 小地图线稿（6fa76eb8）、D77 大小写修复（0a1aad40）、oracle 错位修复（8eb6c085）、**U3b 窄窗面板（0d2746c1，A/B 同 sha 不染红）**、文档更正（1266600a）、A1 单位错配解释 | U4（N16 双 pane，已开工第 1 步）、A1 面集纳入规则、t2 判据修正（须负控） | 未完成（缺陷已修，A1 面集仍 BLOCKED） |
+| task-1 | 工程与集成（card-arch） | 工具链唯一入口、/W4 告警门、故障注入门、E1 第 3/4 轮门禁矩阵、E4 复用、五探针 same-bytes 复核、合并窗口（三支并入 → 全量重建 `a14ea967` → 6 门读数）、**release-rebuild 判据改「哈希构建真正读的输入」+ 自检脚本（b233bdae）、camera-ui CRLF 自缺陷落修法（2cbe87e5）** | 干净树重建身份（当前 exe `216d7f98` 是 dirty=52 的重建产物）、viewmodel-material 10 红定性、companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径 | 未完成（判据已改，待干净树重钉身份） |
+| task-2 | 地图（card-maps） | M2a 顶点变换一致（e5fe2219）；M2b **否证**遮挡假设（cec27931）；**R1 已构建并定论：109 px 边界 = 深度写掩码边界/覆盖率补集，只有 50-entities 写过 interior 1181 px（1b762057）**；像素口径闭环更正 | R2 常规路径复现（只有设计）；map-geometry p2 未裁决、rc12 语料缺失；map-material 完整重跑未做（2 份 BLOCKED-INPUT）；50-entities 内逐 range 归属未证 | 未完成（R1 定了 M2b 的边界归属） |
+| task-3 | 交互 UI（card-ui） | U1（f1365199）、U2（76d55078）、U3a 小地图线稿（6fa76eb8）、D77 大小写修复（0a1aad40）、oracle 错位修复（8eb6c085）、U3b 窄窗面板（0d2746c1）、**U4 第 1/2/3 步（1e9e18f8 / 2b / c1734a58，含两条真缺陷：g_paneSplit 未赋值、pane1 pick 早消费；单 pane same-sha）**、A1 单位错配解释 | A1 面集纳入规则、t2 判据修正（须负控）、PIP→四窗预算、split ViewModel（已裁决 defer） | 未完成（交互已通，A1 面集仍 BLOCKED） |
 | task-4 | 角色/音频/导出（card-char） | P2 关闭（28 断言 0 失败）；P3a 效果可用性（78e58234）；P3b 音频账务根因+修正（d25798ad）；P4 导出能力六项全中；N27 导出先验链（ca3fa348）；**合并树 Phase A/B 全 PASS（产品 decodefail 0/2/2/2、I1–I4 四 demo PASS，b0abac7d）** | N27 产品导出入口（只有设计）；D75 世界 FOV（只复现+设计）；4096 cap 本身仍按设计丢 | 未完成（能力已证，功能未接） |
 
 一句话：**没有一张卡可以宣布"完成"**；task-1 与 task-4 的证据链最完整，task-2 的核心进展是"否证了一个错误假设"，task-3 修掉了两条真缺陷但几何口径仍 BLOCKED。合并窗口已把 task-2/3/4 的四条分支并进主树并全量重建（exe `a14ea967`），同 exe 上 5 门 PASS、minimap-hud 3 红与合并前逐字相同、release-rebuild 1 红是已定性的判据缺陷——**合并本身没有引入新的产品红**，但也**没有让任何一张卡变成完成**。下面按卡给证据。
@@ -68,6 +68,8 @@
 - **未吞功能实证**：单 pane 两跑同 sha `2ba52781…`（`pane: viewport=1264x681 client=1264x681 viewports=1 mismatches=0x0`）；双 pane `--pane-split` 出 `pane: viewport=632x681 client=1264x681 viewports=2 mismatches=0x0` + `panes: count=2 viewports=2 depthTargets=1 depthClears=1 passes=15 hud=1`，split 帧 sha `283b00cd…` 与单 pane 不同 ⇒ `--pane-split` 缺省不改变单 pane 路径。
 - 收工核对：audit-tree `VERDICT: OK`、dirty=0、hostlock FREE、无 `.scratch/*.lock`、exe 仍 `a14ea967`；stash@{0} 未 pop（由 lead 收工后 pop 并核对）。
 - **本轮未跑（不当作通过）**：t2-visual-matrix、userinfo、world-material-effects、map-geometry、viewmodel-material、companion witness。
+- **合并后主树继续前进（17:00–17:33）**：`b233bdae` 把 release-rebuild 判据改成「哈希构建真正读的那些输入」（`release-rebuild.sh` +146/−20、新增 `release-rebuild-selftest.sh` +116），`2cbe87e5` 给 camera-ui 的 CRLF 自缺陷落一行修法。主树 exe 因该自检**重建**而被刷新：`216d7f986574dc350113ad8b08902bc43754915c3ac0868c8c90e8405981d1eb` / 3,057,152 B / 17:33；sidecar `sourceTree=1b762057f47a`、`sourceContent=a73cb80a…`、**`dirty=1 dirtyFiles=52 dirtyTracked=51 dirtyUntracked=1`**、`buildUtc=2026-11-16T09:33:05Z`。
+  ⇒ 这个 exe 是**脏树构建**（证据目录被地图门禁刷新所致），只能当「重建产物」证据，**不能当干净门禁身份**；下一次完整门禁矩阵前必须在干净树上重建并重新钉身份。`a14ea967` 仍是**唯一一次 clean-tree 合并构建**。
 
 ## 3. task-2 地图（card-maps）
 
@@ -95,6 +97,15 @@
 - `map-material-matrix.sh:126-130` 钉的三份 POV **全部丢失**：rc12（153,502 ticks / 49.36 MB）、cp_sunshine（144,583 / 48.96 MB）、pl_odyssey（55,294 / 26.43 MB）；census `evidence/header-scan/header-scan.csv:10/:14/:131` 留着当时身份。
 - cp_sunshine 有 POV 替补 `E:/demo测试/cp_sunshine/POV/autorecord_2026-05-17_16-32-36.dem`（75,905,225 B、sha `acc13409…`、POV、219,069 包、四类失败 0）；pl_odyssey 与 koth_bagel_rc12 全机无任何录像 ⇒ 只能按 m06794 先例登记 BLOCKED-INPUT（保留行、写清依据）。
 - **已登记 `d325ff0f`**（`map-material-matrix.sh` +78/−2 + `docs/T62-MAP-MATRIX-CORPUS-REGISTRY-2026-11-16.md`）：cp_sunshine 按 REPLACED 接入替换件并钉 sha；pl_odyssey / koth_bagel_rc12 记 BLOCKED-INPUT（保留行、48 字段、不 probe、不算失败），启动逐条打印 override，未登记缺件仍记 failure，汇总行带 `blocked=%d`。`--only=pl_odyssey,koth_bagel_rc12` 自测 **PASS（blocked=2 failed=0）**。**完整重跑未做**（host 锁被 map-geometry 占用）⇒ `readings.tsv` 未刷新，矩阵仍是旧读数。
+
+### 3.6 R1 已构建并给出定论（提交 `1b762057`，`docs/N05-R1-PASS-DEPTH-RESULT-2026-11-16.md` +149，另 R2 设计 +54）
+- **仪器**：`--capture-pass-depth <prefix>` 在渲染帧 10 个固定点各回读一次 D24S8（mask `& 0x00FFFFFF`、归一化后写 P5 16-bit big-endian PGM），并打 `pass-depth: index=… name=… depthStateLastBind=… wrote=…`。dump 点：`00-cleared` / `10-sky` / `20-world-batchNN-alphaM` / `30-world-done` / `40-water`（该帧未绘水面故缺席）/ `50-entities` / `60-overlay` / `70-hud-pre` / `80-post-viewmodel`。缺 `--capture-frame`、0 张平面或回读失败 ⇒ **exit 16**，不静默产「看起来正常」的帧。代码 4 文件（header +27 / capture +98 / frame +35 / main +45−16），分支 `work/card-maps-r1b`（基于 `0ada1d81`，代码与已合并的 `e6cf1f61` 相同），产物 `bf76cdae…` / 3,057,152 B。
+- **三组对照（仪器零渲染影响）**：g1 旧 exe `e61c7fd9`+depth / g2 新 exe 无开关 / g3 新 exe 带 pass-depth —— **三组 BMP 与深度平面逐字节相同**（BMP `757f5aa2…b8b40`、depth `07f513c4…aa1834`）；常规路径 g4/g5/g6 同样不动帧（`b194973c…e707a`、`2babadb1…7632f`）⇒ 旧参考帧在三种配置下都复现。
+- **逐 pass 读数（g3）**：足迹 1290 px = ribbon 109 + interior 1181。**深度写入只发生在 `50-entities` 一次**（`d_interior=1181`、`d_ribbon=0`；非 far px 0→223,766），其余 7 个 dump 点变化全 0。结论行 `R1-FIRST-WRITE ribbon=never interior=4-50-entities(1181 px)`、`R1-DEPTH-PLANE-EQUAL TRUE`。
+- **对 M2b 的回答**：109 px **从头到尾没有任何一个 pass 写过深度**（8 个点上始终是清除值）⇒ 那条边界是**深度写覆盖率补集 / 写掩码边界**，不是「深度测试谁赢」的边界；pass 粒度上等于 `50-entities` 写掩码在足迹上的补集。M2b 的 `INCONCLUSIVE` 由此变成读数。
+- **常规渲染路径（g6，14 张平面）**：3 个 `alpha=0` 批次写深度（773,685→784,479 px，另 +93,086/+17,061/+2,791 变化）、4 个 `alpha=1` 批次不写（`world-blended:write-off`），`50-entities` 再 +11,458 到 795,937；`--capture-depth` 平面与 10/11/12/13 号平面 `ndiff=0` ⇒ 50-entities 之后没有任何 pass 再写深度。与 g3 的 `world-blended:write-off` 互为印证。
+- **写入者形态（不依赖 pass 命名）**：interior 存值 vs 三角形自身插值深度 —— 相关 **0.9583**、整体**远约 +20.8 quanta**（min+4 / med+21 / max+112，1 quantum=1.526e-05）⇒ 不是「更近的遮挡物」，更像同一面/共面面的第二次绘制；**具体是 50-entities 里哪一次 range 绘制，未证**（需逐 range trace，不影响边界结论）。
+- 未证/下一步：水面 pass 该帧缺席（`40-water` 无平面，需换 `--capture-tick` 另跑）；「9–11 张平面」上界本帧用不到；逐 range 归属未做。证据 `D:/_shared/EXEC-2026-11-15/INST2/m2c-r1/`（runs/、r1-analysis-g3.txt、groups-*.log）。
 
 ## 4. task-3 交互 UI（card-ui）
 
@@ -141,8 +152,17 @@
 - 教训入册：新头文件未 `git add` 时 `gen-build-stamp.cmake` 直接 **D-90 REFUSED**（untracked compile input），不是随机失败；不许用 `TF2_IDENTITY_ALLOW_UNTRACKED` 绕过。
 - 第 2 步口径（已批 4 条件）：谓词形态可改但**改谓词/改 gate 必须单独提交并配负控**（负控须抓出两 pane 共用 viewport / 共用 view 矩阵 / 共用相机三类真错）；单 pane 路径每提交 same-sha A/B + 现有门禁全绿；只做渲染侧最小骨架（同一 demo、共享时钟、每 pane 独立 viewport/相机/mode），先不接交互、不动 N16 的点击激活与 seek 语义；两 pane 时 depth target / 绘制 pass / HUD pass 数必须能在 trace 里数出来（为 PIP→四窗预算做账）。
 
-### 4.8 未完成
-- **U4 第 2/3 步**：双 pane 共享时间轴渲染骨架 → 交互（点击激活、第一/第三/自由切换、seek 同步、单视角不退化）+ 出口 PIP→四窗资源预算；定义取 `docs/PROJECT-EXECUTION-ROADMAP-2026-11-15.md:109`。
+### 4.8 U4 第 3 步：交互与每 pane 相机（已提交 c1734a58，worktree 分支 work/card-ui-u4s3，6 文件 +768/−24）
+- **交付**：`native/include/pane_input.h` 新增 `paneForClientX(x,width,panes)`（半开区间 [0,width)、split at width/2、越界 −1、单 pane 独占、count 钳到 kPaneMaxPanes）；`main.cpp` 加 `g_activePane`，`WM_LBUTTONDOWN` 激活光标下 pane（`paneActivate` trace），space/右拖/滚轮/follow 都路由到 active pane；pane 1 拥有独立 `CameraModeController` + `SpectateDirector` + pinned target + accept/reject 计数，director 紧跟 pane 0 更新（同一快照、同一 scene tick，**没有第二个时钟**）；renderer 加 `setPaneCameraFocusWorld`/`setPaneCameraDemoViewWorld`/`clearPaneCameraDemoView`/`orbitPaneCamera`/`zoomPaneCamera`；CLI `--pane-activate N`、`--pane-click X WIDTH`、`--pane-cycle`、`--pane-mode N first|third|free`、`--pane-follow N ENTITY`（argv 顺序即语义，`--pane-split` 须在前）；probe 覆盖 `paneForClientX` 20 cases / 7 negatives。
+- **抓到并修掉两条真缺陷**：① `--pane-split` 只设了局部 `paneSplit`，`g_paneSplit` 从未赋值 ⇒ 激活/路由/pane1 director/相机块全不执行、第一次 `--pane-cycle` 落到 pane 0（靠一对「本该不同却逐字节相同」的控制组抓出）；② pane 1 的 pending pick 在第一个 follow 快照前就被消费 ⇒ 被拒、pane 停在 target 2；改为 `g_followSnapshotReady` 才采纳，trace 增 `pane1Pick: accepted=/rejected=`。
+- **像素 A/B**（pinned `--capture-tick 2000`、同一 demo、1264×681、左右半区逐字节、1,291,176 B/半区）：单 pane 与本步构建**逐字节相同**（左 `de4a64b4…`、右 `26dfb247…`，0 B diff）；split 静止态 2b vs 本步相同（`295a4dac…`/`34c66bce…`）；`--pane-mode 0 first` 与 split 基线两半都相同；pane1 free-look + `--pane-follow 1 1` 两半相同 ⇒ **仅 follow 不动像素、只有 mode 变才动**。pane1 first+follow：右半 **428,755 px** 变化（原是目标躯干填满 pane，靠隐藏该 body 修掉）、左半 120 px @(0,463)-(23,491)（trace `pane1 target=2 src=follow hidden=2`、`cameraFilter removed=2 indices=2,3`）；pane1 third：左 0 / 右 101,586（hidden=-1）。pane 0 mode 变：左 430,206 / 右 13,411 @(766,119)-(1221,440)，且 free vs third 两半**逐字节相同** ⇒ 右半变化来自 frame-global hidden-body 集合，不是相机。
+- 探针 rc=0（`paneBoundaryRules=10 paneBoundaryNegatives=13 paneCameraSources=3 paneInputCases=20 paneInputNegatives=7`），`camera-ui-check` = CAMERA-UI=PASS，audit-tree VERDICT: OK。
+- **已知代价（我的裁决：本周期接受，记入文档）**：hidden bodies 是**整帧全局 instance 列表的并集**（两 pane 共用 instance buffer/常量/surface）⇒ 为任一 pane 隐藏的 body 在两边都消失（实测 120 px 与 13,411 px 两处）；正解是 per-pane instance list / per-pane 上传，明确**不在本步**。
+- **split 下 ViewModel：维持不画（我的裁决）**：单 pane 路径不变；在 split 画需要先有 per-pane 投影 FOV/aspect 与每 pane viewmodel pass 的资源账（PIP→四窗预算的前置）⇒ 记为**已知限制**与将来做法，不是缺陷。
+- 时钟/seek 仍 shared-by-design（第 3 步不拆时间），文档写明「split 下 seek 同步是设计不是巧合」。
+
+### 4.9 未完成
+- **U4 第 1/2/3 步已完成**（1e9e18f8 / 2b 步 / c1734a58）；仍欠：**PIP→四窗资源预算**（要真资源账，不是估算）、split ViewModel（明确 defer，需 per-pane 投影）、hidden-body 并集的正解（per-pane instance list）。定义取 `docs/PROJECT-EXECUTION-ROADMAP-2026-11-15.md:109`。
 - **A1 最终处置**：面集纳入规则查清后重钉，或保留 BLOCKED 并写清缺口。
 - t2 判据修正（排 U4 之后单独提交）。
 
@@ -218,6 +238,11 @@ e8cabb15 T105 E5 N27/P4: the export rerun is deterministic in the media and not 
 0ada1d81 docs: merge-window record (three branches, single rebuild a14ea967, seven gates, pane evidence)
 b0abac7d p3b: record merged-tree Phase A/B sound accounting PASS (product 0/2/2/2, I1-I4)
 50cacb37 docs: four-card report v0.2 + project overview
+b5f9fa7f docs: four-card report — merged-tree sound accounting Phase A/B PASS
+1b762057 docs(N05): R1 per-pass depth readout — 109 px boundary is a depth-write coverage boundary
+b233bdae gate(rebuild): hash the inputs the build actually reads (D-93 criterion fix)
+2cbe87e5 docs(e1): the camera-ui gate defect gets a one-line fix
+c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary (step 3)
 ```
 
 ### 7.2 证据目录
@@ -226,8 +251,8 @@ b0abac7d p3b: record merged-tree Phase A/B sound accounting PASS (product 0/2/2/
 - P2/P3/P4：`D:/_shared/EXEC-2026-11-15/INST4/p2-n19/attach-budget/`、`docs/N20-EFFECTS-AVAILABILITY-2026-11-16.md`、`docs/N27-EXPORT-PROBE-RERUN-2026-11-16.md`
 
 ### 7.3 未完成清单（诚实版）
-1. task-1：E1 第 5 轮四门；mtime 判据改内容哈希（含负控）；A1/A6/A7 口径。
-2. task-2：R1 深度回读仪（改码重编）；R2 常规路径；map-geometry re-pin + 语料；map-material 两份 BLOCKED-INPUT。
-3. task-3：U4（N16 双 pane，三步）、A1 面集规则、t2 判据修正（配负控）。
+1. task-1：干净树上重建并重钉 exe 身份（当前 `216d7f98` 是 dirty=52 的重建产物，不能当门禁身份）；viewmodel-material 10 红逐条定性；companion witness；t2/userinfo/map-geometry/world-material-effects 未跑；A1/A6/A7 口径。
+2. task-2：R2 常规路径实现与复现；map-geometry p2 裁决 + rc12 语料；map-material 完整重跑（两份 BLOCKED-INPUT）；50-entities 内逐 range 归属。
+3. task-3：A1 面集规则、t2 判据修正（配负控）、PIP→四窗预算、hidden-body 并集正解、split ViewModel（已裁决 defer）。
 4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
 5. 横切：D75 世界 FOV 修法、N24 main 拆分、N26 按口径重测。
