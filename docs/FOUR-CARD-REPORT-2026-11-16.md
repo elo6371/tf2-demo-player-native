@@ -180,7 +180,7 @@
 
 - **snakewater**：语料全在，可直接 `--only=cp_snakewater_final1 --poses=p2`；先**不带** `--re-pin` 跑一次，看是否 THE PICTURE MOVED。
 - **rc11**：语料在，但 `cull-reference-p2` 是 0 移除，p2 补跑只能证明"算术仍成立"，不能证明 cull 行为；cull 的空洞性由图级 P1-2a 承担。
-- **sunshine**：把 `camera2.txt` 的 `demo=` 改指现存 POV（或**留空**——`:454` 只在非空且不等时报错），并先确认 tick 8000 在该录像里可达。**这是改参考文件（证据变更），需 lead 批理由**；改完还要 `--re-pin` 才会重写 pins-p2。
+- **sunshine：保持 BLOCKED，不改 `camera2.txt`（lead 19:48 裁决：不批）。** 盘上唯一可指的 cp_sunshine POV 是**退化视点件**（相机样本 `0,0,-427`、orient 复跑 `0,0,-359`，已判 BLOCKED-CAMERA）；把它指进 `camera2.txt` 等于把「输入缺失」换成「视点无效」，两者之后在证据里就再也分不开，而且会让后来的读者以为 p2 跑过了。**解除条件（写死）**：需要一段**带有效视点**的 cp_sunshine POV；落地后按 REPLACED 口径登记（钉 sha + 旧值保留并标作废，不偷改），再走 `--re-pin` 重写 pins-p2。tick 8000 在该录像里是否可达，届时一并核。
 - **odyssey / rc12**：只能重录或换替换件（参照 sunshine 在 map-material 的 REPLACED 处理 `d325ff0f`），否则建议在 T85 的 C15/C16 备注里**永久登记 CORPUS-BLOCKED**（改支持声明需 lead 同意）。
 - 无论哪张图：**"恢复 p2 覆盖"应写成"恢复第二个视锥的读数与帧哈希复验"，不是"把 p2 跑绿"**——它没有 PASS/FAIL 可跑绿。
 
@@ -341,7 +341,7 @@ c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary 
 
 ### 7.3 未完成清单（诚实版）
 1. task-1：**viewmodel-material 已全绿**（§7/§8 28/0 `61fec89` + §9 re-pin `3fd6b86` + 9 节 **226 OK/0 FAIL** full PASS，每步配负控）；仍欠 companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 修法落地；exe 身份**已再次变更**：`216d7f98` → **`06afc166`**（U4 第 3 步 + E9 修法并入后重建，`basis=identity-agrees`，3,066,368 B / 19:33:25；矩阵 pin 已更新 `16b04592`，dry-run `DRY-RUN=OK gates=4` 无 SKIP）。
-2. task-2：**R1/R2 均已出结论、map-material 完整重跑 PASS**（`1b762057`/`05ece883`/`66f5017f`，audit 回 OK）；**逐 range 归属已做**（§3.6 之后的 R1b 仪器：worktree 分支 `work/card-maps-r1b` 提交 `1f78e213`，6 文件 +442/−1、新文档 `docs/N05-M2B-RANGE-ATTRIBUTION-2026-11-16.md`；259 次 range draw 里只有 3 次写 interior 的 1181 px，109 px ribbon 无任何 entity draw 写过；**未并入 candidate/e5**）；**map-geometry p2 已裁决为 UNVERIFIED / CORPUS-BLOCKED（§3.7）**——今天只有 snakewater 与 rc11 能起跑，sunshine 需改 `camera2.txt` 的 demo 行（待批准），odyssey/rc12 需补录像；水面 pass（需 `--capture-tick` 另跑）仍欠。
+2. task-2：**R1/R2 均已出结论、map-material 完整重跑 PASS**（`1b762057`/`05ece883`/`66f5017f`，audit 回 OK）；**逐 range 归属已做**（§3.6 之后的 R1b 仪器：worktree 分支 `work/card-maps-r1b` 提交 `1f78e213`，6 文件 +442/−1、新文档 `docs/N05-M2B-RANGE-ATTRIBUTION-2026-11-16.md`；259 次 range draw 里只有 3 次写 interior 的 1181 px，109 px ribbon 无任何 entity draw 写过；**已并入 candidate/e5**（merge `07cb7bd0`；并入后按纪律由 card-arch 重建 exe、重链矩阵 pin，再跑 E1 第 5 轮四门矩阵）；**map-geometry p2 已裁决为 UNVERIFIED / CORPUS-BLOCKED（§3.7）**——今天只有 snakewater 与 rc11 能起跑，sunshine 保持 BLOCKED（lead 不批改 `camera2.txt`，解除条件见 §3.7），odyssey/rc12 需补录像；水面 pass（需 `--capture-tick` 另跑）仍欠。
 3. task-3：A1 面集规则、t2 判据修正（配负控）、PIP→四窗预算、hidden-body 并集正解、split ViewModel（已裁决 defer）。
 4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
 5. 横切：D75 世界 FOV 修法、N24 main 拆分、N26 按口径重测。
