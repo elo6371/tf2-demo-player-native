@@ -88,6 +88,18 @@
 - **§9 断言改法（不钉字面量，避免下次 descriptor 数变再漂）**：`blendedRanges == drawRanges`、`alphaAppliedRanges == drawRanges`（判「声明几个 range 就 apply 几份」）；`uploadSlot 2 → -2`；新增 `rangeSlots=2,2,2`；`alphaTestedRanges=0`、`translucent=1`、11640 vertices、`boundSlots=1` 不动。负控 `nc9/n1–n4`：n1 全槽上传回退单槽 1 红、n2 blend 3→1 红（`= 1, expected 3`）、n3 alpha 3→1 红、n4 还原 **13 OK / 0 FAIL**。
 - **欠的 full PASS 已还（同窗口，`SECTIONS` 未设）**：**226 OK / 0 FAIL**、`VIEWMODEL-MATERIAL=PASS`、rc=0；§1–§6 共 185 条先全绿再进 §7（`TRACE_DIR=evidence/fast/viewmodel-material/full-1830`，相对）；exe 跑前跑后同 `216d7f98…`；§7/§8 之外无新红。日志 `D:/_shared/EXEC-2026-11-15/INST1/E1-round5/full-1830/full-run.log`。⇒ **task-1 的 viewmodel-material 门从「10 红」到「全绿」，且每次 re-pin 都有负控。**
 - **四门矩阵预备件已落（`74307641`）**：`native/tools/run-e1-round5-matrix.sh`（320 行）+ `docs/INST1-E1-ROUND5-MATRIX-PLAN-2026-11-16.md`（130 行），**未执行任何门**。`--dry-run` rc=0：四门命令全解析、`SKIP-PRECONDITION=0`（exe/四探针/fixture/三条 demo/animation-inputs/frame-pins-p1/hostlock 全在）、exe pin `216d7f98…` 命中且每门跑前跑后比 sha（漂移记 `EXE-SHA-DRIFT`）、超时 cap 2400/900/1800/1800 s、某门 FAIL 不早退、证据全相对路径（`evidence/fast/e1-round5-matrix/<utc>/`，gitignored）。hostlock 分派：viewmodel/minimap/companion 用 `hostlock.sh run card-arch`，map-geometry 用 `run t62-mapaxes + HOLD_LOCK=1`（该门自校验 owner，嵌套会死锁）。EOL 两层：矩阵 bookkeeping 走 `camera-ui-check.sh --check-eol` 必须 GREEN，各门证据 CR 只记 `EOL-WARN`（产品 trace 是 CRT 文本模式，D53 家族）。已知副作用只记录不清理：map-geometry 写 `evidence/t62-map-matrix/inputs/{settings.ini,ui.ini}`（untracked）。发令一条 `bash native/tools/run-e1-round5-matrix.sh --run`。
+- **四门矩阵 run 2 已跑（20:17:59–21:12:51，EXIT=1，四门全跑完无早退；HEAD `e7a1a8e9`、exe 全程 `0bc3ed07…` 跑前=跑后）**：
+
+| 门 | rc | verdict | OK/FAIL | 耗时 | 归类 |
+| --- | --- | --- | --- | --- | --- |
+| viewmodel-material | 0 | `VIEWMODEL-MATERIAL=PASS` | 226 / 0 | 1242 s | 绿（与 re-pin 后历史一致） |
+| minimap-hud | 0 | `MINIMAP-HUD=PASS assertions=100 skipped_controls=1` | 100 / 0 | 268 s | 绿；state 列 FAIL 是矩阵脚本整行等值比较的 bug（`e7a1a8e9` 改前缀比较，证据未动） |
+| map-geometry | 1 | `maps=0 geometry=0 lighting=1 failed=2` | 24 / 2 | 453 s | **两条红都是 pin 对照落后**（pin 于 2026-11-05T05:48:47Z / head `14c0f1c` / product `2caafdbf…`，跨 11 天 3 个 exe 身份）；24 条内容判据全绿 |
+| companion | 1 | `VIEWMODEL-COMPANION=FAIL` | 113 / 11 | 1324 s | 11 条全在 history/witness 家族（上轮 36 FAIL/43 OK），待逐条分类 |
+
+- **map-geometry 两条红的细节（不 re-pin 就必然红）**：① `THE PICTURE MOVED` —— 变的是 textured / flat-base / flat-novis / flat-nocull / flat-novis-nocull / ids / ids-nocull / lmoff 八帧，**`none` 与 `sky-faces` 两帧与 pin 逐字节相同**（相机/BSP/天空路径没动，动的是着色纹理与 face-id 光栅）；且本次 `flat-novis == flat-base`、`flat-novis-nocull == flat-nocull`（pin 时不同）——与 t2「正确裁剪必须像素中性」同构。② `THE CULL REFERENCE MOVED` —— pin `kept=617852 removed=22520 onlyInCull=2 front=17017 back=5503 faces=27`，本次 `kept=425899 removed=3467 onlyInCull=0 front=710 back=2757 faces=16`；今天早些时候同产品已验过一次 24 OK/0 FAIL、attributable 0.9257% ≤2%。
+- **矩阵脚本自身两处缺陷已修（run 1 作废，`7d4071cb`）**：① gate 循环用 stdin 读表，门链里的原生 Windows 二进制继承句柄吃掉余下行（`gates.txt` 4 行但只产出 1 门）⇒ 改 fd 3 读表 + 每门 stdin 钉 `/dev/null`；② 门日志落在 bookkeeping 目录、产品 CRT 文本模式带 CR ⇒ 终检 `--check-eol` 误判 `INCOMPLETE` ⇒ 原始门输出改落 `gates/<name>/gate.log`（只记 `EOL-WARN`），bookkeeping 副本归一 LF。
+- **门自己写的 untracked 副作用已清**：`evidence/t62-map-matrix/inputs/{settings.ini,ui.ini}` 由 map-geometry 门生成，会让 `audit-tree.sh` 报 `VIOLATION: evidence is dirty (lockrun.sh will make every gate exit 97)`；已 `rm -rf` 该目录、audit 回 `VERDICT: OK`，写入端修法与验收已派给 card-arch（不许再写进 tracked 目录下的 untracked 子目录）。
 
 ## 3. task-2 地图（card-maps）
 
@@ -340,7 +352,7 @@ c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary 
 - P2/P3/P4：`D:/_shared/EXEC-2026-11-15/INST4/p2-n19/attach-budget/`、`docs/N20-EFFECTS-AVAILABILITY-2026-11-16.md`、`docs/N27-EXPORT-PROBE-RERUN-2026-11-16.md`
 
 ### 7.3 未完成清单（诚实版）
-1. task-1：**viewmodel-material 已全绿**（§7/§8 28/0 `61fec89` + §9 re-pin `3fd6b86` + 9 节 **226 OK/0 FAIL** full PASS，每步配负控）；仍欠 companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 修法落地；exe 身份**已再次变更**：`216d7f98` → **`06afc166`**（U4 第 3 步 + E9 修法并入后重建，`basis=identity-agrees`，3,066,368 B / 19:33:25；矩阵 pin 已更新 `16b04592`，dry-run `DRY-RUN=OK gates=4` 无 SKIP）。
+1. task-1：**E1 第 5 轮四门矩阵已跑（run 2）：2 绿（viewmodel 226/0、minimap 100/0）+ map-geometry 24/2 全为 pin 落后 + companion 113/11 待分类**；**viewmodel-material 已全绿**（§7/§8 28/0 `61fec89` + §9 re-pin `3fd6b86` + 9 节 **226 OK/0 FAIL** full PASS，每步配负控）；仍欠 companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 修法落地；exe 身份**已再次变更**：`216d7f98` → **`06afc166`**（U4 第 3 步 + E9 修法并入后重建，`basis=identity-agrees`，3,066,368 B / 19:33:25；矩阵 pin 已更新 `16b04592`，dry-run `DRY-RUN=OK gates=4` 无 SKIP）。
 2. task-2：**R1/R2 均已出结论、map-material 完整重跑 PASS**（`1b762057`/`05ece883`/`66f5017f`，audit 回 OK）；**逐 range 归属已做**（§3.6 之后的 R1b 仪器：worktree 分支 `work/card-maps-r1b` 提交 `1f78e213`，6 文件 +442/−1、新文档 `docs/N05-M2B-RANGE-ATTRIBUTION-2026-11-16.md`；259 次 range draw 里只有 3 次写 interior 的 1181 px，109 px ribbon 无任何 entity draw 写过；**已并入 candidate/e5**（merge `07cb7bd0`；并入后按纪律由 card-arch 重建 exe、重链矩阵 pin，再跑 E1 第 5 轮四门矩阵）；**map-geometry p2 已裁决为 UNVERIFIED / CORPUS-BLOCKED（§3.7）**——今天只有 snakewater 与 rc11 能起跑，sunshine 保持 BLOCKED（lead 不批改 `camera2.txt`，解除条件见 §3.7），odyssey/rc12 需补录像；水面 pass（需 `--capture-tick` 另跑）仍欠。
 3. task-3：A1 面集规则、t2 判据修正（配负控）、PIP→四窗预算、hidden-body 并集正解、split ViewModel（已裁决 defer）。
 4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
