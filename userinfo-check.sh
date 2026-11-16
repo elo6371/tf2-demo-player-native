@@ -26,7 +26,11 @@ cd "$(dirname "$0")"
 
 PY=C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
 PROBE=native/build-nmake/demo_open_probe.exe
-OUT=evidence/t100-userinfo/runs
+# The output directory is overridable so a gate run can land outside the repository
+# (lead ruling 2026-11-16). The default is unchanged: every existing reading still
+# writes where it used to. Only the destination moved; no assertion, corpus or
+# threshold in this script changed.
+OUT="${TF2_USERINFO_OUT:-evidence/t100-userinfo/runs}"
 FIX=evidence/t100-userinfo/fixtures
 GOLD=evidence/t100-userinfo/golden
 DEMO_DIR="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos"
