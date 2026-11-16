@@ -158,11 +158,10 @@
 - **不染红证明**：同尺寸 A/B，旧 `75dae10e` vs 新 `1a41a495`，1280×720 两侧 `panel=1092,12,160,160`、`drawTriangles=66737 dropped=0`，两张 BMP sha256 同为 `59fbc35f…`、`cmp` 0 字节差。
 - **可达性限制（如实写）**：`--window-size` 下限 320×240（`native/src/main.cpp:2757-2766`），触发窄钳制需 client < 172 ⇒ **产品路径不可达**，用例只能放离屏 `hud_probe`（`hud-check.sh:299` 断言 `probe.failures=0`）。修的是布局数学与探针覆盖，不是可复现的用户缺陷。
 
-### 4.6 t2-visual-matrix 三红：判据失效（未定性为产品缺陷）
-- 主树 `75dae10e` 原样复现：on `input=242109 drawn=216114 hidden=25995 clipApplied=1 cameraCluster=2108 eyeMap=(1359.6,−538.8,73.9)`；vis-off `clipApplied=0 input=0 drawn=242109 eyeMap=(368,372,344)`；两帧 **sha256 相同、differing_pixels=0**。
-- input 推导链：cp_snakewater_final1 全量三角 245418 − sky 2021 = 243397，产品 242109（−1288，0.53%），`budget requested=242361 drawTriangles=242109 dropped=0` ⇒ **200000 是陈旧值（差 21%）**。
-- 5% 判据失效的机制：绘制相机是 orbit、clip 用 demo POV 的 cluster，被剔的 25995 个三角全在画外 ⇒ 像素中性是**正确行为**；历史 19.59% 反倒是当时 clip 剔掉了可见几何（缺陷）。
-- 处置：input/hidden 改 census 推导值 + 残差说明；像素对改「clip 自身相机下 0 差异」；保留 `drawn+hidden=input`、`hidden>0`、repeat 0 差异。**未改任何阈值**，须配负控（新判据必须能判出旧缺陷形态）后单独提交。
+### 4.6 t2-visual-matrix 三红：单位/方向错，不是产品缺陷（已修，`7ac22f9d`）
+- **三条红逐条重定性**：① `vis on input 242109 vs expected 200000` —— 200000 是 **T88 之前的 parser 容量**（从未按地图测过），T88 量得 cp_snakewater_final1 需求 **242361**、容量抬到 400000（`main.cpp:5973`）；改为「与同一次 run 的 requested 比、1% 残差」（252 的差来自 displacement grid 中途失败后 resize 回吐，`bsp_map.cpp:1309-1313`）。② `vis on hidden 25995 vs expected 15039` —— 15039 是 `world-material-check.sh` **自己机位**的数（`:472`），hidden 是相机属性；本门 orbit 机位 25995（trace 自述 `609 kept by a cluster past the first`，即 any-leaf）；改为 census 推导 `hidden = clustered − drawn_withoutCluster`，并要求 `0<hidden<clustered`、`drawn>=withoutCluster`、两向恒等式。③ `on vs vis-off ≥5%` 实测 **0.0000%** —— **方向反了**：PVS 裁掉的按定义从本帧相机看不见，正确裁剪必须像素中性；旧的 19.59% 是 T80/T84 之前 clip 查了别的相机。改为 `--max-delta 0`（两帧逐字节相同）。
+- **读数**：前向 58 OK/3 FAIL → **assertions_ok=68 PASS**；`--mutation` 注入三缺陷：m1 旧容量 **5 红**（附带 differing=239 px，证明像素对不是恒真）、m2 可见集反号 **1 红**（census 全绿，只有像素抓得住）、m3 无 cluster 也算 hidden **3 红**；恢复重建后 exe sha 回 `43b59b72…`，最终 **assertions_ok=72 PASS**。证据 `D:/_shared/EXEC-2026-11-16/e9-t2-matrix/`（pre-fix/ forward/ mutation/ final/ identity.txt），文档 `docs/E9-T2-MATRIX-UNITS-2026-11-16.md`。
+- **四条对后续有用的发现（都进了文档）**：① **门禁普查漏洞**——`t2-visual-matrix.sh` 在仓库根、不叫 `*-check.sh`，历次门禁 glob 普查**漏掉它**，它才长期带着旧钉值；建议把这类根目录脚本纳入 registry 普查。② **243397 不可复现**：全树与 `D:/_shared/EXEC-2026-11-16` 各子目录都 grep 不到；仓库权威 census 是 `evidence/t88-maps/demand.txt` 的 **242361**（probe 显式 200000 上限截断过，别拿它的 200000 当 census）。③ hidden 数**不能跨门借用**（它是相机属性），world-material 的 15039 保持不动。④ **容量截断会连带破坏像素中性**（m1 的 239 px）⇒「旧 200000」是真的会丢可见几何，这条现在有变异证据。
 
 ### 4.7 U4 第 1 步：所有权边界（已提交 1e9e18f8，worktree 分支 work/card-ui-u3b）
 - 交付：`native/include/pane_boundary.h`（新，103 行）——`PaneCameraSource{None,Orbit,DemoView}`、`PaneBoundaryReadings`、`paneBoundaryMismatches()` **7 个位**（R1 targets==1、R2 depth==1、R3 viewports==1、R4 viewport==client 且非零、R5 camera!=None、R6 hudPasses<=1、R7 跑 HUD 就必须 scissor）；纯头文件谓词，probe 不链渲染器也能测。
@@ -183,10 +182,16 @@
 - **split 下 ViewModel：维持不画（我的裁决）**：单 pane 路径不变；在 split 画需要先有 per-pane 投影 FOV/aspect 与每 pane viewmodel pass 的资源账（PIP→四窗预算的前置）⇒ 记为**已知限制**与将来做法，不是缺陷。
 - 时钟/seek 仍 shared-by-design（第 3 步不拆时间），文档写明「split 下 seek 同步是设计不是巧合」。
 
-### 4.9 未完成
+### 4.9 minimap-hud 三条红：判据单位错（已修，`62aba085`）
+- 改动：`minimap-hud-check.sh` + `native/src/main_hud.cpp` + `docs/E9-MINIMAP-HUD-GATE-UNITS-2026-11-16.md`（371+/23−）：**marker 与 interior 按各自单位测量**，不再拿同一个字面量套两种量。
+- 读数：门禁全量 **assertions=100 / failed=0  PASS**；`--mutation` **4/4 抓到**并恢复后同 sha；前向 exe 不变（`43b59b72…`，只改门禁与一处读数）。证据 `D:/_shared/EXEC-2026-11-16/e9-minimap-units/`。
+- 这条与 §4.6 是**同一类病**：门禁把「某个历史构建的读数」当常量钉住，产品换了单位/机位后仍按旧值判红 —— 不是产品回退。
+
+### 4.10 未完成
 - **U4 第 1/2/3 步已完成**（1e9e18f8 / 2b 步 / c1734a58）；仍欠：**PIP→四窗资源预算**（要真资源账，不是估算）、split ViewModel（明确 defer，需 per-pane 投影）、hidden-body 并集的正解（per-pane instance list）。定义取 `docs/PROJECT-EXECUTION-ROADMAP-2026-11-15.md:109`。
 - **A1 最终处置**：面集纳入规则查清后重钉，或保留 BLOCKED 并写清缺口。
-- t2 判据修正（排 U4 之后单独提交）。
+- ~~t2 判据修正~~ **已完成（`7ac22f9d`）**，三条红均为单位/方向错、配 m1–m3 变异负控；minimap-hud 三条红同样已修（`62aba085`）。
+- **两条门禁脚本已在 `4cca8d41` 并入 `candidate/e5`**（merge `work/card-ui-u4s3`：11 文件 +1615/−103）⇒ 主树源码已含 U4 第 3 步 + E9 两处修法；**主树 exe 仍是 `216d7f98…`（源码已新于它），四门矩阵前必须先重建并更新 pin**。
 
 ## 5. task-4 角色/音频/导出（card-char）
 
