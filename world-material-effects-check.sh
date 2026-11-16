@@ -55,7 +55,7 @@ if [ -f "$HOST_PROFILE_DIR/ui.ini" ]; then cp "$HOST_PROFILE_DIR/ui.ini" "$ISO_D
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 MAP="cp_snakewater_final1"
 DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
-VM_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+VM_DEMO="${WORLD_MATERIAL_EFFECTS_VM_DEMO:-E:/demo测试/pl_upward_f12/POV/autorecord_2026-08-08_21-43-59.dem}"
 VM_MODEL="models/weapons/v_models/v_sapper_spy.mdl"
 # The device every run is pinned to. Not the default: a run that opens the
 # system device makes noise on the wrong output, and the task's own rule is

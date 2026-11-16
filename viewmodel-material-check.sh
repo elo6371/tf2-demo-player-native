@@ -545,7 +545,7 @@ assert_eq "missing model summary complete" "$(jfield "$summary" complete)" "0"
 #   sides rather than assumed. This also makes the runs cheap: a paused launch
 #   takes about 20 s against about 55 s for a 200-tick one.
 PRODUCT_TICK="${VIEWMODEL_MATERIAL_TICK:-200}"
-PRODUCT_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+PRODUCT_DEMO="${VIEWMODEL_MATERIAL_DEMO:-E:/demo测试/pl_upward_f12/POV/autorecord_2026-08-08_21-43-59.dem}"
 PRODUCT_EXE=native/build-nmake/tf2_demo_native.exe
 
 # T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
@@ -686,9 +686,12 @@ assert_eq "the material pass ran" "$(rval "$READINGS" passRan)" "1"
 assert_eq "slots on the drawn model" "$(rval "$READINGS" materialSlots)" "3"
 assert_eq "every slot resolved" "$(rval "$READINGS" materialResolved)" "3"
 assert_eq "no slot fell back" "$(rval "$READINGS" fallbackSlots)" "0"
-assert_eq "the pass built one range" "$(rval "$READINGS" drawRanges)" "1"
+# Re-pinned 2026-11-16 on the replacement POV recording (8-08 Upward, 14b4943a…):
+# the pass now builds 2 ranges there (the old recording produced 1). Measured on exe 26bff436….
+assert_eq "the pass built one range" "$(rval "$READINGS" drawRanges)" "2"
 assert_eq "the range is not a fallback" "$(rval "$READINGS" fallbackRanges)" "0"
-assert_eq "the range has a texture bound" "$(rval "$READINGS" boundSlots)" "1"
+# Same re-pin as drawRanges above: 2 bound slots measured on the replacement recording.
+assert_eq "the range has a texture bound" "$(rval "$READINGS" boundSlots)" "2"
 assert_eq "this is a natural run (no slot override)" "$(rval "$READINGS" slotOverride)" "-1"
 assert_eq "this is a natural run (flat colour not forced)" "$(rval "$READINGS" flatColor)" "0"
 assert_eq "this is a natural run (no injected fault)" "$(rval "$READINGS" missingSlotInjected)" "-1"

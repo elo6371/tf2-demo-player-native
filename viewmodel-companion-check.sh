@@ -227,6 +227,9 @@ while read -r size sha256 root name; do
   case "$root" in
     steam)    path="$TF/demos/$name" ;;
     testdata) path="$TESTDATA_ROOT/$name" ;;
+    # N01 plan A: the archive root names the directory, not a tree, because the
+    # replacement POV lives under a per-map folder there.
+    archive-pov) path="E:/demo测试/pl_upward_f12/POV/$name" ;;
     *) echo "  FAIL unknown root '$root' for $name"; fail=1; continue ;;
   esac
   if [ ! -f "$path" ]; then
@@ -243,7 +246,7 @@ while read -r size sha256 root name; do
   echo "  OK   $name pinned ($size bytes, ${sha256:0:16}...)"
   PINNED=$((PINNED + 1))
   case "$name" in
-    autorecord_2026-07-02_13-26-46.dem) DEMO_POV="$path" ;;
+    autorecord_2026-08-08_21-43-59.dem) DEMO_POV="$path" ;;
   esac
 done < "$INPUTS"
 assert_ge "pinned recordings verified" "$PINNED" 1
