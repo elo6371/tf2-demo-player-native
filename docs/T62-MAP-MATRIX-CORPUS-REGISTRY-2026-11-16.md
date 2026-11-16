@@ -126,4 +126,68 @@ product 不需要改：它的 trace 实测 `tf_root=D:\SteamLibrary\steamapps\co
 替换录像的 header 探针读出 `header=1 map=cp_sunshine server_map=cp_sunshine packets=219069`。
 因此 `cp_sunshine` 的替换件是合格的，先前那条 "header names map=NA" 是同一个 argv 缺陷的回声，
 不是语料问题。
+## 8. 2026-11-16 全量重跑结果（门禁修后，19:08 全量 + 19:10 单图收尾）
+
+`bash map-material-matrix.sh`（无参数：五张图 × tick 0/2000）跑完 exit 0：
+
+```
+MAP-MATERIAL-MATRIX=PASS maps=5 rows=4 unsupported=0 blocked=4 failed=0
+```
+
+| map | tick | status | camera_source | camera_eye | probe distinct/tiled | fetch distinct/tiled | tile_rows | diff_pixels_ch8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cp_snakewater_final1 | 0, 2000 | ok | product-orient-run-tick2000 | 1185.5, -813.5, 207.1 | 148 / 144 | 151 / 141 | 141 | 15140 |
+| koth_bagel_rc11 | 0, 2000 | ok | product-orient-run-tick2000 | 914.0, -1000.0, 563.8 | 99 / 97 | 99 / 97 | 97 | 173212 |
+| cp_sunshine | 0, 2000 | BLOCKED-CAMERA | degenerate-demo-pose | 0, 0, -427 | 170 / 167 | 170 / 165 | 0 | NA |
+| pl_odyssey | – | BLOCKED-INPUT | NA | NA | NA | NA | NA | NA |
+| koth_bagel_rc12 | – | BLOCKED-INPUT | NA | NA | NA | NA | NA | NA |
+
+两段真实逐 tick 读数：cp_snakewater_final1 15140 px（1.7589%）在通道容差 8 之外，
+koth_bagel_rc11 173212 px、max_channel_delta=255；两张图的 tick0/2000 都非相同帧
+（`identical_files=0`）。blocked=4 = odyssey/rc12 各一行 BLOCKED-INPUT + cp_sunshine 两行
+BLOCKED-CAMERA。
+
+### 8.1 cp_sunshine：录像有相机，但没有可用视点
+
+替换件本身是合格的：`demo_open_probe` 读出 `header=1 map=cp_sunshine server_map=cp_sunshine
+packets=219069`。问题在视点：`camera_origin=0,0,-427`，x=y 都是 0。第一轮重跑照它设了
+`--debug-camera 0 0 -427 10.7008 6.79359`，结果 tick0 与 tick2000 渲出逐字节相同的帧
+（sha256 `410584b65f0bc7a3654a1b5154206d3e65c45ec533d984f18ec29e25f3a8d30c`，1264×681 全非黑、
+860,784 px），`pixels_channel_gt8=0`、`identical_files=1`，两条不变量同时失败。
+
+不是参数写错，是录像如此：让 product 自己跑一遍、不传 debug-camera（orient run），
+它画出来的 `scene: camera` 是 `eye=0.0,0.0,-359.0 … src=follow` —— 换一个 z，依旧钉在竖直轴上。
+所以门禁现在把"有样本但 x=y=0"判为 **BLOCKED-CAMERA**：只记 probe 读数（170 材质 / 165 tile 行）
+与相机证据，不跑两次 capture，也不把两张一样的帧当成逐 tick 读数；这一类行和 BLOCKED-INPUT 一样
+不进 matrix 断言。换一段带正常视点的 cp_sunshine POV 录像即可解除。
+
+### 8.2 顺带修掉的一个谓词缺陷
+
+退化姿势判定第一版写成 `case "$ORIGIN" in 0,0,*|0.0,0.0,*)`，其中 `0,0,*` 也匹配 SourceTV 录像的
+"没有相机样本"值 `0,0,0`，于是整套矩阵一度被标成全 BLOCKED-CAMERA（`maps=5 rows=0 blocked=8`）。
+现在 `0,0,0` / `0.0,0.0,0.0` 明确走 orient 路径，只有"给了真实 z、x=y 却是 0"才算退化。
+
+### 8.3 证据里的 CRLF 事故（已修）
+
+第一次重跑把 43 个已提交的 evidence 文本写脏：`diff_frames()` 的 python heredoc 在 Windows 上以
+文本模式写 stdout，每行带 CR，落盘成 CRLF；`material_coverage_probe` / `demo_open_probe` 的锁内
+输出同样带 CR。修法：三处落盘后各加 `sed -i 's/\r$//'`，`POSE_LINE` 的 `grep` 结果补
+`tr -d '\r'`；evidence 按 LF 重新提交。`bash tools/audit-tree.sh` 现在给出：
+
+```
+-- line-ending check (raw diff vs ignore-CR diff) --
+  (every changed text file matches HEAD's line endings)
+
+VERDICT: OK (no forbidden writes, line endings intact)
+```
+
+### 8.4 复现
+
+```bash
+cd /d/TF2_Native_Worktrees/t105-e5
+bash map-material-matrix.sh                    # 全部五张图
+bash map-material-matrix.sh --only=cp_sunshine # 单图；其余行从 readings.prev 合并回来
+bash tools/audit-tree.sh
+```
+
 
