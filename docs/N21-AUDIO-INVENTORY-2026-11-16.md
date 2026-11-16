@@ -4,6 +4,10 @@ Status: **inventory, not diagnosis.** The card asked what audio the build actual
 document records what the demo carries, what the product does with it, and the one accounting question
 that cannot be settled with the binaries on the shelf today. It deliberately does **not** pick a cause.
 
+> **2026-11-16 15:40 状态更新（task B）**：本文件 §1/§5 的 `sound_failures=20923` 是**修复前**读数，
+> 它把 20921 条设计性丢弃混进了失败。修正后 `sound_failures=2`，丢弃按原因单列；实现与读数见
+> `docs/P3B-SOUND-ACCOUNTING-SPLIT-2026-11-16.md`。
+
 Evidence reused, not regenerated: the P3a capture under the host lock,
 `D:/_shared/EXEC-2026-11-15/INST4/p3a-n20/fx-84000.trace` (16,019,920 B), exe sha256
 `e61c7fd9e5dba5167463f493937b23be799c96bcdd35bee7e0970d747a3bb078`, demo sha256

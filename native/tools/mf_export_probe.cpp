@@ -1183,6 +1183,909 @@ std::string firstBytesHex(const std::string& pathUtf8, int count) {
   return text;
 }
 
+// ------------------------------------------------- task A: re-readable dumps
+//
+// WHY THIS SECTION EXISTS (N27 export a-priori; m06702 / m00700)
+//   "the probe can encode" is not the claim "each input reached the file". The
+//   claim is made checkable by giving every link its own on-disk artifact and a
+//   DIFFERENT mode that reads it back:
+//     --dump-inputs <dir>              frames.rgb24 + frames.txt + pcm.raw + pcm.txt
+//     --encode-dump <dir> --mp4 <file> READS those dumps back (verifies every frame
+//                                      sha256 and the pcm sha256) and encodes the
+//                                      artifact, so the encoder input is the dump
+//                                      and not a fresh synthFrame() call
+//     --decode <file> --dump-decoded <dir> [--expect-dump <dir>]
+//                                      decodes every video frame and every audio
+//                                      sample, writes decoded_frames.rgb24 /
+//                                      decoded_video.txt / decoded_audio.raw /
+//                                      decoded_audio.txt, re-reads what it wrote,
+//                                      and asserts counts against the source dump
+//     --normalize <in.mp4> <out.mp4>   independent step: zero the 10 container
+//                                      creation/modification fields (mvhd 2, each
+//                                      trak's tkhd 2 + mdia/mdhd 2) located by real
+//                                      box parsing and the box version byte, never
+//                                      by a fixed file offset
+//
+//   sha256 is implemented here so the probe can print per-artifact digests; the
+//   verify script cross-checks the whole-file digest against the system sha256sum,
+//   which is the independent control on this implementation.
+
+const int kFrameCount = 60;
+
+struct Sha256 {
+  uint32_t state[8];
+  uint64_t totalBytes;
+  uint8_t buffer[64];
+  size_t bufferSize;
+
+  Sha256() { reset(); }
+
+  void reset() {
+    static const uint32_t initial[8] = {0x6a09e667u, 0xbb67ae85u, 0x3c6ef372u, 0xa54ff53au,
+                                        0x510e527fu, 0x9b05688cu, 0x1f83d9abu, 0x5be0cd19u};
+    for (int index = 0; index < 8; ++index) state[index] = initial[index];
+    totalBytes = 0;
+    bufferSize = 0;
+  }
+
+  static uint32_t rotate(uint32_t value, int bits) { return (value >> bits) | (value << (32 - bits)); }
+
+  void compress(const uint8_t* block) {
+    static const uint32_t k[64] = {
+        0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u, 0x3956c25bu, 0x59f111f1u, 0x923f82a4u, 0xab1c5ed5u,
+        0xd807aa98u, 0x12835b01u, 0x243185beu, 0x550c7dc3u, 0x72be5d74u, 0x80deb1feu, 0x9bdc06a7u, 0xc19bf174u,
+        0xe49b69c1u, 0xefbe4786u, 0x0fc19dc6u, 0x240ca1ccu, 0x2de92c6fu, 0x4a7484aau, 0x5cb0a9dcu, 0x76f988dau,
+        0x983e5152u, 0xa831c66du, 0xb00327c8u, 0xbf597fc7u, 0xc6e00bf3u, 0xd5a79147u, 0x06ca6351u, 0x14292967u,
+        0x27b70a85u, 0x2e1b2138u, 0x4d2c6dfcu, 0x53380d13u, 0x650a7354u, 0x766a0abbu, 0x81c2c92eu, 0x92722c85u,
+        0xa2bfe8a1u, 0xa81a664bu, 0xc24b8b70u, 0xc76c51a3u, 0xd192e819u, 0xd6990624u, 0xf40e3585u, 0x106aa070u,
+        0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u, 0x391c0cb3u, 0x4ed8aa4au, 0x5b9cca4fu, 0x682e6ff3u,
+        0x748f82eeu, 0x78a5636fu, 0x84c87814u, 0x8cc70208u, 0x90befffau, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u};
+    uint32_t w[64];
+    for (int index = 0; index < 16; ++index) {
+      w[index] = (static_cast<uint32_t>(block[index * 4]) << 24) | (static_cast<uint32_t>(block[index * 4 + 1]) << 16) |
+                 (static_cast<uint32_t>(block[index * 4 + 2]) << 8) | static_cast<uint32_t>(block[index * 4 + 3]);
+    }
+    for (int index = 16; index < 64; ++index) {
+      const uint32_t s0 = rotate(w[index - 15], 7) ^ rotate(w[index - 15], 18) ^ (w[index - 15] >> 3);
+      const uint32_t s1 = rotate(w[index - 2], 17) ^ rotate(w[index - 2], 19) ^ (w[index - 2] >> 10);
+      w[index] = w[index - 16] + s0 + w[index - 7] + s1;
+    }
+    uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
+    uint32_t e = state[4], f = state[5], g = state[6], h = state[7];
+    for (int index = 0; index < 64; ++index) {
+      const uint32_t s1 = rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25);
+      const uint32_t ch = (e & f) ^ ((~e) & g);
+      const uint32_t t1 = h + s1 + ch + k[index] + w[index];
+      const uint32_t s0 = rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22);
+      const uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
+      const uint32_t t2 = s0 + maj;
+      h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+    }
+    state[0] += a; state[1] += b; state[2] += c; state[3] += d;
+    state[4] += e; state[5] += f; state[6] += g; state[7] += h;
+  }
+
+  void update(const void* data, size_t size) {
+    const uint8_t* bytes = static_cast<const uint8_t*>(data);
+    totalBytes += size;
+    while (size > 0) {
+      const size_t take = std::min(size, sizeof(buffer) - bufferSize);
+      std::memcpy(buffer + bufferSize, bytes, take);
+      bufferSize += take;
+      bytes += take;
+      size -= take;
+      if (bufferSize == sizeof(buffer)) {
+        compress(buffer);
+        bufferSize = 0;
+      }
+    }
+  }
+
+  std::string finish() {
+    const uint64_t bits = totalBytes * 8;
+    const uint8_t marker = 0x80;
+    update(&marker, 1);
+    const uint8_t zero = 0;
+    while (bufferSize != 56) update(&zero, 1);
+    uint8_t length[8];
+    for (int index = 0; index < 8; ++index) length[7 - index] = static_cast<uint8_t>((bits >> (8 * index)) & 0xFF);
+    update(length, 8);
+    char text[65];
+    for (int index = 0; index < 8; ++index) std::snprintf(text + index * 8, 9, "%08x", state[index]);
+    return std::string(text, 64);
+  }
+};
+
+std::string sha256Hex(const void* data, size_t size) {
+  Sha256 digest;
+  digest.update(data, size);
+  return digest.finish();
+}
+
+const char* yesNo(bool value) { return value ? "yes" : "no"; }
+
+uint32_t be32(const uint8_t* bytes) {
+  return (static_cast<uint32_t>(bytes[0]) << 24) | (static_cast<uint32_t>(bytes[1]) << 16) |
+         (static_cast<uint32_t>(bytes[2]) << 8) | static_cast<uint32_t>(bytes[3]);
+}
+
+uint64_t be64(const uint8_t* bytes) {
+  return (static_cast<uint64_t>(be32(bytes)) << 32) | static_cast<uint64_t>(be32(bytes + 4));
+}
+
+bool readFileAll(const std::string& path, std::vector<uint8_t>* data) {
+  FILE* file = std::fopen(path.c_str(), "rb");
+  if (file == nullptr) return false;
+  std::fseek(file, 0, SEEK_END);
+  const long size = std::ftell(file);
+  std::fseek(file, 0, SEEK_SET);
+  if (size < 0) { std::fclose(file); return false; }
+  data->assign(static_cast<size_t>(size), 0);
+  const size_t got = data->empty() ? 0 : std::fread(data->data(), 1, data->size(), file);
+  std::fclose(file);
+  return got == data->size();
+}
+
+bool writeFileAll(const std::string& path, const void* data, size_t size) {
+  FILE* file = std::fopen(path.c_str(), "wb");
+  if (file == nullptr) return false;
+  const size_t put = size == 0 ? 0 : std::fwrite(data, 1, size, file);
+  const bool closed = std::fclose(file) == 0;
+  return put == size && closed;
+}
+
+bool readTextFile(const std::string& path, std::string* text) {
+  std::vector<uint8_t> data;
+  if (!readFileAll(path, &data)) return false;
+  text->assign(data.begin(), data.end());
+  return true;
+}
+
+bool writeTextFile(const std::string& path, const std::string& text) {
+  return writeFileAll(path, text.data(), text.size());
+}
+
+std::vector<std::string> splitLines(const std::string& text) {
+  std::vector<std::string> lines;
+  size_t start = 0;
+  while (start < text.size()) {
+    size_t end = text.find('\n', start);
+    if (end == std::string::npos) end = text.size();
+    std::string line = text.substr(start, end - start);
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (!line.empty()) lines.push_back(line);
+    start = end + 1;
+  }
+  return lines;
+}
+
+bool readKey(const std::string& line, const char* key, std::string* value) {
+  const std::string prefix = std::string(key) + "=";
+  if (line.compare(0, prefix.size(), prefix) != 0) return false;
+  *value = line.substr(prefix.size());
+  return true;
+}
+
+struct FrameManifest {
+  int width = 0;
+  int height = 0;
+  int fps = 0;
+  int count = 0;
+  unsigned long long frameBytes = 0;
+  std::vector<std::string> hashes;
+};
+
+struct PcmManifest {
+  int sampleRate = 0;
+  int channels = 0;
+  int bits = 0;
+  unsigned long long frames = 0;
+  unsigned long long bytes = 0;
+  std::string hash;
+};
+
+bool loadFrameManifest(const std::string& path, FrameManifest* manifest) {
+  std::string text;
+  if (!readTextFile(path, &text)) return false;
+  int parsed = 0;
+  for (const std::string& line : splitLines(text)) {
+    std::string value;
+    if (readKey(line, "width", &value)) manifest->width = std::atoi(value.c_str());
+    else if (readKey(line, "height", &value)) manifest->height = std::atoi(value.c_str());
+    else if (readKey(line, "fps", &value)) manifest->fps = std::atoi(value.c_str());
+    else if (readKey(line, "count", &value)) manifest->count = std::atoi(value.c_str());
+    else if (readKey(line, "frame_bytes", &value)) manifest->frameBytes = static_cast<unsigned long long>(std::stoull(value));
+    else {
+      int index = -1;
+      char hex[128] = {0};
+      if (std::sscanf(line.c_str(), "frame %d sha256 %127s", &index, hex) == 2) {
+        if (index != parsed) return false;
+        manifest->hashes.push_back(std::string(hex));
+        ++parsed;
+      }
+    }
+  }
+  return manifest->count > 0 && static_cast<int>(manifest->hashes.size()) == manifest->count && manifest->frameBytes > 0;
+}
+
+bool loadPcmManifest(const std::string& path, PcmManifest* manifest) {
+  std::string text;
+  if (!readTextFile(path, &text)) return false;
+  for (const std::string& line : splitLines(text)) {
+    std::string value;
+    if (readKey(line, "sample_rate", &value)) manifest->sampleRate = std::atoi(value.c_str());
+    else if (readKey(line, "channels", &value)) manifest->channels = std::atoi(value.c_str());
+    else if (readKey(line, "bits", &value)) manifest->bits = std::atoi(value.c_str());
+    else if (readKey(line, "frames", &value)) manifest->frames = static_cast<unsigned long long>(std::stoull(value));
+    else if (readKey(line, "bytes", &value)) manifest->bytes = static_cast<unsigned long long>(std::stoull(value));
+    else if (readKey(line, "sha256", &value)) manifest->hash = value;
+  }
+  return manifest->sampleRate > 0 && manifest->channels > 0 && manifest->bits > 0 && manifest->frames > 0 &&
+         manifest->bytes > 0 && !manifest->hash.empty();
+}
+
+int dumpInputs(const std::string& dir) {
+  out("=== mf_export_probe: input dump (task A) ===\n");
+  out("mode=dump-inputs dir=%s\n", dir.c_str());
+  const std::string framesPath = dir + "/frames.rgb24";
+  const std::string pcmPath = dir + "/pcm.raw";
+  const unsigned long long frameBytes = static_cast<unsigned long long>(kWidth) * kHeight * 3;
+
+  FILE* frames = std::fopen(framesPath.c_str(), "wb");
+  if (frames == nullptr) {
+    out("[dump-inputs] cannot open %s for writing\n", framesPath.c_str());
+    return 6;
+  }
+  Sha256 framesSha;
+  std::string frameManifest = "format=rgb24-frames-v1\n";
+  frameManifest += "width=" + std::to_string(kWidth) + "\n";
+  frameManifest += "height=" + std::to_string(kHeight) + "\n";
+  frameManifest += "fps=" + std::to_string(kFps) + "\n";
+  frameManifest += "count=" + std::to_string(kFrameCount) + "\n";
+  frameManifest += "frame_bytes=" + std::to_string(frameBytes) + "\n";
+
+  Rgb24Frame frame;
+  bool framesWritten = true;
+  for (int index = 0; index < kFrameCount; ++index) {
+    synthFrame(index, &frame);
+    const size_t size = frame.pixels.size();
+    if (std::fwrite(frame.pixels.data(), 1, size, frames) != size) { framesWritten = false; break; }
+    framesSha.update(frame.pixels.data(), size);
+    frameManifest += "frame " + std::to_string(index) + " sha256 " + sha256Hex(frame.pixels.data(), size) + "\n";
+  }
+  const bool framesClosed = std::fclose(frames) == 0;
+
+  const std::vector<uint8_t> pcm = makeSinePcm(48000, 2, 16, 2.0);
+  const unsigned long long sampleFrames = pcm.size() / (2 * 2);
+  const std::string pcmDigest = sha256Hex(pcm.data(), pcm.size());
+  const bool pcmWritten = writeFileAll(pcmPath, pcm.data(), pcm.size());
+  const bool wavWritten = writeWav(dir + "/audio.wav", pcm, 48000, 2, 16);
+  std::string pcmManifest = "format=pcm-s16-v1\n";
+  pcmManifest += "sample_rate=48000\nchannels=2\nbits=16\n";
+  pcmManifest += "frames=" + std::to_string(sampleFrames) + "\n";
+  pcmManifest += "bytes=" + std::to_string(static_cast<unsigned long long>(pcm.size())) + "\n";
+  pcmManifest += "sha256=" + pcmDigest + "\n";
+
+  const bool frameManifestWritten = writeTextFile(dir + "/frames.txt", frameManifest);
+  const bool pcmManifestWritten = writeTextFile(dir + "/pcm.txt", pcmManifest);
+
+  out("[dump-inputs] frames=%d frameBytes=%llu framesFile=%s framesSha256=%s\n", kFrameCount, frameBytes,
+      framesPath.c_str(), framesSha.finish().c_str());
+  out("[dump-inputs] pcmSampleFrames=%llu pcmBytes=%zu pcmFile=%s pcmSha256=%s wavOk=%s\n", sampleFrames,
+      pcm.size(), pcmPath.c_str(), pcmDigest.c_str(), yesNo(wavWritten));
+  out("[dump-inputs] manifests frame_manifest=%s pcm_manifest=%s\n", yesNo(frameManifestWritten), yesNo(pcmManifestWritten));
+  out("[dump-inputs] ANSWER framesWritten=%s pcmWritten=%s (both are re-read by --encode-dump)\n",
+      yesNo(framesWritten && framesClosed && frameManifestWritten), yesNo(pcmWritten && pcmManifestWritten));
+  return (framesWritten && framesClosed && pcmWritten && wavWritten && frameManifestWritten && pcmManifestWritten) ? 0 : 6;
+}
+
+int encodeDump(const std::string& dir, const std::string& mp4Path) {
+  out("=== mf_export_probe: encode from dump (task A) ===\n");
+  out("mode=encode-dump dir=%s mp4=%s\n", dir.c_str(), mp4Path.c_str());
+
+  FrameManifest manifest;
+  PcmManifest pcmManifest;
+  if (!loadFrameManifest(dir + "/frames.txt", &manifest)) {
+    out("[encode-dump] cannot read or malformed %s/frames.txt\n", dir.c_str());
+    return 7;
+  }
+  if (!loadPcmManifest(dir + "/pcm.txt", &pcmManifest)) {
+    out("[encode-dump] cannot read or malformed %s/pcm.txt\n", dir.c_str());
+    return 7;
+  }
+
+  FILE* file = std::fopen((dir + "/frames.rgb24").c_str(), "rb");
+  if (file == nullptr) {
+    out("[encode-dump] cannot open %s/frames.rgb24\n", dir.c_str());
+    return 7;
+  }
+  std::vector<Rgb24Frame> frames(static_cast<size_t>(manifest.count));
+  std::vector<uint8_t> buffer(static_cast<size_t>(manifest.frameBytes));
+  int shaMatches = 0;
+  bool readOk = true;
+  for (int index = 0; index < manifest.count; ++index) {
+    if (std::fread(buffer.data(), 1, buffer.size(), file) != buffer.size()) { readOk = false; break; }
+    if (sha256Hex(buffer.data(), buffer.size()) == manifest.hashes[index]) ++shaMatches;
+    frames[index].pixels.assign(buffer.begin(), buffer.end());
+  }
+  std::fclose(file);
+
+  std::vector<uint8_t> pcm;
+  if (!readFileAll(dir + "/pcm.raw", &pcm)) {
+    out("[encode-dump] cannot read %s/pcm.raw\n", dir.c_str());
+    return 7;
+  }
+  const std::string pcmDigest = sha256Hex(pcm.data(), pcm.size());
+  const unsigned long long sampleFrames = pcm.size() / static_cast<size_t>(pcmManifest.channels * (pcmManifest.bits / 8));
+  const bool pcmShaMatch = pcmDigest == pcmManifest.hash && pcm.size() == pcmManifest.bytes;
+
+  out("[encode-dump] framesRead=%d frameShaMatches=%d frameBytes=%llu readOk=%s\n", static_cast<int>(frames.size()),
+      shaMatches, static_cast<unsigned long long>(manifest.frameBytes), yesNo(readOk));
+  out("[encode-dump] pcmBytes=%zu sampleFrames=%llu pcmShaMatch=%s manifestFrames=%llu\n", pcm.size(), sampleFrames,
+      yesNo(pcmShaMatch), pcmManifest.frames);
+
+  const HRESULT coHr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  const HRESULT mfHr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+  out("[encode-dump] CoInitializeEx hr=%s MFStartup hr=%s\n", hrStr(coHr).c_str(), hrStr(mfHr).c_str());
+  if (FAILED(mfHr)) return 3;
+
+  VideoShape shape;
+  const GUID inputSubtype = MFVideoFormat_RGB32;
+  const std::vector<Rgb24Frame>* table = &frames;
+  FrameProvider provider = [table](int index, Rgb24Frame* frame) -> bool {
+    if (index < 0 || index >= static_cast<int>(table->size())) return false;
+    *frame = (*table)[static_cast<size_t>(index)];
+    return true;
+  };
+  const EncodeStats stats = encodeToFile(mp4Path, shape, inputSubtype, manifest.count, &pcm, pcmManifest.sampleRate,
+                                         pcmManifest.channels, pcmManifest.bits, provider, true);
+  out("[encode-dump] writerCreate hr=%s videoAdd hr=%s videoInput hr=%s audioAdd hr=%s audioInput hr=%s finalize hr=%s\n",
+      hrStr(stats.writerHr).c_str(), hrStr(stats.videoAddHr).c_str(), hrStr(stats.videoInputHr).c_str(),
+      hrStr(stats.audioAddHr).c_str(), hrStr(stats.audioInputHr).c_str(), hrStr(stats.finalizeHr).c_str());
+  out("[encode-dump] videoSamplesWritten=%d audioSamplesWritten=%d bytes=%llu elapsed=%lldms failure=%s\n",
+      stats.videoSamplesWritten, stats.audioSamplesWritten, stats.bytes, stats.totalMs,
+      stats.failure.empty() ? "<none>" : stats.failure.c_str());
+
+  MFShutdown();
+  CoUninitialize();
+
+  const bool ok = readOk && shaMatches == manifest.count && pcmShaMatch && stats.failure.empty() &&
+                  stats.videoSamplesWritten == manifest.count;
+  out("[encode-dump] ASSERT framesReadMatch=%s (%d==%d) frameShaAllMatch=%s (%d/%d) pcmShaMatch=%s videoSamplesWrittenMatch=%s\n",
+      yesNo(readOk && static_cast<int>(frames.size()) == manifest.count), static_cast<int>(frames.size()), manifest.count,
+      yesNo(shaMatches == manifest.count), shaMatches, manifest.count, yesNo(pcmShaMatch),
+      yesNo(stats.videoSamplesWritten == manifest.count));
+  out("[encode-dump] ANSWER encodedFromArtifact=%s file=%s\n", yesNo(ok), mp4Path.c_str());
+  return ok ? 0 : 7;
+}
+
+void nv12ToRgb24(const uint8_t* data, unsigned long length, int stride, UINT32 width, UINT32 height,
+                 std::vector<uint8_t>* rgb) {
+  rgb->assign(static_cast<size_t>(width) * height * 3, 0);
+  const size_t rowStride = stride > 0 ? static_cast<size_t>(stride) : static_cast<size_t>(width);
+  const size_t lumaSize = rowStride * height;
+  if (length < lumaSize + rowStride * (height / 2)) return;
+  const uint8_t* luma = data;
+  const uint8_t* chroma = data + lumaSize;
+  for (UINT32 y = 0; y < height; ++y) {
+    const uint8_t* lumaRow = luma + static_cast<size_t>(y) * rowStride;
+    const uint8_t* chromaRow = chroma + static_cast<size_t>(y / 2) * rowStride;
+    uint8_t* target = rgb->data() + static_cast<size_t>(y) * width * 3;
+    for (UINT32 x = 0; x < width; ++x) {
+      const int lumaValue = lumaRow[x];
+      const int u = static_cast<int>(chromaRow[(x / 2) * 2 + 0]) - 128;
+      const int v = static_cast<int>(chromaRow[(x / 2) * 2 + 1]) - 128;
+      const double yv = (lumaValue - 16) * 255.0 / 219.0;
+      const double cb = u * 255.0 / 224.0;
+      const double cr = v * 255.0 / 224.0;
+      const double r = yv + 1.5748 * cr;
+      const double b = yv + 1.8556 * cb;
+      const double g = (yv - 0.2126 * r - 0.0722 * b) / 0.7152;
+      target[x * 3 + 0] = clampByte(static_cast<int>(std::lround(r)));
+      target[x * 3 + 1] = clampByte(static_cast<int>(std::lround(g)));
+      target[x * 3 + 2] = clampByte(static_cast<int>(std::lround(b)));
+    }
+  }
+}
+
+int decodeDump(const std::string& mp4Path, const std::string& outDir, const std::string& expectDir) {
+  out("=== mf_export_probe: decode read-back (task A) ===\n");
+  out("mode=decode mp4=%s outDir=%s expectDump=%s\n", mp4Path.c_str(), outDir.c_str(),
+      expectDir.empty() ? "<none>" : expectDir.c_str());
+
+  FrameManifest source;
+  PcmManifest sourcePcm;
+  const bool haveSource = !expectDir.empty();
+  if (haveSource) {
+    if (!loadFrameManifest(expectDir + "/frames.txt", &source)) {
+      out("[decode] cannot read %s/frames.txt\n", expectDir.c_str());
+      return 8;
+    }
+    if (!loadPcmManifest(expectDir + "/pcm.txt", &sourcePcm)) {
+      out("[decode] cannot read %s/pcm.txt\n", expectDir.c_str());
+      return 8;
+    }
+    out("[decode] source frames=%d frameBytes=%llu sampleFrames=%llu\n", source.count,
+        static_cast<unsigned long long>(source.frameBytes), sourcePcm.frames);
+  }
+
+  const HRESULT coHr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  const HRESULT mfHr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+  out("[decode] CoInitializeEx hr=%s MFStartup hr=%s\n", hrStr(coHr).c_str(), hrStr(mfHr).c_str());
+  if (FAILED(mfHr)) return 3;
+
+  IMFSourceReader* reader = nullptr;
+  const HRESULT createHr = MFCreateSourceReaderFromURL(utf8ToWide(mp4Path).c_str(), nullptr, &reader);
+  out("[decode] MFCreateSourceReaderFromURL hr=%s\n", hrStr(createHr).c_str());
+  if (FAILED(createHr) || reader == nullptr) { MFShutdown(); CoUninitialize(); return 8; }
+
+  int videoIndex = -1;
+  int audioIndex = -1;
+  for (DWORD index = 0; index < 16; ++index) {
+    IMFMediaType* native = nullptr;
+    const HRESULT nativeHr = reader->GetNativeMediaType(index, 0, &native);
+    if (FAILED(nativeHr)) break;
+    GUID major{};
+    native->GetGUID(MF_MT_MAJOR_TYPE, &major);
+    if (major == MFMediaType_Video && videoIndex < 0) videoIndex = static_cast<int>(index);
+    if (major == MFMediaType_Audio && audioIndex < 0) audioIndex = static_cast<int>(index);
+    rel(native);
+  }
+  out("[decode] streams: videoStream=%d audioStream=%d\n", videoIndex, audioIndex);
+
+  // ------------------------------------------------------------------ video
+  int decodedFrames = 0;
+  int artifactMismatches = 0;
+  bool artifactReadback = false;
+  double sumMeanAbsDiff = 0.0;
+  double maxMeanAbsDiff = 0.0;
+  LONGLONG videoFirstTs = 0;
+  LONGLONG videoLastTs = 0;
+  HRESULT videoDecodeHr = S_OK;
+  std::vector<std::string> frameHashes;
+  const std::string decodedFramesPath = outDir + "/decoded_frames.rgb24";
+  FILE* decodedFile = std::fopen(decodedFramesPath.c_str(), "wb");
+  std::vector<uint8_t> rgb;
+  std::vector<uint8_t> sourceFrame;
+  FILE* sourceFile = nullptr;
+  if (decodedFile == nullptr) out("[decode] cannot open %s for writing\n", decodedFramesPath.c_str());
+  if (haveSource) {
+    sourceFile = std::fopen((expectDir + "/frames.rgb24").c_str(), "rb");
+    if (sourceFile == nullptr) out("[decode] cannot open %s/frames.rgb24\n", expectDir.c_str());
+  }
+
+  if (videoIndex >= 0 && decodedFile != nullptr) {
+    reader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
+    reader->SetStreamSelection(static_cast<DWORD>(videoIndex), TRUE);
+    IMFMediaType* requested = nullptr;
+    HRESULT typeHr = E_FAIL;
+    if (SUCCEEDED(MFCreateMediaType(&requested)) && requested != nullptr) {
+      requested->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+      requested->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+      typeHr = reader->SetCurrentMediaType(static_cast<DWORD>(videoIndex), nullptr, requested);
+      rel(requested);
+    }
+    out("[decode] SetCurrentMediaType(video, NV12) hr=%s\n", hrStr(typeHr).c_str());
+    int stride = static_cast<int>(kWidth);
+    IMFMediaType* current = nullptr;
+    if (SUCCEEDED(reader->GetCurrentMediaType(static_cast<DWORD>(videoIndex), &current)) && current != nullptr) {
+      UINT32 strideValue = 0;
+      if (SUCCEEDED(current->GetUINT32(MF_MT_DEFAULT_STRIDE, &strideValue)) && strideValue != 0)
+        stride = static_cast<int>(strideValue);
+      rel(current);
+    }
+    out("[decode] video stride=%d\n", stride);
+
+    while (true) {
+      DWORD actualStream = 0;
+      DWORD flags = 0;
+      LONGLONG timestamp = 0;
+      IMFSample* sample = nullptr;
+      const HRESULT readHr = reader->ReadSample(static_cast<DWORD>(videoIndex), 0, &actualStream, &flags, &timestamp, &sample);
+      if (FAILED(readHr)) {
+        videoDecodeHr = readHr;
+        out("[decode] video ReadSample hr=%s after %d frames\n", hrStr(readHr).c_str(), decodedFrames);
+        rel(sample);
+        break;
+      }
+      const bool end = (flags & MF_SOURCE_READERF_ENDOFSTREAM) != 0;
+      if (!end && sample != nullptr && (flags & MF_SOURCE_READERF_STREAMTICK) == 0) {
+        IMFMediaBuffer* buffer = nullptr;
+        if (SUCCEEDED(sample->ConvertToContiguousBuffer(&buffer)) && buffer != nullptr) {
+          BYTE* bytes = nullptr;
+          DWORD length = 0;
+          if (SUCCEEDED(buffer->Lock(&bytes, nullptr, &length))) {
+            nv12ToRgb24(bytes, length, stride, kWidth, kHeight, &rgb);
+            buffer->Unlock();
+            frameHashes.push_back(sha256Hex(rgb.data(), rgb.size()));
+            if (std::fwrite(rgb.data(), 1, rgb.size(), decodedFile) != rgb.size())
+              out("[decode] short write at frame %d\n", decodedFrames);
+            if (sourceFile != nullptr) {
+              if (sourceFrame.empty()) sourceFrame.assign(static_cast<size_t>(kWidth) * kHeight * 3, 0);
+              if (std::fread(sourceFrame.data(), 1, sourceFrame.size(), sourceFile) == sourceFrame.size()) {
+                unsigned long long diff = 0;
+                for (size_t i = 0; i < sourceFrame.size(); ++i)
+                  diff += static_cast<unsigned long long>(std::abs(static_cast<int>(rgb[i]) - static_cast<int>(sourceFrame[i])));
+                const double mean = static_cast<double>(diff) / static_cast<double>(sourceFrame.size());
+                sumMeanAbsDiff += mean;
+                if (mean > maxMeanAbsDiff) maxMeanAbsDiff = mean;
+              }
+            }
+            if (decodedFrames == 0) videoFirstTs = timestamp;
+            videoLastTs = timestamp;
+            ++decodedFrames;
+          }
+          rel(buffer);
+        }
+      }
+      rel(sample);
+      if (end) break;
+    }
+    std::fclose(decodedFile);
+    if (sourceFile != nullptr) std::fclose(sourceFile);
+
+    // re-read the artifact this mode just wrote
+    FILE* reread = std::fopen(decodedFramesPath.c_str(), "rb");
+    if (reread != nullptr) {
+      std::vector<uint8_t> check(static_cast<size_t>(kWidth) * kHeight * 3);
+      int index = 0;
+      while (index < static_cast<int>(frameHashes.size()) &&
+             std::fread(check.data(), 1, check.size(), reread) == check.size()) {
+        if (sha256Hex(check.data(), check.size()) != frameHashes[static_cast<size_t>(index)]) ++artifactMismatches;
+        ++index;
+      }
+      std::fclose(reread);
+      artifactReadback = index == static_cast<int>(frameHashes.size()) && artifactMismatches == 0;
+    }
+    std::string frameManifest = "format=decoded-frames-v1\n";
+    frameManifest += "width=" + std::to_string(kWidth) + "\n";
+    frameManifest += "height=" + std::to_string(kHeight) + "\n";
+    frameManifest += "count=" + std::to_string(decodedFrames) + "\n";
+    frameManifest += "frame_bytes=" + std::to_string(static_cast<unsigned long long>(kWidth) * kHeight * 3) + "\n";
+    for (size_t index = 0; index < frameHashes.size(); ++index)
+      frameManifest += "frame " + std::to_string(index) + " sha256 " + frameHashes[index] + "\n";
+    writeTextFile(outDir + "/decoded_video.txt", frameManifest);
+  } else {
+    if (decodedFile != nullptr) std::fclose(decodedFile);
+    if (sourceFile != nullptr) std::fclose(sourceFile);
+  }
+
+  // ------------------------------------------------------------------ audio
+  std::vector<uint8_t> decodedAudio;
+  LONGLONG audioFirstTs = 0;
+  LONGLONG audioLastTs = 0;
+  int audioReadCount = 0;
+  HRESULT audioDecodeHr = S_OK;
+  HRESULT audioTypeHr = E_FAIL;
+  // The video pass above drained the first reader to EOS, so audio needs its own reader at position 0.
+  IMFSourceReader* audioReader = nullptr;
+  HRESULT audioReaderHr = E_FAIL;
+  if (audioIndex >= 0) {
+    audioReaderHr = MFCreateSourceReaderFromURL(utf8ToWide(mp4Path).c_str(), nullptr, &audioReader);
+    if (SUCCEEDED(audioReaderHr) && audioReader != nullptr) {
+      audioReader->SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS, FALSE);
+      audioReader->SetStreamSelection(static_cast<DWORD>(audioIndex), TRUE);
+    }
+    out("[decode] audio reader hr=%s stream=%d\n", hrStr(audioReaderHr).c_str(), audioIndex);
+    IMFMediaType* pcmType = nullptr;
+    if (SUCCEEDED(MFCreateMediaType(&pcmType)) && pcmType != nullptr) {
+      pcmType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+      pcmType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+      audioTypeHr = audioReader != nullptr
+                        ? audioReader->SetCurrentMediaType(static_cast<DWORD>(audioIndex), nullptr, pcmType)
+                        : E_POINTER;
+      rel(pcmType);
+    }
+    if (FAILED(audioTypeHr) && audioReader != nullptr) {
+      IMFMediaType* detailed = nullptr;
+      if (SUCCEEDED(MFCreateMediaType(&detailed)) && detailed != nullptr) {
+        detailed->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+        detailed->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+        detailed->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2);
+        detailed->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 48000);
+        detailed->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+        detailed->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 4);
+        detailed->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 192000);
+        audioTypeHr = audioReader != nullptr
+                          ? audioReader->SetCurrentMediaType(static_cast<DWORD>(audioIndex), nullptr, detailed)
+                          : E_POINTER;
+        rel(detailed);
+      }
+    }
+    out("[decode] SetCurrentMediaType(audio, PCM 48k stereo 16-bit) hr=%s\n", hrStr(audioTypeHr).c_str());
+    if (SUCCEEDED(audioTypeHr)) {
+      while (true) {
+        DWORD actualStream = 0;
+        DWORD flags = 0;
+        LONGLONG timestamp = 0;
+        IMFSample* sample = nullptr;
+        const HRESULT readHr = audioReader != nullptr
+                                   ? audioReader->ReadSample(static_cast<DWORD>(audioIndex), 0, &actualStream, &flags,
+                                                             &timestamp, &sample)
+                                   : E_POINTER;
+        if (FAILED(readHr)) {
+          audioDecodeHr = readHr;
+          out("[decode] audio ReadSample hr=%s after %d samples\n", hrStr(readHr).c_str(), audioReadCount);
+          rel(sample);
+          break;
+        }
+        const bool end = (flags & MF_SOURCE_READERF_ENDOFSTREAM) != 0;
+        if (!end && sample != nullptr && (flags & MF_SOURCE_READERF_STREAMTICK) == 0) {
+          IMFMediaBuffer* buffer = nullptr;
+          if (SUCCEEDED(sample->ConvertToContiguousBuffer(&buffer)) && buffer != nullptr) {
+            BYTE* bytes = nullptr;
+            DWORD length = 0;
+            if (SUCCEEDED(buffer->Lock(&bytes, nullptr, &length))) {
+              decodedAudio.insert(decodedAudio.end(), bytes, bytes + length);
+              buffer->Unlock();
+              if (audioReadCount == 0) audioFirstTs = timestamp;
+              audioLastTs = timestamp;
+              ++audioReadCount;
+            }
+            rel(buffer);
+          }
+        }
+        rel(sample);
+        if (end) break;
+      }
+    }
+  }
+  rel(audioReader);
+  rel(reader);
+
+  const unsigned long long decodedSampleFrames = decodedAudio.size() / 4;
+  const std::string audioDigest = sha256Hex(decodedAudio.data(), decodedAudio.size());
+  const bool audioWritten = writeFileAll(outDir + "/decoded_audio.raw", decodedAudio.data(), decodedAudio.size());
+  std::string audioManifest = "format=decoded-pcm-s16-v1\n";
+  audioManifest += "sample_rate=48000\nchannels=2\nbits=16\n";
+  audioManifest += "frames=" + std::to_string(decodedSampleFrames) + "\n";
+  audioManifest += "bytes=" + std::to_string(static_cast<unsigned long long>(decodedAudio.size())) + "\n";
+  audioManifest += "sha256=" + audioDigest + "\n";
+  const bool audioManifestWritten = writeTextFile(outDir + "/decoded_audio.txt", audioManifest);
+  std::vector<uint8_t> audioReread;
+  const bool audioRereadable = readFileAll(outDir + "/decoded_audio.raw", &audioReread) &&
+                               sha256Hex(audioReread.data(), audioReread.size()) == audioDigest;
+
+  const bool videoCountMatch = haveSource ? decodedFrames == source.count : decodedFrames > 0;
+  const long long audioDelta = static_cast<long long>(decodedSampleFrames) -
+                               static_cast<long long>(haveSource ? sourcePcm.frames : decodedSampleFrames);
+  const long long audioAbsDelta = audioDelta < 0 ? -audioDelta : audioDelta;
+  const bool audioCountMatch =
+      haveSource ? (decodedSampleFrames > 0 && audioAbsDelta <= 2048) : decodedSampleFrames > 0;
+
+  // AAC is lossy, so decoded PCM can never be byte-identical to the source; compare sample magnitudes.
+  double pcmMeanAbsDiff = 0.0;
+  int pcmMaxAbsDiff = 0;
+  unsigned long long pcmComparedFrames = 0;
+  if (haveSource) {
+    std::vector<uint8_t> sourcePcmBytes;
+    if (readFileAll(expectDir + "/pcm.raw", &sourcePcmBytes) && sourcePcmBytes.size() >= 4 &&
+        decodedAudio.size() >= 4) {
+      const size_t samples =
+          (sourcePcmBytes.size() < decodedAudio.size() ? sourcePcmBytes.size() : decodedAudio.size()) / 2;
+      const int16_t* sourceSamples = reinterpret_cast<const int16_t*>(sourcePcmBytes.data());
+      const int16_t* decodedSamples = reinterpret_cast<const int16_t*>(decodedAudio.data());
+      unsigned long long diffSum = 0;
+      for (size_t index = 0; index < samples; ++index) {
+        const int diff = std::abs(static_cast<int>(sourceSamples[index]) - static_cast<int>(decodedSamples[index]));
+        diffSum += static_cast<unsigned long long>(diff);
+        if (diff > pcmMaxAbsDiff) pcmMaxAbsDiff = diff;
+      }
+      pcmComparedFrames = static_cast<unsigned long long>(samples / 2);
+      pcmMeanAbsDiff = samples == 0 ? 0.0 : static_cast<double>(diffSum) / static_cast<double>(samples);
+    }
+  }
+  const bool pcmSimilar = haveSource ? (pcmComparedFrames > 0 && pcmMeanAbsDiff <= 600.0) : decodedSampleFrames > 0;
+
+  out("[decode] video frames=%d firstTs=%lld lastTs=%lld decodeHr=%s\n", decodedFrames,
+      static_cast<long long>(videoFirstTs), static_cast<long long>(videoLastTs), hrStr(videoDecodeHr).c_str());
+  out("[decode] audio samples=%d bytes=%zu sampleFrames=%llu firstTs=%lld lastTs=%lld decodeHr=%s\n",
+      audioReadCount, decodedAudio.size(), decodedSampleFrames, static_cast<long long>(audioFirstTs),
+      static_cast<long long>(audioLastTs), hrStr(audioDecodeHr).c_str());
+  out("[decode] pcmCompare frames=%llu meanAbsDiff=%.3f maxAbsDiff=%d decodedSha=%s sourceSha=%s lossy=true\n",
+      pcmComparedFrames, pcmMeanAbsDiff, pcmMaxAbsDiff, audioDigest.c_str(),
+      haveSource ? sourcePcm.hash.c_str() : "<none>");
+  out("[decode] artifacts decoded_frames=%s decoded_audio=%s decoded_audio_manifest=%s video_manifest=%s\n",
+      decodedFramesPath.c_str(), yesNo(audioWritten), yesNo(audioManifestWritten), yesNo(artifactReadback));
+  out("[decode] ASSERT videoFramesMatch=%s (decoded=%d source=%d)\n", yesNo(videoCountMatch), decodedFrames,
+      haveSource ? source.count : -1);
+  out("[decode] ASSERT audioSamplesMatch=%s (decoded=%llu source=%llu delta=%lld tolerance=2048)\n",
+      yesNo(audioCountMatch), decodedSampleFrames, haveSource ? sourcePcm.frames : 0, audioDelta);
+  out("[decode] ASSERT pcmSimilar=%s (meanAbsDiff=%.3f threshold=600)\n", yesNo(pcmSimilar), pcmMeanAbsDiff);
+  out("[decode] videoMeanAbsDiff=%.3f maxFrameMeanAbsDiff=%.3f artifactReadback=%s audioRereadable=%s\n",
+      decodedFrames > 0 ? sumMeanAbsDiff / decodedFrames : 0.0, maxMeanAbsDiff, yesNo(artifactReadback),
+      yesNo(audioRereadable));
+  const bool ok = videoIndex >= 0 && audioIndex >= 0 && decodedFrames > 0 && audioWritten && artifactReadback &&
+                  audioRereadable && videoCountMatch && audioCountMatch && pcmSimilar;
+  out("[decode] ANSWER videoFramesMatch=%s audioSamplesMatch=%s pcmSimilar=%s artifactReadback=%s\n",
+      yesNo(videoCountMatch), yesNo(audioCountMatch), yesNo(pcmSimilar), yesNo(artifactReadback));
+  MFShutdown();
+  CoUninitialize();
+  return ok ? 0 : 7;
+}
+
+// ------------------------------------------------- container timestamps (task A)
+
+struct Mp4Box {
+  size_t offset = 0;
+  unsigned long long size = 0;
+  std::string type;
+};
+
+bool parseMp4Boxes(const std::vector<uint8_t>& data, size_t begin, size_t end, std::vector<Mp4Box>* boxes,
+                   std::string* error) {
+  size_t position = begin;
+  while (position + 8 <= end) {
+    Mp4Box box;
+    box.offset = position;
+    const uint32_t size32 = be32(&data[position]);
+    box.type.assign(reinterpret_cast<const char*>(&data[position + 4]), 4);
+    unsigned long long header = 8;
+    if (size32 == 1) {
+      if (position + 16 > end) { *error = "truncated 64-bit box header"; return false; }
+      box.size = be64(&data[position + 8]);
+      header = 16;
+    } else if (size32 == 0) {
+      box.size = end - position;
+    } else {
+      box.size = size32;
+    }
+    if (box.size < header || position + box.size > end) {
+      *error = "box size out of range for type " + box.type;
+      return false;
+    }
+    boxes->push_back(box);
+    position += static_cast<size_t>(box.size);
+  }
+  return true;
+}
+
+struct TimestampField {
+  std::string path;
+  std::string type;
+  int version = 0;
+  int width = 0;
+  size_t creationOffset = 0;
+  size_t modificationOffset = 0;
+  unsigned long long oldCreation = 0;
+  unsigned long long oldModification = 0;
+};
+
+int normalizeMp4(const std::string& inPath, const std::string& outPath) {
+  out("=== mf_export_probe: container timestamp normalization (task A) ===\n");
+  std::vector<uint8_t> data;
+  if (!readFileAll(inPath, &data)) {
+    out("[normalize] cannot read %s\n", inPath.c_str());
+    return 9;
+  }
+  const std::string inputDigest = sha256Hex(data.data(), data.size());
+  const size_t originalSize = data.size();
+  std::string error;
+  std::vector<Mp4Box> top;
+  if (!parseMp4Boxes(data, 0, data.size(), &top, &error)) {
+    out("[normalize] top-level parse failed: %s\n", error.c_str());
+    return 9;
+  }
+  size_t moovOffset = 0;
+  bool haveMoov = false;
+  for (const Mp4Box& box : top) {
+    out("[normalize] topLevel type=%s offset=%zu size=%llu\n", box.type.c_str(), box.offset, box.size);
+    if (box.type == "moov") { moovOffset = box.offset; haveMoov = true; }
+  }
+  if (!haveMoov) {
+    out("[normalize] no moov box found -- nothing to normalize\n");
+    return 9;
+  }
+
+  std::vector<TimestampField> fields;
+  auto zeroTimes = [&data, &fields](const Mp4Box& box, const std::string& path) -> bool {
+    if (box.size < 12) return false;
+    const size_t base = box.offset + 8;
+    TimestampField field;
+    field.path = path;
+    field.type = box.type;
+    field.version = static_cast<int>(data[base]);
+    size_t creationOffset = 0;
+    size_t modificationOffset = 0;
+    if (field.version == 0) {
+      creationOffset = base + 4;
+      modificationOffset = base + 8;
+      field.width = 4;
+    } else if (field.version == 1) {
+      creationOffset = base + 4;
+      modificationOffset = base + 12;
+      field.width = 8;
+    } else {
+      out("[normalize] UNKNOWN version=%d for %s (not zeroed)\n", field.version, path.c_str());
+      return false;
+    }
+    if (box.offset + box.size < modificationOffset + static_cast<size_t>(field.width)) {
+      out("[normalize] box %s declares size=%llu but the timestamp fields fall outside it\n", path.c_str(), box.size);
+      return false;
+    }
+    field.creationOffset = creationOffset;
+    field.modificationOffset = modificationOffset;
+    field.oldCreation = field.width == 4 ? static_cast<unsigned long long>(be32(&data[creationOffset]))
+                                         : be64(&data[creationOffset]);
+    field.oldModification = field.width == 4 ? static_cast<unsigned long long>(be32(&data[modificationOffset]))
+                                             : be64(&data[modificationOffset]);
+    for (int index = 0; index < field.width; ++index) {
+      data[creationOffset + index] = 0;
+      data[modificationOffset + index] = 0;
+    }
+    out("[normalize] field path=%s type=%s version=%d width=%d creation_offset=%zu old_creation=%llu modification_offset=%zu old_modification=%llu\n",
+        path.c_str(), field.type.c_str(), field.version, field.width, field.creationOffset, field.oldCreation,
+        field.modificationOffset, field.oldModification);
+    fields.push_back(field);
+    return true;
+  };
+
+  std::vector<Mp4Box> moovChildren;
+  if (!parseMp4Boxes(data, moovOffset + 8, moovOffset + static_cast<size_t>(0) + [&]() {
+        for (const Mp4Box& box : top) if (box.offset == moovOffset) return static_cast<size_t>(box.size);
+        return static_cast<size_t>(0);
+      }(), &moovChildren, &error)) {
+    out("[normalize] moov parse failed: %s\n", error.c_str());
+    return 9;
+  }
+  int trakIndex = 0;
+  for (const Mp4Box& child : moovChildren) {
+    if (child.type == "mvhd") {
+      zeroTimes(child, "moov/mvhd");
+    } else if (child.type == "trak") {
+      std::vector<Mp4Box> trakChildren;
+      if (!parseMp4Boxes(data, child.offset + 8, child.offset + static_cast<size_t>(child.size), &trakChildren, &error)) {
+        out("[normalize] trak[%d] parse failed: %s\n", trakIndex, error.c_str());
+        return 9;
+      }
+      for (const Mp4Box& trakChild : trakChildren) {
+        if (trakChild.type == "tkhd")
+          zeroTimes(trakChild, "moov/trak[" + std::to_string(trakIndex) + "]/tkhd");
+        else if (trakChild.type == "mdia") {
+          std::vector<Mp4Box> mdiaChildren;
+          if (!parseMp4Boxes(data, trakChild.offset + 8, trakChild.offset + static_cast<size_t>(trakChild.size),
+                             &mdiaChildren, &error)) {
+            out("[normalize] trak[%d]/mdia parse failed: %s\n", trakIndex, error.c_str());
+            return 9;
+          }
+          for (const Mp4Box& mdiaChild : mdiaChildren)
+            if (mdiaChild.type == "mdhd")
+              zeroTimes(mdiaChild, "moov/trak[" + std::to_string(trakIndex) + "]/mdia/mdhd");
+        }
+      }
+      ++trakIndex;
+    }
+  }
+
+  if (fields.empty()) {
+    out("[normalize] no timestamp fields located -- refusing to write an identical file as if it were normalized\n");
+    return 9;
+  }
+  const bool written = writeFileAll(outPath, data.data(), data.size());
+  out("[normalize] input=%s sha256=%s size=%zu\n", inPath.c_str(), inputDigest.c_str(), originalSize);
+  out("[normalize] output=%s written=%s size=%zu\n", outPath.c_str(), yesNo(written), data.size());
+
+  std::vector<uint8_t> verify;
+  int nonzero = 0;
+  const bool reread = readFileAll(outPath, &verify);
+  if (reread) {
+    for (const TimestampField& field : fields) {
+      bool dirty = false;
+      for (int index = 0; index < field.width; ++index)
+        if (verify[field.creationOffset + index] != 0 || verify[field.modificationOffset + index] != 0) dirty = true;
+      if (dirty) ++nonzero;
+    }
+  }
+  const std::string outputDigest = reread ? sha256Hex(verify.data(), verify.size()) : std::string("<reread-failed>");
+  unsigned long long bytesZeroed = 0;
+  for (const TimestampField& field : fields) bytesZeroed += static_cast<unsigned long long>(field.width) * 2;
+  out("[normalize] output sha256=%s size_unchanged=%s verify_nonzero_fields=%d\n", outputDigest.c_str(),
+      yesNo(reread && verify.size() == originalSize), nonzero);
+  out("[normalize] ANSWER fieldsZeroed=%zu bytesZeroed=%llu traks=%d artifactReadback=%s\n", fields.size(),
+      bytesZeroed, trakIndex, yesNo(reread && nonzero == 0 && verify.size() == originalSize));
+  return written && reread && nonzero == 0 && verify.size() == originalSize ? 0 : 9;
+}
+
 // ----------------------------------------------------------------------- modes
 
 int runProbe(const std::string& outDir) {
@@ -1460,6 +2363,13 @@ int main(int argc, char** argv) {
   std::string outDir = ".";
   std::string inputsDir;
   std::string fromDiskOut;
+  std::string dumpInputsDir;
+  std::string encodeDumpDir;
+  std::string mp4Path;
+  std::string decodeDir;
+  std::string expectDir;
+  std::string normalizeIn;
+  std::string normalizeOut;
   for (int index = 1; index < argc; ++index) {
     const std::string argument = argv[index];
     const bool hasValue = index + 1 < argc;
@@ -1473,6 +2383,25 @@ int main(int argc, char** argv) {
       inputsDir = argv[++index];
     } else if (argument == "--from-disk-out" && hasValue) {
       fromDiskOut = argv[++index];
+    } else if (argument == "--dump-inputs" && hasValue) {
+      mode = "dumpinputs";
+      dumpInputsDir = argv[++index];
+    } else if (argument == "--encode-dump" && hasValue) {
+      mode = "encodedump";
+      encodeDumpDir = argv[++index];
+    } else if (argument == "--mp4" && hasValue) {
+      mp4Path = argv[++index];
+    } else if (argument == "--decode" && hasValue) {
+      mode = "decode";
+      mp4Path = argv[++index];
+    } else if (argument == "--dump-decoded" && hasValue) {
+      decodeDir = argv[++index];
+    } else if (argument == "--expect-dump" && hasValue) {
+      expectDir = argv[++index];
+    } else if (argument == "--normalize" && index + 2 < argc) {
+      mode = "normalize";
+      normalizeIn = argv[++index];
+      normalizeOut = argv[++index];
     } else if (argument == "--help") {
       std::printf("usage: mf_export_probe --out <dir> | --emit-inputs <dir> | --encode-from-disk <dir> --from-disk-out <file>\n");
       return 0;
@@ -1481,7 +2410,7 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  if (mode != "emit") {
+  if (mode == "probe") {
     const std::string logPath = outDir + "/probe.log";
     g_log = std::fopen(logPath.c_str(), "wb");
   }
@@ -1490,6 +2419,24 @@ int main(int argc, char** argv) {
     result = emitInputs(inputsDir);
   } else if (mode == "disk") {
     result = encodeFromDisk(inputsDir, fromDiskOut);
+  } else if (mode == "dumpinputs") {
+    result = dumpInputs(dumpInputsDir);
+  } else if (mode == "encodedump") {
+    if (mp4Path.empty()) {
+      std::printf("--encode-dump needs --mp4 <file>\n");
+      result = 2;
+    } else {
+      result = encodeDump(encodeDumpDir, mp4Path);
+    }
+  } else if (mode == "decode") {
+    if (mp4Path.empty() || decodeDir.empty()) {
+      std::printf("--decode needs --dump-decoded <dir>\n");
+      result = 2;
+    } else {
+      result = decodeDump(mp4Path, decodeDir, expectDir);
+    }
+  } else if (mode == "normalize") {
+    result = normalizeMp4(normalizeIn, normalizeOut);
   } else {
     result = runProbe(outDir);
   }

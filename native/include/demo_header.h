@@ -814,9 +814,23 @@ struct DemoNetworkSummary {
   std::size_t soundEventCount = 0;
   std::size_t reliableSoundCount = 0;
   std::size_t soundPayloadBits = 0;
+  // P3b/N21 (task B): why a sound message was not captured into rawSoundMessages. The
+  // budgets themselves (64 KiB payload, 4096 messages) are unchanged; naming the reason is
+  // what lets a designed drop be counted apart from a decode failure.
+  // PayloadTooLarge is currently unreachable (payloadBits <= 65535, see demo_header_sound.cpp);
+  // MessageCap is the budget that actually fires on the corpus. Both are named so a future wire
+  // change stays countable instead of silently collapsing into "failure".
+  enum class SoundDropReason { PayloadTooLarge, MessageCap };
   std::vector<RawSoundMessage> rawSoundMessages;
+  // Designed-drop total. Always equals the sum of the two per-reason counters below; both are
+  // maintained together in recordDroppedSoundMessage() (native/src/demo_header_sound.cpp).
   std::size_t rawSoundMessagesDropped = 0;
+  std::size_t rawSoundMessagesDroppedPayloadTooLarge = 0;  // SoundDropReason::PayloadTooLarge
+  std::size_t rawSoundMessagesDroppedMessageCap = 0;       // SoundDropReason::MessageCap
   std::vector<DecodedSoundEvent> decodedSoundEvents;
+  // Decode failures only: messages whose payload *was* captured and whose event block could
+  // not be read. A designed drop is counted above and is never decoded, so it can never land
+  // here (conflating the two is what made 20921 designed drops read as 20923 failures).
   std::size_t decodedSoundEventFailures = 0;
   std::size_t decodedSoundResourceMatches = 0;
   std::size_t decodedSoundResourceMisses = 0;

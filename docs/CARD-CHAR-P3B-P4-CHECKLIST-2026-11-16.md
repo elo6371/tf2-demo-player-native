@@ -30,6 +30,13 @@ nothing here ran a product binary or took a lock.
 Claim under test: of 35278 declared sound events, only 5528 are ever decoded, and that is the
 4096-entry raw-payload cap (`native/src/demo_header_sound.cpp:42`), not decoder failure.
 
+> **2026-11-16 15:40 语义修正（task B）**：本节以下关于 `sound_failures` 的口径已被取代。修正后
+> `sound_failures` 只计「payload 已捕获但解码中断」的真失败（pl_upward_f12 = 2），设计性丢弃另计为
+> `sound_dropped`（20921），并按原因拆成 `sound_dropped_payload_too_large`（当前线格式下恒 0、
+> 结构上不可达）与 `sound_dropped_message_cap`（20921）。下方旧读数 `20923 = 20921 + 2` 只作为
+> 修复前混计的证据保留，不再是期望值。改前/改后读数与复跑断言见
+> `docs/P3B-SOUND-ACCOUNTING-SPLIT-2026-11-16.md`。
+
 ### B0 inputs
 - probe source at HEAD d4729d67 carries three counters after `sound_misses`:
   `sound_messages`, `sound_dropped`, `sound_decoded` (`native/tools/demo_open_probe.cpp`).
@@ -58,7 +65,9 @@ Expected substring (all on the one `path=<wide-path>` line):
 
 Arithmetic assertions that must be printed by the run report:
 - A1 `25017 - 20921 = 4096` exactly → the cap is saturated (nothing else eats messages).
-- A2 `20923 - 20921 = 2` → only two genuine mid-message early breaks.
+- A2（task B 之后口径）`sound_failures = 2`、`sound_dropped = 20921`、`0 + 20921 = 20921`
+  → 只有 2 条真正的 mid-message early break。旧式 `20923 - 20921 = 2` 只保留为修复前混计的证据，
+  不再是期望读数。
 - A3 `5482 + 46 = 5528` → decoded = matched + unresolved, i.e. the product's read/schedule split.
 - A4 `68133 >> 16384` → the temp-entity list is truncated elsewhere (D76), independent of audio.
 
@@ -66,7 +75,7 @@ Failure attribution, by counter:
 | wrong value | blame |
 |---|---|
 | `sound_messages` ≠ 25017 | call site `native/src/demo_header.cpp:180` (which tick seeds each message) or the `++soundMessageCount` at `demo_header_sound.cpp:125` |
-| `sound_dropped` ≠ 20921 | cap branch `demo_header_sound.cpp:42-52` (payload bits limit / 4096 size limit) |
+| `sound_dropped` ≠ 20921，或 ≠ `payload_too_large` + `message_cap` 之和 | cap 分支（4096 条预算；64 KiB 分支当前不可达），记录点 `demo_header_sound.cpp` 的 `recordDroppedSoundMessage` |
 | `sound_decoded` ≠ 5528 | per-message loop `demo_header_sound.cpp:65-118`, seed at :66, break at :69-118 |
 | `sound_matches`/`sound_misses` | `buildSoundTimeline` `demo_header_sound.cpp:132-168` (read :136, unresolved :141, unplaceable :147) |
 | `temp_events` ≠ 68133 | `native/src/demo_header_events.cpp` readTempEntities, cap at :310; or the demo arg is not the pinned file |
