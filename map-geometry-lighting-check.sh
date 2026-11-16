@@ -197,11 +197,13 @@ OUT=${MAP_AXIS_OUT:-evidence/t62-map-axes}
 # recentDemo0..7 MRU at 137-139), so a gate that lets it write the operator's
 # real profile makes the next run start from different input -- and a run that
 # edited tracked files elsewhere is a repository contamination. Both paths point
-# at copies under the matrix directory.
-RUN_INPUTS=$MATRIX/inputs
+# at copies under the gate's own gitignored scratch: a run must not leave
+# untracked files under evidence/ (tools/audit-tree.sh calls the tree dirty, and
+# lockrun.sh then makes every gate exit 97).
+SCRATCH=.scratch/t62-map-axes
+RUN_INPUTS=$SCRATCH/inputs
 SETTINGS_FILE=$RUN_INPUTS/settings.ini
 UI_FILE=$RUN_INPUTS/ui.ini
-SCRATCH=.scratch/t62-map-axes
 MAPS=(cp_snakewater_final1 pl_odyssey cp_sunshine koth_bagel_rc12 koth_bagel_rc11)
 FRAMES=(textured none sky-faces flat-base flat-novis flat-nocull flat-novis-nocull ids ids-nocull lmoff)
 # p1 keeps the paths the earlier runs used (evidence/<map>/...); p2 gets its own

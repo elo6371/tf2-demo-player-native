@@ -60,9 +60,9 @@
 #      match, or the invocation itself was wrong
 #
 # KNOWN SIDE EFFECTS (recorded, never cleaned by this script)
-#   * map-geometry seeds $MATRIX/inputs (evidence/t62-map-matrix/inputs) with
-#     settings.ini/ui.ini; those are untracked and show up in the tree delta.
-#     Deleting or restoring them is the lead's call (no clean/stash here).
+#   * map-geometry seeds its own gitignored scratch (.scratch/t62-map-axes/inputs)
+#     with settings.ini/ui.ini, so a run leaves the tree clean; nothing under
+#     evidence/ is written outside the gate's own run directory.
 #   * map-geometry without --re-pin never rewrites frame-pins/cull-reference; a
 #     pin mismatch is a red reading, never a re-pin.
 set -uo pipefail
