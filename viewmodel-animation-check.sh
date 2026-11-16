@@ -953,6 +953,10 @@ POV_RANGE=$(field "$LAST_SUMMARY" range)
 # tracks a change moved to the block below, on a recording that switches 627 times
 # over 41 sequences. Pinning 0 here is deliberate: if this recording ever starts
 # switching, the characterisation changed and someone should look.
+# The companion gate pins the same recording's proof (entity model == drawn model,
+# its own witness ticks) and its characterisation of this recording lives in
+# viewmodel-companion-check.sh; it does not assert a switch either, so do not assume
+# the other file covers the change claim -- the block below is the one that does.
 assert_eq "pov history sequence range" "$POV_RANGE" "28..28"
 assert_eq "pov history sequence changes (this recording holds one sequence)" \
   "$(field "$LAST_SUMMARY" changes)" "0"
