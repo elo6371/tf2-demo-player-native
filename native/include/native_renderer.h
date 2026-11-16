@@ -1338,6 +1338,19 @@ public:
   // from the orbit/observer members at the start of every frame, so the
   // single-pane camera stays the one source of truth for pane 0.
   void setPaneCameraOrbit(std::uint32_t pane, float yaw, float pitch, float distance);
+  // U4 step 3: pane 1's camera as the interaction layer writes it. The orbit
+  // pose above is how a script poses the pane; these are what a selected pane
+  // needs from a mode: a world-space focus to orbit around (third person), a
+  // world-space demo eye and angles (first person), and the release of that eye
+  // when the pane leaves first person. All of them are pane >= 1 only -- pane 0
+  // keeps taking its camera from orbitCamera/zoomCamera/setObserverFocusWorld, so
+  // the single-pane path remains one source of truth.
+  void setPaneCameraFocusWorld(std::uint32_t pane, float x, float y, float z);
+  void setPaneCameraDemoViewWorld(std::uint32_t pane, float x, float y, float z,
+      float pitchDegrees, float yawDegrees);
+  void clearPaneCameraDemoView(std::uint32_t pane);
+  void orbitPaneCamera(std::uint32_t pane, float deltaX, float deltaY);
+  void zoomPaneCamera(std::uint32_t pane, float delta);
   // The frame that was drawn, for the budget trace: panes composed, whole-surface
   // depth clears, and draw passes across all panes (the HUD pass included).
   std::uint32_t paneCountLastFrame() const { return paneBoundary_.paneCount; }
