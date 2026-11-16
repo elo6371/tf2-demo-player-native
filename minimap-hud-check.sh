@@ -14,7 +14,9 @@
 #
 # ASSERTIONS
 #   A1  identity: the exe and the four patched sources did not move during the run;
-#       both captures exist; the readout says it is on.
+#       both captures exist; the readout says it is on, and it says how many
+#       primitives the panel handed over: thirteen markers (frame, rings, observer,
+#       heading dots) on top of a basemap whose size is the map's, not a constant.
 #   A2  the panel is painted: at least 20000 of its 25600 pixels differ from the
 #       frame without the switch.
 #   A3  and ONLY the panel is painted: zero differing pixels outside the panel, and
@@ -25,9 +27,11 @@
 #       the computed centres, on pl_upward_f12 (four neutral caps). In the
 #       secondary sunshine section the rings must carry their team colours.
 #   A6  the rings are NOT mirrored vertically: the y-flipped position of cap_1 has
-#       no ring. This is the assertion a forgotten yFlip dies on.
+#       no ring. This is the assertion a forgotten yFlip dies on. The window must sit
+#       on painted panel interior (background or basemap, E10) and the same guard
+#       must reject the same row outside the panel, or the absence is vacuous.
 #   A7  the rings are NOT mirrored horizontally: the x-mirrored position of cap_2
-#       has no ring.
+#       has no ring, with the same interior-and-negative-control pair as A6.
 #   A8  the viewer is drawn at the camera eye, in its own colour.
 #   A9  the arrow points where the camera looks: three green dots ahead of the
 #       viewer, none of them behind it.
@@ -38,10 +42,12 @@
 #       control; needs MINIMAP_CHECK_OLD_EXE and a build of the base commit).
 #   A11 a map with no tabulated bounds draws NOTHING and says why: a byte-identical
 #       frame plus reason=bounds-not-tabulated.
-#   A12 three product mutations are caught: no yFlip (A5/A6 red), the arrow sign
+#   A12 four product mutations are caught: no yFlip (A5/A6 red), the arrow sign
 #       flipped (A9 "ahead" red -- flipping the sign puts the dots behind, so the
 #       ahead assertion is the one that must fail, not the absence one), the panel
-#       anchored left instead of right (A2 bbox red).
+#       anchored left instead of right (A2 bbox red), and one border strip dropped
+#       (A1 marker count red -- the marker count is not redundant with the counts
+#       that were already there, because a lost primitive does not change cps/drawn).
 #
 # EIGHT WAYS THIS COULD BE VACUOUSLY GREEN, AND WHAT STOPS EACH
 #   V1 "the trace says it drew" is treated as drawing.       -> A2 is a pixel count
@@ -70,13 +76,21 @@
 #                                                              A3 cross-checks the
 #                                                              rectangle against the
 #                                                              bitmap
+#   V9 "nothing here" is judged with a count that the basemap now occupies
+#      (E10, 2026-11-16).                                  -> the interior unit is
+#                                                              background OR basemap
+#                                                              (A6/A7), and the marker
+#                                                              count is a field of its
+#                                                              own (A1), with OFFWINDOW
+#                                                              and m4-marker proving
+#                                                              both can go red
 #
 # USAGE
 #   bash minimap-hud-check.sh [options]
 #     --sections=1,2,3   run only these sections (comma separated; default all)
 #     --mutation         also run A12: patch a source, rebuild, expect the gate red,
 #                        restore, rebuild, expect the exe bytes back. Needs the
-#                        serial host lock; ~10 minutes and four builds.
+#                        serial host lock; ~13 minutes and five builds.
 #     --old-exe=PATH     the pre-E9 product binary A10 compares against
 #     --selftest-pixels  no product, no build: synthesise frames with the same
 #                        drawing rules and prove the pixel half goes red when the
@@ -270,6 +284,13 @@ def classify(c):
         return "blu"
     if r > 195 and g > 190 and b > 175:
         return "neutral"
+    # E10 basemap. The floor plan is painted into the panel between the background
+    # and the markers (kMinimapFloorColour 0.30/0.34/0.38 -> bytes 76/87/97), so the
+    # empty half of a tabulated map is background PLUS plan, not background alone.
+    # This is its own class so the guards in A6/A7 can call "painted panel interior"
+    # background|floor and still reject the world, whose pixels are neither.
+    if 60 <= r <= 95 and 70 <= g <= 105 and 80 <= b <= 115:
+        return "floor"
     if 100 <= r <= 195 and abs(r - g) < 30 and abs(g - b) < 30:
         return "border"
     return "other"
@@ -359,12 +380,22 @@ def cmd_rings(path, mapname):
                   name, index, team, px, py, x0 + px, y0 + py,
                   count(c, "neutral"), count(c, "red"), count(c, "blu"), count(c, "bg"),
                   1 if (0 <= px <= pw and 0 <= py <= ph) else 0))
-        print("NOFLIP name=%s px=%.4f py=%.4f neutral=%d red=%d blu=%d bg=%d" % (
+        print("NOFLIP name=%s px=%.4f py=%.4f neutral=%d red=%d blu=%d bg=%d floor=%d" % (
               name, nflipx, nflipy, count(cf, "neutral"), count(cf, "red"),
-              count(cf, "blu"), count(cf, "bg")))
-        print("MIRROR name=%s px=%.4f py=%.4f neutral=%d red=%d blu=%d bg=%d" % (
+              count(cf, "blu"), count(cf, "bg"), count(cf, "floor")))
+        print("MIRROR name=%s px=%.4f py=%.4f neutral=%d red=%d blu=%d bg=%d floor=%d" % (
               name, mirx, py, count(cm, "neutral"), count(cm, "red"),
-              count(cm, "blu"), count(cm, "bg")))
+              count(cm, "blu"), count(cm, "bg"), count(cm, "floor")))
+        # The negative control for those two guards: the SAME ROW, ten pixels off the
+        # panel's left edge. A guard that cannot tell painted panel interior from the
+        # world is not a guard; A6/A7 assert this window is neither background nor
+        # basemap, so raising the guard's floor can never make it vacuously green.
+        cow = window_counts(rows, w, h, x0 - 10.0, y0 + nflipy)
+        com = window_counts(rows, w, h, x0 - 10.0, y0 + py)
+        print("OFFWINDOW name=%s kind=noflip px=-10.0000 py=%.4f bg=%d floor=%d other=%d" % (
+              name, nflipy, count(cow, "bg"), count(cow, "floor"), count(cow, "other")))
+        print("OFFWINDOW name=%s kind=mirror px=-10.0000 py=%.4f bg=%d floor=%d other=%d" % (
+              name, py, count(com, "bg"), count(com, "floor"), count(com, "other")))
 
 def cmd_viewer(path, mapname, eyex, eyey, yaw):
     w, h, rows = read_bmp(path)
@@ -468,6 +499,10 @@ PYEOF
 
 
 # ---- assertions ----------------------------------------------------------
+# ARITHMETIC: this MSYS bash (5.3.20) silently leaves `$(( $(cmd) + 1 ))` as the
+# literal text -- a command substitution nested inside arithmetic inside double
+# quotes is not evaluated. Extract the fields into variables first and write
+# `$(( a + b ))`; that form works (A1 has relied on it since 2026-11-16).
 fail=0
 ok=0
 skipped_controls=0
@@ -570,8 +605,21 @@ section_a1() {
   assert_eq "all four were placed inside the panel" "$(field_of "$on_line" drawn)" 4
   assert_eq "the viewer is inside the panel" "$(field_of "$on_line" viewerInside)" 1
   assert_eq "three heading dots were placed" "$(field_of "$on_line" arrowDots)" 3
-  # 1 background + 4 border strips + 4 rings + 1 observer + 3 heading dots.
-  assert_eq "the panel handed over thirteen shapes" "$(field_of "$on_line" shapes)" 13
+  # 1 background + 4 border strips + 4 rings + 1 observer + 3 heading dots = 13
+  # MARKERS. That is what the reading calls `markers`; `shapes` is everything the
+  # panel handed over and, since the basemap became part of the panel (E10), it also
+  # carries the plan's rectangles (1243 total on pl_upward_f12). Asserting 13 against
+  # `shapes` was a unit error, and asserting 1243 would only freeze today's map's
+  # rectangle count -- these are three separate claims instead: the marker count, the
+  # composition, and that the plan the product BUILT is the plan it PUSHED.
+  local markers floor_rects
+  markers="$(field_of "$on_line" markers)"
+  floor_rects="$(field_of "$on_line" floorRects)"
+  assert_eq "the panel handed over thirteen frame+marker shapes" "$markers" 13
+  assert_eq "the basemap pushed every rectangle it built" \
+    "$floor_rects" "$(field_of "$on_line" rects)"
+  assert_eq "shapes is exactly the markers plus the basemap rectangles" \
+    "$(( markers + floor_rects ))" "$(field_of "$on_line" shapes)"
   assert_eq "the run also wrote a capture" "$([ -s "$SCRATCH/on.bmp" ] && echo yes)" yes
   assert_eq "the control run wrote a capture too" "$([ -s "$SCRATCH/offbase.bmp" ] && echo yes)" yes
   echo "A1-READING $(echo "$on_line" | sed 's/^[0-9.]* //')"
@@ -717,33 +765,49 @@ section_a5() {
 # of the right answer: for cap_1 that is (91.43, 34.29) against (91.43, 102.86).
 # The two points, and the nearest true ring, are 15 pixels apart, so a 5x5 window
 # can tell "drawn" from "not drawn" without a tolerance.
+#
+# The vacuity guard is "this window is painted panel interior", and since E10 the
+# interior is background OR basemap: with the plan drawn, cap_1's unflipped window
+# measured 15 bg + 10 floor, so a bare "bg >= 20" rejected a window that is plainly
+# inside an empty panel half. Counting both classes fixes the unit error without
+# weakening the guard, and the OFFWINDOW control below proves the guard still
+# rejects the world one row over (bg+floor 7 there, against 25 inside).
 section_a6() {
   want 6 || return 0
   echo "== A6  the projection flips y"
   local out
   out="$(run_python rings "$SCRATCH/on.bmp" pl_upward_f12)" || { fail_one "the pixel analyser failed"; return; }
-  printf '%s\n' "$out" | grep -E '^(RING|NOFLIP) name=cap_1 ' | sed 's/^/  | /'
-  local ring flip
+  printf '%s\n' "$out" | grep -E '^(RING|NOFLIP|OFFWINDOW) name=cap_1 ' | sed 's/^/  | /'
+  local ring flip off flip_bg flip_floor off_bg off_floor
   ring="$(printf '%s\n' "$out" | grep '^RING name=cap_1 ')"
   flip="$(printf '%s\n' "$out" | grep '^NOFLIP name=cap_1 ')"
+  off="$(printf '%s\n' "$out" | grep '^OFFWINDOW name=cap_1 kind=noflip ')"
+  flip_bg="$(field_of "$flip" bg)"; flip_floor="$(field_of "$flip" floor)"
+  off_bg="$(field_of "$off" bg)"; off_floor="$(field_of "$off" floor)"
   assert_ge "cap_1 is drawn at the flipped position" "$(field_of "$ring" neutral)" 20
   assert_eq "nothing is drawn at the unflipped position" "$(field_of "$flip" neutral)" 0
-  assert_ge "the unflipped position is inside the panel (so this is not vacuous)" "$(field_of "$flip" bg)" 20
+  assert_ge "the unflipped position is painted panel interior (so this is not vacuous)" "$(( flip_bg + flip_floor ))" 20
+  assert_le "the same guard rejects the same row outside the panel" "$(( off_bg + off_floor ))" 19
 }
 
 # ---- A7: the x axis is not mirrored ----------------------------------------
+# Same interior unit as A6: cap_2's mirrored window measured 8 bg + 17 floor.
 section_a7() {
   want 7 || return 0
   echo "== A7  the projection does not mirror x"
   local out
   out="$(run_python rings "$SCRATCH/on.bmp" pl_upward_f12)" || { fail_one "the pixel analyser failed"; return; }
-  printf '%s\n' "$out" | grep -E '^(RING|MIRROR) name=cap_2 ' | sed 's/^/  | /'
-  local ring mirror
+  printf '%s\n' "$out" | grep -E '^(RING|MIRROR|OFFWINDOW) name=cap_2 ' | sed 's/^/  | /'
+  local ring mirror off mirror_bg mirror_floor off_bg off_floor
   ring="$(printf '%s\n' "$out" | grep '^RING name=cap_2 ')"
   mirror="$(printf '%s\n' "$out" | grep '^MIRROR name=cap_2 ')"
+  off="$(printf '%s\n' "$out" | grep '^OFFWINDOW name=cap_2 kind=mirror ')"
+  mirror_bg="$(field_of "$mirror" bg)"; mirror_floor="$(field_of "$mirror" floor)"
+  off_bg="$(field_of "$off" bg)"; off_floor="$(field_of "$off" floor)"
   assert_ge "cap_2 is drawn at the projected position" "$(field_of "$ring" neutral)" 20
   assert_eq "nothing is drawn at the mirrored position" "$(field_of "$mirror" neutral)" 0
-  assert_ge "the mirrored position is inside the panel (so this is not vacuous)" "$(field_of "$mirror" bg)" 20
+  assert_ge "the mirrored position is painted panel interior (so this is not vacuous)" "$(( mirror_bg + mirror_floor ))" 20
+  assert_le "the same guard rejects the same row outside the panel" "$(( off_bg + off_floor ))" 19
 }
 
 # ---- A8: the observer is drawn where the camera is ------------------------
@@ -899,7 +963,7 @@ pixel_selftest() {
   return 1
 }
 
-# ---- A12: three injected defects, each must turn the gate red -------------
+# ---- A12: four injected defects, each must turn the gate red --------------
 # A mutation that is not caught means the gate is decorative. Each case mutates one
 # line, rebuilds, re-runs only the sections that judge that line, and requires both a
 # non-zero exit AND a red line naming the intended assertion. The source is restored
@@ -957,7 +1021,7 @@ section_a12() {
     echo "== A12  (skipped: needs --mutation, which builds)"
     return 0
   fi
-  echo "== A12  three injected defects must turn this gate red"
+  echo "== A12  four injected defects must turn this gate red"
   if [ "$fail" -ne 0 ]; then
     fail_one "A12 refuses to judge mutations over a red forward run"
     return 0
@@ -983,6 +1047,16 @@ section_a12() {
     "spec.anchor = 0;" \
     "2" \
     "the changed pixels start at the panel's left edge"
+  # m4 drops one border strip. cps, drawn, arrowDots and viewerInside all stay
+  # exactly as they were -- the panel simply hands over twelve primitives instead of
+  # thirteen -- so this is the case that shows the marker count is a claim of its own
+  # and not a restatement of the counts A1 already made.
+  mutation_one m4-marker \
+    native/src/main_hud.cpp \
+    "minimapPushRect(draw.primitives, panelFrame.top.x, panelFrame.top.y," \
+    "if (false) minimapPushRect(draw.primitives, panelFrame.top.x, panelFrame.top.y," \
+    "1" \
+    "the panel handed over thirteen frame+marker shapes"
   echo "   rebuilding the forward tree"
   if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mut-restore-build.log" 2>&1; then
     fail_one "the restore rebuild failed (mut-restore-build.log)"; return 0

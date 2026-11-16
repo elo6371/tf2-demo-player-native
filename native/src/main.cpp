@@ -34,6 +34,7 @@
 #include "animation_clock.h"
 #include "item_schema.h"
 #include "native_ui.h"
+#include "pane_input.h"
 // T70: the request/landing ledger. Pure logic (no Win32/D3D) so the probe
 // that checks the transport rules links the same translation unit the product
 // runs.
@@ -440,6 +441,77 @@ std::uint32_t g_cameraModeApplies = 0;
 // comparing against it would make a mode set while paused look already applied --
 // the exact false green T85 defect B is about.
 tf2::native::CameraMode g_frameAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
+// U4 step 3: the pane the pointer/keyboard spoke to last, and whether the frame
+// is split at all. The window procedure needs both as file-scope state (the
+// --pane-split flag itself is a local of main), and both are inert unless
+// g_paneSplit is true -- which is what keeps the single-pane path the same code
+// it was.
+bool g_paneSplit = false;
+std::uint32_t g_activePane = 0;
+// Pane 1's own camera mode, its applied-mode latch and its follow director. The
+// pane starts in FreeLook (set where paneSplit is declared) so a split opens
+// exactly as step 2b drew it: the second pane is an orbit pose until the user
+// selects it and cycles.
+tf2::native::CameraModeController g_pane1CameraMode;
+tf2::native::CameraMode g_pane1ModeApplied = tf2::native::CameraMode::FreeLook;
+std::uint32_t g_pane1ModeApplies = 0;
+tf2::native::SpectateDirector g_pane1Director;
+std::int32_t g_pane1PendingPick = -1;
+std::int32_t g_pane1Target = -1;
+bool g_pane1FollowPinned = false;
+std::uint32_t g_pane1Commands = 0;
+std::uint32_t g_pane1CommandRejected = 0;
+// Pane 1's camera trace is printed on CHANGE of (mode, target, source): the same
+// reason the relay's camera line is throttled -- a line per frame is what made a
+// previous longest trace unreadable.
+std::int32_t g_pane1TraceMode = -1;
+std::int32_t g_pane1TraceTarget = -2;
+std::int32_t g_pane1TraceSource = -1;
+std::int32_t g_pane1TraceHidden = -2;
+// Pane 1's pick is handed to its director at the frame the slot table exists, and
+// the director's answer (manualPicks/manualRejected) only exists after its own
+// update later in that frame. These three carry the handoff across that gap so the
+// trace can say accepted=0 instead of leaving the run looking like a pick nobody
+// made. Measured defect this exists for: adopting the pick before any snapshot
+// existed spent it on the first empty update and left target1=-1 for the whole run.
+std::int32_t g_pane1PickAwaiting = -1;
+std::uint32_t g_pane1PickAcceptedBefore = 0;
+std::uint32_t g_pane1PickRejectedBefore = 0;
+
+// U4 step 3: one SPACE edge, routed to whichever pane is active. Pane 0's body is
+// the pre-existing path unchanged; pane 1 has its own controller and its own
+// demo-view latch. Returns true when the active pane's mode moved, so the caller
+// updates the UI exactly like the single-pane arm always did.
+// The three mode names --pane-mode accepts. Spelled here rather than reusing an
+// index, so a typo on the command line is a rejected flag and not a mode.
+bool paneCameraModeFromName(const wchar_t* name, tf2::native::CameraMode& out) {
+  if (wcscmp(name, L"first") == 0) { out = tf2::native::CameraMode::FirstPerson; return true; }
+  if (wcscmp(name, L"third") == 0) { out = tf2::native::CameraMode::ThirdPerson; return true; }
+  if (wcscmp(name, L"free") == 0) { out = tf2::native::CameraMode::FreeLook; return true; }
+  return false;
+}
+
+bool cycleActivePaneCameraMode(std::uint32_t nowMs) {
+  using namespace tf2::native;
+  if (g_paneSplit && g_activePane == 1u) {
+    if (!g_pane1CameraMode.spacePress(nowMs)) return false;
+    if (g_pane1CameraMode.mode() != CameraMode::FirstPerson && g_renderer) {
+      // Leaving first person releases the pane's demo eye at once, for the same
+      // reason pane 0 does: an orbit fighting a stale eye for one frame.
+      g_renderer->clearPaneCameraDemoView(1u);
+      g_pane1ModeApplied = g_pane1CameraMode.mode();
+    }
+    return true;
+  }
+  if (!g_cameraMode.spacePress(nowMs)) return false;
+  if (g_cameraMode.mode() != CameraMode::FirstPerson && g_renderer) {
+    // Leaving first-person must release the demo eye immediately, not at the next
+    // scene tick, or the orbit would fight a stale observer view for one frame.
+    g_renderer->clearObserverDemoView();
+    g_lastAppliedCameraMode = g_cameraMode.mode();
+  }
+  return true;
+}
 // T80: did the scene tick that is being drawn give the camera a real eye? False
 // means the demo's own view was missing or implausible (SourceTV reports
 // eye=0,0,0), so the spectate relay's focus is the only thing that can place the
@@ -474,6 +546,14 @@ bool g_spectateCameraEyePrinted = false;
 // plane is not a picture. This is a CAMERA rule, not a corpse rule -- it is
 // independent of m_lifeState and it applies to a living player.
 std::int32_t g_spectateCameraHiddenEntity = -1;
+// U4 step 3: the body PANE 1's camera stands inside. The relay's rule (T81) hides one
+// body for the whole frame; with a second pane there is a second candidate, and the
+// model instance list is built before the pane camera block decides, so this is the
+// answer the NEXT frame's filter uses -- the same one-frame lag the pane-0 rule has
+// had since T81. Both are unioned into one hide set: the list is frame-global, so a
+// body hidden for either pane is out of the picture for both. That is a documented
+// cost of one shared instance list, not a claim that the panes hide independently.
+std::int32_t g_pane1CameraHiddenEntity = -1;
 std::uint32_t g_spectateCameraHiddenInstances = 0;
 
 // N12-A: the demo's eye is the origin PLUS m_vecViewOffset[2].
@@ -1588,6 +1668,76 @@ bool handleFollowAction(tf2::native::FollowAction action, std::int32_t entity,
   return true;
 }
 
+// U4 step 3: the same command vocabulary, applied to pane 1. It is a separate
+// function rather than a pane parameter on handleFollowAction because pane 0's
+// path has to stay byte for byte what it was: its counters, its trace lines and
+// its pin state belong to the pane that owns the relay, and a shared function
+// with a pane switch inside would put that ownership up for reinterpretation.
+bool handlePane1FollowAction(tf2::native::FollowAction action, std::int32_t entity,
+                             const std::vector<tf2::native::SpectateSlot>& slots,
+                             std::string& reason) {
+  using namespace tf2::native;
+  ++g_pane1Commands;
+  if (action == FollowAction::Select) {
+    FollowReason why = FollowReason::None;
+    const FollowState state = followValidate(slots, entity, why);
+    if (state != FollowState::Ok) {
+      ++g_pane1CommandRejected;
+      reason = followReasonName(why);
+      return false;
+    }
+    if (g_pane1Target == entity && g_pane1FollowPinned) {
+      reason = "already-following";
+      return true;
+    }
+    g_pane1Target = entity;
+    g_pane1PendingPick = entity;
+    g_pane1FollowPinned = true;
+    reason = "ok";
+    return true;
+  }
+  if (action == FollowAction::Unfollow) {
+    g_pane1FollowPinned = false;
+    g_pane1PendingPick = -1;
+    g_pane1Target = -1;
+    reason = "unfollow";
+    return true;
+  }
+  // Next/prev walk the same candidate order and the same predicate as pane 0's
+  // handler, but around pane 1's own target: the two panes cannot drag each
+  // other's picks along.
+  std::vector<std::int32_t> candidates;
+  for (const SpectateSlot& slot : slots) {
+    if (slot.entityIndex < 0) continue;
+    if (!slotObservable(slot) || !slotAlive(slot)) continue;
+    candidates.push_back(slot.entityIndex);
+  }
+  if (candidates.empty()) {
+    ++g_pane1CommandRejected;
+    reason = followReasonName(FollowReason::NoCandidates);
+    return false;
+  }
+  std::sort(candidates.begin(), candidates.end());
+  std::int32_t wanted = -1;
+  const std::int32_t from = g_pane1FollowPinned ? g_pane1Target : -1;
+  if (action == FollowAction::Next) {
+    for (const std::int32_t candidate : candidates) {
+      if (from < 0 || candidate > from) { wanted = candidate; break; }
+    }
+    if (wanted < 0) wanted = candidates.front();
+  } else {
+    for (const std::int32_t candidate : candidates) {
+      if (from >= 0 && candidate < from) wanted = candidate;
+    }
+    if (wanted < 0) wanted = candidates.back();
+  }
+  g_pane1Target = wanted;
+  g_pane1PendingPick = wanted;
+  g_pane1FollowPinned = true;
+  reason = "ok";
+  return true;
+}
+
 // design section 6.2: the pin's own state machine, run on this frame's slots
 // before the director is asked to decide (the call site is after the scene block
 // built the slots and before the director's update()), so the state this frame
@@ -2064,6 +2214,23 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // T54: the panel's splitter. Consumed only when the press landed on the
     // splitter, so ordinary left clicks still reach the default procedure.
     if (tf2::native::logsPanelMouse(window, message, wParam, lParam)) return 0;
+    // U4 step 3: a left press inside the client selects the pane it landed in.
+    // Only a split frame has anything to select, and only the PRESS selects -- a
+    // release must not steal the pane from a drag that started elsewhere.
+    if (message == WM_LBUTTONDOWN && g_paneSplit) {
+      RECT paneClient{};
+      GetClientRect(window, &paneClient);
+      const int paneWidth = static_cast<int>(paneClient.right - paneClient.left);
+      const int paneX = static_cast<int>(static_cast<short>(LOWORD(lParam)));
+      const int pane = tf2::native::paneForClientX(paneX, paneWidth, tf2::native::kPaneMaxPanes);
+      if (pane >= 0) {
+        g_activePane = static_cast<std::uint32_t>(pane);
+        traceFmt("paneActivate: pane=%d x=%d width=%d height=%ld active=%u source=mouse",
+          pane, paneX, paneWidth,
+          static_cast<long>(paneClient.bottom - paneClient.top), g_activePane);
+      }
+      return 0;
+    }
     return DefWindowProcW(window, message, wParam, lParam);
   case WM_RBUTTONDOWN:
     g_orbiting = true;
@@ -2079,12 +2246,28 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     if (tf2::native::logsPanelMouse(window, message, wParam, lParam)) return 0;
     if (g_orbiting && g_renderer) {
       const POINT current{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
-      g_renderer->orbitCamera(static_cast<float>(current.x - g_lastMouse.x), static_cast<float>(current.y - g_lastMouse.y));
+      const float deltaX = static_cast<float>(current.x - g_lastMouse.x);
+      const float deltaY = static_cast<float>(current.y - g_lastMouse.y);
+      // U4 step 3: the drag belongs to the pane the left press selected. A single
+      // pane has exactly the old path, because g_paneSplit is false there.
+      if (g_paneSplit && g_activePane == 1u) {
+        g_renderer->orbitPaneCamera(1u, deltaX, deltaY);
+      } else {
+        g_renderer->orbitCamera(deltaX, deltaY);
+      }
       g_lastMouse = current;
     }
     return 0;
   case WM_MOUSEWHEEL:
-    if (g_renderer) g_renderer->zoomCamera(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA));
+    if (g_renderer) {
+      const float wheelSteps = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA);
+      // U4 step 3: the wheel zooms the selected pane, like the drag orbits it.
+      if (g_paneSplit && g_activePane == 1u) {
+        g_renderer->zoomPaneCamera(1u, wheelSteps);
+      } else {
+        g_renderer->zoomCamera(wheelSteps);
+      }
+    }
     return 0;
   case WM_DROPFILES: {
     if (g_nativeUi) {
@@ -2397,14 +2580,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       // below). One edge press advances the mode; a second press inside the
       // controller's double-click window jumps to free-look. The controller
       // is pure, so the window is a number a gate measures, not a feeling.
-      if (g_cameraMode.spacePress(static_cast<std::uint32_t>(GetTickCount64()))) {
-        if (g_cameraMode.mode() != tf2::native::CameraMode::FirstPerson && g_renderer) {
-          // Leaving first-person must release the demo eye immediately, not
-          // at the next scene tick, or the orbit would fight a stale
-          // observer view for one frame.
-          g_renderer->clearObserverDemoView();
-          g_lastAppliedCameraMode = g_cameraMode.mode();
-        }
+      if (cycleActivePaneCameraMode(static_cast<std::uint32_t>(GetTickCount64()))) {
         updateNativeUiControls(window);
       }
     } else if (wParam == 'P' && g_playback.enabled) {
@@ -3212,6 +3388,13 @@ bool outlineVertexExtent = false;
   // clock stays shared by design -- this is a viewport/camera split, not a second
   // playback, and the audit table says so.
   bool paneSplit = false;
+  // U4 step 3: the second pane opens in FreeLook, so a split without any pane
+  // command draws exactly the picture step 2b did (pane 1's orbit pose, written
+  // by --pane1-orbit). Selecting the pane and pressing SPACE is what starts
+  // feeding it a camera. The latch starts equal so that this initial state is
+  // not reported as a mode change on the first frame.
+  g_pane1CameraMode.setMode(tf2::native::CameraMode::FreeLook);
+  g_pane1ModeApplied = tf2::native::CameraMode::FreeLook;
   bool worldVisClipRequested = true;
   bool worldVisClipGiven = false;
   // T10 diagnostic: the world pass rasterises with back-face culling by
@@ -3557,12 +3740,98 @@ bool outlineVertexExtent = false;
       // the existing observer/orbit path. Without --pane1-orbit the two panes show
       // the same camera, which is the control frame for "the panes are
       // independent": the two halves must then be the same picture.
-      if (wcscmp(arguments[i], L"--pane-split") == 0) { paneSplit = true; continue; }
+      // g_paneSplit is the file-scope switch the window procedure and the tick block
+      // read, and it is latched HERE rather than after the parse loop: a command
+      // line is read left to right, so --pane-split --pane-cycle has to cycle pane 0
+      // (no split yet) and --pane-split first has to be visible to everything that
+      // follows it. Leaving the latch to the end of the loop is what made a
+      // --pane-activate trace say split=0 on a run that was split.
+      if (wcscmp(arguments[i], L"--pane-split") == 0) { paneSplit = true; g_paneSplit = true; continue; }
       if (wcscmp(arguments[i], L"--pane1-orbit") == 0 && i + 3 < argumentCount) {
         const float pane1Yaw = static_cast<float>(_wtof(arguments[++i]));
         const float pane1Pitch = static_cast<float>(_wtof(arguments[++i]));
         const float pane1Distance = static_cast<float>(_wtof(arguments[++i]));
         renderer.setPaneCameraOrbit(1u, pane1Yaw, pane1Pitch, pane1Distance);
+        continue;
+      }
+      // U4 step 3: the interaction switches. --pane-click runs the SAME hit test
+      // the window procedure runs (paneForClientX) on the client width the caller
+      // states, so a command line proves which pane a given x selects without a
+      // synthetic mouse message; --pane-activate sets the selection directly for
+      // runs that only need the input routed. Both are inert without --pane-split,
+      // exactly like the mouse path.
+      if (wcscmp(arguments[i], L"--pane-activate") == 0 && i + 1 < argumentCount) {
+        const long pane = std::wcstol(arguments[++i], nullptr, 10);
+        if (pane >= 0 && pane < static_cast<long>(tf2::native::kPaneMaxPanes)) {
+          g_activePane = static_cast<std::uint32_t>(pane);
+          traceFmt("paneActivate: pane=%ld active=%u source=cli split=%d", pane,
+            g_activePane, g_paneSplit ? 1 : 0);
+        } else {
+          traceFmt("pane: activate rejected=%ld", pane);
+        }
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-click") == 0 && i + 2 < argumentCount) {
+        const long clickX = std::wcstol(arguments[++i], nullptr, 10);
+        const long clickWidth = std::wcstol(arguments[++i], nullptr, 10);
+        const int hit = tf2::native::paneForClientX(static_cast<int>(clickX),
+          static_cast<int>(clickWidth), tf2::native::kPaneMaxPanes);
+        if (hit >= 0) {
+          g_activePane = static_cast<std::uint32_t>(hit);
+          traceFmt("paneActivate: pane=%d x=%ld width=%ld active=%u source=click", hit,
+            clickX, clickWidth, g_activePane);
+        } else {
+          traceFmt("pane: click rejected x=%ld width=%ld", clickX, clickWidth);
+        }
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-cycle") == 0) {
+        // Exactly the edge the SPACE arm dispatches, so the CLI cannot take a
+        // different path through the interaction than a key press does.
+        const bool moved =
+          cycleActivePaneCameraMode(static_cast<std::uint32_t>(GetTickCount64()));
+        traceFmt("paneCycle: active=%u moved=%d mode0=%s mode1=%s source=cli", g_activePane,
+          moved ? 1 : 0, tf2::native::cameraModeName(g_cameraMode.mode()),
+          tf2::native::cameraModeName(g_pane1CameraMode.mode()));
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-mode") == 0 && i + 2 < argumentCount) {
+        const long pane = std::wcstol(arguments[++i], nullptr, 10);
+        tf2::native::CameraMode paneMode = tf2::native::CameraMode::FirstPerson;
+        const bool known = paneCameraModeFromName(arguments[++i], paneMode);
+        if (known && pane >= 0 && pane < static_cast<long>(tf2::native::kPaneMaxPanes)) {
+          if (pane == 0) {
+            g_cameraMode.setMode(paneMode);
+            g_lastAppliedCameraMode = paneMode;
+          } else {
+            g_pane1CameraMode.setMode(paneMode);
+          }
+          traceFmt("paneMode: pane=%ld mode=%s source=cli", pane,
+            tf2::native::cameraModeName(paneMode));
+        } else {
+          traceFmt("pane: mode rejected pane=%ld", pane);
+        }
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-follow") == 0 && i + 2 < argumentCount) {
+        const long pane = std::wcstol(arguments[++i], nullptr, 10);
+        wchar_t* paneFollowEnd = nullptr;
+        const long paneEntity = std::wcstol(arguments[++i], &paneFollowEnd, 10);
+        if (paneFollowEnd != nullptr && *paneFollowEnd == L'\0' && paneEntity >= 0
+            && paneEntity <= 2047 && pane >= 0
+            && pane < static_cast<long>(tf2::native::kPaneMaxPanes)) {
+          if (pane == 0) {
+            followQueuePush(tf2::native::FollowAction::Select,
+              static_cast<std::int32_t>(paneEntity));
+          } else {
+            g_pane1PendingPick = static_cast<std::int32_t>(paneEntity);
+            g_pane1Target = g_pane1PendingPick;
+            g_pane1FollowPinned = true;
+          }
+          traceFmt("paneFollow: pane=%ld entity=%ld source=cli", pane, paneEntity);
+        } else {
+          traceFmt("pane: follow rejected pane=%ld", pane);
+        }
         continue;
       }
       // The hermeticity pair is taken by the pre-scan at main.cpp:1898-1920, which has
@@ -11495,6 +11764,23 @@ bool outlineVertexExtent = false;
           static_cast<int>(g_playback.tick), g_playback.paused ? 1 : 0);
       }
     }
+    // U4 step 3: pane 1's mode latch, applied on the frame the mode is requested
+    // for the same reason as pane 0's above -- a mode set while paused must still
+    // reach the renderer. Leaving first person releases the pane's demo eye here
+    // too, so the orbit never fights a stale eye for a frame.
+    if (g_paneSplit && g_renderer) {
+      const tf2::native::CameraMode pendingPane1Mode = g_pane1CameraMode.mode();
+      if (pendingPane1Mode != g_pane1ModeApplied) {
+        if (pendingPane1Mode != tf2::native::CameraMode::FirstPerson) {
+          g_renderer->clearPaneCameraDemoView(1u);
+        }
+        g_pane1ModeApplied = pendingPane1Mode;
+        ++g_pane1ModeApplies;
+        traceFmt("camera: mode applied=%s pane=1 tick=%d paused=%d",
+          tf2::native::cameraModeName(pendingPane1Mode),
+          static_cast<int>(g_playback.tick), g_playback.paused ? 1 : 0);
+      }
+    }
     if (!g_renderer && g_playbackControl.needsSceneResolve()) {
       // No renderer means no scene query will ever run; the landing must say so
       // instead of leaving the pending request to block advance() forever.
@@ -12115,9 +12401,17 @@ bool outlineVertexExtent = false;
         for (const auto& candidate : modelInstances) {
           // T81: the relay camera stands in one player's eye; that player's body
           // is hidden whether they are alive or not (see g_spectateCameraHiddenEntity).
+          // U4 step 3: the same rule for pane 1's own eye. The candidate list is one
+          // list for the whole frame -- the panes share the surface, the instance
+          // buffer and the constants -- so the hide is the UNION of both panes'
+          // bodies. A per-pane list is the correct fix and is not this step: what
+          // this step has to guarantee is that a first-person pane is never drawn
+          // from inside a body, which the union does.
           const bool hiddenForCamera =
-            g_spectateCameraHiddenEntity >= 0
-            && static_cast<std::int32_t>(candidate.entityIndex) == g_spectateCameraHiddenEntity;
+            (g_spectateCameraHiddenEntity >= 0
+             && static_cast<std::int32_t>(candidate.entityIndex) == g_spectateCameraHiddenEntity)
+            || (g_paneSplit && g_pane1CameraHiddenEntity >= 0
+                && static_cast<std::int32_t>(candidate.entityIndex) == g_pane1CameraHiddenEntity);
           if (hiddenForCamera) {
             // Counted separately from the corpse rule: the corpse counters are a
             // T66 contract with fixed meanings, and "the camera is inside this
@@ -12136,13 +12430,21 @@ bool outlineVertexExtent = false;
           }
           drawCandidates.push_back(candidate);
         }
-        static std::string lastCameraSignature;
-        if (cameraSignature != lastCameraSignature) {
-          lastCameraSignature = cameraSignature;
-          traceFmt("scene: cameraFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
+        // The union hide set's two sources are part of the change key: a pane whose
+        // eye moved off a body changes this line even when the instance count it
+        // removed happens to be the same as last frame's.
+        const std::string cameraKey = cameraSignature + '|'
+          + std::to_string(g_spectateCameraHiddenEntity) + ','
+          + std::to_string(g_pane1CameraHiddenEntity);
+        static std::string lastCameraKey;
+        if (cameraKey != lastCameraKey) {
+          lastCameraKey = cameraKey;
+          traceFmt("scene: cameraFilter removed=%zu indices=%s candidates=%zu submitted=%zu hidden0=%d hidden1=%d",
             cameraSignature.empty() ? 0 : std::count(cameraSignature.begin(), cameraSignature.end(), ',') + 1,
             cameraSignature.empty() ? "-" : cameraSignature.c_str(),
-            drawCandidates.size(), modelInstances.size());
+            drawCandidates.size(), modelInstances.size(),
+            static_cast<int>(g_spectateCameraHiddenEntity),
+            static_cast<int>(g_pane1CameraHiddenEntity));
         }
         static std::string lastCorpseSignature;
         if (corpseSignature != lastCorpseSignature) {
@@ -13360,8 +13662,13 @@ bool outlineVertexExtent = false;
             const std::size_t samplesSampled = samples.size();
             for (std::size_t i = 0; i < samples.size();) {
               const auto entityIndex = static_cast<std::int32_t>(samples[i].entityIndex);
+              // U4 step 3: both panes' camera-hidden bodies, the same union the world
+              // pass removes above -- the silhouette set has to stay a subset of the
+              // body set, and with two panes there are two bodies to drop.
               const bool cameraHides =
-                g_spectateCameraHiddenEntity >= 0 && entityIndex == g_spectateCameraHiddenEntity;
+                (g_spectateCameraHiddenEntity >= 0 && entityIndex == g_spectateCameraHiddenEntity)
+                || (g_paneSplit && g_pane1CameraHiddenEntity >= 0
+                    && entityIndex == g_pane1CameraHiddenEntity);
               const bool corpseHides =
                 !g_spectateShowCorpses && g_spectateDirector.hidesModel(entityIndex);
               if (cameraHides || corpseHides) {
@@ -13982,12 +14289,32 @@ bool outlineVertexExtent = false;
       std::int32_t queuedEntity = -1;
       if (followQueuePop(queuedAction, queuedEntity)) {
         std::string followReason;
-        handleFollowAction(queuedAction, queuedEntity, spectateSlots, followReason);
+        // U4 step 3: a queued follow command acts on the SELECTED pane. Pane 0
+        // keeps the existing handler unchanged; pane 1 has its own director and
+        // its own pinned target, so choosing to watch someone in the right pane
+        // cannot move the left one.
+        if (g_paneSplit && g_activePane == 1u) {
+          handlePane1FollowAction(queuedAction, queuedEntity, spectateSlots, followReason);
+        } else {
+          handleFollowAction(queuedAction, queuedEntity, spectateSlots, followReason);
+        }
       }
     }
     if (g_followPendingEntity >= 0) {
       g_spectateDirector.pickManual(g_followPendingEntity);
       g_followPendingEntity = -1;
+    }
+    // U4 step 3: pane 1's pick is adopted at the same point in the frame as pane
+    // 0's, so a --pane-follow or a queued command lands on the same tick. It is
+    // held until a snapshot exists, for the same reason the command queue is: the
+    // director judges a pick against the slot table, so handing it a pick on a
+    // frame that has no snapshot spends it on a rejection nobody asked for.
+    if (g_paneSplit && g_pane1PendingPick >= 0 && g_followSnapshotReady) {
+      g_pane1PickAwaiting = g_pane1PendingPick;
+      g_pane1PickAcceptedBefore = g_pane1Director.manualPicks();
+      g_pane1PickRejectedBefore = g_pane1Director.manualRejected();
+      g_pane1Director.pickManual(g_pane1PendingPick);
+      g_pane1PendingPick = -1;
     }
     const char* followEffect = followCameraEffectName(g_followSnapshotReady);
     const int followPinAccepted = (g_followTarget.entityIndex >= 0
@@ -14005,6 +14332,25 @@ bool outlineVertexExtent = false;
       // 16x replay reads as continuous playback instead of a seek on every frame.
       g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick,
                                 static_cast<double>(g_playback.speed));
+      // U4 step 3: pane 1's director runs on the SAME snapshot and the same scene
+      // tick as pane 0's, which is what keeps the two panes seeking together. The
+      // director handle 0 is deliberate: the recording names ONE observer target
+      // and that one belongs to pane 0, so pane 1 starts from the stable order or
+      // from its own pick and never from the recording's camera.
+      if (g_paneSplit) {
+        g_pane1Director.update(wallSeconds, spectateSlots, 0, spectateSceneTick,
+                               static_cast<double>(g_playback.speed));
+        // The director's verdict on this frame's pick is only readable now.
+        if (g_pane1PickAwaiting >= 0) {
+          const bool accepted = g_pane1Director.manualPicks() != g_pane1PickAcceptedBefore;
+          const bool rejected = !accepted
+            && g_pane1Director.manualRejected() != g_pane1PickRejectedBefore;
+          traceFmt("pane1Pick: entity=%d accepted=%d rejected=%d target1=%d source=cli",
+            static_cast<int>(g_pane1PickAwaiting), accepted ? 1 : 0, rejected ? 1 : 0,
+            static_cast<int>(g_pane1Director.targetIndex()));
+          g_pane1PickAwaiting = -1;
+        }
+      }
       // N13 step 1 cannot make a pin outrank the relay's own decision -- that
       // precedence is step 2 -- so a pin the director declines is COUNTED, not
       // forced: followFallbacks is the number saying the pin is not being honoured,
@@ -14082,6 +14428,96 @@ bool outlineVertexExtent = false;
           // hidden on the camera's account.
           g_spectateCameraHiddenEntity = -1;
         }
+      }
+    }
+    // U4 step 3: pane 1's camera, applied every frame from the same resolved
+    // snapshot the relay above used, so a seek moves both panes on the same tick.
+    // Nothing here writes a pane-0 member or counter: the panes share the surface
+    // and the snapshot, not the camera. Pane 1 reads the snapshot's origin/facing
+    // and its m_vecViewOffset[2] directly (the same fields N12-B reads); the
+    // per-tick camera row stays pane 0's privilege because svc_SetView names one
+    // observer.
+    if (g_paneSplit) {
+      const tf2::native::CameraMode pane1Mode = g_pane1CameraMode.mode();
+      const std::int32_t pane1Target = g_pane1Director.targetIndex();
+      const char* pane1Source = "held";
+      int pane1SourceCode = 0;
+      float pane1Eye[3] = {0.0f, 0.0f, 0.0f};
+      bool pane1Placed = false;
+      bool pane1HasFocus = false;
+      if (pane1Mode == tf2::native::CameraMode::FirstPerson && !g_debugCamera
+          && pane1Target >= 0
+          && static_cast<std::size_t>(pane1Target) < currentEntityStates.size()) {
+        const tf2::native::EntityState& pane1Row =
+          currentEntityStates[static_cast<std::size_t>(pane1Target)];
+        const tf2::native::ModelInstanceTransform pane1Transform =
+          tf2::native::EntityModelResolver::extractTransform(pane1Row);
+        const EyeOffsetReading pane1Offset = readEyeOffsetZ(pane1Row);
+        if (pane1Transform.hasOrigin && pane1Transform.hasAngles && pane1Offset.hasValue) {
+          float pane1Forward[3] = {0.0f, 0.0f, 0.0f};
+          tf2::native::demoViewForward(pane1Transform.angles[0], pane1Transform.angles[1],
+            pane1Forward);
+          pane1Eye[0] = pane1Transform.origin[0] - pane1Forward[0] * kSpectatorBackUnits;
+          pane1Eye[1] = pane1Transform.origin[1] - pane1Forward[1] * kSpectatorBackUnits;
+          pane1Eye[2] = pane1Transform.origin[2] + pane1Offset.z
+            - pane1Forward[2] * kSpectatorBackUnits;
+          if (std::isfinite(pane1Eye[0]) && std::isfinite(pane1Eye[1])
+              && std::isfinite(pane1Eye[2])) {
+            renderer.setPaneCameraDemoViewWorld(1u, pane1Eye[0], pane1Eye[1], pane1Eye[2],
+              pane1Transform.angles[0], pane1Transform.angles[1]);
+            pane1Source = "follow";
+            pane1SourceCode = 1;
+            pane1Placed = true;
+          }
+        }
+      }
+      if (pane1Mode == tf2::native::CameraMode::FirstPerson && !pane1Placed
+          && g_pane1Director.focusValid()) {
+        // No readable eye for the pane's target: orbit its focus instead of
+        // leaving the pane on the last eye it had. A stale first-person pose after
+        // a death or a seek is the defect this branch exists to avoid.
+        float pane1FocusFallback[3] = {0.0f, 0.0f, 0.0f};
+        g_pane1Director.focus(pane1FocusFallback);
+        renderer.setPaneCameraFocusWorld(1u, pane1FocusFallback[0], pane1FocusFallback[1],
+          pane1FocusFallback[2]);
+        pane1Source = "orbit-fallback";
+        pane1SourceCode = 3;
+        pane1HasFocus = true;
+      }
+      if (pane1Mode == tf2::native::CameraMode::ThirdPerson && g_pane1Director.focusValid()) {
+        float pane1Focus[3] = {0.0f, 0.0f, 0.0f};
+        g_pane1Director.focus(pane1Focus);
+        if (std::isfinite(pane1Focus[0]) && std::isfinite(pane1Focus[1])
+            && std::isfinite(pane1Focus[2])) {
+          renderer.setPaneCameraFocusWorld(1u, pane1Focus[0], pane1Focus[1], pane1Focus[2]);
+          pane1Eye[0] = pane1Focus[0];
+          pane1Eye[1] = pane1Focus[1];
+          pane1Eye[2] = pane1Focus[2];
+          pane1Source = "focus";
+          pane1SourceCode = 2;
+          pane1HasFocus = true;
+        }
+      }
+      // FreeLook: nothing feeds pane 1 -- its orbit pose IS the camera, which is
+      // what step 2b drew and what a right drag or the wheel now updates.
+      // U4 step 3: a first-person pane stands in its target's eye, so that body must
+      // leave the frame's instance list for the same reason pane 0's does. FreeLook
+      // and third-person panes watch from outside and hide nothing.
+      g_pane1CameraHiddenEntity =
+        (pane1Mode == tf2::native::CameraMode::FirstPerson && pane1Placed) ? pane1Target : -1;
+      const int pane1ModeCode = static_cast<int>(pane1Mode);
+      if (pane1ModeCode != g_pane1TraceMode || pane1Target != g_pane1TraceTarget
+          || pane1SourceCode != g_pane1TraceSource
+          || g_pane1CameraHiddenEntity != g_pane1TraceHidden) {
+        g_pane1TraceMode = pane1ModeCode;
+        g_pane1TraceTarget = pane1Target;
+        g_pane1TraceSource = pane1SourceCode;
+        g_pane1TraceHidden = g_pane1CameraHiddenEntity;
+        traceFmt("pane1: mode=%s target=%d eye=%.1f,%.1f,%.1f focus=%d src=%s hidden=%d tick=%d active=%u",
+          tf2::native::cameraModeName(pane1Mode), static_cast<int>(pane1Target),
+          pane1Eye[0], pane1Eye[1], pane1Eye[2], pane1HasFocus ? 1 : 0, pane1Source,
+          static_cast<int>(g_pane1CameraHiddenEntity),
+          static_cast<int>(g_sceneResolvedServerTick), g_activePane);
       }
     }
     // T79/T84: the frame's camera, printed after every site that can move it and
@@ -14352,10 +14788,23 @@ bool outlineVertexExtent = false;
         // Those four numbers are what a PIP->four-window budget has to be able to
         // count before it can argue one, and they are on the captured frame.
         const tf2::native::PaneBoundaryReadings panesBudget = g_renderer->paneBoundary();
-        traceFmt("panes: count=%u viewports=%u depthTargets=%u depthClears=%u passes=%u hud=%u",
+        // U4 step 3 adds the interaction readings to the same line: which pane
+        // the pointer/keyboard is addressing, pane 1's mode and its director's
+        // target, the two counters that make "the command reached its pane" a
+        // number instead of a claim, and the two bodies the frame's instance list
+        // withheld because a camera stands inside them. Everything before active=
+        // is step 2b's budget readings, unchanged.
+        traceFmt("panes: count=%u viewports=%u depthTargets=%u depthClears=%u passes=%u hud=%u"
+          " active=%u mode1=%s target1=%d applies1=%u commands1=%u rejected1=%u"
+          " hidden0=%d hidden1=%d",
           g_renderer->paneCountLastFrame(), panesBudget.viewports, panesBudget.renderTargets,
           g_renderer->paneDepthClearsLastFrame(), g_renderer->panePassesLastFrame(),
-          panesBudget.hudPasses);
+          panesBudget.hudPasses, g_activePane,
+          tf2::native::cameraModeName(g_pane1CameraMode.mode()),
+          static_cast<int>(g_pane1Director.targetIndex()), g_pane1ModeApplies,
+          g_pane1Commands, g_pane1CommandRejected,
+          static_cast<int>(g_spectateCameraHiddenEntity),
+          static_cast<int>(g_pane1CameraHiddenEntity));
       }
       if (captureRequested && g_renderer) {
         // The RESOLVER's union is printed on the same line as the RENDERER's

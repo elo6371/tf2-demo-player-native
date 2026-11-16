@@ -202,6 +202,132 @@ are the same picture, which is the control frame for "the panes are independent"
 * `camera-ui-check.sh` = PASS, `tools/audit-tree.sh` = VERDICT: OK.
 
 This section supersedes "no pane split" in `Deliberately not done` above: step 2b is the split.
-Step 3 (click activation, first/third/free camera switching, per-pane seek semantics) is still
-not done, and the demo clock stays explicitly shared until it is.
+
+## Step 3: interaction -- one pointer, two panes
+
+Step 2b made the frame two cameras. Step 3 makes the input say which camera it is
+addressing, without moving the single-pane path.
+
+* `native/include/pane_input.h` is the only arithmetic the mouse needs:
+  `paneForClientX(x, width, paneCount)` -- half-open `[0, width)`, split at
+  `width / 2` (the left viewport's width), a click outside the client or a
+  non-positive width selects nothing (`-1`), one pane owns every pixel, and a pane
+  count above `kPaneMaxPanes` clamps. It is a pure header function, so the window
+  procedure and the probe call the same rule; the probe pins 20 cases and 7
+  negatives (both edges, both panes, the 1264-wide boundary at 631/632, an odd
+  width, a one-pixel client, width 0 and -5, zero panes, an over-large count).
+* `g_activePane` owns the keyboard and the mouse because it is the pane the pointer
+  last clicked. `WM_LBUTTONDOWN` inside the client and not consumed by a panel
+  selects the pane under the cursor and traces
+  `paneActivate: pane=… x=… width=… height=… active=… source=mouse`. A single-pane
+  program never enters that path: `g_paneSplit` is false and every routing branch
+  falls through to the code that was already there.
+* Keyboard, right drag and wheel follow `g_activePane`: space cycles the ACTIVE
+  pane's camera through a second `CameraModeController` (`g_pane1CameraMode`), and
+  leaving first-person clears that pane's demo view only; orbit deltas and zoom go
+  to `orbitPaneCamera` / `zoomPaneCamera` for pane 1, the same 0.008 rad/px and
+  `exp(-delta * 0.08)` clamps as pane 0.
+* Follow commands (`Select` / `Unfollow` / `Next` / `Prev`) route too: pane 1 has
+  its own `SpectateDirector`, its own pinned target and its own accept/reject
+  counters, updated with `handle=0` immediately after pane 0's update so both panes
+  read one snapshot and one scene tick. There is no second clock.
+* Pane 1's camera block mirrors pane 0's per mode: first-person places the eye from
+  its own director's snapshot, third-person focuses its director's target,
+  free-look leaves the orbit pose alone. It traces
+  `pane1: mode=… target=… eye=… focus=… src=… hidden=… tick=… active=…` only when
+  something changes, and `panes:` gained
+  `active= mode1= target1= applies1= commands1= rejected1=` for the same reason the
+  pane-0 counters exist: a command that reached its pane and one that never ran are
+  different readings.
+* The CLI is the automation surface, and argv order is the semantics
+  (`--pane-split` must precede the pane commands that act on it):
+  `--pane-activate N`, `--pane-click X WIDTH`, `--pane-cycle`,
+  `--pane-mode N first|third|free`, `--pane-follow N ENTITY`. Each calls the same
+  function as the mouse/keyboard path and traces `source=cli`.
+
+### Two defects this step found (and fixed)
+
+* `--pane-split` set a LOCAL `paneSplit` only. The draw used the local, but every
+  routing consumer read `g_paneSplit`, which was never assigned: activation, input
+  routing, pane 1's director update and pane 1's camera block never ran, and the
+  first `--pane-cycle` went to pane 0. What caught it was a control pair coming out
+  IDENTICAL -- `--pane-activate 1 --pane-cycle` versus `--pane-mode 0 free` -- which
+  cannot happen if the commands reach different panes.
+* Pane 1's pending pick was consumed on the first director update, before the first
+  follow snapshot existed, so the director rejected it and the pane kept its stable
+  pick: `--pane-follow 1 1` ended with `target1=2`. The pick is now adopted only
+  once `g_followSnapshotReady` is true, and `pane1Pick: entity=… accepted=…
+  rejected=… target1=…` makes the rejection a number instead of an absence.
+
+### The hidden body is one list, not two
+
+A first-person relay camera stands in a player's eye, so that body must not be drawn
+(T81). The model instance list is built once per frame and is frame-global; with two
+first-person-capable panes there are two candidate bodies and one list, so the filter
+removes the UNION: a body hidden for either pane is gone for both. Both camera blocks
+publish their candidate (`g_spectateCameraHiddenEntity` and the new
+`g_pane1CameraHiddenEntity`, one frame behind -- the same lag pane 0 has always had),
+`scene: cameraFilter` prints `hidden0=`/`hidden1=`, and `panes:` prints them too.
+The cost is measured, not argued away:
+
+* pane 1 first-person with a follow target (body hidden): left half differs by 120
+  pixels at (0,463)-(23,491) -- pane 0's view of the body pane 1 stands in, removed by
+  the union -- while the right half changes 428,755 pixels and is no longer filled
+  with the target's torso. That torso fill was the defect this section fixes.
+* pane 0 leaving first-person: `--pane-mode 0 free` and `--pane-mode 0 third` give
+  BYTE-IDENTICAL frames, both halves. The right half moves 13,411 pixels at
+  (766,119)-(1221,440) purely because pane 0's body came back into the shared list.
+  The camera mode did not move pane 1; the hide set did.
+
+Per-pane body lists are the correct fix and are NOT in this cycle (accepted as a
+known cost). The change surface is smaller than "split the buffers" suggests: the
+instance buffer is filled once per frame (`native_renderer_entity.cpp:651-659`) and
+every entity draw is `DrawInstanced(vertexCount, instanceCount, 0, instanceStart)`
+(`native_renderer_frame.cpp:1101`), so a pane can skip its own body by splitting that
+range into at most two draws at draw time. No buffer, constant or surface has to be
+duplicated; what changes is (a) the range loop (`native_renderer_frame.cpp:1063-1103`)
+taking the pane's hidden index, (b) main's filter keeping camera-hidden bodies in the
+pack instead of removing them (the corpse filter is unaffected), and (c) T81's counter
+then meaning "withheld from every pane". That is a draw-loop patch plus a reading
+change, not a memory budget.
+
+### Evidence
+
+Every capture: pinned `--capture-tick 2000` on the same demo, 1264x681, both halves
+compared byte-wise (24 bpp rows de-padded), left = [0,632), right = [632,1264).
+Each half is 1,291,176 bytes.
+
+| claim | reading |
+| --- | --- |
+| single pane unchanged | baseline vs this build: left `de4a64b4…`, right `26dfb247…`, both halves 0 bytes differ |
+| split at rest unchanged | step-2b build vs this build: left `295a4dac…`, right `34c66bce…`, both halves 0 bytes differ |
+| explicit default is the default | `--pane-mode 0 first` = split baseline, both halves identical |
+| a target alone moves no pixels | pane 1 free-look + `--pane-follow 1 1`: both halves identical to the split baseline (`mode1=free-look target1=2`) |
+| pane 1 first-person + follow | left 120 px (union cost, above), right 428,755 px; `pane1: … target=2 … src=follow hidden=2`, `cameraFilter removed=2 indices=2,3` |
+| pane 1 third-person | left 0 px, right 101,586 px; `pane1: … target=2 … src=focus hidden=-1` |
+| pane 0 mode change | left 430,206 px, right 13,411 px = the hide set, not the camera (both modes byte-identical) |
+| probe | rc=0, `paneInputCases=20 paneInputNegatives=7` beside the existing `paneBoundaryRules=10 paneBoundaryNegatives=13 paneCameraSources=3` |
+| gates | `camera-ui-check.sh` = CAMERA-UI=PASS; `tools/audit-tree.sh` = VERDICT: OK |
+
+### Known limitation: no ViewModel in a split
+
+The ViewModel pass is deferred in a split (step 2b), so a first-person pane shows no
+weapon. This is a KNOWN LIMITATION, not a defect, and it is not changed in this cycle:
+drawing the weapon in a split needs per-pane projection FOV/aspect first -- the audit
+table's "projection FOV" row is `must split in step 2` and is not split yet -- plus a
+per-pane ViewModel pass, because the pass builds its projection from the window aspect
+and clears the whole depth surface. The future shape is therefore: per-pane projection
+(audit row 11) then one ViewModel pass per pane that is in first person.
+
+### Shared by design: one time axis
+
+The demo clock stays shared: `entityModelTimeSeconds_` is one value for the frame and
+seeking one pane seeks both. In a split, seek synchronization is the DESIGN, not a
+coincidence of the implementation -- U4's roadmap sentence is "双 pane 共享时间轴 ... seek
+同步". Step 3 routed camera and follow commands per pane and deliberately left the clock
+alone: a second clock is a different product, and it is not what a second view of one
+replay means.
+
+Nothing else is deferred: per-pane body lists (costed above) are the only known limit
+left, and the ViewModel is the only feature gap this step knowingly leaves.
 

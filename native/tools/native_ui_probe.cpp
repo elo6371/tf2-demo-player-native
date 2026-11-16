@@ -1,5 +1,6 @@
 #include "native_ui.h"
 #include "pane_boundary.h"
+#include "pane_input.h"
 
 #include <Windows.h>
 #include <cassert>
@@ -408,6 +409,62 @@ void checkPaneBoundary(Readings& readings) {
   readings.set("paneBoundaryNegatives", 13u);
   readings.set("paneCameraSources", 3u);
 }
+
+// U4 step 3: the click-to-pane rule the window procedure dispatches through. The
+// cases below are the whole rule as numbers: a probe that only checked "1264 splits
+// at 632" would pass for an implementation that never rejects a click outside the
+// client, or that silently drops a pane count instead of clamping it. The expected
+// value is written for every case, negatives included -- an expectOnly-style check
+// that only asserts "not this" would not pin which pane a pixel selects.
+void checkPaneInput(Readings& readings) {
+  using namespace tf2::native;
+  std::uint32_t cases = 0;
+  std::uint32_t negatives = 0;
+  const auto expect = [&](int x, int width, std::uint32_t panes, int want, const char* what) {
+    ++cases;
+    if (want < 0) ++negatives;
+    check(paneForClientX(x, width, panes) == want, what);
+  };
+
+  // One pane: every pixel of the client selects pane 0, and nothing outside it does.
+  expect(0, 1264, 1u, 0, "pane input: a single pane owns the left edge");
+  expect(631, 1264, 1u, 0, "pane input: a single pane owns the left half");
+  expect(632, 1264, 1u, 0, "pane input: a single pane owns the right half");
+  expect(1263, 1264, 1u, 0, "pane input: a single pane owns the last pixel");
+  expect(-1, 1264, 1u, -1, "pane input: a click left of the client selects nothing");
+  expect(1264, 1264, 1u, -1, "pane input: a click on the right edge selects nothing (the client is half-open)");
+
+  // Two panes at the shipped 1264-wide client: the left half is [0, 632), because
+  // drawSplit's left viewport is width_ / 2.
+  expect(0, 1264, 2u, 0, "pane input: pixel 0 of a split selects pane 0");
+  expect(631, 1264, 2u, 0, "pane input: the last pixel of the left half selects pane 0");
+  expect(632, 1264, 2u, 1, "pane input: the first pixel of the right half selects pane 1");
+  expect(1263, 1264, 2u, 1, "pane input: the last pixel of a split selects pane 1");
+  expect(-1, 1264, 2u, -1, "pane input: a split rejects a click left of the client");
+  expect(1264, 1264, 2u, -1, "pane input: a split rejects a click right of the client");
+
+  // Odd width: the left half truncates, exactly like the viewport arithmetic, and
+  // the extra pixel belongs to the right pane.
+  expect(631, 1265, 2u, 0, "pane input: an odd client width keeps 632 pixels on the left");
+  expect(632, 1265, 2u, 1, "pane input: an odd client width gives the extra pixel to the right pane");
+
+  // A one-pixel client has an EMPTY left viewport, so its only pixel selects pane 1.
+  // Refusing the click instead would make a one-pixel split interactable by nothing.
+  expect(0, 1, 2u, 1, "pane input: a one-pixel split has no left pixel and selects the right pane");
+
+  // Degenerate inputs are answered, not guessed.
+  expect(0, 0, 2u, -1, "pane input: width 0 selects nothing");
+  expect(0, -5, 2u, -1, "pane input: a negative width selects nothing");
+  expect(0, 1264, 0u, -1, "pane input: no panes selects nothing");
+
+  // A pane count above the maximum is clamped to the panes that exist: three means
+  // two, so the split stays at the same pixel rather than inventing a third half.
+  expect(0, 1264, 3u, 0, "pane input: an over-large pane count clamps to the left pane");
+  expect(632, 1264, 3u, 1, "pane input: an over-large pane count clamps to the right pane");
+
+  readings.set("paneInputCases", cases);
+  readings.set("paneInputNegatives", negatives);
+}
 } // namespace
 
 int main() {
@@ -419,6 +476,7 @@ int main() {
   checkLayoutPlanner(readings);
   checkHudComposer(readings);
   checkPaneBoundary(readings);
+  checkPaneInput(readings);
 
   // The original screen-flow contract, kept verbatim but made real: every
   // former assert is a counted check.

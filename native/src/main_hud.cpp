@@ -961,6 +961,11 @@ struct HudMinimapDraw {
   std::size_t floorBands = 0;
   std::size_t lineworkRuns = 0;
   std::size_t lineworkRects = 0;
+  // The number of those rectangles this publish actually PUSHED into primitives.
+  // lineworkRects is what the builder built; this is what the panel handed over.
+  // They differ when the budget refused the plan (reason=rect-budget), and the trace
+  // has to be able to say which of the two happened.
+  std::size_t floorRectsPushed = 0;
   std::string signature;
   std::vector<tf2::native::Renderer::HudPrimitive> primitives;
 };
@@ -1138,6 +1143,7 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
         originY + static_cast<float>(box.y0),
         static_cast<float>(box.x1 - box.x0), static_cast<float>(box.y1 - box.y0),
         kMinimapFloorColour);
+      ++draw.floorRectsPushed;
     }
   }
   for (std::size_t index = 0; index < draw.row->pointCount; ++index) {
@@ -1182,14 +1188,22 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
 // The panel's readings: one line per publish plus one line per control point. A gate
 // reads a pixel and this number together, so the ring it samples is the ring the
 // product says it drew; a human reads where a ring went without a debugger.
+//
+// Two primitive counts, not one. `shapes` is every primitive the panel handed over,
+// which since N14/U3a includes the basemap's rectangles (1230 of the 1243 on
+// pl_upward_f12); `markers` is that same list minus the pushed basemap rectangles,
+// i.e. the frame + rings + viewer + heading dots, which is the number a reader means
+// by "thirteen shapes". The gate asserts `markers` plus the composition
+// shapes == markers + floorRects plus floorRects == rects, so the basemap's size is
+// never pinned as a constant and a plan that stops being pushed is still caught.
 void hudMinimapTrace(const HudMinimapDraw& draw) {
   if (!draw.active) return;
   const tf2::native::MinimapHudFrame& frame = tf2::native::minimapHudFrameRef();
   traceFmt("minimap: hud state=%s map=%s reason=%s panel=%d,%d,%d,%d"
     " scale=%.6f offsetX=%.6f offsetY=%.6f angle=%.2f yaw=%.2f eye=%.1f,%.1f"
     " viewerPx=%.2f viewerPy=%.2f viewerInside=%d arrowDots=%d cps=%zu drawn=%zu"
-    " shapes=%zu lw=%s floor=%zu faces=%zu kept=%zu fkept=%zu bands=%zu"
-    " runs=%zu rects=%zu tick=%d",
+    " shapes=%zu markers=%zu floorRects=%zu lw=%s floor=%zu faces=%zu kept=%zu"
+    " fkept=%zu bands=%zu runs=%zu rects=%zu tick=%d",
     draw.ready ? "ready" : "unavailable", frame.mapName.c_str(), draw.reason,
     draw.rect.x, draw.rect.y, draw.rect.w, draw.rect.h,
     static_cast<double>(draw.projection.scale),
@@ -1200,7 +1214,8 @@ void hudMinimapTrace(const HudMinimapDraw& draw) {
     static_cast<double>(draw.viewerPx), static_cast<double>(draw.viewerPy),
     draw.viewerInside ? 1 : 0, draw.arrowDots,
     draw.row ? draw.row->pointCount : static_cast<std::size_t>(0), draw.pointsDrawn,
-    draw.primitives.size(), draw.lineworkReason, draw.floorTriangles, draw.floorFaces,
+    draw.primitives.size(), draw.primitives.size() - draw.floorRectsPushed,
+    draw.floorRectsPushed, draw.lineworkReason, draw.floorTriangles, draw.floorFaces,
     draw.floorKept, draw.floorFacesKept, draw.floorBands, draw.lineworkRuns,
     draw.lineworkRects, frame.tick);
   if (!draw.ready) return;

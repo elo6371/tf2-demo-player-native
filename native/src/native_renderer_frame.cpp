@@ -101,6 +101,85 @@ void Renderer::setPaneCameraOrbit(std::uint32_t pane, float yaw, float pitch, fl
   camera.orbitDistance = distance;
 }
 
+void Renderer::setPaneCameraFocusWorld(std::uint32_t pane, float x, float y, float z) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;  // pane 0 belongs to the orbit camera
+  if (!worldBoundsValid_ || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)
+      || !std::isfinite(worldCenterX_) || !std::isfinite(worldCenterY_)
+      || !std::isfinite(worldMinZ_) || !std::isfinite(worldSpanZ_)
+      || !std::isfinite(worldHorizontalScale_) || worldSpanZ_ <= 0.0f
+      || worldHorizontalScale_ <= 0.0f) return;
+  // The same three lines as setObserverFocusWorld, deliberately copied instead of
+  // factored out of it: the pane-0 conversion every existing capture depends on
+  // must not move while a second pane is added.
+  const float normalizedX = (x - worldCenterX_) * worldHorizontalScale_;
+  const float normalizedY = (y - worldCenterY_) * worldHorizontalScale_;
+  const float normalizedZ = (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f;
+  if (!std::isfinite(normalizedX) || !std::isfinite(normalizedY) || !std::isfinite(normalizedZ)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  camera.focus[0] = std::clamp(normalizedX, -1.0e6f, 1.0e6f);
+  camera.focus[1] = std::clamp(normalizedY, -1.0e6f, 1.0e6f);
+  camera.focus[2] = std::clamp(normalizedZ, -1.0e6f, 1.0e6f);
+  camera.focusValid = true;
+  // Third person is the orbit around this focus, never a stale demo eye: a pane
+  // that kept its eye would ignore the focus it was just handed.
+  camera.demoView = false;
+}
+
+void Renderer::setPaneCameraDemoViewWorld(std::uint32_t pane, float x, float y, float z,
+    float pitchDegrees, float yawDegrees) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  if (!std::isfinite(pitchDegrees) || !std::isfinite(yawDegrees)) return;
+  if (!worldBoundsValid_ || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)
+      || !std::isfinite(worldCenterX_) || !std::isfinite(worldCenterY_)
+      || !std::isfinite(worldMinZ_) || !std::isfinite(worldSpanZ_)
+      || !std::isfinite(worldHorizontalScale_) || worldSpanZ_ <= 0.0f
+      || worldHorizontalScale_ <= 0.0f) return;
+  const float normalizedX = (x - worldCenterX_) * worldHorizontalScale_;
+  const float normalizedY = (y - worldCenterY_) * worldHorizontalScale_;
+  const float normalizedZ = (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f;
+  if (!std::isfinite(normalizedX) || !std::isfinite(normalizedY) || !std::isfinite(normalizedZ)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  camera.demoView = true;
+  camera.demoEye[0] = std::clamp(normalizedX, -1.0e6f, 1.0e6f);
+  camera.demoEye[1] = std::clamp(normalizedY, -1.0e6f, 1.0e6f);
+  camera.demoEye[2] = std::clamp(normalizedZ, -1.0e6f, 1.0e6f);
+  camera.demoPitchDeg = pitchDegrees;
+  camera.demoYawDeg = yawDegrees;
+  // Mirrors setObserverDemoViewWorld: the eye is also the focus, so leaving first
+  // person for third has a target rather than jumping back to the origin.
+  camera.focusValid = true;
+  camera.focus[0] = camera.demoEye[0];
+  camera.focus[1] = camera.demoEye[1];
+  camera.focus[2] = camera.demoEye[2];
+}
+
+void Renderer::clearPaneCameraDemoView(std::uint32_t pane) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  paneCameras_[pane].demoView = false;
+}
+
+void Renderer::orbitPaneCamera(std::uint32_t pane, float deltaX, float deltaY) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  if (!std::isfinite(deltaX) || !std::isfinite(deltaY)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  constexpr float kPi = 3.14159265358979323846f;
+  const float yaw = std::remainder(camera.orbitYaw + deltaX * 0.008f, kPi * 2.0f);
+  const float pitch = camera.orbitPitch + deltaY * 0.008f;
+  if (std::isfinite(yaw)) camera.orbitYaw = yaw;
+  if (std::isfinite(pitch)) camera.orbitPitch = std::clamp(pitch, 0.25f, 1.45f);
+  // Right-dragging is the user taking the camera: it leaves the demo eye, for the
+  // same reason orbitCamera clears pane 0's.
+  camera.demoView = false;
+}
+
+void Renderer::zoomPaneCamera(std::uint32_t pane, float delta) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  if (!std::isfinite(delta)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  const float distance = camera.orbitDistance * std::exp(-delta * 0.08f);
+  if (std::isfinite(distance)) camera.orbitDistance = std::clamp(distance, 0.8f, 12.0f);
+}
+
 bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlue,
                                 std::uint32_t paneIndex, std::uint32_t paneCount) {
   if (!context_ || !target_ || !swapChain_) return false;
