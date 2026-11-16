@@ -10,7 +10,7 @@
 | task-1 | 工程与集成（card-arch） | 工具链唯一入口、/W4 告警门、故障注入门、E1 第 3/4 轮门禁矩阵、E4 复用、五探针 same-bytes 复核、**合并窗口（三支并入 → 全量重建 exe `a14ea967` → 同一 exe 6 门读数，单/双 pane 不吞功能）** | viewmodel-material 10 红逐条定性、release-rebuild 新鲜度判据改内容哈希 + 负控、companion witness、t2/userinfo/map-geometry/world-material-effects 本轮未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 自缺陷 | 未完成（多门 PASS，判据缺陷已定性未修） |
 | task-2 | 地图（card-maps） | M2a 顶点变换一致（e5fe2219）；M2b **否证**遮挡假设（cec27931）；像素口径闭环更正 | R1 per-pass 深度回读仪（需改码重编，未开工）；R2 常规渲染路径复现性；map-geometry-lighting 两类红（参考移动需带理由 re-pin / 语料缺失）；map-material POV 语料三缺（一份有替补、两份 BLOCKED） | 未完成（M2b 是否证，不是修复） |
 | task-3 | 交互 UI（card-ui） | U1（f1365199）、U2（76d55078）、U3a 小地图线稿（6fa76eb8）、D77 大小写修复（0a1aad40）、oracle 错位修复（8eb6c085）、**U3b 窄窗面板（0d2746c1，A/B 同 sha 不染红）**、文档更正（1266600a）、A1 单位错配解释 | U4（N16 双 pane，已开工第 1 步）、A1 面集纳入规则、t2 判据修正（须负控） | 未完成（缺陷已修，A1 面集仍 BLOCKED） |
-| task-4 | 角色/音频/导出（card-char） | P2 关闭（28 断言 0 失败）；P3a 效果可用性（78e58234）；P3b 音频账务（4096 payload 上限，非解码失败）；P4 导出能力六项全中 | N27 导出实现（用户 m06702 已批准，需重编）；4096 账务语义修正（用户已批准）；产品仍无导出入口 | 未完成（能力已证，功能未接） |
+| task-4 | 角色/音频/导出（card-char） | P2 关闭（28 断言 0 失败）；P3a 效果可用性（78e58234）；P3b 音频账务根因+修正（d25798ad）；P4 导出能力六项全中；N27 导出先验链（ca3fa348）；**合并树 Phase A/B 全 PASS（产品 decodefail 0/2/2/2、I1–I4 四 demo PASS，b0abac7d）** | N27 产品导出入口（只有设计）；D75 世界 FOV（只复现+设计）；4096 cap 本身仍按设计丢 | 未完成（能力已证，功能未接） |
 
 一句话：**没有一张卡可以宣布"完成"**；task-1 与 task-4 的证据链最完整，task-2 的核心进展是"否证了一个错误假设"，task-3 修掉了两条真缺陷但几何口径仍 BLOCKED。合并窗口已把 task-2/3/4 的四条分支并进主树并全量重建（exe `a14ea967`），同 exe 上 5 门 PASS、minimap-hud 3 红与合并前逐字相同、release-rebuild 1 红是已定性的判据缺陷——**合并本身没有引入新的产品红**，但也**没有让任何一张卡变成完成**。下面按卡给证据。
 
@@ -165,6 +165,10 @@
 - payload_too_large **结构上不可达**：payloadBits 可靠路径 8 bit、非可靠路径 16 bit ⇒ 上限 65535 < 65536，恒 0；能被输入推动的只有 message_cap（4096 条上限）。
 - 产品侧：代码路径确实走这条受限 payload 链（native/src/main.cpp:4439 parseDemoHeaderFile → native/src/demo_header.cpp:180 type 17 → readSounds；:7168 buildSoundTimeline；:7309-7312 打印），既有产品日志与 probe 改前逐项相同（bagel_rc13 sounddecodefail=11018、snakewater 8308、bagel_rc11 18288）。但**产品本次未重建未运行**，所以「产品账务已修正」还不成立。
 - 边界不变：**未证明没有丢音频**——4096 条上限仍按设计丢，每条丢消息仍记一次 failure（现在记在正确的原因字段）。
+- **合并树 Phase A（产品读音，提交 `b0abac7d`）**：worktree `t105-e5-n27a` 执行 `git merge candidate/e5`（基线 `0ada1d81`，含 `014da358`）→ merge commit `d5336cb9`；`build-target.sh tf2_demo_native demo_open_probe` rc=0。被测产品 exe = worktree 构建 `eda6889bc45f97e4166b6652d4d269f554be46135788d2ab1a4c439ad7f407f2`（3,057,152 B / 17:02，跑前跑后 same-sha）；**主树门禁 exe 未动，仍是 `a14ea967…`（构建前后各核一次）**——两者大小相同、sha 不同（构建路径/调试串差异）。产品 TITLE 四行原始读数：
+  `koth_bagel_rc13 sounds=15114 soundevents=19289 sounddecoded=5234 sounddecodefail=0` / `pl_upward_f12 25017 35278 5528 2` / `cp_snakewater_final1 12402 15942 5292 2` / `koth_bagel_rc11 22382 28637 5244 2` ⇒ 与 §9 期望表**逐项相同**，`VERDICT: PASS (product prints split sound accounting on merged build)`。
+- **Phase B（同树 probe 恒等式）**：probe `314ab6b2…`（663,552 B / 17:02，由上述合并树现场构建；与修复 commit 的构建 sha 相同 ⇒ 可复现），四 demo `pass_verdicts=4 (expect 4)`、`PROBE_VERDICT: PASS`：I1 `dropped==payload_too_large+message_cap` = 11018/20921/8306/18286（payload_too_large 恒 0）；I2 `messages−dropped==4096` 四个全 4096（cap 仍按设计打满）；I3 `failures<=4096` = 0/2/2/2；I4 `failures<dropped` = 0<11018、2<20921、2<8306、2<18286。
+- 证据口径（重要）：产品 TITLE 行只打 sounds/soundevents/sounddecoded/sounddecodefail 四个数，**不打 sound_dropped/message_cap** ⇒「产品账务字段已拆」这一层只有 probe 能证；且被测产品是 worktree 合并树构建（`eda6889b`），**不是**门禁矩阵 exe（`a14ea967`）本人。证据 `D:/_shared/EXEC-2026-11-16/INST3/taskB-merged/`（merged-run.log、merged-run/manifest.txt、product/*.driver.txt、probe.txt、build-merged.log、sound_product_check.sh、probe_identity_check.sh）。
 
 ### 5.4 P4 导出能力六项全中 + 一条口径缺陷
 - Q1 h264=yes(filtered 4)、Q2 aac=yes(1)、Q3 bothStreamsAdded=yes、Q4 rgb32Accepted=yes needsOwnNv12Converter=no、Q6 streamCount=2 firstFrameDecoded=yes、throughput ok=yes（100 帧 220 ms / 419,212 B）。
@@ -211,6 +215,9 @@ ca3fa348 n27: verifiable export chain (dump/encode/normalize/decode) + verify sc
 71c983cb source-tv: audit eight active recordings; register three replacements + review12 BLOCKED-INPUT
 8bb99c34 docs: round-4 E1 triage (75dae10e identity, probe rebuild evidence, window outcome)
 e8cabb15 T105 E5 N27/P4: the export rerun is deterministic in the media and not in the timestamps
+0ada1d81 docs: merge-window record (three branches, single rebuild a14ea967, seven gates, pane evidence)
+b0abac7d p3b: record merged-tree Phase A/B sound accounting PASS (product 0/2/2/2, I1-I4)
+50cacb37 docs: four-card report v0.2 + project overview
 ```
 
 ### 7.2 证据目录
@@ -222,5 +229,5 @@ e8cabb15 T105 E5 N27/P4: the export rerun is deterministic in the media and not 
 1. task-1：E1 第 5 轮四门；mtime 判据改内容哈希（含负控）；A1/A6/A7 口径。
 2. task-2：R1 深度回读仪（改码重编）；R2 常规路径；map-geometry re-pin + 语料；map-material 两份 BLOCKED-INPUT。
 3. task-3：U4（N16 双 pane，三步）、A1 面集规则、t2 判据修正（配负控）。
-4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（设计进行中）；4096 账务修正已提交（d25798ad）待合并重建。
+4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
 5. 横切：D75 世界 FOV 修法、N24 main 拆分、N26 按口径重测。
