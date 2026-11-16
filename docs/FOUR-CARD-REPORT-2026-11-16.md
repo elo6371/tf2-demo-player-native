@@ -7,7 +7,7 @@
 
 | 卡 | 任务 | 已落地（有证据） | 仍欠/阻塞 | 当前判定 |
 | --- | --- | --- | --- | --- |
-| task-1 | 工程与集成（card-arch） | 工具链唯一入口、/W4 告警门、故障注入门、E1 第 3/4 轮门禁矩阵、E4 复用、五探针 same-bytes 复核、合并窗口（三支并入 → 全量重建 `a14ea967` → 6 门读数）、**release-rebuild 判据改「哈希构建真正读的输入」+ 自检脚本（b233bdae）、camera-ui CRLF 自缺陷落修法（2cbe87e5）** | 干净树重建身份（当前 exe `216d7f98` 是 dirty=52 的重建产物）、viewmodel-material 10 红定性、companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径 | 未完成（判据已改，待干净树重钉身份） |
+| task-1 | 工程与集成（card-arch） | 工具链唯一入口、/W4 告警门、故障注入门、E1 第 3/4 轮门禁矩阵、E4 复用、五探针 same-bytes 复核、合并窗口（三支并入 → 全量重建 `a14ea967` → 6 门读数）、**D-93 判据重做（b233bdae：内容哈希+per-target 依赖集+产物哈希，负控 C9–C12、selftest 47/47、真实门两次绿）、viewmodel-material 十红定性为 stale pins（56dee328）、camera-ui CRLF 修法（2cbe87e5）** | viewmodel-material re-pin 窗口（定性已完成）、companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、exe 身份改钉 `216d7f98` | 未完成（判据已修，re-pin 待窗口） |
 | task-2 | 地图（card-maps） | M2a 顶点变换一致（e5fe2219）；M2b **否证**遮挡假设（cec27931）；**R1 已构建并定论：109 px 边界 = 深度写掩码边界/覆盖率补集，只有 50-entities 写过 interior 1181 px（1b762057）**；像素口径闭环更正 | R2 常规路径复现（只有设计）；map-geometry p2 未裁决、rc12 语料缺失；map-material 完整重跑未做（2 份 BLOCKED-INPUT）；50-entities 内逐 range 归属未证 | 未完成（R1 定了 M2b 的边界归属） |
 | task-3 | 交互 UI（card-ui） | U1（f1365199）、U2（76d55078）、U3a 小地图线稿（6fa76eb8）、D77 大小写修复（0a1aad40）、oracle 错位修复（8eb6c085）、U3b 窄窗面板（0d2746c1）、**U4 第 1/2/3 步（1e9e18f8 / 2b / c1734a58，含两条真缺陷：g_paneSplit 未赋值、pane1 pick 早消费；单 pane same-sha）**、A1 单位错配解释 | A1 面集纳入规则、t2 判据修正（须负控）、PIP→四窗预算、split ViewModel（已裁决 defer） | 未完成（交互已通，A1 面集仍 BLOCKED） |
 | task-4 | 角色/音频/导出（card-char） | P2 关闭（28 断言 0 失败）；P3a 效果可用性（78e58234）；P3b 音频账务根因+修正（d25798ad）；P4 导出能力六项全中；N27 导出先验链（ca3fa348）；**合并树 Phase A/B 全 PASS（产品 decodefail 0/2/2/2、I1–I4 四 demo PASS，b0abac7d）** | N27 产品导出入口（只有设计）；D75 世界 FOV（只复现+设计）；4096 cap 本身仍按设计丢 | 未完成（能力已证，功能未接） |
@@ -69,7 +69,16 @@
 - 收工核对：audit-tree `VERDICT: OK`、dirty=0、hostlock FREE、无 `.scratch/*.lock`、exe 仍 `a14ea967`；stash@{0} 未 pop（由 lead 收工后 pop 并核对）。
 - **本轮未跑（不当作通过）**：t2-visual-matrix、userinfo、world-material-effects、map-geometry、viewmodel-material、companion witness。
 - **合并后主树继续前进（17:00–17:33）**：`b233bdae` 把 release-rebuild 判据改成「哈希构建真正读的那些输入」（`release-rebuild.sh` +146/−20、新增 `release-rebuild-selftest.sh` +116），`2cbe87e5` 给 camera-ui 的 CRLF 自缺陷落一行修法。主树 exe 因该自检**重建**而被刷新：`216d7f986574dc350113ad8b08902bc43754915c3ac0868c8c90e8405981d1eb` / 3,057,152 B / 17:33；sidecar `sourceTree=1b762057f47a`、`sourceContent=a73cb80a…`、**`dirty=1 dirtyFiles=52 dirtyTracked=51 dirtyUntracked=1`**、`buildUtc=2026-11-16T09:33:05Z`。
-  ⇒ 这个 exe 是**脏树构建**（证据目录被地图门禁刷新所致），只能当「重建产物」证据，**不能当干净门禁身份**；下一次完整门禁矩阵前必须在干净树上重建并重新钉身份。`a14ea967` 仍是**唯一一次 clean-tree 合并构建**。
+  ⇒ 关键更正：这个 exe 的 **`native/` 源码是干净的**（`git diff 014da358..HEAD -- native/` 为空、工作树 `native/` 无改动），`dirty=52` **全部来自非源码目录**（`evidence/t62-map-matrix/` 被地图门禁刷新 + 我的 docs）。因此它**可以当门禁身份**（viewmodel-material 复测就用它，读数与 `75dae10e` 逐字节同值），但文档必须写清「dirty 计数来自非源码证据目录；exe 身份只能钉 sha，不能靠推导」。
+  ⇒ 重建本身是 D-93 判据修正的副作用：首次真实门因 manifest 覆盖面从 `src/` 扩到**全输入**，把 `tf2_demo_native.exe` 一次性重链 `a14ea967`→`216d7f98`（源码未变）。**「主树 exe 保持 a14ea967」这条约束在 17:33 之后不再成立**，后续门禁身份一律用 `216d7f98…`。
+
+### 2.8 D-93 判据重做 + viewmodel-material 十条红定性（b233bdae / 56dee328 / 2cbe87e5）
+- **release-rebuild 判据已重做**（commit `b233bdae`，`release-rebuild.sh` +146/−20、新增 `release-rebuild-selftest.sh` +116）：判据 = **源码内容哈希 + per-target 依赖集（`cmake compiler_depend.internal`）+ 产物二进制哈希**；负控 **C9/C10/C11/C12 全过**，selftest **47/47**；两次真实门（同一 hostlock 窗口）run1 `basis=deps-rule-first-run rebuilt=1`、run2 `basis=identity-agrees rebuilt=0`，**world_geometry 不再假红**。日志 `D:/_shared/EXEC-2026-11-15/INST1/E1-merge/rebuild-criterion/real-run-{1,2}.log`。
+- **viewmodel-material 十条红已定性为「期望漂移（stale pins）」，不是产品回退**（commit `56dee328`，只改 docs，不动阈值/代码）：复测 sections 7–9 only、exe `216d7f98`、**26 OK / 10 FAIL**，十条红逐条同位；`§8 differing=7272/2582352=0.2816%` 与第 5 轮 `75dae10e` **逐字节同值** ⇒ 读数稳定、可钉。
+- **硬证据**：这 10 条断言文本自 `279dabb5`（2026-10-13）起**逐字未改**；`435b4d5c` 换录制只 re-pin 了 §6（`:689/:691`）。机制：`v_sapper_spy` 现在 **3 descriptor**（`ranges=3`、11640/9447/96 vertices、`rangeSlots=-1,-1,-1 / 2,2,2 / -1,1,2`）；`uploadSlot` 在 `952ddf20`（2026-10-17）从「override/drawnSlot」改成常量 −1/−2（全上传，`main.cpp:7969`）；`texturesUploaded` 是**渲染器全局单调计数**且 body pass 也上传（`main.cpp:8170`），§7 的 flat 2 次上传不是本 pass 计数；§8「fallback 帧 == flat 帧」在 3 range 下**必然不成立**（`rangeTextured 0,0,0` vs `0,1,1`）。
+- **反证（说明不是产品坏了）**：§7 因果像素控制全绿（1.1447%，世界条带 0，重复跑 byte-identical）；§9 另 9 条全绿（resolved 4/4、alphaSlots=2、11640 vertices）；§8 fallback 机制在位（resolved 4→3、fallbackSlots=1）。文档含 **re-pin 提案**（精确新值 + 退役 §8 整帧相等断言，换成 pmissing 稳定性 + rangeTextured 断言）与 `TRACE_DIR` 绝对路径陷阱（门禁会拼 `$ROOT`，产品 rc=16）。
+- **我的裁决**：§7 `:786` 的 uploads 断言**不按全局计数器 re-pin**，改断言对象（换成 pass-local 的 ranges/rangeSlots；`texturesUploaded` 只留「单调不减」sanity 并注明是全局计数）——不需要产品先加 pass-local 计数器。**re-pin 窗口由 card-arch 在 hostlock 释放后独立开**，条件：只动 §7/§8、§9 九绿不动、§8 机制断言保留、**必须配负控**（要能判出「3 range 却只有 1 次 rangeTextured」「descriptor 数量回退」两类真回退）、贴新旧值对照与断言文本 diff。
+- camera-ui 门禁的 CRLF 自缺陷也在 `2cbe87e5` 落了修法（E1 文档 §6.3 一句话）。
 
 ## 3. task-2 地图（card-maps）
 
@@ -243,6 +252,7 @@ b5f9fa7f docs: four-card report — merged-tree sound accounting Phase A/B PASS
 b233bdae gate(rebuild): hash the inputs the build actually reads (D-93 criterion fix)
 2cbe87e5 docs(e1): the camera-ui gate defect gets a one-line fix
 c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary (step 3)
+56dee328 t1: the viewmodel-material reds are stale pins, not a product regression
 ```
 
 ### 7.2 证据目录
@@ -251,7 +261,7 @@ c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary 
 - P2/P3/P4：`D:/_shared/EXEC-2026-11-15/INST4/p2-n19/attach-budget/`、`docs/N20-EFFECTS-AVAILABILITY-2026-11-16.md`、`docs/N27-EXPORT-PROBE-RERUN-2026-11-16.md`
 
 ### 7.3 未完成清单（诚实版）
-1. task-1：干净树上重建并重钉 exe 身份（当前 `216d7f98` 是 dirty=52 的重建产物，不能当门禁身份）；viewmodel-material 10 红逐条定性；companion witness；t2/userinfo/map-geometry/world-material-effects 未跑；A1/A6/A7 口径。
+1. task-1：viewmodel-material re-pin 窗口（§7 改断言对象 + §8 退役整帧相等 + 负控）；companion witness；t2/userinfo/map-geometry/world-material-effects 未跑；A1/A6/A7 口径；exe 身份改钉 `216d7f98`（源码干净、非源码脏，需在文档写清）。
 2. task-2：R2 常规路径实现与复现；map-geometry p2 裁决 + rc12 语料；map-material 完整重跑（两份 BLOCKED-INPUT）；50-entities 内逐 range 归属。
 3. task-3：A1 面集规则、t2 判据修正（配负控）、PIP→四窗预算、hidden-body 并集正解、split ViewModel（已裁决 defer）。
 4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
