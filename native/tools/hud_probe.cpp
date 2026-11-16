@@ -21,6 +21,7 @@
 //   Prints key=value lines; exit 0 only when every self-assertion held.
 
 #include "hud_import.h"
+#include "hud_panel.h"
 
 #include <algorithm>
 #include <cmath>
@@ -593,6 +594,62 @@ int main(int argc, char** argv) {
     check(!tf2::native::hudScaleInRange(49) && tf2::native::hudScaleInRange(50)
       && tf2::native::hudScaleInRange(200) && !tf2::native::hudScaleInRange(201),
       "scale-range-boundaries-are-exact");
+  }
+
+  // =======================================================================
+  // 8. a narrow client: width and height clamp on their own axis
+  // =======================================================================
+  {
+    // The layout clamps the width to the usable width and, since E10/U3b, the
+    // height to the usable height. On a 120-pixel-wide client the 160-pixel
+    // minimap cannot keep its width and has no reason to lose its height, so the
+    // panel is 104 x 160: the shape the product used to draw as if it were square.
+    std::vector<tf2::native::HudPanelSpec> specs;
+    specs.push_back(tf2::native::hudMinimapPanelSpec());
+    const tf2::native::HudPanelLayout narrow =
+      tf2::native::hudLayoutPanels(specs, 120, 720, tf2::native::kHudPanelSafeInset);
+    check(!narrow.panels.empty() && narrow.dropped == 0, "narrow-client-places-the-panel");
+    const tf2::native::HudPanelRect rect =
+      narrow.panels.empty() ? tf2::native::HudPanelRect() : narrow.panels.front();
+    std::printf("narrow.panel x=%d y=%d w=%d h=%d\n", rect.x, rect.y, rect.w, rect.h);
+    check(rect.w == 120 - 2 * tf2::native::kHudPanelSafeInset, "narrow-client-clamps-width");
+    check(rect.h == 160, "narrow-client-keeps-height");
+    // The four edges, each on its own axis. The old code put the bottom edge and
+    // the side edges at w, so the frame ended 56 pixels short of the panel.
+    const tf2::native::HudPanelFrame frame = tf2::native::hudPanelFrame(rect, 2.0f);
+    check(frame.top.w == static_cast<float>(rect.w)
+      && frame.bottom.w == static_cast<float>(rect.w), "frame-horizontal-edges-follow-width");
+    check(frame.left.h == static_cast<float>(rect.h)
+      && frame.right.h == static_cast<float>(rect.h), "frame-side-edges-follow-height");
+    check(frame.bottom.y == static_cast<float>(rect.y + rect.h) - 2.0f,
+      "frame-bottom-edge-follows-height");
+    check(frame.right.x == static_cast<float>(rect.x + rect.w) - 2.0f,
+      "frame-right-edge-follows-width");
+    // The point that separates the two readings: (52, 120) is inside a 104 x 160
+    // panel and outside a 104 x 104 one. The product culled it and the ring was a
+    // hole in the picture with the trace still saying the control point was live.
+    check(tf2::native::hudPanelPointInside(rect, 52.0f, 120.0f, 2.0f),
+      "point-below-formed-width-is-inside-the-height");
+    check(!tf2::native::hudPanelPointInside(rect, 52.0f, 160.0f, 2.0f),
+      "point-past-the-height-is-outside");
+    check(!tf2::native::hudPanelPointInside(rect, 105.0f, 120.0f, 2.0f),
+      "point-past-the-width-is-outside");
+    // The other axis on its own: a 120-pixel-tall client squeezes the height and
+    // leaves the width alone. No margin, so the whole usable height is available.
+    std::vector<tf2::native::HudPanelSpec> flatSpecs;
+    flatSpecs.push_back({"flat", 0, 0, 160.0f, 160.0f, 0.0f, 0.0f, true, false});
+    const tf2::native::HudPanelLayout flat =
+      tf2::native::hudLayoutPanels(flatSpecs, 1280, 120, tf2::native::kHudPanelSafeInset);
+    check(!flat.panels.empty() && flat.panels.front().h == 120 - 2 * tf2::native::kHudPanelSafeInset,
+      "short-client-clamps-height");
+    check(!flat.panels.empty() && flat.panels.front().w == 160, "short-client-keeps-width");
+    // The product's own panel carries marginY=4, and that gap is not height: in the
+    // same client it is 104 - 4 tall and stays placed instead of being dropped.
+    const tf2::native::HudPanelLayout tight =
+      tf2::native::hudLayoutPanels(specs, 1280, 120, tf2::native::kHudPanelSafeInset);
+    check(!tight.panels.empty()
+      && tight.panels.front().h == 120 - 2 * tf2::native::kHudPanelSafeInset - 4
+      && tight.dropped == 0, "anchored-gap-is-not-available-height");
   }
 
   if (selfTest) {

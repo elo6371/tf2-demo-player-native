@@ -3201,6 +3201,12 @@ bool outlineVertexExtent = false;
   bool worldFogEndGiven = false;
   float worldFogStartOverride = 0.0f;
   float worldFogEndOverride = 0.0f;
+  // U4 step 2b: --pane-split composes two views of the same demo frame into one
+  // window: left half pane 0 (the existing orbit/observer camera), right half
+  // pane 1 (--pane1-orbit, or pane 0's camera when it was not given). The demo
+  // clock stays shared by design -- this is a viewport/camera split, not a second
+  // playback, and the audit table says so.
+  bool paneSplit = false;
   bool worldVisClipRequested = true;
   bool worldVisClipGiven = false;
   // T10 diagnostic: the world pass rasterises with back-face culling by
@@ -3538,6 +3544,20 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--fog-end") == 0 && i + 1 < argumentCount) {
         worldFogEndOverride = static_cast<float>(_wtof(arguments[++i]));
         worldFogEndGiven = true;
+        continue;
+      }
+      // U4 step 2b: the two-pane switches. --pane1-orbit takes the three numbers
+      // orbitCamera/zoomCamera would have produced (yaw, pitch, distance) and
+      // writes them into pane 1's camera only; pane 0 keeps taking its camera from
+      // the existing observer/orbit path. Without --pane1-orbit the two panes show
+      // the same camera, which is the control frame for "the panes are
+      // independent": the two halves must then be the same picture.
+      if (wcscmp(arguments[i], L"--pane-split") == 0) { paneSplit = true; continue; }
+      if (wcscmp(arguments[i], L"--pane1-orbit") == 0 && i + 3 < argumentCount) {
+        const float pane1Yaw = static_cast<float>(_wtof(arguments[++i]));
+        const float pane1Pitch = static_cast<float>(_wtof(arguments[++i]));
+        const float pane1Distance = static_cast<float>(_wtof(arguments[++i]));
+        renderer.setPaneCameraOrbit(1u, pane1Yaw, pane1Pitch, pane1Distance);
         continue;
       }
       // The hermeticity pair is taken by the pre-scan at main.cpp:1898-1920, which has
@@ -14231,7 +14251,13 @@ bool outlineVertexExtent = false;
       const float clearR = worldDebugView == 2 ? 0.0f : 0.055f;
       const float clearG = worldDebugView == 2 ? 0.0f : 0.07f;
       const float clearB = worldDebugView == 2 ? 0.0f : 0.085f;
-      if (g_renderer && renderer.draw(clearR, clearG, clearB)) {
+      // U4 step 2b: one window, one surface, one frame -- composed from two
+      // viewports when --pane-split asked for it. Same clear colour and same demo
+      // clock; the panes differ only in the camera each one draws with.
+      const bool drewFrame = g_renderer && (paneSplit
+        ? renderer.drawSplit(clearR, clearG, clearB)
+        : renderer.draw(clearR, clearG, clearB));
+      if (drewFrame) {
         ++renderedFrames;
         // T54: the responsiveness reading, taken where a FRAME exists. The
         // interval is the time since the previous draw (lastFrame is only moved
@@ -14273,6 +14299,35 @@ bool outlineVertexExtent = false;
         traceFmt("capture: frame width=%d height=%d dpi=%u",
           g_renderer->frameWidth(), g_renderer->frameHeight(),
           window ? GetDpiForWindow(window) : 0u);
+      }
+      if (captureRequested && g_renderer) {
+        // U4 step 1: the single-surface pane contract, read from the draw that
+        // produced the frame on disk (see native/include/pane_boundary.h). This
+        // line is additive: every camera/viewport/depth binding the frame used is
+        // printed with whether it still describes ONE surface, so the boundary a
+        // second pane has to change is visible before that pane exists.
+        const tf2::native::PaneBoundaryReadings pane = g_renderer->paneBoundary();
+        traceFmt("pane: draw=%u viewport=%ux%u client=%ux%u targets=%u depth=%u"
+          " viewports=%u camera=%s hud=%u scissor=%u mismatches=0x%x",
+          pane.drawOrdinal, pane.viewportWidth, pane.viewportHeight,
+          pane.clientWidth, pane.clientHeight, pane.renderTargets, pane.depthViews,
+          pane.viewports, tf2::native::paneCameraSourceName(pane.camera),
+          pane.hudPasses, pane.hudScissorApplied ? 1 : 0,
+          g_renderer->paneBoundaryMismatches());
+      }
+      if (captureRequested && g_renderer) {
+        // U4 step 2b: the budget readings the split introduced. depthTargets is the
+        // surface count (one; panes share it by design through disjoint
+        // viewports), depthClears counts every full-surface depth clear in the
+        // frame (frame start + the ViewModel pass), passes is the sum of every pass
+        // ordinal handed out across the panes, and hud is the number of HUD passes.
+        // Those four numbers are what a PIP->four-window budget has to be able to
+        // count before it can argue one, and they are on the captured frame.
+        const tf2::native::PaneBoundaryReadings panesBudget = g_renderer->paneBoundary();
+        traceFmt("panes: count=%u viewports=%u depthTargets=%u depthClears=%u passes=%u hud=%u",
+          g_renderer->paneCountLastFrame(), panesBudget.viewports, panesBudget.renderTargets,
+          g_renderer->paneDepthClearsLastFrame(), g_renderer->panePassesLastFrame(),
+          panesBudget.hudPasses);
       }
       if (captureRequested && g_renderer) {
         // The RESOLVER's union is printed on the same line as the RENDERER's

@@ -924,11 +924,14 @@ const float* minimapTeamColour(int team) {
 // shape that hung over the edge would paint on top of the world outside the panel --
 // and the gate's "nothing outside the panel changed" half would then be red for a
 // reason that had nothing to do with projection.
-bool minimapPointFits(const tf2::native::MinimapPoint& pixel, int panelPixels,
-    float halfExtent) {
-  const float limit = static_cast<float>(panelPixels);
-  return pixel.inside && pixel.px >= halfExtent && pixel.px <= limit - halfExtent
-    && pixel.py >= halfExtent && pixel.py <= limit - halfExtent;
+bool minimapPointFits(const tf2::native::MinimapPoint& pixel,
+    const tf2::native::HudPanelRect& panel, float halfExtent) {
+  // E10/U3b (2026-11-16): the spare is measured on the panel's own width and its
+  // own height. One number for both axes is only right while the panel is square;
+  // a narrow client clamps the width and keeps the height, and this cull then
+  // dropped markers that were still inside the panel.
+  return pixel.inside
+    && tf2::native::hudPanelPointInside(panel, pixel.px, pixel.py, halfExtent);
 }
 
 struct HudMinimapDraw {
@@ -1066,7 +1069,7 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
     draw.projection, frame.eyeX, frame.eyeY);
   draw.viewerPx = viewer.px;
   draw.viewerPy = viewer.py;
-  draw.viewerInside = minimapPointFits(viewer, draw.rect.w, kMinimapViewerHalf);
+  draw.viewerInside = minimapPointFits(viewer, draw.rect, kMinimapViewerHalf);
   draw.angle = tf2::native::minimapScreenAngleDegrees(frame.yawDegrees);
 
   {
@@ -1106,19 +1109,24 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
     }
   }
 
-  const float panelPixels = static_cast<float>(draw.rect.w);
   const float originX = static_cast<float>(draw.rect.x);
   const float originY = static_cast<float>(draw.rect.y);
-  minimapPushRect(draw.primitives, originX, originY, panelPixels,
-    static_cast<float>(draw.rect.h), kMinimapBackgroundColour);
-  minimapPushRect(draw.primitives, originX, originY, panelPixels, kMinimapBorderWidth,
-    kMinimapBorderColour);
-  minimapPushRect(draw.primitives, originX, originY + panelPixels - kMinimapBorderWidth,
-    panelPixels, kMinimapBorderWidth, kMinimapBorderColour);
-  minimapPushRect(draw.primitives, originX, originY, kMinimapBorderWidth, panelPixels,
-    kMinimapBorderColour);
-  minimapPushRect(draw.primitives, originX + panelPixels - kMinimapBorderWidth, originY,
-    kMinimapBorderWidth, panelPixels, kMinimapBorderColour);
+  // E10/U3b (2026-11-16): the frame's four edges come from the panel's own width
+  // and height. The product used to take rect.w for both, which is only right
+  // while the panel is square: on a narrow client the bottom edge and both side
+  // edges sat at the width's distance, with the floor plan below them.
+  const tf2::native::HudPanelFrame panelFrame =
+    tf2::native::hudPanelFrame(draw.rect, kMinimapBorderWidth);
+  minimapPushRect(draw.primitives, panelFrame.background.x, panelFrame.background.y,
+    panelFrame.background.w, panelFrame.background.h, kMinimapBackgroundColour);
+  minimapPushRect(draw.primitives, panelFrame.top.x, panelFrame.top.y,
+    panelFrame.top.w, panelFrame.top.h, kMinimapBorderColour);
+  minimapPushRect(draw.primitives, panelFrame.bottom.x, panelFrame.bottom.y,
+    panelFrame.bottom.w, panelFrame.bottom.h, kMinimapBorderColour);
+  minimapPushRect(draw.primitives, panelFrame.left.x, panelFrame.left.y,
+    panelFrame.left.w, panelFrame.left.h, kMinimapBorderColour);
+  minimapPushRect(draw.primitives, panelFrame.right.x, panelFrame.right.y,
+    panelFrame.right.w, panelFrame.right.h, kMinimapBorderColour);
   // The floor plan sits between the frame and the markers: under the rings, so a
   // ring on a wall is still a ring, and over the background, so the outline is
   // read against the dark panel and not against the world.
@@ -1136,7 +1144,7 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
     const tf2::native::MinimapControlPointRow& point = draw.row->points[index];
     const tf2::native::MinimapPoint pixel = tf2::native::minimapPanelPoint(draw.bounds,
       draw.projection, point.x, point.y);
-    if (!minimapPointFits(pixel, draw.rect.w, kMinimapRadius)) continue;
+    if (!minimapPointFits(pixel, draw.rect, kMinimapRadius)) continue;
     ++draw.pointsDrawn;
     minimapPushCircle(draw.primitives, originX + pixel.px - kMinimapRadius,
       originY + pixel.py - kMinimapRadius, kMinimapRadius * 2.0f,
@@ -1159,8 +1167,7 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
       const float distance = kMinimapArrowStart + kMinimapArrowStep * static_cast<float>(dot);
       const float px = draw.viewerPx + distance * forwardX;
       const float py = draw.viewerPy + distance * forwardY;
-      if (px < kMinimapArrowHalf || px > panelPixels - kMinimapArrowHalf
-          || py < kMinimapArrowHalf || py > panelPixels - kMinimapArrowHalf) {
+      if (!tf2::native::hudPanelPointInside(draw.rect, px, py, kMinimapArrowHalf)) {
         continue;
       }
       ++draw.arrowDots;
@@ -1206,7 +1213,7 @@ void hudMinimapTrace(const HudMinimapDraw& draw) {
       point.name, point.index, point.team, static_cast<double>(point.x),
       static_cast<double>(point.y), static_cast<double>(pixel.px),
       static_cast<double>(pixel.py), pixel.inside ? 1 : 0,
-      minimapPointFits(pixel, draw.rect.w, kMinimapRadius) ? 1 : 0);
+      minimapPointFits(pixel, draw.rect, kMinimapRadius) ? 1 : 0);
   }
 }
 

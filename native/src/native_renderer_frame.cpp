@@ -25,48 +25,174 @@ namespace tf2::native {
 
 
 bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
+  paneCountThisDraw_ = 1;
+  paneIndexThisDraw_ = 0;
+  syncPrimaryPaneCamera();
+  return drawPaneInternal(clearRed, clearGreen, clearBlue, 0, 1);
+}
+
+// U4 step 2b: two panes, one surface, one clock. The panes are composed by
+// running the same draw body twice with disjoint viewports; the demo playback
+// clock is shared by design (see docs/U4-PANE-OWNERSHIP-2026-11-16.md), so this
+// is a viewport/camera split and not a second simulation.
+bool Renderer::drawSplit(float clearRed, float clearGreen, float clearBlue) {
   if (!context_ || !target_ || !swapChain_) return false;
+  paneCountThisDraw_ = kPaneMaxPanes;
+  syncPrimaryPaneCamera();
+  paneDepthClears_ = 0;
+  bool drawn = true;
+  DirectX::XMFLOAT4X4 primaryView{};
+  float primaryEye[3] = {};
+  float primaryForward[3] = {};
+  float primaryUp[3] = {};
+  float primaryRight[3] = {};
+  for (std::uint32_t pane = 0; pane < kPaneMaxPanes; ++pane) {
+    paneIndexThisDraw_ = pane;
+    drawn = drawPaneInternal(clearRed, clearGreen, clearBlue, pane, kPaneMaxPanes) && drawn;
+    if (pane == 0) {
+      primaryView = frameView_;
+      for (int i = 0; i < 3; ++i) {
+        primaryEye[i] = frameEye_[i];
+        primaryForward[i] = frameForward_[i];
+        primaryUp[i] = frameUp_[i];
+        primaryRight[i] = frameRight_[i];
+      }
+    }
+  }
+  // The camera the rest of the program reads after a frame is pane 0's: the
+  // single-pane camera, not whichever pane was drawn last.
+  frameView_ = primaryView;
+  for (int i = 0; i < 3; ++i) {
+    frameEye_[i] = primaryEye[i];
+    frameForward_[i] = primaryForward[i];
+    frameUp_[i] = primaryUp[i];
+    frameRight_[i] = primaryRight[i];
+  }
+  return drawn;
+}
+
+// Pane 0's camera is the orbit/observer state every existing caller drives.
+// Copying it once per frame keeps one source of truth: pane 1 is written only by
+// setPaneCameraOrbit, so camera input cannot reach it by accident.
+void Renderer::syncPrimaryPaneCamera() {
+  PaneCameraState& camera = paneCameras_[0];
+  camera = PaneCameraState{};
+  camera.demoView = observerDemoView_;
+  camera.demoEye[0] = observerDemoEyeX_;
+  camera.demoEye[1] = observerDemoEyeY_;
+  camera.demoEye[2] = observerDemoEyeZ_;
+  camera.demoPitchDeg = observerDemoPitchDeg_;
+  camera.demoYawDeg = observerDemoYawDeg_;
+  camera.focusValid = observerFocusValid_;
+  camera.focus[0] = observerFocusX_;
+  camera.focus[1] = observerFocusY_;
+  camera.focus[2] = observerFocusZ_;
+  camera.orbitYaw = cameraYaw_;
+  camera.orbitPitch = cameraPitch_;
+  camera.orbitDistance = cameraDistance_;
+}
+
+void Renderer::setPaneCameraOrbit(std::uint32_t pane, float yaw, float pitch, float distance) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;  // pane 0 belongs to the orbit camera
+  PaneCameraState& camera = paneCameras_[pane];
+  camera = PaneCameraState{};
+  camera.orbitYaw = yaw;
+  camera.orbitPitch = pitch;
+  camera.orbitDistance = distance;
+}
+
+bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlue,
+                                std::uint32_t paneIndex, std::uint32_t paneCount) {
+  if (!context_ || !target_ || !swapChain_) return false;
+  // The back-buffer rectangle this pane owns: the whole surface in a single-pane
+  // frame, half of it in a split (the remainder goes to the right pane, so an odd
+  // width loses no column).
+  std::uint32_t paneX = 0;
+  std::uint32_t paneWidth = width_;
+  std::uint32_t paneHeight = height_;
+  if (paneCount > 1u) {
+    const std::uint32_t leftWidth = width_ / 2u;
+    paneWidth = paneIndex == 0u ? leftWidth : width_ - leftWidth;
+    paneX = paneIndex == 0u ? 0u : leftWidth;
+  }
   const float colour[4] = { clearRed, clearGreen, clearBlue, 1.0f };
   context_->OMSetRenderTargets(1, target_.GetAddressOf(), depthStencilView_.Get());
-  context_->ClearRenderTargetView(target_.Get(), colour);
-  if (depthStencilView_) context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+  // One surface serves both panes through disjoint viewports, so the frame is
+  // cleared once, by the pane that starts it. Clearing per pane would erase the
+  // half that was already drawn.
+  if (paneIndex == 0u) {
+    context_->ClearRenderTargetView(target_.Get(), colour);
+    if (depthStencilView_) {
+      context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+      ++paneDepthClears_;
+    }
+  }
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                           : worldNoCullRasterizerState_.Get());
   D3D11_VIEWPORT viewport{};
-  viewport.Width = static_cast<float>(width_);
-  viewport.Height = static_cast<float>(height_);
+  viewport.TopLeftX = static_cast<float>(paneX);
+  viewport.Width = static_cast<float>(paneWidth);
+  viewport.Height = static_cast<float>(paneHeight);
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   context_->RSSetViewports(1, &viewport);
+  // U4 step 1: record the bindings this draw just made against the
+  // single-surface pane contract (pane_boundary.h). Taken here, at the point the
+  // bindings are made, so the reading cannot describe a different frame; the
+  // camera and HUD fields are filled where those decisions are made below.
+  if (paneIndex == 0u) {
+    RECT paneClientRect{};
+    if (window_) GetClientRect(window_, &paneClientRect);
+    paneBoundary_ = PaneBoundaryReadings{};
+    paneBoundary_.drawOrdinal = ++paneDrawOrdinal_;
+    paneBoundary_.renderTargets = target_ ? 1u : 0u;
+    paneBoundary_.depthViews = depthStencilView_ ? 1u : 0u;
+    paneBoundary_.viewports = paneCount;
+    paneBoundary_.viewportWidth = paneWidth;
+    paneBoundary_.viewportHeight = paneHeight;
+    paneBoundary_.paneCount = paneCount;
+    paneBoundary_.clientWidth = window_
+      ? static_cast<std::uint32_t>(paneClientRect.right - paneClientRect.left) : 0u;
+    paneBoundary_.clientHeight = window_
+      ? static_cast<std::uint32_t>(paneClientRect.bottom - paneClientRect.top) : 0u;
+  }
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  framePassOrdinal_ = 0;
-  viewModelWorldPassOrdinal_ = 0;
+  // Per-frame counters are reset by the pane that starts the frame; later panes
+  // keep counting into the same frame totals, which is what makes the budget
+  // trace's pass count a frame number rather than a pane number.
+  if (paneIndex == 0u) {
+    framePassOrdinal_ = 0;
+    viewModelWorldPassOrdinal_ = 0;
+  }
   // T51: the HUD readings are per-frame, reset here for the reason the ordinal
   // above is: a drawHudPass that did not run this frame must read as "nothing was
   // drawn", not as "the last frame that drew something". Without this, turning the
   // HUD off would leave drawn=<the previous count> on the trace and a gate would
-  // read a HUD that no longer exists.
-  hudDrawnRects_ = 0;
-  hudDrawnPrimitives_ = 0;
-  hudTextQuads_ = 0;
-  hudGlyphCount_ = 0;
-  hudUnmappedGlyphs_ = 0;
-  hudPassOrdinal_ = 0;
-  hudScissorApplied_ = false;
-  hudLastRegion_ = HudPixelRectLast{};
-  // Both readings below are written by the draw calls themselves and read back
-  // by worldMaterialSampleState(). They are reset here, once per frame, so that
-  // "the sky drew" and "the world drew indexed" are statements about this frame
-  // and cannot survive on a frame where the corresponding call did not run.
-  worldSkyDrewThisFrame_ = false;
-  worldVisDrewIndexed_ = false;
-  // N05 step 3: the clip capture describes one draw, so it is cleared once per
-  // frame for the same reason the two readings above are: a frame where the
-  // capture did not run must read as "not attempted", never as the previous
-  // frame's vertices.
-  worldClipCaptureValid_ = false;
-  worldClipCaptureAttempted_ = false;
+  // read a HUD that no longer exists. U4 step 2b: once per frame, at pane 0, for
+  // the same reason -- a split frame's HUD reading describes the frame, not pane 1.
+  if (paneIndex == 0u) {
+    hudDrawnRects_ = 0;
+    hudDrawnPrimitives_ = 0;
+    hudTextQuads_ = 0;
+    hudGlyphCount_ = 0;
+    hudUnmappedGlyphs_ = 0;
+    hudPassOrdinal_ = 0;
+    hudScissorApplied_ = false;
+    hudLastRegion_ = HudPixelRectLast{};
+    // Both readings below are written by the draw calls themselves and read back
+    // by worldMaterialSampleState(). They are reset here, once per frame, so that
+    // "the sky drew" and "the world drew indexed" are statements about this frame
+    // and cannot survive on a frame where the corresponding call did not run.
+    worldSkyDrewThisFrame_ = false;
+    worldVisDrewIndexed_ = false;
+    // N05 step 3: the clip capture describes one draw, so it is cleared once per
+    // frame for the same reason the two readings above are: a frame where the
+    // capture did not run must read as "not attempted", never as the previous
+    // frame's vertices.
+    worldClipCaptureValid_ = false;
+    worldClipCaptureAttempted_ = false;
+  }
   // Defaults for the case where worldConstants_ is missing: a Z-up camera
   // looking down +X, so the ViewModel pass always has a camera to place against.
   frameView_ = {};
@@ -111,16 +237,20 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   bool frameConstantsValid = false;
   if (worldConstants_) {
     using namespace DirectX;
+    // U4 step 2b: this pane's camera, not the frame's. Pane 0's state was copied
+    // from the orbit/observer members at frame start; pane 1's is whatever
+    // setPaneCameraOrbit wrote, and camera input never touches it.
+    const PaneCameraState& paneCamera = paneCameras_[paneIndex];
     XMVECTOR target = XMVectorSet(
-      observerFocusValid_ ? observerFocusX_ : 0.0f,
-      observerFocusValid_ ? observerFocusY_ : 0.0f,
-      observerFocusValid_ ? observerFocusZ_ : 0.5f, 1.0f);
+      paneCamera.focusValid ? paneCamera.focus[0] : 0.0f,
+      paneCamera.focusValid ? paneCamera.focus[1] : 0.0f,
+      paneCamera.focusValid ? paneCamera.focus[2] : 0.5f, 1.0f);
     XMVECTOR eye;
     XMVECTOR up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-    if (observerDemoView_) {
+    if (paneCamera.demoView) {
       float forward[3] = {};
-      demoViewForward(observerDemoPitchDeg_, observerDemoYawDeg_, forward);
-      eye = XMVectorSet(observerDemoEyeX_, observerDemoEyeY_, observerDemoEyeZ_, 1.0f);
+      demoViewForward(paneCamera.demoPitchDeg, paneCamera.demoYawDeg, forward);
+      eye = XMVectorSet(paneCamera.demoEye[0], paneCamera.demoEye[1], paneCamera.demoEye[2], 1.0f);
       // The debug eye is stored in the same normalized unit box as the world
       // vertex buffer. Its angles are authored in map units, so the direction
       // must pass through the same map-to-buffer scale as the eye; adding a
@@ -129,22 +259,43 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       const float normalizedForwardX = forward[0] * worldHorizontalScale_;
       const float normalizedForwardY = forward[1] * worldHorizontalScale_;
       const float normalizedForwardZ = forward[2] * (0.8f / std::max(worldSpanZ_, 1.0e-6f));
-      target = XMVectorSet(observerDemoEyeX_ + normalizedForwardX,
-        observerDemoEyeY_ + normalizedForwardY,
-        observerDemoEyeZ_ + normalizedForwardZ, 1.0f);
+      target = XMVectorSet(paneCamera.demoEye[0] + normalizedForwardX,
+        paneCamera.demoEye[1] + normalizedForwardY,
+        paneCamera.demoEye[2] + normalizedForwardZ, 1.0f);
       if (std::fabs(forward[2]) > 0.95f) up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     } else {
-      const float horizontal = std::cos(cameraPitch_) * cameraDistance_;
+      const float horizontal = std::cos(paneCamera.orbitPitch) * paneCamera.orbitDistance;
       eye = XMVectorSet(
-        XMVectorGetX(target) + std::cos(cameraYaw_) * horizontal,
-        XMVectorGetY(target) + std::sin(cameraYaw_) * horizontal,
-        XMVectorGetZ(target) + std::sin(cameraPitch_) * cameraDistance_, 1.0f);
+        XMVectorGetX(target) + std::cos(paneCamera.orbitYaw) * horizontal,
+        XMVectorGetY(target) + std::sin(paneCamera.orbitYaw) * horizontal,
+        XMVectorGetZ(target) + std::sin(paneCamera.orbitPitch) * paneCamera.orbitDistance, 1.0f);
     }
+    // U4 step 1/2b: name the camera the view matrix below is built from. This is
+    // THIS pane's camera, not the one a caller requested; a pane reading
+    // "demo-view" here while its own request said otherwise is the defect the
+    // pane trace exists to surface.
+    const PaneCameraSource paneCameraSource = paneCamera.demoView
+      ? PaneCameraSource::DemoView : PaneCameraSource::Orbit;
     const XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
     // Publish the frame camera for the ViewModel pass. The pass places the
     // weapon in this camera's space and reuses this view matrix, so the two
     // passes cannot drift apart.
     XMStoreFloat4x4(&frameView_, view);
+    // U4 step 2b: record THIS pane in the pane-aware readings. The fingerprint is
+    // the camera input set the view above was built from and the view hash is the
+    // matrix that was actually stored, so the predicate can tell "two panes
+    // reported one matrix" from "two panes asked for one camera". The slot is the
+    // state array index: two panes quoting one slot is the shared-camera defect,
+    // whatever their matrices say.
+    paneBoundary_.panes[paneIndex].x = paneX;
+    paneBoundary_.panes[paneIndex].y = 0u;
+    paneBoundary_.panes[paneIndex].width = paneWidth;
+    paneBoundary_.panes[paneIndex].height = paneHeight;
+    paneBoundary_.panes[paneIndex].camera = paneCameraSource;
+    paneBoundary_.panes[paneIndex].viewHash = paneHashFloats(&frameView_.m[0][0], 16u);
+    paneBoundary_.panes[paneIndex].cameraFingerprint = paneCameraFingerprint(paneCamera);
+    paneBoundary_.panes[paneIndex].cameraSlot = paneIndex;
+    if (paneIndex == 0u) paneBoundary_.camera = paneCameraSource;
     const XMVECTOR forwardVector = XMVector3Normalize(XMVectorSubtract(target, eye));
     // Left-handed basis: right = up x forward.
     const XMVECTOR rightVector = XMVector3Normalize(XMVector3Cross(up, forwardVector));
@@ -152,7 +303,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     frameForward_[0] = XMVectorGetX(forwardVector); frameForward_[1] = XMVectorGetY(forwardVector); frameForward_[2] = XMVectorGetZ(forwardVector);
     frameUp_[0] = XMVectorGetX(up); frameUp_[1] = XMVectorGetY(up); frameUp_[2] = XMVectorGetZ(up);
     frameRight_[0] = XMVectorGetX(rightVector); frameRight_[1] = XMVectorGetY(rightVector); frameRight_[2] = XMVectorGetZ(rightVector);
-    const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
+    // U4 step 2b: the pane's aspect, not the window's -- a half-width viewport
+    // projected with the window's aspect would stretch every pane of a split.
+    const float aspect = paneHeight == 0u ? 1.0f
+      : static_cast<float>(paneWidth) / static_cast<float>(paneHeight);
     // T29: THE WORLD IS NOT IN METRES. uploadWorldGeometry scales the map into
     // a normalized box at worldHorizontalScale_ map units per box unit, so a
     // near plane written in box units is a clip distance in MAP units:
@@ -1261,11 +1415,15 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // `drawViewModel()` every world pixel reads 1.0 -- measured, the first
   // version of this readback was taken after the clear and answered 00ffffff
   // at every point.
-  if (!capturePath_.empty()) captureDepthBuffer(false);
+  if (!capturePath_.empty() && paneIndex + 1u == paneCount) captureDepthBuffer(false);
   // First person, after the world and entity passes and before the capture, so
   // the frame written to disk already contains the weapon. The pass restores the
   // world depth state it overrides, so a later HUD pass (T3) is unaffected.
-  drawViewModel();
+  // U4 step 2b: the ViewModel pass builds its projection from the window aspect
+  // and clears the whole depth surface, so a split frame defers it -- the weapon
+  // overlay is not part of the two-pane skeleton, and drawing it twice would be
+  // the wrong fix. The single-pane path is unchanged.
+  if (paneCount == 1u) drawViewModel();
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(rasterizerState_.Get());
   // T51: the custom HUD, after everything that draws the world and the weapon
@@ -1274,25 +1432,50 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // scissored rectangles cannot change a world pixel by construction -- which is
   // the assertion hud-check.sh makes by comparing two captures outside those
   // rectangles.
-  if (hudEnabled_) drawHudPass();
+  // U4 step 2b: a split frame draws the HUD once, over the whole window. The HUD
+  // speaks in back-buffer coordinates and scissors itself to client-sized
+  // rectangles, so the last pane restores the full-client viewport and runs it;
+  // in a single-pane frame the viewport above already is that viewport.
+  if (hudEnabled_ && paneIndex + 1u == paneCount) {
+    if (paneCount > 1u) {
+      D3D11_VIEWPORT fullViewport{};
+      fullViewport.Width = static_cast<float>(width_);
+      fullViewport.Height = static_cast<float>(height_);
+      fullViewport.MinDepth = 0.0f;
+      fullViewport.MaxDepth = 1.0f;
+      context_->RSSetViewports(1, &fullViewport);
+    }
+    drawHudPass();
+  }
+  // U4 step 1: the HUD half of the pane contract. hudPassOrdinal_ is non-zero
+  // only when the pass actually ran (drawHudPass returns early on missing
+  // resources), and hudScissorApplied_ is written by the draw itself -- the two
+  // facts the scissor rule needs, taken after the pass rather than guessed.
+  paneBoundary_.hudPasses = hudPassOrdinal_ != 0 ? 1u : 0u;
+  paneBoundary_.hudScissorApplied = hudScissorApplied_;
   // Capture before Present: once Present has run the back buffer contents are
   // no longer defined, so this is the only point at which "the frame we just
   // composed" is still readable.
-  if (!capturePath_.empty()) {
-    const std::wstring path = capturePath_;
-    capturePath_.clear();
-    captureSucceeded_ = writeBackBufferToFile(path);
+  // U4 step 2b: the frame is written and presented once, by the pane that
+  // finished it. Capturing from pane 0 would write a half-composed frame.
+  if (paneIndex + 1u == paneCount) {
+    if (!capturePath_.empty()) {
+      const std::wstring path = capturePath_;
+      capturePath_.clear();
+      captureSucceeded_ = writeBackBufferToFile(path);
+    }
+    // The depth that belongs to the frame just written. Read from the same
+    // capture (frame loop, before the ViewModel clear), so picture and depth
+    // describe one frame -- a depth image of a different tick would compare two
+    // cameras.
+    if (!captureDepthPath_.empty()) {
+      const std::wstring depthPath = captureDepthPath_;
+      captureDepthPath_.clear();
+      depthCaptureSucceeded_ = writeWorldDepthToPgm(depthPath);
+    }
+    const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
+    if (FAILED(result)) { lastError_ = result; return false; }
   }
-  // The depth that belongs to the frame just written. Read from the same capture
-  // (frame loop, before the ViewModel clear), so picture and depth describe one
-  // frame -- a depth image of a different tick would compare two cameras.
-  if (!captureDepthPath_.empty()) {
-    const std::wstring depthPath = captureDepthPath_;
-    captureDepthPath_.clear();
-    depthCaptureSucceeded_ = writeWorldDepthToPgm(depthPath);
-  }
-  const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
-  if (FAILED(result)) { lastError_ = result; return false; }
   return true;
 }
 
