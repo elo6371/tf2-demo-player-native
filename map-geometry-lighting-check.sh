@@ -307,6 +307,8 @@ assert_eq() { # assert_eq <label> <got> <want>
   fi
 }
 
+frames_same() { cmp -s "$1" "$2"; }
+
 assert_positive() { # assert_positive <label> <value>
   case ${2:-} in
     ""|*[!0-9]*) failure "$1 = ${2:-NA}, expected a positive integer"; return 1 ;;
@@ -567,6 +569,38 @@ for MAP in "${MAPS[@]}"; do
     done
     echo "frame_flat=copy of flat-base.bmp"
   } > "$DIR/captures.txt"
+
+  # B2 (2026-11-16): the vis-off captures are equalities, not picture pins.
+  # `--world-flat --no-world-vis-clip` must draw exactly what `--world-flat`
+  # draws -- the vis clip is what the pair differs by, so with the clip off there
+  # is nothing left for it to refuse and the picture cannot change. Same for
+  # `--no-world-cull` added to both. A pixel pin would move on any intended
+  # picture change; these hold across a re-pin and break only if the flag
+  # plumbing stops doing what its name says. Each equality carries its own
+  # control on a tampered copy in the scratch, because an equality that cannot
+  # fail is not a check (and the product is never rebuilt to test it).
+  for pair in flat-novis:flat-base flat-novis-nocull:flat-nocull; do
+    off=${pair%%:*}; on=${pair##*:}
+    if frames_same "$CAP/$off.bmp" "$CAP/$on.bmp"; then
+      echo "  OK $off is byte-identical to $on"
+    else
+      failure "$MAP/$POSE: $off is not byte-identical to $on ($(cmp -l "$CAP/$off.bmp" "$CAP/$on.bmp" 2>/dev/null | wc -l) byte positions differ)"
+    fi
+    "$PYTHON" - "$CAP/$on.bmp" "$CAP/$off.control.bmp" <<'PY'
+import sys
+data = bytearray(open(sys.argv[1], 'rb').read())
+if len(data) < 128:
+    sys.exit(3)
+data[-1] ^= 0x01
+open(sys.argv[2], 'wb').write(data)
+PY
+    if frames_same "$CAP/$off.control.bmp" "$CAP/$on.bmp"; then
+      failure "$MAP/$POSE: the $off equality has no control: a one-byte change went unnoticed"
+    else
+      echo "  OK the $off equality notices a one-byte change (control)"
+    fi
+    rm -f "$CAP/$off.control.bmp"
+  done
 
   # P1-2b: the frame pins. These hashes say what the picture is at this pose and
   # tick, so a diff means the product draws something else now -- a fact about the
