@@ -1,4 +1,5 @@
 #include "native_ui.h"
+#include "pane_boundary.h"
 
 #include <Windows.h>
 #include <cassert>
@@ -297,6 +298,71 @@ void checkHudComposer(Readings& readings) {
   readings.set("hudFields", 5u);
 }
 
+void checkPaneBoundary(Readings& readings) {
+  using namespace tf2::native;
+  PaneBoundaryReadings pristine;
+  pristine.drawOrdinal = 3;
+  pristine.renderTargets = 1;
+  pristine.depthViews = 1;
+  pristine.viewports = 1;
+  pristine.viewportWidth = 1280;
+  pristine.viewportHeight = 720;
+  pristine.clientWidth = 1280;
+  pristine.clientHeight = 720;
+  pristine.camera = PaneCameraSource::DemoView;
+  pristine.hudPasses = 1;
+  pristine.hudScissorApplied = true;
+  check(paneBoundaryMismatches(pristine) == kPaneMismatchNone,
+    "pane: one target, one depth view, one client-sized viewport, a camera and a scissored HUD pass is clean");
+
+  // Each rule is mutated on its own and must produce EXACTLY its bit. A
+  // predicate that answers 0 for everything (the gate-that-checks-nothing
+  // failure this repository has paid for) cannot pass this: `covered` below
+  // must end up as all seven bits.
+  std::uint32_t covered = kPaneMismatchNone;
+  const auto expectOnly = [&](const PaneBoundaryReadings& bad, std::uint32_t expected, const char* what) {
+    const std::uint32_t got = paneBoundaryMismatches(bad);
+    check(got == expected, what);
+    covered |= expected;
+  };
+  { PaneBoundaryReadings bad = pristine; bad.renderTargets = 2;
+    expectOnly(bad, kPaneMismatchRenderTargets, "pane: two render targets breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.depthViews = 0;
+    expectOnly(bad, kPaneMismatchDepthViews, "pane: no depth view breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.viewports = 2;
+    expectOnly(bad, kPaneMismatchViewportCount, "pane: two viewports breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.viewportWidth = 640;
+    expectOnly(bad, kPaneMismatchViewportExtent, "pane: a viewport narrower than the client breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.viewportHeight = 360;
+    expectOnly(bad, kPaneMismatchViewportExtent, "pane: a viewport shorter than the client breaks the same extent rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.camera = PaneCameraSource::None;
+    expectOnly(bad, kPaneMismatchCamera, "pane: a frame with no world camera breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.hudPasses = 2;
+    expectOnly(bad, kPaneMismatchHudPasses, "pane: two HUD passes break exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.hudScissorApplied = false;
+    expectOnly(bad, kPaneMismatchHudScissor, "pane: a HUD pass that did not scissor breaks exactly that rule"); }
+  check(covered == kPaneMismatchAll, "pane: all seven rules are separately reachable");
+
+  // A frame with the HUD off must stay clean: the scissor rule is about a pass
+  // that RAN, not about the HUD being enabled.
+  PaneBoundaryReadings noHud = pristine;
+  noHud.hudPasses = 0;
+  noHud.hudScissorApplied = false;
+  check(paneBoundaryMismatches(noHud) == kPaneMismatchNone,
+    "pane: a frame that ran no HUD pass is clean with the scissor reading false");
+
+  check(std::strcmp(paneCameraSourceName(PaneCameraSource::DemoView), "demo-view") == 0
+    && std::strcmp(paneCameraSourceName(PaneCameraSource::Orbit), "orbit") == 0
+    && std::strcmp(paneCameraSourceName(PaneCameraSource::None), "none") == 0,
+    "pane: the camera source names the trace prints are stable");
+
+  // The readings prune nothing: every field that is checked above must be the
+  // field a draw fills. Proving the predicate and proving the fill are two
+  // different claims; this one is the product trace's `pane:` line.
+  readings.set("paneBoundaryRules", 7u);
+  readings.set("paneBoundaryNegatives", 8u);
+  readings.set("paneCameraSources", 3u);
+}
 } // namespace
 
 int main() {
@@ -307,6 +373,7 @@ int main() {
   checkPauseKey(readings);
   checkLayoutPlanner(readings);
   checkHudComposer(readings);
+  checkPaneBoundary(readings);
 
   // The original screen-flow contract, kept verbatim but made real: every
   // former assert is a counted check.

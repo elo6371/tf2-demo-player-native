@@ -28,6 +28,10 @@
 // T53: ProjectileTrackPoint, a three-float POD in a header that includes nothing,
 // so the renderer can take observed positions without including the demo decoder.
 #include "projectile_track_point.h"
+// U4 step 1: the single-surface pane contract as a predicate, plus the readings
+// one draw records against it. Its own header so a probe can test the contract
+// without linking a renderer.
+#include "pane_boundary.h"
 
 namespace tf2::native {
 
@@ -1317,6 +1321,14 @@ public:
   // The pixels the pass was allowed to touch on the last draw, in back-buffer
   // coordinates, unioned. Empty when nothing was drawn.
   HudPixelRectLast hudLastRegion() const { return hudLastRegion_; }
+  // U4 step 1: what the LAST draw bound and used, and whether those readings
+  // describe one surface (see pane_boundary.h). Filled inside draw(), so these
+  // answer about the frame that was drawn, not about the camera a caller
+  // requested -- main.cpp's `scene: camera` line reports the request.
+  PaneBoundaryReadings paneBoundary() const { return paneBoundary_; }
+  std::uint32_t paneBoundaryMismatches() const {
+    return tf2::native::paneBoundaryMismatches(paneBoundary_);
+  }
 
   // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
   // was never set on the success path of uploadWorldWaterGeometry, so
@@ -2426,6 +2438,11 @@ private:
   std::size_t hudPassOrdinal_ = 0;
   bool hudScissorApplied_ = false;
   HudPixelRectLast hudLastRegion_{};
+  // U4 step 1: the pane contract readings for the last draw, and the draw
+  // counter that proves the reading was refreshed (a stale reading would make
+  // every rule look satisfied on a frame that never ran).
+  PaneBoundaryReadings paneBoundary_{};
+  std::uint32_t paneDrawOrdinal_ = 0;
   // T67: the embedded font atlas and its point sampler. The table is compiled
   // into the binary, so these are created once and never updated.
   Microsoft::WRL::ComPtr<ID3D11Texture2D> hudFontTexture_;

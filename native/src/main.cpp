@@ -14275,6 +14275,21 @@ bool outlineVertexExtent = false;
           window ? GetDpiForWindow(window) : 0u);
       }
       if (captureRequested && g_renderer) {
+        // U4 step 1: the single-surface pane contract, read from the draw that
+        // produced the frame on disk (see native/include/pane_boundary.h). This
+        // line is additive: every camera/viewport/depth binding the frame used is
+        // printed with whether it still describes ONE surface, so the boundary a
+        // second pane has to change is visible before that pane exists.
+        const tf2::native::PaneBoundaryReadings pane = g_renderer->paneBoundary();
+        traceFmt("pane: draw=%u viewport=%ux%u client=%ux%u targets=%u depth=%u"
+          " viewports=%u camera=%s hud=%u scissor=%u mismatches=0x%x",
+          pane.drawOrdinal, pane.viewportWidth, pane.viewportHeight,
+          pane.clientWidth, pane.clientHeight, pane.renderTargets, pane.depthViews,
+          pane.viewports, tf2::native::paneCameraSourceName(pane.camera),
+          pane.hudPasses, pane.hudScissorApplied ? 1 : 0,
+          g_renderer->paneBoundaryMismatches());
+      }
+      if (captureRequested && g_renderer) {
         // The RESOLVER's union is printed on the same line as the RENDERER's
         // region, and that is not decoration: the startup publish happens before
         // the capture-time re-resolution (hudApplyRects above), so a window whose

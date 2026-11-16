@@ -39,6 +39,23 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   context_->RSSetViewports(1, &viewport);
+  // U4 step 1: record the bindings this draw just made against the
+  // single-surface pane contract (pane_boundary.h). Taken here, at the point the
+  // bindings are made, so the reading cannot describe a different frame; the
+  // camera and HUD fields are filled where those decisions are made below.
+  RECT paneClientRect{};
+  if (window_) GetClientRect(window_, &paneClientRect);
+  paneBoundary_ = PaneBoundaryReadings{};
+  paneBoundary_.drawOrdinal = ++paneDrawOrdinal_;
+  paneBoundary_.renderTargets = target_ ? 1u : 0u;
+  paneBoundary_.depthViews = depthStencilView_ ? 1u : 0u;
+  paneBoundary_.viewports = 1u;
+  paneBoundary_.viewportWidth = width_;
+  paneBoundary_.viewportHeight = height_;
+  paneBoundary_.clientWidth = window_
+    ? static_cast<std::uint32_t>(paneClientRect.right - paneClientRect.left) : 0u;
+  paneBoundary_.clientHeight = window_
+    ? static_cast<std::uint32_t>(paneClientRect.bottom - paneClientRect.top) : 0u;
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   framePassOrdinal_ = 0;
   viewModelWorldPassOrdinal_ = 0;
@@ -140,6 +157,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         XMVectorGetY(target) + std::sin(cameraYaw_) * horizontal,
         XMVectorGetZ(target) + std::sin(cameraPitch_) * cameraDistance_, 1.0f);
     }
+    // U4 step 1: name the camera the view matrix below is built from. This is the
+    // frame's camera, not the one a caller requested; a second pane reading
+    // "demo-view" here while the request said otherwise is the defect the pane
+    // trace exists to surface.
+    paneBoundary_.camera = observerDemoView_ ? PaneCameraSource::DemoView
+                                             : PaneCameraSource::Orbit;
     const XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
     // Publish the frame camera for the ViewModel pass. The pass places the
     // weapon in this camera's space and reuses this view matrix, so the two
@@ -1275,6 +1298,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // the assertion hud-check.sh makes by comparing two captures outside those
   // rectangles.
   if (hudEnabled_) drawHudPass();
+  // U4 step 1: the HUD half of the pane contract. hudPassOrdinal_ is non-zero
+  // only when the pass actually ran (drawHudPass returns early on missing
+  // resources), and hudScissorApplied_ is written by the draw itself -- the two
+  // facts the scissor rule needs, taken after the pass rather than guessed.
+  paneBoundary_.hudPasses = hudPassOrdinal_ != 0 ? 1u : 0u;
+  paneBoundary_.hudScissorApplied = hudScissorApplied_;
   // Capture before Present: once Present has run the back buffer contents are
   // no longer defined, so this is the only point at which "the frame we just
   // composed" is still readable.
