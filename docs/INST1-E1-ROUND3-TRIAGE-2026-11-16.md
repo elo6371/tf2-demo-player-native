@@ -49,6 +49,8 @@ D:/_shared/EXEC-2026-11-15/INST1/E1-round3/summary.tsv，本文件不覆盖它�
 - 处置：**记 BLOCKED / 预期值未定**，本轮不钉 1007、不钉 583、不改断言。阻塞点 = card-ui 的面计数口径调查
   （994 个基底层 rect 与 card-ui 产品侧计数的定义分歧）。
 
+> **13:40 lead 补记（本节数字大半作废）**：上文 `faces=3869` / `rects=994` 与「面计数口径调查」这一阻塞点，已于 13:30 撤回——成因是离线 oracle 按 16 B/面读 20 B 的 `dplane_t`（`tools/n14-oracle/bsp_oracle.py:127-128`，修于 `8eb6c085`），产品面身份正确（triplet 抽样 167/167、`idsOutOfRange=0`）。按正确 stride 重算：Upward floors=3999 / rects=632、Sunshine floors=5738 / rects=707；产品侧大小写修复后 faces=3480/5258、rects=1230/815（`0a1aad40`）。A1 的阻塞点因此改为**模型差**：转录按 dface 一多边形扇化、产品用 BSP 真实三角形表，期望与产品仍差 598/108，标注为未证明的模型差而非缺陷。详见 `docs/N14-U3A-BASEMAP-FLOOR-LINEWORK-2026-11-15.md` 更正节与提交 `1266600a`。
+
 ### 3.2 minimap-hud A2：面板像素差（实测值记录，暂不改断言）
 
 - 门禁自带 analyser 输出：PANEL w=1264 h=681 x=1092 y=12 pw=160 ph=160；DIFF inside=25600 outside=0。

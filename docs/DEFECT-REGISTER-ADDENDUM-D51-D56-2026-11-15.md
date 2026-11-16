@@ -371,6 +371,8 @@ e17-e20-char 在普查报告 `docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md` §3 �
 - **为什么记缺陷**：漏排除的是 **clip 刷（玩家站不到、游戏里不可见）与天空盒/云面**，一旦进地面集就会被线稿算法当地板画到小地图上，用户看到的是「能站的地面」和「实际站不到的地方」混在一起；同时它让产品地面集与离线 oracle 地面集**从根上不可比**，任何以 oracle 为基准的计数门禁（A1/A2 那一类）都在拿两套口径互相对账。
 - **建议修法（未实施）**：只在**比较**处折叠大小写，不改数据（`<cctype>` 已在 `native/src/main.cpp:102`，折叠写法沿用 `native/src/main_helpers.cpp:75`）；判据是修后 `rejectedTool+rejectedSky` **不再恒为 0**（cp_sunshine ≥ 92、pl_upward_f12 ≥ 2）。独立提交，不与面身份修复混。
 - **本条没有证明什么**：没有证明这 92 个面在 160×160 小地图上**肉眼可辨**（进集合不等于看得见差异）；没有证明 `editor/` 前缀在同一口径下的量级（本轮只对 `tools/` 与 `skybox` 做了分口径计数）；没有证明 faces>pass 的成因，也没有证明修掉本条之后 A1/A2 就能钉住——那两个门禁的数值取决于面身份那条缺陷。
+- **修复（2026-11-16 13:31，`0a1aad40`，card-ui U3a 窗口 2）**：只在比较处折叠大小写副本、存储名不动（渲染器按原名解析材质）。同一对捕获测得 `rejectedTool` 0→829（pl_upward_f12）/ 0→208（cp_sunshine），`faces` 3869→3480、5338→5258；身份行 `idsOutOfRange=0 idsNegative=0`、Upward `idMax=15147 < 15155`、Sunshine `idMax=20440 < 20449`。`rejectedSky` 仍 0，因为 sky 面名（`TOOLS/TOOLSSKYBOX`）先被 tool 前缀拦下：`skyLower` 普查 cp_sunshine 只有 24 个三角形、原样 0，sky 分支在这些地图上冗余。判据「修后 rejectedTool+rejectedSky 不再恒为 0」成立（由 tool 一侧满足）。
+- **同条目 370 行的一处断言作废（2026-11-16 13:40 lead 记）**：原文说「faces 那条另有独立缺陷待定（faces=3869 超过全图过阈值面 3116）」。该断言**不成立**：成因是离线 oracle 把 20 B 的 `dplane_t` 按 16 B/面摊平（`tools/n14-oracle/bsp_oracle.py:127-128`、`:157`），产品面身份经 triplet dump 167/167 对上 dface、id 全在范围内。oracle 已由 `8eb6c085` 修复（自带单位法线自检：旧代码前 8192 个平面 5419 个不过，修复后 0）。故本条**不含**面身份缺陷，未被任何门禁钉住的「产品侧面缺陷」不存在。
 ---
 ## D57 / D58 补充说明
 
