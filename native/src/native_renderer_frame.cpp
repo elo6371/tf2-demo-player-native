@@ -981,6 +981,10 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       }
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &entityConstants, 0, 0);
     }
+    // R1b: the depth the entity pass starts from, so the first drawn range is
+    // measured against the world pass rather than against nothing.
+    captureRangeDepth("entity-start", -1, -1, -1);
+    int entityRangeOrdinal = 0;
     for (int blended = 0; blended < 2; ++blended) {
     for (const auto& range : entityModelDrawRanges_) {
       if (range.translucent != (blended != 0)) continue;
@@ -989,6 +993,13 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       // when that material is missing paints characters with unrelated map
       // tiles and makes a resource failure look like a valid draw.
       if (!range.textureView) continue;
+      // R1b negative control: drop one drawn range on purpose, only while the
+      // range probe is armed, to show the footprint follows the DRAW and not the
+      // tick. It changes the picture by design; it is a control, never a mode.
+      if (!rangeDepthPrefix_.empty() && entityRangeOrdinal == rangeDepthSkipIndex_) {
+        ++entityRangeOrdinal;
+        continue;
+      }
       context_->RSSetState(range.noCull ? worldNoCullRasterizerState_.Get() : rasterizerState_.Get());
       ID3D11BlendState* materialBlend = range.translucent ? worldAlphaBlendState_.Get() : nullptr;
       if ((range.materialFlags & 64u) != 0u) materialBlend = mapAdditiveBlendState_.Get();
@@ -1020,6 +1031,12 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
         range.vertexStart * static_cast<UINT>(sizeof(EntityModelGpuVertex)), 0u };
       context_->IASetVertexBuffers(0, 2, buffers, strides, rangeOffsets);
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
+      // R1b: this range's own depth, read after it drew and named by the same
+      // ordinal the skip control counts, so a control run can name the range it
+      // removed.
+      captureRangeDepth("draw", entityRangeOrdinal, blended,
+        static_cast<int>(range.materialSlot));
+      ++entityRangeOrdinal;
     }
     }
     context_->RSSetState(rasterizerState_.Get());
@@ -1496,6 +1513,9 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       const std::wstring path = capturePath_;
       capturePath_.clear();
       passDepthPrefix_.clear();
+      rangeDepthPrefix_.clear();
+      rangeDepthPrev_.clear();
+      rangeDepthSkipIndex_ = -1;
       captureSucceeded_ = writeBackBufferToFile(path);
     }
     // The depth that belongs to the frame just written. Read from the same

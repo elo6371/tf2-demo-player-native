@@ -1679,6 +1679,23 @@ public:
   void setPassDepthPrefix(std::wstring prefix) { passDepthPrefix_ = std::move(prefix); }
   int passDepthWritten() const { return passDepthWritten_; }
   bool lastPassDepthSucceeded() const { return passDepthSucceeded_; }
+  // R1b (2026-11-16): the per-range depth channel inside 50-entities. R1 could
+  // say the entity pass writes the footprint but not which range draw does; this
+  // reads the same D24S8 buffer after every drawn range, inside a window because
+  // a full-plane readback per range would be 259 copies of 3.4 MB. Same rule as
+  // the pass family: inert unless a capture frame is armed AND a prefix is set.
+  void setRangeDepthPrefix(std::wstring prefix) { rangeDepthPrefix_ = std::move(prefix); }
+  void setRangeDepthWindow(unsigned x, unsigned y, unsigned width, unsigned height) {
+    rangeDepthWindow_[0] = x;
+    rangeDepthWindow_[1] = y;
+    rangeDepthWindow_[2] = width;
+    rangeDepthWindow_[3] = height;
+  }
+  // Negative control: the ordinal of one drawn range to omit. Honoured only while
+  // the probe is armed, so a product run cannot reach it by accident.
+  void setRangeDepthSkip(int index) { rangeDepthSkipIndex_ = index; }
+  int rangeDepthWritten() const { return rangeDepthWritten_; }
+  bool lastRangeDepthSucceeded() const { return rangeDepthSucceeded_; }
   // Recorded at each depth-state bind site. A per-pass dump prints this label
   // next to the plane, so the state a pass was drawn with is read where it was
   // bound rather than claimed by a comment.
@@ -1722,6 +1739,8 @@ private:
   bool writeDepthPlanePgm(const std::wstring& path, const std::vector<float>& plane,
     int width, int height, unsigned long long* bytes);
   void capturePassDepth(const char* name);
+  // R1b: per-range depth inside 50-entities; see the definition for the window.
+  void captureRangeDepth(const char* phase, int rangeIndex, int blended, int materialSlot);
   // T24: the three pass-level lighting controls as the draw will upload them.
   // One implementation each, read by both the constant buffer and the frame
   // sample, so "what the settings asked for" and "what the shader got" cannot
@@ -1992,6 +2011,9 @@ private:
     bool noCull = false;
     bool translucent = false;
     std::uint32_t materialFlags = 0;
+    // The material slot this run was built for, carried so the range probe can
+    // name the range in the same terms the entity trace uses.
+    std::uint32_t materialSlot = 0;
     ID3D11ShaderResourceView* secondTextureView = nullptr;
     VmtMaterialProxy proxy;
     float proxyScrollU = 0.0f;
@@ -2462,6 +2484,19 @@ private:
   int passDepthIndex_ = 0;
   int passDepthWritten_ = 0;
   bool passDepthSucceeded_ = true;
+  std::wstring rangeDepthPrefix_;
+  // The window-scoped plane the previous drawn range left, so each range is
+  // credited with the pixels it changed. Empty on the first draw of a frame.
+  std::vector<float> rangeDepthPrev_;
+  // Reused whole-plane staging copy: the per-draw readback is a full CopyResource
+  // (see the note in the definition) and reallocating 3.4 MB per draw was both
+  // wasteful and the thing that hid the copy bug.
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> rangeDepthStaging_;
+  unsigned rangeDepthWindow_[4] = {0, 0, 0, 0};
+  int rangeDepthIndex_ = 0;
+  int rangeDepthWritten_ = 0;
+  bool rangeDepthSucceeded_ = true;
+  int rangeDepthSkipIndex_ = -1;
   const char* lastDepthStateLabel_ = "none";
   // ---- T51: the HUD pass's own state --------------------------------------
   // Deliberately small and entirely separate from every other pass: a vertex
