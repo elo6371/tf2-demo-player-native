@@ -10,6 +10,56 @@
 本文件只覆盖 U3a 这一片：把 **地面线稿（basemap）** 接进小地图面板，并按 `face` 而不是按三角形做阈值判定。
 它不重测 N14 的朝向/比例结论（那份在 docs/N14-MINIMAP-BASEMAP-2026-11-15.md），也不改 gate。
 
+## 更正（2026-11-16 13:30，取代本文件上午 a00a32eb / a6e85f98 两笔提交的结论）
+
+上午的结论——「产品 faces 3869 超过离线口径的 3116，因此是产品侧面身份缺陷，A1 BLOCKED 于面身份」——**作废**。
+原因是**离线 oracle 读错了平面表**，不是产品：
+
+- `tools/n14-oracle/bsp_oracle.py:127-128` 把 planes lump 摊成 `nplanes * 4` 个 float（16 B/面），而 Source 的 `dplane_t` 是 **20 B/面**
+  （normal[3] + dist + type = 5 float）；`:157` 的 `pb = planenum * 4` 于是除 plane 0 外全部错位。
+- 证据：pl_upward_f12 的 face 10020 的 planenum = 539，错位口径读到 `nz = 169.7056`（一个距离被当成法线分量）；
+  正确 stride 读同一面 → plane 498 的 `nz = 1.0000`。单位法线自检：旧代码前 8192 个平面里 **5419** 个不过（首个坏面 index 3，\|n\| = 256.000），修复后 0 个。
+- 修复与自检：提交 `8eb6c085`（只改 stride 与自检，不改调用方语义）；自检在旧代码上真的红。
+
+产品侧面身份**是正确的**（新 instrument，同一 BSP 同一帧）：
+
+- `minimap: floor triplets` 抽样 167 条，**167/167** 与 BSP dface 的 (planenum, side) 完全一致；
+- `idsOutOfRange = 0`、`idsNegative = 0`、`idMax = 15147 < mapFaces = 15155`；
+- 产品 faces 是「正确 stride 口径下 reachable 面数」的子集：修复口径 reachable = 4274 / 5824，产品（修大小写前）= 3869 / 5338，修后 = 3480 / 5258。
+
+### 更正-1 预期值作废与重算（修前 / 修后 / 产品）
+
+| 地图 | 口径 | faces | kept | fkept | runs | rects |
+|---|---|---|---|---|---|---|
+| pl_upward_f12 | 旧（stride 错） | 3097 | 2802 | 680 | 1258 | 570 |
+| pl_upward_f12 | **新（stride 修）** | **3999** | **11181** | **2566** | **1764** | **632** |
+| pl_upward_f12 | 产品（修大小写后） | 3480 | 18061 | 2084 | 2332 | 1230 |
+| cp_sunshine | 旧 | 4326 | 4177 | 1215 | 1501 | 489 |
+| cp_sunshine | **新** | **5738** | **14136** | **3935** | **1582** | **707** |
+| cp_sunshine | 产品 | 5258 | 20134 | 3522 | 1866 | 815 |
+
+- faces 两侧不再矛盾：产品 3480 ⊆ 新预期 3999、5258 ⊆ 5738（差额 = parser 先剔除的 sky / nodraw / 无效多边形，加上大小写修复剔除的 tool 面）。
+- kept / fkept / runs / rects 仍对不上，原因是**模型差**而非缺陷：转录一条 dface = 一条多边形、扇形三角化；产品用 BSP 真实三角形表（位移面 32..512 个）。闭合需要实验 B（转录按真实三角形表建模，未做）。
+
+### 更正-2 大小写缺陷（唯一确认的产品缺陷，已修）
+
+- 修前读数：`toolRaw=0 toolLower=871`（Upward）、`toolRaw=0 toolLower=326`（Sunshine）——BSP 存大写名，原样前缀测试永不命中。
+- 修复（提交 `0a1aad40`，只折叠比较、不 lower 数据）：`rejectedTool` 0 → **829 / 208**，floor faces 3869 → **3480**、5338 → **5258**；
+  `rejectedSky` 仍为 0，因为 skybox 面在 parser 就进了 skyTriangles（该排除在本图上无对象）。
+- 结论：修前的 `rejectedTool=0` 不是「没有对象」，是「测试失效」——两者只差一次 census。
+
+### 更正-3 A1 的现状
+
+- 产品读数（修大小写后，exe `75dae10e…`，run4）：Upward `shapes = 1243 = 13 + 1230`、Sunshine `shapes = 825 = 13 + 815`，两图 `lw=ok`。
+- 与重算预期的差：rects 1230 vs 632、815 vs 707 —— 差在模型（多边形扇形 vs 真实三角形），不在身份。
+- 因此 **A1 仍不钉**：能钉的只有「产品自洽值 13 + rects」，它还无法被独立口径验算。按 lead 口径：A1 = BLOCKED（阻塞在「转录未建模真实三角形」），**不再是**阻塞在面身份。
+- A2（inside 像素带）等 card-arch 在新 exe 上重测，本卡未钉。
+
+### 更正-4 本轮提交与 exe 序列
+
+- 提交：`95d9fe19` 读数 instrument、`8eb6c085` oracle stride 修复 + 自检、`0a1aad40` 大小写修复、本条更正文档。
+- exe：`81af3a4a…`（读数版，3,045,376 B）→ `cfa1ef77…`（triplet 版）→ `75dae10e…`（大小写修复版，3,044,864 B，当前）。
+- 三次构建均为**脏树构建**（`dirtyTracked=8`、`dirtyUntracked=2`），不是干净构建。
 ## 0. 复跑方式
 
 ~~~bash
@@ -118,6 +168,9 @@ const std::vector<MinimapFloorTriangle>& minimapHudFloorGeometryRef();
 
 ## 4. 产品读数（两张图，2026-11-16 10:41–10:43，锁 card-ui）
 
+> **已被 2026-11-16 oracle 平面 stride 修正作废**（见文首「更正」）：本节的「传录 / 预期」列与对应结论作废，产品侧读数保留作历史记录。
+
+
 命令：`OUT=…/INST3/u3a-run bash tools/lockrun.sh card-ui -- bash …/capture-u3a.sh`（hidden-window、audio-disabled、
 settings 用 fixture 副本，不碰 tracked fixture），两图 **rc=0**。产物：`identity.txt`、`*.trace`、`*.bmp`（1264×681，
 每张 2,582,406 B，帧非空）、`*.csv`。
@@ -211,6 +264,9 @@ trace 原文（逐字，未编辑；只省略了与本节判定无关的 eye/ang
   若仍不一致，则产品实现有 bug，按"读代码→最小复现"定位。**无论哪条，都不是调预期。**
 
 ### 4.1 口径并排、计数上限证明，以及下一步的判别实验
+
+> **已被 2026-11-16 oracle 平面 stride 修正作废**（见文首「更正」）：本节的「传录 / 预期」列与对应结论作废，产品侧读数保留作历史记录。
+
 
 #### A. 谁是 oracle（570 / 3097 / 2802 的出处）
 
