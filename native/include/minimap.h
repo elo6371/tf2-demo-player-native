@@ -400,4 +400,47 @@ bool minimapHudFramePushed();
 // numbers it needs and never holds the reference across a publish.
 const MinimapHudFrame& minimapHudFrameRef();
 
+// N14/U3a (2026-11-15): the basemap geometry, handed over the same way the pose is.
+//
+// The floor of the map lives in a BspMap that is a local of main(); this file is
+// included by a translation unit that has no path to it, so the geometry crosses
+// the boundary as DATA -- one vector of upward-facing world triangles, pushed once
+// per run. Nothing here points back into the frame loop.
+//
+// Only the three vertices are carried. Whether a triangle is floor at all is
+// decided by the caller, which is the only place that holds the BSP plane table
+// and the material names; restating that test here would be a second copy of a
+// rule the map parser already states.
+struct MinimapFloorTriangle {
+  float ax = 0.0f; float ay = 0.0f; float az = 0.0f;   // world units
+  float bx = 0.0f; float by = 0.0f; float bz = 0.0f;
+  float cx = 0.0f; float cy = 0.0f; float cz = 0.0f;
+  // The FACES this triangle belongs to (BspTriangle::faceIndex). A floor face of a
+  // Source map is a polygon that the parser emits as a triangle fan -- and, for a
+  // displacement, as a 32..512 triangle grid -- so the fan's members are not
+  // interchangeable with the face they came from: N14's two thresholds (minimum
+  // face area, z band of the face) are properties of the FACE, and applying them
+  // per triangle instead moved every one of the seven maps' rect counts (no map
+  // matched: D:/_shared/EXEC-2026-11-15/u3a/tri_vs_poly.py versus
+  // face_grouped.py, which matches all seven). The id is carried so the basemap
+  // can group before it measures; it is an opaque key here, not an index.
+  std::int32_t face = -1;
+};
+
+// Implemented in main_hud.cpp beside the frame setter. Pushed once, before the
+// first frame is composed; a process that never calls it draws no basemap and
+// publishes no linework counters, which is how a run without --hud-minimap stays
+// byte-identical to one from before this existed.
+void minimapHudSetFloorGeometry(std::vector<MinimapFloorTriangle> triangles);
+
+// Zero until geometry has been handed over, then a counter that moves on every
+// push. "no geometry was pushed" and "the map has no upward faces" are different
+// readings and must not share a reason string, and the counter is also what tells
+// a cached basemap that the geometry underneath it changed.
+std::size_t minimapHudFloorGeometryRevision();
+
+// The geometry as pushed, read-only. The HUD builds its rectangles from this once
+// per panel size and never mutates it across a publish.
+const std::vector<MinimapFloorTriangle>& minimapHudFloorGeometryRef();
+
 }  // namespace tf2::native

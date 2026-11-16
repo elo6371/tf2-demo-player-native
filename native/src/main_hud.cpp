@@ -27,6 +27,7 @@
 #include "hud_panel.h"
 #include "keybinds.h"
 #include "minimap.h"
+#include "minimap_linework.h"
 #include "main_internal.h"
 #include "native_renderer.h"
 #include "native_ui.h"
@@ -55,6 +56,26 @@ void minimapHudSetFrame(const MinimapHudFrame& frame) {
 bool minimapHudFramePushed() { return g_minimapHudFramePushed; }
 
 const MinimapHudFrame& minimapHudFrameRef() { return g_minimapHudFrame; }
+
+// N14/U3a: the basemap geometry, pushed once per run and never mutated after. The
+// counter rather than a bool, because the same process can load a second demo --
+// the geometry then changes even though "something was pushed" stays true, and a
+// cached rectangle list keyed on a bool would keep drawing the first map's floors.
+namespace {
+std::vector<MinimapFloorTriangle> g_minimapFloorGeometry;
+std::size_t g_minimapFloorGeometryRevision = 0;
+}  // namespace
+
+void minimapHudSetFloorGeometry(std::vector<MinimapFloorTriangle> triangles) {
+  g_minimapFloorGeometry = std::move(triangles);
+  ++g_minimapFloorGeometryRevision;
+}
+
+std::size_t minimapHudFloorGeometryRevision() { return g_minimapFloorGeometryRevision; }
+
+const std::vector<MinimapFloorTriangle>& minimapHudFloorGeometryRef() {
+  return g_minimapFloorGeometry;
+}
 
 }  // namespace tf2::native
 
@@ -852,6 +873,16 @@ constexpr float kMinimapRedColour[4] = {0.90f, 0.20f, 0.18f, 1.0f};
 constexpr float kMinimapBluColour[4] = {0.20f, 0.42f, 0.95f, 1.0f};
 constexpr float kMinimapNeutralColour[4] = {0.92f, 0.90f, 0.85f, 1.0f};
 constexpr float kMinimapViewerColour[4] = {0.10f, 1.00f, 0.30f, 1.0f};
+// The basemap is a line, not a surface: it sits between the background and the
+// border in brightness so the objective rings still win the contrast, and it is
+// NOT team-coloured. A filled silhouette was the alternative and it was rejected
+// in N14 7.2 -- on a multi-storey map a fill reads as one floor.
+constexpr float kMinimapFloorColour[4] = {0.30f, 0.34f, 0.38f, 1.0f};
+// A merged rectangle costs one primitive. The list is bounded rather than trusted:
+// N14 7.2 measured 235-570 rectangles across the seven tabulated maps, so a list
+// that blows past this bound is a build bug and not a map, and it is reported
+// instead of uploaded.
+constexpr std::size_t kMinimapLineworkMaxRects = 4000;
 
 void minimapPushRect(std::vector<tf2::native::Renderer::HudPrimitive>& into, float x,
     float y, float w, float h, const float colour[4]) {
@@ -914,6 +945,19 @@ struct HudMinimapDraw {
   bool viewerInside = false;
   int arrowDots = 0;
   std::size_t pointsDrawn = 0;
+  // N14/U3a: the basemap. The rectangle list is the built result for this panel
+  // size and this geometry revision; the counters beside it describe what it was
+  // built from, because "no basemap" and "a basemap with nothing in it" are
+  // different readings and the trace has to be able to say which one happened.
+  bool lineworkReady = false;
+  const char* lineworkReason = "no-geometry";
+  std::size_t floorTriangles = 0;   // triangles handed over by main.cpp
+  std::size_t floorFaces = 0;       // distinct surfaces among them
+  std::size_t floorKept = 0;        // triangles whose face cleared the thresholds
+  std::size_t floorFacesKept = 0;   // distinct faces that cleared them
+  std::size_t floorBands = 0;
+  std::size_t lineworkRuns = 0;
+  std::size_t lineworkRects = 0;
   std::string signature;
   std::vector<tf2::native::Renderer::HudPrimitive> primitives;
 };
@@ -936,6 +980,42 @@ tf2::native::HudPanelRect hudMinimapPanelRect(HWND window) {
     tf2::native::kHudPanelSafeInset);
   if (layout.panels.empty()) return tf2::native::HudPanelRect{};
   return layout.panels.front();
+}
+
+// N14/U3a: the basemap, built once per (geometry revision, panel size).
+//
+// The build is a scanline fill of every floor triangle plus one pass per storey
+// band, and none of its inputs change between frames, so paying it per frame would
+// be paying it sixty times a second for the same picture. The cache key is the
+// geometry REVISION and not a bool: a process that loads a second demo pushes a
+// second geometry, and a bool would keep drawing the first map's floors on the
+// second map.
+namespace {
+struct MinimapLineworkCache {
+  std::size_t revision = 0;
+  int width = 0;
+  int height = 0;
+  bool built = false;
+  tf2::native::MinimapLinework linework;
+};
+MinimapLineworkCache g_minimapLineworkCache;
+}  // namespace
+
+const tf2::native::MinimapLinework& hudMinimapLineworkFor(
+    const tf2::native::MinimapProjection& projection, int width, int height) {
+  const std::size_t revision = tf2::native::minimapHudFloorGeometryRevision();
+  MinimapLineworkCache& cache = g_minimapLineworkCache;
+  if (cache.built && cache.revision == revision && cache.width == width
+      && cache.height == height) {
+    return cache.linework;
+  }
+  cache.linework = tf2::native::minimapBuildLinework(
+    tf2::native::minimapHudFloorGeometryRef(), projection, width, height);
+  cache.revision = revision;
+  cache.width = width;
+  cache.height = height;
+  cache.built = true;
+  return cache.linework;
 }
 
 HudMinimapDraw hudMinimapCompose(HWND window) {
@@ -998,6 +1078,34 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
     draw.signature += numbers;
   }
 
+  // N14/U3a: the basemap. Admission is deliberately NOT "does geometry exist" --
+  // it is the same tabulated-map lookup that got us this far, plus a pushed
+  // geometry, because an untabulated map must stay byte-identical to a frame drawn
+  // without the switch (gate A11) and drawing floors under a panel whose bounds
+  // nobody measured would put a real map in a wrong rectangle.
+  draw.floorTriangles = tf2::native::minimapHudFloorGeometryRef().size();
+  if (tf2::native::minimapHudFloorGeometryRevision() == 0) {
+    draw.lineworkReason = "no-geometry";
+  } else {
+    const tf2::native::MinimapLinework& linework =
+      hudMinimapLineworkFor(draw.projection, draw.rect.w, draw.rect.h);
+    draw.lineworkReady = linework.valid;
+    draw.lineworkReason = linework.valid ? "ok" : "not-built";
+    draw.floorKept = linework.kept;
+    draw.floorFaces = linework.faces;
+    draw.floorFacesKept = linework.facesKept;
+    draw.floorBands = linework.bands;
+    draw.lineworkRuns = linework.runs;
+    draw.lineworkRects = linework.rects.size();
+    if (linework.rects.size() > kMinimapLineworkMaxRects) {
+      // Reported, not drawn: a rectangle list this long means the build went
+      // wrong, and uploading it would cost every later frame for a picture that
+      // cannot be read anyway.
+      draw.lineworkReady = false;
+      draw.lineworkReason = "rect-budget";
+    }
+  }
+
   const float panelPixels = static_cast<float>(draw.rect.w);
   const float originX = static_cast<float>(draw.rect.x);
   const float originY = static_cast<float>(draw.rect.y);
@@ -1011,6 +1119,19 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
     kMinimapBorderColour);
   minimapPushRect(draw.primitives, originX + panelPixels - kMinimapBorderWidth, originY,
     kMinimapBorderWidth, panelPixels, kMinimapBorderColour);
+  // The floor plan sits between the frame and the markers: under the rings, so a
+  // ring on a wall is still a ring, and over the background, so the outline is
+  // read against the dark panel and not against the world.
+  if (draw.lineworkReady) {
+    const tf2::native::MinimapLinework& linework = hudMinimapLineworkFor(draw.projection,
+      draw.rect.w, draw.rect.h);
+    for (const tf2::native::MinimapLineRect& box : linework.rects) {
+      minimapPushRect(draw.primitives, originX + static_cast<float>(box.x0),
+        originY + static_cast<float>(box.y0),
+        static_cast<float>(box.x1 - box.x0), static_cast<float>(box.y1 - box.y0),
+        kMinimapFloorColour);
+    }
+  }
   for (std::size_t index = 0; index < draw.row->pointCount; ++index) {
     const tf2::native::MinimapControlPointRow& point = draw.row->points[index];
     const tf2::native::MinimapPoint pixel = tf2::native::minimapPanelPoint(draw.bounds,
@@ -1060,7 +1181,8 @@ void hudMinimapTrace(const HudMinimapDraw& draw) {
   traceFmt("minimap: hud state=%s map=%s reason=%s panel=%d,%d,%d,%d"
     " scale=%.6f offsetX=%.6f offsetY=%.6f angle=%.2f yaw=%.2f eye=%.1f,%.1f"
     " viewerPx=%.2f viewerPy=%.2f viewerInside=%d arrowDots=%d cps=%zu drawn=%zu"
-    " shapes=%zu tick=%d",
+    " shapes=%zu lw=%s floor=%zu faces=%zu kept=%zu fkept=%zu bands=%zu"
+    " runs=%zu rects=%zu tick=%d",
     draw.ready ? "ready" : "unavailable", frame.mapName.c_str(), draw.reason,
     draw.rect.x, draw.rect.y, draw.rect.w, draw.rect.h,
     static_cast<double>(draw.projection.scale),
@@ -1071,7 +1193,9 @@ void hudMinimapTrace(const HudMinimapDraw& draw) {
     static_cast<double>(draw.viewerPx), static_cast<double>(draw.viewerPy),
     draw.viewerInside ? 1 : 0, draw.arrowDots,
     draw.row ? draw.row->pointCount : static_cast<std::size_t>(0), draw.pointsDrawn,
-    draw.primitives.size(), frame.tick);
+    draw.primitives.size(), draw.lineworkReason, draw.floorTriangles, draw.floorFaces,
+    draw.floorKept, draw.floorFacesKept, draw.floorBands, draw.lineworkRuns,
+    draw.lineworkRects, frame.tick);
   if (!draw.ready) return;
   for (std::size_t index = 0; index < draw.row->pointCount; ++index) {
     const tf2::native::MinimapControlPointRow& point = draw.row->points[index];

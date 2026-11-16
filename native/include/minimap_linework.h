@@ -43,9 +43,12 @@
 // reading. No payload cart -- only pl_upward_f12 has a team_train_watcher and it
 // is not a control point, so the data gap is named instead of guessed.
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 #include "minimap.h"
@@ -72,11 +75,40 @@ struct MinimapLinework {
   int width = 0;                  // panel pixels this was built for
   int height = 0;
   std::size_t triangles = 0;      // floor triangles handed in
-  std::size_t kept = 0;           // of those, inside the band window of a pass
+  std::size_t faces = 0;          // distinct floor surfaces they belong to
+  std::size_t kept = 0;           // triangles whose FACE cleared the thresholds
+  std::size_t facesKept = 0;      // distinct faces that cleared them
   std::size_t bands = 0;          // z bands that cleared the 5 % share
   std::size_t edgePixels = 0;     // set bits in the combined outline mask
   std::size_t runs = 0;           // horizontal runs before merging
   std::vector<MinimapLineRect> rects;
+};
+
+// One BSP surface (dface_t), not one triangle. THIS IS THE UNIT THE THRESHOLDS
+// ARE JUDGED ON, and the reason is measured, not stylistic:
+//
+//   * the minimum-area cutoff. The oracle's 1024 u2 test is applied to a face's
+//     polygon. Triangulating first and then testing each triangle instead made
+//     all seven maps disagree with the oracle (D:/_shared/EXEC-2026-11-15/u3a/
+//     tri_vs_poly.py: 0/7 exact), while judging the FACE and then filling the
+//     triangles inside it reproduced all seven (face_grouped.py and, from
+//     triangles only, dedup_face.py: 7/7 exact).
+//   * the z band. A displacement face is one surface carrying 32..512 triangles
+//     and, on this corpus, its vertices span up to 1024 u of height = four whole
+//     bands (disp_probe3.py: max face dz 498..1024 u). Banding per triangle would
+//     shred one slope across several bands; displacement faces are under 9 % of
+//     floor faces but carry 12.8 %..73.8 % of floor AREA, so that is not a corner
+//     case.
+//
+// area is the sum of the triangle footprints and meanZ is the mean over the
+// face's DEDUPLICATED vertices -- the polygon's own vertices -- because averaging
+// the fan's triangle means would weight a shared vertex by how many triangles use
+// it, which is exactly where a displacement grid differs from a plain polygon.
+struct MinimapFloorFace {
+  std::int32_t face = -1;         // BspTriangle::faceIndex
+  double area = 0.0;              // world units^2, summed over its triangles
+  double meanZ = 0.0;             // mean over deduplicated vertices
+  int band = 0;                   // minimapBandOf(meanZ)
 };
 
 // The thresholds, named once. They are the numbers N14 measured with, so a change
@@ -99,14 +131,65 @@ inline double minimapTriangleAreaXY(const MinimapFloorTriangle& t) {
   return std::fabs(cross) * 0.5;
 }
 
-inline double minimapTriangleMeanZ(const MinimapFloorTriangle& t) {
-  return (static_cast<double>(t.az) + t.bz + t.cz) / 3.0;
-}
-
 // The z band a triangle's own mean height falls in. Truncating toward zero would
 // fold (-256,-1) and (-1,1) into band 0, so the floor is taken explicitly.
 inline int minimapBandOf(double meanZ) {
   return static_cast<int>(std::floor(meanZ / kMinimapBandHeight));
+}
+
+// Build the per-face table and the triangle -> face map that lets the fill loop
+// judge each triangle by the surface it belongs to. Faces appear in first-seen
+// order so the table is deterministic for a given input order (the parser emits
+// one face's triangles contiguously, but nothing here depends on that).
+inline void minimapBuildFaceTable(const std::vector<MinimapFloorTriangle>& triangles,
+                                  std::vector<MinimapFloorFace>& faces,
+                                  std::vector<std::uint32_t>& triangleFace) {
+  faces.clear();
+  triangleFace.assign(triangles.size(), 0);
+  if (triangles.empty()) return;
+
+  std::unordered_map<std::int32_t, std::uint32_t> slotOf;
+  slotOf.reserve(triangles.size() / 4 + 16);
+  std::vector<std::size_t> firstSlot;   // offsets into the vertex buffer
+  std::vector<std::array<double, 3>> vertices;
+  vertices.reserve(triangles.size() * 3);
+
+  for (std::size_t index = 0; index < triangles.size(); ++index) {
+    const MinimapFloorTriangle& t = triangles[index];
+    std::uint32_t slot = 0;
+    const auto found = slotOf.find(t.face);
+    if (found == slotOf.end()) {
+      slot = static_cast<std::uint32_t>(faces.size());
+      slotOf.emplace(t.face, slot);
+      MinimapFloorFace face;
+      face.face = t.face;
+      faces.push_back(face);
+      firstSlot.push_back(vertices.size());
+    } else {
+      slot = found->second;
+    }
+    triangleFace[index] = slot;
+    faces[slot].area += minimapTriangleAreaXY(t);
+    vertices.push_back({static_cast<double>(t.ax), static_cast<double>(t.ay),
+                        static_cast<double>(t.az)});
+    vertices.push_back({static_cast<double>(t.bx), static_cast<double>(t.by),
+                        static_cast<double>(t.bz)});
+    vertices.push_back({static_cast<double>(t.cx), static_cast<double>(t.cy),
+                        static_cast<double>(t.cz)});
+  }
+  firstSlot.push_back(vertices.size());   // the end of the last face
+
+  for (std::size_t slot = 0; slot < faces.size(); ++slot) {
+    const auto begin = vertices.begin() + static_cast<std::ptrdiff_t>(firstSlot[slot]);
+    const auto end = vertices.begin() + static_cast<std::ptrdiff_t>(firstSlot[slot + 1]);
+    std::sort(begin, end);
+    const auto uniqueEnd = std::unique(begin, end);
+    const std::size_t count = static_cast<std::size_t>(uniqueEnd - begin);
+    double sum = 0.0;
+    for (auto it = begin; it != uniqueEnd; ++it) sum += (*it)[2];
+    faces[slot].meanZ = count > 0 ? sum / static_cast<double>(count) : 0.0;
+    faces[slot].band = minimapBandOf(faces[slot].meanZ);
+  }
 }
 
 // Even-odd scanline fill of the kept triangles into a width x height mask.
@@ -118,17 +201,35 @@ inline int minimapBandOf(double meanZ) {
 // falls inside it, which is what makes the mask a picture of pixels rather than
 // of coordinates.
 //
-// zMin/zMax are an optional band window on the triangle's mean height; when the
-// window is absent (hadBand false) every kept triangle is filled.
+// zMin/zMax are an optional band window on the FACE's mean height; when the
+// window is absent (hasBand false) every triangle of every kept face is filled.
+//
+// A triangle is judged by its face, never by itself: see the comment on
+// MinimapFloorFace for the two measurements that force that. facesKept counts the
+// distinct surfaces that survived, which is the number that must agree with the
+// oracle's kept-polygon count; kept counts triangles, which must not.
 inline void minimapFillMask(const std::vector<MinimapFloorTriangle>& triangles,
+                            const std::vector<MinimapFloorFace>& faces,
+                            const std::vector<std::uint32_t>& triangleFace,
                             const MinimapProjection& projection,
                             int width, int height,
                             bool hasBand, double zMin, double zMax,
                             std::vector<std::uint8_t>& mask,
-                            std::size_t& kept) {
+                            std::size_t& kept,
+                            std::size_t& facesKept) {
   mask.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
   kept = 0;
+  facesKept = 0;
   if (!projection.valid || width <= 0 || height <= 0) return;
+  // Which faces pass, decided once instead of once per triangle.
+  std::vector<std::uint8_t> faceKept(faces.size(), 0);
+  for (std::size_t slot = 0; slot < faces.size(); ++slot) {
+    const MinimapFloorFace& face = faces[slot];
+    if (face.area < kMinimapMinFaceArea) continue;
+    if (hasBand && (face.meanZ < zMin || face.meanZ > zMax)) continue;
+    faceKept[slot] = 1;
+    ++facesKept;
+  }
   const double scale = projection.scale;
   // minimapPanelPoint is the one definition of "world -> panel"; restating its
   // arithmetic here instead of calling it per vertex would be a second copy of
@@ -137,12 +238,11 @@ inline void minimapFillMask(const std::vector<MinimapFloorTriangle>& triangles,
       + projection.offsetX; };
   const auto py = [&](float wy) { return projection.offsetY
       - static_cast<double>(wy) * scale; };
-  for (const MinimapFloorTriangle& t : triangles) {
-    if (minimapTriangleAreaXY(t) < kMinimapMinFaceArea) continue;
-    if (hasBand) {
-      const double zc = minimapTriangleMeanZ(t);
-      if (zc < zMin || zc > zMax) continue;
-    }
+  for (std::size_t index = 0; index < triangles.size(); ++index) {
+    if (index >= triangleFace.size()) break;
+    const std::size_t slot = static_cast<std::size_t>(triangleFace[index]);
+    if (slot >= faceKept.size() || faceKept[slot] == 0) continue;
+    const MinimapFloorTriangle& t = triangles[index];
     ++kept;
     const double xs[3] = {px(t.ax), px(t.bx), px(t.cx)};
     const double ys[3] = {py(t.ay), py(t.by), py(t.cy)};
@@ -268,10 +368,18 @@ inline MinimapLinework minimapBuildLinework(const std::vector<MinimapFloorTriang
   linework.triangles = triangles.size();
   if (!projection.valid || width <= 0 || height <= 0) return linework;
 
+  std::vector<MinimapFloorFace> faces;
+  std::vector<std::uint32_t> triangleFace;
+  minimapBuildFaceTable(triangles, faces, triangleFace);
+  linework.faces = faces.size();
+
   std::vector<std::uint8_t> allMask;
   std::size_t keptAll = 0;
-  minimapFillMask(triangles, projection, width, height, false, 0.0, 0.0, allMask, keptAll);
+  std::size_t facesAll = 0;
+  minimapFillMask(triangles, faces, triangleFace, projection, width, height, false, 0.0, 0.0,
+                  allMask, keptAll, facesAll);
   linework.kept = keptAll;
+  linework.facesKept = facesAll;
 
   std::vector<std::uint8_t> combined;
   minimapEdgeOf(allMask, width, height, combined, linework.edgePixels);
@@ -280,13 +388,14 @@ inline MinimapLinework minimapBuildLinework(const std::vector<MinimapFloorTriang
   // area, so the thin decorative shelves do not turn into noise: N14 measured the
   // share per band on all seven maps and 5 % is the cutoff that keeps every real
   // storey and drops every sliver.
+  // Band AREA is accumulated per face, from the same table the fill uses, so the
+  // share test and the fill can never disagree about which surface is where.
   std::vector<double> bandArea;   // by band index, offset by the lowest band seen
   int lowestBand = 0;
   bool haveBand = false;
-  for (const MinimapFloorTriangle& t : triangles) {
-    const double area = minimapTriangleAreaXY(t);
-    if (area < kMinimapMinFaceArea) continue;
-    const int band = minimapBandOf(minimapTriangleMeanZ(t));
+  for (const MinimapFloorFace& face : faces) {
+    if (face.area < kMinimapMinFaceArea) continue;
+    const int band = face.band;
     if (!haveBand) { lowestBand = band; haveBand = true; bandArea.clear(); }
     if (band < lowestBand) {
       bandArea.insert(bandArea.begin(),
@@ -295,7 +404,7 @@ inline MinimapLinework minimapBuildLinework(const std::vector<MinimapFloorTriang
     }
     const std::size_t slot = static_cast<std::size_t>(band - lowestBand);
     if (bandArea.size() <= slot) bandArea.resize(slot + 1, 0.0);
-    bandArea[slot] += area;
+    bandArea[slot] += face.area;
   }
   double totalArea = 0.0;
   for (double area : bandArea) totalArea += area;
@@ -307,9 +416,10 @@ inline MinimapLinework minimapBuildLinework(const std::vector<MinimapFloorTriang
           * kMinimapBandHeight;
       std::vector<std::uint8_t> bandMask;
       std::size_t keptBand = 0;
-      minimapFillMask(triangles, projection, width, height, true,
+      std::size_t facesBand = 0;
+      minimapFillMask(triangles, faces, triangleFace, projection, width, height, true,
         bandBase - kMinimapBandPad, bandBase + kMinimapBandHeight + kMinimapBandPad,
-        bandMask, keptBand);
+        bandMask, keptBand, facesBand);
       std::vector<std::uint8_t> bandEdges;
       std::size_t ignored = 0;
       minimapEdgeOf(bandMask, width, height, bandEdges, ignored);

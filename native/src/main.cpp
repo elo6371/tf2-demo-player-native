@@ -5669,6 +5669,83 @@ bool outlineVertexExtent = false;
       displayMap.brushModelsDroppedByBudget, static_cast<int>(displayMap.firstDroppedFace),
       displayMap.firstDroppedBrushModel.empty() ? "-" : displayMap.firstDroppedBrushModel.c_str(),
       displayMap.trianglesDropped > 0 ? "truncated" : "within");
+    // N14/U3a: the minimap's basemap, sampled ONCE here, where the parsed map still
+    // lives locally.
+    //
+    // Why the geometry has to cross the boundary as data: displayMap is a local of
+    // this function and main_hud.cpp has no path to it, the same reason the camera
+    // pose is pushed rather than read. Only triangles go over -- not the BspMap, not
+    // the material strings, not the plane table -- because whether a face is floor at
+    // all is decided here, where the plane table and the material names are.
+    //
+    // The floor test is the one the offline oracle states (tools/n14-oracle/
+    // bsp_oracle.py: 'upward-facing (nz > 0.7), non-tool, non-sky'), and every part of
+    // it is load-bearing: a tools/ face is a clip brush that is invisible in game, a
+    // skybox face is the 256x-scaled cage overhead (N14 4.1: pl_upward's outer block is
+    // exactly 16^2 times the playable area), and a downward face is a ceiling. Drawing
+    // any of the three would put a floor where a player cannot stand.
+    if (hudMinimapCli) {
+      std::vector<tf2::native::MinimapFloorTriangle> floorTriangles;
+      std::size_t floorRejectedSide = 0;
+      std::size_t floorRejectedTool = 0;
+      std::size_t floorRejectedSky = 0;
+      std::size_t floorRejectedPlane = 0;
+      for (const tf2::native::BspTriangle& triangle : displayMap.triangles) {
+        if (triangle.planeIndex < 0
+            || static_cast<std::size_t>(triangle.planeIndex) >= displayMap.planes.size()) {
+          ++floorRejectedPlane;
+          continue;
+        }
+        const tf2::native::BspPlane& plane =
+          displayMap.planes[static_cast<std::size_t>(triangle.planeIndex)];
+        // A face's stored plane can point the other way; the side flag is which way
+        // this face actually looks (the same idiom native/tools/world_geometry_probe.cpp
+        // uses). Without the sign the test passes for ceilings as happily as floors.
+        const float sideSign = triangle.planeSide == 0 ? 1.0f : -1.0f;
+        if (sideSign * plane.normal[2] <= 0.7f) {
+          ++floorRejectedSide;
+          continue;
+        }
+        if (triangle.material.rfind("tools/", 0) == 0
+            || triangle.material.rfind("editor/", 0) == 0) {
+          ++floorRejectedTool;
+          continue;
+        }
+        if (triangle.material.find("skybox") != std::string::npos) {
+          ++floorRejectedSky;
+          continue;
+        }
+        tf2::native::MinimapFloorTriangle entry;
+        entry.ax = triangle.a.x; entry.ay = triangle.a.y; entry.az = triangle.a.z;
+        entry.bx = triangle.b.x; entry.by = triangle.b.y; entry.bz = triangle.b.z;
+        entry.cx = triangle.c.x; entry.cy = triangle.c.y; entry.cz = triangle.c.z;
+        // The surface this triangle belongs to (dface_t index). The HUD judges a
+        // face's area and height, not a triangle's -- a displacement face carries
+        // 32..512 triangles and up to 1024 u of height, so per-triangle tests would
+        // both drop real floor and shred one slope across several z bands. See the
+        // comment on MinimapFloorFace in native/include/minimap_linework.h.
+        entry.face = triangle.faceIndex;
+        floorTriangles.push_back(entry);
+      }
+      // The counters are printed before the handover, so a basemap that comes out
+      // empty can be attributed to the map or to the test without a second run.
+      std::size_t floorFaces = 0;
+      {
+        std::vector<std::int32_t> seen;
+        seen.reserve(floorTriangles.size());
+        for (const tf2::native::MinimapFloorTriangle& entry : floorTriangles) {
+          seen.push_back(entry.face);
+        }
+        std::sort(seen.begin(), seen.end());
+        seen.erase(std::unique(seen.begin(), seen.end()), seen.end());
+        floorFaces = seen.size();
+      }
+      traceFmt("minimap: floor triangles=%zu of %zu faces=%zu rejectedPlane=%zu"
+        " rejectedSide=%zu rejectedTool=%zu rejectedSky=%zu",
+        floorTriangles.size(), displayMap.triangles.size(), floorFaces, floorRejectedPlane,
+        floorRejectedSide, floorRejectedTool, floorRejectedSky);
+      tf2::native::minimapHudSetFloorGeometry(std::move(floorTriangles));
+    }
     // T24: the bytes now live in an owner that survives this block, because the
     // pakfile reader below is called from outside it. `mapBytesView` is the
     // local name for the same bytes; `mapBytes` must not be used again.
