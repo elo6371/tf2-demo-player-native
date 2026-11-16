@@ -58,3 +58,31 @@ Produced (not in the repository): `sample_720p_2s.mp4`, `throughput_100f.mp4`, `
 Recompute: `bash native/tools/mf_export_probe.sh <dir> && <dir>/mf_export_probe.exe --out <dir>/run`
 after `mkdir -p <dir>/run`. Product exe sha before and after is in `<dir>/product.sha256` and
 `D:/_shared/EXEC-2026-11-16/INST3/p3b/product-after.sha256` (both `26bff436...`).
+
+
+## 9. Rerun at 13:41 — the 20 bytes that are not deterministic
+
+Same binary, same inputs, 40 minutes later: `PROBE_RC=0`, all five ANSWERS yes, and the two files
+written by one run are still identical. But the rerun's files are **not** identical to the 13:00
+files: 20 bytes of 207,556 differ (both files are 207,556 B). A `cmp -l` plus a box walk puts
+every one of them in a container timestamp:
+
+| box | fields |
+|---|---|
+| `/moov/mvhd` | creation_time, modification_time |
+| video `/moov/trak/tkhd` | creation_time, modification_time |
+| video `/moov/trak/mdia/mdhd` | creation_time, modification_time |
+| audio `/moov/trak/tkhd` | creation_time, modification_time |
+| audio `/moov/trak/mdia/mdhd` | creation_time, modification_time |
+
+`mdat` is byte-identical. The mvhd delta is 2427 s, exactly the wall-clock gap between the two
+runs, so the SinkWriter stamps wall time into the container.
+
+Correction to how the identical 13:00 hashes were read: they show **media** determinism. Encoded
+payload bytes reproduce; container timestamps do not. A byte-identical export needs a post-pass
+that zeroes those 12 timestamp values after Finalize — until then do not claim cross-run byte
+identity for N27.
+
+Evidence: `D:/_shared/EXEC-2026-11-16/INST3/mf-p4/rerun/` (mf-run.log, probe.sha256,
+exe-before/after.sha256, det_a/det_b, verdict.md).
+
