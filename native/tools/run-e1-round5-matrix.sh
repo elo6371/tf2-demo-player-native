@@ -26,8 +26,9 @@
 #
 # HARD CONSTRAINTS (also printed by --help)
 #   1. NEVER REBUILDS THE PRODUCT. The gate exe is pinned by sha256
-#      216d7f986574dc350113ad8b08902bc43754915c3ac0868c8c90e8405981d1eb
-#      (3,057,152 B). This script never calls build-target.sh. Each gate's
+#      06afc166cac53a6b3243559c0dadb2f7a10b29c6d7670cfe311e5ce632cc9227
+#      (3,066,368 B, rebuilt 2026-11-16 19:33 after U4 step 3 + the E9 fixes
+#      merged in 4cca8d41). This script never calls build-target.sh. Each gate's
 #      before/after sha is compared with the pin; a gate counts only when
 #      before == after == pin. A gate that would need a build is red, not rebuilt.
 #   2. NO GIT MUTATION. No stash, no clean, no checkout, no commit. Other agents'
@@ -69,7 +70,7 @@ set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT" || exit 2
 
-PINNED_EXE_SHA=216d7f986574dc350113ad8b08902bc43754915c3ac0868c8c90e8405981d1eb
+PINNED_EXE_SHA=06afc166cac53a6b3243559c0dadb2f7a10b29c6d7670cfe311e5ce632cc9227
 EXE=native/build-nmake/tf2_demo_native.exe
 HOSTLOCK=/d/TF2_Native_Worktrees/_shared/hostlock.sh
 

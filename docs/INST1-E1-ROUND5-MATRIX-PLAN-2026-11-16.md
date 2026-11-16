@@ -2,7 +2,8 @@
 
 **卡片**：E1 round-5 final matrix 预备件（lead 派工）　**状态**：脚本与本文档已落盘；**矩阵未执行**，等 lead 发令一次跑完。
 **脚本**：$native/tools/run-e1-round5-matrix.sh（`--dry-run` / `--run` / `--help`）
-**前置身份**：exe 钉 sha $216d7f986574dc350113ad8b08902bc43754915c3ac0868c8c90e8405981d1eb（3,057,152 B，未重建）；dry-run 时 head `2a8396ad`。
+**前置身份**：exe 钉 sha $06afc166cac53a6b3243559c0dadb2f7a10b29c6d7670cfe311e5ce632cc9227（3,066,368 B，2026-11-16 19:33 重建）；dry-run 时 head `b935e052`。
+**本轮 exe 身份变更**：216d7f98 → 06afc166，原因是 U4 第 3 步 + E9 修法并入（merge `4cca8d41`）；此后矩阵 pin 一律 `06afc166…`。
 
 ---
 
