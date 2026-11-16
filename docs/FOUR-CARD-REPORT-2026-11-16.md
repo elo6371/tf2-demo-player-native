@@ -114,6 +114,8 @@
 - `map-material-matrix.sh:126-130` 钉的三份 POV **全部丢失**：rc12（153,502 ticks / 49.36 MB）、cp_sunshine（144,583 / 48.96 MB）、pl_odyssey（55,294 / 26.43 MB）；census `evidence/header-scan/header-scan.csv:10/:14/:131` 留着当时身份。
 - cp_sunshine 有 POV 替补 `E:/demo测试/cp_sunshine/POV/autorecord_2026-05-17_16-32-36.dem`（75,905,225 B、sha `acc13409…`、POV、219,069 包、四类失败 0）；pl_odyssey 与 koth_bagel_rc12 全机无任何录像 ⇒ 只能按 m06794 先例登记 BLOCKED-INPUT（保留行、写清依据）。
 - **已登记 `d325ff0f`**（`map-material-matrix.sh` +78/−2 + `docs/T62-MAP-MATRIX-CORPUS-REGISTRY-2026-11-16.md`）：cp_sunshine 按 REPLACED 接入替换件并钉 sha；pl_odyssey / koth_bagel_rc12 记 BLOCKED-INPUT（保留行、48 字段、不 probe、不算失败），启动逐条打印 override，未登记缺件仍记 failure，汇总行带 `blocked=%d`。`--only=pl_odyssey,koth_bagel_rc12` 自测 **PASS（blocked=2 failed=0）**。**完整重跑未做**（host 锁被 map-geometry 占用）⇒ `readings.tsv` 未刷新，矩阵仍是旧读数。
+- **完整重跑已做并 PASS（`05ece883` + `dce98de7` + `66f5017f`）**：`MAP-MATERIAL-MATRIX=PASS maps=5 rows=4 unsupported=0 blocked=4 failed=0`。cp_snakewater_final1 0/2000 ok、相机 orient `1185.5 -813.5 207.1`、probe 148 材质、diff 15140 px（1.7589%）；koth_bagel_rc11 0/2000 ok、orient `914.0 -1000.0 563.8`、99 材质、diff 173212 px（max 255）；**cp_sunshine 替补件实测 BLOCKED-CAMERA**（header 合格 `map=cp_sunshine server_map=cp_sunshine packets=219069`，但相机样本 `0,0,-427`、orient 复跑 `0,0,-359` ⇒ 录像有相机、没有可用视点），只记 probe 读数（170 材质 / 165 tile），不再输出两张一模一样帧；pl_odyssey / koth_bagel_rc12 保持 BLOCKED-INPUT（钉住的录像在 `tf/demos` 已不存在）。`evidence/t62-map-matrix/readings.tsv` 按 8 行重建。
+- 门禁本轮修四处：MSYS argv 重写（探针改用 `cygpath -m`）、CRLF 落盘（三处 `sed -i 's/\r$//'`）、退化姿势判定、`0,0,*` 误匹配 `0,0,0`；并清掉 BLOCKED 行残留的旧 tile 文件。
 
 ### 3.6 R1 已构建并给出定论（提交 `1b762057`，`docs/N05-R1-PASS-DEPTH-RESULT-2026-11-16.md` +149，另 R2 设计 +54）
 - **仪器**：`--capture-pass-depth <prefix>` 在渲染帧 10 个固定点各回读一次 D24S8（mask `& 0x00FFFFFF`、归一化后写 P5 16-bit big-endian PGM），并打 `pass-depth: index=… name=… depthStateLastBind=… wrote=…`。dump 点：`00-cleared` / `10-sky` / `20-world-batchNN-alphaM` / `30-world-done` / `40-water`（该帧未绘水面故缺席）/ `50-entities` / `60-overlay` / `70-hud-pre` / `80-post-viewmodel`。缺 `--capture-frame`、0 张平面或回读失败 ⇒ **exit 16**，不静默产「看起来正常」的帧。代码 4 文件（header +27 / capture +98 / frame +35 / main +45−16），分支 `work/card-maps-r1b`（基于 `0ada1d81`，代码与已合并的 `e6cf1f61` 相同），产物 `bf76cdae…` / 3,057,152 B。
@@ -123,6 +125,8 @@
 - **常规渲染路径（g6，14 张平面）**：3 个 `alpha=0` 批次写深度（773,685→784,479 px，另 +93,086/+17,061/+2,791 变化）、4 个 `alpha=1` 批次不写（`world-blended:write-off`），`50-entities` 再 +11,458 到 795,937；`--capture-depth` 平面与 10/11/12/13 号平面 `ndiff=0` ⇒ 50-entities 之后没有任何 pass 再写深度。与 g3 的 `world-blended:write-off` 互为印证。
 - **写入者形态（不依赖 pass 命名）**：interior 存值 vs 三角形自身插值深度 —— 相关 **0.9583**、整体**远约 +20.8 quanta**（min+4 / med+21 / max+112，1 quantum=1.526e-05）⇒ 不是「更近的遮挡物」，更像同一面/共面面的第二次绘制；**具体是 50-entities 里哪一次 range 绘制，未证**（需逐 range trace，不影响边界结论）。
 - 未证/下一步：水面 pass 该帧缺席（`40-water` 无平面，需换 `--capture-tick` 另跑）；「9–11 张平面」上界本帧用不到；逐 range 归属未做。证据 `D:/_shared/EXEC-2026-11-15/INST2/m2c-r1/`（runs/、r1-analysis-g3.txt、groups-*.log）。
+- **R2 已跑，判据 C 有结论**：N2=g3 复现 A 帧（`757f5aa2…`）；N1=g5、N3=g4 同帧（`b194973c…`）。在 N2 足迹上量 N1 深度：interior nearer/farther/equal = **1/1164/16**、ribbon = **0/103/6** ⇒ **常规路径不复制 109/1181 这个二值边界**（判据 C 成立），但「三角形在 1290 px 内不进深度缓冲」在常规路径同样成立（1267 px 严格更远）。最小区分实验设计已写进 `docs/N05-R2-NORMAL-PATH-DESIGN-2026-11-16.md §8.1`。
+- **audit 已回 OK**：`(every changed text file matches HEAD's line endings)` + `VERDICT: OK (no forbidden writes, line endings intact)` ⇒ 之前那条 `CRLF-DAMAGE  FORBIDDEN-WRITE` 的两条来源（card-maps 的矩阵证据 CRLF 写入端、我的 docs 检出侧行尾）都已消解。
 
 ## 4. task-3 交互 UI（card-ui）
 
@@ -270,7 +274,7 @@ c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary 
 
 ### 7.3 未完成清单（诚实版）
 1. task-1：**viewmodel-material 已全绿**（§7/§8 28/0 `61fec89` + §9 re-pin `3fd6b86` + 9 节 **226 OK/0 FAIL** full PASS，每步配负控）；仍欠 companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 修法落地；exe 身份改钉 `216d7f98`（源码干净、非源码脏，需在文档写清）。
-2. task-2：R2 常规路径实现与复现；map-geometry p2 裁决 + rc12 语料；map-material 完整重跑（两份 BLOCKED-INPUT）；50-entities 内逐 range 归属。
+2. task-2：**R1/R2 均已出结论、map-material 完整重跑 PASS**（`1b762057`/`05ece883`/`66f5017f`，audit 回 OK）；仍欠 50-entities 内逐 range 归属、水面 pass（需 `--capture-tick` 另跑）、map-geometry p2 裁决、cp_sunshine 需一段带正常视点的 POV（现在的替补件是 BLOCKED-CAMERA）、odyssey/rc12 需补录像。
 3. task-3：A1 面集规则、t2 判据修正（配负控）、PIP→四窗预算、hidden-body 并集正解、split ViewModel（已裁决 defer）。
 4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
 5. 横切：D75 世界 FOV 修法、N24 main 拆分、N26 按口径重测。
