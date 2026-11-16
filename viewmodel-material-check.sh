@@ -909,13 +909,23 @@ assert_eq "the drawn model's slots all resolved" \
   "$(rval "$READINGS" materialResolved)" "$(rval "$READINGS" materialSlots)"
 assert_eq "a texture is bound" "$(rval "$READINGS" boundSlots)" "1"
 assert_ge "the model declares alpha-bearing slots" "$(rval "$READINGS" alphaSlots)" 1
-assert_eq "one range uses the alpha blend state" "$(rval "$READINGS" blendedRanges)" "1"
+# Re-pinned 2026-11-16 on exe 216d7f98…: --viewmodel-material-slot 2 makes every
+# descriptor in the mesh table take the glass slot (main.cpp:7917-7931), so all
+# three drawn ranges carry its blend state. The comparison is against drawRanges,
+# not a literal: what has to hold is "as many ranges blend as are drawn", which is
+# what catches a three-range pass applying one blend.
+assert_eq "every drawn range uses the alpha blend state" \
+  "$(rval "$READINGS" blendedRanges)" "$(rval "$READINGS" drawRanges)"
 assert_eq "no range uses alpha test (this slot is \$translucent)" \
   "$(rval "$READINGS" alphaTestedRanges)" "0"
-assert_eq "alpha is the only blend path applied" \
-  "$(rval "$READINGS" alphaAppliedRanges)" "1"
+assert_eq "alpha is applied on every drawn range" \
+  "$(rval "$READINGS" alphaAppliedRanges)" "$(rval "$READINGS" drawRanges)"
 assert_contains "the range carries the translucent flag" "$RANGES_LINE" "translucent=1"
-assert_contains "the bound slot is the glass one" "$MATERIALS_LINE" "uploadSlot=2"
+# uploadSlot=-2 means "upload every resolved slot" since 952ddf20 (2026-10-17); the
+# old pin "2" was the single-slot era (279dabb5). With the override on, all three
+# ranges name slot 2, and that is what makes the glass texture the one bound.
+assert_contains "every resolved slot is uploaded" "$MATERIALS_LINE" "uploadSlot=-2"
+assert_contains "the override binds the glass slot on every range" "$RANGES_LINE" "rangeSlots=2,2,2"
 # The override changes WHICH TEXTURE IS BOUND, not which geometry is drawn. The
 # count is the drawn model's own -- `v_sapper_spy` builds 11640 vertices, against
 # the 600 of the companion this recording would otherwise draw -- so a run whose

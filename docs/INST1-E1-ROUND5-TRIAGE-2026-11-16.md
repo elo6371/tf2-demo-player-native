@@ -255,6 +255,83 @@ lead 对 §3.1.1 提案的三处改动：**不给产品加 pass 局部 upload �
   （机制已查清：uploadSlot=-2 是 952ddf20 起「全槽上传」的语义，旧 pin 2 来自 279dabb5 的单槽时代）。
 - 真实门全 9 节的 full PASS 仍未取（本轮只 §7/§8）；§8 之前自 435b4d5c 起欠的那次 full PASS 仍未还。
 
+#### 3.1.3 §9 re-pin（2026-11-16 18:30 lead 准予，同一窗口还 9 节 full PASS）
+
+lead 条件：先写机制再改数；负控要判两类真回退；同窗口跑全 9 节；exe 仍钉 216d7f98…；TRACE_DIR 相对路径。
+
+#### 机制（每条带出处，改断言前在此并列）
+
+1. **uploadSlot=-2 = 上传全部 resolved 槽**。main.cpp:7968-7969：
+   decode 调用与读数都用同一常量 —— decodeViewModelMaterialSlots(request.materials, viewModelFlatColor ? -1 : -2, uploader)，
+   随后 const std::int32_t uploadSlot = viewModelFlatColor ? -1 : -2;。native/src/viewmodel_material.cpp:344-375：
+   仅当 uploadSlot == -2 或 (uploadSlot >= 0 && slot == uploadSlot) 才调 uploader。语义来自 952ddf20
+   （2026-10-17「fix: complete model materials and archive validation」）；旧 pin uploadSlot=2 写于 279dabb5
+   （2026-10-13），当时该处为 flat ? -1 : (slotOverride >= 0 ? slotOverride : drawnSlot)，只上传一个槽。
+2. **blendedRanges=3 / alphaAppliedRanges=3 与 3 descriptor 一一对应**。门禁以 --viewmodel-material-slot 2 启动
+   （gate :903）。main.cpp:7917-7931 viewModelDrawRangesFor 里 const std::int32_t slot = slotOverride >= 0 ?
+   slotOverride : source.materialSlot; —— 3 个 VTX descriptor 全部取槽 2，于是每个 range 的 slot=2、materialKey=玻璃
+   槽的 vtf、translucent 继承槽 2。实测 palpha trace：ranges=3 firstRange=(slot 2, 11640 vertices, textured=1
+   translucent=1 alphatest=0) rangeSlots=2,2,2 rangeTextured=1,1,1；readings drawRanges=3 blendedRanges=3
+   alphaAppliedRanges=3 boundSlots=1 alphaTestedRanges=0。boundSlots=1 是去重后的**槽**数（3 range 共用槽 2），
+   与 §8 pmissing 的 boundSlots=2（槽 1、2 两个不同槽）不矛盾。哪个 range 走 blend/alpha：3 个都走，
+   因为它们绑的是同一张 translucent 玻璃纹理；没有一个走 alpha test（alphaTestedRanges=0，该槽是 $translucent 不是 $alphatest）。
+   旧 pin 1 来自单 range 时代。
+
+#### 旧值 → 新断言 → 实测
+
+| 断言（gate :行） | 旧 pin | 新断言 | 实测 |
+| --- | --- | --- | --- |
+| :912 one range uses the alpha blend state | 1 | blendedRanges == drawRanges（label：every drawn range uses the alpha blend state） | 3 == 3 |
+| :915 alpha is the only blend path applied | 1 | alphaAppliedRanges == drawRanges（label：alpha is applied on every drawn range） | 3 == 3 |
+| :918 the bound slot is the glass one | MATERIALS_LINE uploadSlot=2 | MATERIALS_LINE uploadSlot=-2（label：every resolved slot is uploaded）；新增 RANGES_LINE rangeSlots=2,2,2（label：the override binds the glass slot on every range） | -2；2,2,2 |
+
+不动：alpha run rc=0、slotOverride=2、flatColor=0、resolved==slots（4）、boundSlots=1、alphaSlots>=1（2）、
+alphaTestedRanges=0、translucent=1、11640 vertices。
+
+#### 断言文本 diff（节选）
+
+```diff
+-assert_eq "one range uses the alpha blend state" "$(rval "$READINGS" blendedRanges)" "1"
++assert_eq "every drawn range uses the alpha blend state" \
++  "$(rval "$READINGS" blendedRanges)" "$(rval "$READINGS" drawRanges)"
+
+-assert_eq "alpha is the only blend path applied" \
+-  "$(rval "$READINGS" alphaAppliedRanges)" "1"
++assert_eq "alpha is applied on every drawn range" \
++  "$(rval "$READINGS" alphaAppliedRanges)" "$(rval "$READINGS" drawRanges)"
+
+-assert_contains "the bound slot is the glass one" "$MATERIALS_LINE" "uploadSlot=2"
++assert_contains "every resolved slot is uploaded" "$MATERIALS_LINE" "uploadSlot=-2"
++assert_contains "the override binds the glass slot on every range" "$RANGES_LINE" "rangeSlots=2,2,2"
+```
+为什么用 == drawRanges 而不是写死 3：要抓的是「声明几个 range 就 apply 几份 blend/alpha」；写死 3 会在
+descriptor 数再变时又漂一次，而 == 关系直接判「3 个 range 只 apply 1 个」这类不一致（也正是本次负控 n2/n3 要判的）。
+
+#### 负控（KEEP_CAPTURES=1 + SECTIONS="9"，篡改 palpha trace，产品不重跑）
+
+脚本 /d/_shared/…/full-1830/nc9/run-nc9.sh，日志 nc9/*.log：
+
+| case | 篡改 | 结果 |
+| --- | --- | --- |
+| n1 全槽上传回退成单槽 | MATERIALS_LINE uploadSlot=-2→2 | 1 红（every resolved slot is uploaded），12 OK |
+| n2 3 range 只 apply 1 份 blend | blendedRanges=3→1（drawRanges 仍 3） | 1 红（every drawn range uses the alpha blend state = 1, expected 3），12 OK |
+| n3 3 range 只 apply 1 份 alpha | alphaAppliedRanges=3→1 | 1 红（alpha is applied on every drawn range = 1, expected 3），12 OK |
+| n4 还原 | 无 | 13 OK / 0 FAIL |
+
+n2/n3 的红是「1, expected 3」形式：期望侧取的是同一行的 drawRanges，所以「声明 3 个 range 却只 apply 1 个」
+被判红而不是被写死的数字放过。
+
+#### full PASS（本窗口，9 节全跑）
+
+- 命令：bash viewmodel-material-check.sh，SECTIONS 未设（默认 1..9），TRACE_DIR=evidence/fast/viewmodel-material/full-1830（相对），
+  日志 /d/_shared/EXEC-2026-11-15/INST1/E1-round5/full-1830/full-run.log，身份记在同目录 context.txt。
+- 结果：**226 OK / 0 FAIL，VIEWMODEL-MATERIAL=PASS，rc=0**；9 节逐节全绿（§1-§6 共 185 条全绿后进 §7）。
+- exe sha 跑前跑后同值 216d7f98…；跑前 dirty 计数见 context.txt（仍全是 evidence/t62-map-matrix + lead docs）。
+- **435b4d5c 起欠的那次 full PASS 已还**：本轮 226 条覆盖 §1-§9，没有出现 §7/§8 之外的新红。
+- §9 三条新断言实测读数：every drawn range uses the alpha blend state = 3（== drawRanges 3）；
+  alpha is applied on every drawn range = 3（== drawRanges 3）；every resolved slot is uploaded contains uploadSlot=-2；
+  the override binds the glass slot on every range contains rangeSlots=2,2,2。
+
 ### 3.2 minimap-hud（A1 与 A6/A7）
 
 ```
