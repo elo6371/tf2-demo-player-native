@@ -9,9 +9,18 @@ companion 四件事。本文只记录**实测读数与分流**，不改判据、
 | --- | --- |
 | 产品 exe sha256 | `75dae10e60740cd2c3e780ef68c72eb100e6f4221f8c234227a907a99d0607ab` |
 | 大小 / mtime | 3,044,864 B / 2026-11-16 14:14:35（第 4 轮 same-bytes 重建后未再变） |
-| HEAD | `997e945e`（lead 的 source-tv 两次提交之后） |
+| HEAD（本轮起） | `997e945e` |
+| HEAD（收工） | `f71ff277`（我的 triage 提交 `f8315bc1` 在其上） |
+| exe 树绑定（sidecar） | sourceTree `e8cabb154d47`、sourceContent `661a4bc5e988f57bbf2e0b0115a6cfecf0d2a2cb05ed911481cd2d13aa5fbe66`、contentBinding `carried`、buildUtc `2026-11-16T05:44:34Z`、dirtyFiles=9（7 tracked + 2 untracked） |
 | 主树构建 | 本轮**不在主树构建**；exe 全程同 sha（收工再取仍同） |
 | 锁 | verify-all 用 `tools/lockrun.sh`；产品/捕获用 `/d/TF2_Native_Worktrees/_shared/hostlock.sh` |
+
+窗口中途 HEAD 移动过：`d325ff0f`/`35f8856a` 于 16:11:52、`f71ff277` 于 16:18:49，作者是 card-maps。
+`git show --name-only` 核实这五个提交（含 lead 的 `71c983cb`/`997e945e`）只碰 `map-material-matrix.sh`、
+`source-tv-coverage-check.sh`、`evidence/source-tv*` 与 `docs/*`，**没有一行 `native/` 或构建输入**。
+本轮四门都是乘积行为类，不吃这些提交；本轮也未跑 release-rebuild / userinfo，所以没有任何 identity 红。
+下一窗口若见到 identity 不一致或 STALE，先按「窗口中途有脚本+docs 提交」定性，不要改判据、不要动 exe、
+不要 revert 别人的提交。
 
 ## 2 门表
 
