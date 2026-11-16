@@ -86,3 +86,37 @@ identity for N27.
 Evidence: `D:/_shared/EXEC-2026-11-16/INST3/mf-p4/rerun/` (mf-run.log, probe.sha256,
 exe-before/after.sha256, det_a/det_b, verdict.md).
 
+## 10. Task A, 15:19 — the export is re-runnable evidence, not a one-off
+
+Four probe modes make the sequence assertable instead of merely observable:
+
+| mode | writes | asserts |
+|---|---|---|
+| `--dump-inputs <dir>` | frames.rgb24 (60 x 2,764,800 B), frames.txt (per-frame SHA-256), pcm.raw (384,000 B = 96,000 sample frames, 48 kHz stereo 16-bit, 2.0 s), pcm.txt, audio.wav | both digests printed, then re-read by the next mode |
+| `--encode-dump <dir> --mp4 <file>` | MP4 encoded only from that dumped artifact (RGB32 frames, PCM buffer) | framesRead=60, frameShaMatches=60, pcmShaMatch=yes, videoSamplesWritten=60 |
+| `--normalize <in> <out>` | same MP4 with container creation/modification times zeroed | fieldsZeroed=5, bytesZeroed=40, verify_nonzero_fields=0 |
+| `--decode <mp4> --dump-decoded <dir> --expect-dump <dir>` | decoded RGB24 frames, decoded PCM, per-frame SHA-256 manifests | video frame count and PCM sample count compared against the dump |
+
+Chain, one command: `bash native/tools/mf_export_verify.sh <mf_export_probe.exe> <work-dir>`.
+
+Readings, 15:19, probe sha256 c66b15b1dfbb4fbfad572951bbbc4e8ece2474669317c8686d1ef2db34f196d5:
+
+- dump: frames=60 frameBytes=2764800 framesSha256=6e592af18c31afb5feb9c5f7986735cabc4dc640e0b6ac218f060d54345719b6, pcmSampleFrames=96000 pcmBytes=384000 pcmSha256=c2126a45d484b296ff6e12809b1d4d32f8652b9442402673aa27568599c48663; sha256sum over the two files reports the same digests, so the probe's own SHA-256 is not the only witness.
+- encode A and B: framesRead=60 frameShaMatches=60 pcmShaMatch=yes videoSamplesWritten=60 audioSamplesWritten=94 bytes=207556, every HRESULT S_OK.
+- negative control: the two exports differ — RAW_DIFF_BYTES=10 with encodes 2 s apart. Ten bytes is not a coincidence: ten timestamp values, each with a +2 change in its low byte. The 13:41 pair differed by 20 bytes because those encodes were 2,427 s apart, which changes two bytes per value.
+- normalize: fieldsZeroed=5 bytesZeroed=40 traks=2; cmp raw norm reports exactly 40 touched bytes per file and verify_nonzero_fields=0.
+- positive control: both normalized files hash to 428abe60ab2cb4cf74e7f3ff74637806165b233bd28ea4c7963a7a669fb21a43 — byte-identical, and the same hash the previous run produced, so normalization removes the wall clock rather than patching it.
+- decode of the raw export: video frames=60 (firstTs=333333, lastTs=19999999, videoFramesMatch=yes), frame content videoMeanAbsDiff=1.958 maxFrameMeanAbsDiff=2.129; audio 96,256 sample frames against 96,000 source (delta=256, tolerance 2048), pcmSimilar=yes with meanAbsDiff=40.431 maxAbsDiff=8267 on a 16-bit scale. Decoding the normalized export gives the same readings.
+- probe exe sha256 before/after the chain is unchanged; the only rebuild in this window was the audio-reader fix (3fb31dc6... -> c66b15b1...).
+
+Two implementation findings worth keeping:
+
+1. One IMFSourceReader cannot decode both tracks of these files. After the video pass reads to EOS, ReadSample on the audio stream returns EOS with zero samples (audio samples=0) even though SetCurrentMediaType(audio, PCM) reports S_OK. Audio needs a second reader opened at position 0 with its own stream selection. With that, 94 samples / 96,256 frames.
+2. AAC is lossy, so decoded PCM can never hash-match the source. The assertion is delta <= 2048 sample frames (measured 256 = one encoder frame) plus mean absolute sample difference <= 600 (measured 40.4).
+
+Count correction to §9: its table lists five boxes and ten fields, not twelve. Measured on the file: 5 boxes x 2 fields = 10 values = 40 bytes.
+
+What this still does not show: the product export entry. The chain proves the probe can dump, encode, normalize and decode deterministically; N27's second checkbox (in-product fixed-step render through that path) remains unimplemented.
+
+Evidence: D:/_shared/EXEC-2026-11-16/INST3/taskA/ (build/, run/, run_chain.log, verdict.md).
+
