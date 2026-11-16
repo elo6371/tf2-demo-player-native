@@ -210,11 +210,44 @@ trace 原文（逐字，未编辑；只省略了与本节判定无关的 eye/ang
 - 下一步（不在本窗口）：把转录改成"按 BSP 真实三角形表覆盖每个 dface"再比 —— 若产品与重算一致，则转录是模型误差；
   若仍不一致，则产品实现有 bug，按"读代码→最小复现"定位。**无论哪条，都不是调预期。**
 
+### 4.1 口径并排、计数上限证明，以及下一步的判别实验
+
+#### A. 谁是 oracle（570 / 3097 / 2802 的出处）
+
+- 数字来自 `D:/_shared/EXEC-2026-11-15/u3a/cpp_parity_lib.py` + `expected-counters.json`（scratch，**未入库**，上一实例所写）；它唯一的数据源是 `tools/n14-oracle/bsp_oracle.py` 的 `read_bsp(...)['floors']`（**在库**，该文件最后一次改动是 ed20a7ef）。
+- oracle 的选面口径：遍历 BSP **全部 dface**（Upward 15155 / Sunshine 20449）；要求 `planenum < nplanes` 且 `numedges >= 3`；法线取 planes lump，`side` 非 0 则整体取反；名字取 texdata 字符串表并 **.lower() 小写化**（bsp_oracle.py:117）；跳过 `tools/`、`editor/` 前缀与含 `skybox` 的名字；收 `nz > 0.7`；**一条面 = 一条多边形**（按 surfedge 顺序取顶点，转录再扇形三角化）。**没有**面积阈值、**没有**按 face 合并、**没有**排除 displacement / func_detail。
+- C++ linework 的口径：从 `displayMap.triangles` 取（parser 已先剔掉 sky 与 nodraw，bsp_map.cpp:774-776）；`planeIndex < 0` 拒（Upward 9741）；`sideSign * nz > 0.7` 收；材质前缀 `tools/` / `editor/` 拒、含 `skybox` 拒 —— **但大小写敏感**；面 = `triangle.faceIndex`；面面积 = 该面全部三角形 XY 投影面积之和，`>= 1024 u²` 才留；z 带按面 meanZ、带高 256、份额 5%。
+- 两边**唯一的口径差**是「一条面给多少三角形」（多边形扇形 vs BSP 真实三角形表）。
+
+#### B. 计数上限证明：`faces` 的差不是口径差，是产品侧缺陷
+
+用 `D:/_shared/EXEC-2026-11-15/u3a/recount_faces.py`（本次新写，只读 BSP，不在产品路径上）按 oracle 口径重算，**先自证能复现 oracle 的数**：Upward = **3097** ✓、Sunshine = **4326** ✓。同一遍给出「只过平面阈值、还没过名字」的面数：
+
+| 地图 | 全图 dface | 过 nz>0.7（side 感知） | oracle floors | 产品 faces |
+|---|---|---|---|---|
+| pl_upward_f12 | 15155 | **3116** | 3097 | **3869** |
+| cp_sunshine | 20449 | **4625** | 4326 | **5338** |
+
+产品的 `faces` 比**全图通过平面阈值的面数**还多 **753 / 713**。也就是说：产品的面编号集合**不可能是「朝上 dface 的编号集合」**，它超过了物理上限 —— 只能是部分三角形带上了与 dface 无关的 `faceIndex`（或 `planeIndex`/`planeSide` 不是该 dface 的那一对），于是本来朝下的面也进了地面集。**这是产品侧缺陷，不是口径差，也不能用「两边定义不同」解释掉。**
+
+另一条真实但量级小的缺陷（要一起修，但它解释不了 753）：BSP 的贴图名是**大写**（Upward 3116 个通过面里 3086 个名字含大写），而 C++ 用 `rfind("tools/", 0)` / `find("skybox")` 是大小写敏感的 → 在真实数据上几乎不可能命中，这解释了 trace 里刺眼的 `rejectedTool=0 rejectedSky=0`。按大小写不敏感重算，C++ 规则应得 3097（= oracle）；保持敏感则为 3116 —— 只能解释 +19，解释不了 +753。
+
+#### C. `kept` 的 6.7×：这一项主要是模型差，与 B 分开算
+
+- oracle：一条 dface = 一条多边形，转录扇形三角化（4 顶点 → 2 个三角形；位移面也只按控制点算），3097 面合计约 2000-2800 个三角形 → 转录 kept=2802 ✓。
+- 产品：用 BSP 真实三角形表，位移面 32..512 个。产品 `floor triangles=22395` / 3869 面 ≈ 5.8 三角形/面。
+- 所以 kept 的 6.7×（以及 runs/rects 的同向偏大）**大部分可由「真实三角形 vs 扇形」解释**；`faces` 不能（见 B）。
+
+#### D. 下一步的判别实验（不改预期、不改门禁）
+
+1. **实验 A（钉死面身份）**：下一窗口（要重编、会换 exe sha，必须等 E1 用完这版）给 trace 加「kept 面 id 的前 32 个 + 越界计数」，与 `recount_faces.py` 记录的 `fi` 集合求差；出现重复/越界模式即可定位 `triangle.faceIndex` 的附着点。
+2. **实验 B（钉死 kept 模型）**：把转录改成「按 BSP 真实三角形表覆盖每个 dface」（只改 scratch 脚本，不改预期）再比；若 kept/fkept/runs/rects 全部对上，则 §4 五个 FAIL 里只有 `faces` 一项是真缺陷，其余是模型差。
+3. 判定之前 **A1 不钉任何数**（583 与 1007 都不钉）。
 ## 5. 对 gate 的影响（gate 本体本卡未改）
 
 | gate | 位置 | 影响 |
 |---|---|---|
-| A1 | `minimap-hud-check.sh:567` | `shapes == 13` **必红**。本次 exe 实测：Upward `shapes=1007`（=13+994）、Sunshine `shapes=825`（=13+815）。**但不要现在钉 1007/583**：rects 与离线转录不符（§4），根因判明前把 1007 写进门禁等于固化一个未经解释的数。给 card-arch 的输入应为「13 + 产品实测 rects」，rects 确切值待 §4 根因判明后复测。 |
+| A1 | `minimap-hud-check.sh:567` | `shapes == 13` **必红**。本次 exe 实测：Upward `shapes=1007`（=13+994）、Sunshine `shapes=825`（=13+815）。**A1 = BLOCKED（见 §4.1.B：产品 faces 超过全图通过平面阈值的面数）**；不要钉 1007/583：rects 与离线转录不符（§4），根因判明前把 1007 写进门禁等于固化一个未经解释的数。给 card-arch 的输入应为「13 + 产品实测 rects」，rects 确切值待 §4 根因判明后复测。 |
 | A2 | `:609-610` | inside 像素差区间 `20000..25600` 是**按无底图**的帧测的，底图必然推高它，下界/上界都要重测。:613 outside==0 不受影响（矩形按面板裁剪）。 |
 | A11 | `:830` | 未列表地图仍须 `shapes==0`、帧逐字节相同 —— 由 §1.C 的早退 + 只在开关下推送几何保证。 |
 
