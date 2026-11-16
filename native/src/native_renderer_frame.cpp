@@ -128,6 +128,10 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     }
   }
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+  // R1: the cleared baseline. Every plane below is measured against it -- if
+  // anything but 1.0 shows up here, the dump itself is the suspect.
+  noteDepthState("frame-start:write-all");
+  capturePassDepth("00-cleared");
   context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                           : worldNoCullRasterizerState_.Get());
   D3D11_VIEWPORT viewport{};
@@ -478,6 +482,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       auto* skyConstantsBuffer = worldSkyConstants_.Get();
       context_->RSSetState(worldSkyRasterizerState_.Get());
       context_->OMSetDepthStencilState(worldSkyDepthStencilState_.Get(), 0);
+      noteDepthState("sky:write-off");
       context_->IASetInputLayout(worldInputLayout_.Get());
       context_->IASetVertexBuffers(0, 1, &skyBuffer, &skyStride, &skyOffset);
       context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
@@ -488,6 +493,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
       context_->Draw(worldSkyVertexCount_, 0);
       worldSkyDrewThisFrame_ = true;
+      capturePassDepth("10-sky");
       // The world pass below must not inherit the sky's cube or its cull state.
       // T10: "the world's cull state" is the one the caller configured -- the
       // no-cull diagnostic must survive the sky's restore, or the capture's
@@ -496,6 +502,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                               : worldNoCullRasterizerState_.Get());
       context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+      noteDepthState("world:write-all");
       ID3D11ShaderResourceView* noSky = nullptr;
       context_->PSSetShaderResources(5, 1, &noSky);
     }
@@ -574,6 +581,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     if (batchesIndexed) {
       context_->IASetIndexBuffer(worldIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
       bool blendedStateSet = false;
+      int worldBatchOrdinal = 0;
       for (const auto& batch : worldDrawBatches_) {
         if (batch.indexCount == 0) continue;
         // T96: the blended sub-batch is the only one that changes device state.
@@ -585,6 +593,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
         if (batch.alphaMode == 1) {
           context_->OMSetBlendState(worldAlphaBlendState_.Get(), nullptr, 0xffffffffu);
           context_->OMSetDepthStencilState(worldBlendedDepthStencilState_.Get(), 0);
+          noteDepthState("world-blended:write-off");
           blendedStateSet = true;
         } else {
           context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
@@ -640,6 +649,16 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
             "would fill the three-vertex target and read back as a whole sample";
         }
         context_->DrawIndexed(batch.indexCount, batch.firstIndex, 0);
+        // R1: this batch's OWN depth, beside the state it was drawn with. The alpha
+        // mode is the batch's, read here rather than assumed, so "the blended batch
+        // wrote nothing" is a reading and not a claim.
+        if (!passDepthPrefix_.empty() && !capturePath_.empty()) {
+          char passName[48];
+          std::snprintf(passName, sizeof(passName), "20-world-batch%02d-alpha%d",
+            worldBatchOrdinal, batch.alphaMode);
+          capturePassDepth(passName);
+        }
+        ++worldBatchOrdinal;
         if (clipCaptureBound) {
           // Unbind before anything else can draw: the water, entity and viewmodel
           // passes follow this one and none of them has a geometry shader, so a
@@ -703,6 +722,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
       if (blendedStateSet) context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
       worldVisDrewIndexed_ = !worldDiagnosticIsolation_ && worldVisClipApplied_;
+    capturePassDepth("30-world-done");
       ID3D11Buffer* noIndex = nullptr;
       context_->IASetIndexBuffer(noIndex, DXGI_FORMAT_R32_UINT, 0);
     } else {
@@ -715,6 +735,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       if (isWeaponMaterialView(lastSlot0View_)) ++worldDrawsWithWeaponTexture_;
       context_->Draw(worldVertexCount_, 0);
       ++worldBatchDrawCalls_;
+    capturePassDepth("30-world-done");
     }
     if (worldDebugView_ != 0 && frameConstantsValid) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
@@ -837,6 +858,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     }
     context_->Draw(worldWaterVertexCount_, 0);
     worldWaterDrewThisFrame_ = true;
+  capturePassDepth("40-water");
     // The passes below must not inherit the water's bias or its texture. Same
     // T10 rule as the sky's restore: the diagnostic cull state survives.
     context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
@@ -974,6 +996,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
         ? mapModulate2xBlendState_.Get() : mapModulateBlendState_.Get();
       context_->OMSetBlendState(materialBlend, nullptr, 0xffffffffu);
       context_->OMSetDepthStencilState(range.translucent ? worldBlendedDepthStencilState_.Get() : depthStencilState_.Get(), 0);
+      noteDepthState(range.translucent ? "entity-blended:write-off" : "entity:write-all");
       auto* rangeView = range.textureView;
       context_->PSSetShaderResources(0, 1, &rangeView);
       auto* secondView = range.secondTextureView;
@@ -1002,6 +1025,10 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     context_->RSSetState(rasterizerState_.Get());
     context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
     context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+    noteDepthState("entity-restore:write-all");
+    // R1: whatever the entity passes left. The occluder class M2b could only name
+    // as {static prop, map model} shows up here as depth it actually wrote.
+    capturePassDepth("50-entities");
     if (entityConstantsDiffer) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
@@ -1067,6 +1094,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
         ID3D11DepthStencilState* boundDepthState = list.depth == OverlayDepthMode::XRay
           ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();
         context_->OMSetDepthStencilState(boundDepthState, 0);
+        noteDepthState("overlay:own");
         overlayPassReading_.stateBoundDepthTest =
           (boundDepthState == overlayXRayDepthState_.Get())
           ? (overlayXRayDepthTestEnabled_ ? 1 : 0)
@@ -1323,6 +1351,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       // rather than careful: both states the world pass uses are put back here,
       // whatever the overlay did.
       context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+      noteDepthState("overlay-restore:write-all");
       context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                               : worldNoCullRasterizerState_.Get());
     }
@@ -1408,6 +1437,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   // contract list (the standalone --model diagnostic above) take no ordinal,
   // or the numbers would drift with a flag nobody set.
   drawOverlayPass();
+    capturePassDepth("60-overlay");
   // T21: the depth the frame has after the world, water and entity passes and
   // BEFORE the ViewModel pass clears it (the weapon's own pass clears depth so
   // the weapon draws over the map). Read here because this is the last moment
@@ -1415,6 +1445,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   // `drawViewModel()` every world pixel reads 1.0 -- measured, the first
   // version of this readback was taken after the clear and answered 00ffffff
   // at every point.
+  capturePassDepth("70-hud-pre");
   if (!capturePath_.empty() && paneIndex + 1u == paneCount) captureDepthBuffer(false);
   // First person, after the world and entity passes and before the capture, so
   // the frame written to disk already contains the weapon. The pass restores the
@@ -1425,6 +1456,8 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   // the wrong fix. The single-pane path is unchanged.
   if (paneCount == 1u) drawViewModel();
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+  noteDepthState("post-viewmodel:write-all");
+  capturePassDepth("80-post-viewmodel");
   context_->RSSetState(rasterizerState_.Get());
   // T51: the custom HUD, after everything that draws the world and the weapon
   // and before the frame is captured. It is the LAST pass on purpose: a HUD over
@@ -1462,6 +1495,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     if (!capturePath_.empty()) {
       const std::wstring path = capturePath_;
       capturePath_.clear();
+      passDepthPrefix_.clear();
       captureSucceeded_ = writeBackBufferToFile(path);
     }
     // The depth that belongs to the frame just written. Read from the same
@@ -1711,6 +1745,7 @@ void Renderer::drawHudPass() {
     1.0f / static_cast<float>(width_), 1.0f / static_cast<float>(height_) };
   context_->UpdateSubresource(hudConstants_.Get(), 0, nullptr, screen, 0, 0);
   context_->OMSetDepthStencilState(hudDepthStencilState_.Get(), 0);
+  noteDepthState("hud:own");
   context_->RSSetState(hudRasterizerState_.Get());
   const float blendFactor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   context_->OMSetBlendState(hudBlendState_.Get(), blendFactor, 0xFFFFFFFFu);

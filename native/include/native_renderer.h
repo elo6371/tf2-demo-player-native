@@ -1668,6 +1668,21 @@ public:
   bool lastDepthCaptureSucceeded() const { return depthCaptureSucceeded_; }
   unsigned long long lastDepthCaptureBytes() const { return depthCaptureBytes_; }
   const std::wstring& lastFrameCaptureError() const { return captureError_; }
+  // R1 (2026-11-16): the per-pass depth channel for the N05 draw-boundary
+  // question. --capture-depth reads ONE plane -- the depth the frame has after
+  // the overlay pass -- and cannot say which pass left it. This dumps the same
+  // D24S8 buffer at named points inside ONE frame, each beside the depth-stencil
+  // state that was bound at that moment, so "the boundary is this pass's write
+  // mask" becomes a reading instead of an inference. Inert unless a capture
+  // frame is armed AND a prefix was set: the default path pays one empty-string
+  // test per dump point and nothing else.
+  void setPassDepthPrefix(std::wstring prefix) { passDepthPrefix_ = std::move(prefix); }
+  int passDepthWritten() const { return passDepthWritten_; }
+  bool lastPassDepthSucceeded() const { return passDepthSucceeded_; }
+  // Recorded at each depth-state bind site. A per-pass dump prints this label
+  // next to the plane, so the state a pass was drawn with is read where it was
+  // bound rather than claimed by a comment.
+  void noteDepthState(const char* label) { lastDepthStateLabel_ = label; }
 
 private:
   struct CameraPreset {
@@ -1702,6 +1717,11 @@ private:
   bool writeBackBufferToFile(const std::wstring& path);
   // 16-bit P5 dump of capturedDepth_, the depth this frame's world pixels carry.
   bool writeWorldDepthToPgm(const std::wstring& path);
+  // R1: one P5 writer for both artefacts (the frame's world depth and each
+  // per-pass plane), so the two can be compared byte for byte.
+  bool writeDepthPlanePgm(const std::wstring& path, const std::vector<float>& plane,
+    int width, int height, unsigned long long* bytes);
+  void capturePassDepth(const char* name);
   // T24: the three pass-level lighting controls as the draw will upload them.
   // One implementation each, read by both the constant buffer and the frame
   // sample, so "what the settings asked for" and "what the shader got" cannot
@@ -2436,6 +2456,13 @@ private:
   bool depthCaptureSucceeded_ = false;
   unsigned long long depthCaptureBytes_ = 0;
   std::wstring captureError_;
+  // R1: per-pass depth channel. An empty prefix is the product default and every
+  // dump point returns on that test alone.
+  std::wstring passDepthPrefix_;
+  int passDepthIndex_ = 0;
+  int passDepthWritten_ = 0;
+  bool passDepthSucceeded_ = true;
+  const char* lastDepthStateLabel_ = "none";
   // ---- T51: the HUD pass's own state --------------------------------------
   // Deliberately small and entirely separate from every other pass: a vertex
   // buffer of screen-space quads, the list it was built from, and the readings

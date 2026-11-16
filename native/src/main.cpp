@@ -2887,6 +2887,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // want, and a depth plane is two bytes a pixel of extra output.
   std::filesystem::path captureDepthPath;
   bool captureDepthRejected = false;
+  // R1: per-pass depth readback. The prefix names the family of PGMs written for
+  // ONE capture frame (\<prefix\>-\<index\>-\<pass\>.pgm); it needs --capture-frame
+  // for the same reason --capture-depth does, and it never changes the picture.
+  std::filesystem::path capturePassDepthPrefix;
+  bool capturePassDepthRejected = false;
   // T51 acceptance surface. The HUD is a user feature with a picker, but a gate
   // cannot click one, so the same code path is reachable from the command line:
   //   --hud-root DIR          the folder the picker would have returned
@@ -4114,10 +4119,21 @@ bool outlineVertexExtent = false;
         dumpEntityMaterialsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
         captureFramePath = arguments[++i];
-      } else if (wcscmp(arguments[i], L"--capture-depth") == 0 && i + 1 < argumentCount) {
-        captureDepthPath = arguments[++i];
-      } else if (wcscmp(arguments[i], L"--capture-depth") == 0) {
-        captureDepthRejected = true;
+      } else if (wcscmp(arguments[i], L"--capture-depth") == 0
+                 || wcscmp(arguments[i], L"--capture-pass-depth") == 0) {
+        // One branch for both depth switches: the else-if chain around this one
+        // is already at the compiler's block-nesting limit (C1061), so the pair
+        // shares a branch instead of adding two more.
+        const bool passDepthSwitch = arguments[i][10] == L'p';
+        if (i + 1 < argumentCount) {
+          const std::wstring value = arguments[++i];
+          if (passDepthSwitch) capturePassDepthPrefix = value;
+          else captureDepthPath = value;
+        } else if (passDepthSwitch) {
+          capturePassDepthRejected = true;
+        } else {
+          captureDepthRejected = true;
+        }
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const long long parsed = std::wcstoll(arguments[++i], &end, 10);
@@ -4214,6 +4230,15 @@ bool outlineVertexExtent = false;
   }
   if (captureDepthRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-depth; it needs a path and a --capture-frame.\n");
+    return 13;
+  }
+  if (!capturePassDepthPrefix.empty() && captureFramePath.empty()) {
+    // Same rule as the depth plane above: a pass family is an account of ONE
+    // frame's depth, so without that frame it would write nothing and exit 0.
+    capturePassDepthRejected = true;
+  }
+  if (capturePassDepthRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-pass-depth; it needs a prefix and a --capture-frame.\n");
     return 13;
   }
   if (cameraScriptRejected) {
@@ -14191,6 +14216,9 @@ bool outlineVertexExtent = false;
       // stale rectangle would make the frame comparison measure the wrong region.
       if (captureArmed && g_renderer) hudApplyRects(window);
       if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
+        // R1: the pass family is armed beside the frame it describes, so both are
+        // consumed by the same draw. Cleared inside the renderer when it writes.
+        renderer.setPassDepthPrefix(capturePassDepthPrefix.wstring());
         renderer.requestFrameCapture(captureFramePath.wstring(), captureDepthPath.wstring());
         captureArmed = false;
         captureRequested = true;
@@ -14377,8 +14405,12 @@ bool outlineVertexExtent = false;
         // A depth plane that was asked for and not written is a failed capture:
         // the caller reads a PGM next, and a missing file must not exit 0.
         const bool depthFailed = !captureDepthPath.empty() && !renderer.lastDepthCaptureSucceeded();
+        // R1: a pass family that was asked for and wrote nothing is a failed
+        // capture for the same reason -- the caller reads those PGMs next.
+        const bool passDepthFailed = !capturePassDepthPrefix.empty()
+          && (renderer.passDepthWritten() == 0 || !renderer.lastPassDepthSucceeded());
         PostQuitMessage(entityIdOverflow ? 17
-          : ((renderer.lastFrameCaptureSucceeded() && !depthFailed) ? 0 : 16));
+          : ((renderer.lastFrameCaptureSucceeded() && !depthFailed && !passDepthFailed) ? 0 : 16));
         continue;
       }
       lastFrame = now;
@@ -14450,7 +14482,7 @@ bool outlineVertexExtent = false;
     // "N attempts, not one succeeded" are different readings. Under
     // --audio-disabled all three are 0.
     traceFmt("mode: summary window_created=%d window_visible=%d audio_mode=%s audio_device_opened=%zu"
-      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_skipped_disabled=%zu events_missing=%zu drawn=%llu capture_written=%d capture_depth_written=%d capture_depth_bytes=%llu metrics_written=%d exit=%d audio_master_volume=%.4f audio_muted=%d",
+      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_skipped_disabled=%zu events_missing=%zu drawn=%llu capture_written=%d capture_depth_written=%d capture_depth_bytes=%llu pass_depth_written=%d metrics_written=%d exit=%d audio_master_volume=%.4f audio_muted=%d",
       windowAlive ? 1 : 0,
       (windowAlive && IsWindowVisible(window)) ? 1 : 0,
       audioDisabled ? "disabled" : "device",
@@ -14467,6 +14499,7 @@ bool outlineVertexExtent = false;
       (captureRequested && renderer.lastFrameCaptureSucceeded()) ? 1 : 0,
       (!captureDepthPath.empty() && renderer.lastDepthCaptureSucceeded()) ? 1 : 0,
       renderer.lastDepthCaptureBytes(),
+      renderer.passDepthWritten(),
       (!metricsPath.empty() && metricsFile.is_open() && metricsWriteCalls > 0) ? 1 : 0,
       static_cast<int>(message.wParam),
       static_cast<double>(g_nativeUi ? g_nativeUi->volume() : 1.0f),
