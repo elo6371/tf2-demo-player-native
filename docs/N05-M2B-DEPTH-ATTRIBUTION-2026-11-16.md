@@ -88,6 +88,8 @@ integer-corner sampling (M2a 旧口径)
 
 ## 7 机制：候选与判别（未证明）
 
+- **边界**：本实验只覆盖 **capture 隔离路径**（`--world-triangle` 掩码帧 + `--capture-depth`）；**常规渲染路径没有测过**，本节机制候选保持「未证明」标签不变。
+
 已确定的约束：隔离范围的这次绘制**以深度写关闭**的状态绘制。证据链——
 - 状态对象：`native/src/native_renderer.cpp:708-712` `worldBlendedDepthStencilState_` = DepthEnable TRUE / **WRITE_MASK_ZERO** / LESS_EQUAL；非透明用 `native/src/native_renderer.cpp:692-696`（WRITE_MASK_ALL）。
 - 逐批次绑定：`native/src/native_renderer_frame.cpp:822` `OMSetDepthStencilState(range.translucent ? worldBlendedDepthStencilState_ : depthStencilState_, 0)`。
