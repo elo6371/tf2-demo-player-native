@@ -87,3 +87,61 @@ Partial evidence already captured (not committed, `.scratch/` is git-ignored):
 `path=<wide-path> header=1 header_error= index=1 index_error= recording=SourceTV map=pl_upward_f12
 malformed_offset=0 commands=85205 packets=85201 ticks=85204 frames=85198`.
 That run confirms the demo opens and indexes; it does **not** contain the temp counters.
+
+## 7. Data plane measured (2026-11-16, 10:10-10:20 window)
+
+Assumption 1 above is now settled, and it settles harder than "events exist": the demo carries them,
+the decoder is clean, and the product's own count is **truncated**.
+
+**Census** (read-only, CPU, no lock needed). `./native/build-nmake/demo_open_probe.exe --scan <demo>`,
+demo sha256 `7e047aff1f7743915e355eac907a95dc3d981aa0fae5591b6b15346fb77dc4a3`, rc=0:
+
+```
+temp_events=68133 temp_failures=0 particles=986 explosions=1873 firebullets=4307
+projectiles=1538 sounds=35278 sound_failures=20923
+first_temp_failure_stage= first_temp_failure_class=-1 first_temp_failure_tick=-1 (all empty/-1)
+```
+
+So: 986 particle effects, 1873 explosions, 4307 fire-bullet events, **0 temp entity decode failures**.
+The events N20 needs are in the demo; nothing is being dropped on the wire side.
+
+**Product reading** (under `tools/lockrun.sh`, exe sha256 `e61c7fd9...bb078`, `--capture-tick 84000
+--playback-speed 32 --window-size 1280x720`; rc=0, frame=yes, trace 16,019,920 B). Artifacts:
+`D:/_shared/EXEC-2026-11-15/INST4/p3a-n20/fx-84000.{trace,bmp,log}`.
+
+- Title line prints `tecached=16384` (twice) -> the summary's temp entity list is at its cap.
+- 933 `scene: hud fxDue=` samples: first 0, second 20, then monotone growth, and the **last 692
+  samples are all 1538**. Max = 1538.
+
+**Why it plateaus (code, not inference).** `native/src/demo_header_events.cpp:310` guards the push with
+`if (summary.tempEntityEvents.size() < 16384u)`, so only the **first 16384 of 68133** temp events are
+retained. Both derived timelines are built from that truncated list: the effect timeline at
+`native/src/main.cpp:7079-7085` (iterates `demoNetworkSummary.tempEntityEvents`) and the projectile
+timeline at `native/src/demo_header_events.cpp:325-327` (same cap block). The HUD counter is the sole
+consumer: `native/src/main.cpp:11664-11666` -> `effectTimeline.countThrough(sceneTick)`.
+
+Arithmetic that confirms this is the cap and not a validation drop: the cap keeps 16384/68133 = 24.05%
+of events; the demo's effect-capable events total 986+1873+4307 = 7166, so a proportional slice is
+about 1723, and 1538 is 0.89x of that. Same order, one direction. A validation drop would have to
+remove events selectively and would not land this close to the proportional expectation.
+
+**The 1538 == 1538 coincidence is explained, not a lead.** `--scan` prints `projectiles=` as
+`summary.projectileTimeline.size()` (`native/tools/demo_open_probe.cpp:843`), and
+`projectileFromTempEntity` (`native/src/demo_header_events.cpp:77-80`) accepts exactly
+FireBullets/TFParticleEffect/TFExplosion/Explosion/ClientProjectile **inside the same cap block**.
+The two timelines therefore cover the same capped window; their equality says no ClientProjectile
+landed inside that window and no effect event was rejected by `effects_timeline.cpp` validation
+(fireDelay in 0..60, finite origin/direction, FireBullets shots != 0). It is not a second, independent
+measurement of the same events.
+
+**What this means for the card.** Two independent gaps, and the counting one is new:
+
+1. There is still no particle draw pass - `fxDue` is a count, nothing rasterises a particle. Unchanged
+   by this measurement.
+2. Even as a count it is truncated: 1538 reported against 7166 effect-capable events in the demo. A
+   card that adds particle drawing on top of this list will silently lose everything after the 16384th
+   temp event, at whatever tick that lands (roughly the first quarter of the demo). The cap has to be
+   lifted or the list has to be streamed/windowed **before** any renderer work can be called complete.
+
+Side note for the audio card (N21/P3b), same demo, same run: `sounds=35278 sound_failures=20923` -
+59% of decoded sound events failed to resolve. Different card, but do not quote a clean audio plane.
