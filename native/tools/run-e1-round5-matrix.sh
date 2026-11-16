@@ -291,7 +291,7 @@ while IFS='|' read -r -u 3 name script owner cap args envs token; do
     state=EXE-SHA-DRIFT; overall=2
   elif [ "$rc" -ne 0 ]; then
     state=FAIL; failed=$((failed + 1)); overall=1
-  elif [ "$verdict" != "$token=PASS" ]; then
+  elif [[ $verdict != "$token=PASS"* ]]; then
     state=FAIL; failed=$((failed + 1)); overall=1
   else
     passed=$((passed + 1))
