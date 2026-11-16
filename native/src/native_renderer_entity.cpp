@@ -583,6 +583,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       const auto materialFlags = flags == bucket.mesh->materialFlags.end() ? 0u : flags->second;
       range.noCull = (materialFlags & 256u) != 0u;
       range.materialFlags = materialFlags;
+      range.materialSlot = run.materialSlot;
       range.translucent = (materialFlags & (8u | 64u | 1024u)) != 0u;
       const auto second = bucket.mesh->secondTextures.find(
         EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));

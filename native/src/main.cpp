@@ -2895,6 +2895,41 @@ int runRendererSelftest(tf2::native::Renderer& renderer, HWND window, bool fault
 
 }  // namespace
 
+// R1b (2026-11-16): the --capture-range-{depth,window,skip} switches. Kept out of
+// the argument chain in wWinMain because that chain is at the compiler's
+// block-nesting limit (C1061, hit for real while adding this probe), and a switch
+// body here costs no nesting there. Returns false on a malformed value.
+static bool parseCaptureRangeDepthSwitch(const std::wstring& switchName,
+    const std::wstring& value, std::filesystem::path* prefix, unsigned window[4],
+    int* skip) {
+  if (switchName == L"--capture-range-skip") {
+    // A drawn-range ordinal, counted in the same order the entity draws run.
+    wchar_t* end = nullptr;
+    const long parsedSkip = std::wcstol(value.c_str(), &end, 10);
+    if (!end || *end != L'\0' || parsedSkip < 0) return false;
+    *skip = static_cast<int>(parsedSkip);
+    return true;
+  }
+  if (switchName[16] == L'w') {
+    // x,y,width,height in frame pixels; a zero extent would read back nothing.
+    unsigned wx = 0;
+    unsigned wy = 0;
+    unsigned ww = 0;
+    unsigned wh = 0;
+    if (std::swscanf(value.c_str(), L"%u,%u,%u,%u", &wx, &wy, &ww, &wh) != 4
+        || ww == 0 || wh == 0) {
+      return false;
+    }
+    window[0] = wx;
+    window[1] = wy;
+    window[2] = ww;
+    window[3] = wh;
+    return true;
+  }
+  *prefix = value;
+  return true;
+}
+
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   openTrace();
   // Keep the render surface in physical pixels on mixed-DPI desktop setups.
@@ -3068,6 +3103,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // for the same reason --capture-depth does, and it never changes the picture.
   std::filesystem::path capturePassDepthPrefix;
   bool capturePassDepthRejected = false;
+  // R1b (2026-11-16): the per-range depth probe. Same family shape as the pass
+  // probe: a prefix that names the output, a window that keeps the readback small
+  // enough to run per draw, and a skip index used only as a negative control.
+  std::filesystem::path captureRangeDepthPrefix;
+  bool captureRangeRejected = false;
+  unsigned captureRangeWindow[4] = {0, 0, 0, 0};
+  int captureRangeSkip = -1;
   // T51 acceptance surface. The HUD is a user feature with a picker, but a gate
   // cannot click one, so the same code path is reachable from the command line:
   //   --hud-root DIR          the folder the picker would have returned
@@ -4403,6 +4445,31 @@ bool outlineVertexExtent = false;
         } else {
           captureDepthRejected = true;
         }
+      } else if (wcscmp(arguments[i], L"--capture-range-depth") == 0
+                 || wcscmp(arguments[i], L"--capture-range-window") == 0
+                 || wcscmp(arguments[i], L"--capture-range-skip") == 0) {
+        // The R1b family is three switches in one branch, and its body lives in
+        // parseCaptureRangeDepthSwitch: this chain already sits at the compiler's
+        // block-nesting limit (C1061), so neither the branch count nor the depth
+        // inside a branch has room to grow.
+        //
+        // The switch name is copied out BEFORE i advances. Passing
+        // `arguments[i]` and `arguments[++i]` in one call makes the two
+        // expressions indeterminately sequenced, and MSVC evaluates the
+        // `++i` side first: the helper then saw the VALUE as the switch name.
+        // With only --capture-range-depth on the command line that was
+        // invisible (the fall-through wrote the value into the prefix anyway);
+        // with --capture-range-window or --capture-range-skip after it, the
+        // prefix was overwritten by "880,330,76,110" / "93" and the planes
+        // landed in the working directory instead of the scratch dir.
+        const std::wstring rangeSwitch = arguments[i];
+        const bool rangeHasValue = i + 1 < argumentCount;
+        if (rangeHasValue) ++i;
+        if (!rangeHasValue
+            || !parseCaptureRangeDepthSwitch(rangeSwitch, arguments[i],
+                 &captureRangeDepthPrefix, captureRangeWindow, &captureRangeSkip)) {
+          captureRangeRejected = true;
+        }
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const long long parsed = std::wcstoll(arguments[++i], &end, 10);
@@ -4508,6 +4575,16 @@ bool outlineVertexExtent = false;
   }
   if (capturePassDepthRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-pass-depth; it needs a prefix and a --capture-frame.\n");
+    return 13;
+  }
+  if (!captureRangeDepthPrefix.empty() && captureFramePath.empty()) {
+    // R1b: the range family is a per-draw account of ONE frame's depth, so like
+    // the pass family it must be refused rather than silently write nothing.
+    captureRangeRejected = true;
+  }
+  if (captureRangeRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-range-depth family; it needs a prefix "
+      L"and a --capture-frame (the window is x,y,width,height, the skip a drawn-range index).\n");
     return 13;
   }
   if (cameraScriptRejected) {
@@ -14655,6 +14732,11 @@ bool outlineVertexExtent = false;
         // R1: the pass family is armed beside the frame it describes, so both are
         // consumed by the same draw. Cleared inside the renderer when it writes.
         renderer.setPassDepthPrefix(capturePassDepthPrefix.wstring());
+        // R1b: the range probe rides the same capture frame as the pass probe.
+        renderer.setRangeDepthPrefix(captureRangeDepthPrefix.wstring());
+        renderer.setRangeDepthWindow(captureRangeWindow[0], captureRangeWindow[1],
+          captureRangeWindow[2], captureRangeWindow[3]);
+        renderer.setRangeDepthSkip(captureRangeSkip);
         renderer.requestFrameCapture(captureFramePath.wstring(), captureDepthPath.wstring());
         captureArmed = false;
         captureRequested = true;
@@ -14858,8 +14940,13 @@ bool outlineVertexExtent = false;
         // capture for the same reason -- the caller reads those PGMs next.
         const bool passDepthFailed = !capturePassDepthPrefix.empty()
           && (renderer.passDepthWritten() == 0 || !renderer.lastPassDepthSucceeded());
+        // R1b: a range family that was asked for and wrote nothing is a failed
+        // capture, for the same reason the pass family is.
+        const bool rangeDepthFailed = !captureRangeDepthPrefix.empty()
+          && (renderer.rangeDepthWritten() == 0 || !renderer.lastRangeDepthSucceeded());
         PostQuitMessage(entityIdOverflow ? 17
-          : ((renderer.lastFrameCaptureSucceeded() && !depthFailed && !passDepthFailed) ? 0 : 16));
+          : ((renderer.lastFrameCaptureSucceeded() && !depthFailed && !passDepthFailed
+              && !rangeDepthFailed) ? 0 : 16));
         continue;
       }
       lastFrame = now;
