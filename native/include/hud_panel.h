@@ -41,6 +41,54 @@ struct HudPanelRect {
   bool placed = false;
 };
 
+// E10/U3b (2026-11-16): the panel FRAME, as four boxes derived from the rectangle.
+//
+// WHY THESE EXIST
+//   The minimap built its border out of rect.w on both axes: the bottom edge at
+//   y + w, the side edges w tall, the arrow cull against w. On a 1280x720 client
+//   the panel is 160x160, so the two axes agree and the mistake is invisible. On
+//   a narrow client the layout clamps the width to 104 and the panel keeps its
+//   160 of height, and then every one of those four numbers is on the wrong axis:
+//   the border ends at 104 while the panel is 160 tall. A box takes the axis it
+//   belongs to, so the width and the height can differ by construction.
+struct HudPanelBox {
+  float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+};
+
+struct HudPanelFrame {
+  HudPanelBox background;
+  HudPanelBox top;
+  HudPanelBox bottom;
+  HudPanelBox left;
+  HudPanelBox right;
+};
+
+inline HudPanelFrame hudPanelFrame(const HudPanelRect& rect, float border) {
+  HudPanelFrame frame;
+  const float x = static_cast<float>(rect.x);
+  const float y = static_cast<float>(rect.y);
+  const float w = static_cast<float>(rect.w);
+  const float h = static_cast<float>(rect.h);
+  frame.background = {x, y, w, h};
+  if (border <= 0.0f) return frame;
+  frame.top = {x, y, w, border};
+  frame.bottom = {x, y + h - border, w, border};
+  frame.left = {x, y, border, h};
+  frame.right = {x + w - border, y, border, h};
+  return frame;
+}
+
+// Whether a panel-local pixel sits inside the panel with halfExtent to spare on
+// BOTH axes. The width and the height are separate limits: one number for both
+// culls a marker that is still inside the panel's height.
+inline bool hudPanelPointInside(const HudPanelRect& rect, float px, float py,
+                                float halfExtent) {
+  const float w = static_cast<float>(rect.w);
+  const float h = static_cast<float>(rect.h);
+  return px >= halfExtent && px <= w - halfExtent
+    && py >= halfExtent && py <= h - halfExtent;
+}
+
 struct HudPanelLayout {
   std::vector<HudPanelRect> panels;
   std::size_t dropped = 0;   // panels that did not fit
@@ -71,6 +119,7 @@ inline HudPanelLayout hudLayoutPanels(const std::vector<HudPanelSpec>& specs,
       return a->id < b->id;
     });
   const int usableWidth = (std::max)(0, clientWidth - 2 * safeInset);
+  const int usableHeight = (std::max)(0, clientHeight - 2 * safeInset);
   int topLeftY = safeInset;
   int topRightY = safeInset;
   int bottomLeftY = clientHeight - safeInset;
@@ -80,9 +129,21 @@ inline HudPanelLayout hudLayoutPanels(const std::vector<HudPanelSpec>& specs,
     int height = spec->collapsed ? 0 : static_cast<int>(spec->height + 0.5f);
     if (width < 0) width = 0;
     if (height < 0) height = 0;
+    // E10/U3b (2026-11-16): width and height are clamped on their OWN axis. A
+    // narrow client used to clamp the width and then leave the drawing code to
+    // assume the panel was square. Clamping the height as well means a panel
+    // taller than the client is squeezed rather than dropped; the rule below
+    // still drops what it was written for, a stack that runs out of room.
     if (width > usableWidth) width = usableWidth;
     const int marginX = static_cast<int>(spec->marginX + 0.5f);
     const int marginY = static_cast<int>(spec->marginY + 0.5f);
+    // The anchored gap is not available height: the panel starts marginY below the
+    // inset, so it has usableHeight - marginY left. Clamping against usableHeight
+    // alone still left a 104-tall panel at y=12 in a 120-tall client, 4 pixels over
+    // the bottom inset, and the drop rule then removed it -- the same silent
+    // disappearance this change exists to stop.
+    const int availableHeight = (std::max)(0, usableHeight - marginY);
+    if (height > availableHeight) height = availableHeight;
     const bool right = (spec->anchor == 1 || spec->anchor == 3);
     const bool bottom = (spec->anchor == 2 || spec->anchor == 3);
     int x = right ? (clientWidth - safeInset - marginX - width)
@@ -184,9 +245,19 @@ inline HudPanelSelfTest hudPanelSelfTest() {
   check(layout.panels[4].y == 56);  // score 12 + 40 + marginY 4
   const HudPanelLayout narrow = hudLayoutPanels(specs, 200, 720, 8);
   check(!narrow.panels.empty() && narrow.panels[2].w == 200 - 2 * 8 && narrow.panels[0].w == 160);
+  // E10/U3b (2026-11-16): the height is now clamped like the width, so a panel
+  // taller than the client is squeezed to the usable height instead of dropped.
+  // The drop rule has to keep firing for what it was written for -- a STACK that
+  // runs out of room -- so the control below keeps one.
   std::vector<HudPanelSpec> tall;
   tall.push_back({"tall", 0, 0, 100.0f, 900.0f, 0.0f, 0.0f, true, false});
-  check(hudLayoutPanels(tall, 1280, 720, 8).dropped == 1);
+  const HudPanelLayout tallLayout = hudLayoutPanels(tall, 1280, 720, 8);
+  check(tallLayout.dropped == 0 && tallLayout.panels.size() == 1
+    && tallLayout.panels[0].h == 720 - 2 * 8);
+  std::vector<HudPanelSpec> stack;
+  stack.push_back({"first", 0, 0, 100.0f, 500.0f, 0.0f, 0.0f, true, false});
+  stack.push_back({"second", 0, 1, 100.0f, 500.0f, 0.0f, 0.0f, true, false});
+  check(hudLayoutPanels(stack, 1280, 720, 8).dropped == 1);
   return test;
 }
 
