@@ -246,7 +246,7 @@ printf 'gate\trc\tverdict\tok_lines\tfail_lines\tduration_s\texe_sha_before\texe
 overall=0; skipped=0; failed=0; passed=0
 gate_table > "$META_REL/gates.txt"
 
-while IFS='|' read -r name script owner cap args envs token; do
+while IFS='|' read -r -u 3 name script owner cap args envs token; do
   echo
   echo "=== $name (owner=$owner cap=${cap}s) ==="
   miss=$(gate_missing "$name")
@@ -265,16 +265,26 @@ while IFS='|' read -r name script owner cap args envs token; do
   fi
   mkdir -p "$RUN_DIR/gates/$name" || exit 2
   gate_argv "$name" "$script" "$owner" "$cap" "$args" "$envs"
+  raw_log="$RUN_DIR/gates/$name/gate.log"
   log="$META_REL/$name.log"
   start=$(date +%s)
-  "${ARGV[@]}" > "$log" 2>&1
+  # stdin is /dev/null. This loop's stdin is the gate table, and the gate chain
+  # runs native Windows binaries; under MSYS bash a native child that inherits
+  # the loop's stdin handle consumes the remaining rows, so the matrix ended
+  # after the first gate (the same trap release-rebuild.sh documents).
+  "${ARGV[@]}" < /dev/null > "$raw_log" 2>&1
   rc=$?
   end=$(date +%s); dur=$((end - start))
+  # The product prints through CRT text mode (D53 family), so the gate's own
+  # output carries CRs. Keep that raw log next to the gate evidence (it is
+  # counted as EOL-WARN, never as a matrix failure) and write the bookkeeping
+  # copy LF-only, so the final camera-ui --check-eol over $META_REL is green.
+  tr -d '\r' < "$raw_log" > "$log"
   sha_after=$(sha256sum "$EXE" | cut -d' ' -f1)
-  verdict=$(grep -aE "^${token}=(PASS|FAIL)" "$log" | tail -1)
+  verdict=$(grep -aE "^${token}=(PASS|FAIL)" "$raw_log" | tail -1)
   [ -n "$verdict" ] || verdict="$token=<none>"
-  ok_lines=$(grep -acE '^  OK' "$log" || true)
-  fail_lines=$(grep -acE '^  FAIL' "$log" || true)
+  ok_lines=$(grep -acE '^  OK' "$raw_log" || true)
+  fail_lines=$(grep -acE '^  FAIL' "$raw_log" || true)
   eol_cr=$(cr_in_dir "$RUN_DIR/gates/$name")
   state=OK
   if [ "$sha_before" != "$sha_after" ]; then
@@ -292,7 +302,7 @@ while IFS='|' read -r name script owner cap args envs token; do
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$name" "$rc" "$verdict" "$ok_lines" "$fail_lines" "$dur" "$sha_before" "$sha_after" "$eol_cr" "$state" >> "$SUMMARY"
   echo "  rc=$rc duration=${dur}s $verdict ok_lines=$ok_lines fail_lines=$fail_lines eol_cr=$eol_cr state=$state"
-done < "$META_REL/gates.txt"
+done 3< "$META_REL/gates.txt"
 
 echo
 echo "--- matrix summary ---"
