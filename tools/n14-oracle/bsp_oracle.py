@@ -125,7 +125,15 @@ def read_bsp(path):
     surf = struct.unpack_from("<%di" % (len(sraw) // 4), sraw, 0) if sraw else ()
     praw = lump(blob, LUMP_PLANES)
     nplanes = len(praw) // 20
-    planes = struct.unpack_from("<%df" % (nplanes * 4), praw, 0) if nplanes else ()
+    # T83a (2026-11-16): dplane_t is 20 bytes -- normal[3] (12 B), dist (4 B) and
+    # type (4 B) -- so five floats per plane, not four. The array used to be
+    # flattened over nplanes * 4 floats and indexed planenum * 4, which read every
+    # plane after index 0 four bytes early: plane 539 of pl_upward_f12, a floor,
+    # came back with nz = 169.706, a distance read as a normal component. Every
+    # conclusion built on "which faces point up" inherited that. The normals are
+    # the cheap invariant that proves the stride: a plane table read with the
+    # wrong one cannot produce unit normals.
+    planes = struct.unpack_from("<%df" % (nplanes * 5), praw, 0) if nplanes else ()
     tiraw = lump(blob, LUMP_TEXINFO)
     nti = len(tiraw) // 72
     # texdata index is the LAST field of Source's texinfo_t, not the first:
@@ -137,6 +145,18 @@ def read_bsp(path):
     # The product reads +68 (native/src/bsp_map.cpp:777); a checker that reads
     # a different field than the product is measuring a different map.
     ti_tex = [struct.unpack_from("<i", tiraw, k * 72 + 68)[0] for k in range(nti)]
+    if planes:
+        sample = min(nplanes, 8192)
+        off = [k for k in range(sample)
+               if abs(math.sqrt(planes[k * 5] ** 2 + planes[k * 5 + 1] ** 2
+                                + planes[k * 5 + 2] ** 2) - 1.0) > 1e-2]
+        if off:
+            raise SystemExit(
+                "FATAL: %d of the first %d plane normals are not unit length "
+                "(first bad index %d, |n| = %.3f) -- the dplane_t stride is wrong"
+                % (len(off), sample, off[0],
+                   math.sqrt(planes[off[0] * 5] ** 2 + planes[off[0] * 5 + 1] ** 2
+                             + planes[off[0] * 5 + 2] ** 2)))
     fraw = lump(blob, LUMP_FACES)
     nfaces = len(fraw) // 56
 
@@ -154,7 +174,7 @@ def read_bsp(path):
         if planenum >= nplanes or numedges < 3 or firstedge < 0 or firstedge + numedges > len(surf):
             n_bad += 1
             continue
-        pb = planenum * 4
+        pb = planenum * 5
         nx, ny, nz = planes[pb], planes[pb + 1], planes[pb + 2]
         if side:
             nx, ny, nz = -nx, -ny, -nz
