@@ -845,6 +845,12 @@ int wmain(int argc, wchar_t** argv) {
                 << L" sound_failures=" << summary.decodedSoundEventFailures
                 << L" sound_matches=" << summary.decodedSoundResourceMatches
                 << L" sound_misses=" << summary.decodedSoundResourceMisses
+                // P3b/N21: the decoded list can only hold events from messages whose raw payload
+                // was captured (64 KiB / 4096-message cap, native/src/demo_header_sound.cpp:42).
+                // These three counters make that cap visible: counted, dropped, decoded.
+                << L" sound_messages=" << summary.soundMessageCount
+                << L" sound_dropped=" << summary.rawSoundMessagesDropped
+                << L" sound_decoded=" << summary.decodedSoundEvents.size()
                 << L" entities=" << summary.packetEntityUpdates
                 << L" entity_failures=" << summary.packetEntityDecodeFailures
                 << L" entity_header_failures=" << summary.entityUpdateHeaderFailures

@@ -132,3 +132,47 @@ Read-only, needs no lock and no build:
 
 Related: D76 (effect list built from a truncated table, no discard counter) covers the same cap family
 on the effect side; this document does not open a new defect entry.
+
+## 8. Status update, 2026-11-16 12:57: the cap is the mechanism (measured)
+
+§3 left M1/M2 open because no counter exposed them. Three counters are enough, and today they
+were added to the probe (not the product) and read from the same recording:
+
+```
+sounds=35278 sound_failures=20923 sound_matches=5482 sound_misses=46
+sound_messages=25017 sound_dropped=20921 sound_decoded=5528
+```
+
+Arithmetic, no interpretation needed:
+
+1. `25017 - 20921 = 4096` **exactly** - the 4096-message raw-payload cap at
+   `native/src/demo_header_sound.cpp:42` is saturated: the first 4096 messages kept their payload,
+   every later one was dropped.
+2. A dropped message still builds `MessageBits` from an **empty** payload, so its loop fails on the
+   very first bit read: `++decodedSoundEventFailures; break;` - exactly **one** failure per dropped
+   message, while `summary.soundEventCount += soundCount` still adds its full declared count.
+   Therefore genuine mid-message breaks = `20923 - 20921 = 2` messages.
+3. `sound_decoded = 5528 = sound_matches + sound_misses = 5482 + 46`, and the product's own trace in
+   §2 reads `read=5528 unresolved=46 scheduled=5482`. The product's audio timeline is **exactly** the
+   first 4096 messages' events; the decoder and scheduler are internally consistent.
+
+So the answer to §3: **M3 (the raw-payload cap) is the mechanism** for the 35278-vs-5528 gap. M1 is
+present but residual - two messages. M2 (events skipped by the `soundIndex != 0` gate) cannot be zero
+by this measurement, but it is bounded inside the 4096 captured messages and therefore cannot account
+for the 29750 declared events that were never decoded at all.
+
+The accounting defect this exposes is worth naming: a message the decoder deliberately declined to
+capture is reported as a **decode failure**, and its declared events are still aggregated, so the
+ledger reads "20923 failures" when 20921 of them are the cap working as designed. The cap also means a
+real recording loses 83.6% of its sound messages before the timeline is built (20921 of 25017), with no
+product-visible symptom until something compares declared against decoded. Candidate fix, not applied
+here (it needs a product rebuild, so it is the lead's call): count dropped messages separately from
+decode failures, and stop adding declared events for messages whose payload was dropped.
+
+Reproduction: `bash build-target.sh demo_open_probe` then
+`./native/build-nmake/demo_open_probe.exe --scan <demo> | tr ' ' '\n' | grep -E 'sound_(messages|dropped|decoded)='`.
+Evidence for this run: `D:/_shared/EXEC-2026-11-16/INST3/p3b/` (scan.txt, build.log, probe.sha256);
+probe sha256 `5434013957710e7f8ade051b6596f58abf330001f1098931ae77212216a7d197`; product exe sha256
+unchanged at `26bff4361874a5f17b13990b1c29dd89874a56084afeed7884ee77227df11966` before and after
+(the product was not rebuilt this window).
+
