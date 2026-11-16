@@ -385,6 +385,54 @@ p2：10/11 帧后到本窗口上限（620 s 被 TERM），无最终裁决；run 
    绝对 TRACE_DIR 会被拼成 `$ROOT//d/_shared/...`，产品静默 rc=16、无 bmp，整节读成空值红。
    `VIEWMODEL_MATERIAL_OUT` 不受影响（只做 mkdir/重定向），可以给绝对路径。
 
+### 4.5 camera-ui 门禁「自己产 CRLF 被自己判红」（2026-11-16 19:0x 修，独立提交）
+
+**缺陷**：产品 trace 由 MSVC CRT 以文本模式写出（`native/src/main_trace.cpp:85` `_wfopen_s(..., L"w")`、`:40` `fprintf("...\n")`），
+本门禁的 python driver stdout 也是文本模式，所以任何一次 `> file 2>&1` 重定向都会把 CRLF 落进证据目录。
+当 `CAMERA_UI_OUT` 指向被跟踪的 `evidence/camera-ui` 时，这些字节是整文件重写，`tools/audit-tree.sh` 的行尾检查
+把它读成 CRLF-DAMAGE —— 门禁自己产生的 CRLF 被自家审计判红。索引侧证据一直是 LF
+（`git ls-files --eol evidence/camera-ui/*` 的 `i/lf w/crlf` 里，CR 只来自检出侧 autocrlf，不是产品语义）。
+
+**修法**（只动 `camera-ui-check.sh`，行号为改后文件）：
+- `:106-206` 新增证据行尾 helper：`lf_write`（`:117`，stdin→文件、去 CR）、`lf_normalize`（`:120`，就地归一化、缺文件跳过）、
+  `evidence_mark_start`（`:129`，stamp 标记本次运行写出的文件）、`eol_violations`（`:133`，扫 CR 并逐条报）、
+  `evidence_normalize_all`（`:155`，mutation 分支整目录 sweep）、`eol_check_dir`（`:171`，`--check-eol` 入口）、
+  `eol_selftest`（`:179`，离线自测）。
+- `:499-526` 模式解析提前到 build 之前，新增 `--selftest-eol` 与 `--check-eol <dir>`（都不编译、不启产品），
+  解析后调用 `evidence_mark_start`（`:526`）。
+- 写侧（产品/构建输出一律经 `lf_write`）：build（`:536`）、e2e driver stdout（`:616` 的 heredoc 管道）+
+  run 后 `lf_normalize` driver/trace（`:685`）、probe（`:729`）、camera_probe（`:864`）、
+  T50 运行日志（`:1092`）、T50 trace 归一化（`:1095`）。
+- `:947` T50 设置文件从证据目录迁到 `$ISO_DIR`：它是**产品输入**、故意 CRLF（要证明产品能读 Windows 设置文件），
+  不是证据，不能留在证据目录里被 eol 检查扫到。
+- 读侧：`pvalue`（`:579-580`）字段终止符由 `[^ ]` 改成 `[^[:space:]]`；i18 审计 awk（`:245`）每行先 `sub(/\r$/, "")`。
+  这样输入是 CRLF 也不会把 CR 带进读数。
+- `:1659-1672` mutation 分支结束处 `evidence_normalize_all`（该分支有 ~30 处重定向），随后终检：
+  `eol_violations "$OUT"` 只扫 stamp 之后本次运行写出的文件，任一 CR → `FAIL evidence line endings` 且 `fail=1`。
+  这条断言就是本缺陷的正身：修前必红，修后必须绿。
+
+**负控（两组日志在 `/d/_shared/EXEC-2026-11-15/INST1/E1-round5/eol-nc/`）**：
+- 修前红 `pre-fix.log`：`case-prefix/` 用真实 CRLF 产物构造 —— 真 `evidence/camera-ui/e2e.trace`（6300 CR）、
+  python 文本模式 stdout 的 `e2e.driver.txt`（4 CR）、以及对其整文件 `cp` 的 `mutated-e2e.txt`（6300 CR）；
+  `--check-eol` 逐条报 `FAIL evidence is not LF ... carries N CR byte(s)`，`EOL-CHECK ... verdict=RED`，rc=1。
+- 修后绿 `post-fix.log`：把本次真实门禁写出的 8 个文本证据拷到 `case-fixed/`，`--check-eol` 输出
+  `verdict=GREEN (every text file is LF)`，rc=0。
+- 另有 `selftest-eol.log`：离线 `--selftest-eol` 打印 pre-fix=RED / post-fix=GREEN / `EOL-SELFTEST=PASS`，rc=0。
+
+**真实门禁（不重建 exe）**：`CAMERA_UI_OUT=evidence/camera-ui bash camera-ui-check.sh`，
+exe sha `216d7f98…` 跑前跑后同值（build 为 no-op），head `4c4f2e43`，**114 OK / 0 FAIL，CAMERA-UI=PASS，rc=0**，
+日志 `/d/_shared/…/eol-nc/gate-run.log`，其中新终检打印
+`=== evidence line endings ... OK no CR in the evidence this run wrote`。
+跑后 eol 表（本次被覆盖的 tracked 证据）：`e2e.driver.txt`、`e2e.trace`、`probe.txt` 均 `i/lf w/lf`
+（`e2e.bmp` 是二进制 `i/-text w/-text`）；新增 5 个文本证据 `build.txt`、`camera_probe.txt`、
+`t50-camera.script.txt`、`t50-camera.trace`、`t50-run.log` 的 CR 均为 0。
+证据本身不提交：跑完 `git checkout -- evidence/camera-ui/…` 还原 tracked 证据、删掉新增文件，
+`git status --porcelain evidence/camera-ui` 为空；本窗口只提交门禁脚本 + 本文档。
+
+**未做**：`--mutation` 分支本轮没跑（要重建 exe，按 lead 口径禁止），它的 ~30 处重定向只经过
+`evidence_normalize_all` 的 sweep，未在真实 mutation 运行里实测；下一窗口若跑 mutation，需复核 sweep 后
+`eol_violations` 仍为 0。
+
 ## 5 窗口与未完成
 
 - 15:10–16:20 一个窗口：material 用满 1100 s 只到 §8/§9 边界（§9 另跑一次补齐），minimap 两门完成，

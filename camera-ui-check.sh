@@ -94,6 +94,121 @@ absolute_out() { # absolute_out <shell path under OUT> -- native Windows path
     *) cygpath -m "$PWD/$path" ;;
   esac
 }
+
+absolute_out() { # absolute_out <shell path under OUT> -- native Windows path
+  local path="$1"
+  case "$path" in
+    /*|[A-Za-z]:*) cygpath -m "$path" ;;
+    *) cygpath -m "$PWD/$path" ;;
+  esac
+}
+
+# --- evidence line endings: LF, always ----------------------------------------
+# DEFECT THIS FIXES (D53 family, card-arch window 2026-11-16): the product writes
+# its trace through the MSVC CRT in text mode (native/src/main_trace.cpp:85
+# _wfopen_s(..., L"w"), :40 fprintf("...\n")) and this gate's python driver prints
+# through text-mode stdout too, so a plain redirect stores CRLF. With
+# CAMERA_UI_OUT pointing at the tracked evidence directory (evidence/camera-ui)
+# every such byte is a whole-file rewrite, which the tree audit reports as
+# line-ending damage: the gate was producing the very CRLF its own audit reds.
+# Fix at the boundary: everything the gate writes as evidence goes out as LF, and
+# inputs are read with the CR ignored, so a CRLF producer cannot turn the gate's
+# own output CRLF.
+lf_write() { # lf_write <path>; stdin -> <path> with CR stripped
+  tr -d '\r' > "$1"
+}
+lf_normalize() { # lf_normalize <path>...; rewrite existing files as LF, skip missing
+  local f tmp rc=0
+  for f in "$@"; do
+    [ -f "$f" ] || continue
+    tmp="$f.lf.$$"
+    if tr -d '\r' < "$f" > "$tmp"; then mv "$tmp" "$f"; else rm -f "$tmp"; rc=1; fi
+  done
+  return $rc
+}
+evidence_mark_start() { # remember which files this run wrote
+  EVIDENCE_STAMP="$OUT/.evidence-stamp"
+  : > "$EVIDENCE_STAMP"
+}
+eol_violations() { # eol_violations <dir> [all]; print text files still carrying CR
+  local dir="$1" scope="${2:-new}" f cr bad=0 stamp
+  [ -d "$dir" ] || { printf '  FAIL no such evidence directory: %s\n' "$dir"; return 1; }
+  stamp="${EVIDENCE_STAMP:-/dev/null}"
+  [ -n "$stamp" ] || stamp=/dev/null
+  while IFS= read -r f; do
+    case "$f" in
+      *.bmp|*.png|*.jpg|*.raw) continue ;;
+      *.ini) continue ;; # a product INPUT (CRLF on purpose), not evidence
+    esac
+    cr=$(tr -cd '\r' < "$f" | wc -c | tr -d ' ')
+    if [ "$cr" != "0" ]; then
+      printf '  FAIL evidence is not LF: %s carries %s CR byte(s)\n' "$f" "$cr"
+      bad=$((bad + 1))
+    fi
+  done < <(if [ "$scope" = all ]; then
+             find "$dir" -type f 2>/dev/null | sort
+           else
+             find "$dir" -type f -newer "$stamp" 2>/dev/null | sort
+           fi)
+  return $bad
+}
+evidence_normalize_all() { # sweep every text file this run wrote (mutation logs)
+  local f cr stamp
+  stamp="${EVIDENCE_STAMP:-/dev/null}"
+  [ -n "$stamp" ] || stamp=/dev/null
+  while IFS= read -r f; do
+    case "$f" in
+      *.bmp|*.png|*.jpg|*.raw) continue ;;
+      *.ini) continue ;;
+    esac
+    cr=$(tr -cd '\r' < "$f" | wc -c | tr -d ' ')
+    if [ "$cr" != "0" ]; then
+      echo "  normalised (was CRLF): $f"
+      lf_normalize "$f"
+    fi
+  done < <(find "$OUT" -type f -newer "$stamp" 2>/dev/null | sort)
+}
+eol_check_dir() { # eol_check_dir <dir>; diagnostic entry point for --check-eol
+  if eol_violations "$1" all; then
+    echo "EOL-CHECK dir=$1 verdict=GREEN (every text file is LF)"
+    return 0
+  fi
+  echo "EOL-CHECK dir=$1 verdict=RED (CRLF evidence present)"
+  return 1
+}
+eol_selftest() { # offline proof that the checker separates the old writer from the fix
+  local root old new tmpdir rc=0
+  tmpdir="${TMPDIR:-/tmp}"
+  [ -n "$tmpdir" ] || tmpdir=/tmp
+  root=$(mktemp -d "$tmpdir/tf2-eol.XXXXXX") || return 2
+  old="$root/pre-fix"; new="$root/fixed"
+  mkdir -p "$old" "$new"
+  # The pre-fix writer: a plain redirect of a CRLF producer (MSVC CRT text mode /
+  # python text-mode stdout both end a line with \r\n).
+  printf 'RC=0\r\nTITLE_POLLS=3\r\n' > "$old/e2e.driver.txt"
+  printf '5.0 mode: summary window_created=1\r\n' > "$old/e2e.trace"
+  cp "$old/e2e.trace" "$old/mutated-e2e.txt"
+  echo "--- EOL selftest, pre-fix writer (plain redirect of a CRLF producer) ---"
+  if eol_violations "$old" all; then
+    echo "EOL-SELFTEST pre-fix verdict=GREEN (WRONG: a CRLF writer must be red)"; rc=1
+  else
+    echo "EOL-SELFTEST pre-fix verdict=RED (expected: the old writer is caught)"
+  fi
+  # The fixed writer: the same CRLF bytes through lf_write.
+  printf 'RC=0\r\nTITLE_POLLS=3\r\n' | lf_write "$new/e2e.driver.txt"
+  printf '5.0 mode: summary window_created=1\r\n' | lf_write "$new/e2e.trace"
+  cp "$new/e2e.trace" "$new/mutated-e2e.txt"
+  echo "--- EOL selftest, fixed writer (lf_write) ---"
+  if eol_violations "$new" all; then
+    echo "EOL-SELFTEST post-fix verdict=GREEN (expected)"
+  else
+    echo "EOL-SELFTEST post-fix verdict=RED (WRONG: the fixed writer must be green)"; rc=1
+  fi
+  rm -rf "$root"
+  [ "$rc" -eq 0 ] || return 1
+  echo "EOL-SELFTEST=PASS"
+  return 0
+}
 # --- I-18: the camera line's target= is a BOOLEAN, not an entity index --------
 #
 # main.cpp:12626-12631 prints 'target=%d' from 'cameraTraceHasTarget ? 1 : 0':
@@ -125,6 +240,9 @@ i18_audit_trace() { # <trace>; sets the I18_* readings; rc 1 = unreadable trace
   local trace="$1" readings kv
   [ -s "$trace" ] || return 1
   readings=$(awk '
+    # The product trace is CRLF (CRT text mode). Strip the CR before any field
+    # match: a producer-side line ending must not change this verdict (D53).
+    { sub(/\r$/, "") }
     function num(line, key,   s) {
       if (!match(line, " " key "=-?[0-9]+")) return ""
       s = substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 2)
@@ -377,6 +495,36 @@ CAMERA_PROBE=native/build-nmake/camera_probe.exe
 # success for a run that did no work.
 fail=0
 mkdir -p "$OUT"
+
+# --- modes --------------------------------------------------------------------
+# Parsed before the build: --selftest-eol and --check-eol only inspect line
+# endings, so they must not compile anything or start a product.
+MUTATION=0
+SELFTEST_EOL=0
+CHECK_EOL=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --mutation) MUTATION=1 ;;
+    --selftest-eol) SELFTEST_EOL=1 ;;
+    --check-eol)
+      shift
+      [ "$#" -gt 0 ] || { echo "--check-eol needs a directory" >&2; exit 2; }
+      CHECK_EOL="$1" ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+if [ "$SELFTEST_EOL" -eq 1 ]; then
+  eol_selftest
+  exit $?
+fi
+if [ -n "$CHECK_EOL" ]; then
+  eol_check_dir "$CHECK_EOL"
+  exit $?
+fi
+# From here on the gate writes evidence; the stamp dates every file it owns.
+evidence_mark_start
+
 # THE BUILD COMES FIRST. Two defects hid here before this block moved up:
 #   * native_ui_probe is an input to section 1/3 and does not exist in a fresh
 #     build tree, so checking for it before building refused to run the gate at
@@ -385,7 +533,7 @@ mkdir -p "$OUT"
 #     describe a tree that no longer exists" claim did not cover the probe.
 # One build at the top makes all four sections describe the same tree.
 echo "=== 0/4 build (product + native_ui_probe + camera_probe) ==="
-if bash build-target.sh tf2_demo_native native_ui_probe camera_probe > "$OUT/build.txt" 2>&1; then
+if bash build-target.sh tf2_demo_native native_ui_probe camera_probe 2>&1 | lf_write "$OUT/build.txt"; then
   echo "  OK build tf2_demo_native native_ui_probe camera_probe"
 else
   echo "  FAIL build (see $OUT/build.txt)"; tail -30 "$OUT/build.txt"; exit 1
@@ -402,14 +550,6 @@ for tool in cygpath timeout cmp; do
 done
 
 mkdir -p "$OUT"
-
-MUTATION=0
-for arg in "$@"; do
-  case "$arg" in
-    --mutation) MUTATION=1 ;;
-    *) echo "unknown argument: $arg"; exit 2 ;;
-  esac
-done
 
 assert_eq() { # assert_eq <label> <actual> <expected>
   if [ "${2:-<none>}" = "$3" ]; then
@@ -437,7 +577,9 @@ assert_contains() { # assert_contains <label> <haystack> <needle>
 }
 
 pvalue() { # pvalue <file> <field> -- first key=value match on one line
-  grep -oE "$2=[^ ]*" "$1" 2>/dev/null | head -1 | cut -d= -f2
+  # [[:space:]] rather than a bare space: the CR of a CRLF producer terminates a
+  # field too, so a raw CR can never ride into a reading (D53 family).
+  grep -oE "$2=[^[:space:]]*" "$1" 2>/dev/null | head -1 | cut -d= -f2
 }
 
 # --- the launcher: the safety flags are bound here, not remembered per call -----
@@ -471,7 +613,7 @@ run_e2e() { # run_e2e <prefix> -- one quiet product run with title polling
   trace="$(absolute_out "$prefix.trace")"
   "$PY" - "$EXE" "$RUN_TIMEOUT" "$prefix.bmp" "$LIVE_TICK" "$TF" "$BAGEL" \
     "$ISO_SETTINGS" "$ISO_UI" \
-    "$trace" > "$prefix.driver.txt" <<'PYEOF'
+    "$trace" 2>&1 <<'PYEOF' | lf_write "$prefix.driver.txt"
 import ctypes
 import ctypes.wintypes as wt
 import os
@@ -538,6 +680,9 @@ print("RC=" + str(proc.returncode))
 print("TITLE_POLLS=" + str(polls))
 print("TITLE=" + last)
 PYEOF
+  # The driver's stdout is text mode and the product's trace is CRT text mode:
+  # both come back CRLF, the evidence copies do not.
+  lf_normalize "$prefix.driver.txt" "$prefix.trace"
 }
 
 # --- the expectation list for the probe --------------------------------------
@@ -581,7 +726,7 @@ run_probe_expectations() { # run_probe_expectations <file> <needle|what>...
 echo "=== 1/3 native_ui_probe (camera modes, double-click window, layout, HUD) ==="
 ok=0
 bad=0
-"$PROBE" > "$OUT/probe.txt" 2>&1
+"$PROBE" 2>&1 | lf_write "$OUT/probe.txt"
 probe_rc=$?
 cat "$OUT/probe.txt"
 run_probe_expectations "$OUT/probe.txt" "${E_PROBE[@]}"
@@ -716,7 +861,7 @@ if [ ! -x "$CAMERA_PROBE" ]; then
   echo "  FAIL missing $CAMERA_PROBE (build it with: bash build-target.sh camera_probe)"
   fail=1
 else
-  "$CAMERA_PROBE" > "$OUT/camera_probe.txt" 2>&1
+  "$CAMERA_PROBE" 2>&1 | lf_write "$OUT/camera_probe.txt"
   probe_t50_rc=$?
   cat "$OUT/camera_probe.txt"
   assert_eq "T50 probe exit" "$probe_t50_rc" "0"
@@ -796,7 +941,10 @@ T50_SCRIPT="$OUT/t50-camera.script.txt"
 T50_TRACE="$OUT/t50-camera.trace"
 T50_FRAME_A="$OUT/t50-jump1-a.bmp"
 T50_FRAME_B="$OUT/t50-jump1-b.bmp"
-T50_SETTINGS="$OUT/t50-settings.ini"
+# A product INPUT, not evidence: the file is CRLF on purpose (it must prove the
+# product reads a Windows settings file), so it lives in the isolated scratch
+# directory rather than in the evidence directory the eol check sweeps.
+T50_SETTINGS="$ISO_DIR/t50-settings.ini"
 rm -f "$T50_TRACE" "$T50_FRAME_A" "$T50_FRAME_B" "$T50_SETTINGS"
 # The projection is part of a bookmark (contract 1.1 `bookmarkN.fov`). A run that
 # only ever saw the 90-degree default could not tell a jump that restores the
@@ -941,8 +1089,10 @@ sed -e "s|__CAPTURE_A__|$cyg_a|" -e "s|__CAPTURE_B__|$cyg_b|" \
 T50_RUN_TIMEOUT=300
 run_t50_product "$cyg_trace" --hidden-window --audio-disabled --start-paused \
   --settings-file "$cyg_settings" --camera-script "$(absolute_out "$T50_SCRIPT")" \
-  > "$OUT/t50-run.log" 2>&1
+  2>&1 | lf_write "$OUT/t50-run.log"
 t50_rc=$?
+# The product trace is CRT text mode; the evidence copy is LF before any reading.
+lf_normalize "$T50_TRACE"
 assert_eq "T50 scripted run rc" "$t50_rc" "0"
 if [ ! -s "$T50_TRACE" ]; then
   echo "  FAIL the scripted run wrote no trace"
@@ -1502,6 +1652,25 @@ T50EOF
 
   [ "$t50mrc" -eq 0 ] || { echo "CAMERA-UI-T50-MUTATION=FAIL"; exit 1; }
   echo "CAMERA-UI-T50-MUTATION=PASS (four T50 defects went red and every source restored byte-identical)"
+fi
+# The mutation branches have ~30 redirect sites of their own (nmake output and
+# product logs); sweeping the files this run wrote normalises all of them in one
+# place instead of at every call site.
+if [ "$MUTATION" -eq 1 ]; then
+  echo
+  echo "=== evidence normalisation sweep (mutation-mode logs) ==="
+  evidence_normalize_all
+fi
+echo
+# --- the gate's own evidence is LF -------------------------------------------
+# This is the defect stated as an assertion: the pre-fix gate copied the
+# product's CRLF into a tracked evidence directory, and the tree audit read that
+# as line-ending damage. Now a CR in a file this run wrote fails the gate.
+echo "=== evidence line endings (every text file this run wrote) ==="
+if eol_violations "$OUT"; then
+  echo "  OK   no CR in the evidence this run wrote"
+else
+  echo "  FAIL evidence line endings (the files above are CRLF)"; fail=1
 fi
 echo
 if [ "$fail" -eq 0 ]; then
