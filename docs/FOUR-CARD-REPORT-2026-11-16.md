@@ -1,6 +1,6 @@
 # 四卡交付报告（task-1..task-4，2026-11-16）
 
-版本：v0.2（16:59 快照：并入 E1 第 5 轮结果与合并窗口读数；本文件只写**已实跑且有读数**的结论，未跑/未定性一律标出）
+版本：v0.3（19:35 快照）。**当前门禁身份 = `06afc166…`（3,066,368 B / 19:33:25）**，由 `release-rebuild.sh` 在 merge `4cca8d41` 上重建（`basis=identity-agrees`、`sourceContent=a22779f7…`），取代此前 `a14ea967` → `216d7f98` 两代身份；正文中 `216d7f98` 的读数一律是**该身份下的历史读数**。v0.2（16:59 快照：并入 E1 第 5 轮结果与合并窗口读数；本文件只写**已实跑且有读数**的结论，未跑/未定性一律标出）
 用户要求（m04773）：task-1 工程与集成 / task-2 地图 / task-3 交互 UI / task-4 角色·音频·导出 四张卡全部完成后给完整报告。
 
 ## 0. 一页摘要
@@ -191,7 +191,7 @@
 - **U4 第 1/2/3 步已完成**（1e9e18f8 / 2b 步 / c1734a58）；仍欠：**PIP→四窗资源预算**（要真资源账，不是估算）、split ViewModel（明确 defer，需 per-pane 投影）、hidden-body 并集的正解（per-pane instance list）。定义取 `docs/PROJECT-EXECUTION-ROADMAP-2026-11-15.md:109`。
 - **A1 最终处置**：面集纳入规则查清后重钉，或保留 BLOCKED 并写清缺口。
 - ~~t2 判据修正~~ **已完成（`7ac22f9d`）**，三条红均为单位/方向错、配 m1–m3 变异负控；minimap-hud 三条红同样已修（`62aba085`）。
-- **两条门禁脚本已在 `4cca8d41` 并入 `candidate/e5`**（merge `work/card-ui-u4s3`：11 文件 +1615/−103）⇒ 主树源码已含 U4 第 3 步 + E9 两处修法；**主树 exe 仍是 `216d7f98…`（源码已新于它），四门矩阵前必须先重建并更新 pin**。
+- **两条门禁脚本已在 `4cca8d41` 并入 `candidate/e5`**（merge `work/card-ui-u4s3`：11 文件 +1615/−103）⇒ 主树源码已含 U4 第 3 步 + E9 两处修法；**主树 exe 已重建为 `06afc166…`（3,066,368 B / 19:33:25，`basis=identity-agrees`、`sourceContent=a22779f7…`、sidecar `sourceTree=b935e052`、dirty 全为非源码），矩阵 `PINNED_EXE_SHA` 已更新并重跑 dry-run（`DRY-RUN=OK gates=4`、无 SKIP-PRECONDITION，提交 `16b04592`）**。
 
 ## 5. task-4 角色/音频/导出（card-char）
 
@@ -279,7 +279,7 @@ c1734a58 u4: pane activation, per-pane camera/mode routing, pane-input boundary 
 - P2/P3/P4：`D:/_shared/EXEC-2026-11-15/INST4/p2-n19/attach-budget/`、`docs/N20-EFFECTS-AVAILABILITY-2026-11-16.md`、`docs/N27-EXPORT-PROBE-RERUN-2026-11-16.md`
 
 ### 7.3 未完成清单（诚实版）
-1. task-1：**viewmodel-material 已全绿**（§7/§8 28/0 `61fec89` + §9 re-pin `3fd6b86` + 9 节 **226 OK/0 FAIL** full PASS，每步配负控）；仍欠 companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 修法落地；exe 身份改钉 `216d7f98`（源码干净、非源码脏，需在文档写清）。
+1. task-1：**viewmodel-material 已全绿**（§7/§8 28/0 `61fec89` + §9 re-pin `3fd6b86` + 9 节 **226 OK/0 FAIL** full PASS，每步配负控）；仍欠 companion witness、t2/userinfo/map-geometry/world-material-effects 未跑、A1/A6/A7 口径、camera-ui 门禁 CRLF 修法落地；exe 身份**已再次变更**：`216d7f98` → **`06afc166`**（U4 第 3 步 + E9 修法并入后重建，`basis=identity-agrees`，3,066,368 B / 19:33:25；矩阵 pin 已更新 `16b04592`，dry-run `DRY-RUN=OK gates=4` 无 SKIP）。
 2. task-2：**R1/R2 均已出结论、map-material 完整重跑 PASS**（`1b762057`/`05ece883`/`66f5017f`，audit 回 OK）；仍欠 50-entities 内逐 range 归属、水面 pass（需 `--capture-tick` 另跑）、map-geometry p2 裁决、cp_sunshine 需一段带正常视点的 POV（现在的替补件是 BLOCKED-CAMERA）、odyssey/rc12 需补录像。
 3. task-3：A1 面集规则、t2 判据修正（配负控）、PIP→四窗预算、hidden-body 并集正解、split ViewModel（已裁决 defer）。
 4. task-4：N27 导出先验链已完成（ca3fa348），仍欠产品导出入口（只有设计）；4096 账务修正已并入合并树（014da358），合并树 Phase A 产品读数 0/2/2/2 与 Phase B 四条恒等式**已跑通**（b0abac7d；被测产品是 worktree 合并树构建 eda6889b，主树门禁 exe 未重建）。
