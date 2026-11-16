@@ -20,6 +20,25 @@
 
 namespace tf2::native {
 
+namespace {
+
+// P3b/N21 (task B): the single place a designed drop is recorded, so the total and the
+// per-reason counters cannot drift apart. The budgets live in readSounds(); this changes
+// nothing about whether a message is captured, only how the decision is named.
+void recordDroppedSoundMessage(DemoNetworkSummary& summary, DemoNetworkSummary::SoundDropReason reason) {
+  ++summary.rawSoundMessagesDropped;
+  switch (reason) {
+    case DemoNetworkSummary::SoundDropReason::PayloadTooLarge:
+      ++summary.rawSoundMessagesDroppedPayloadTooLarge;
+      break;
+    case DemoNetworkSummary::SoundDropReason::MessageCap:
+      ++summary.rawSoundMessagesDroppedMessageCap;
+      break;
+  }
+}
+
+}  // namespace
+
 bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t packetTick) {
   std::uint32_t reliable = 0;
   std::uint32_t soundCount = 0;
@@ -39,6 +58,17 @@ bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t pac
   raw.count = static_cast<std::uint8_t>(soundCount);
   raw.payloadBits = static_cast<std::uint16_t>(payloadBits);
   std::vector<std::uint8_t> soundPayload;
+  // P3b/N21 (task B): the two budgets are unchanged (payload < 64 KiB, fewer than 4096 kept
+  // messages). The 64 KiB half is currently unreachable on this wire: payloadBits is read from
+  // 8 bits on the reliable path and 16 bits otherwise, so it cannot exceed 65535. That is why
+  // every corpus demo reports sound_dropped_payload_too_large=0 -- the guard is kept for a wider
+  // field, and the reachable budget is the 4096-message one.
+  // What is new is that a message past either budget is recorded as a designed drop
+  // with its reason and is NOT decoded: there is no captured payload to decode, so running the
+  // decoder over it can only manufacture a failure. It used to: the first bit read on an empty
+  // reader incremented decodedSoundEventFailures, which is how 20921 designed drops became
+  // 20923 "decode failures" on pl_upward_f12 (20921 + 2 real).
+  bool captured = false;
   if (payloadBits < 64u * 1024u && summary.rawSoundMessages.size() < 4096u) {
     raw.payload.assign((static_cast<std::size_t>(payloadBits) + 7u) / 8u, 0);
     for (std::size_t bit = 0; bit < payloadBits; ++bit) {
@@ -48,8 +78,11 @@ bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t pac
     }
     soundPayload = raw.payload;
     summary.rawSoundMessages.push_back(std::move(raw));
+    captured = true;
   } else {
-    ++summary.rawSoundMessagesDropped;
+    recordDroppedSoundMessage(summary,
+        payloadBits >= 64u * 1024u ? DemoNetworkSummary::SoundDropReason::PayloadTooLarge
+                                   : DemoNetworkSummary::SoundDropReason::MessageCap);
     if (!bits.skip(payloadBits)) return false;
   }
   MessageBits soundBits(soundPayload);
@@ -62,7 +95,9 @@ bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t pac
     value = static_cast<std::int32_t>((rawValue & sign) ? (rawValue | (~0u << width)) : rawValue);
     return true;
   };
-  for (std::uint32_t eventIndex = 0; eventIndex < soundCount; ++eventIndex) {
+  // A dropped message still declares soundCount (it is real network data) but has no payload,
+  // so it is skipped as a whole: zero failures recorded, the drop already counted above.
+  for (std::uint32_t eventIndex = 0; captured && eventIndex < soundCount; ++eventIndex) {
     DecodedSoundEvent event = summary.soundDeltaStateValid ? summary.soundDeltaState : DecodedSoundEvent{};
     event.tick = packetTick;
     std::uint32_t value = 0;
