@@ -47,7 +47,10 @@
 # Exit: 0 every reading present AND every invariant asserted (prints
 #       MAP-MATERIAL-MATRIX=PASS); 1 a reading is missing, a run failed, or an
 #       invariant does not hold; 2 usage or environment error. A map whose BSP is
-#       absent is recorded as UNSUPPORTED and is counted, not failed.
+#       absent is recorded as UNSUPPORTED and is counted, not failed. A map whose
+#       pinned recording is gone is recorded as BLOCKED-INPUT (see the corpus
+#       registry below) and is counted, not failed -- unless no registry entry
+#       names it, which is a failure.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 2
 ROOT=$PWD
@@ -116,12 +119,45 @@ map_bsp() {
     *) echo "" ;;
   esac
 }
+# --- corpus registry (2026-11-16) -------------------------------------------
+# The corpora are recordings that live on this host, not files this repo owns, so
+# a pin can rot. Three pins below rotted: cp_sunshine, pl_odyssey and
+# koth_bagel_rc12 all pointed at POV autorecords in $TF/demos that are no longer
+# there (tf/demos now holds 2063 files, oldest 2026-08-02). The identity of each
+# pin is still on disk in evidence/header-scan/header-scan.csv and
+# evidence/t56-map-audit/demo_headers_tfdemos.jsonl, which is where the sizes and
+# tick counts in the notes come from.
+#
+# REPLACED / REPLACED_SHA / REPLACED_NOTE: a map whose pinned recording is gone
+# but for which a same-map recording exists. The replacement is used instead and
+# its sha256 is pinned here, so swapping, editing or renaming it turns the gate
+# red instead of silently measuring a different file. The replacement's own
+# header must still name the map (the map= and server_map= assertions below are
+# unchanged by the override).
+declare -A REPLACED=(
+  ["cp_sunshine"]="E:/demo测试/cp_sunshine/POV/autorecord_2026-05-17_16-32-36.dem"
+)
+declare -A REPLACED_SHA=(
+  ["cp_sunshine"]="acc134094ef2ab1d69b8fdf606346a331ae8dc630d4ba634c682e2b448562b3a"
+)
+declare -A REPLACED_NOTE=(
+  ["cp_sunshine"]="registered same-map replacement (2026-11-16): the pinned POV autorecord_2026-05-14_23-09-16.dem (51337166 B, 144583 ticks, header-scan.csv:14) is gone from tf/demos; this POV recording decodes to 219069 packets / 75905225 B, header map=cp_sunshine"
+)
+# BLOCKED_INPUT: a map whose pinned recording is gone and for which no recording
+# of that map exists anywhere on this host. Its row is kept and says so; the map
+# is not deleted from the matrix and no material assertion is relaxed. Its BSP is
+# present, so the geometry gate (map-geometry-lighting.sh) still runs on it.
+declare -A BLOCKED_INPUT=(
+  ["pl_odyssey"]="pinned POV autorecord_2026-05-26_23-14-06.dem (27718172 B, 55294 ticks, header-scan.csv:131) is gone from tf/demos; a census of every recording on this host found none for pl_odyssey; BSP present"
+  ["koth_bagel_rc12"]="pinned POV autorecord_2026-05-14_21-28-01.dem (51759919 B, 153502 ticks, header-scan.csv:10) is gone from tf/demos; a census of every recording on this host found none for koth_bagel_rc12; BSP present"
+)
 # Demo per map: its header names the same map and it has more than 2000 ticks
 # (each was checked with demo_open_probe --scan). The two SourceTV recordings
 # live in D:/TF2_Demo_Player/testdata/demos and carry no POV camera samples,
 # which is why those two maps resolve their camera with a throwaway orient run
 # instead of from the demo's own camera track.
 map_demo() {
+  if [ -n "${REPLACED[$1]:-}" ]; then echo "${REPLACED[$1]}"; return 0; fi
   case "$1" in
     cp_snakewater_final1) echo "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem" ;;
     koth_bagel_rc11) echo "D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem" ;;
@@ -132,6 +168,7 @@ map_demo() {
   esac
 }
 map_demo_source() {
+  if [ -n "${REPLACED[$1]:-}" ]; then echo "POV autorecord, registered replacement (REPLACED_NOTE)"; return 0; fi
   case "$1" in
     koth_bagel_rc11|cp_snakewater_final1) echo "SourceTV recording, D:/TF2_Demo_Player/testdata/demos, no POV camera samples" ;;
     *) echo "POV autorecord, $TF/demos" ;;
@@ -149,6 +186,15 @@ pick_python() {
 }
 
 mkdir -p "$OUT" "$SCRATCH" || exit 2
+# The registry is reported at start-up, never applied silently: an override or a
+# blocked input a reader cannot see is indistinguishable from a pass.
+for _m in $(printf '%s\n' "${!REPLACED[@]}" | LC_ALL=C sort); do
+  printf 'input override %s -> %s\n' "$_m" "${REPLACED[$_m]}"
+  printf '                %s\n' "${REPLACED_NOTE[$_m]:-}"
+done
+for _m in $(printf '%s\n' "${!BLOCKED_INPUT[@]}" | LC_ALL=C sort); do
+  printf 'input blocked %s: %s\n' "$_m" "${BLOCKED_INPUT[$_m]}"
+done
 # --only re-runs part of the matrix (used to redo one map after a fix). The rows
 # already on disk for the maps this invocation does not touch are merged back,
 # so readings.tsv always describes the whole matrix, not just the last run.
@@ -401,6 +447,33 @@ for MAP in "${MAPS[@]}"; do
     continue
   fi
 
+  # A missing recording is not a missing BSP: it is a corpus problem the registry
+  # has to name, and it must not become an unexplained failed run.
+  if [ ! -f "$DEMO" ]; then
+    if [ -n "${BLOCKED_INPUT[$MAP]:-}" ]; then
+      printf 'map=%s status=BLOCKED-INPUT reason=demo-not-found demo=%s\n' "$MAP" "$DEMO" > "$DIR/status.txt"
+      printf 'note=%s\n' "${BLOCKED_INPUT[$MAP]}" >> "$DIR/status.txt"
+      B=("$MAP" - BLOCKED-INPUT "$BSP" "$BSP_BYTES" "$DEMO" NA NA)
+      for _ in $(seq 1 39); do B+=(NA); done
+      B+=("input-blocked: ${BLOCKED_INPUT[$MAP]}")
+      row "${B[@]}"
+      echo "input blocked $MAP: $DEMO"
+      continue
+    fi
+    failure "$MAP: demo not found at $DEMO (no registry entry: add REPLACED or BLOCKED_INPUT)"
+    echo "SKIP $MAP: demo not found at $DEMO"
+    continue
+  fi
+  # A replacement is the same input only if it is the pinned bytes.
+  if [ -n "${REPLACED[$MAP]:-}" ]; then
+    R_SHA=$(sha256sum "$DEMO" 2>/dev/null | cut -d' ' -f1)
+    if [ "${R_SHA:-}" = "${REPLACED_SHA[$MAP]:-}" ]; then
+      echo "input identity $MAP: sha256=$R_SHA OK (registered replacement)"
+    else
+      failure "$MAP: replacement sha256=${R_SHA:-unreadable} want=${REPLACED_SHA[$MAP]:-unregistered} ($DEMO)"
+    fi
+  fi
+
   echo "== $MAP =="
   # ---- 1. probe: plan tally (aggregate only, no per-material table) --------
   P_OUT=$DIR/probe-plan.txt
@@ -602,6 +675,7 @@ awk -F'\t' '
   {
     m=$1; t=$2; st=$3
     if (st=="UNSUPPORTED") { unsup++; seen[$1]=1; next }
+    if (st=="BLOCKED-INPUT") { blocked++; seen[$1]=1; next }
     rows++; seen[$1]=1
     bad=""
     if (st!="ok") bad=bad " status=" st
@@ -622,7 +696,7 @@ awk -F'\t' '
   }
   END {
     n=0; for (k in seen) n++
-    printf "MATRIX maps=%d rows=%d unsupported=%d failed=%d\n", n, rows, unsup, fails
+    printf "MATRIX maps=%d rows=%d unsupported=%d blocked=%d failed=%d\n", n, rows, unsup, blocked, fails
   }' "$OUT/readings.tsv" > "$MATRIX_OUT"
 MATRIX_LINE=$(tail -1 "$MATRIX_OUT")
 MATRIX_FAILED=$(printf '%s' "$MATRIX_LINE" | sed -n 's/.*failed=\([0-9]*\).*/\1/p')
