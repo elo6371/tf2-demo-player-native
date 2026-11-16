@@ -636,6 +636,11 @@ bool Renderer::drawViewModel() {
   // depth state cannot express that, which is why this pass does not use it.
   if (depthStencilView_) {
     context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+    // U4 step 2b: this is a depth clear too, and the budget trace counts every
+    // one of them, not just the frame-start clear -- the ViewModel pass clears the
+    // whole surface a second time, which is exactly the cost a PIP->four-window
+    // budget has to be able to see before it can argue one.
+    ++paneDepthClears_;
   }
   context_->OMSetDepthStencilState(viewModelDepthStencilState_.Get(), 0);
   context_->RSSetState(viewModelRasterizerState_.Get());

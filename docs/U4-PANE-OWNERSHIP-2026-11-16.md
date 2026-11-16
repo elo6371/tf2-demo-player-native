@@ -114,3 +114,94 @@ Build-identity note: the first build of this step was REFUSED by `gen-build-stam
 untracked compile input) until `native/include/pane_boundary.h` was `git add`ed. That is the
 generator working as intended: a new header the compiler reads must be in the content hash, and
 the refusal is recorded here so nobody "fixes" it by allowing untracked inputs.
+
+## Step 2b: two panes over one surface
+
+2a replaced the single-surface predicate with a per-pane one: `kPaneMaxPanes = 2`,
+`PaneBoundaryPaneReadings` per pane (x/y/width/height, camera, view hash, camera-input
+fingerprint, camera slot), and three rules that only exist because there are two panes --
+R8 `kPaneMismatchPaneLayout` (panes must tile the client and not overlap), R9
+`kPaneMismatchSharedView` (two panes reporting one view hash from two different camera
+fingerprints), R10 `kPaneMismatchSharedCamera` (two panes quoting one camera slot). Seven
+rules became ten, and the probe's negative controls went from 8 to 13: each new rule is broken
+by its own mutation, and R9/R10 are the two defects a lazy split (draw the same view twice)
+would actually produce. This is the "改谓词必须配负控" condition, and the negatives are the
+evidence, not the green run.
+
+2b makes the renderer compose the frame from two panes. The structure:
+
+* `Renderer::draw()` is now a thin wrapper: `paneCountThisDraw_ = 1`,
+  `syncPrimaryPaneCamera()`, `drawPaneInternal(..., pane=0, count=1)`. The body moved into
+  `drawPaneInternal` unchanged except where this table says otherwise.
+* `Renderer::drawSplit()` calls `drawPaneInternal` twice with pane 0 and pane 1, then restores
+  pane 0's frame camera (`frameView_` / `frameEye_` / `frameForward_` / `frameUp_` /
+  `frameRight_`) so the camera the rest of the program reads after a frame is still the
+  single-pane camera, not whichever pane was drawn last.
+* Per-pane viewport: left pane gets `width_ / 2`, right pane `width_ - width_/2` (an odd width
+  loses no column); both get the full `height_`. The viewport is the only thing that moves.
+* Per-pane state: `PaneCameraState paneCameras_[kPaneMaxPanes]` (include/native_renderer.h,
+  next to `paneDrawOrdinal_`), `paneIndexThisDraw_`, `paneCountThisDraw_`,
+  `paneDepthClears_`. Pane 0 is refreshed from the orbit/observer members at the start of every
+  frame by `syncPrimaryPaneCamera()` -- the existing camera setters stay the one source of truth
+  -- and pane 1 is written only by `setPaneCameraOrbit()`, which refuses pane 0. Camera input
+  therefore cannot reach pane 1 by accident, and pane 1 cannot overwrite pane 0's camera.
+* Per-frame readings (`framePassOrdinal_`, `viewModelWorldPassOrdinal_`, HUD counters, sky/vis
+  flags, clip-capture flags) are reset once, by pane 0. Later panes keep counting into the same
+  frame totals, which is what makes `panes: passes=` a frame number.
+* Only pane 0 clears the back buffer and the depth view: one surface, disjoint viewports, so a
+  per-pane clear would erase the half already drawn. `paneDepthClears_` counts the clears that
+  do happen (`++` at the frame-start clear and at the ViewModel pass's own full-surface clear).
+* The camera block reads `paneCameras_[paneIndex]` instead of the global members; the aspect is
+  `paneWidth / paneHeight` (a half-width viewport with the window's aspect would stretch every
+  pane); `paneBoundary_.panes[paneIndex]` is filled with that pane's rectangle, camera source,
+  view hash, fingerprint and slot.
+* The HUD is a whole-window overlay: it runs once, from the last pane, after restoring the full
+  client viewport. `drawHudPass()` never set a viewport, so without that restore it would draw
+  through the last pane's half.
+* The ViewModel pass is deferred in a split (`paneCount == 1`): it builds its projection from
+  the window aspect and clears the whole depth surface, so drawing it twice would be the wrong
+  fix. A split frame therefore shows `depthClears=1`, not 2 -- the budget reading says so.
+* Capture (BMP + depth PGM) and `Present` run once, from the last pane.
+
+Shared by design (same list as the audit table, now with a second pane proving it): the demo
+playback clock (`entityModelTimeSeconds_`), one swap chain, one render target, one depth view,
+the whole-window HUD, and the capture slot. The panes are two views of one frame; seeking one
+pane is seeking the frame, and step 3 may not give them separate clocks.
+
+### The budget line
+
+```
+pane:  draw=1 viewport=632x681 client=1264x681 targets=1 depth=1 viewports=2 camera=demo-view hud=1 scissor=1 mismatches=0x0
+panes: count=2 viewports=2 depthTargets=1 depthClears=1 passes=15 hud=1
+```
+
+`viewport=` stays pane 0's extent (R4 pins it against `client` for a single-pane frame), so a
+two-pane frame is recognisable by `viewports=2`. `panes:` is the additive budget line: panes
+composed, viewports, surface count, whole-surface depth clears, draw passes handed out across
+all panes, and HUD passes. Those five numbers are what a PIP -> four-window budget has to be
+able to count before it can argue one.
+
+### CLI and evidence
+
+`--pane-split` turns the split on; `--pane1-orbit <yaw> <pitch> <distance>` writes pane 1's
+camera (the pre-ladder block consumes both, same as the fog flags). Without it the two halves
+are the same picture, which is the control frame for "the panes are independent".
+
+* single pane, same window: old `75dae10e` vs new `5c357113`, BMP sha256 both
+  `0e00f553e17b66176f8c4aef50a17ee0852abbf81218679c4fe9cc6a5dfe143f`, `cmp` 0 bytes. The
+  single-pane path did not change pixels.
+* two panes, `pl_upward_f12` and `cp_sunshine`: both halves non-empty (clear-colour fraction
+  0.0000 in each half), halves differ, `mismatches=0x0`.
+* independence negative control 1: change only pane 1's orbit -- left half byte-identical
+  (0 of 1,291,176 bytes), right half 963,808 bytes differ.
+* independence negative control 2: change only pane 0's debug camera -- left half 1,253,828
+  bytes differ; right half 32 pixels differ, all inside the HUD's rectangle
+  (`region=24,12,1228,160`; diff bbox x 1159..1168, y 120..127). The HUD is the one
+  whole-window overlay and its camera indicator follows pane 0; the pane 1 world pixels did not
+  move.
+* `camera-ui-check.sh` = PASS, `tools/audit-tree.sh` = VERDICT: OK.
+
+This section supersedes "no pane split" in `Deliberately not done` above: step 2b is the split.
+Step 3 (click activation, first/third/free camera switching, per-pane seek semantics) is still
+not done, and the demo clock stays explicitly shared until it is.
+

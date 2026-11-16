@@ -1329,6 +1329,22 @@ public:
   std::uint32_t paneBoundaryMismatches() const {
     return tf2::native::paneBoundaryMismatches(paneBoundary_);
   }
+  // U4 step 2b: one frame composed from two panes that share this surface
+  // through disjoint viewports -- the budget statement a second pane makes.
+  // Pane 0 is the camera draw() uses; pane 1 is the state setPaneCameraOrbit
+  // writes, and camera input never reaches it.
+  bool drawSplit(float clearRed, float clearGreen, float clearBlue);
+  // Pane 1's camera: orbit pose only. paneCameras_[0], by contrast, is refreshed
+  // from the orbit/observer members at the start of every frame, so the
+  // single-pane camera stays the one source of truth for pane 0.
+  void setPaneCameraOrbit(std::uint32_t pane, float yaw, float pitch, float distance);
+  // The frame that was drawn, for the budget trace: panes composed, whole-surface
+  // depth clears, and draw passes across all panes (the HUD pass included).
+  std::uint32_t paneCountLastFrame() const { return paneBoundary_.paneCount; }
+  std::uint32_t paneDepthClearsLastFrame() const { return paneDepthClears_; }
+  std::uint32_t panePassesLastFrame() const {
+    return static_cast<std::uint32_t>(framePassOrdinal_);
+  }
 
   // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
   // was never set on the success path of uploadWorldWaterGeometry, so
@@ -1668,6 +1684,13 @@ private:
   // the frame's own states back afterwards. Private because it must only ever be
   // reached from draw() at the one point where the world and ViewModel passes
   // have finished -- a HUD drawn mid-frame would be a HUD drawn under geometry.
+  // U4 step 2b: the draw body, once per pane. draw() calls it once with
+  // paneCount 1; drawSplit() once per pane. paneCount is a parameter rather than
+  // a member read so a call cannot see a count from a different frame.
+  bool drawPaneInternal(float clearRed, float clearGreen, float clearBlue,
+                        std::uint32_t paneIndex, std::uint32_t paneCount);
+  // Copy the orbit/observer members into paneCameras_[0] at frame start.
+  void syncPrimaryPaneCamera();
   void drawHudPass();
   void releaseTarget();
   bool createTarget(UINT width, UINT height);
@@ -2443,6 +2466,15 @@ private:
   // every rule look satisfied on a frame that never ran).
   PaneBoundaryReadings paneBoundary_{};
   std::uint32_t paneDrawOrdinal_ = 0;
+  // U4 step 2b: per-pane camera states and the pane being drawn. Only pane 0 is
+  // mirrored from the orbit/observer members (syncPrimaryPaneCamera); pane 1 is
+  // written by setPaneCameraOrbit alone. paneDepthClears_ counts whole-surface
+  // depth clears per frame so the budget trace can state one; framePassOrdinal_
+  // is reset once per frame (pane 0) and then grows across panes.
+  PaneCameraState paneCameras_[kPaneMaxPanes]{};
+  std::uint32_t paneIndexThisDraw_ = 0;
+  std::uint32_t paneCountThisDraw_ = 1;
+  std::uint32_t paneDepthClears_ = 0;
   // T67: the embedded font atlas and its point sampler. The table is compiled
   // into the binary, so these are created once and never updated.
   Microsoft::WRL::ComPtr<ID3D11Texture2D> hudFontTexture_;
