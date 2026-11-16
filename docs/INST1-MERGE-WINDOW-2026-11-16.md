@@ -82,7 +82,8 @@ FAIL the mirrored position is inside the panel (so this is not vacuous) = 8, exp
 * 首跑 5 s 退在 `camera-ui-check.sh: line 415: $3: unbound variable`，当时已完成 18 条断言全 OK。
 * 成因：该工作树文件是 CRLF 而索引 blob 是 LF（`git ls-files --eol` 显示 `i/lf w/crlf`，其余门 `w/lf`）。CRLF 让 :618/:620 的续行反斜杠后面多了 \r，续行失效，`assert_eq` 只收到 2 个参数，`set -u` 下取 `$3` 报错。
 * 处理（不改逻辑、不改阈值）：把工作树字节恢复成已提交的 LF blob（`git cat-file blob HEAD:camera-ui-check.sh > camera-ui-check.sh`，index/HEAD 未动），重跑 rc=0 111 s、113 OK/0 FAIL；收工 `git checkout -- camera-ui-check.sh` 后 `git status` 干净、该文件 `w/lf`。
-* 记录在此，避免下次把它当产品红；根治办法（门禁仓库统一 eol 或脚本对抗 CRLF）另开提交。
+* 记录在此，避免下次把它当产品红。
+* **一句话修法（不必现在改）**：门禁起手先自检自己的字节 —— `case "$(tr -cd '\r' < "$0")" in *$'\r'*) echo "FATAL: $0 is CRLF (worktree checkout rewrote it; see .gitattributes)"; exit 1;; esac` —— 或把 `*.sh` 的 `eol=lf` 写进 `.gitattributes` 并在门禁里断言 `git ls-files --eol -- "$0"` 为 `w/lf`。这样 :618/:620 这类续行在任何检出形态下都不会静默失效（本次 CRLF 命中正是：续行反斜杠后多了 \r，`assert_eq` 只收到 2 参，`set -u` 取 `$3` 报错）。
 
 ## 7. 「功能没被吞」的 pane 实证（新 exe 实拍）
 
