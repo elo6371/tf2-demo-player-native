@@ -5730,12 +5730,19 @@ bool outlineVertexExtent = false;
           ++floorRejectedSide;
           continue;
         }
-        if (triangle.material.rfind("tools/", 0) == 0
-            || triangle.material.rfind("editor/", 0) == 0) {
+        // U3a window 2: the BSP stores texture names uppercase (METAL/...,
+        // TOOLS/TOOLSSKYBOX), so a case-sensitive prefix test could never match and
+        // the exclusion was dead on every real map -- which is what
+        // rejectedTool=0 / rejectedSky=0 were saying. Fold for the comparison and
+        // leave the stored name untouched: the renderer resolves material paths
+        // from it. Measured targets on the two reference maps: 389 and 86
+        // reachable faces carry a tool/editor/skybox name.
+        if (loweredMaterial.rfind("tools/", 0) == 0
+            || loweredMaterial.rfind("editor/", 0) == 0) {
           ++floorRejectedTool;
           continue;
         }
-        if (triangle.material.find("skybox") != std::string::npos) {
+        if (loweredMaterial.find("skybox") != std::string::npos) {
           ++floorRejectedSky;
           continue;
         }
