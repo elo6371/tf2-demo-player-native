@@ -146,3 +146,15 @@ W1 = `demos_read == 8`（活动行数）；W2 = 实测包数之和达到 **834,4
 - 证据更新（`--refresh` 的直接后果，随本次提交）：`review1.dem.txt` 91,247 包 / 82,903,524 B → 69,643 包 / 64,122,700 B；`gullyscout.dem.txt`、`processdemo.dem.txt`、`review44.dem.txt` 改为三个替换件的实测读数（120,922 / 120,920 / 140,020 包）；`review12.dem.txt` 保持不动（BLOCKED-INPUT，历史读数留档）。
 - lockrun 打印 `LOCKRUN=TRACKED-DIRTY … evidence changed during this run`：门禁写自身证据目录所致，属预期，不是 D40/D49 违规（回落点只有 evidence/source-tv-coverage）。
 - 本节证明：活动八份语料端到端零失败、包数精确命中 834,460 pin、扰动逐行被捕获、替换件身份未漂移。**没有证明**：九份覆盖已恢复（历史 8/9）、cp_reckoner 已接入（未接入，按新增恢复任务）、其他门禁或语料的情形。
+
+## 11. review12 恢复任务（2026-11-16 15:00–15:06，独立增量；不追溯修改 §9/§10）
+
+本节 **supersede** §9.5 与 §10 的状态陈述（「active 8/8、review12 BLOCKED-INPUT」）；那两节是 14:56 那次运行的记录，保持原样不改。
+
+- 输入：用户补件 `E:/demo测试/cp_reckoner/STV/546392288740b01f46035778bbc3b9ed_match-20261115-2106-cp_reckoner.dem`，75,843,581 B，sha256 `6736334f4657172cef3d5b5d547b6b29f5a40d4918cf9ba7bd347f0c7e6aa541`（归档路径与用户给的 Downloads 端一致）。
+- 独立解码（先验，写 `evidence/source-tv-recovery/cp_reckoner.dem.txt`）：`recording=SourceTV`、`server_info_hltv=1 server_info_replay_bit=0 source_tv_flag=1`、`index_state=ok` 且 `index_tail_bytes=75843581` 等于文件大小、`packets_scanned=121385`、`map=cp_reckoner`、`entity_failures=0 malformed_packets=0 unknown_message_packets=0 unknown_message_types=<none> delta_base_unavailable=0`；enter/leave/delete/max_active = 15,328 / 2,287 / 10,544 / 701。
+- 事故（已入册）：第一次把它跑在 lockrun 里并让被包裹命令 `mkdir evidence/source-tv-recovery`，锁在释放时看到新增未跟踪目录，按 D40/D49 判 TRACKED-DIRTY 并让整条命令 rc=97；探针本身成功、dump 完整。锁的守卫对「新增证据路径」的反应，不是产品失败。修法：证据目录先建好，或先写到树外再拷入。
+- 门禁登记（第二增量）：`DEMOS` 加第 9 行 `review12.dem|75843581|121385|cp_reckoner`；`REPLACED`/`REPLACED_SHA`/`REPLACED_NOTE` 各 +1（note 写明「2026-11-16 用户补件，原文件丢失」）；`BLOCKED_INPUTS` 清空（机制保留）；`W2_PIN` 834,460 → **955,845**（九行实测和：112175+120929+120922+61544+120920+88307+69643+140020+121385）；header 的 Accounting 与成本行、汇总行同步为 9/9、blocked=0、`all 9 slots read an accepted input`。A1–A6/W1/W2 断言本体未改。
+- 实跑（lockrun owner=lead-sourcetv，`--refresh`）：正向 rc=0，`demos_read=9 packets_scanned=955845 entity_failures=0 assertions_ok=55 assertions_fail=0`，`SOURCE-TV-COVERAGE=PASS (active=9/9 blocked=0 packets=955845 pin=955845)`；负控 rc=0，`MUTATION-CAUGHT=PASS (2/2 caught: per_demo_reds=9 work_reds=0 red_rows=18)`。日志：`gate-positive6.log`、`gate-mutation6.log`。
+- 证据变化：`evidence/source-tv-coverage/review12.dem.txt` 由「丢失文件」的 120,917 包读数改为补件的 121,385 包读数；新增 `evidence/source-tv-recovery/cp_reckoner.dem.txt` 作为接收证据。
+- 口径：九个槽现在都读到「已接受的输入」，其中 4 个是同字节移位（73/SUNSHINE/prodcutscout + 在位的 proc2），5 个是替换录像（review1、gullyscout、processdemo、review44、review12）。**不等于**原始九份文件都回来了；`917,543` 那个原始目标 pin 也**没有**恢复，也不该被拿来对比。

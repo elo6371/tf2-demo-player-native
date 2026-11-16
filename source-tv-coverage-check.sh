@@ -36,18 +36,21 @@
 #   gullyscout.dem, processdemo.dem and review44.dem are also gone, and each slot now
 #   reads a registered same-map SourceTV recording (explicit path, sha256 pin in A6 and
 #   the reason in REPLACED_NOTE). Their rows carry the replacement's measured values.
-#   review12.dem (cp_reckoner, 80,261,474 B, 120,917 packets) is NOT replaced: no
-#   cp_reckoner SourceTV recording exists on this host, so it left the executable set
-#   and is registered as BLOCKED-INPUT below rather than being papered over.
+#   review12.dem (cp_reckoner, 80,261,474 B, 120,917 packets) was BLOCKED-INPUT in the
+#   first pass of that ruling. The user then supplied a cp_reckoner SourceTV recording,
+#   accepted in a separate recovery task, so the slot now reads that file. BLOCKED_INPUTS
+#   is empty but the mechanism stays in the script for future blocked inputs.
 #
-# So the active set is eight recordings, 8/8 when every row reads, and the historical
-# nine-recording target is 8/9 verified -- not "coverage restored".
+# So the active set is nine recordings, 9/9 when every row reads. Five rows read a
+# substitute recording (review1, gullyscout, processdemo, review44, review12); four read
+# the pinned bytes, three of them at relocated paths. "All nine slots covered by an
+# accepted input" is not the same claim as "the nine original files are back".
 #
-# Accounting, in one place (the two numbers that used to float around are different
-# things): 917,543 = original nine-recording target; 895,939 = pin after the review1
-# substitution; 834,460 = the active eight-row pin
-# (112175+120929+120922+61544+120920+88307+69643+140020). W2 compares the measured sum
-# to that exact pin, not to a rounded floor under it.
+# Accounting, in one place (the numbers that used to float around are different things):
+# 917,543 = original nine-recording target; 895,939 = pin after the review1 substitution;
+# 834,460 = eight-row pin between the two corpus passes; 955,845 = current nine-row pin
+# (112175+120929+120922+61544+120920+88307+69643+140020+121385). W2 compares the measured
+# sum to that exact pin, not to a rounded floor under it.
 #
 # What it asserts per demo
 # ------------------------
@@ -66,13 +69,13 @@
 # semantics"): it counts entity updates whose delta base was never available, which is
 # the SourceTV-specific failure mode a POV recording cannot show.
 #
-# Cost: ~4 min for all eight (612 MB, ~834k packets). The probe runs once per demo and
+# Cost: ~5 min for all nine (688 MB, ~955k packets). The probe runs once per demo and
 # its raw output is kept under evidence/source-tv-coverage/, so --mutation only
 # perturbs the comparison and does not re-decode.
 #
 # Usage: bash source-tv-coverage-check.sh [--mutation] [--refresh]
-#          --mutation  nudge two compared values and require exactly 8 red rows each
-#                      (one per active row; a work-count red is counted separately)
+#          --mutation  nudge two compared values and require one red row per active demo
+#                      each red pass (a work-count red is counted separately)
 #          --refresh   re-run the probe even if a fresh dump is already present
 # Exit:  0 = every active demo read end to end with zero failures.
 set -uo pipefail
@@ -82,10 +85,10 @@ PROBE=native/build-nmake/entity_protocol_probe.exe
 DEMOS_DIR="${SOURCE_TV_DEMOS_DIR:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos}"
 OUT="${SOURCE_TV_OUT:-evidence/source-tv-coverage}"
 
-# Exact packet pin for the active eight-recording set (see "Accounting" above). W2
+# Exact packet pin for the active nine-recording set (see "Accounting" above). W2
 # requires the measured sum to reach it, so a run that read nothing, skipped a row or
 # read a row wrong cannot print PASS, and no row may be edited to reach it.
-W2_PIN=834460
+W2_PIN=955845
 
 MUTATION=0
 REFRESH=0
@@ -111,13 +114,14 @@ DEMOS=(
   "processdemo.dem|90995077|120920|cp_process_f12"
   "prodcutscout.dem|62389932|88307|koth_product_final"
   "review1.dem|64122700|69643|koth_ashville_final1"
+  "review12.dem|75843581|121385|cp_reckoner"
   "review44.dem|85506321|140020|cp_sultry_b8a"
 )
 
 # Overridden inputs: slot name -> absolute path, the file's own sha256 pin (A6), and a
 # one-line note printed at start-up. Three entries are relocations of the pinned bytes;
-# review1.dem is a replacement, and its row above carries the replacement's measured
-# values, not the lost recording's.
+# five are replacements (review1, gullyscout, processdemo, review44, review12), and each
+# replacement row above carries that file's measured values, not the lost recording's.
 declare -A REPLACED=(
   ["73.dem"]="D:/TF2_Demo_Player/work/protocol-rescue-20261005/73.dem"
   ["SUNSHINE.dem"]="E:/demo测试/cp_sunshine/STV/SUNSHINE.dem"
@@ -126,6 +130,7 @@ declare -A REPLACED=(
   ["gullyscout.dem"]="E:/demo测试/cp_gullywash_f9/STV/gully4454.dem"
   ["processdemo.dem"]="E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem"
   ["review44.dem"]="E:/demo测试/cp_sultry_b8a/STV/f63a7a2040379d7d6a8414f76bbb81dc_matcha-20260703-1442-cp_sultry_b8a.dem"
+  ["review12.dem"]="E:/demo测试/cp_reckoner/STV/546392288740b01f46035778bbc3b9ed_match-20261115-2106-cp_reckoner.dem"
 )
 declare -A REPLACED_SHA=(
   ["73.dem"]="69f9a864c88c6cf885cf46068f0be590e2fbd47b8d8ef9bbb2e6c71bccebccce"
@@ -135,6 +140,7 @@ declare -A REPLACED_SHA=(
   ["gullyscout.dem"]="3d9c3e64a0e94e618bbfa2075467f32722db4d82ee52f9ea1e9e88e093ece16d"
   ["processdemo.dem"]="81ceb1afa4c54ad5fdf14201b1f1a9049c183d11aa70c6ed431a69ebf9f73b94"
   ["review44.dem"]="032bbd5ab719012cc2a7b4858f0a5d4e1ba882b4cdae1d86f2b966a3578c4374"
+  ["review12.dem"]="6736334f4657172cef3d5b5d547b6b29f5a40d4918cf9ba7bd347f0c7e6aa541"
 )
 declare -A REPLACED_NOTE=(
   ["73.dem"]="relocated, pinned bytes unchanged"
@@ -144,6 +150,7 @@ declare -A REPLACED_NOTE=(
   ["gullyscout.dem"]="registered same-map replacement (2026-11-16 ruling): the pinned cp_gullywash_f9 recording is gone; this SourceTV recording decodes to 120922 packets / 81660813 B"
   ["processdemo.dem"]="registered same-map replacement (2026-11-16 ruling): the pinned cp_process_f12 recording is gone; this SourceTV recording decodes to 120920 packets / 90995077 B"
   ["review44.dem"]="registered same-map replacement (2026-11-16 ruling): the pinned cp_sultry_b8a recording is gone; this SourceTV recording decodes to 140020 packets / 85506321 B"
+  ["review12.dem"]="recovery task (2026-11-16): user-supplied cp_reckoner SourceTV recording after the pinned file was lost; decodes to 121385 packets / 75843581 B"
 )
 demo_path() { # demo_path <slot name>
   if [ -n "${REPLACED[$1]:-}" ]; then printf '%s' "${REPLACED[$1]}"; else printf '%s/%s' "$DEMOS_DIR" "$1"; fi
@@ -153,9 +160,8 @@ demo_path() { # demo_path <slot name>
 # replacement. They are reported at start-up and in the summary; they are not silent.
 # name|size_bytes|last_measured_packets|map
 BLOCKED_INPUTS=(
-  "review12.dem|80261474|120917|cp_reckoner"
 )
-BLOCKED_NOTE="no cp_reckoner SourceTV recording exists on this host; the pinned file is gone (2026-11-16 ruling: BLOCKED-INPUT, not replaced). Historical nine-recording target stands at 8/9 verified."
+BLOCKED_NOTE="none as of 2026-11-16 15:05: the only blocked input (review12.dem, cp_reckoner) was recovered by a user-supplied SourceTV recording and reintroduced in a separate recovery task."
 
 [ -x "$PROBE" ] || { echo "FATAL: probe not found: $PROBE"; exit 1; }
 mkdir -p "$OUT"
@@ -333,12 +339,12 @@ run_assertions() {
     sum_failures=$((sum_failures + ${ef:-0}))
   done
 
-  # The work counts. Eight active recordings and 834,460 packets is the active-set pin
-  # after the 2026-11-16 corpus ruling (three registered same-map replacements, review12
-  # out of the executable set as BLOCKED-INPUT). The two older numbers stay apart:
-  # 917,543 is the original nine-recording target, 895,939 the pin after the review1
-  # substitution -- neither is this gate's pin now. W2 compares the measured sum to the
-  # exact pin, so a run that read nothing or read a row wrong cannot print PASS.
+  # The work counts. Nine active recordings and 955,845 packets is the current pin (three
+  # relocated inputs, five substitute recordings, review12 recovered in its own task). The
+  # older numbers stay apart: 917,543 is the original nine-recording target, 895,939 the pin
+  # after the review1 substitution, 834,460 the eight-row pin between passes -- none is this
+  # gate's pin now. W2 compares the measured sum to the exact pin, so a run that read nothing
+  # or read a row wrong cannot print PASS.
   if [ "$demos_read" -eq "${#DEMOS[@]}" ]; then
     printf '  OK   W1 demos read: %s/%s\n' "$demos_read" "${#DEMOS[@]}"
     ok=$((ok + 1))
@@ -409,7 +415,7 @@ printf 'demos_read=%s packets_scanned=%s entity_failures=%s assertions_ok=%s ass
 if [ "$fail" -eq 0 ]; then
   _target=$((${#DEMOS[@]} + ${#BLOCKED_INPUTS[@]}))
   echo "SOURCE-TV-COVERAGE=PASS (active=$demos_read/${#DEMOS[@]} blocked=${#BLOCKED_INPUTS[@]} packets=$sum_packets pin=$W2_PIN assertions_ok=$ok)"
-  echo "coverage: active set $demos_read/${#DEMOS[@]}; historical $_target-recording target $demos_read/$_target verified (review12.dem BLOCKED-INPUT)"
+  echo "coverage: active set $demos_read/${#DEMOS[@]}; all $_target slots read an accepted input (blocked=${#BLOCKED_INPUTS[@]})"
   exit 0
 fi
 echo "SOURCE-TV-COVERAGE=FAIL (assertions_fail=$fail)"
