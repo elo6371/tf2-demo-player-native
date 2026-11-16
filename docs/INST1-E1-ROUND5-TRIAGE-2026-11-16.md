@@ -155,7 +155,105 @@ manifest 覆盖面从 src-only 扩到全输入，产品因此一次性 relink；
 4. 所有 re-pin 沿用 435b4d5c 的写法：值 = 实测值、注释记 basis（录制 sha / exe sha / 代码出处），
    并在提交 message 里写明「re-pin, not loosening」。
 
-**待 lead 定**：§7 :786 是否等 pass 局部 upload 计数就位再 re-pin（本轮未改任何断言/代码）。
+**lead 已定（2026-11-16 18:07）**：不产品加计数器（原本提案第 3 条作废）；§7 改断言对象；见 §3.1.2。
+
+#### 3.1.2 re-pin 窗口（2026-11-16 18:10–18:29，lead 裁决后执行）
+
+lead 对 §3.1.1 提案的三处改动：**不给产品加 pass 局部 upload 计数器**（§7 改断言对象即可）；
+§7 的 uploads 数字断言**退役**，只留单调 sanity；§8 整帧相等**退役**，换 pmissing 稳定性 + rangeTextured；
+**§9 一行不动**，只 re-pin §7/§8。
+
+#### 身份
+
+- exe sha256 216d7f98…（3,057,152 B），门禁**跑前/跑后同值**；身份钉 sha，不由 head/dirty 推导。
+- head 起跑 = 56dee328；native/ 无改动。
+- 工作树 dirty=52，全部落在 evidence/t62-map-matrix/* 与 lead 的 docs/*（card-maps 的 map-material 重跑在写），
+  没有源码目录改动；按 lead 的记账口径（非源码证据目录脏）可作门禁身份。
+- 只跑 SECTIONS="7 8"；TRACE_DIR=evidence/fast/viewmodel-material/repin（相对路径，.gitignore 已忽略；
+  绝对路径会把 capture 路径拼坏，见 §4.4）。日志 /d/_shared/EXEC-2026-11-15/INST1/E1-round5/repin-1810/repin-run.log。
+
+#### 新旧值对照（旧 pin → 新断言 → 本次实测）
+
+| 断言（节:行） | 旧 pin | 新断言 | 实测 |
+| --- | --- | --- | --- |
+| §7 flat control draws the fallback | 1 | 3 | 3 |
+| §7 flat control uploads no texture | 0 | **退役**：改上传计数器单调 sanity + range 表 | yes |
+| §7 （新增）flat control draws all three descriptors | — | RANGES_LINE 含 ranges=3 | 3 |
+| §7 （新增）flat control leaves every range untextured | — | RANGES_LINE 含 rangeTextured=0,0,0 | 0,0,0 |
+| §7 flat control reuses no texture | 0 | 0（不动） | 0 |
+| §8 nothing is bound | 0 | 2 | 2 |
+| §8 the range is a fallback range | 1 | 1（不动） | 1 |
+| §8 no texture was uploaded for it | 0 | **退役**：改上传计数器单调 sanity | yes |
+| §8 no texture bind happened | 0 | 2（改 label：the other two ranges reuse their cached textures） | 2 |
+| §8 （新增）only the injected range lost its texture | — | RANGES_LINE 含 rangeTextured=0,1,1 | 0,1,1 |
+| §8 （新增）the other two ranges still name their slots | — | RANGES_LINE 含 rangeSlots=-1,1,2 | -1,1,2 |
+| §8 the pass still draws the geometry | 1 | 3 | 3 |
+| §8 the fallback frame is exactly the flat control frame（整帧相等） | 0% | **退役** | 实测 7272/2582352=0.2816%（两 range 仍有纹理） |
+| §8 （新增）two runs of the fallback frame are byte-identical | — | pmissing vs pmissing2，max-diff 0 | differing=0 |
+
+为什么 uploads 不钉数：texturesUploaded 是渲染器全局单调计数（native_renderer.cpp:202；clearViewModelMaterials
+故意不重置），weapon body pass 也经它上传（main.cpp:8170），它从来不是本 pass 的计数——钉 2 或 5 都是把
+计数副作用当成 pass 行为。新断言只保留了计数器自己能回答的性质：一次 run 内不倒退（uploads_monotonic，
+读取 materialReadings 行的 texturesUploaded 序列，出现下降即红）。
+
+为什么整帧相等要退役：该断言假设 pass 只建 1 个 range。v_sapper_spy 的 mesh table 给 3 个 descriptor，
+注入 missing slot 后只有 1 个 range 落 fallback、另 2 个仍带纹理，两帧必然不同（实测 0.2816%）。
+留下的可检验主张是**可复现性**：同参数跑两次 byte-identical（pmissing vs pmissing2）。fallback 机制本身
+仍由 missingSlotInjected=0、materialResolved=slots-1、fallbackSlots=1、fallbackRanges=1、frozen world 盯住。
+
+新增捕获 pmissing2（--viewmodel-material-missing-slot 0，与 pmissing 同参），已加进 clear_product_captures
+的三处名单。
+
+#### 断言文本 diff（节选，完整见本次提交）
+
+```diff
+-assert_eq "flat control draws the fallback" "$(rval "$READINGS" fallbackRanges)" "1"
+-assert_eq "flat control uploads no texture" "$(rval "$READINGS" texturesUploaded)" "0"
++assert_eq "flat control draws the fallback" "$(rval "$READINGS" fallbackRanges)" "3"
++assert_contains "flat control draws all three descriptors" "$RANGES_LINE" "ranges=3"
++assert_contains "flat control leaves every range untextured" "$RANGES_LINE" "rangeTextured=0,0,0"
++assert_eq "the global upload counter never went backwards" "$(uploads_monotonic pflat)" "yes"
+
+-assert_eq "nothing is bound" "$(rval "$READINGS" boundSlots)" "0"
+-assert_eq "no texture was uploaded for it" "$(rval "$READINGS" texturesUploaded)" "0"
+-assert_eq "no texture bind happened" "$(rval "$READINGS" texturesReused)" "0"
+-assert_eq "the pass still draws the geometry" "$(rval "$READINGS" drawRanges)" "1"
+-bmp_diff "the fallback frame is exactly the flat control frame" \
+-  "$TRACE_DIR/pmissing.bmp" "$TRACE_DIR/pflat.bmp" --max-diff-percent 0
++assert_eq "nothing is bound" "$(rval "$READINGS" boundSlots)" "2"
++assert_contains "only the injected range lost its texture" "$RANGES_LINE" "rangeTextured=0,1,1"
++assert_contains "the other two ranges still name their slots" "$RANGES_LINE" "rangeSlots=-1,1,2"
++assert_eq "the other two ranges reuse their cached textures" "$(rval "$READINGS" texturesReused)" "2"
++assert_eq "the pass still draws the geometry" "$(rval "$READINGS" drawRanges)" "3"
++bmp_diff "two runs of the fallback frame are byte-identical" \
++  "$TRACE_DIR/pmissing.bmp" "$TRACE_DIR/pmissing2.bmp" --max-diff-percent 0
+```
+
+#### 跑门
+
+28 OK / 0 FAIL，VIEWMODEL-MATERIAL=PASS，rc=0；exe sha 跑后仍 216d7f98…。§7 的像素控制未动，
+读数与上轮一致（palt vs pflat 1.1447%、ptex2 vs pflat 1.1264%、两次 pflat byte-identical），
+§8 的机制断言（rc=0、missingSlotInjected=0、materialResolved 4→3、fallbackSlots=1、fallbackRanges=1、frozen）全部保留。
+
+#### 负控（KEEP_CAPTURES=1，篡改 trace、产品不重跑）
+
+新增门禁钩子 VIEWMODEL_MATERIAL_KEEP_CAPTURES：非空则跳过 clear_product_captures，只供负控重放；验收不设。
+每例都是「改一条读数 → 期望指定断言红」，脚本 /d/_shared/…/repin-1810/nc/run-nc.sh，日志 nc/*.log：
+
+| case | 篡改 | 结果 |
+| --- | --- | --- |
+| c1 descriptor 数回退 | pflat ranges=3→1、rangeTextured=0,0,0→1,0,0 | 2 红（draws all three descriptors、leaves every range untextured），26 OK |
+| c2 3 range 只 1 个带纹理 | pmissing rangeTextured=0,1,1→0,0,1 | 1 红（only the injected range lost its texture），27 OK |
+| c3 上传计数器倒退 | pflat 第 2 条 readings texturesUploaded 2→1 | 1 红（never went backwards），27 OK |
+| c4 还原 | 无 | 28 OK / 0 FAIL |
+
+即：descriptor 数量回退、range 纹理丢失、计数器倒退三类真回退都会被判红，re-pin 没有把断言改成恒真。
+
+#### 本窗口未做
+
+- §9 三条红（blendedRanges=3、alphaAppliedRanges=3、uploadSlot=-2）一行未动，本节也未跑 §9；期望 lead 另定
+  （机制已查清：uploadSlot=-2 是 952ddf20 起「全槽上传」的语义，旧 pin 2 来自 279dabb5 的单槽时代）。
+- 真实门全 9 节的 full PASS 仍未取（本轮只 §7/§8）；§8 之前自 435b4d5c 起欠的那次 full PASS 仍未还。
 
 ### 3.2 minimap-hud（A1 与 A6/A7）
 
