@@ -75,3 +75,5 @@ BLOCKED-INPUT 就是本次自测留下的读数。
 
 **这不是推断**：锁状态与队列是 `hostlock.sh status` 的读数，录像普查与替换件探针是实测。
 重跑必须在取得 host 锁后补做，且补做时不得用历史读数冒充。
+
+2026-11-16 16:16 lead 裁定按 WINDOW-DEADLINE 收工、不再等锁：host 锁（owner=t62-mapaxes，`map-geometry` 在跑）与 verify 锁（owner=card-arch，E1 第 5 轮）都是合法持有，等不到窗口。因此第 5 节的自测是本文件里唯一的实测；完整重跑与 `readings.tsv` 刷新仍未做，下一窗口第一件事是取得独占 host 锁后重跑三张可用图。
