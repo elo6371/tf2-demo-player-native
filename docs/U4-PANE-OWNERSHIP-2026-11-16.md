@@ -279,10 +279,17 @@ The cost is measured, not argued away:
   (766,119)-(1221,440) purely because pane 0's body came back into the shared list.
   The camera mode did not move pane 1; the hide set did.
 
-Per-pane instance lists are the correct fix and are NOT in this step: the panes share
-one instance buffer, one constant buffer and one surface by design, so a per-pane body
-list means a per-pane upload -- a budget decision (and its own measurement) rather
-than a routing one.
+Per-pane body lists are the correct fix and are NOT in this cycle (accepted as a
+known cost). The change surface is smaller than "split the buffers" suggests: the
+instance buffer is filled once per frame (`native_renderer_entity.cpp:651-659`) and
+every entity draw is `DrawInstanced(vertexCount, instanceCount, 0, instanceStart)`
+(`native_renderer_frame.cpp:1101`), so a pane can skip its own body by splitting that
+range into at most two draws at draw time. No buffer, constant or surface has to be
+duplicated; what changes is (a) the range loop (`native_renderer_frame.cpp:1063-1103`)
+taking the pane's hidden index, (b) main's filter keeping camera-hidden bodies in the
+pack instead of removing them (the corpse filter is unaffected), and (c) T81's counter
+then meaning "withheld from every pane". That is a draw-loop patch plus a reading
+change, not a memory budget.
 
 ### Evidence
 
@@ -302,9 +309,25 @@ Each half is 1,291,176 bytes.
 | probe | rc=0, `paneInputCases=20 paneInputNegatives=7` beside the existing `paneBoundaryRules=10 paneBoundaryNegatives=13 paneCameraSources=3` |
 | gates | `camera-ui-check.sh` = CAMERA-UI=PASS; `tools/audit-tree.sh` = VERDICT: OK |
 
-Still deliberately not done, and now stated per item: the ViewModel pass in a split
-(2b defers it; a first-person pane therefore shows no weapon, and the lead's verdict
--- one side, both sides with per-pane aspect, or hidden -- is still open); per-pane
-seek and demo clocks (the clock is shared by design and step 3 did not change that);
-per-pane instance lists (above).
+### Known limitation: no ViewModel in a split
+
+The ViewModel pass is deferred in a split (step 2b), so a first-person pane shows no
+weapon. This is a KNOWN LIMITATION, not a defect, and it is not changed in this cycle:
+drawing the weapon in a split needs per-pane projection FOV/aspect first -- the audit
+table's "projection FOV" row is `must split in step 2` and is not split yet -- plus a
+per-pane ViewModel pass, because the pass builds its projection from the window aspect
+and clears the whole depth surface. The future shape is therefore: per-pane projection
+(audit row 11) then one ViewModel pass per pane that is in first person.
+
+### Shared by design: one time axis
+
+The demo clock stays shared: `entityModelTimeSeconds_` is one value for the frame and
+seeking one pane seeks both. In a split, seek synchronization is the DESIGN, not a
+coincidence of the implementation -- U4's roadmap sentence is "双 pane 共享时间轴 ... seek
+同步". Step 3 routed camera and follow commands per pane and deliberately left the clock
+alone: a second clock is a different product, and it is not what a second view of one
+replay means.
+
+Nothing else is deferred: per-pane body lists (costed above) are the only known limit
+left, and the ViewModel is the only feature gap this step knowingly leaves.
 
