@@ -70,6 +70,93 @@ alpha 路径有 3 个 range 走 alpha blend（钉值 1）。这两组都是产�
 未改判据，交材料/alpha 语义 owner 重定口径。上一轮 OK 的两条 pin（`:689`/`:691`
 `the pass built one range = 2` / `the range has a texture bound = 2`）本轮仍 OK。
 
+### 3.1.1 十红逐条定性（2026-11-16 18:0x 复测，exe 216d7f98）
+
+§3.1 是第 5 轮 75dae10e 上的现场判读（"交材料/alpha 语义 owner 重定口径"），本节把它落成
+逐条定性：每一红给出断言式、实测、期望来源、定性、下一步。**只定性，不改阈值、不改代码。**
+
+#### 复测身份
+
+| 项 | 值 |
+| --- | --- |
+| 产品 exe sha256 | `216d7f986574dc350113ad8b08902bc43754915c3ac0868c8c90e8405981d1eb`（3,057,152 B） |
+| HEAD（起跑） | `2cbe87e5` |
+| 跑法 | `VIEWMODEL_MATERIAL_SECTIONS="7 8 9"`，只补三节（§6 未重跑） |
+| TRACE_DIR | `evidence/fast/viewmodel-material/rerun2`（**相对路径**） |
+| 日志 | `/d/_shared/EXEC-2026-11-15/INST1/E1-round5/rerun-1716/rerun2/viewmodel-material-s789.log` |
+| 读数 | 26 OK / **10 FAIL**，与第 5 轮 10 红逐条同位置；§8 的 `differing=7272 total=2582352 percent=0.2816` 与 75dae10e 上**逐字节同值** |
+
+exe 从 a14ea967 变 216d7f98 不是本轮跑门造成的：D-93 判据修正（`b233bdae`）的首次真实门把
+manifest 覆盖面从 src-only 扩到全输入，产品因此一次性 relink；`git diff 014da358..HEAD -- native/` 为空，
+源码未变。两次读数（75dae10e / 216d7f98）逐项同值，说明这 10 红与 relink 无关。
+
+跑法注意：TRACE_DIR 必须是**相对路径**。门禁用 `--capture-frame "$ROOT/$TRACE_DIR/name.bmp"`
+（viewmodel-material-check.sh:598）拼路径，绝对路径会被拼成 `$ROOT//d/_shared/...`，产品 rc=16、
+不产 bmp，整节读成空值（本轮第一次复测即因此报废，日志在 `rerun-1716/viewmodel-material.log`）。
+
+#### 逐条
+
+| # | 门:行 | 断言 | 钉的值 | 实测（216d7f98） | 期望来源 | 定性 | 下一步 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | §7 :785 | flat control draws the fallback | 1 | **3** | 279dabb5（2026-10-13）写下的单 range 读数 | 期望漂移：flat 模式下 3 个 range 全是 fallback（pflat ranges=3 rangeSlots=-1,-1,-1） | re-pin 3，注释记 basis |
+| 2 | §7 :786 | flat control uploads no texture | 0 | **2** | 同上，单通道时代 | 期望漂移 + **量具失效**：计数器是渲染器全局单调值，flat 只压 arms pass，body pass 仍上传（见机制 3） | 先 re-pin 2 并注记；根治需加 pass 局部 upload 计数（产品侧，另任务） |
+| 3 | §8 :838 | nothing is bound | 0 | **2** | 279dabb5 单 range 时代 | 期望漂移：注入槽 0 后另两个 range 仍绑到真实纹理（pmissing rangeSlots=-1,1,2 rangeTextured=0,1,1） | re-pin 2 |
+| 4 | §8 :840 | no texture was uploaded for it | 0 | **5** | 同上 | 期望漂移：resolved=3，其余槽照常上传；计数仍是全局值 | re-pin 5（附机制注释） |
+| 5 | §8 :841 | no texture bind happened | 0 | **2** | 同上 | 期望漂移：两个 textured range 命中纹理缓存 → reused=2 | re-pin 2 |
+| 6 | §8 :844 | the pass still draws the geometry | 1 | **3** | 同上 | 期望漂移：3 个 descriptor 都画（drawRanges=3） | re-pin 3 |
+| 7 | §8 :846 | the fallback frame is exactly the flat control frame | differing=0 | **7272 / 2582352 = 0.2816%** | 同上 | **断言前提失效**：pflat 是 0,0,0 全不贴，pmissing 是 0,1,1，另两个 range 的纹理必然不同 → 整帧不可能相等；单 range 时代才成立 | 退役该断言，换两条新控制（见下） |
+| 8 | §9 :870 | one range uses the alpha blend state | 1 | **3** | 同上 | 期望漂移：palpha rangeSlots=2,2,2、rangeTextured=1,1,1，3 个 range 全走 translucent | re-pin 3 |
+| 9 | §9 :873 | alpha is the only blend path applied | 1 | **3** | 同上 | 同上（alphaAppliedRanges=3） | re-pin 3 |
+| 10 | §9 :876 | the bound slot is the glass one | 含 `uploadSlot=2` | **`uploadSlot=-2`** | 279dabb5 时的产品：`uploadSlot = flat ? -1 : (slotOverride >= 0 ? slotOverride : drawnSlot)` | **产品语义在门禁写下 4 天后变了**：952ddf20（2026-10-17）把常量改成 `flat ? -1 : -2`（今天 main.cpp:7969），-2=上传全部 resolved 槽 | re-pin 成 `uploadSlot=-2`（或断言 `uploads=4`），并注 952ddf20 出处 |
+
+期望来源的硬证据：这 10 条断言文本**自 279dabb5（2026-10-13）起逐字未改**（本轮把两边的断言行抽出来排序 diff，
+结果为 identical）；`435b4d5c`（2026-11-16）换录制时只 re-pin 了 §6 的 `:689/:691`
+（drawRanges 1→2、boundSlots 1→2），§7–§9 从未在新录制/新语义上重新取数。
+
+#### 机制（为什么实际值长这样）
+
+1. **3 个 range**：`--viewmodel-render command` 下 v_sapper_spy 的 MDL mesh table 现在给 3 个 LOD-0 descriptor
+   （materials 行 `meshCount=3 descriptorsValidated=3`），ranges 行 `ranges=3 rangeVertices=11640,9447,96`。
+   pflat 的 `rangeSlots=-1,-1,-1`、palpha 的 `2,2,2`、pmissing 的 `-1,1,2` 都出自同一张表。
+2. **-1 / -2 上传语义**：main.cpp:7969 `const std::int32_t uploadSlot = viewModelFlatColor ? -1 : -2;`；
+   native/src/viewmodel_material.cpp:344-375 只在 `uploadSlot == -2 || uploadSlot == slot` 时上传。
+   -1=flat 不上传，-2=全上传；旧代码的第三种形态（= slotOverride/drawnSlot）随 952ddf20 消失。
+3. **texturesUploaded 是全局单调计数**：native_renderer.cpp:202 递增，`clearViewModelMaterials`（:206-211）
+   明确不重置。arms pass 之外还有 weapon body 的上传点 main.cpp:8170（`ensureViewModelWeaponMesh`，
+   同样调 `decodeViewModelMaterialSlots(..., viewModelWeaponFlatColor ? -1 : -2, ...)`），
+   所以 flat 跑出的 2 次上传不是本节要看的那条路径。
+4. **pass 内计数每 pass 归零**：native_renderer_viewmodel.cpp:681-735 重置 fallbackRanges/boundSlots/
+   blendedRanges/alphaTestedRanges；boundSlots 按去重 key 计，palpha 三个 range 同槽 2 故 boundSlots=1
+   （rangeSlots 仍是 2,2,2）。
+5. **§8 的 7272 px 来自两个 textured range**：pflat `rangeTextured=0,0,0` vs pmissing `0,1,1`，
+   像素差只可能落在后两个 range 上。整帧相等控制是单 range 几何的产物，不是通用判据。
+
+#### 为什么不是产品回退
+
+- §7 的三条因果控制全绿：ptex vs pflat `differing=29561 (1.1447%)`、世界条带 3 处 region diff=0、
+  ptex≠palt 亦 PASS、pflat vs pflat2 与 ptex vs ptex2 **byte-identical**。
+- §9 同节另 9 条全绿：rc=0、slotOverride=2、resolved 4/4、boundSlots=1、alphaSlots=2、alphaTested=0、
+  translucent=1、11640 vertices（几何没被 override 带偏）。
+- §8 fallback 机制本身在位：missingSlotInjected=0、resolved 4→3、fallbackSlots=1、fallbackRanges=1、
+  frozen frame=yes。
+- 两次不同 exe 读数逐项同值（含 7272/2582352/0.2816），排除随机/时序。
+- §6 的 re-pin 已在 435b4d5c 按本录制实测（drawRanges 2、boundSlots 2），第 5 轮 run A 里该节通过。
+
+#### re-pin 提案（下一窗口，属取数刷新不是放宽）
+
+1. §7 :785 1→3、:786 0→2（附「全局计数器 + body pass」注释）；§8 :838 0→2、:840 0→5、:841 0→2、
+   :844 1→3；§9 :870 1→3、:873 1→3、:876 `uploadSlot=2`→`uploadSlot=-2`。
+2. §8 :846 的整帧相等控制**退役**并换两条：
+   (a) pmissing 与第二次 pmissing（同参数）byte-identical —— 测稳定性；
+   (b) 断言 pmissing 的 `rangeTextured=0,1,1` 与 `fallbackRanges=1` —— 直接测「只有注入的那个 range 落 fallback」。
+   原断言测的是单 range 时代的整帧外观，不是「fallback 不绑纹理」这个意图，换掉不算放宽。
+3. §7 :786 的根治：产品加一个 pass 局部 uploads 读数（或在现有 readings 行加 `passUploads`），
+   让断言能测它自己命名的 pass；在此之前先按实测 2 钉住并在注释里写明局限性。
+4. 所有 re-pin 沿用 435b4d5c 的写法：值 = 实测值、注释记 basis（录制 sha / exe sha / 代码出处），
+   并在提交 message 里写明「re-pin, not loosening」。
+
+**待 lead 定**：§7 :786 是否等 pass 局部 upload 计数就位再 re-pin（本轮未改任何断言/代码）。
+
 ### 3.2 minimap-hud（A1 与 A6/A7）
 
 ```
@@ -117,6 +204,11 @@ p2：10/11 帧后到本窗口上限（620 s 被 TERM），无最终裁决；run 
    `_shared/queue/<ticket>` 才放行）。kill 后先 break、再看 queue。
 3. **门禁写 tracked evidence**：`evidence/t62-map-axes` 的 readings 与 `evidence/t62-map-matrix` 的
    status/readings 在运行中变脏（lockrun 报 D40/D49），收工需还原甲供输出、只提交 re-pin 的参考文件。
+
+4. **门禁捕获路径不能用绝对 TRACE_DIR**。`product_launch` 用
+   `--capture-frame "$ROOT/$TRACE_DIR/name.bmp"`（viewmodel-material-check.sh:598）拼路径，
+   绝对 TRACE_DIR 会被拼成 `$ROOT//d/_shared/...`，产品静默 rc=16、无 bmp，整节读成空值红。
+   `VIEWMODEL_MATERIAL_OUT` 不受影响（只做 mkdir/重定向），可以给绝对路径。
 
 ## 5 窗口与未完成
 
