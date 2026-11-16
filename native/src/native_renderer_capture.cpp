@@ -43,9 +43,10 @@ void Renderer::requestFrameCapture(std::wstring path, std::wstring depthPath) {
 // the world geometry in front of this player". 255 against 255 answers nothing.
 // The buffer behind it is D24S8, and capturedDepth_ already holds it for the
 // face trace, so this is a writer, not a second measurement.
-bool Renderer::writeWorldDepthToPgm(const std::wstring& path) {
-  if (capturedDepth_.empty() || capturedDepthWidth_ <= 0 || capturedDepthHeight_ <= 0) {
-    captureError_ = L"no world depth was captured for this frame";
+bool Renderer::writeDepthPlanePgm(const std::wstring& path, const std::vector<float>& plane,
+    int width, int height, unsigned long long* bytes) {
+  if (plane.empty() || width <= 0 || height <= 0) {
+    captureError_ = L"no depth plane to write";
     return false;
   }
   std::FILE* file = nullptr;
@@ -53,14 +54,14 @@ bool Renderer::writeWorldDepthToPgm(const std::wstring& path) {
     captureError_ = L"depth file open failed";
     return false;
   }
-  std::fprintf(file, "P5\n%d %d\n65535\n", capturedDepthWidth_, capturedDepthHeight_);
-  std::vector<std::uint8_t> row(static_cast<std::size_t>(capturedDepthWidth_) * 2u, 0u);
+  std::fprintf(file, "P5\n%d %d\n65535\n", width, height);
+  std::vector<std::uint8_t> row(static_cast<std::size_t>(width) * 2u, 0u);
   unsigned long long written = 0;
   bool ok = true;
-  for (int y = 0; y < capturedDepthHeight_ && ok; ++y) {
-    for (int x = 0; x < capturedDepthWidth_; ++x) {
-      const float depth = capturedDepth_[static_cast<std::size_t>(y) *
-        static_cast<std::size_t>(capturedDepthWidth_) + static_cast<std::size_t>(x)];
+  for (int y = 0; y < height && ok; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const float depth = plane[static_cast<std::size_t>(y) *
+        static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
       // 1.0 is the cleared far value; an unmeasured entry reads as far rather
       // than as a near surface, so a hole can never claim to occlude anything.
       const float clamped = !(depth >= 0.0f) ? 1.0f : (depth > 1.0f ? 1.0f : depth);
@@ -72,9 +73,86 @@ bool Renderer::writeWorldDepthToPgm(const std::wstring& path) {
     else written += row.size();
   }
   if (std::fclose(file) != 0) ok = false;
-  depthCaptureBytes_ = written;
+  if (bytes) *bytes = written;
   if (!ok) captureError_ = L"writing the depth image failed";
   return ok;
+}
+
+bool Renderer::writeWorldDepthToPgm(const std::wstring& path) {
+  if (capturedDepth_.empty() || capturedDepthWidth_ <= 0 || capturedDepthHeight_ <= 0) {
+    captureError_ = L"no world depth was captured for this frame";
+    return false;
+  }
+  return writeDepthPlanePgm(path, capturedDepth_, capturedDepthWidth_, capturedDepthHeight_,
+    &depthCaptureBytes_);
+}
+
+// R1 (2026-11-16): the per-pass depth channel. M2b established that the 109 px
+// boundary is not occlusion by reading the frame's LAST world depth; it could not
+// say WHICH pass left that depth. This reads the same D24S8 buffer at named
+// points inside one frame, writes each plane beside the picture's prefix, and
+// prints the depth-stencil state bound there (recorded at the bind site, not
+// inferred from a comment). Active only on a capture frame with a prefix set, so
+// the product path pays one empty-string test per dump point.
+void Renderer::capturePassDepth(const char* name) {
+  if (passDepthPrefix_.empty() || capturePath_.empty()) return;
+  if (!depthTexture_ || !device_ || !context_) {
+    passDepthSucceeded_ = false;
+    return;
+  }
+  D3D11_TEXTURE2D_DESC depthDesc{};
+  depthTexture_->GetDesc(&depthDesc);
+  const unsigned width = depthDesc.Width;
+  const unsigned height = depthDesc.Height;
+  std::vector<float> plane;
+  bool mappedOk = false;
+  if (depthDesc.Format == DXGI_FORMAT_D24_UNORM_S8_UINT && width > 0 && height > 0) {
+    D3D11_TEXTURE2D_DESC stagingDepth = depthDesc;
+    stagingDepth.Usage = D3D11_USAGE_STAGING;
+    stagingDepth.BindFlags = 0;
+    stagingDepth.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    stagingDepth.MiscFlags = 0;
+    stagingDepth.MipLevels = 1;
+    stagingDepth.ArraySize = 1;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> depthReadback;
+    if (SUCCEEDED(device_->CreateTexture2D(&stagingDepth, nullptr, depthReadback.GetAddressOf()))) {
+      context_->CopyResource(depthReadback.Get(), depthTexture_.Get());
+      D3D11_MAPPED_SUBRESOURCE depthMapped{};
+      if (SUCCEEDED(context_->Map(depthReadback.Get(), 0, D3D11_MAP_READ, 0, &depthMapped))) {
+        plane.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), -1.0f);
+        const auto* rows = static_cast<const std::uint8_t*>(depthMapped.pData);
+        for (unsigned y = 0; y < height; ++y) {
+          const auto* row = reinterpret_cast<const std::uint32_t*>(
+            rows + static_cast<std::size_t>(y) * depthMapped.RowPitch);
+          for (unsigned x = 0; x < width; ++x) {
+            plane[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x] =
+              static_cast<float>(row[x] & 0x00FFFFFFu) / 16777215.0f;
+          }
+        }
+        context_->Unmap(depthReadback.Get(), 0);
+        mappedOk = true;
+      }
+    }
+  }
+  if (!mappedOk) {
+    passDepthSucceeded_ = false;
+    std::printf("pass-depth: index=%d name=%s wrote=0 reason=readback-failed depthStateLastBind=%s\n",
+      passDepthIndex_, name, lastDepthStateLabel_);
+    std::fflush(stdout);
+    return;
+  }
+  const std::wstring nameW(name, name + std::strlen(name));
+  const std::wstring path = passDepthPrefix_ + L"-" + std::to_wstring(passDepthIndex_)
+    + L"-" + nameW + L".pgm";
+  unsigned long long bytes = 0;
+  const bool ok = writeDepthPlanePgm(path, plane, static_cast<int>(width),
+    static_cast<int>(height), &bytes);
+  std::printf("pass-depth: index=%d name=%s depthStateLastBind=%s width=%u height=%u"
+    " bytes=%llu wrote=%d\n", passDepthIndex_, name, lastDepthStateLabel_, width, height,
+    bytes, ok ? 1 : 0);
+  std::fflush(stdout);
+  ++passDepthIndex_;
+  if (ok) ++passDepthWritten_; else passDepthSucceeded_ = false;
 }
 
 // Reads the swap chain's back buffer back to the CPU and writes it as an
