@@ -55,9 +55,17 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 2
 ROOT=$PWD
 
-PROBE=$ROOT/native/build-nmake/material_coverage_probe.exe
+# The two probes below are launched by bash -c with no `timeout` in front, and
+# MSYS mangles a space-bearing argument when the program path itself is POSIX:
+# ".../Team Fortress 2/tf" reached material_coverage_probe as two tokens and it
+# printed its usage text and exited 2 (measured 2026-11-16, see
+# docs/T62-MAP-MATRIX-CORPUS-REGISTRY-2026-11-16.md section 7). Windows-form
+# paths skip that conversion. The product keeps the POSIX form because
+# `timeout` already routes it through a converter that does not mangle; its
+# trace reads tf_root=D:\...\Team Fortress 2\tf valid=1 either way.
+PROBE=$(cygpath -m "$ROOT/native/build-nmake/material_coverage_probe.exe")
 PRODUCT=$ROOT/native/build-nmake/tf2_demo_native.exe
-DEMO_PROBE=$ROOT/native/build-nmake/demo_open_probe.exe
+DEMO_PROBE=$(cygpath -m "$ROOT/native/build-nmake/demo_open_probe.exe")
 TF=${TF_ROOT:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf}
 AUDIO_DEVICE=${AUDIO_DEVICE:-6}
 LOCK=${HOSTLOCK:-/d/TF2_Native_Worktrees/_shared/hostlock.sh}
@@ -419,6 +427,9 @@ print("sha256_a=" + hashlib.sha256(da).hexdigest())
 print("sha256_b=" + hashlib.sha256(db).hexdigest())
 print("identical_files=%d" % (1 if da == db else 0))
 PYEOF
+  # Python's stdout is text mode on Windows, so it writes CRLF; the committed
+  # evidence is LF (tools/audit-tree.sh enforces it), so strip here.
+  sed -i 's/\r$//' "$4" 2>/dev/null || true
 }
 
 ran=0
@@ -480,6 +491,7 @@ for MAP in "${MAPS[@]}"; do
   P_CMD=$(printf '%q ' "$PROBE" --map "$(cygpath -m "$BSP")" --tf-root "$TF")
   locked "$P_CMD" > "$P_OUT" 2>&1
   P_RC=$?
+  sed -i 's/\r$//' "$P_OUT" 2>/dev/null || true
   [ "$P_RC" -ne 0 ] && failure "$MAP probe rc=$P_RC (see probe-plan.txt)"
   P_DISTINCT=$(kv "$P_OUT" map.distinctMaterials)
   P_TILED=$(kv "$P_OUT" plan.tiled)
@@ -504,6 +516,7 @@ for MAP in "${MAPS[@]}"; do
   C_PROBE=$DIR/camera-probe.txt
   CP_CMD=$(printf '%q ' "$DEMO_PROBE" --scan --camera-tick 2000 "$DEMO")
   locked "$CP_CMD" > "$C_PROBE" 2>&1
+  sed -i 's/\r$//' "$C_PROBE" 2>/dev/null || true
   # The demo must be a recording of the map this row claims: a shared or renamed
   # recording would otherwise let a row say "cp_sunshine" while the frames came
   # from somewhere else. demo_open_probe reads both the header map and the server
@@ -520,7 +533,14 @@ for MAP in "${MAPS[@]}"; do
   ORIGIN=$(grep -ao 'camera_origin=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_origin=//')
   C_PITCH=$(grep -ao 'camera_pitch=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_pitch=//')
   C_YAW=$(grep -ao 'camera_yaw=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_yaw=//')
-  if [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ]; then
+  # A POV sample with x=y=0 is not a usable pose: it pins the camera to the
+  # map's vertical axis, inside geometry, where every tick draws the same static
+  # interior (2026-11-16 cp_sunshine: camera_origin=0,0,-427 produced
+  # byte-identical tick 0 / tick 2000 frames). Treat it like "no sample" and let
+  # the orient run read the pose the product itself draws with.
+  DEGENERATE_POSE=0
+  case "$ORIGIN" in 0,0,*|0.0,0.0,*) DEGENERATE_POSE=1 ;; esac
+  if [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ] && [ "$DEGENERATE_POSE" -eq 0 ]; then
     C_SRC=demo-camera-tick2000
     C_EYE=$(printf '%s' "$ORIGIN" | tr ',' ' ')
   else
@@ -552,7 +572,7 @@ for MAP in "${MAPS[@]}"; do
   } > "$DIR/camera.txt"
   [ -n "$C_EYE" ] && [ "$C_EYE" != "NA" ] && printf 'debug_camera_args=--debug-camera %s %s %s\n' "$C_EYE" "$C_PITCH" "$C_YAW" >> "$DIR/camera.txt"
   [ -n "${O_LINE:-}" ] && printf 'orient_scene_camera_line=%s\n' "$O_LINE" >> "$DIR/camera.txt"
-  POSE_LINE=$(grep -a 'camera_origin=' "$C_PROBE" 2>/dev/null | tail -1)
+  POSE_LINE=$(grep -a 'camera_origin=' "$C_PROBE" 2>/dev/null | tail -1 | tr -d '\r')
   [ -n "$POSE_LINE" ] && printf 'demo_probe_camera_line=%s\n' "$POSE_LINE" >> "$DIR/camera.txt"
 
   # ---- 3. two captures, same demo, same fixed camera -----------------------

@@ -77,3 +77,53 @@ BLOCKED-INPUT 就是本次自测留下的读数。
 重跑必须在取得 host 锁后补做，且补做时不得用历史读数冒充。
 
 2026-11-16 16:16 lead 裁定按 WINDOW-DEADLINE 收工、不再等锁：host 锁（owner=t62-mapaxes，`map-geometry` 在跑）与 verify 锁（owner=card-arch，E1 第 5 轮）都是合法持有，等不到窗口。因此第 5 节的自测是本文件里唯一的实测；完整重跑与 `readings.tsv` 刷新仍未做，下一窗口第一件事是取得独占 host 锁后重跑三张可用图。
+
+## 7. 2026-11-16 重跑时发现的门禁自身缺陷（已修，实测）
+
+第一次完整重跑（17:20 起）在每张图上都记了同一组失败：
+
+```
+cp_snakewater_final1 probe rc=2 (see probe-plan.txt)
+cp_snakewater_final1 probe emitted no map.distinctMaterials
+cp_sunshine probe rc=2
+cp_sunshine: the demo header names map=NA, not cp_sunshine (…/cp_sunshine/POV/autorecord_2026-05-17_16-32-36.dem)
+```
+
+`evidence/t62-map-matrix/cp_snakewater_final1/probe-plan.txt` 里锁内命令的输出是 probe 自己的用法行：
+
+```
+ACQUIRED owner=t62-map at 2026-11-16 17:20:24
+usage: material_coverage_probe --self-test | --fixture | --controls | --map <map.bsp> --tf-root <dir> …
+LOCKED-COMMAND-EXIT rc=2 owner=t62-map
+```
+
+**不是语料的问题，是调用方式的问题。** 同一个二进制、同一组参数、同一时刻，直接从 shell 调用
+`rc=0`（`map.distinctMaterials=148`），而经过门禁的 `bash -c "<%q 串>"` 调用 `rc=2`。把探针换成
+`python -c 'import sys;print(sys.argv)'` 走同一条路径，拿到的是被 MSYS 重新转换坏的 argv：
+
+```
+['-c', '--map', 'D:\\SteamLibrary\\steamapps\\common\\Team\\',
+ 'Fortress 2tfmapscp_snakewater_final1.bsp', '--tf-root', …]
+```
+
+即 `--tf-root D:/…/Team Fortress 2/tf` 里的空格与 `/` 被拼成两个畸形 token；probe 读到未知参数，
+打印用法、退出 2。触发条件是**被调用程序的路径本身是 POSIX 形式**（`$ROOT/native/build-nmake/…`
+= `/d/TF2_Native_Worktrees/…`）且前面没有 `timeout` 之类的转换层。`demo_open_probe` 走同一条
+路径，所以 `E:/demo测试/…` 也没能打开（`demo file cannot be opened` → `map=NA`）。
+
+修法（`map-material-matrix.sh`，两行）：探针改用 Windows 形式路径，绕开这次转换。
+
+```bash
+PROBE=$(cygpath -m "$ROOT/native/build-nmake/material_coverage_probe.exe")
+PRODUCT=$ROOT/native/build-nmake/tf2_demo_native.exe   # 不变：product 总在 timeout 之后启动
+DEMO_PROBE=$(cygpath -m "$ROOT/native/build-nmake/demo_open_probe.exe")
+```
+
+product 不需要改：它的 trace 实测 `tf_root=D:\SteamLibrary\steamapps\common\Team Fortress 2\tf valid=1`，
+因为 `timeout`（MSYS 程序）到原生进程的那一跳不做这次重写。
+
+验证：修后同一张图的 `probe-plan.txt` 首行是 `{"reading":"map.distinctMaterials","value":"148"}`；
+替换录像的 header 探针读出 `header=1 map=cp_sunshine server_map=cp_sunshine packets=219069`。
+因此 `cp_sunshine` 的替换件是合格的，先前那条 "header names map=NA" 是同一个 argv 缺陷的回声，
+不是语料问题。
+
