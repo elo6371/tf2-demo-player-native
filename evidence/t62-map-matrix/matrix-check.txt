@@ -1,1 +1,1 @@
-MATRIX maps=5 rows=10 unsupported=0 failed=0
+MATRIX maps=5 rows=4 unsupported=0 blocked=4 failed=0

@@ -533,14 +533,25 @@ for MAP in "${MAPS[@]}"; do
   ORIGIN=$(grep -ao 'camera_origin=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_origin=//')
   C_PITCH=$(grep -ao 'camera_pitch=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_pitch=//')
   C_YAW=$(grep -ao 'camera_yaw=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_yaw=//')
-  # A POV sample with x=y=0 is not a usable pose: it pins the camera to the
-  # map's vertical axis, inside geometry, where every tick draws the same static
+  # A POV sample with x=y=0 is not a usable pose: it pins the camera to the map's
+  # vertical axis, inside geometry, where every tick draws the same static
   # interior (2026-11-16 cp_sunshine: camera_origin=0,0,-427 produced
-  # byte-identical tick 0 / tick 2000 frames). Treat it like "no sample" and let
-  # the orient run read the pose the product itself draws with.
+  # byte-identical tick 0 / tick 2000 frames; its registered replacement
+  # recording draws from 0,0,-359 and reproduces the same thing). Such a
+  # recording has no viewpoint, so it is recorded as BLOCKED-CAMERA with its
+  # probe readings rather than as two identical captures.
   DEGENERATE_POSE=0
-  case "$ORIGIN" in 0,0,*|0.0,0.0,*) DEGENERATE_POSE=1 ;; esac
-  if [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ] && [ "$DEGENERATE_POSE" -eq 0 ]; then
+  # 0,0,0 is "no sample" (SourceTV demos) and stays on the orient path; only a
+  # sample that names a real z but pins x=y is degenerate.
+  if [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ] && [ "$ORIGIN" != "0.0,0.0,0.0" ]; then
+    case "$ORIGIN" in 0,0,*|0.0,0.0,*) DEGENERATE_POSE=1 ;; esac
+  fi
+  CAMERA_BLOCKED=0
+  if [ "$DEGENERATE_POSE" -eq 1 ]; then
+    C_SRC=degenerate-demo-pose
+    C_EYE=$(printf '%s' "$ORIGIN" | tr ',' ' ')
+    CAMERA_BLOCKED=1
+  elif [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ]; then
     C_SRC=demo-camera-tick2000
     C_EYE=$(printf '%s' "$ORIGIN" | tr ',' ' ')
   else
@@ -563,6 +574,12 @@ for MAP in "${MAPS[@]}"; do
       failure "$MAP camera unresolved (orient rc=${O_RC:-?}, no scene: camera pose)"
     fi
   fi
+  # The orient run reads the pose the product itself draws with; if even that
+  # pose sits on the vertical axis, the recording has no usable viewpoint.
+  if [ "$C_SRC" = "product-orient-run-tick2000" ]; then
+    CAMERA_BLOCKED=$(printf '%s' "$C_EYE" | awk '{print ($1+0==0 && $2+0==0) ? 1 : 0}')
+    [ "$CAMERA_BLOCKED" -eq 1 ] && C_SRC=degenerate-demo-pose
+  fi
   {
     printf 'map=%s\n' "$MAP"
     printf 'source=%s\n' "$C_SRC"
@@ -584,6 +601,16 @@ for MAP in "${MAPS[@]}"; do
     METRICS=$SCRATCH/$MAP.tick$TICK.csv
     LOG=$DIR/run-tick$TICK.log
     : > "$TRACE"
+    if [ "$CAMERA_BLOCKED" -eq 1 ]; then
+      # No capture ran, so nothing from an earlier run may survive in the
+      # evidence files this row is read out of.
+      TICK_STATUS=BLOCKED-CAMERA
+      : > "$SCRATCH/$MAP.tick$TICK.bmp"
+      : > "$DIR/trace-tick$TICK.txt"
+      : > "$DIR/tile-tick$TICK.raw"
+      : > "$DIR/tile-tick$TICK.tsv"
+      continue
+    fi
     if [ "$C_EYE" = "NA" ]; then
       failure "$MAP tick $TICK not run: no fixed camera"
       TICK_STATUS=camera-unresolved
@@ -608,7 +635,9 @@ for MAP in "${MAPS[@]}"; do
   BMP_2000=$SCRATCH/$MAP.tick2000.bmp
   DIFF=$DIR/diff.txt
   D_PIX=NA; D_PCT=NA; D_MAX=NA; D_SHA0=NA; D_SHA2000=NA; D_IDENT=NA
-  if [ -s "$BMP_0" ] && [ -s "$BMP_2000" ]; then
+  if [ "$CAMERA_BLOCKED" -eq 1 ]; then
+    : > "$DIFF"
+  elif [ -s "$BMP_0" ] && [ -s "$BMP_2000" ]; then
     if diff_frames "$BMP_0" "$BMP_2000" "$CHANNEL_DELTA" "$DIFF"; then
       D_PIX=$(sed -n 's/^pixels_channel_gt8=//p' "$DIFF")
       D_PCT=$(sed -n 's/^percent_channel_gt8=//p' "$DIFF")
@@ -634,8 +663,10 @@ for MAP in "${MAPS[@]}"; do
     ARMED=$(readings_only "$TF_FILE" 'capture: armed ' | tail -1)
     TRACE_BYTES=$(sed -n 's/^# map=[^ ]* tick=[^ ]* trace=.* bytes=\([0-9]*\) lines=.*/\1/p' "$TF_FILE" | head -1)
     TILE_ROWS=$(grep -ac 'material=' "$DIR/tile-tick$TICK.raw" 2>/dev/null || true)
-    assert_tick "$MAP" "$TICK" "$FETCH" "$PLAN" "$ATLAS" "$ARMED" "$TILE_ROWS"
-    assert_tile_table "$MAP" "$TICK" "$DIR/tile-tick$TICK.raw" "$PLAN"
+    if [ "$CAMERA_BLOCKED" -eq 0 ]; then
+      assert_tick "$MAP" "$TICK" "$FETCH" "$PLAN" "$ATLAS" "$ARMED" "$TILE_ROWS"
+      assert_tile_table "$MAP" "$TICK" "$DIR/tile-tick$TICK.raw" "$PLAN"
+    fi
 
     if [ "$TICK" = "0" ]; then
       PRC=$RC_0
@@ -695,7 +726,7 @@ awk -F'\t' '
   {
     m=$1; t=$2; st=$3
     if (st=="UNSUPPORTED") { unsup++; seen[$1]=1; next }
-    if (st=="BLOCKED-INPUT") { blocked++; seen[$1]=1; next }
+    if (st=="BLOCKED-INPUT" || st=="BLOCKED-CAMERA") { blocked++; seen[$1]=1; next }
     rows++; seen[$1]=1
     bad=""
     if (st!="ok") bad=bad " status=" st

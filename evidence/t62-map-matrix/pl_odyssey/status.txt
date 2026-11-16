@@ -1,1 +1,2 @@
-map=pl_odyssey status=ok probe_rc=0 product_rc_tick0=0 product_rc_tick2000=0 tile_rows_0=118 tile_rows_2000=118
+map=pl_odyssey status=BLOCKED-INPUT reason=demo-not-found demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-26_23-14-06.dem
+note=pinned POV autorecord_2026-05-26_23-14-06.dem (27718172 B, 55294 ticks, header-scan.csv:131) is gone from tf/demos; a census of every recording on this host found none for pl_odyssey; BSP present

@@ -1,1 +1,2 @@
-map=koth_bagel_rc12 status=ok probe_rc=0 product_rc_tick0=0 product_rc_tick2000=0 tile_rows_0=85 tile_rows_2000=85
+map=koth_bagel_rc12 status=BLOCKED-INPUT reason=demo-not-found demo=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-05-14_21-28-01.dem
+note=pinned POV autorecord_2026-05-14_21-28-01.dem (51759919 B, 153502 ticks, header-scan.csv:10) is gone from tf/demos; a census of every recording on this host found none for koth_bagel_rc12; BSP present

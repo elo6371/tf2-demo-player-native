@@ -1,32 +1,44 @@
-ACQUIRED owner=t62-map at 2026-11-06 14:43:34
-{"reading":"map.distinctMaterials","value":"169"}
-{"reading":"map.triangles","value":"81943"}
-{"reading":"map.vpkEntries","value":"149970"}
-{"reading":"map.vmtResolved","value":"107"}
-{"reading":"map.vmtMissing","value":"2"}
-{"reading":"map.vmtNoBase","value":"61"}
-{"reading":"map.vtfResolved","value":"106"}
+ACQUIRED owner=t62-map at 2026-11-16 19:09:04
+{"reading":"map.distinctMaterials","value":"170"}
+{"reading":"map.triangles","value":"82859"}
+{"reading":"map.vpkEntries","value":"179471"}
+{"reading":"map.vmtResolved","value":"170"}
+{"reading":"map.materialsListed","value":"170"}
+{"reading":"map.stage.ok","value":"167"}
+{"reading":"map.stage.vmtAbsent","value":"0"}
+{"reading":"map.stage.readFailed","value":"0"}
+{"reading":"map.stage.vmtParse","value":"0"}
+{"reading":"map.stage.includeMissing","value":"0"}
+{"reading":"map.stage.noBasetexture","value":"0"}
+{"reading":"map.stage.water","value":"3"}
+{"reading":"map.stage.vtfAbsent","value":"0"}
+{"reading":"map.stage.vtfParse","value":"0"}
+{"reading":"map.stage.closure","value":"1"}
+{"reading":"map.vmtMissing","value":"0"}
+{"reading":"map.vmtNoBase","value":"0"}
+{"reading":"map.vmtWater","value":"3"}
+{"reading":"map.vtfResolved","value":"167"}
 {"reading":"map.vtfMissing","value":"0"}
-{"reading":"plan.tiled","value":"106"}
+{"reading":"plan.tiled","value":"167"}
 {"reading":"plan.refused","value":"0"}
-{"reading":"plan.batches","value":"2"}
+{"reading":"plan.batches","value":"3"}
 {"reading":"plan.refusedMalformed","value":"0"}
 {"reading":"plan.refusedDuplicate","value":"0"}
 {"reading":"plan.refusedBudget","value":"0"}
-{"reading":"plan.albedoMiB","value":"106"}
-{"reading":"plan.reason","value":"106 of 106 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=106+0+0+0+0 MiB"}
-{"reading":"plan.beyondOldCap","value":"42"}
-{"reading":"feature.summary","value":"materials=169 bumpmap=38(visible 0, resolved 38, missing 0, distinct 21) bumpmap2=0(visible 0) ssbump=20(visible 0) detail=48(visible 0, resolved 0, types 2)"}
-{"reading":"feature.bumpmap.declared","value":"38"}
-{"reading":"feature.bumpmap.resolved","value":"38"}
+{"reading":"plan.albedoMiB","value":"171"}
+{"reading":"plan.reason","value":"167 of 167 materials tiled in 3 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=171+0+0+0+0 MiB"}
+{"reading":"plan.beyondOldCap","value":"103"}
+{"reading":"feature.summary","value":"materials=170 bumpmap=50(visible 0, resolved 50, missing 0, distinct 23) bumpmap2=0(visible 0) ssbump=20(visible 0) detail=56(visible 0, resolved 0, types 2)"}
+{"reading":"feature.bumpmap.declared","value":"50"}
+{"reading":"feature.bumpmap.resolved","value":"50"}
 {"reading":"feature.bumpmap.missing","value":"0"}
-{"reading":"feature.bumpmap.distinct","value":"21"}
-{"reading":"feature.bumpmap.reason","value":"the materials name 21 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 18 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 20 that do stay refused (see the $ssbump row)"}
+{"reading":"feature.bumpmap.distinct","value":"23"}
+{"reading":"feature.bumpmap.reason","value":"the materials name 23 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 30 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 20 that do stay refused (see the $ssbump row)"}
 {"reading":"feature.bumpmap2.declared","value":"0"}
 {"reading":"feature.bumpmap2.reason","value":""}
 {"reading":"feature.ssbump.declared","value":"20"}
 {"reading":"feature.ssbump.reason","value":"$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on"}
-{"reading":"feature.detail.declared","value":"48"}
+{"reading":"feature.detail.declared","value":"56"}
 {"reading":"feature.detail.resolved","value":"0"}
 {"reading":"feature.detail.types","value":"2"}
 {"reading":"feature.detail.firstType","value":"tf_forest_grass_lowdensity"}

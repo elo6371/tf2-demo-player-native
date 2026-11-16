@@ -1,32 +1,44 @@
-ACQUIRED owner=t62-map at 2026-11-06 14:38:28
+ACQUIRED owner=t62-map at 2026-11-16 18:57:34
 {"reading":"map.distinctMaterials","value":"148"}
 {"reading":"map.triangles","value":"200000"}
-{"reading":"map.vpkEntries","value":"149970"}
-{"reading":"map.vmtResolved","value":"114"}
-{"reading":"map.vmtMissing","value":"4"}
-{"reading":"map.vmtNoBase","value":"31"}
-{"reading":"map.vtfResolved","value":"112"}
-{"reading":"map.vtfMissing","value":"1"}
-{"reading":"plan.tiled","value":"112"}
+{"reading":"map.vpkEntries","value":"179471"}
+{"reading":"map.vmtResolved","value":"148"}
+{"reading":"map.materialsListed","value":"148"}
+{"reading":"map.stage.ok","value":"144"}
+{"reading":"map.stage.vmtAbsent","value":"0"}
+{"reading":"map.stage.readFailed","value":"0"}
+{"reading":"map.stage.vmtParse","value":"0"}
+{"reading":"map.stage.includeMissing","value":"0"}
+{"reading":"map.stage.noBasetexture","value":"0"}
+{"reading":"map.stage.water","value":"4"}
+{"reading":"map.stage.vtfAbsent","value":"0"}
+{"reading":"map.stage.vtfParse","value":"0"}
+{"reading":"map.stage.closure","value":"1"}
+{"reading":"map.vmtMissing","value":"0"}
+{"reading":"map.vmtNoBase","value":"0"}
+{"reading":"map.vmtWater","value":"4"}
+{"reading":"map.vtfResolved","value":"144"}
+{"reading":"map.vtfMissing","value":"0"}
+{"reading":"plan.tiled","value":"144"}
 {"reading":"plan.refused","value":"0"}
-{"reading":"plan.batches","value":"2"}
+{"reading":"plan.batches","value":"3"}
 {"reading":"plan.refusedMalformed","value":"0"}
 {"reading":"plan.refusedDuplicate","value":"0"}
 {"reading":"plan.refusedBudget","value":"0"}
-{"reading":"plan.albedoMiB","value":"113"}
-{"reading":"plan.reason","value":"112 of 112 materials tiled in 2 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=113+0+0+0+0 MiB"}
-{"reading":"plan.beyondOldCap","value":"48"}
-{"reading":"feature.summary","value":"materials=148 bumpmap=50(visible 0, resolved 50, missing 0, distinct 28) bumpmap2=1(visible 0) ssbump=41(visible 0) detail=51(visible 0, resolved 0, types 1)"}
-{"reading":"feature.bumpmap.declared","value":"50"}
-{"reading":"feature.bumpmap.resolved","value":"50"}
+{"reading":"plan.albedoMiB","value":"145"}
+{"reading":"plan.reason","value":"144 of 144 materials tiled in 3 batch(es); refused=0 (malformed=0, duplicate=0, budget=0); layers=145+0+0+0+0 MiB"}
+{"reading":"plan.beyondOldCap","value":"80"}
+{"reading":"feature.summary","value":"materials=148 bumpmap=57(visible 0, resolved 57, missing 0, distinct 31) bumpmap2=1(visible 0) ssbump=41(visible 0) detail=53(visible 0, resolved 0, types 1)"}
+{"reading":"feature.bumpmap.declared","value":"57"}
+{"reading":"feature.bumpmap.resolved","value":"57"}
 {"reading":"feature.bumpmap.missing","value":"0"}
-{"reading":"feature.bumpmap.distinct","value":"28"}
-{"reading":"feature.bumpmap.reason","value":"the materials name 28 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 9 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 41 that do stay refused (see the $ssbump row)"}
+{"reading":"feature.bumpmap.distinct","value":"31"}
+{"reading":"feature.bumpmap.reason","value":"the materials name 31 distinct $bumpmap textures, so the one sampler slot the pass started with cannot apply each material's own; per-material binding is the --world-material-bump switch, and with it on the 16 that do not set $ssbump sample their own tile through a texinfo-axis tangent basis while the 41 that do stay refused (see the $ssbump row)"}
 {"reading":"feature.bumpmap2.declared","value":"1"}
 {"reading":"feature.bumpmap2.reason","value":"$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's; 1/1 of those materials also declare $ssbump, so their second-layer texel is a bumpBasis weight and stays refused even with both switches on (--world-bump2-texture measures the layer with a diagnostic normal map instead)"}
 {"reading":"feature.ssbump.declared","value":"41"}
 {"reading":"feature.ssbump.reason","value":"$ssbump selects `BUMPMAP == 2`, where the texel is not a signed normal but three bumpBasis weights against three lightmap directions; this pass samples one lightmap and one tangent-space normal, so these materials are refused by name even when --world-material-bump is on"}
-{"reading":"feature.detail.declared","value":"51"}
+{"reading":"feature.detail.declared","value":"53"}
 {"reading":"feature.detail.resolved","value":"0"}
 {"reading":"feature.detail.types","value":"1"}
 {"reading":"feature.detail.firstType","value":"tf_forest_grass"}
