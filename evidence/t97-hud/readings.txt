@@ -1,16 +1,17 @@
 exe=native/build-nmake/tf2_demo_native.exe
-exe_sha256=36d8a15ecdae43a772e0818216dab6c8b44470992798d48d5513c25d7231cbcc
-gate_sha256=18ea81655832a27f79cbe53fa3d4c3885a4fab2da1749324ef36a0be169b6d34
+exe_sha256=d6f6cdbe4b03be804ec59bd1bcc7b70fd5e33a3d68ee31554d51fa2d028bb3c1
+gate_sha256=340cd1409cb4964445481e0de12222254da05ac84c42858dc9da6cf54cf2cf5c
 demo_sha256=308cc1453672b26dfdcc106bcb62eac4a7eea97899adc8830f51711be834607f
 tick=0 advance_tick=9000
 reading1=TIME 10:00 PAUSED
 reading2=RED ?  BLU ?
-reading3=NAME ?  HP 1  ?  ?
-source=round-timer glyphs=47 region=24,24,288,60
+reading3=NAME canis canis familiaris  HP 1  ?  ?
+source=round-timer glyphs=68 region=24,24,744,60
 publishes=1
-advance_text1=TIME 4:00 advance_updates=2 advance_skips=1054 advance_source=round-timer
-name=unavailable reason=no-userinfo
-resized_region=24,24,288,60
-pixels: outside=0 inside=3504 glyphBad=0
+advance_text1=TIME 4:00 advance_updates=4 advance_skips=943 advance_source=round-timer
+name=canis_canis_familiaris nameReason=ok nameTick=10320 nameBaseTick=1
+nameEntity=2 nameSlot=1 nameRawHex=63616e69732063616e69732066616d696c6961726973 name_skipped_controls=1
+resized_region=24,24,624,60
+pixels: outside=0 inside=4928 glyphBad=0
 hud_off: quads=0 primitives=0 drawn=0 rects=0
 mode=forced suppress_reason=evidence-run suppress_enabled_lines=0 suppress_frame=identical
