@@ -83,6 +83,9 @@ void hudApplyRects(HWND window);
 // the two documented switches. Passed in rather than read from the command line a
 // second time: a substring search for "--hud-off" also matches a path operand that
 // happens to contain it, and an unregistered flag is invisible to --strict-args.
+// mapName: the demo's own map (DemoHeader::mapName), which is what selects the
+// overview panel's base image and bounds row -- the panel and the demo cannot
+// disagree about which map is being watched.
 // relayEntity: the entity the spectate relay is watching this frame
 // (SpectateDirector::targetIndex(), -1 when it has no answer), and relayValid
 // (focusValid()). T126: the readout's name is the watched player's, and these
@@ -90,6 +93,7 @@ void hudApplyRects(HWND window);
 // pair is passed even when invalid so the fallback to the demo's view entity is
 // a reading the trace can publish, not a rescue a reader has to infer.
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
+  const std::string& mapName,
   const tf2::native::main_internal::PlaybackState& playback,
   const tf2::native::PlaybackHudState& target,
   const std::vector<tf2::native::EntityState>& states,

@@ -44,6 +44,8 @@
 #include "playback_control.h"
 #include "hud_import.h"
 #include "hud_state.h"
+#include "map_basemap.h"
+#include "map_overview.h"
 #include "hud_panel.h"
 // wideToUtf8 / utf8ToWide: the narrow/wide bridge the HUD document path needs,
 // shared with T50's settings layer rather than re-implemented here.
@@ -2308,17 +2310,46 @@ void registerKeybinds(const std::filesystem::path& settingsFile) {
   g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("H"));
   g_keybinds.registerDefault("hud.preview", tf2::native::parseChord("Ctrl+P"));
   g_keybinds.registerDefault("hud.reset", tf2::native::parseChord("Ctrl+Shift+H"));
+  // E11: the map-overview show/hide. 2026-11-17 用户拍板：小地图占 M，静音让位。
+  // (The first choice for mute was F9 per the lead's earlier note, but F9 is the
+  // camera free-fly default -- keybinds.cpp:399 -- and camera-ui-check pins it;
+  // the ranked fallback table then picked Ctrl+M. F9 was never touched.)
+  // Bare M now reaches this table and the dispatch above returns before the mute
+  // branch, so one press cannot do both: this line is the only owner of bare M.
+  g_keybinds.registerDefault("hud.overview", tf2::native::parseChord("M"));
   // The user's file is applied ON TOP of the defaults, so an action absent from it
   // keeps its default and an action present with an empty value is unbound.
   if (!settingsFile.empty()) g_keybinds.loadFromSettings(settingsFile);
   g_keybindsLoaded = true;
   // The reading the gate asserts: the three actions exist, are bound, and their
   // canonical text is what the contract says.
-  for (const char* action : {"hud.toggle", "hud.preview", "hud.reset"}) {
+  for (const char* action : {"hud.toggle", "hud.preview", "hud.reset", "hud.overview"}) {
     const auto chord = g_keybinds.actionKey(action);
     traceFmt("hud: keys action=%s chord=%s bound=%d", action,
       tf2::native::formatChord(chord).c_str(), chord.bound() ? 1 : 0);
   }
+  // The permanent reading of the 2026-11-17 key decision. It is a trace line and
+  // not a help panel on purpose: the product has no user-visible key help for
+  // these actions, and inventing one here would ship a text nobody asked for.
+  traceFmt("hud: keys minimap=M mute=ctrl+m (mute moved off M 2026-11-17 by user)");
+  // Why ctrl+m and not a lone key, as a reading rather than a comment only: the
+  // lead's ranked table was walked in order and the first free entry won. Repo
+  // search covered native/, tools, *.sh and docs (keys are also written as
+  // parseChord("...") strings, which is how F9 was missed the first time):
+  //   ctrl+m    chosen -- no reference anywhere before this change
+  //   F9        camera.freeFly, keybinds.cpp:399; camera-ui-check pins it
+  //   VK_OEM_5  free
+  //   VK_PAUSE  free
+  //   VK_INSERT name table only (keybinds.cpp:35), never bound
+  //   VK_HOME   playback arm in this file (main.cpp:2570)
+  //   VK_END    playback arm in this file (main.cpp:2581)
+  //   VK_PRIOR  name table only (keybinds.cpp:37), never bound
+  //   VK_NEXT   name table only (keybinds.cpp:37), never bound
+  //   VK_DELETE reserved for the N16 splitview contract
+  //             (docs/N16-SPLITVIEW-CONTRACT-2026-11-16.md:303), unbound on purpose
+  traceFmt("hud: keys mute-candidates ctrl+m=chosen f9=camera.freeFly oem5=free "
+      "pause=free insert=unused home=playback end=playback prior=unused next=unused "
+      "delete=reserved-n16");
 }
 
 
@@ -2638,7 +2669,10 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // while a key is held, which otherwise flips state several times. 'P' is
     // in this list for the same reason: a held P would flip pause every repeat,
     // and AUD-03 adds 'M' for the same reason: a held M would toggle mute on
-    // every repeat instead of once per press.
+    // every repeat instead of once per press. Since 2026-11-17 'M' covers both
+    // halves of the split -- bare M is the map overview, Ctrl+M is the mute -- and
+    // both are toggles, so one filter entry still covers them: the filter is
+    // about repeats, not about which chord the key was part of.
     if ((lParam & (1u << 30)) != 0u
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == 'M'
             || wParam == VK_HOME || wParam == VK_END || wParam == VK_F12
@@ -2676,6 +2710,10 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             g_hud.setEnabled(g_hud.settings().preview);
           } else if (action == "hud.reset") {
             hudResetToDefault(window);
+          } else if (action == "hud.overview") {
+            tf2::native::mapOverviewToggle();
+            traceFmt("overview: toggle open=%d source=key",
+              tf2::native::mapOverviewOpen() ? 1 : 0);
           }
           // One place applies the consequence, so four branches cannot each pick
           // a different subset of "redraw, update the status line, publish".
@@ -2723,8 +2761,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         return 0;
       }
       // Not a bound action: fall through to the playback keys below, which are
-      // transport rather than feature bindings.
-      if (control || alt) return 0;
+      // transport rather than feature bindings. Ctrl+M is the one chord that
+      // must survive this: since 2026-11-17 the mute lives on Ctrl+M (bare M is
+      // the map overview), and the mute arm is BELOW this block, so a blanket
+      // control/alt return here would swallow the chord before it ever saw it.
+      const bool muteChord = control && !alt && wParam == 'M';
+      if ((control || alt) && !muteChord) return 0;
     }
     if (wParam == VK_HOME) {
       if (g_renderer) g_renderer->resetCamera();
@@ -2763,19 +2805,29 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       request.fromKeyboard = true;
       request.textFieldFocused = g_textFieldFocused;
       applyPlaybackRequest(request);
-    } else if (wParam == 'M' || wParam == VK_OEM_4 || wParam == VK_OEM_6) {
+    } else if (wParam == VK_OEM_4 || wParam == VK_OEM_6
+        || (wParam == 'M' && (GetKeyState(VK_CONTROL) & 0x8000) != 0)) {
       // AUD-03: the master volume and the mute toggle, on keys rather than on new
       // buttons -- planUiLayout's rectangles are pinned by camera-ui-check and by
       // the camera/UI contract, and the volume field already exists in ui.ini.
       // Mute is edge-triggered (the repeat filter above); the volume keys are
       // not, so holding one steps in 10-point increments.
+      //
+      // 2026-11-17 user decision: bare M is the map overview's toggle
+      // (hud.overview, dispatched above), so the mute moved to Ctrl+M. The
+      // modifier is read from GetKeyState because WM_KEYDOWN does not carry it --
+      // the idiom hudActionForKey (main_hud.cpp:129-138) and the camera dispatch
+      // (main.cpp:2549-2551) already use. Bare M cannot reach this arm: the hud
+      // table claims it first and returns, so this guard is the second,
+      // independent reason the two toggles can never fire together.
+      const bool muteKey = wParam == 'M';
       if (g_nativeUi) {
-        if (wParam != 'M' && g_nativeUi->muted()) {
+        if (!muteKey && g_nativeUi->muted()) {
           // A volume key while muted would step a number nobody can hear. The key
           // means "I want to hear it", so it unmutes first and then steps.
           g_nativeUi->toggleMute();
         }
-        if (wParam == 'M') {
+        if (muteKey) {
           g_nativeUi->toggleMute();
         } else {
           int percent = static_cast<int>(g_nativeUi->volume() * 100.0f + 0.5f)
@@ -2789,7 +2841,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         g_nativeUi->saveSettings();
         traceFmt("audio: master volume=%.2f muted=%d source=%s",
             static_cast<double>(g_nativeUi->volume()), g_nativeUi->muted() ? 1 : 0,
-            wParam == 'M' ? "key-m" : (wParam == VK_OEM_6 ? "key-volume-up" : "key-volume-down"));
+            muteKey ? "key-ctrl-m" : (wParam == VK_OEM_6 ? "key-volume-up" : "key-volume-down"));
       }
     } else if (wParam == 'R' && g_playback.enabled) {
       if (!g_playback.reverse && g_playback.tick == 0) {
@@ -3901,6 +3953,43 @@ bool outlineVertexExtent = false;
         // suppresses it by default so that twenty-odd pixel gates keep measuring
         // what they were written to measure; this flag is how a gate asks for it.
         hudLiveCli = true;
+        return true;
+      } else if (wcscmp(arguments[i], L"--overview-open") == 0) {
+        // E11: the map-overview screen, on from launch. The hotkey is the
+        // interactive door; this one is the door every gate uses, because a gate
+        // must not depend on a WM_KEYDOWN reaching the window it captured.
+        tf2::native::mapOverviewSetOpen(true);
+        return true;
+      } else if (wcscmp(arguments[i], L"--overview-root") == 0 && i + 1 < argumentCount) {
+        // The demos.tf basemap package (images/*.png + boundaries.json). Defaults
+        // to the checkout's E:/demo测试/demos_tf_maps, but a build server or a
+        // different machine passes its own root; the panel names the reason when
+        // a map or file is missing instead of drawing a guessed rectangle.
+        std::string overviewRoot;
+        if (!tf2::native::wideToUtf8(arguments[++i], overviewRoot) || overviewRoot.empty()) {
+          std::fprintf(stderr, "--overview-root: bad path\n");
+          std::fflush(stderr);
+          return false;
+        }
+        tf2::native::basemapSetRoot(overviewRoot);
+        return true;
+      } else if (wcscmp(arguments[i], L"--overview-image") == 0 && i + 1 < argumentCount) {
+        // The single base-image override (a PNG from the package, or any WIC-
+        // decodable file). With no override the path is <overview-root>/images/
+        // <resolved key>.png, so the shipped package drops in with no code change.
+        std::string overviewImage;
+        if (!tf2::native::wideToUtf8(arguments[++i], overviewImage) || overviewImage.empty()) {
+          std::fprintf(stderr, "--overview-image: bad path\n");
+          std::fflush(stderr);
+          return false;
+        }
+        tf2::native::mapOverviewSetImageOverride(overviewImage);
+        tf2::native::mapOverviewSetOpen(true);
+        return true;
+      } else if (wcscmp(arguments[i], L"--overview-hide") == 0 && i + 1 < argumentCount) {
+        // Negative-control hook: remove one entity from the screen so the gate can
+        // prove a removal removes exactly one icon and exactly one row.
+        tf2::native::mapOverviewSetHiddenEntity(_wtoi(arguments[++i]));
         return true;
       } else if (wcscmp(arguments[i], L"--hud-minimap") == 0) {
         // E9: draw the minimap panel beside the readout. Separate from --hud-live
@@ -5022,6 +5111,9 @@ bool outlineVertexExtent = false;
     assets.tfDirectory.empty() ? "-" : assets.tfDirectory.string().c_str(),
     assets.valid() ? 1 : 0);
   nativeUi.setTfRoot(assets.valid() ? assets.tfDirectory : persistent.tfRoot);
+  // E11: the class-icon chain reads materials out of this same install.
+  tf2::native::mapOverviewSetTfRoot(assets.valid() ? assets.tfDirectory.string()
+    : persistent.tfRoot.string());
   std::string cacheStatus;
   const auto cacheDirectory = localCacheDirectory(cacheStatus);
   std::string hashStatus = commandDemo.empty() ? "missing" : "failed";
@@ -15036,6 +15128,7 @@ bool outlineVertexExtent = false;
       tf2::native::minimapHudSetFrame(minimapFrame);
     }
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
+      demoHeader.mapName,
       g_playback, hudState, currentEntityStates, demoNetworkSummary,
       g_spectateDirector.targetIndex(), g_spectateDirector.focusValid());
     writeMetrics(now, false);

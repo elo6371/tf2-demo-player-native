@@ -922,6 +922,113 @@ bool Renderer::uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, 
   return true;
 }
 
+// T68: the HUD's one sampled image (the basemap). Created once and then *updated
+// in place* when the size matches: recreating the texture on every upload churned
+// device objects, and the failure path is the reason everything is created before
+// anything is replaced -- a rejected upload must leave the previous texture, the
+// previous tag and the bound SRV exactly as they were.
+bool Renderer::setHudImageTexture(UINT width, UINT height, const std::uint8_t* rgba,
+    const std::string& tag, std::string* error) {
+  if (!device_) { if (error) *error = "no-device"; return false; }
+  if (!rgba || width == 0 || height == 0) { if (error) *error = "empty"; return false; }
+  if (width > 16384 || height > 16384) { if (error) *error = "too-large"; return false; }
+  if (hudImageTexture_ && hudImageWidth_ == width && hudImageHeight_ == height) {
+    // Stride width*4 with no padding: the source is the decoder's straight RGBA
+    // run, and a padded stride would shear the image by one texel per row.
+    context_->UpdateSubresource(hudImageTexture_.Get(), 0, nullptr, rgba, width * 4, 0);
+    // The texture carries a generated mip chain (see the create path), so the
+    // new base level must rebuild it or the 250 px panel would sample a stale
+    // high-mip average from the previous image.
+    if (hudImageView_) context_->GenerateMips(hudImageView_.Get());
+    hudImageTag_ = tag;
+    if (error) *error = "ok";
+    return true;
+  }
+  D3D11_TEXTURE2D_DESC description{};
+  description.Width = width;
+  description.Height = height;
+  // MipLevels = 0 + GENERATE_MIPS: the basemap is up to 2099 px and lands in a
+  // 250 px panel, so MIN_MAG_MIP_LINEAR needs real mips to avoid the moire a
+  // point/min-mag-only sample produces. This is the "not a nearest-neighbour
+  // mosaic" part of the contract; hudImageSamplerMode() publishes it.
+  description.MipLevels = 0;
+  description.ArraySize = 1;
+  description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  description.SampleDesc.Count = 1;
+  description.Usage = D3D11_USAGE_DEFAULT;
+  description.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+  description.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+  if (FAILED(device_->CreateTexture2D(&description, nullptr, texture.GetAddressOf()))) {
+    if (error) *error = "create-texture";
+    return false;
+  }
+  // A mip-mapped texture cannot take its base level through the creation call
+  // when the desc says 'all mips' on this feature level, so upload level 0 and
+  // let the runtime derive the rest.
+  context_->UpdateSubresource(texture.Get(), 0, nullptr, rgba, width * 4, 0);
+  UINT mipLevels = 1;
+  for (UINT size = width > height ? width : height; size > 1; size >>= 1) ++mipLevels;
+  D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
+  viewDescription.Format = description.Format;
+  viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+  viewDescription.Texture2D.MipLevels = static_cast<UINT>(-1);
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
+  if (FAILED(device_->CreateShaderResourceView(texture.Get(), &viewDescription, view.GetAddressOf()))) {
+    if (error) *error = "create-view";
+    return false;
+  }
+  if (!hudImageSampler_) {
+    // Linear: the basemap is rendered larger than the panel it lands in, and a
+    // point-sampled 1835x1103 map squeezed into 250 px aliases into noise. Clamp:
+    // the quad's uvs are a crop, so wrap addressing would drag the opposite edge
+    // into the visible edge.
+    D3D11_SAMPLER_DESC samplerDescription{};
+    samplerDescription.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    samplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
+    if (FAILED(device_->CreateSamplerState(&samplerDescription, hudImageSampler_.GetAddressOf()))) {
+      if (error) *error = "create-sampler";
+      return false;
+    }
+  }
+  context_->GenerateMips(view.Get());
+  hudImageTexture_ = texture;
+  hudImageView_ = view;
+  hudImageWidth_ = width;
+  hudImageHeight_ = height;
+  hudImageMipLevels_ = mipLevels;
+  hudImageTag_ = tag;
+  if (error) *error = "ok";
+  return true;
+}
+
+void Renderer::clearHudImageTexture() {
+  // Unbind before releasing: the pass leaves the view in slot 1, and binding a
+  // released view is an immediate-context error the next draw would inherit.
+  if (context_) {
+    ID3D11ShaderResourceView* none = nullptr;
+    context_->PSSetShaderResources(1, 1, &none);
+  }
+  hudImageView_.Reset();
+  hudImageTexture_.Reset();
+  hudImageWidth_ = 0;
+  hudImageHeight_ = 0;
+  hudImageMipLevels_ = 0;
+  hudImageTag_.clear();
+}
+
+std::string Renderer::hudImageTextureFormat() const {
+  return hudImageView_ ? "DXGI_FORMAT_R8G8B8A8_UNORM" : "none";
+}
+
+std::string Renderer::hudImageSamplerMode() const {
+  if (!hudImageSampler_) return "none";
+  return "linear-mip";
+}
 
 void Renderer::resize(UINT width, UINT height) {
   if (!swapChain_ || width == 0 || height == 0 || (width == width_ && height == height_)) return;

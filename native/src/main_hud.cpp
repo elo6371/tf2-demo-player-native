@@ -28,6 +28,7 @@
 #include "keybinds.h"
 #include "minimap.h"
 #include "minimap_linework.h"
+#include "map_overview.h"
 #include "main_internal.h"
 #include "native_renderer.h"
 #include "native_ui.h"
@@ -1276,6 +1277,7 @@ FollowNameInfo hudFollowResolveName(const DemoNetworkSummary& summary,
 //
 // --hud-text-test outranks all three: the T67 probe owns the primitive list.
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
+    const std::string& mapName,
     const tf2::native::main_internal::PlaybackState& playback,
     const tf2::native::PlaybackHudState& target,
     const std::vector<tf2::native::EntityState>& states,
@@ -1293,7 +1295,12 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // something": a capture run has exactly one sampled frame, so a readout that was
   // painted on frame N-1 and cleared on frame N would still leave nothing on the
   // frame under comparison -- but only by accident. Here it is never painted.
-  const bool suppressed = hudOff || (!hudLive && evidenceRun);
+  // An explicit --overview-open is a request for pixels on the same footing as
+  // --hud-live: the map panel is the thing such a run exists to photograph, so
+  // suppressing it would leave an evidence run with a blank screen. Every other
+  // evidence run keeps the mode rule above. The readout rides along on these
+  // runs, which is why only the overview gate passes the flag.
+  const bool suppressed = hudOff || (evidenceRun && !hudLive && !tf2::native::mapOverviewOpen());
   if (suppressed) {
     if (!g_hudLiveOffReported) {
       g_hudLiveOffReported = true;
@@ -1372,7 +1379,20 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // E9: the panel is composed from the same frame as the text, after the
   // suppression branch above -- a suppressed run never publishes a minimap
   // reading that a gate could mistake for pixels the frame does not have.
-  const HudMinimapDraw minimap = hudMinimapCompose(window);
+  // E11: the 250px map-overview panel supersedes the 160px panel while it is open,
+  // so only one of the two ever contributes shapes. Composing the old panel and
+  // then dropping its shapes would still cost the linework build every frame.
+  const bool overviewOpen = tf2::native::mapOverviewOpen();
+  HudMinimapDraw minimap;
+  if (!overviewOpen) minimap = hudMinimapCompose(window);
+  tf2::native::OverviewDraw overview;
+  if (overviewOpen) {
+    const tf2::native::OverviewInput overviewInput = tf2::native::mapOverviewBuildInput(
+      states, summary, mapName, 0, 0, playback.tick, playback.tickRate);
+    // g_renderer is the device the basemap texture uploads into; the compose
+    // call is the only place that knows both the panel and the GPU.
+    overview = tf2::native::mapOverviewCompose(window, overviewInput, g_renderer);
+  }
   std::string key = text.time;
   key += '\n';
   key += text.score;
@@ -1387,6 +1407,10 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   if (!minimap.signature.empty()) {
     key += '\n';
     key += minimap.signature;
+  }
+  if (!overview.signature.empty()) {
+    key += '\n';
+    key += overview.signature;
   }
   if (key == g_hudLiveLastKey) {
     ++g_hudLiveSkips;
@@ -1429,6 +1453,8 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // resize keeps the panel without either module knowing about the other.
   primitives.insert(primitives.end(), minimap.primitives.begin(),
     minimap.primitives.end());
+  primitives.insert(primitives.end(), overview.primitives.begin(),
+    overview.primitives.end());
   g_hudLivePrimitives = primitives;
   g_renderer->setHudPrimitives(primitives);
   g_hudLiveActive = true;
@@ -1455,6 +1481,7 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // stays the last line of a publish and a reader who greps for it is not skipped
   // over the panel.
   hudMinimapTrace(minimap);
+  if (overview.open) tf2::native::mapOverviewTrace(overview);
   traceFmt("hud: live tick=%d enabled=1 mode=%s source=%s"
     " text1=\"%s\" text2=\"%s\" text3=\"%s\""
     " glyphs=%zu region=%d,%d,%d,%d updates=%zu skips=%zu name=%s"
