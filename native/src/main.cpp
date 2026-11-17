@@ -3508,6 +3508,22 @@ bool outlineVertexExtent = false;
   // sky" without guessing from a colour.
   enum class WorldGeometryFilter { All, Terrain, Sky, None };
   WorldGeometryFilter worldGeometry = WorldGeometryFilter::All;
+  // Diagnostic (W-1 step 2): parse with the displacement reversal disabled.
+  // Scanned before the argument chain so that chain's nesting depth is unchanged
+  // (adding one more else-if there hits C1061 on this compiler).
+  bool worldKeepMapWinding = false;
+  for (int keepWindingArg = 1; keepWindingArg < argumentCount; ++keepWindingArg)
+    if (wcscmp(arguments[keepWindingArg], L"--world-keep-map-winding") == 0) worldKeepMapWinding = true;
+  // M4 gate: brush-model classes to draw for one run, on top of the static whitelist.
+  // Scanned before the argument chain for the same C1061 reason as the flag above.
+  std::vector<std::string> worldExtraStaticClasses;
+  for (int allowClassArg = 1; allowClassArg + 1 < argumentCount; ++allowClassArg) {
+    if (wcscmp(arguments[allowClassArg], L"--world-allow-class") != 0) continue;
+    std::string className;
+    for (const wchar_t* ch = arguments[allowClassArg + 1]; *ch != 0 && *ch < 128; ++ch)
+      className.push_back(static_cast<char>(*ch));
+    if (!className.empty()) worldExtraStaticClasses.push_back(className);
+  }
   bool worldIsolationRequested = false;
   long isolatedTriangle = -1;
   int invalidWorldGeometryArgument = 0;
@@ -6048,7 +6064,8 @@ bool outlineVertexExtent = false;
     // buffer. It is a capacity, not an aspiration: if a map ever exceeds it, the
     // `map: geometry budget` trace line says so with numbers.
     constexpr std::size_t kWorldTriangleCapacity = 400000;
-    tf2::native::BspParser::parse(mapBytes, displayMap, kWorldTriangleCapacity);
+    tf2::native::BspParser::parse(mapBytes, displayMap, kWorldTriangleCapacity, 4096,
+      worldKeepMapWinding, worldExtraStaticClasses);
     // T88: the budget as a reading, on the map-load path, so every run -- a
     // probe, a normal window, a --capture-frame -- carries it. state=within with
     // requested <= capacity is the pass; state=truncated names the first face
@@ -6060,6 +6077,11 @@ bool outlineVertexExtent = false;
       displayMap.brushModelsDroppedByBudget, static_cast<int>(displayMap.firstDroppedFace),
       displayMap.firstDroppedBrushModel.empty() ? "-" : displayMap.firstDroppedBrushModel.c_str(),
       displayMap.trianglesDropped > 0 ? "truncated" : "within");
+    // W-1 step 2 diagnostic: the reversal rule as a reading, so an A/B capture can
+    // prove the flag changed the buffer instead of trusting the pixel diff.
+    traceFmt("map: geometry winding keepMapWinding=%d flipped=%zu misfaced=%zu misfacedDisplaced=%zu",
+      worldKeepMapWinding ? 1 : 0, displayMap.windingFlippedTriangles,
+      displayMap.windingMisfacedTriangles, displayMap.windingMisfacedDisplaced);
     // N14/U3a: the minimap's basemap, sampled ONCE here, where the parsed map still
     // lives locally.
     //
@@ -10979,6 +11001,15 @@ bool outlineVertexExtent = false;
     if (!projection.valid) {
       traceFmt("gpu: world hole-trace status=unavailable reason=no-world-constants");
       return;
+    }
+    // T105: the pose this traced frame was captured at. A facing audit needs
+    // the eye that belongs to the pixels; inferring it afterwards is how W-1's
+    // "measurement artifact" verdict nearly became a bug report.
+    {
+      float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
+      if (renderer.cameraEyeMapWorld(eyeX, eyeY, eyeZ)) {
+        traceFmt("camera: capture eye=%.3f,%.3f,%.3f", eyeX, eyeY, eyeZ);
+      }
     }
     const auto drawState = renderer.worldMaterialSampleState();
     const bool cullEnabled = drawState.worldCullBackfaces;

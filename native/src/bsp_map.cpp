@@ -253,7 +253,8 @@ void writeLuxel(std::uint8_t* dest, const std::uint8_t* sample, std::uint64_t& t
 }
 
 bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
-    std::size_t triangleLimit, int atlasMaxWidth) {
+    std::size_t triangleLimit, int atlasMaxWidth, bool keepMapWinding,
+    const std::vector<std::string>& extraStaticClasses) {
   map = {}; auto fail = [&](const char* message) { map.error = message; return false; };
   if (bytes.size() < kHeaderSize || read<std::uint32_t>(bytes, 0) != 0x50534256u) return fail("BSP header is invalid");
   map.version = read<std::int32_t>(bytes, 4); map.revision = read<std::int32_t>(bytes, 8 + 64 * 16);
@@ -582,9 +583,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   // func_illusionary (probe-runs/bsp_skipped_faces.py). It was excluded only
   // because the list was written from the three classes earlier tasks had
   // needed, and a class that is missing from a whitelist fails silently.
-  const auto brushClassIsStatic = [](const std::string& name) {
-    return name == "func_brush" || name == "func_wall" || name == "func_lod"
-        || name == "func_illusionary";
+  // M4 gate: the classes named on the command line are added to the whitelist for
+  // one run (`--world-allow-class`). The default list is untouched, so a normal run
+  // parses exactly what it parsed before this flag existed.
+  const auto brushClassIsStatic = [&extraStaticClasses](const std::string& name) {
+    if (name == "func_brush" || name == "func_wall" || name == "func_lod"
+        || name == "func_illusionary") return true;
+    for (const auto& extra : extraStaticClasses) if (extra == name) return true;
+    return false;
   };
   std::vector<char> modelDrawn(modelCount, 0);
   // T88: which brush models lost a face to the triangle budget, so
@@ -1111,7 +1117,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         // side-aware outward direction, which is the cell the previous round
         // pinned as `displacedMisfaced=38614` and the cell that holds the
         // top-down view's right half.
-        if (haveFaceOutward && displacement) {
+        // Diagnostic (W-1 step 2): keepMapWinding disables the displacement
+        // reversal so a capture can ask whether the map's own grid order is the
+        // one that faces the observer. Brush triangles are never reversed by this
+        // rule, so "displacement only" and "everything" are the same scope here.
+        if (haveFaceOutward && displacement && !keepMapWinding) {
           if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
             std::swap(b, c);
             std::swap(bAlpha, cAlpha);
