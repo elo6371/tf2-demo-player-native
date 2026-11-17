@@ -5,7 +5,22 @@
 用途：交给下一位执行者的中文工作入口；配套详细交接为 `PROJECT-HANDOFF-2026-11-14.md`。
 本文件中的安排是建议执行顺序，不代表已启动任务或已向其他聊天派发任务。
 
-## 当前执行快照（2026-11-15，优先于下文旧快照）
+## 当前执行快照（2026-11-17，优先于下文旧快照）
+
+当前集成树 `work/integrate`：HEAD `71f498aa`，其父提交为报告所称功能合并tip `3ef31ab0`；报告绑定exe SHA-256 `9d8333d8…bf7e86`，两次clean build同hash为报告记载，本轮未重建复核。依据 `docs/WORLD-VISUAL-REPORT-2026-11-17-ZH.md` 与 `docs/WORLD-VISUAL-INTEGRATION-2026-11-17.md`；下面2026-11-15 candidate/e5记录均为历史，不覆盖本快照。本轮只更新文档，不改产品、不构建、不跑门禁。
+
+已接受的局部修复：天空默认开启并改在opaque world后绘制（天空门17/17）；位移网格转置修复，位移边界吻合7,502/7,855（engine oracle 7,535），之前被回退平面的13个patch恢复；实体网格二次染色修复（379,038 px mask及mutation）；未知开关exit 13及`--window-size`；地图总览/HUD 213 checks。报告称四姿态帧与位移分支逐字一致，但不能据此推导人物模型外观通过。
+
+未闭环：pr600仍报告94 px真几何被背面绕序测试剔除；14个退化位移patch仍平面回退；Odyssey几何洞门因无其专用demo pin未过，Odyssey不属于首发七图；world-material在candidate/e5基线上同样红；camera-ui/hud-live/fullscreen-quiet未在此exe重跑，verify-all未端到端跑。图 `analysis/integrated-up0.png` 的Scout外形有明显疑点，但单帧且人物贴近左侧裁切，尚不能判定是mesh、LOD、UV/材质、骨骼/权重、动画还是相机裁切；N17-VIS要求做同demo/tick/实体/相机的游戏参照对照。
+
+| 工作 | 当前判定 | 证据边界与下一步 |
+|---|---|---|
+| 集成世界修复 | **报告级局部验收** | 以报告列出的build/gate读数为依据；HEAD文档提交71f498aa的父为3ef31ab0。本轮未重新运行 |
+| Scout / N17-N18 | **视觉差异待复现；探针覆盖待审计** | 现有model-data、pose、body tint或entity tint各测不同属性，没有门禁证明玩家完整模型匹配游戏。先做同帧参考和分层读数，再修已证实层 |
+| 世界残项 | **独立OPEN** | pr600绕序剔除、14个退化位移面、world-material红分别建卡；不可通过关闭cull或重钉错误pin隐藏 |
+| 架构/验证 | **并行继续** | 审计模型probe与gate覆盖属于N25质量/效率任务；构建/主循环按既有路线推进，不因视觉诊断暂停 |
+
+## 历史执行快照（2026-11-15，仅追溯candidate/e5）
 
 当前树：`candidate/e5` @ `0974860`。本轮八个交付提交均在历史中；复核期间另有独立文档更正提交 `0974860`，只改执行计划与 Q5 证据措辞。`tools/audit-tree.sh` 已实跑 `VERDICT: OK`。工作树保留用户两份 handoff 文档、另一执行中的 `native/src/main.cpp` 与 `native/tools/demo_open_probe.cpp` 修改、未跟踪的 N05 draw 盘点草稿，以及本轮两份任务清单修改；本轮没有改动两个产品文件，也未将它们或草稿计入 N12-C/N05 验收。`.gitattributes` 当前与 HEAD 相同，行尾策略尚未落文件。
 
@@ -239,6 +254,17 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 
 验收：天际几何合成位置正确、不会盖住前景；不纳入光影匹配。
 
+### 集成分支世界残项（C + B；与首发范围分账）
+
+- [x] 集成报告接受：默认天空/opaque后sky pass、位移格点方向修复、已绘制实体白色tint、未知开关拒绝、map overview/HUD；证据和当前限制见 `docs/WORLD-VISUAL-INTEGRATION-2026-11-17.md` §3–5。
+- [ ] **W-PR600 背面绕序（首发相关）**：用报告固定的cp_process tick600与94px ROI复现`area > 0`剔除；以已知朝向的正面/背面三角形和不同屏幕Y方向做正负控，推导面绕序应结合投影/坐标手性而非简单翻符号。`--no-world-cull`只作诊断，不作为修复；修后前景正常遮挡不变且94px中可恢复部分有像素/face证据。
+- [ ] **W-DISP-14 退化位移面**：列出14个patch的map/face/disp id、退化原因和回退前后顶点；区分地图输入本身退化、浮点epsilon/采样/网格构建拒绝。对每类选最小正控与坏输入负控；仅在能按引擎语义重建时修，不以无效面积强行生成NaN网格，也不将平面fallback计为几何吻合。
+- [ ] **W-MATERIAL 基线红**：对照同一exe/输入/日志身份复现world-material差异1481→858、15039→25995、227070→216114，判断这是位移修复改变覆盖/聚类的合法更新还是产品回归；逐项核输入、cluster和面数不变量，未查清前保持红，不重钉遮盖。
+- [ ] `material.noCull`是报告列明的未支持能力；先扫描首发七图实际使用的VMT是否存在此属性并找有判别力的world-brush样本。有实际使用才实现/验收，无实际使用则登记首发影响并延后；不把它误称为上述94px孔洞根因。
+- [ ] `world-geometry-hole`的Odyssey pin不是首发验收前置；无录像保持UNVERIFIED，不换其他图冒充。N11最终只要求首发七图同候选十四格；其余gate按本exe实际改动影响补测。
+
+验收：每项修复有固定输入、证据身份、有效对照与缺陷负控；任何一项的完成不自动清除其他红项。
+
 ### N11　七图地图最终矩阵（B + C）
 
 - [ ] N05–N10 边做边填写：BSP 查找、几何、材质、alpha、prop/live、控制点、sky、dynamic brush、适用推车。
@@ -303,6 +329,11 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 
 ### N17　人物动作与服务器数据边界（E）
 
+- [ ] **N17-VIS / Scout视觉疑点**：先以 `analysis/integrated-up0.png` 为待复现帧；取得同一个`pl_upward_f12` demo/tick/玩家实体/userid/team/武器状态、相机/FOV、viewport和分辨率的TF2游戏参考。当前Scout靠近画面左边并被裁切，先判断相机/画面裁切，再判断人物本体，不能仅凭截图直接改模型。
+- [ ] 将Scout实际绘制逐层记账：MDL/VVD/VTX所选LOD、bodygroup/skin、mesh/tri/vertex与bounds；VMT/VTF/UV来源；骨架层级/权重/bind pose/该tick骨矩阵；VS最终顶点及屏幕silhouette。保证trace里的实体ID映射到参考里的同一玩家。
+- [ ] **N17-PROBE / 探测器覆盖审计**：逐项审`entity_model_probe`、`model_pose_probe`、`player-model-check.sh`、`class-pose-family-check.sh`、`player-body-appearance-check.sh`、`world-entity-tint-check.sh`的输入、断言、变异、盲区。解析成功/meshBuilt、序列可解/变化、队色mask分别不是游戏内外观等价；现有tint门的379,038px主要证明颜色路径，不证明玩家Scout轮廓、UV或骨骼正确。
+- [ ] 加同帧角色ROI验收：游戏参考与产品相机/实体配准；比较外轮廓、可见mesh/遮挡、关键材质区域和姿态。用至少一种故意错LOD/隐藏mesh、错UV或错bone映射的变异证明相应视觉断言会红，未能检出的属性必须明确标为UNTESTED；容差由重复采集和配准误差测出，不凭肉眼调宽。
+- [ ] 按观测分支定位修复：错误LOD/mesh→模型选择与绘制范围；材质/UV→资源或坐标解析；静态姿态对、动画错→骨绑定/序列/时钟；仅屏幕位置错→相机。一次改一个已证实因素，修复前后同帧A/B并保留变异负控；成功后以Scout为模板扩九职业/双队样本。
 - [ ] 九职业按 idle/run/turn/crouch/jump/fall/land/flinch/death-respawn/taunt/attack 建行，分输入事件、选序、骨骼运动、像素四层。
 - [ ] `loop=false` 夹具已修，不再重复做；扩大真实 reload 观测密度，先确定是否能观测到动作再改产品。
 - [ ] STV 缺 `m_nSequence` 等字段时明确数据边界；产品推断动画与服务器原始姿态不混称。
@@ -310,6 +341,7 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 
 ### N18　第一人称与武器全槽位（E + D）
 
+- [ ] N17 Scout第三人称视觉样本闭环后扩九职业/双队/LOD/skin/bodygroup可见模型；第一人称arms/viewmodel和武器各自验收，不能互相替代。
 - [ ] 单职业基线再扩九职业主/副/近战：model/arms/companion/material/team/sequence/骨骼父链和世界/ViewModel 投影。
 - [ ] idle/fire/reload/switch/jump 等真实可得样本；FOV、near clip、roll、蹲站眼位等先测现实现，不照外部建议盲改常数。
 - [ ] 第三人称挂接和第一人称动画分开验收；人物身体像素不代替武器像素。
