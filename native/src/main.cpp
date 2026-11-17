@@ -7125,6 +7125,10 @@ bool outlineVertexExtent = false;
                           tiledPixels, tiledWidth, tiledHeight)) {
           ++fetchDecodeEmpty; chain.reason = "downscale-failed"; continue;
         }
+        if (worldTileFillTrace) {
+          traceWorldTileFill(materialName, materialPath, texturePath, chain.vtfStore, texture,
+            textureBytes, rgba, tiledPixels, tiledWidth, tiledHeight, boxDownscale);
+        }
         chain.tileWidth = static_cast<int>(tiledWidth);
         chain.tileHeight = static_cast<int>(tiledHeight);
         chain.blend = secondDeclared;
