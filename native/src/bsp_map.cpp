@@ -1234,20 +1234,31 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           // honest degradation.
           std::vector<float> gridAlpha(static_cast<std::size_t>(size) * static_cast<std::size_t>(size), -1.0f);
           bool finite = true;
-          for (int y = 0; y < size && finite; ++y) {
-            const float fy = static_cast<float>(y) / static_cast<float>(size - 1);
-            const auto left = lerpVertex(quad[0], quad[3], fy);
-            const auto right = lerpVertex(quad[1], quad[2], fy);
-            for (int x = 0; x < size; ++x) {
-              const float fx = static_cast<float>(x) / static_cast<float>(size - 1);
-              const auto flat = lerpVertex(left, right, fx);
-              const auto vertAt = (static_cast<std::size_t>(vertStart) + static_cast<std::size_t>(y * size + x)) * 20u;
+          // T105: the grid is walked the way the engine walks it, not the way it
+          // looks laid out on paper. Source addresses the displacement vertices
+          // with k = i * size + j where +i runs points[0]->points[1] with stride
+          // size and +j runs points[0]->points[3] with stride 1; points[0] is the
+          // polygon corner nearest startPosition, which is quad[0] here. Walked
+          // the other way (k = y*size + x with the strides swapped) a patch keeps
+          // its shape but loses its orientation, and a boundary vertex the map
+          // sewed to its neighbour lands on a different lattice point -- measured
+          // on pl_upward_f12: 31 of 933 sewn pairs agreed within 0.01, against
+          // 787 for the engine's own walk (analysis/world-disp-param-seam-before.txt).
+          for (int i = 0; i < size && finite; ++i) {
+            const float fi = static_cast<float>(i) / static_cast<float>(size - 1);
+            const auto rowLeft = lerpVertex(quad[0], quad[1], fi);
+            const auto rowRight = lerpVertex(quad[3], quad[2], fi);
+            for (int j = 0; j < size; ++j) {
+              const float fj = static_cast<float>(j) / static_cast<float>(size - 1);
+              const auto flat = lerpVertex(rowLeft, rowRight, fj);
+              const auto index = static_cast<std::size_t>(i * size + j);
+              const auto vertAt = (static_cast<std::size_t>(vertStart) + index) * 20u;
               const float vx = read<float>(dispVerts, vertAt), vy = read<float>(dispVerts, vertAt + 4), vz = read<float>(dispVerts, vertAt + 8), dist = read<float>(dispVerts, vertAt + 12);
               const float alpha = read<float>(dispVerts, vertAt + 16);
               if (!std::isfinite(vx) || !std::isfinite(vy) || !std::isfinite(vz) || !std::isfinite(dist) || std::fabs(dist) > 4096.0f) { finite = false; break; }
-              grid[static_cast<std::size_t>(y * size + x)] = {flat.x + vx * dist, flat.y + vy * dist, flat.z + vz * dist};
+              grid[index] = {flat.x + vx * dist, flat.y + vy * dist, flat.z + vz * dist};
               if (std::isfinite(alpha)) {
-                gridAlpha[static_cast<std::size_t>(y * size + x)] = std::clamp(alpha, 0.0f, 1.0f);
+                gridAlpha[index] = std::clamp(alpha, 0.0f, 1.0f);
               }
             }
           }
@@ -1301,8 +1312,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               if (matched != 3) ++map.alphaPairingDetached;
             };
             for (int y = 0; y < size - 1; ++y) for (int x = 0; x < size - 1; ++x) {
-              const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gy * size + gx)]; };
-              const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gy * size + gx)]; };
+              // x is the +i axis (quad[0]->quad[1]) and y the +j axis
+              // (quad[0]->quad[3]), so the flat index is x*size + y -- the index
+              // the vertex itself was stored at.
+              const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gx * size + gy)]; };
+              const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gx * size + gy)]; };
               const auto p00 = at(x, y), p10 = at(x + 1, y), p11 = at(x + 1, y + 1), p01 = at(x, y + 1);
               if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) {
                 displacementComplete = false;
