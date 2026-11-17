@@ -164,13 +164,19 @@ section_ab() {
   assert_eq "overview map name" "$(field "$frame" map)" cp_process_f12
   assert_eq "panel side" "$(rect_w "$(field "$frame" panel)")" 250
   assert_eq "panel height" "$(rect_h "$(panel_rect "$(field "$frame" panel)")")" 250
+  # OLD PINS (until 2026-11-17): panel y == 12 and map area y == 16 -- the minimap
+  # sat pinned under the top-right corner. The clock and score now own the top of
+  # the screen, so the minimap moved to the bottom-right corner at the same 12px
+  # margin. The pins below name the corner instead of a literal y.
   assert_eq "panel x (clientW - 12 - 250)" "$(rect_x "$(field "$frame" panel)")" $(($CW - 262))
-  assert_eq "panel y" "$(rect_y "$(field "$frame" panel)")" 12
+  assert_eq "panel right margin (clientW - x - side)" $((CW - $(rect_x "$(field "$frame" panel)") - 250)) 12
+  assert_eq "panel bottom margin (clientH - y - side)" $((CH - $(rect_y "$(field "$frame" panel)") - 250)) 12
   assert_eq "border" "$(field "$frame" border)" 2
   area=$(field "$frame" area)
   assert_eq "map area x" "$(rect_x "$area")" $((CW - 262 + 4))
-  assert_eq "map area y" "$(rect_y "$area")" 16
+  assert_eq "map area y = panel y + 4" "$(rect_y "$area")" $(( $(rect_y "$(field "$frame" panel)") + 4 ))
   assert_eq "map area side" "$(rect_w "$area")" 242
+  assert_eq "the map was drawn (frame+bg primitives)" "$(field "$frame" panelPrimitives)" 2
   mm=$(minimap_line "$SCRATCH/main.trace")
   assert_ne "minimap source trace present" "$mm" ""
   assert_eq "basemap loaded" "$(field "$mm" loaded)" 1
@@ -273,7 +279,7 @@ section_ab() {
 # ---------------------------------------------------------------- section C
 section_c() {
   echo "== C. geometry at three window sizes (no-overlap, constant margin)"
-  local spec size name trace cap cw ch frame panel area red blu summ rrect rrw rrh
+  local spec size name trace cap cw ch frame panel area red blu summ rrect rrw rrh header
   for spec in "1280x720:main" "1920x1080:big" "2560x1440:wide"; do
     size=${spec%%:*}; name=${spec##*:}
     if [ "$name" = "main" ]; then
@@ -291,8 +297,13 @@ section_c() {
     assert_eq "reason at $size" "$(field "$frame" reason)" ok
     panel=$(field "$frame" panel)
     assert_eq "panel side at $size" "$(rect_w "$panel")" 250
-    assert_eq "panel y at $size" "$(rect_y "$panel")" 12
+    # OLD PINS (until 2026-11-17): panel y == 12 (top-right) and BLU y == 274
+    # (below the minimap). Those two pins encoded the 178px gap between RED and
+    # BLU that the user reported as misaligned. They are replaced by the rule the
+    # layout now follows: one shared row, one shared size, symmetric 12px margins,
+    # and a minimap in the bottom-right corner that clears both rosters.
     assert_eq "panel right margin at $size" $((cw - $(rect_x "$panel") - 250)) 12
+    assert_eq "panel bottom margin at $size" $((ch - $(rect_y "$panel") - 250)) 12
     area=$(field "$frame" area)
     assert_eq "map area side at $size" "$(rect_w "$area")" 242
     rrect=$(field "$(rect_line "$trace")" rect)
@@ -303,19 +314,32 @@ section_c() {
       assert_eq "contain rect fitted height at $size" "$rrh" 242
     fi
     red=$(field "$frame" red); blu=$(field "$frame" blu)
-    assert_eq "RED x at $size" "$(rect_x "$red")" 12
-    assert_eq "RED y below the live readout at $size" "$(rect_y "$red")" 96
+    assert_eq "RED x (left margin) at $size" "$(rect_x "$red")" 12
+    assert_eq "BLU x mirrors the margin at $size" $((cw - $(rect_x "$blu") - $(rect_w "$blu"))) 12
+    assert_eq "RED y at $size" "$(rect_y "$red")" 96
+    assert_eq "BLU y equals RED y at $size" "$(rect_y "$blu")" "$(rect_y "$red")"
+    assert_eq "RED and BLU widths match at $size" "$(rect_w "$blu")" "$(rect_w "$red")"
+    assert_eq "RED and BLU heights match at $size" "$(rect_h "$blu")" "$(rect_h "$red")"
     assert_eq "RED width at $size" "$(rect_w "$red")" 220
-    assert_eq "BLU x at $size" "$(rect_x "$blu")" $((cw - 232))
-    assert_eq "BLU y below the minimap at $size" "$(rect_y "$blu")" $((12 + 250 + 12))
+    # The minimap is drawn only when its rect clears the header and both rosters
+    # (the general no-room rule); at these three sizes it must clear them, and it
+    # must sit below the roster row plus the margin.
+    assert_ge "the map clears the rosters at $size" "$(rect_y "$panel")" $(( $(rect_y "$red") + $(rect_h "$red") + 12 ))
+    assert_eq "the map was drawn at $size (frame+bg primitives)" "$(field "$frame" panelPrimitives)" 2
+    header=$(field "$frame" header)
     assert_eq "panel/red do not intersect ($size)" \
       "$(overlaps $(rect_x "$panel") $(rect_y "$panel") 250 250 $(rect_x "$red") $(rect_y "$red") $(rect_w "$red") $(rect_h "$red"))" miss
     assert_eq "panel/blu do not intersect ($size)" \
       "$(overlaps $(rect_x "$panel") $(rect_y "$panel") 250 250 $(rect_x "$blu") $(rect_y "$blu") $(rect_w "$blu") $(rect_h "$blu"))" miss
     assert_eq "red/blu do not intersect ($size)" \
       "$(overlaps $(rect_x "$red") $(rect_y "$red") $(rect_w "$red") $(rect_h "$red") $(rect_x "$blu") $(rect_y "$blu") $(rect_w "$blu") $(rect_h "$blu"))" miss
-    assert_eq "RED below the live readout block ($size)" \
-      "$(overlaps 24 24 800 60 $(rect_x "$red") $(rect_y "$red") $(rect_w "$red") 30)" miss
+    # OLD PIN (until 2026-11-17): the rosters were checked against a hardcoded
+    # 24,24,800,60 readout box. The product now publishes its own header rect, so
+    # the check uses that and covers BOTH rosters.
+    assert_eq "the live header clears RED ($size)" \
+      "$(overlaps $(rect_x "$header") $(rect_y "$header") $(rect_w "$header") $(rect_h "$header") $(rect_x "$red") $(rect_y "$red") $(rect_w "$red") 30)" miss
+    assert_eq "the live header clears BLU ($size)" \
+      "$(overlaps $(rect_x "$header") $(rect_y "$header") $(rect_w "$header") $(rect_h "$header") $(rect_x "$blu") $(rect_y "$blu") $(rect_w "$blu") 30)" miss
     for r in panel red blu; do
       local rect
       if [ "$r" = panel ]; then rect=$(panel_rect "$panel"); else eval "rect=\$$r"; fi
@@ -326,6 +350,7 @@ section_c() {
     assert_le "BLU bottom inside frame ($size)" $(( $(rect_y "$blu") + $(rect_h "$blu") )) "$ch"
     summ=$(summary_line "$trace")
     assert_eq "rowsRed clamp formula at $size" "$(field "$summ" rowsRed)" $(( ($(rect_h "$red") - 26) / 30 ))
+    assert_eq "rowsBlu equals rowsRed at $size" "$(field "$summ" rowsBlu)" "$(field "$summ" rowsRed)"
   done
 }
 
@@ -340,11 +365,19 @@ section_d() {
   echo "== D. the smallest supported window composes; below the floor is refused"
   run_one small "$DEMO" 320x240 --hud-live --overview-open
   assert_eq "floor window exit code" "$RC_small" 0
-  local frame summ cap cw ch side exp area
+  local frame summ cap cw ch side exp area red blu
   frame=$(frame_line "$SCRATCH/small.trace")
   assert_ne "floor window still composes a frame" "$frame" ""
   assert_eq "floor window open" "$(field "$frame" open)" 1
-  assert_eq "floor window reason" "$(field "$frame" reason)" ok
+  # OLD PIN (until 2026-11-17): the floor window was expected to still draw the
+  # minimap ("reason" ok, panel side squeezed to min(250, cw-24, ch-24)). The
+  # rosters now occupy both top corners and the minimap lives in the bottom-right,
+  # where at 320x240 it cannot clear the header and the rosters. The GENERAL
+  # no-room rule drops the map there; this is not a 320x240 special case -- the
+  # same collision test runs at every size. What must survive the drop: both
+  # rosters, aligned, with rows, and no partial map primitives.
+  assert_eq "floor window reason" "$(field "$frame" reason)" no-room
+  assert_eq "floor window drops the map instead of drawing it partially" "$(field "$frame" panelPrimitives)" 0
   cap=$(capture_line "$SCRATCH/small.trace"); cw=$(field "$cap" width); ch=$(field "$cap" height)
   assert_ge "floor capture width" "$cw" 100
   side=$(rect_w "$(field "$frame" panel)")
@@ -353,9 +386,16 @@ section_d() {
   area=$(field "$frame" area)
   assert_eq "floor window map area side = panel side - 8" "$(rect_w "$area")" $((side - 8))
   assert_eq "floor window panel x keeps the 12px margin" "$(rect_x "$(field "$frame" panel)")" $((cw - 12 - side))
+  assert_eq "floor window panel y keeps the 12px bottom margin" "$(rect_y "$(field "$frame" panel)")" $((ch - 12 - side))
   summ=$(summary_line "$SCRATCH/small.trace")
   assert_ge "floor window still lists players" "$(field "$summ" players)" 2
   assert_ge "floor window still draws RED rows" "$(field "$summ" rowsRed)" 1
+  assert_ge "floor window still draws BLU rows" "$(field "$summ" rowsBlu)" 1
+  red=$(field "$frame" red); blu=$(field "$frame" blu)
+  assert_eq "floor window RED y equals BLU y" "$(rect_y "$blu")" "$(rect_y "$red")"
+  assert_eq "floor window RED/BLU widths match" "$(rect_w "$blu")" "$(rect_w "$red")"
+  assert_eq "floor window RED/BLU heights match" "$(rect_h "$blu")" "$(rect_h "$red")"
+  assert_eq "floor window drops the basemap image primitive too" "$(field "$summ" images)" 0
   assert_eq "floor window panel inside frame" \
     "$(inside_frame $(rect_x "$(field "$frame" panel)") $(rect_y "$(field "$frame" panel)") "$side" "$side" "$cw" "$ch")" yes
   if [ -s "$SCRATCH/small.bmp" ]; then ok "floor window wrote a bitmap"; else red "floor window wrote no bitmap"; fi
