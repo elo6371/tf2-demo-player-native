@@ -224,8 +224,26 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t105-worldcd bash .scratch/
 bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t105-worldd2 bash .scratch/worldfix/cd-d2.sh
 ```
 
+### 6.1 本轮门禁汇总（2026-11-17）
+
+| 门禁 | 结论 | 证据 |
+| --- | --- | --- |
+| `world-entity-tint-check.sh` | PASS（A 的三道门） | `.scratch/worldfix/final-gates.log` |
+| `argument-refusal-check.sh` | PASS | `.scratch/worldfix/final-gates.log` |
+| `frame-capture-check.sh` | PASS | `.scratch/worldfix/tally2.log` |
+| `world-material-check.sh` | FAIL，**base 上同样红，不是本轮引入** | `.scratch/worldfix/tally2.log` |
+| `world-geometry-hole-check.sh` | FAIL，本机缺 demo | `.scratch/worldfix/tally2.log` |
+| `world-render-reliability-check.sh` | FAIL，本机缺 `SUNSHINE.dem` | `evidence/t8-render-reliability-20261117101825-20636-forward/sunshine.log` |
+
+- world-material 的三条失败断言都是 pvs 派生读数：`render vis visible from camera = 858, expected 1481`、`hidden triangles = 25995, expected 15039`、`drawn triangles = 216114, expected 227070`；同一段 trace 里 `cameraCluster=2108`、`clusteredTriangles=34517`、`inputTriangles=242109`、`clusters=2940` 仍在 pin 上。
+- 差分：在干净的 `cd04373f` 临时 worktree（验后已删）重建产品，跑同一段第 6 节命令，读数是逐字相同的一行 `cameraCluster=2108 visibleFromCamera=858 hiddenTriangles=25995 inputTriangles=242109 drawnTriangles=216114`（`.scratch/basecheck/base.trace` 与 `branch.trace`，两次 rc=0）。所以这三条 pin 在 base 上就是红的，本轮没有碰它。
+- 代码侧旁证：`git diff cd04373f -- native/` 只有 `native/src/main.cpp`，新增行只出现 `entityTint*`、`tileFill*`、`unknownSwitch*` 三族标识符，世界 vis / cull / pvs 一行没改。
+- 两个缺 demo 的失败是环境：`world-geometry-hole-check.sh:60` 要 `$TF/demos/autorecord_2026-07-02_13-26-46.dem`，`world-render-reliability-check.sh:83` 要 `.../tf/demos/SUNSHINE.dem`，本机 `tf/demos` 下都没有；两次运行的 trace 里 `args: unrecognized=0 first=- all=-`，不是本轮新加的参数拒绝把它们打死的。
+
 ## 7. 没做的
 
 - 4,219 / 6,072 / 10,291 这组绝对计数来自几何卡自己的那一帧（相机与阈值不同），本文的分拨是本帧自己的定义与读数；比例相同（约 55/45），绝对数不同是帧不同，不是分类不一致。
 - 静态道具 vs 刷模型的命名：`--capture-pass-depth` 把它归到「实体 pass」，entity-id 给 `(1,1,1)`、染色负控不动它，据此命名为**静态道具**；逐像素的模型名 trace 不存在（也没有 `--static-prop-budget` 这个开关），具体是哪一个 prop 模型本文没有命名。
 - 七张地图的逐图材质普查（`.scratch/worldfix/materials-maps.sh`，7 次产品启动）没有跑：第 3 节的 B 读数只来自 pl_upward_f12。
+- world-material 的三条 pvs 派生 pin 需要单独重定标（读数见 6.1），不在本轮范围；几何洞门与渲染可靠性门要在有对应 demo 的机器上跑，或把门里写死的 demo 路径指到本地存在的素材（本机 `E:/demo测试/cp_sunshine` 下有本地 cp_sunshine 素材）。
+- `evidence/t8-render-reliability-20261117101825-20636-forward/` 是失败那次的生成物，未提交，留着给 6.1 的引用落地。
