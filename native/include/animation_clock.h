@@ -2,6 +2,7 @@
 
 // ============================================================================
 // T61: THE ANIMATION CLOCK -- a pure function from (tick, speed) to cycle.
+// T105-n17: the IDLE contract changed -- see "IDLE ADVANCES" below.
 //
 // WHY THIS IS SEPARATE FROM EVERYTHING ELSE
 //   The product needs a per-player animation cursor that is a function of the
@@ -19,9 +20,16 @@
 //     in cycles per second. strideUnits is the distance one cycle covers, so
 //     "one stride per 250 units" is the model's own scale rather than a
 //     per-class special case.
-//   * Idle rate = idleRate (0 by design) -- the cycle is FROZEN while idle,
-//     not slowed down. A stopped player whose cycle keeps creeping is the
-//     exact defect this rule exists to make impossible.
+//   * IDLE ADVANCES (T105, 2026-11-18). The old rule froze the cycle while
+//     idle (idleRate = 0 by design). That contradicted TF2, where a standing
+//     body keeps playing its stand cycle, and it is why every idle reading in
+//     the T61 evidence sat at cycle=0/frame=0 forever. The clock still does
+//     not invent a rate: the CALLER supplies idleRate from the idle sequence's
+//     own duration (animationCycleRate(frameCount, fps) below -- TF2's
+//     convention is one section = one cycle, so one cycle takes
+//     frameCount / fps seconds). With idleRate = 0 (the default, i.e. no
+//     sequence timing was resolved) the cycle is still frozen, which is the
+//     honest reading for a body whose idle clip is unknown.
 //   * deltaCycle = rate * dt, and the stored cycle is wrapped to [0, 1).
 //   * Non-finite input (speed, tickRate) is REJECTED: the state is not
 //     touched and the step reports advanced=false. A NaN that reached the
@@ -30,16 +38,23 @@
 //
 // WHAT "advanced" MEANS. It is "the cycle moved on this tick", i.e.
 // deltaCycle > 0. It is false for the first tick (there is no dt yet), for a
-// repeated or backwards tick, for idle (rate 0) and for rejected input. A
-// caller that needs "was the tick accepted at all" reads samples (which
-// counts every accepted tick, first one included).
+// repeated or backwards tick, for a body whose idle timing is unknown (rate 0)
+// and for rejected input. A caller that needs "was the tick accepted at all"
+// reads samples (which counts every accepted tick, first one included).
+//
+// DETERMINISM. The cycle is a function of (tick sequence, speed, idleRate) and
+// nothing else: the same tick sampled twice leaves it bit-identical (dt <= 0
+// advances nothing), and the same run twice produces the same cycle at the
+// same tick. Deriving idleRate from MODEL DATA (frameCount/fps) keeps that
+// property: it is a constant for a given model, not a wall-clock reading.
 // ============================================================================
 
 #include <cstdint>
 
 namespace tf2::native {
 
-// Which drive the clock is in. Idle is not "slow": it is rate 0.
+// Which drive the clock is in. Idle is not "slow": it is the stand cycle at
+// its own rate (or frozen when the caller has no timing for it).
 enum class AnimationDriveState : std::uint8_t { Idle = 0, Moving = 1 };
 
 const char* animationDriveStateName(AnimationDriveState state);
@@ -58,7 +73,10 @@ struct AnimationClockConfig {
   // spinning through thousands of cycles in one tick.
   float minMovingRate = 0.05f;
   float maxMovingRate = 3.0f;
-  // Cycles per second while idle. Zero by design -- see the header comment.
+  // Cycles per second while idle. The CALLER sets this from the idle
+  // sequence's own duration via animationCycleRate(); the default 0 means
+  // "no idle timing was resolved", which freezes the cycle rather than
+  // inventing a speed.
   float idleRate = 0.0f;
 };
 
@@ -83,6 +101,18 @@ struct AnimationClockStep {
 // that already corrupted the state cannot propagate NaN into a pose.
 float wrapCycle(float cycle);
 
+// One cycle of a sequence that plays frameCount frames at fps takes
+// frameCount / fps seconds, so it advances at fps / frameCount cycles per
+// second (TF2's one-section-one-cycle convention). Returns 0 -- i.e. "frozen"
+// -- when frameCount or fps cannot describe a positive duration, so a body
+// whose clip has no usable timing keeps the old, honest behaviour instead of
+// being given a made-up rate.
+//
+// This exists so NOBODY hardcodes a frame count: the product asks the idle
+// sequence's own AnimationDesc, and the probe asks the same descriptor, which
+// is what keeps the two readings comparable.
+float animationCycleRate(std::int32_t frameCount, float fps);
+
 // The drive state a speed selects. Exposed because the product's trace and
 // the probe must classify a speed with the same threshold, not two copies of
 // it.
@@ -95,10 +125,10 @@ AnimationDriveState animationDriveStateForSpeed(
 float animationRateForSpeed(
   float speed, const AnimationClockConfig& config = AnimationClockConfig{});
 
-// Advances the clock to `tick`. The first call establishes the baseline and
-// reports advanced=false. A repeated tick advances nothing; a backwards tick
-// resynchronises lastTick (a demo restart must not freeze the clock forever).
-// Non-finite tickRate/speed is rejected without touching `state`.
+// Advances the clock to the given tick. The first call establishes the
+// baseline and reports advanced=false. A repeated tick advances nothing; a
+// backwards tick resynchronises lastTick (a demo restart must not freeze the
+// clock forever). Non-finite tickRate/speed is rejected without touching state.
 AnimationClockStep advanceAnimationClock(
   AnimationClockState& state,
   std::int32_t tick,

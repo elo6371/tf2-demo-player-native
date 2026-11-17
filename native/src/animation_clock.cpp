@@ -29,6 +29,10 @@ AnimationClockConfig sanitize(const AnimationClockConfig& config) {
   }
   if (out.minMovingRate < 0.0f) out.minMovingRate = 0.0f;
   out.idleRate = std::isfinite(config.idleRate) ? config.idleRate : defaults.idleRate;
+  // The idle rate is a rate like any other: it obeys the same ceiling, so a
+  // one-frame clip cannot spin a standing body through thousands of cycles.
+  if (out.idleRate < 0.0f) out.idleRate = 0.0f;
+  if (out.idleRate > out.maxMovingRate) out.idleRate = out.maxMovingRate;
   return out;
 }
 
@@ -54,6 +58,17 @@ float wrapCycle(float cycle) {
   // [0, 1) is the contract, so the wrap closes that hole here.
   if (!(result >= 0.0f) || result >= 1.0f) result = 0.0f;
   return result;
+}
+
+float animationCycleRate(std::int32_t frameCount, float fps) {
+  // frameCount frames at fps means duration = frameCount / fps seconds, and a
+  // cycle per duration means fps / frameCount cycles per second. Both inputs
+  // must describe a positive duration; otherwise the answer is 0 ("no timing"),
+  // never a made-up rate. Not clamped here: the clock sanitises idleRate.
+  if (frameCount <= 0 || !std::isfinite(fps) || fps <= 0.0f) return 0.0f;
+  const double rate = static_cast<double>(fps) / static_cast<double>(frameCount);
+  if (!(rate > 0.0) || !std::isfinite(rate)) return 0.0f;
+  return static_cast<float>(rate);
 }
 
 AnimationDriveState animationDriveStateForSpeed(
