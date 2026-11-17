@@ -20,7 +20,9 @@
 #      250px side and its 12px top-right margin, the contain rect stays 242px
 #      on its fitted axis, the BLU roster starts below the panel and neither
 #      roster intersects it, every rectangle stays inside the frame, and the
-#      roster row counts clamp when the window is short;
+#      roster row counts clamp when the window is short. Each run's trace must
+#      also show the outer rect it created the window with and pinned=1, so
+#      --window-size is asserted honoured, not assumed;
 #   D. the smallest supported window (320x240 outer) still composes a panel
 #      from min(250, cw-24, ch-24), keeps the 12px margin, lists players and
 #      writes a bitmap; a request below the floor is REFUSED (exit 13, no
@@ -273,7 +275,7 @@ section_ab() {
 # ---------------------------------------------------------------- section C
 section_c() {
   echo "== C. geometry at three window sizes (no-overlap, constant margin)"
-  local spec size name trace cap cw ch frame panel area red blu summ rrect rrw rrh
+  local spec size name trace cap cw ch frame panel area red blu summ rrect rrw rrh win
   for spec in "1280x720:main" "1920x1080:big" "2560x1440:wide"; do
     size=${spec%%:*}; name=${spec##*:}
     if [ "$name" = "main" ]; then
@@ -284,6 +286,14 @@ section_c() {
       assert_eq "$name exit code" "${!rc_var}" 0
       trace="$SCRATCH/$name.trace"
     fi
+    # The size is asked for with --window-size, so the run has to prove it was
+    # honoured: the product prints the outer rect it created the window with and
+    # whether that rect was pinned.  Without this line a product that ignored the
+    # switch would still pass until the geometry checks below happened to notice.
+    win=$(grep -a 'window: created' "$trace" | tail -1)
+    assert_ne "window created at $size" "$win" ""
+    assert_eq "window outer rect at $size (--window-size honoured)" "$(field "$win" outer)" "$size"
+    assert_eq "window size pinned at $size" "$(field "$win" pinned)" 1
     cap=$(capture_line "$trace"); cw=$(field "$cap" width); ch=$(field "$cap" height)
     assert_ge "capture width at $size" "$cw" 100
     frame=$(frame_line "$trace")
@@ -340,11 +350,14 @@ section_d() {
   echo "== D. the smallest supported window composes; below the floor is refused"
   run_one small "$DEMO" 320x240 --hud-live --overview-open
   assert_eq "floor window exit code" "$RC_small" 0
-  local frame summ cap cw ch side exp area
+  local frame summ cap cw ch side exp area win
   frame=$(frame_line "$SCRATCH/small.trace")
   assert_ne "floor window still composes a frame" "$frame" ""
   assert_eq "floor window open" "$(field "$frame" open)" 1
   assert_eq "floor window reason" "$(field "$frame" reason)" ok
+  win=$(grep -a 'window: created' "$SCRATCH/small.trace" | tail -1)
+  assert_eq "floor window outer rect = the requested floor" "$(field "$win" outer)" 320x240
+  assert_eq "floor window size pinned" "$(field "$win" pinned)" 1
   cap=$(capture_line "$SCRATCH/small.trace"); cw=$(field "$cap" width); ch=$(field "$cap" height)
   assert_ge "floor capture width" "$cw" 100
   side=$(rect_w "$(field "$frame" panel)")
