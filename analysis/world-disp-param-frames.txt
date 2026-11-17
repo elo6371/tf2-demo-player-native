@@ -1,0 +1,17 @@
+D:\TF2_Native_Worktrees\t105-disp\world-disp-param-check.py:514: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  return image.size[0], image.size[1], list(image.convert("RGB").getdata())
+pose      enclosed   holes clearCol  crack crackNoSky  before: enclosed/holes/clearCol/crack
+up0           3262       0       0    3262    3262   8976/0/0/8976
+    known [997, 125] rgb=[98, 82, 74] depth=765 enclosed=False nosky=[98, 82, 74]
+    known [998, 125] rgb=[98, 81, 74] depth=765 enclosed=False nosky=[98, 81, 74]
+    crack colours: {'92,127,154': 1553, '93,127,154': 806, '92,126,154': 326, '93,126,154': 218, '170,191,201': 46}
+up1800           0       0       0       0       0   2072/0/0/2072
+    known [997, 125] rgb=[25, 19, 14] depth=765 enclosed=False nosky=[25, 19, 14]
+    known [998, 125] rgb=[27, 21, 15] depth=765 enclosed=False nosky=[27, 21, 15]
+pr600          453       0       0     453     453   985/0/0/985
+    known [997, 125] rgb=[117, 122, 150] depth=0 enclosed=False nosky=[14, 18, 22]
+    known [998, 125] rgb=[117, 122, 150] depth=0 enclosed=False nosky=[14, 18, 22]
+    crack colours: {'117,122,150': 346, '131,134,169': 91, '120,125,153': 3, '117,123,150': 1, '118,123,151': 1}
+koth0            0       0       0       0       0   9453/0/0/9453
+    known [997, 125] rgb=[54, 54, 54] depth=765 enclosed=False nosky=None
+    known [998, 125] rgb=[68, 70, 51] depth=765 enclosed=False nosky=None

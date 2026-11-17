@@ -38,15 +38,21 @@ iso_chain_exit() { # iso_chain_exit <directory to remove on exit>
 # The renderer configuration a gate runs with is a file in this repository, not
 # whatever the last person to open the player happened to save under
 # %LOCALAPPDATA%. An EMPTY settings.ini is not "the defaults": loadSettings()
-# reads `preset` with a 0 fallback (native/src/settings_store.cpp:56-58), 0 means
-# Performance, and Performance is the preset that switches the sky pass off
-# (native/src/settings_store.cpp:82, native/src/main.cpp:6866-6868). A gate that
-# measured against an empty directory therefore rendered a different world than
-# the frames it pins -- measured on the T26 pair in verify-all RUN4 (2026-11-08):
+# reads `preset` with a 0 fallback (native/src/settings_store.cpp:56-58), so 0
+# means QualityPreset::Performance. A gate that measured against an empty
+# directory therefore rendered a different world than the frames it pins --
+# measured on the T26 pair in verify-all RUN4 (2026-11-08):
 # 113,159 pixels of clear colour, trace reason "skybox draw disabled by the
 # caller" against the pinned frame's "world sky state=active". The fixture is
 # written out in full on purpose: a key that falls back to the compiled default
 # moves when the code moves, and the pin would move without recording why.
+#
+# W-1 (2026-11-17): half of that difference is gone. Performance used to switch
+# the sky pass off (render.skybox = standardQuality); it no longer does, because
+# the sky reads its own `skybox` key with a true fallback and the fixture writes
+# `skybox=1` explicitly. The RUN4 measurement above is kept as the historical
+# reason this helper exists; the "write every key out" argument is why it still
+# does.
 iso_fixture_settings() {
   local here
   here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
