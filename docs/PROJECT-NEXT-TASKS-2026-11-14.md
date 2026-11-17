@@ -7,18 +7,20 @@
 
 ## 当前执行快照（2026-11-17，优先于下文旧快照）
 
-当前集成树 `work/integrate`：HEAD `71f498aa`，其父提交为报告所称功能合并tip `3ef31ab0`；报告绑定exe SHA-256 `9d8333d8…bf7e86`，两次clean build同hash为报告记载，本轮未重建复核。依据 `docs/WORLD-VISUAL-REPORT-2026-11-17-ZH.md` 与 `docs/WORLD-VISUAL-INTEGRATION-2026-11-17.md`；下面2026-11-15 candidate/e5记录均为历史，不覆盖本快照。本轮只更新文档，不改产品、不构建、不跑门禁。
+当前集成树 `work/integrate` 基线 `2305215`，父提交为功能合并tip `d5037e58`；报告绑定exe SHA-256 `9d8333d8…bf7e86`，来自集成报告，本轮已重建窄目标但没有重跑完整视觉门禁。依据 `docs/WORLD-VISUAL-REPORT-2026-11-17-ZH.md`、`docs/WORLD-VISUAL-INTEGRATION-2026-11-17.md` 与本轮N17相机调查；下面2026-11-15 candidate/e5记录均为历史，不覆盖本快照。
 
 已接受的局部修复：天空默认开启并改在opaque world后绘制（天空门17/17）；位移网格转置修复，位移边界吻合7,502/7,855（engine oracle 7,535），之前被回退平面的13个patch恢复；实体网格二次染色修复（379,038 px mask及mutation）；未知开关exit 13及`--window-size`；地图总览/HUD 213 checks。报告称四姿态帧与位移分支逐字一致，但不能据此推导人物模型外观通过。
 
-未闭环：pr600仍报告94 px真几何被背面绕序测试剔除；14个退化位移patch仍平面回退；Odyssey几何洞门因无其专用demo pin未过，Odyssey不属于首发七图；world-material在candidate/e5基线上同样红；camera-ui/hud-live/fullscreen-quiet未在此exe重跑，verify-all未端到端跑。图 `analysis/integrated-up0.png` 的Scout外形有明显疑点，但单帧且人物贴近左侧裁切，尚不能判定是mesh、LOD、UV/材质、骨骼/权重、动画还是相机裁切；N17-VIS要求做同demo/tick/实体/相机的游戏参照对照。
+未闭环：pr600仍报告94 px真几何被背面绕序测试剔除；14个退化位移patch仍平面回退；Odyssey几何洞门因无其专用demo pin未过，Odyssey不属于首发七图；world-material在candidate/e5基线上同样红；camera-ui/hud-live/fullscreen-quiet未在此exe重跑，verify-all未端到端跑。图 `analysis/integrated-up0.png` 的Scout外形明显可疑；N17报告测得屏外像素为0，已排除“被画面裁切”，但mesh/LOD、UV/材质、骨骼/权重、动画或投影仍未定因。本轮已修复世界相机错误复用ViewModel FOV，并通过camera probe、定向构建及同demo/tick隔离抓帧；Scout本体仍需同帧对照与逐层诊断。
 
 | 工作 | 当前判定 | 证据边界与下一步 |
 |---|---|---|
-| 集成世界修复 | **报告级局部验收** | 以报告列出的build/gate读数为依据；HEAD文档提交71f498aa的父为3ef31ab0。本轮未重新运行 |
-| Scout / N17-N18 | **视觉差异待复现；探针覆盖待审计** | 现有model-data、pose、body tint或entity tint各测不同属性，没有门禁证明玩家完整模型匹配游戏。先做同帧参考和分层读数，再修已证实层 |
+| 集成世界修复 | **报告级局部验收** | 集成报告绑定exe `9d8333d8…bf7e86`；本轮基线HEAD `2305215`、父`d5037e58`。world FOV修复改动仍在工作树，尚未集成；完整门禁未重跑 |
+| Scout / N17-N18 | **FOV混用已修并窄验证；Scout本体仍OPEN** | 世界相机原先误用ViewModel垂直FOV；已拆Source水平worldFov与ViewModel FOV，90°@4:3转换为73.74°垂直并按pane aspect投影。现有model-data、pose、body tint或entity tint门仍不证明玩家完整模型匹配游戏；继续同demo/tick/entity对照和模型分层诊断 |
 | 世界残项 | **独立OPEN** | pr600绕序剔除、14个退化位移面、world-material红分别建卡；不可通过关闭cull或重钉错误pin隐藏 |
 | 架构/验证 | **并行继续** | 审计模型probe与gate覆盖属于N25质量/效率任务；构建/主循环按既有路线推进，不因视觉诊断暂停 |
+
+相关源码和数据站点按任务域列于 [`TF2-SOURCE-REFERENCE-INDEX.md`](TF2-SOURCE-REFERENCE-INDEX.md)。后续代码/资产任务要记录参考仓库commit、文件/符号和适用边界；N17优先查OthmanAba TF2源码，Valve Source SDK用于共享引擎机制，最终以当前安装资产、demo独立oracle和产品读数裁决。
 
 ## 历史执行快照（2026-11-15，仅追溯candidate/e5）
 
@@ -329,8 +331,34 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 
 ### N17　人物动作与服务器数据边界（E）
 
-- [ ] **N17-VIS / Scout视觉疑点**：先以 `analysis/integrated-up0.png` 为待复现帧；取得同一个`pl_upward_f12` demo/tick/玩家实体/userid/team/武器状态、相机/FOV、viewport和分辨率的TF2游戏参考。当前Scout靠近画面左边并被裁切，先判断相机/画面裁切，再判断人物本体，不能仅凭截图直接改模型。
-- [ ] 将Scout实际绘制逐层记账：MDL/VVD/VTX所选LOD、bodygroup/skin、mesh/tri/vertex与bounds；VMT/VTF/UV来源；骨架层级/权重/bind pose/该tick骨矩阵；VS最终顶点及屏幕silhouette。保证trace里的实体ID映射到参考里的同一玩家。
+2026-11-18当前基线：未提交exe `f341ab1e…`，Scout视觉仍OPEN；下列局部完成不替代本卡验收。最终四种采集、身份、证据和旧门禁归属见[N17报告](N17-SCOUT-CAMERA-ANIMATION-2026-11-17.md)。
+
+**本项目统一参考与代码复用要求（执行每张卡前必读）**：
+
+- TF2专用行为先查 **[OthmanAba/TeamFortress2](https://github.com/OthmanAba/TeamFortress2)**。目前它是本参考集里覆盖TF2客户端/共享游戏逻辑最广的代码树，动画状态、activity、pose参数、武器/职业行为优先从相关调用链查起；它是社区源码快照，不是官方运行时真值。每次记录固定commit、文件路径、符号、调用者/被调用者和本机游戏版本。
+- 官方共享引擎对照：**[ValveSoftware/source-sdk-2013](https://github.com/ValveSoftware/source-sdk-2013)**，重点是`src/game/shared/tf`、`src/game/client/tf`、渲染/动画公共实现；SDK与已发布TF2可能不同，不能照抄常数。
+- 当前发布资产：**[SteamTracking/GameTracking-TF2](https://github.com/SteamTracking/GameTracking-TF2)** + 本机`tf`目录；模型/材质格式另查[VDC StudioMDL](https://developer.valvesoftware.com/wiki/StudioMDL)、[Materials](https://developer.valvesoftware.com/wiki/Material)、[VTF](https://developer.valvesoftware.com/wiki/Valve_Texture_Format)、[Model Viewer](https://developer.valvesoftware.com/wiki/Model_Viewer)。
+- Demo/网络字段至少交叉核验一个独立实现：[demostf/parser](https://github.com/demostf/parser)、[demostf/demo.js](https://github.com/demostf/demo.js)、[PazerOP/DemoLib2](https://github.com/PazerOP/DemoLib2)；网络/预测语义参考[Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)。记录版本与适用语料，不把独立解析器输出冒充TF2像素oracle。
+- BSP/地图格式可交叉查[Valve BSP](https://github.com/pySourceSDK/ValveBSP)、[Galaco/bsp](https://github.com/Galaco/bsp)、[tasbox-org/source-parsers](https://github.com/tasbox-org/source-parsers)；它们是格式工具，不是Source渲染oracle。
+- **已验证问题必须回写 [coding-problem-playbook](https://github.com/elo6371/coding-problem-playbook)**：开工先同步GitHub并读相关条目；复现并修复后新增带症状、根因、尝试、修法、验证、边界、相关文件的条目，更新`problems/INDEX.md`，单独commit并push。只能记录真实复现且验证通过的问题；未解决项标未解决，不准包装成已解决。push失败时记录原始错误和本地commit，列入未完成任务。
+- 统一程序：GitHub先读当前源码与revision → 查本机模型/动画/材质及demo字段 → 写预期和正负控 → 本项目最小修复 → 定向构建/门禁 → 同身份运行时证据 → 更新项目台账与playbook。只有授权且许可/依赖/API/行为都匹配才复用代码；否则移植规则并记录原因。
+
+- [x] **N17-ENTITY-POSE / 同帧测量（未提交）**：实体账本含cycle、frame/localFrame/sectionFrames、skinBones/validBones；Scout ent14 ID91默认无序列，实验idle=175、cycle0、frame0/45；四帧均exit0。只证明产品实际选择/绘制，不证明TF2视觉等价。
+- [x] **N17-PROBE-META / 仪表修正（未提交）**：companion blendCount复制正确（Scout stand=1/run=9/aim=12）；helper矩阵纳入写入数（78/78），同时保留无有效通道拒绝；helper自测新增计数断言。职业姿态门默认写scratch，锁内九职业40样本PASS且不污染tracked evidence。
+- [ ] **N17-IDLE-CYCLE / 下一步E实施、B复核**：当前速度时钟在idle停cycle，不能重建45帧idle；先按固定revision TF2源码核idle与动作时钟语义，再以demo resolved tick而非墙钟做确定性采样；暂停、seek、重启应复现，补“强制首帧/使用墙钟”负控。不得仅因状态名是idle就判姿态正确。
+- [ ] **N17-BLEND / 接续IDLE-CYCLE，可独立盘点**：读本机scout_animations的blend网格、pose参数范围、动画索引和bone权重；核OthmanAba/Valve的相同字段，再实现run/aim必要的参数混合与旋转插值。测试参数端点/中间值、缺失参数、不支持格式；错误blend索引必须红。只采第一animDesc不能声称支持九blend；无证据参数不得硬猜。
+- [ ] **N17-DEFAULT-ACCEPT / 接续视觉验收**：取得同demo/实体/pose/相机/FOV/viewport的TF2参考，先比较silhouette/关键骨点，再分mesh/LOD、材质UV定位剩余差异；通过后才调整默认动画策略。现状默认bind pose明确保留为缺陷，不能以“实验开关能动”关闭。
+- [ ] **N17-FINAL-GATES / 合入前**：本轮camera-ui和overview在旧`666a1ac2…`分别PASS/231 PASS；最终`f341ab1e…`只完成定向资产、自测和四帧。按影响补最终相机/UI/双窗/ViewModel/旧书签与七图验证，再审全链；禁止挪用旧exe的通过。
+
+- [ ] **N17-VIS / Scout视觉疑点**：固定 `analysis/integrated-up0.png` 对应demo/tick/玩家实体/userid/team/武器状态、相机/FOV、viewport和分辨率；报告测得屏外像素为0，因此“Scout被边缘裁切”不是已观察事实。先锁定已修正的世界投影，再用同录制实体/姿势的TF2参考比较silhouette、mesh/LOD、材质区域和骨骼姿态。
+- [ ] **N17-CAMERA / 世界投影与ViewModel分离**：世界投影读Source水平FOV（4:3参考），转为DirectX垂直角并按每个pane自己的aspect计算；ViewModel FOV只控制武器。确认默认/显式worldFov、ini往返、相机书签恢复和多pane；本轮数值probe与隔离帧通过，最终候选仍须重绑相机/UI及受影响视觉门。
+- [ ] 将Scout实际绘制逐层记账：MDL/VVD/VTX所选LOD、bodygroup/skin、mesh/tri/vertex与bounds；VMT/VTF/UV来源；骨架层级/权重/bind pose/该tick骨矩阵；VS最终顶点及屏幕silhouette。加权骨骼索引已审，helper影响见下；保证trace里的实体ID映射到参考里的同一玩家。
+- [x] **N17-HELPER / 前臂helper蒙皮（未提交）**：Scout 23,442条LOD0绘制顶点中，524条引用无动画通道的左右前臂helper；旧代码留单位蒙皮，现按已有父骨骼当前变换生成`current * inverseBind`。数值夹具bind/translation/rotation全1，恢复旧行为时平移/旋转全0（rc=1），还原重建后全1；最终exe `a917b76b…`下两次锁内捕获rc=0。只证明父变换继承，TF2程序骨行为与完整Scout外观未证。
+- [x] **N17-METRIC / XYZ统一尺度局部修复（未提交）**：旧upward Z相对XY放大1.351815；已统一world/entity/overlay/camera/fog/CPU诊断尺度。当前exe `666a1ac2…`上传MVP对等长线段为22.699882/22.699903px（独立基准22.700000），拉伸变异负控被拒；天空17/17、雾58断言PASS。此项不等于Scout外观、全地图或发布验收。
+- [ ] **N17-METRIC-INTEGRATION / 坐标修复集成验收**：旧归一化书签/preset需要重新验证和明确迁移策略；复核split-view相机隔离、ViewModel对齐、HUD/overview和七图pin。先将画面差异归因到有意的FOV/尺度修正或独立缺陷，再讨论重钉；不得用重钉跳过产品回归。
+- [x] **N17-IDLE / idle误选局部修复（2026-11-17，未提交）**：旧选择器实测Scout选`AttackStand_PRIMARY`(9)，改为WholeToken与首词元优先后选`stand_PRIMARY`(175)；九职业均选通用`stand_*`，`--matcher-selftest`的`genericIdle=1 oneShot=1`、探针与产品定向构建通过。该项只证明通用idle的选序正确，不证明截图角色命中fallback、最终姿态或外观与TF2一致；实体级draw/pose轨迹与同帧视觉对照仍须执行。
+- [ ] **N17-SOURCE / TF2源码对照**：参考OthmanAba/TeamFortress2 revision `1b81dded673d49adebf4d0958e52236ecc28a956` 的`CTFPlayerAnimState::CalcMainActivity`、`TranslateActivity`及客户端动画更新；按观测到的demo字段实现并验证必要activity映射/叠加层。源码只作实现参考，不代替当前TF2资产及运行时对照。详见`docs/TF2-SOURCE-REFERENCE-INDEX.md`与`docs/N17-SCOUT-CAMERA-ANIMATION-2026-11-17.md`。
+- [ ] **N17-ANIM-DEFAULT / 默认姿态链**：当前产品默认`playerAnimationEnabled=false`，自然运行保留bind pose；`--player-animation --animation-drive states`会驱动姿态，但不是完整TF2 activity/gesture/pose/layer实现。以游标1已抓双路径；游标不是server tick，必须分别绑定`entryTick/serverTick/resolved scene tick`，不使用固定偏移。先将trace的entity、model、sequence/cycle、skin矩阵覆盖与draw range绑定，再以TF2同帧参考比较idle/run等类别；未通过前不把实验动画设默认，也不把汇总`boneMismatch`直接解释为映射错误。详见N17报告。
 - [ ] **N17-PROBE / 探测器覆盖审计**：逐项审`entity_model_probe`、`model_pose_probe`、`player-model-check.sh`、`class-pose-family-check.sh`、`player-body-appearance-check.sh`、`world-entity-tint-check.sh`的输入、断言、变异、盲区。解析成功/meshBuilt、序列可解/变化、队色mask分别不是游戏内外观等价；现有tint门的379,038px主要证明颜色路径，不证明玩家Scout轮廓、UV或骨骼正确。
 - [ ] 加同帧角色ROI验收：游戏参考与产品相机/实体配准；比较外轮廓、可见mesh/遮挡、关键材质区域和姿态。用至少一种故意错LOD/隐藏mesh、错UV或错bone映射的变异证明相应视觉断言会红，未能检出的属性必须明确标为UNTESTED；容差由重复采集和配准误差测出，不凭肉眼调宽。
 - [ ] 按观测分支定位修复：错误LOD/mesh→模型选择与绘制范围；材质/UV→资源或坐标解析；静态姿态对、动画错→骨绑定/序列/时钟；仅屏幕位置错→相机。一次改一个已证实因素，修复前后同帧A/B并保留变异负控；成功后以Scout为模板扩九职业/双队样本。
@@ -338,6 +366,7 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 - [ ] `loop=false` 夹具已修，不再重复做；扩大真实 reload 观测密度，先确定是否能观测到动作再改产品。
 - [ ] STV 缺 `m_nSequence` 等字段时明确数据边界；产品推断动画与服务器原始姿态不混称。
 - [ ] 检查 duplicate entity ID、`walk` 命中 `airwalk` 等修复是否仅在其他分支；读取原实现和负控后最小集成，不直接搬泛化补丁。
+- [ ] 源码对照顺序：OthmanAba/TeamFortress2的TF2玩家动画状态、model/class选择、skin/bodygroup、camera/FOV与材质调用点；NicknineTheEagle/TF2-Base作可读移植结构交叉参考；ValveSoftware/source-sdk-2013用于通用Source机制。记录具体commit/文件/符号，与当前本机MDL/VVD/VTX/VMT/VTF及demo属性逐项比对，不能把快照常量直接当成当前资产参数。
 
 ### N18　第一人称与武器全槽位（E + D）
 
