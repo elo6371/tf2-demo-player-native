@@ -793,7 +793,9 @@ def counters_command(args):
     print("%-22s %9d %7s %9d %9d %8d %8s %9d %9d %9d %8d" % ("TOTAL", totals["triangles"], "-",
           totals["displaced"], totals["disp_faces"], totals["disp_triangles"], "-", totals["flipped"],
           totals["misfaced"], totals["disp_misfaced"], totals["agree"]))
-    print("triangles/displaced/dispFaces/dispTri must be identical between the before and after arms;")
+    print("triangles/displaced/dispFaces/dispTri hold on every map whose per-cell validity gate does not")
+    print("flip with the parametrisation (7 of 9); koth_bagel_rc11 and koth_product_final gain the 13 patches")
+    print("that the transposed field had rejected into a flat fallback quad.")
     print("flipped is the T11 reorient patch firing count, expected to move because the lattice moved.")
     return 0
 

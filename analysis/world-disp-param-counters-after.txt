@@ -10,5 +10,7 @@ koth_bagel_rc11            98039   18231     46336      1427    46336     1427  
 koth_ashville_final1       23276    6457      6400        74     6400       74       194      6313         0     2484
 koth_product_final         55998   11175     21856       557    21856      557      3060     10286         0     3691
 TOTAL                     697247       -    247104      5667   247104        -     51097    150930         0    56736
-triangles/displaced/dispFaces/dispTri must be identical between the before and after arms;
+triangles/displaced/dispFaces/dispTri hold on every map whose per-cell validity gate does not
+flip with the parametrisation (7 of 9); koth_bagel_rc11 and koth_product_final gain the 13 patches
+that the transposed field had rejected into a flat fallback quad.
 flipped is the T11 reorient patch firing count, expected to move because the lattice moved.
