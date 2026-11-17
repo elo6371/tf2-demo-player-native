@@ -156,14 +156,20 @@ iso_chain_exit "$ISO_DIR"
 
 # D-41: an empty settings directory is not "the defaults". loadSettings() reads
 # the preset key with a 0 fallback (native/src/settings_store.cpp:56-58) and 0 is
-# Performance, the preset that switches the sky pass off. Measured in RUN4's
-# step-29 trace (scratch/full.20261108173141-217062.trace): :68 renders
-# preset=performance and :404 reads "sky state=unavailable vertices=0
-# triangles=0 faces=0 draws=0 ... reason=skybox draw disabled by the caller",
-# while step 28's trace renders preset=standard and "sky state=active ...
-# draws=1". A fresh empty directory therefore renders a different world than the
-# matrix this gate is compared against. Seed it from the checked-in fixture and
-# refuse to run if the copy the product reads is not that fixture.
+# Performance. Measured in RUN4's step-29 trace
+# (scratch/full.20261108173141-217062.trace): :68 renders preset=performance and
+# :404 reads "sky state=unavailable vertices=0 triangles=0 faces=0 draws=0 ...
+# reason=skybox draw disabled by the caller", while step 28's trace renders
+# preset=standard and "sky state=active ... draws=1". A fresh empty directory
+# therefore rendered a different world than the matrix this gate is compared
+# against. Seed it from the checked-in fixture and refuse to run if the copy the
+# product reads is not that fixture.
+#
+# W-1 (2026-11-17): the sky half of that difference is gone. Performance no
+# longer switches the sky pass off (docs/WORLD-HOLES-2026-11-17.md §12) and the
+# fixture now writes skybox=1 explicitly. The preset still selects the shading
+# flags, so an empty directory is still not "the defaults" and the seeding plus
+# the identity check below stay exactly as they were.
 iso_seed_gate_settings "$ISO_DIR" || {
   echo "FATAL: cannot seed the isolated settings directory" >&2; exit 2; }
 iso_assert_gate_settings "$ISO_DIR" || exit 2
