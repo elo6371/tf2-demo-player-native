@@ -228,13 +228,16 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t105-worldd2 bash .scratch/
 
 | 门禁 | 结论 | 证据 |
 | --- | --- | --- |
-| `world-entity-tint-check.sh` | PASS（A 的三道门） | `.scratch/worldfix/final-gates.log` |
-| `argument-refusal-check.sh` | PASS | `.scratch/worldfix/final-gates.log` |
-| `frame-capture-check.sh` | PASS | `.scratch/worldfix/tally2.log` |
+| `world-entity-tint-check.sh` | PASS（本机复跑：379038 个 tint 像素全部等于 raw texel，mutation 对照红） | `.scratch/worldfix/tint.log` |
+| `argument-refusal-check.sh` | PASS（本机复跑：未知 `--switch` 按名字拒绝并非零退出，已知开关与位置参数行为不变） | `.scratch/worldfix/argref.log` |
+| `frame-capture-check.sh` | PASS | `.scratch/worldfix/tally3.log` |
 | `world-material-check.sh` | PASS（重定标后；因果见 6.3） | `.scratch/worldfix/mat.log` |
 | `world-geometry-hole-check.sh` | 跑起来了但不算绿：地图无关断言全过，pl_odyssey 的像素 pin 不成立（见 6.4） | `.scratch/worldfix/geo2.log` |
-| `world-render-reliability-check.sh` | PASS（48 项，0 失败；用本机 SUNSHINE 副本，见 6.4） | `.scratch/worldfix/rel.log` |
+| `world-render-reliability-check.sh` | PASS（48 项，0 失败；用本机 SUNSHINE 副本，见 6.4） | `.scratch/worldfix/rel2.log` |
 
+- 本机在这棵已提交的树上把五道快门分别复跑（`tally3.log` 加各自单独复跑 `rel2.log` / `tint.log` / `argref.log`）：`world-material`、`frame-capture`、`world-render-reliability`、`world-entity-tint`、`argument-refusal` 全 PASS；`world-geometry-hole` 只能跑到「地图无关断言全过」为止（6.4）。
+- 汇总时可靠性门的控制输入有一次 `exit_code=-1`（`tally3.log`），当时同机另一个产品实例在跑；同一棵树单独复跑 `rel2.log` 是 `checks=48 fail=0`，所以那次读数作废、以单独复跑为准。
+- 汇总顺序也踩了一个坑：`world-entity-tint-check.sh` 与 `argument-refusal-check.sh` 自己会去抢主机锁（`LOCK=`），把它们塞进外层 `hostlock run` 会互相等死；这两道门必须单独跑，只有 `world-material` / `frame-capture` / `world-render-reliability` 能共用一把锁。
 - 先红的是三条 pvs 派生断言：`render vis visible from camera = 858, expected 1481`、`hidden triangles = 25995, expected 15039`、`drawn triangles = 216114, expected 227070`；同一段 trace 里 `cameraCluster=2108`、`clusteredTriangles=34517`、`inputTriangles=242109`、`clusters=2940` 仍在 pin 上。
 - 这两次红都不是本轮代码：`cd04373f` 干净 worktree 的读数逐字相同（`.scratch/basecheck/{base,branch}.trace`，两次 rc=0），两构建差分把它们指到 `10d13559` 的 vis 解码修复；重定标后本轮复跑 `WORLD-MATERIAL=PASS`（`.scratch/worldfix/mat.log`，含 `OK render vis drawn + hidden = input (216114 + 25995 = 242109)`）。完整因果见 6.3。
 - 代码侧旁证：`git diff cd04373f -- native/` 只有 `native/src/main.cpp`，新增行只出现 `entityTint*`、`tileFill*`、`unknownSwitch*` 三族标识符，世界 vis / cull / pvs 一行没改。
@@ -272,6 +275,22 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t105-worldd2 bash .scratch/
 - 改动（断言一条没删，默认路径一个字没改）：
   - `world-geometry-hole-check.sh:60`：`DEMO="${WORLD_CHECK_DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}"`，素材不存在时打印四行 SKIP、`SUMMARY checks=0 fail=0 skip=1` 与 `VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)` 后 `exit 0`——跳过计入 skip 计数，不会被读成「全部通过」。
   - `world-render-reliability-check.sh:83`：`SUNSHINE="${WORLD_CHECK_SUNSHINE_DEMO:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem}"`，同样缺文件即 SKIP（`exit 0`），`--mutation` 分支不变。
+- SKIP 路径实测（不启动产品，RC=0）：
+```
+SKIP world-geometry-hole-check: the recording this gate measures is absent
+SKIP   wanted: /nonexistent/demo.dem
+SKIP   every pin (missing 97,453 px / enclosed 4,613 px / the named seam faces) is pl_odyssey at TICK=2000 in that recording; another recording is another pose on another map
+SKIP   set WORLD_CHECK_DEMO=<path> to run it
+SUMMARY checks=0 fail=0 skip=1
+VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)
+
+SKIP world-render-reliability-check: the T5 baseline recording is absent
+SKIP   wanted: /nonexistent/SUNSHINE.dem
+SKIP   section 1 (the T5 ending) and section 3 (the six sky sides) are readings of that recording; the control in section 2 is a different map and cannot stand in for them
+SKIP   set WORLD_CHECK_SUNSHINE_DEMO=<path> to run it
+SUMMARY checks=0 fail=0 skip=1
+VERDICT world-render-reliability: SKIP (0 assertions ran, 1 gate skipped)
+```
 - 可靠性门实跑（`.scratch/worldfix/rel.log`）：`WORLD_CHECK_SUNSHINE_DEMO='E:/demo测试/cp_sunshine/STV/SUNSHINE.dem'`（82,759,239 B，sha256 `7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08`），`checks=48 fail=0`，`WORLD-RENDER-RELIABILITY=PASS`。SUNSHINE.dem 就是 cp_sunshine 的录像，换的只是文件位置，门要验的 48 条（启动、帧、trace、退出码）一条没少。
 - 几何洞门实跑两次（同一份 `WORLD_CHECK_DEMO='E:/demo测试/pl_upward_f12/STV/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem'`，地图 pl_upward_f12，`TICK=2000` 不变）：
   - 第一次 `.scratch/worldfix/geo.log`：门跑起来了，但缓存自洽性两条是假红——`--validate` 探针与 capture 子进程没继承 `WORLD_CHECK_DEMO`，`compute_inputs()` 按写死默认 demo 报 `identity input is missing`，于是 `FAIL ... (reason=none)`。修法：gate `export DEMO`，capture 侧改成 `DEMO=${CAPTURE_DEMO:-${DEMO:-写死默认}}`。
