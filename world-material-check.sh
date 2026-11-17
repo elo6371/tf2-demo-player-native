@@ -466,14 +466,40 @@ vfield() { printf '%s\n' "$VIS" | grep -oE "$1=[0-9-]+" | head -1 | cut -d= -f2;
 # camera's), and T83 builds the 1,237 brush-model faces the parser used to drop,
 # which the clip then also judges. inputTriangles stays 200000 and the
 # drawn + hidden = input identity below is what still holds the numbers together.
+#
+# RE-PINNED 2026-11-17 (T105 in-world visual): three readings moved on 10d13559
+# "fix(bsp): the vis table is offset pairs and rows are Source zero-run RLE" --
+# a vis-PARSER commit, not a renderer change. Two builds, one command (same
+# demo, same switches, eyeMap 1359.6,-538.8,73.9 on every run):
+#
+#   reading                    10d13559^   10d13559 = HEAD   moved?
+#   cameraCluster                    2108                 2108   no
+#   visibleFromCamera                1481                  858   yes
+#   clusters                         2940                 2940   no
+#   clusteredTriangles              34517                34517   no
+#   inputTriangles                 242109               242109   no
+#   hiddenTriangles                 15039                25995   yes
+#   drawnTriangles                 227070               216114   yes
+#   "kept by a cluster past the first" 2276                  609   yes
+#
+# The rows are (pvs,pas) offset PAIRS and the decode was reading the wrong
+# clusters as visible, so faces the map says are hidden were kept and drawn.
+# With the decode corrected the camera's PVS is 858 clusters (was 1481) and
+# 10,956 more triangles are withheld. Three facts keep this a split reading and
+# not a lost surface or a moved camera: drawn + hidden = input on BOTH sides
+# (227070+15039 = 216114+25995 = 242109), and cameraCluster, clusters,
+# clusteredTriangles, inputTriangles and eyeMap are identical across the two
+# builds. This gate had been red for four days because nobody ran it; the
+# differential, not the number, is the evidence (see
+# docs/WORLD-VISUAL-REPAIR-2026-11-16.md 6.3).
 assert_eq "render vis camera cluster" "$(vfield cameraCluster)" "2108"
-assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "1481"
+assert_eq "render vis visible from camera" "$(vfield visibleFromCamera)" "858"
 assert_eq "render vis clustered triangles" "$(vfield clusteredTriangles)" "34517"
-assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "15039"
+assert_eq "render vis hidden triangles" "$(vfield hiddenTriangles)" "25995"
 assert_eq "render vis clip applied" "$(vfield clipApplied)" "1"
 assert_eq "render vis clip state" "$(printf '%s\n' "$VIS" | grep -oE 'state=[a-z]+' | head -1 | cut -d= -f2)" "active"
 assert_eq "render vis input triangles" "$(vfield inputTriangles)" "242109"
-assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "227070"
+assert_eq "render vis drawn triangles" "$(vfield drawnTriangles)" "216114"
 # The cross-line identity T88 leaves standing, both terms from this one trace:
 # every triangle that carries a light uv contributes three lightmapped vertices,
 # and the whole map minus its 78 unlit triangles is 242031. A renderer that

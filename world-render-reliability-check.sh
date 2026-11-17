@@ -80,9 +80,26 @@ set -uo pipefail
 cd "$(dirname "$0")"
 
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
-SUNSHINE="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem"
+# The T5 baseline is a reading of this exact recording (cp_sunshine, the match
+# that reproducibly left the fix untaken). It is not part of the repo, so
+# WORLD_CHECK_SUNSHINE_DEMO points a copy at another location; with no recording
+# the gate SKIPs rather than FAILs -- an absent input is not a reliability
+# reading. The default path is unchanged.
+SUNSHINE="${WORLD_CHECK_SUNSHINE_DEMO:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem}"
 CONTROL="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
 PRODUCT=native/build-nmake/tf2_demo_native.exe
+# An absent recording is not a reliability reading. Every assertion in section 1
+# describes this demo (cp_sunshine); with no copy the gate SKIPs and says so,
+# instead of reporting that the product failed a check it never ran.
+if [ ! -f "$SUNSHINE" ]; then
+  echo "SKIP world-render-reliability-check: the T5 baseline recording is absent"
+  echo "SKIP   wanted: $SUNSHINE"
+  echo "SKIP   section 1 (the T5 ending) and section 3 (the six sky sides) are readings of that recording; the control in section 2 is a different map and cannot stand in for them"
+  echo "SKIP   set WORLD_CHECK_SUNSHINE_DEMO=<path> to run it"
+  echo "SUMMARY checks=0 fail=0 skip=1"
+  echo "VERDICT world-render-reliability: SKIP (0 assertions ran, 1 gate skipped)"
+  exit 0
+fi
 
 # T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
 # Both flags below name per-run copies outside the tree: a gate must not edit
