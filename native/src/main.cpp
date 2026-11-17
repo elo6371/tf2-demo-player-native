@@ -4042,6 +4042,19 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--start-paused") == 0) { startPaused = true; continue; }
       if (wcscmp(arguments[i], L"--vsync") == 0) { persistent.render.vsync = true; continue; }
       if (wcscmp(arguments[i], L"--no-vsync") == 0) { persistent.render.vsync = false; continue; }
+      // T105: --window-size is honoured before this loop runs -- it is pre-scanned
+      // above CreateWindowExW (main.cpp:3169-3197) because the window has to exist
+      // with that rect, and a WxH that will not parse or is out of range has
+      // already returned 13 there. The loop must still CLAIM the switch and eat
+      // its value: the unknown-switch rule after this loop refuses every `--`
+      // argument nobody parsed, and a switch the product actually honours must
+      // not be counted among them. Without this claim the merged tree refused a
+      // run whose window had already been created with the requested size
+      // (`args: refused switch count=1 first=--window-size`, exit 13), which is
+      // why map-overview-check.sh went red there and green before the merge.
+      // A dangling `--window-size` with no value is deliberately left unclaimed:
+      // that run pinned nothing, so its command line really was not understood.
+      if (wcscmp(arguments[i], L"--window-size") == 0 && i + 1 < argumentCount) { ++i; continue; }
       // T101: the fog switches, in the same pre-ladder block and for the same
       // reason -- each one only sets a local. Two of them take a value, which the
       // note above did not anticipate; they are consumed here rather than in the
