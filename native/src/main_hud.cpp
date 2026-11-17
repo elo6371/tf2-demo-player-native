@@ -14,6 +14,7 @@
 #include <objbase.h>
 #include <shlobj.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -95,6 +96,28 @@ bool g_hudLiveActive = false;
 // copy the text would be deleted on exactly the frame a gate captures, so the
 // layout pass merges this list back in instead of overwriting it.
 std::vector<tf2::native::Renderer::HudPrimitive> g_hudLivePrimitives;
+// The panel shapes (minimap / map-overview) are stored apart from the text: on a
+// window resize only the text has to be re-centred, and the panel is recomposed
+// by the next hudApplyLive with the new client size.
+std::vector<tf2::native::Renderer::HudPrimitive> g_hudLiveExtraPrimitives;
+// The three readout lines, kept so a resize can rebuild their primitives without
+// waiting for the next reading (a captured frame can arrive first).
+std::string g_hudLiveLastLines[3];
+// Where the heading goes, in client pixels. Lines 1-2 (time, score) are centred
+// on the client; line 3 (name/HP) stays at the left margin because it is the
+// watched player's reading, not the score, and the user asked only for the time
+// and score to sit at the top centre. Published so the gate can assert it.
+struct HudLiveLayout {
+  int lineX[3] = {0, 0, 0};
+  int lineW[3] = {0, 0, 0};
+  int headerX = 0;
+  int headerW = 0;
+  int nameX = 0;
+  int nameW = 0;
+  int regionX = 0;
+  int regionW = 0;
+};
+HudLiveLayout hudLiveLayoutFor(HWND window, const std::string lines[3]);
 
 }  // namespace
 
@@ -359,7 +382,28 @@ void hudApplyRects(HWND window) {
       primitive.filled = false;
       merged.push_back(primitive);
     }
-    merged.insert(merged.end(), g_hudLivePrimitives.begin(), g_hudLivePrimitives.end());
+    // Rebuild the three text lines for the CURRENT client width before appending
+    // the panel shapes. setHudPrimitives replaces the list, so without this a
+    // resize would leave the centred header at its old x until the next reading.
+    const HudLiveLayout layout = hudLiveLayoutFor(window, g_hudLiveLastLines);
+    for (int lineIndex = 0; lineIndex < 3; ++lineIndex) {
+      if (g_hudLiveLastLines[lineIndex].empty()) continue;
+      tf2::native::Renderer::HudPrimitive primitive;
+      primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
+      primitive.x = static_cast<float>(layout.lineX[lineIndex]);
+      primitive.y = 24.0f + 22.0f * static_cast<float>(lineIndex);
+      primitive.w = static_cast<float>(layout.lineW[lineIndex]);
+      primitive.h = 16.0f;
+      primitive.scale = 2.0f;
+      primitive.colour[0] = 1.0f;
+      primitive.colour[1] = 1.0f;
+      primitive.colour[2] = 1.0f;
+      primitive.colour[3] = 1.0f;
+      primitive.text = g_hudLiveLastLines[lineIndex];
+      merged.push_back(primitive);
+    }
+    merged.insert(merged.end(), g_hudLiveExtraPrimitives.begin(),
+      g_hudLiveExtraPrimitives.end());
     g_renderer->setHudPrimitives(merged);
   } else {
     g_renderer->setHudRects(rects);
@@ -497,6 +541,41 @@ constexpr float kHudLiveLineHeight = 22.0f;
 constexpr float kHudLiveScale = 2.0f;
 constexpr float kHudLiveCell = 8.0f * kHudLiveScale;
 
+// Lines 1-2 (time, score) are centred on the client; line 3 (name/HP) stays at
+// kHudLiveX. The centring is clamped to the left margin so a window narrower than
+// the text keeps the line readable instead of running off the edge. Integer
+// arithmetic: the gate checks |x - (cw - chars*16)/2| <= tolerance, so truncating
+// a half pixel is inside tolerance and avoids a float-vs-int mismatch.
+HudLiveLayout hudLiveLayoutFor(HWND window, const std::string lines[3]) {
+  HudLiveLayout layout;
+  int clientW = 0;
+  if (window) {
+    RECT client{};
+    if (GetClientRect(window, &client)) {
+      clientW = static_cast<int>(client.right - client.left);
+    }
+  }
+  for (int index = 0; index < 3; ++index) {
+    layout.lineW[index] = static_cast<int>(lines[index].size()) * static_cast<int>(kHudLiveCell);
+    layout.lineX[index] = static_cast<int>(kHudLiveX);
+    if (index < 2 && clientW > 0) {
+      int x = (clientW - layout.lineW[index]) / 2;
+      if (x < static_cast<int>(kHudLiveX)) x = static_cast<int>(kHudLiveX);
+      layout.lineX[index] = x;
+    }
+  }
+  layout.headerX = std::min(layout.lineX[0], layout.lineX[1]);
+  const int headerRight = std::max(layout.lineX[0] + layout.lineW[0],
+    layout.lineX[1] + layout.lineW[1]);
+  layout.headerW = headerRight - layout.headerX;
+  layout.nameX = layout.lineX[2];
+  layout.nameW = layout.lineW[2];
+  layout.regionX = std::min(layout.headerX, layout.nameX);
+  const int regionRight = std::max(headerRight, layout.nameX + layout.nameW);
+  layout.regionW = regionRight - layout.regionX;
+  return layout;
+}
+
 // g_hudLiveActive is defined near the top of the file (hudApplyRects reads it).
 // g_hudLiveOffReported covers both ways of being off (a switch or an evidence run):
 // one process has one of them, and each is published exactly once.
@@ -532,7 +611,6 @@ std::size_t g_hudLiveCalls = 0;
 std::size_t g_hudLivePublished = 0;
 bool g_hudLiveSummaryRegistered = false;
 std::string g_hudLiveLastSource;
-std::string g_hudLiveLastLines[3];
 
 void hudLiveSummaryAtExit();
 
@@ -1376,6 +1454,11 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   }
   if (!name.known) ++g_hudLiveNameMissing;  // every frame that asks for a name and cannot have one
   const HudLiveText text = hudLiveCompose(playback, target, reading, name);
+  // The three lines and where they go: lines 1-2 centred on the client, line 3 at
+  // the left margin. Computed before the panel composes because the panel's
+  // overlap rule needs the readout's rectangle as an input.
+  const std::string lines[3] = { text.time, text.score, text.target };
+  const HudLiveLayout layout = hudLiveLayoutFor(window, lines);
   // E9: the panel is composed from the same frame as the text, after the
   // suppression branch above -- a suppressed run never publishes a minimap
   // reading that a gate could mistake for pixels the frame does not have.
@@ -1387,8 +1470,13 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   if (!overviewOpen) minimap = hudMinimapCompose(window);
   tf2::native::OverviewDraw overview;
   if (overviewOpen) {
-    const tf2::native::OverviewInput overviewInput = tf2::native::mapOverviewBuildInput(
+    tf2::native::OverviewInput overviewInput = tf2::native::mapOverviewBuildInput(
       states, summary, mapName, 0, 0, playback.tick, playback.tickRate);
+    // The readout block, so the panel can drop itself rather than overlap it.
+    overviewInput.readoutX = layout.regionX;
+    overviewInput.readoutY = static_cast<int>(kHudLiveY);
+    overviewInput.readoutW = layout.regionW;
+    overviewInput.readoutH = static_cast<int>(kHudLiveLineHeight * 2.0f + kHudLiveCell);
     // g_renderer is the device the basemap texture uploads into; the compose
     // call is the only place that knows both the panel and the GPU.
     overview = tf2::native::mapOverviewCompose(window, overviewInput, g_renderer);
@@ -1424,19 +1512,18 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   g_hudLiveLastLines[1] = text.score;
   g_hudLiveLastLines[2] = text.target;
 
-  const std::string lines[3] = { text.time, text.score, text.target };
   std::vector<tf2::native::Renderer::HudPrimitive> primitives;
   std::size_t glyphs = 0;
   float widest = 0.0f;
   for (std::size_t index = 0; index < 3; ++index) {
     tf2::native::Renderer::HudPrimitive primitive;
     primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
-    primitive.x = kHudLiveX;
+    primitive.x = static_cast<float>(layout.lineX[index]);
     primitive.y = kHudLiveY + kHudLiveLineHeight * static_cast<float>(index);
     // Only printable ASCII is composed, so bytes == codepoints here. The renderer
     // still walks the UTF-8 properly; this arithmetic is for the region and the
     // expected glyph count the trace publishes.
-    primitive.w = static_cast<float>(lines[index].size()) * kHudLiveCell;
+    primitive.w = static_cast<float>(layout.lineW[index]);
     primitive.h = kHudLiveCell;
     primitive.scale = kHudLiveScale;
     primitive.colour[0] = 1.0f;
@@ -1451,10 +1538,15 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // E9: the panel's shapes ride in the same list, after the text. hudApplyRects
   // rebuilds this list on every resize from g_hudLivePrimitives, so a window
   // resize keeps the panel without either module knowing about the other.
-  primitives.insert(primitives.end(), minimap.primitives.begin(),
-    minimap.primitives.end());
-  primitives.insert(primitives.end(), overview.primitives.begin(),
-    overview.primitives.end());
+  // Panels are stored apart from the text: a resize rebuilds the text primitives
+  // (their x depends on the client width) and appends the panel shapes unchanged.
+  g_hudLiveExtraPrimitives.clear();
+  g_hudLiveExtraPrimitives.insert(g_hudLiveExtraPrimitives.end(),
+    minimap.primitives.begin(), minimap.primitives.end());
+  g_hudLiveExtraPrimitives.insert(g_hudLiveExtraPrimitives.end(),
+    overview.primitives.begin(), overview.primitives.end());
+  primitives.insert(primitives.end(), g_hudLiveExtraPrimitives.begin(),
+    g_hudLiveExtraPrimitives.end());
   g_hudLivePrimitives = primitives;
   g_renderer->setHudPrimitives(primitives);
   g_hudLiveActive = true;
@@ -1464,9 +1556,12 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // taught the same fact (it ORs g_hudLiveActive in), so a resize mid-run cannot
   // switch the readout off.
   g_renderer->setHudEnabled(true);
-  const int regionX = static_cast<int>(kHudLiveX);
+  // Region: the union of the two published blocks (centred header + left-hand
+  // name line), still 60px tall from y=24. It grows and shifts with the window
+  // now, which is the honest reading of a centred heading.
+  const int regionX = layout.regionX;
   const int regionY = static_cast<int>(kHudLiveY);
-  const int regionW = static_cast<int>(widest);
+  const int regionW = layout.regionW;
   const int regionH = static_cast<int>(kHudLiveLineHeight * 2.0f + kHudLiveCell);
   // reason= says why this line exists (the reading changed); nameReason= says why
   // the name field is a question mark. Two different questions, so two fields --
@@ -1487,7 +1582,8 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     " glyphs=%zu region=%d,%d,%d,%d updates=%zu skips=%zu name=%s"
     " reason=text-changed nameReason=%s nameMissing=%zu"
     " nameTick=%d nameBaseTick=%d nameEntity=%d nameSlot=%d nameRawHex=%s"
-    " targetAbsent=%zu scoreMissing=%zu timerFallback=%zu red=%d blu=%d paused=%d",
+    " targetAbsent=%zu scoreMissing=%zu timerFallback=%zu red=%d blu=%d paused=%d"
+    " lineX=%d,%d,%d lineW=%d,%d,%d header=%d,%d,%d,%d nameBlock=%d,%d,%d,%d",
     playback.tick, hudLive ? "forced" : "interactive", text.source.c_str(),
     text.time.c_str(), text.score.c_str(),
     text.target.c_str(), glyphs, regionX, regionY, regionW, regionH,
@@ -1497,7 +1593,16 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     name.rawHex.c_str(),
     g_hudLiveTargetAbsent, g_hudLiveScoreMissing, g_hudLiveTimerFallback,
     reading.redKnown ? reading.red : -1, reading.bluKnown ? reading.blu : -1,
-    playback.paused ? 1 : 0);
+    playback.paused ? 1 : 0,
+    layout.lineX[0], layout.lineX[1], layout.lineX[2],
+    layout.lineW[0], layout.lineW[1], layout.lineW[2],
+    // header= is the two centred score lines only: 22px line pitch + one 16px
+    // cell = 38px tall, so it stops at y=62 and can never touch the name line at
+    // y=68. region= stays 60 tall because it is the union of header AND name.
+    layout.headerX, static_cast<int>(kHudLiveY), layout.headerW,
+    static_cast<int>(kHudLiveLineHeight + kHudLiveCell),
+    layout.nameX, static_cast<int>(kHudLiveY + kHudLiveLineHeight * 2.0f), layout.nameW,
+    static_cast<int>(kHudLiveCell));
 }
 
 }  // namespace tf2::native::main_internal

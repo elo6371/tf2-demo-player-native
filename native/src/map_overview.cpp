@@ -463,8 +463,11 @@ LayoutPanel placeMinimap(int clientW, int clientH) {
   if (clientH - 2 * kMargin < side) side = clientH - 2 * kMargin;
   if (side < kMinPanel) { panel.reason = "panel-too-small"; return panel; }
   panel.side = side;
+  // BOTTOM-right since the 2026-11-17 alignment change: the top-right corner
+  // belongs to the BLU roster now (both rosters share y). Old pin: y = kMargin
+  // at the top-right; new pin: y = clientH - kMargin - side. Same 12px margin.
   panel.x = clientW - kMargin - side;
-  panel.y = kMargin;
+  panel.y = clientH - kMargin - side;
   panel.mapX = panel.x + kBorder + kMapInset;
   panel.mapY = panel.y + kBorder + kMapInset;
   panel.mapSide = side - 2 * (kBorder + kMapInset);
@@ -481,16 +484,19 @@ struct TeamRect {
   int rows = 0;
 };
 
-// THE NO-OVERLAP RULE (user decision, lead's layout consequence):
-//   RED  : top-left corner, margin kMargin.
-//   BLU  : right-hand column, starting BELOW the minimap's bottom edge + kMargin,
-//          so a 250px minimap can never sit on top of the BLU rows. The panels
-//          are deliberately not symmetric: the top-right corner belongs to the
-//          minimap, and a BLU panel that started at the top would either
-//          overlap it or force the minimap out of its pinned corner.
-//   A window tall enough that the BLU column cannot fit its rows still gets a
-//   clamped ROW COUNT, never an overlapping rectangle.
-TeamRect placeTeam(bool blu, int clientW, int clientH, const LayoutPanel& minimap, int rowCount) {
+// THE ALIGNMENT RULE (user decision 2026-11-17: the red and blue sides must
+// line up, with time and score at the top centre). OLD LAYOUT: RED at y=96
+// under the live readout, BLU at y=274 under the top-right 250px minimap -- a
+// 178px difference the user read as the two sides not being aligned. NEW
+// LAYOUT: both rosters share y, width and height and are mirrored about the
+// client centre: RED.x = kMargin, BLU.x = clientW - kMargin - width, and both
+// start at y = kMargin + kRosterTopBelowReadout (96, the readout's bottom edge
+// 84 plus kMargin; the readout still owns the band above them). The caller
+// passes a COMMON row count (the larger team) so the panels are identical even
+// when one team has more players; each panel draws only its own rows and the
+// difference is background. Height still clamps to the window, and compose
+// drops the map when it would intersect either panel -- never an overlap.
+TeamRect placeTeam(bool blu, int clientW, int clientH, int rowCount) {
   TeamRect rect;
   if (clientW <= 0 || clientH <= 0) return rect;
   int width = kTeamWidth;
@@ -498,17 +504,8 @@ TeamRect placeTeam(bool blu, int clientW, int clientH, const LayoutPanel& minima
   if (maxWidth < width) width = maxWidth;
   if (width < 80) return rect;
   rect.w = width;
-  if (!blu) {
-    rect.x = kMargin;
-    // The live readout (main_hud.cpp:494: x=24, y=24, three 22px lines, last line
-    // 16px tall -> bottom edge 84) occupies this corner on an ordinary launch.
-    // The RED roster starts BELOW it rather than under it: 96 = 84 + kMargin. The
-    // gate asserts the two rectangles do not intersect.
-    rect.y = kMargin + kRosterTopBelowReadout;
-  } else {
-    rect.x = clientW - kMargin - width;
-    rect.y = minimap.valid ? (minimap.y + minimap.side + kMargin) : kMargin;
-  }
+  rect.x = blu ? (clientW - kMargin - width) : kMargin;
+  rect.y = kMargin + kRosterTopBelowReadout;
   const int available = clientH - rect.y - kMargin;
   int rows = rowCount;
   const int maxRows = (available - kTeamHeader) / kTeamRow;
@@ -518,6 +515,13 @@ TeamRect placeTeam(bool blu, int clientW, int clientH, const LayoutPanel& minima
   rect.h = kTeamHeader + rows * kTeamRow;
   if (rect.h > available) rect.h = available < 0 ? 0 : available;
   return rect;
+}
+
+// Strict overlap: touching edges do NOT count, matching the gate's overlaps
+// helper. A panel that ends exactly where another rectangle begins is legal.
+bool rectsOverlap(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
+  if (aw <= 0 || ah <= 0 || bw <= 0 || bh <= 0) return false;
+  return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
 }
 
 struct RowView {
@@ -641,6 +645,13 @@ OverviewDraw mapOverviewCompose(HWND window, const OverviewInput& input,
   draw.panelW = kTeamWidth;
   draw.panelHeader = kTeamHeader;
   draw.panelRow = kTeamRow;
+  // The readout block, straight from the caller: this is the rectangle the
+  // collision rule above tests, and publishing it lets the gate assert the
+  // pairwise non-intersection without re-deriving main_hud's constants.
+  draw.readoutX = input.readoutX;
+  draw.readoutY = input.readoutY;
+  draw.readoutW = input.readoutW;
+  draw.readoutH = input.readoutH;
   // 'no-client' is the placeholder set above; past the client check the compose
   // either placed the panel (ok) or has a reason of its own. Leaving the label at
   // no-client would make every trace claim the window had no client area.
@@ -670,19 +681,44 @@ OverviewDraw mapOverviewCompose(HWND window, const OverviewInput& input,
   };
   std::stable_sort(red.begin(), red.end(), rowOrder);
   std::stable_sort(blu.begin(), blu.end(), rowOrder);
-  const TeamRect redRect = placeTeam(false, clientW, clientH, panel, static_cast<int>(red.size()));
-  const TeamRect bluRect = placeTeam(true, clientW, clientH, panel, static_cast<int>(blu.size()));
+  // A COMMON row count keeps the two panels exactly the same height even when
+  // one team has fewer players (the user asked for the two sides to line up).
+  // Each panel still draws only its own rows; the extra slots are background.
+  const int commonRows = static_cast<int>(std::max(red.size(), blu.size()));
+  const TeamRect redRect = placeTeam(false, clientW, clientH, commonRows);
+  const TeamRect bluRect = placeTeam(true, clientW, clientH, commonRows);
   draw.redX = redRect.x;
   draw.redY = redRect.y;
+  draw.redW = redRect.w;
   draw.redH = redRect.h;
   draw.bluX = bluRect.x;
   draw.bluY = bluRect.y;
+  draw.bluW = bluRect.w;
   draw.bluH = bluRect.h;
   draw.rowsRed = redRect.rows;
   draw.rowsBlu = bluRect.rows;
   std::vector<Renderer::HudPrimitive>& out = draw.primitives;
+  // ------------------------------------------------ map: overlap rule (general)
+  // The map is drawn only when its square does not intersect the live readout
+  // block or either roster. This is not a 320x240 special case: the same test
+  // runs at every size, and a small window fails it because a 177px square at
+  // the bottom-right corner cannot clear rosters that start at y=96. When it
+  // fails the map is not drawn AT ALL (no half state): panelPrimitives stays 0
+  // and the reason is 'no-room'. The readout rect is the caller's (0,0,0,0
+  // means it did not say, and then the header takes no part in the test).
+  const int headerX = input.readoutX;
+  const int headerY = input.readoutY;
+  const int headerW = input.readoutW;
+  const int headerH = input.readoutH;
+  const bool mapVisible = panel.valid
+      && !rectsOverlap(panel.x, panel.y, panel.side, panel.side, headerX, headerY, headerW, headerH)
+      && !rectsOverlap(panel.x, panel.y, panel.side, panel.side, redRect.x, redRect.y, redRect.w, redRect.h)
+      && !rectsOverlap(panel.x, panel.y, panel.side, panel.side, bluRect.x, bluRect.y, bluRect.w, bluRect.h);
+  const std::string dropReason = panel.valid ? std::string("no-room") : panel.reason;
+  draw.panelPrimitives = 0;
   // ------------------------------------------------------------- map area
-  if (panel.valid) {
+  if (mapVisible) {
+    draw.panelPrimitives = 2;
     appendRect(out, static_cast<float>(panel.x), static_cast<float>(panel.y),
       static_cast<float>(panel.side), static_cast<float>(panel.side), kFrame);
     appendRect(out, static_cast<float>(panel.x + kBorder), static_cast<float>(panel.y + kBorder),
@@ -853,8 +889,8 @@ OverviewDraw mapOverviewCompose(HWND window, const OverviewInput& input,
         asciiProject(view.reason, 28), kMuted);
     }
   } else {
-    draw.mappingReason = panel.reason;
-    draw.basemapReason = panel.reason;
+    draw.mappingReason = dropReason;
+    draw.basemapReason = dropReason;
   }
   // ---------------------------------------------------------- team panels
   const auto drawTeam = [&](const TeamRect& rect, std::int32_t team,
@@ -959,19 +995,34 @@ OverviewDraw mapOverviewCompose(HWND window, const OverviewInput& input,
   draw.ready = draw.primitives.size() > 0;
   if (draw.reason == "no-client") {
   } else if (!panel.valid) {
+  } else if (!mapVisible) {
+    draw.reason = "no-room";
   } else {
     draw.reason = "ok";
   }
-  // Region: the title/readout is drawn from the panel's box so a frame capture
-  // can be cropped to it without knowing this file's constants.
-  draw.regionX = panel.valid ? panel.x : 0;
-  draw.regionY = panel.valid ? panel.y : 0;
-  draw.regionW = panel.valid ? panel.side : clientW;
-  draw.regionH = panel.valid ? panel.side : clientH;
+  // Region: what this compose actually painted on screen. With the map drawn it
+  // is the panel square; with the map dropped it is the union of the two roster
+  // panels, so a capture can still be cropped to the HUD without knowing this
+  // file's constants. (The map gate reads its own rectangles from the trace.)
+  if (mapVisible) {
+    draw.regionX = panel.x;
+    draw.regionY = panel.y;
+    draw.regionW = panel.side;
+    draw.regionH = panel.side;
+  } else {
+    const int left = std::min(redRect.x, bluRect.x);
+    const int right = std::max(redRect.x + redRect.w, bluRect.x + bluRect.w);
+    draw.regionX = left;
+    draw.regionY = redRect.y;
+    draw.regionW = right - left;
+    draw.regionH = std::max(redRect.h, bluRect.h);
+  }
   // ------------------------------------------------------------- signature
   draw.signature = "overview";
-  for (int value : {panel.x, panel.y, panel.side, redRect.x, redRect.y, redRect.rows,
-        bluRect.x, bluRect.y, bluRect.rows, draw.imageX, draw.imageY, draw.imageW,
+  for (int value : {panel.x, panel.y, panel.side, redRect.x, redRect.y, redRect.w,
+        redRect.rows, bluRect.x, bluRect.y, bluRect.w, bluRect.rows,
+        draw.panelPrimitives, input.readoutX, input.readoutY, input.readoutW,
+        draw.imageX, draw.imageY, draw.imageW,
         draw.imageH, draw.imagePrimitives, static_cast<int>(out.size())}) {
     draw.signature += "," + std::to_string(value);
   }
@@ -1017,14 +1068,16 @@ void mapOverviewTrace(const OverviewDraw& draw) {
     draw.scale, draw.offsetX, draw.offsetY, draw.basemapLegacyBadge ? 1 : 0);
   tf2::native::main_internal::traceFmt(
     "overview: frame open=1 ready=%d reason=%s map=%s panel=%d,%d,%d border=%d area=%d,%d,%d"
-    " red=%d,%d,%d,%d blu=%d,%d,%d,%d rowsRed=%d rowsBlu=%d",
+    " red=%d,%d,%d,%d blu=%d,%d,%d,%d rowsRed=%d rowsBlu=%d"
+    " panelPrimitives=%d header=%d,%d,%d,%d",
     draw.ready ? 1 : 0, draw.reason.c_str(),
     draw.mapName.empty() ? "-" : draw.mapName.c_str(),
     draw.screenX, draw.screenY, draw.screenSide, draw.border,
     draw.mapX, draw.mapY, draw.mapSide,
-    draw.redX, draw.redY, draw.panelW, draw.redH,
-    draw.bluX, draw.bluY, draw.panelW, draw.bluH,
-    draw.rowsRed, draw.rowsBlu);
+    draw.redX, draw.redY, draw.redW, draw.redH,
+    draw.bluX, draw.bluY, draw.bluW, draw.bluH,
+    draw.rowsRed, draw.rowsBlu, draw.panelPrimitives,
+    draw.readoutX, draw.readoutY, draw.readoutW, draw.readoutH);
   tf2::native::main_internal::traceFmt(
     "overview: mapping ok=%d reason=%s bounds=%.1f,%.1f,%.1f,%.1f scale=%.6f"
     " offsetX=%.6f offsetY=%.6f area=%d,%d,%d",

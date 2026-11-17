@@ -93,6 +93,15 @@ struct OverviewInput {
   double tickRate = 66.6666667;
   std::size_t snapshotEntities = 0;
   std::vector<OverviewPlayer> players;
+  // The live readout's block, in client pixels (main_hud.cpp publishes lines 1-2
+  // centred and line 3 left-anchored). Compose needs it for one decision only:
+  // a bottom-right map that would sit on the readout is NOT drawn (reason
+  // "no-room") rather than drawn over a reading. Zero width/height means "the
+  // caller did not say", and then the readout is not part of the collision test.
+  int readoutX = 0;
+  int readoutY = 0;
+  int readoutW = 0;
+  int readoutH = 0;
 };
 
 // Builds the rows from the decoder's own state. Kept beside compose because the
@@ -118,8 +127,14 @@ struct OverviewDraw {
   int mapX = 0, mapY = 0, mapSide = 0;
   // the two team panels
   int panelW = 0, panelHeader = 0, panelRow = 0;
-  int redX = 0, redY = 0, redH = 0;
-  int bluX = 0, bluY = 0, bluH = 0;
+  // the live readout block this frame was composed against (input.readout*), so
+  // the trace can publish the rectangle the map had to clear.
+  int readoutX = 0, readoutY = 0, readoutW = 0, readoutH = 0;
+  int redX = 0, redY = 0, redW = 0, redH = 0;
+  int bluX = 0, bluY = 0, bluW = 0, bluH = 0;
+  // 2 when the panel frame + map background were appended, 0 when the panel was
+  // dropped for want of room: the gate calls that "map primitives count == 0".
+  int panelPrimitives = 0;
   // basemap (map_basemap.h) and the rectangle the image occupies inside the area.
   // imageX/Y/W/H is the CONTAIN rect: boundary-aspect, centred in the square area,
   // and the pixels are fitted into it (mapview.js formula, see map_basemap.h).
