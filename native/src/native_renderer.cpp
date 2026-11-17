@@ -228,6 +228,7 @@ bool Renderer::createPipeline() {
   //     `texturesUploaded` and `fallbackSlots` rather than by a brightness.
   Microsoft::WRL::ComPtr<ID3DBlob> worldVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> worldPixelBytecode;
+  Microsoft::WRL::ComPtr<ID3DBlob> skyPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> modelVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> modelPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> entityModelVertexBytecode;
@@ -241,8 +242,12 @@ bool Renderer::createPipeline() {
   Microsoft::WRL::ComPtr<ID3DBlob> worldClipCaptureBytecode;
   HRESULT worldShaderResult = S_OK;
   initStage_ = "compileShaders.world";
+  // W-1 perf: the sky's shader is compiled here with the world pair, so a bad
+  // edit to it fails at startup with this stage name instead of on the frame a
+  // sky happens to be drawn.
   const bool worldShadersCompiled = compileShader(worldVertexSource, "main", "vs_5_0", worldVertexBytecode, &worldShaderResult)
-      && compileShader(worldPixelSource, "main", "ps_5_0", worldPixelBytecode, &worldShaderResult);
+      && compileShader(worldPixelSource, "main", "ps_5_0", worldPixelBytecode, &worldShaderResult)
+      && compileShader(skyPixelSource, "main", "ps_5_0", skyPixelBytecode, &worldShaderResult);
   if (!worldShadersCompiled) { lastError_ = worldShaderResult; return false; }
   initStage_ = "compileShaders.worldClipCapture";
   {
@@ -363,7 +368,8 @@ bool Renderer::createPipeline() {
       nullptr, pixelShader_.GetAddressOf()))) return false;
   {
     const bool shadersCreated = SUCCEEDED(device_->CreateVertexShader(worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), nullptr, worldVertexShader_.GetAddressOf()))
-      && SUCCEEDED(device_->CreatePixelShader(worldPixelBytecode->GetBufferPointer(), worldPixelBytecode->GetBufferSize(), nullptr, worldPixelShader_.GetAddressOf()));
+      && SUCCEEDED(device_->CreatePixelShader(worldPixelBytecode->GetBufferPointer(), worldPixelBytecode->GetBufferSize(), nullptr, worldPixelShader_.GetAddressOf()))
+      && SUCCEEDED(device_->CreatePixelShader(skyPixelBytecode->GetBufferPointer(), skyPixelBytecode->GetBufferSize(), nullptr, skyPixelShader_.GetAddressOf()));
     if (!shadersCreated) { lastError_ = E_FAIL; return false; }
     // N05 step 3: the stream output object. pSignature is NULL because the GS's
     // input signature is already in its own bytecode; the stream output
@@ -382,7 +388,7 @@ bool Renderer::createPipeline() {
         &clipEntry, 1, &clipStride, 1, 0, nullptr,
         worldClipCaptureGeometryShader_.GetAddressOf()));
       if (!clipCreated) {
-        worldVertexShader_.Reset(); worldPixelShader_.Reset();
+        worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset();
         lastError_ = E_FAIL;
         return false;
       }
@@ -431,7 +437,7 @@ bool Renderer::createPipeline() {
     initStage_ = "layout.world";
     const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 9, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
     if (!layoutCreated) {
-      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
+      worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset(); worldInputLayout_.Reset();
       worldClipCaptureGeometryShader_.Reset();
       worldClipCaptureBuffer_.Reset();
       worldClipCaptureReadback_.Reset();
@@ -452,7 +458,7 @@ bool Renderer::createPipeline() {
     const bool modelLayoutCreated = modelShaderCreated && SUCCEEDED(device_->CreateInputLayout(modelElements, 6,
       modelVertexBytecode->GetBufferPointer(), modelVertexBytecode->GetBufferSize(), modelInputLayout_.GetAddressOf()));
     if (!modelLayoutCreated) {
-      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset(); modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
+      worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset(); worldInputLayout_.Reset(); modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
       lastError_ = E_FAIL;
       return false;
     }
@@ -491,7 +497,7 @@ bool Renderer::createPipeline() {
       entityElements, entityElementCount, entityModelVertexBytecode->GetBufferPointer(),
       entityModelVertexBytecode->GetBufferSize(), entityModelInputLayout_.GetAddressOf()));
     if (!entityLayoutCreated) {
-      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
+      worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset(); worldInputLayout_.Reset();
       modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
       entityModelVertexShader_.Reset(); entityModelInputLayout_.Reset();
       lastError_ = E_FAIL;
@@ -1100,6 +1106,7 @@ void Renderer::shutdown() {
   modelInputLayout_.Reset();
   entityModelInputLayout_.Reset();
   worldPixelShader_.Reset();
+  skyPixelShader_.Reset();
   worldVertexShader_.Reset();
   modelVertexShader_.Reset();
   entityModelVertexShader_.Reset();

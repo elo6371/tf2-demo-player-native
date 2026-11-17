@@ -487,6 +487,33 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
 }
 )HLSL";
 
+  // W-1 perf: the sky's own pixel shader.
+  //
+  // The world pixel shader above contains `discard` (the alpha-test arm), and a
+  // draw whose pixel shader can discard cannot be early-depth-rejected: the
+  // hardware has to run the shader before it can know whether the depth test
+  // would have killed the pixel. That is why deferring the sky to the end of the
+  // world pass changed nothing measurable (W-1 A/B: 45.1 fps sky off, 38.8 fps
+  // sky first, 37.3 fps sky last -- the same 12 triangles shaded every frame
+  // pixel in both orders). This shader is the sky branch of the world shader and
+  // nothing else: it returns the same colour the branch already returned (the
+  // branch returns before the lighting half runs), but with no discard, no depth
+  // output and no read beyond the cube, which is what lets the depth test run
+  // first and reject the pixels the world already covers.
+  extern const char skyPixelSource[] = R"HLSL(
+TextureCube envCube : register(t5);
+SamplerState sampler0 : register(s0);
+float3 safeNormalize(float3 value) {
+  float lengthSquared = dot(value, value);
+  if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
+  return value * rsqrt(lengthSquared);
+}
+// The input signature matches the world vertex shader's output struct byte for
+// byte, so the same input layout and the same vertex shader feed it.
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5, float4 feature : TEXCOORD6, float4 tangent : TEXCOORD7) : SV_TARGET {
+  return float4(envCube.Sample(sampler0, safeNormalize(worldPosition)).rgb, 1.0);
+})HLSL";
+
   extern const char modelVertexSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) { row_major float4x4 mvp; float4 unused0; float4 unused1; float4 unused2; float4 unused3; };
 cbuffer ModelSkinningConstants : register(b1) { row_major float4x4 bones[128]; uint boneCount; uint skinEnabled; uint2 padding; };
