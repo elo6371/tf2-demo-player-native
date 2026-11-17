@@ -950,9 +950,10 @@ rm -f "$T50_TRACE" "$T50_FRAME_A" "$T50_FRAME_B" "$T50_SETTINGS"
 # only ever saw the 90-degree default could not tell a jump that restores the
 # saved fov from one that resets it to the default, so the run starts from a
 # non-default 100: every saved bookmark carries 100 and every verify line below
-# must report fovWant=100 with fovMatch=1. The product loads this file because
+# must report fovWant=100 with fovMatch=1. A distinct weapon FOV of 60 also
+# rejects the old world/ViewModel coupling. The product loads this file because
 # --settings-file is taken before loadSettings (the pre-scan in wWinMain).
-printf '[renderer]\r\nviewModelFov=100\r\n' > "$T50_SETTINGS"
+printf '[renderer]\r\nworldFov=100\r\nviewModelFov=60\r\n' > "$T50_SETTINGS"
 cyg_trace="$(absolute_out "$T50_TRACE")"
 cyg_a="$(absolute_out "$T50_FRAME_A")"
 cyg_b="$(absolute_out "$T50_FRAME_B")"
@@ -1593,8 +1594,8 @@ T50EOF
   # an assertion and not a duplicate of the pose one.
   t50_backup native/src/main_camera.cpp || t50mrc=1
   if t50_patch native/src/main_camera.cpp \
-      "  g_renderer->setViewModelFov(bookmark.fov);" \
-      "  g_renderer->setViewModelFov(bookmark.fov + 1.0f);  // mutation: wrong fov"; then
+      "  g_renderer->setWorldFov(bookmark.fov);" \
+      "  g_renderer->setWorldFov(bookmark.fov + 1.0f);  // mutation: wrong fov"; then
     if bash build-target.sh tf2_demo_native > "$T50M/m2b.build" 2>&1; then
       t50_script_run m2b
       m2b_total=$(grep -a "camera: verify kind=bookmark" "$T50M/m2b.trace" | grep -c "match=" || true)

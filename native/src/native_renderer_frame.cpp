@@ -113,7 +113,7 @@ void Renderer::setPaneCameraFocusWorld(std::uint32_t pane, float x, float y, flo
   // must not move while a second pane is added.
   const float normalizedX = (x - worldCenterX_) * worldHorizontalScale_;
   const float normalizedY = (y - worldCenterY_) * worldHorizontalScale_;
-  const float normalizedZ = (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f;
+  const float normalizedZ = (z - worldMinZ_) * worldHorizontalScale_ + 0.1f;
   if (!std::isfinite(normalizedX) || !std::isfinite(normalizedY) || !std::isfinite(normalizedZ)) return;
   PaneCameraState& camera = paneCameras_[pane];
   camera.focus[0] = std::clamp(normalizedX, -1.0e6f, 1.0e6f);
@@ -136,7 +136,7 @@ void Renderer::setPaneCameraDemoViewWorld(std::uint32_t pane, float x, float y, 
       || worldHorizontalScale_ <= 0.0f) return;
   const float normalizedX = (x - worldCenterX_) * worldHorizontalScale_;
   const float normalizedY = (y - worldCenterY_) * worldHorizontalScale_;
-  const float normalizedZ = (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f;
+  const float normalizedZ = (z - worldMinZ_) * worldHorizontalScale_ + 0.1f;
   if (!std::isfinite(normalizedX) || !std::isfinite(normalizedY) || !std::isfinite(normalizedZ)) return;
   PaneCameraState& camera = paneCameras_[pane];
   camera.demoView = true;
@@ -413,7 +413,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       // the map and turns otherwise ordinary faces into giant screen shards.
       const float normalizedForwardX = forward[0] * worldHorizontalScale_;
       const float normalizedForwardY = forward[1] * worldHorizontalScale_;
-      const float normalizedForwardZ = forward[2] * (0.8f / std::max(worldSpanZ_, 1.0e-6f));
+      const float normalizedForwardZ = forward[2] * worldHorizontalScale_;
       target = XMVectorSet(paneCamera.demoEye[0] + normalizedForwardX,
         paneCamera.demoEye[1] + normalizedForwardY,
         paneCamera.demoEye[2] + normalizedForwardZ, 1.0f);
@@ -485,7 +485,8 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     const float worldFarPlane = 100.0f;
     worldNearPlaneNormalized_ = worldNearPlane;
     worldFarPlaneNormalized_ = worldFarPlane;
-    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, worldNearPlane, worldFarPlane);
+    const float worldVerticalFov = sourceHorizontalFovToVertical(settings_.worldFov);
+    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(worldVerticalFov), aspect, worldNearPlane, worldFarPlane);
     const XMMATRIX mvp = view * projection;
     WorldConstantsData& constants = frameConstants;
     XMStoreFloat4x4(&constants.mvp, mvp);
@@ -518,7 +519,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // only builds it when all six faces decoded.
     constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f,
       worldBump2Diagnostic_ ? 1.0f : 0.0f, 0.0f);
-    // T101: the fog, converted into the two spaces the shader needs in one place
+    // T101: the fog, converted into the spaces the shader needs in one place
     // so the scales cannot drift from the vertex convert (which uses the same
     // two members, native_renderer_world.cpp:93-101). When the pass was uploaded
     // unfogged every value here is a no-op: enabled 0 keeps the shader branch
@@ -526,8 +527,8 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // A disabled pass therefore uploads (0,0,0,0)/(1,1,1,0) and not garbage.
     const float fogBoxToMapXZ = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
       ? 1.0f / worldHorizontalScale_ : 1.0f;
-    const float fogBoxToMapZ = (std::isfinite(worldSpanZ_) && worldSpanZ_ > 0.0f)
-      ? worldSpanZ_ / 0.8f : 1.0f;
+    const float fogBoxToMapZ = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
+      ? 1.0f / worldHorizontalScale_ : 1.0f;
     constants.fogParams = worldFog_.enabled
       ? XMFLOAT4(worldFog_.start, worldFog_.end, worldFog_.maxDensity, 1.0f)
       : XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1387,7 +1388,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
               // map, so every item read x0==x1 and the region assertions could not
               // be evaluated at all -- a correct silhouette inside a one-pixel box.
               const float legacyHalfX = 20.0f * worldHorizontalScale_;
-              const float legacyHalfZ = 36.0f * (0.8f / worldSpanZ_);
+              const float legacyHalfZ = 36.0f * worldHorizontalScale_;
               const DirectX::XMVECTOR legacyCenter = DirectX::XMVectorSet(instance.origin[0], instance.origin[1], instance.origin[2], 1.0f);
               float minX = 1.0f, minY = 1.0f, maxX = -1.0f, maxY = -1.0f;
               float nearest = 1.0f;

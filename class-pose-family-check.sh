@@ -30,7 +30,8 @@
 #
 # It reads model files only. No product, no capture, no host lock.
 set -u
-OUT="${T62_POSEFAMILY_OUT:-evidence/t62-matrix/pose-families}"
+# Runtime output must not rewrite checked-in acceptance evidence.
+OUT="${T62_POSEFAMILY_OUT:-.scratch/t62-matrix/pose-families}"
 PROBE=native/build-nmake/model_pose_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 CLASSES=(scout soldier pyro demo heavy engineer medic sniper spy)

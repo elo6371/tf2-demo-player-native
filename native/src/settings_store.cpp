@@ -103,6 +103,9 @@ PersistentSettings loadSettings() {
   result.render.renderScale = static_cast<float>(readInt(file, L"renderScalePercent", 100)) / 100.0f;
   result.render.viewModelFov = static_cast<float>(
     migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));
+  // World camera FOV uses Source's horizontal-at-4:3 convention. Never inherit
+  // viewModelFov here: that legacy coupling made a weapon setting move the map.
+  result.render.worldFov = static_cast<float>(readInt(file, L"worldFov", 90));
   result.render.vsync = readBool(file, L"vsync", false);
   // T52: the overlay's two keys. They are read here, with everything else, so a
   // gate that pins its own settings file makes the COMPILED default the input --
@@ -150,6 +153,7 @@ bool saveSettings(const PersistentSettings& settings) {
   if (!writeInt(temporary, L"preset", render.preset == QualityPreset::Standard ? 1 : 0)
       || !writeInt(temporary, L"renderScalePercent", static_cast<int>(render.renderScale * 100.0f + 0.5f))
       || !writeInt(temporary, L"viewModelFov", static_cast<int>(render.viewModelFov + 0.5f))
+      || !writeInt(temporary, L"worldFov", static_cast<int>(render.worldFov + 0.5f))
       || !writeBool(temporary, L"vsync", render.vsync)
       // T52: the overlay's two keys, written here so there is ONE ini writer. A
       // second writer racing this one is how a settings file ends up with half of

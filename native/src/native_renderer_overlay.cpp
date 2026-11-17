@@ -35,7 +35,7 @@ bool Renderer::uploadProjectileLines(const std::vector<ProjectileLine>& lines) {
   const auto convert = [&](const float point[3], const float color[4]) {
     return WorldVertex{(point[0] - worldCenterX_) * worldHorizontalScale_,
       (point[1] - worldCenterY_) * worldHorizontalScale_,
-      (point[2] - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f,
+      (point[2] - worldMinZ_) * worldHorizontalScale_ + 0.1f,
       color[0], color[1], color[2], color[3], 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
   };
   for (std::size_t i = 0; i < limited; ++i) {
@@ -68,7 +68,7 @@ void Renderer::setProjectileTimeline(const std::vector<ProjectileTimelineEvent>&
     return DirectX::XMFLOAT3(
       (x - worldCenterX_) * worldHorizontalScale_,
       (y - worldCenterY_) * worldHorizontalScale_,
-      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+      (z - worldMinZ_) * worldHorizontalScale_ + 0.1f);
   };
   for (const auto& event : events) {
     if (event.tick != tick || !event.hasOrigin) continue;
@@ -174,7 +174,7 @@ void Renderer::setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>&
     return DirectX::XMFLOAT3(
       (x - worldCenterX_) * worldHorizontalScale_,
       (y - worldCenterY_) * worldHorizontalScale_,
-      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+      (z - worldMinZ_) * worldHorizontalScale_ + 0.1f);
   };
 
   // A LINE LIST, two vertices per segment, one segment per adjacent observed
@@ -252,7 +252,7 @@ void Renderer::setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>
   const auto normalize = [this](float x, float y, float z) {
     return DirectX::XMFLOAT3((x - worldCenterX_) * worldHorizontalScale_,
       (y - worldCenterY_) * worldHorizontalScale_,
-      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+      (z - worldMinZ_) * worldHorizontalScale_ + 0.1f);
   };
   for (const auto& event : events) {
     if (event.tick > tick || event.tick < tick - lifetimeTicks || !event.hasOrigin) continue;
@@ -343,14 +343,14 @@ void Renderer::rebuildOverlayBuffers() {
   const auto normalize = [this](float x, float y, float z) {
     return DirectX::XMFLOAT3((x - worldCenterX_) * worldHorizontalScale_,
       (y - worldCenterY_) * worldHorizontalScale_,
-      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+      (z - worldMinZ_) * worldHorizontalScale_ + 0.1f);
   };
   EntityModelWorldMap world;
   world.centerX = worldCenterX_;
   world.centerY = worldCenterY_;
   world.minZ = worldMinZ_;
   world.horizontalScale = worldHorizontalScale_;
-  world.zScale = 0.8f / worldSpanZ_;
+  world.zScale = worldHorizontalScale_;
   constexpr std::size_t maxInstances = 96;
 
   // ---- silhouettes, one bucket per (mode, mesh) --------------------------

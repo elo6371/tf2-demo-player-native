@@ -479,9 +479,8 @@ void traceWorldTileFill(const std::string& materialName, const std::string& vmtP
 // FIRST token is the needle wins -- run_PRIMARY is a cycle, while
 // layer_AttackStandMelee_runS_arms merely mentions "run".
 //
-// IDLE keeps the pre-T61.1 substring test and gets no primary tier. The matching
-// "stand"/"AttackStand" defect is a separate task: this change fixes one cause
-// and does not retune the selector.
+// IDLE uses the same token and primary-action rules: stand_PRIMARY is a generic
+// standing cycle, while AttackStand_PRIMARY is an attack action, not idle.
 //
 // Returns -1 when the table has no such label; the caller then leaves the entity
 // alone rather than forcing sequence 0, which on a player model is a stand pose
@@ -508,8 +507,7 @@ std::int32_t choosePlayerAnimationSequence(
       binding.anims.sequences.size(), labelAt, frameCountAt,
       moving ? tf2::native::kMovingNeedles : tf2::native::kIdleNeedles,
       moving ? tf2::native::kMovingNeedleCount : tf2::native::kIdleNeedleCount,
-      moving ? tf2::native::SequenceMatchMode::WholeToken
-             : tf2::native::SequenceMatchMode::Substring,
+      tf2::native::SequenceMatchMode::WholeToken,
       label);
 }
 
@@ -2151,7 +2149,7 @@ class ProductReviewPorts final : public tf2::native::ReviewSessionPorts {
         camera.pose.distance)) {
       return false;
     }
-    g_renderer->setViewModelFov(camera.fov);
+    g_renderer->setWorldFov(camera.fov);
     g_renderer->clearObserverDemoView();
     syncRendererPoseToDirector(tf2::native::CameraMoveSource::Bookmark);
     if (camera.mode == "first-person") g_cameraMode.setMode(tf2::native::CameraMode::FirstPerson);
@@ -9393,7 +9391,7 @@ bool outlineVertexExtent = false;
             tf2::native::WorldWaterVertex vertex{};
             vertex.x = (point.x - renderer.worldCenterX()) * renderer.worldHorizontalScale();
             vertex.y = (point.y - renderer.worldCenterY()) * renderer.worldHorizontalScale();
-            vertex.z = (point.z - renderer.worldMinZ()) / renderer.worldSpanZ() * 0.8f + 0.1f;
+            vertex.z = (point.z - renderer.worldMinZ()) * renderer.worldHorizontalScale() + 0.1f;
             vertex.r = waterShade; vertex.g = waterShade; vertex.b = waterBlue; vertex.a = 1.0f;
             return vertex;
           };
@@ -10225,6 +10223,17 @@ bool outlineVertexExtent = false;
         haveTransform ? nearBox / scale : -1.0f,
         haveTransform ? farBox / scale : -1.0f,
         scale, haveTransform ? "published" : "no-transform");
+      const auto metric = renderer.worldShaderConstants();
+      if (haveTransform && metric.valid) {
+        traceFmt("gpu: world metric scale=%.9g center=%.9g,%.9g minZ=%.9g spanZ=%.9g",
+          scale, renderer.worldCenterX(), renderer.worldCenterY(),
+          renderer.worldMinZ(), renderer.worldSpanZ());
+        for (int row = 0; row < 4; ++row) {
+          traceFmt("gpu: world metric-mvp row=%d values=%.9g,%.9g,%.9g,%.9g", row,
+            metric.mvp[row * 4], metric.mvp[row * 4 + 1],
+            metric.mvp[row * 4 + 2], metric.mvp[row * 4 + 3]);
+        }
+      }
     }
     // T2 (2026-10-14): the water surface as a DRAW, read from the renderer
     // after the frame -- the same discipline the sky and vis lines above use.
@@ -10644,7 +10653,7 @@ bool outlineVertexExtent = false;
                                   float& sx, float& sy, float& depth, float& invW) {
     const float x = (point.x - p.centerX) * p.scale;
     const float y = (point.y - p.centerY) * p.scale;
-    const float z = (point.z - p.minZ) / p.spanZ * 0.8f + 0.1f;
+    const float z = (point.z - p.minZ) * p.scale + 0.1f;
     const float* m = p.m;
     const float cx = x * m[0] + y * m[4] + z * m[8] + m[12];
     const float cy = x * m[1] + y * m[5] + z * m[9] + m[13];
@@ -13322,6 +13331,13 @@ bool outlineVertexExtent = false;
             std::string ledgerState = "-";
             std::int32_t ledgerSeq = -1;
             std::string ledgerLabel = "-";
+            std::int32_t ledgerFrame = -1;
+            std::int32_t ledgerFrameCount = 0;
+            std::int32_t ledgerLocalFrame = -1;
+            std::int32_t ledgerSectionFrames = 0;
+            std::size_t ledgerSkinBones = 0;
+            std::size_t ledgerValidBones = 0;
+            float ledgerCycle = -1.0f;
             tf2::native::AnimationInputStatus animStatus = tf2::native::AnimationInputStatus::ModelMissing;
             std::string animReason;
             const auto* binding = animationBindings.resolve(instance.modelPath, animStatus, animReason);
@@ -13632,6 +13648,13 @@ bool outlineVertexExtent = false;
             tf2::native::EntityModelDrawInstance attachDraw;
             if (binding != nullptr) {
               const auto sampled = tf2::native::buildAnimationSkinMatrices(binding, request);
+              ledgerFrame = sampled.frame;
+              ledgerFrameCount = sampled.frameCount;
+              ledgerLocalFrame = sampled.localFrame;
+              ledgerSectionFrames = sampled.sectionFrames;
+              ledgerSkinBones = sampled.skinBones;
+              ledgerValidBones = sampled.validBones;
+              if (request.hasCycle) ledgerCycle = request.cycle;
               if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
                 draw.skinningEnabled = true;
                 draw.boneOffset = static_cast<std::uint32_t>(entityBoneMatrices.size());
@@ -13838,14 +13861,16 @@ bool outlineVertexExtent = false;
                 // line as the id: family is what the draw asked the material
                 // atlas for, team is the demo's own m_iTeamNum, and the id is
                 // only meaningful for the pixels if it can be located.
-                traceFmt("entity: id=%d ent=%d model=%s team=%d family=%d state=%s seq=%d label=%s skinned=%d origin=%.1f,%.1f,%.1f frame_tick=%d",
+                traceFmt("entity: id=%d ent=%d model=%s team=%d family=%d state=%s seq=%d label=%s skinned=%d origin=%.1f,%.1f,%.1f frame_tick=%d cycle=%.6f frame=%d/%d localFrame=%d sectionFrames=%d skinBones=%zu validBones=%zu",
                   entityId, static_cast<int>(instance.entityIndex), instance.modelPath.c_str(),
                   instance.transform.hasTeam ? static_cast<int>(instance.transform.team) : -1,
                   static_cast<int>(draw.skinFamily),
                   ledgerState.c_str(), static_cast<int>(ledgerSeq), ledgerLabel.c_str(),
                   draw.skinningEnabled ? 1 : 0,
                   instance.transform.origin[0], instance.transform.origin[1],
-                  instance.transform.origin[2], static_cast<int>(g_playback.tick));
+                  instance.transform.origin[2], static_cast<int>(g_playback.tick),
+                  static_cast<double>(ledgerCycle), ledgerFrame, ledgerFrameCount,
+                  ledgerLocalFrame, ledgerSectionFrames, ledgerSkinBones, ledgerValidBones);
               } else {
                 // More bodies than one red byte can name. Refusing is the only
                 // honest option: clamping would paint two bodies the same colour

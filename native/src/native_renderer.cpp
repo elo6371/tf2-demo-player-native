@@ -911,8 +911,8 @@ WorldFogUploadState Renderer::worldFogState() const {
   if (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f) {
     state.boxToMapXZ = 1.0f / worldHorizontalScale_;
   }
-  if (std::isfinite(worldSpanZ_) && worldSpanZ_ > 0.0f) {
-    state.boxToMapZ = worldSpanZ_ / 0.8f;
+  if (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f) {
+    state.boxToMapZ = 1.0f / worldHorizontalScale_;
   }
   state.verticesFogged = worldFogVertices_;
   return state;

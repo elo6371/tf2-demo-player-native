@@ -472,10 +472,9 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   //
   // The distance is measured in MAP units. worldPosition is the normalised box
   // vertex (the vertex shader copies input.position straight through), so the
-  // delta is multiplied by the same two scales the vertex convert used
-  // (native_renderer_world.cpp:93-101): 1/horizontalScale for x/y, spanZ/0.8
-  // for z. One scalar would put the fog at a different depth in every map whose
-  // long axis is not 0.8 wide.
+  // delta is multiplied by the inverse vertex scale on all axes
+  // (native_renderer_world.cpp:93-101). The uniform world transform keeps fog
+  // distance and camera geometry in the same map metric.
   if ((featureMask & 32u) != 0u && fogParams.w > 0.5) {
     float3 fogDelta = (cameraPositionAndSpecular.xyz - worldPosition) * fogScale.xyz;
     float fogDistance = length(fogDelta);

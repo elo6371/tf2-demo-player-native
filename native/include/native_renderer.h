@@ -32,6 +32,7 @@
 // one draw records against it. Its own header so a probe can test the contract
 // without linking a renderer.
 #include "pane_boundary.h"
+#include "world_fov.h"
 
 namespace tf2::native {
 
@@ -73,6 +74,9 @@ struct RenderSettings {
   int modelLod = 4;
   float renderScale = 1.0f;
   float viewModelFov = 90.0f;
+  // Source camera FOV: horizontal degrees at a 4:3 reference aspect. Kept
+  // separate from the first-person weapon ViewModel projection.
+  float worldFov = 90.0f;
   bool vsync = false;
   // T52: the overlay slot's persisted state. Two keys only -- `outline` (the
   // on/off the F12 key also drives) and `outline_depth` (0 x-ray product, 1 the
@@ -492,7 +496,7 @@ struct WorldFogState {
 struct WorldFogUploadState {
   WorldFogState fog;
   float boxToMapXZ = 1.0f;     // 1 / worldHorizontalScale_
-  float boxToMapZ = 1.0f;      // worldSpanZ_ / 0.8
+  float boxToMapZ = 1.0f;      // 1 / worldHorizontalScale_
   std::size_t verticesFogged = 0;
 };
 
@@ -1480,6 +1484,8 @@ public:
   ModelGpuStatus modelGpuStatus() const { return modelGpuStatus_; }
   void setViewModelFov(float fov) { settings_.viewModelFov = clampViewModelFov(fov); }
   float viewModelFov() const { return settings_.viewModelFov; }
+  void setWorldFov(float fov) { settings_.worldFov = clampViewModelFov(fov); }
+  float worldFov() const { return settings_.worldFov; }
 
   // ---- First-person ViewModel pass (T2) -----------------------------------
   // Its own vertex buffer, bone buffer, constant buffer, shader, projection and

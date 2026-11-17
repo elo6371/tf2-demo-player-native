@@ -56,7 +56,7 @@ void Renderer::setObserverFocusWorld(float x, float y, float z) {
       || worldHorizontalScale_ <= 0.0f) return;
   const float normalizedX = (x - worldCenterX_) * worldHorizontalScale_;
   const float normalizedY = (y - worldCenterY_) * worldHorizontalScale_;
-  const float normalizedZ = (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f;
+  const float normalizedZ = (z - worldMinZ_) * worldHorizontalScale_ + 0.1f;
   if (!std::isfinite(normalizedX) || !std::isfinite(normalizedY) || !std::isfinite(normalizedZ)) return;
   setObserverFocus(normalizedX, normalizedY, normalizedZ);
 }
@@ -85,12 +85,12 @@ bool Renderer::observerFocusMapWorld(float& x, float& y, float& z) const {
       || worldHorizontalScale_ <= 0.0f) return false;
   // The exact inverse of setObserverFocusWorld's three lines, in the same
   // order a reader of that function meets them. A division instead of the
-  // forward multiplication, and the z bias unwound before the span: getting
+  // forward multiplication, and the z bias unwound before the scale: getting
   // either backwards would hand the pvs a point that is not where the camera
   // is, which is the defect this exists to fix.
   x = (observerFocusX_ - 0.0f) / worldHorizontalScale_ + worldCenterX_;
   y = (observerFocusY_ - 0.0f) / worldHorizontalScale_ + worldCenterY_;
-  z = (observerFocusZ_ - 0.1f) / 0.8f * worldSpanZ_ + worldMinZ_;
+  z = (observerFocusZ_ - 0.1f) / worldHorizontalScale_ + worldMinZ_;
   if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
   return true;
 }
@@ -181,7 +181,7 @@ Renderer::OrbitPoseReading Renderer::orbitPose() const {
   reading.pitch = cameraPitch_;
   reading.distance = cameraDistance_;
   reading.demoView = observerDemoView_;
-  reading.fovDegrees = settings_.viewModelFov;
+  reading.fovDegrees = settings_.worldFov;
   return reading;
 }
 
@@ -223,7 +223,7 @@ bool Renderer::cameraEyeMapWorld(float& x, float& y, float& z) const {
   const float boxZ = observerFocusZ_ + std::sin(cameraPitch_) * cameraDistance_;
   x = (boxX - 0.0f) / worldHorizontalScale_ + worldCenterX_;
   y = (boxY - 0.0f) / worldHorizontalScale_ + worldCenterY_;
-  z = (boxZ - 0.1f) / 0.8f * worldSpanZ_ + worldMinZ_;
+  z = (boxZ - 0.1f) / worldHorizontalScale_ + worldMinZ_;
   return std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
 }
 

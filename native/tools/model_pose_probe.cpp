@@ -147,6 +147,49 @@ int selfTest() {
 // mechanism a pixel mutation targets (m8 = the mode argument, m9 = the
 // leading-token preference), so a unit failure here says which rule broke
 // before an 8-minute capture is spent finding out.
+int helperSkinSelfTest() {
+  using namespace tf2::native;
+  AnimationBinding binding;
+  binding.renderBones = binding.validBindBones = 2;
+  const std::array<float, 12> identity{1,0,0,0, 0,1,0,0, 0,0,1,0};
+  binding.poseToBone = {identity, identity};
+  binding.poseToBone[1][3] = -1.0f;  // helper bind position is (1,0,0)
+  binding.poseToBoneValid = {1, 1};
+  binding.boneParent = {-1, 0};
+  binding.animToModel = {0};  // only the parent has an animation channel
+  binding.anims.loaded = true;
+  binding.anims.bones.resize(1);
+  binding.anims.animations.resize(1);
+  binding.anims.animations[0].fps = 30.0f;
+  binding.anims.animations[0].frameCount = 1;
+  binding.anims.animations[0].animIndex = 200;
+  binding.anims.sequences.resize(1);
+  binding.anims.sequences[0].animDesc = 0;
+  binding.anims.bytes.assign(204, 0);
+  binding.anims.bytes[200] = 255;  // empty animation chain uses the bone's pose
+  AnimationSampleRequest request;
+  request.sequence = 0;
+  const auto mapsPoint = [&](float expectedX, float expectedY) {
+    const auto sample = buildAnimationSkinMatrices(&binding, request);
+    if (sample.bindPose || sample.skinMatrices.size() != 2
+        || sample.skinBones != 2 || sample.validBones != 2) return false;
+    const auto& matrix = sample.skinMatrices[1];
+    // The helper's bind-space vertex (1,0,0) must inherit its parent's pose.
+    return std::fabs(matrix[0] + matrix[12] - expectedX) < 1.0e-5f
+      && std::fabs(matrix[1] + matrix[13] - expectedY) < 1.0e-5f
+      && std::fabs(matrix[2] + matrix[14]) < 1.0e-5f;
+  };
+  const bool bindControl = mapsPoint(1.0f, 0.0f);
+  binding.anims.bones[0].position = {10.0f, 0.0f, 0.0f};
+  const bool translation = mapsPoint(11.0f, 0.0f);
+  const float halfSqrt = std::sqrt(0.5f);
+  binding.anims.bones[0].rotation = {0.0f, 0.0f, halfSqrt, halfSqrt};
+  const bool rotation = mapsPoint(10.0f, 1.0f);
+  std::printf("helper-skin-selftest bindControl=%d translation=%d rotation=%d\n",
+    bindControl ? 1 : 0, translation ? 1 : 0, rotation ? 1 : 0);
+  return bindControl && translation && rotation ? 0 : 1;
+}
+
 int matcherSelfTest() {
   using tf2::native::SequenceMatchMode;
   const auto selectorFor = [](const std::vector<std::string>& labels,
@@ -219,14 +262,11 @@ int matcherSelfTest() {
     SequenceMatchMode::WholeToken, &chosenLabel);
   const bool leadingTokenBeatsArmLayer = leadingPick == 1;
 
-  // Case 5: a one-shot action is never an idle. `reload` is not among the
-  // idle needles, so the substring matcher DOES accept `ReloadStand_PRIMARY`
-  // (it carries the token `stand`); before the one-shot rule that made Pyro's
-  // idle pick a 31-frame reload clip whose animation block is an empty
-  // 0xFF-terminated chain in pyro.mdl. The selector must skip it and fall to
-  // the standing attack at index 1, and the second half of the flag proves the
-  // rejection -- not a lost match -- is what moved the pick.
-  const std::vector<std::string> idleTable = {"ReloadStand_PRIMARY", "AttackStand_PRIMARY"};
+  // Case 5: idle must select the generic stand cycle, not reload, attack,
+  // taunt, or layer sequences that happen to contain an idle/stand token.
+  const std::vector<std::string> idleTable = {
+    "ReloadStand_PRIMARY", "AttackStand_PRIMARY", "taunt_highFiveStart_idle",
+    "stand_PRIMARY"};
   const auto idleSelectorFor = [](const std::vector<std::string>& labels) -> std::int32_t {
     const auto labelAt = [&labels](std::size_t at) -> const std::string& {
       return labels[at];
@@ -235,20 +275,22 @@ int matcherSelfTest() {
     std::string ignored;
     return tf2::native::chooseSequenceByNeedles(labels.size(), labelAt, frameCountAt,
       tf2::native::kIdleNeedles, tf2::native::kIdleNeedleCount,
-      SequenceMatchMode::Substring, &ignored);
+      SequenceMatchMode::WholeToken, &ignored);
   };
   const std::int32_t idlePick = idleSelectorFor(idleTable);
-  const bool oneShotReloadRejected = idlePick == 1
+  const bool genericIdleBeatsActions = idlePick == 3
     && tf2::native::sequenceLabelHasToken(idleTable[0], "stand");
+  const bool oneShotReloadRejected = idleSelectorFor({"ReloadStand_PRIMARY", "stand_PRIMARY"}) == 1;
 
   const bool pass = rankedIsSequenceMajor && selectorAgreesWithRankedHead
     && wholeTokenRejectsAirwalk && substringModePicksAirwalk && leadingTokenBeatsArmLayer
-    && oneShotReloadRejected;
+    && genericIdleBeatsActions && oneShotReloadRejected;
   std::cout << "matchselftest ordered=" << (rankedIsSequenceMajor ? 1 : 0)
     << " head=" << (selectorAgreesWithRankedHead ? 1 : 0)
     << " boundary=" << (wholeTokenRejectsAirwalk ? 1 : 0)
     << " substringDefect=" << (substringModePicksAirwalk ? 1 : 0)
     << " leading=" << (leadingTokenBeatsArmLayer ? 1 : 0)
+    << " genericIdle=" << (genericIdleBeatsActions ? 1 : 0)
     << " oneShot=" << (oneShotReloadRejected ? 1 : 0)
     << " ranked=";
   for (std::size_t index = 0; index < ranked.size(); ++index) {
@@ -346,6 +388,7 @@ struct PlayerAnimationOptions {
   std::int32_t motionWindowStart = -1;
   std::int32_t motionWindowEnd = -1;
   bool dumpSequences = false;
+  bool dumpBoneUsage = false;
 };
 
 int failPlayerAnimation(const std::string& reason, const std::string& detail) {
@@ -1212,6 +1255,7 @@ int playerAnimationTest(int argc, char** argv) {
     else if (argument == "--sequence") { const char* v = next("--sequence"); if (!v) return 2; options.sequence = std::atoi(v); }
     else if (argument == "--idle-sequence") { const char* v = next("--idle-sequence"); if (!v) return 2; options.idleSequence = std::atoi(v); }
     else if (argument == "--dump-sequences") { options.dumpSequences = true; }
+    else if (argument == "--dump-bone-usage") { options.dumpBoneUsage = true; }
     else if (argument == "--moving-sequence") { const char* v = next("--moving-sequence"); if (!v) return 2; options.movingSequence = std::atoi(v); }
     else if (argument == "--ticks") {
       const char* v = next("--ticks"); if (!v) return 2;
@@ -1255,6 +1299,53 @@ int playerAnimationTest(int argc, char** argv) {
     return failPlayerAnimation("binding-" + name, reason);
   }
   const auto& anims = binding->anims;
+  if (options.dumpBoneUsage) {
+    const auto asset = ModelLoader::resolveAsset(root, options.modelPath);
+    ModelInspection inspection;
+    bool inspected = false;
+    for (const auto& archivePath : asset.vpkArchives) {
+      const auto* archive = root.archives().find(archivePath);
+      if (archive == nullptr || !archive->contains(options.modelPath)) continue;
+      inspection = ModelLoader::inspectVpk(*archive, options.modelPath);
+      inspected = true;
+      break;
+    }
+    if (!inspected) inspection = ModelLoader::inspect(asset.resources);
+    std::string meshError;
+    if (!inspection.metadata.valid
+        || !ModelLoader::buildBindPoseMeshLod0(inspection.metadata, meshError)) {
+      return failPlayerAnimation("bone-usage-mesh", meshError);
+    }
+    const auto& mesh = inspection.metadata;
+    std::vector<std::size_t> weightedUses(mesh.bones.size(), 0);
+    std::vector<bool> mapped(mesh.bones.size(), false);
+    for (const auto index : binding->animToModel) {
+      if (index >= 0 && static_cast<std::size_t>(index) < mapped.size()) mapped[index] = true;
+    }
+    std::size_t unmappedVertices = 0;
+    for (const auto& vertex : mesh.bindPoseVertices) {
+      bool unmapped = false;
+      for (std::size_t slot = 0; slot < vertex.boneIndices.size(); ++slot) {
+        if (!std::isfinite(vertex.weights[slot]) || vertex.weights[slot] < 0.0f) {
+          return failPlayerAnimation("bone-usage-weight", "non-finite or negative weight");
+        }
+        if (vertex.weights[slot] == 0.0f) continue;
+        const auto index = vertex.boneIndices[slot];
+        if (index >= weightedUses.size()) {
+          return failPlayerAnimation("bone-usage-index", std::to_string(index));
+        }
+        ++weightedUses[index];
+        if (!mapped[index]) unmapped = true;
+      }
+      if (unmapped) ++unmappedVertices;
+    }
+    for (std::size_t index = 0; index < mesh.bones.size(); ++index) {
+      std::printf("bone-usage index=%zu name=%s mapped=%d weightedUses=%zu\n",
+        index, mesh.bones[index].name.c_str(), mapped[index] ? 1 : 0, weightedUses[index]);
+    }
+    std::printf("bone-usage-summary model=%s bones=%zu vertices=%zu unmappedVertices=%zu\n",
+      options.modelPath.c_str(), mesh.bones.size(), mesh.bindPoseVertices.size(), unmappedVertices);
+  }
   if (anims.sequences.size() < 2) {
     return failPlayerAnimation("sequence-table-too-small", std::to_string(anims.sequences.size()));
   }
@@ -1273,7 +1364,7 @@ int playerAnimationTest(int argc, char** argv) {
 
   std::int32_t idleSequence = options.idleSequence;
   if (idleSequence < 0) idleSequence = pickSequence(anims, tf2::native::kIdleNeedles,
-    tf2::native::kIdleNeedleCount, tf2::native::SequenceMatchMode::Substring);
+    tf2::native::kIdleNeedleCount, tf2::native::SequenceMatchMode::WholeToken);
   std::int32_t movingSequence = options.movingSequence;
   if (movingSequence < 0) movingSequence = pickSequence(anims, tf2::native::kMovingNeedles,
     tf2::native::kMovingNeedleCount, tf2::native::SequenceMatchMode::WholeToken);
@@ -1333,9 +1424,9 @@ int playerAnimationTest(int argc, char** argv) {
   if (options.dumpSequences) {
     for (std::size_t index = 0; index < anims.sequences.size(); ++index) {
       const auto& sequence = anims.sequences[index];
-      std::printf("seq index=%zu label=%s frames=%d activity=%d flags=%d animDesc=%d\n",
+      std::printf("seq index=%zu label=%s frames=%d activity=%d flags=%d animDesc=%d blends=%d\n",
         index, sequence.label.c_str(), animationFrameCount(anims, static_cast<std::int32_t>(index)),
-        sequence.activity, sequence.flags, sequence.animDesc);
+        sequence.activity, sequence.flags, sequence.animDesc, sequence.blendCount);
     }
   }
   std::printf("boundDiag bindRadius=%.6f boundDiag=%.6f bones=%zu composed=%d reason=%s\n",
@@ -1480,6 +1571,7 @@ int playerAnimationTest(int argc, char** argv) {
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--self-test") return selfTest();
   if (argc == 2 && std::string(argv[1]) == "--matcher-selftest") return matcherSelfTest();
+  if (argc == 2 && std::string(argv[1]) == "--helper-skin-selftest") return helperSkinSelfTest();
   if (argc == 2 && std::string(argv[1]) == "--entity-id-selftest") return entityIdSelfTest();
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--player-animation-test") return playerAnimationTest(argc, argv);
@@ -1489,6 +1581,7 @@ int main(int argc, char** argv) {
     std::cerr << "usage: model_pose_probe <model.mdl> | --self-test"
       << " | --player-animation-test --tf-root <tf> --model <model.mdl>"
       << " [--sequence N] [--idle-sequence N] [--moving-sequence N]"
+      << " [--dump-bone-usage]"
       << " [--demo <demo.dem> --motion-window <first>,<last>]\n";
     return 2;
   }

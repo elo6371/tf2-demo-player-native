@@ -59,7 +59,7 @@ bool CameraBookmarkStore::save(std::size_t slot, const std::string& name,
   bookmark.saved = true;
   bookmark.name = finalName;
   bookmark.pose = pose;
-  // The same clamp Renderer::setViewModelFov applies, so the stored value is
+  // The same clamp Renderer::setWorldFov applies, so the stored value is
   // the value a jump can actually restore (a stored 500 would come back 120 and
   // the exactness assertion would rightly fail).
   bookmark.fov = std::isfinite(fov) ? std::clamp(fov, 40.0f, 120.0f) : kDefaultBookmarkFov;
