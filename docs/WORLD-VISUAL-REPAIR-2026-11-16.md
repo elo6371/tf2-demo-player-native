@@ -228,22 +228,90 @@ bash /d/TF2_Native_Worktrees/_shared/hostlock.sh run t105-worldd2 bash .scratch/
 
 | 门禁 | 结论 | 证据 |
 | --- | --- | --- |
-| `world-entity-tint-check.sh` | PASS（A 的三道门） | `.scratch/worldfix/final-gates.log` |
-| `argument-refusal-check.sh` | PASS | `.scratch/worldfix/final-gates.log` |
-| `frame-capture-check.sh` | PASS | `.scratch/worldfix/tally2.log` |
-| `world-material-check.sh` | FAIL，**base 上同样红，不是本轮引入** | `.scratch/worldfix/tally2.log` |
-| `world-geometry-hole-check.sh` | FAIL，本机缺 demo | `.scratch/worldfix/tally2.log` |
-| `world-render-reliability-check.sh` | FAIL，本机缺 `SUNSHINE.dem` | `evidence/t8-render-reliability-20261117101825-20636-forward/sunshine.log` |
+| `world-entity-tint-check.sh` | PASS（本机复跑：379038 个 tint 像素全部等于 raw texel，mutation 对照红） | `.scratch/worldfix/tint.log` |
+| `argument-refusal-check.sh` | PASS（本机复跑：未知 `--switch` 按名字拒绝并非零退出，已知开关与位置参数行为不变） | `.scratch/worldfix/argref.log` |
+| `frame-capture-check.sh` | PASS | `.scratch/worldfix/tally3.log` |
+| `world-material-check.sh` | PASS（重定标后；因果见 6.3） | `.scratch/worldfix/mat.log` |
+| `world-geometry-hole-check.sh` | 跑起来了但不算绿：地图无关断言全过，pl_odyssey 的像素 pin 不成立（见 6.4） | `.scratch/worldfix/geo2.log` |
+| `world-render-reliability-check.sh` | PASS（48 项，0 失败；用本机 SUNSHINE 副本，见 6.4） | `.scratch/worldfix/rel2.log` |
 
-- world-material 的三条失败断言都是 pvs 派生读数：`render vis visible from camera = 858, expected 1481`、`hidden triangles = 25995, expected 15039`、`drawn triangles = 216114, expected 227070`；同一段 trace 里 `cameraCluster=2108`、`clusteredTriangles=34517`、`inputTriangles=242109`、`clusters=2940` 仍在 pin 上。
-- 差分：在干净的 `cd04373f` 临时 worktree（验后已删）重建产品，跑同一段第 6 节命令，读数是逐字相同的一行 `cameraCluster=2108 visibleFromCamera=858 hiddenTriangles=25995 inputTriangles=242109 drawnTriangles=216114`（`.scratch/basecheck/base.trace` 与 `branch.trace`，两次 rc=0）。所以这三条 pin 在 base 上就是红的，本轮没有碰它。
+- 本机在这棵已提交的树上把五道快门分别复跑（`tally3.log` 加各自单独复跑 `rel2.log` / `tint.log` / `argref.log`）：`world-material`、`frame-capture`、`world-render-reliability`、`world-entity-tint`、`argument-refusal` 全 PASS；`world-geometry-hole` 只能跑到「地图无关断言全过」为止（6.4）。
+- 汇总时可靠性门的控制输入有一次 `exit_code=-1`（`tally3.log`），当时同机另一个产品实例在跑；同一棵树单独复跑 `rel2.log` 是 `checks=48 fail=0`，所以那次读数作废、以单独复跑为准。
+- 汇总顺序也踩了一个坑：`world-entity-tint-check.sh` 与 `argument-refusal-check.sh` 自己会去抢主机锁（`LOCK=`），把它们塞进外层 `hostlock run` 会互相等死；这两道门必须单独跑，只有 `world-material` / `frame-capture` / `world-render-reliability` 能共用一把锁。
+- 先红的是三条 pvs 派生断言：`render vis visible from camera = 858, expected 1481`、`hidden triangles = 25995, expected 15039`、`drawn triangles = 216114, expected 227070`；同一段 trace 里 `cameraCluster=2108`、`clusteredTriangles=34517`、`inputTriangles=242109`、`clusters=2940` 仍在 pin 上。
+- 这两次红都不是本轮代码：`cd04373f` 干净 worktree 的读数逐字相同（`.scratch/basecheck/{base,branch}.trace`，两次 rc=0），两构建差分把它们指到 `10d13559` 的 vis 解码修复；重定标后本轮复跑 `WORLD-MATERIAL=PASS`（`.scratch/worldfix/mat.log`，含 `OK render vis drawn + hidden = input (216114 + 25995 = 242109)`）。完整因果见 6.3。
 - 代码侧旁证：`git diff cd04373f -- native/` 只有 `native/src/main.cpp`，新增行只出现 `entityTint*`、`tileFill*`、`unknownSwitch*` 三族标识符，世界 vis / cull / pvs 一行没改。
-- 两个缺 demo 的失败是环境：`world-geometry-hole-check.sh:60` 要 `$TF/demos/autorecord_2026-07-02_13-26-46.dem`，`world-render-reliability-check.sh:83` 要 `.../tf/demos/SUNSHINE.dem`，本机 `tf/demos` 下都没有；两次运行的 trace 里 `args: unrecognized=0 first=- all=-`，不是本轮新加的参数拒绝把它们打死的。
+- 两个缺 demo 的失败是环境：`world-geometry-hole-check.sh:60` 要 `$TF/demos/autorecord_2026-07-02_13-26-46.dem`，`world-render-reliability-check.sh:83` 要 `.../tf/demos/SUNSHINE.dem`，本机 `tf/demos` 下都没有；两次运行的 trace 里 `args: unrecognized=0 first=- all=-`，不是本轮新加的参数拒绝把它们打死的。两道门现在都有显式覆盖口、缺文件时打印 SKIP 而不是 FAIL，并且各自用本机存在的 demo 跑过（见 6.4）。
+
+### 6.2 读数的适用范围（交叉引用）
+
+- 6.1 里 `world-material-check.sh` 的天空读数（`vertices=36 triangles=12 faces=6 draws=1 side=512`）是产品在 `--quality standard` 下画出来的：这道门自己就用这个开关启动（`world-material-check.sh:536`、`:539`）。产品默认安装不画天空——`native/src/settings_store.cpp:61` 把 `preset` 默认读成 0，`:62-63` 落成 `QualityPreset::Performance`，`:82` 只有 standard 才 `result.render.skybox = standardQuality`（=true）。所以这条 pin 描述的是「standard 预设下天空作为 36 顶点/12 三角形几何被画」，**不能读成「默认安装会画天空」**；默认预设不画天空这一条属于几何卡/渲染预设的账，本卡只写交叉引用，不下结论。外部证据（6.5）进一步表明原版**没有任何画质预设或 convar 会关天空盒**，所以「默认预设不画天空」是我方缺陷，不是还原原版行为。
+- 同一节里三条 pvs 派生读数也是这道门自己的 demo 与它自己的开关组合下的读数（见 6.3 的重定标说明），不是任意 demo 的通用常数。
+
+### 6.3 world-material 的三条 pvs 读数重定标（10d13559 的因果）
+
+6.1 里那三条失败断言（`visible from camera = 858, expected 1481`、`hidden triangles = 25995, expected 15039`、`drawn triangles = 216114, expected 227070`）不是本轮代码引起的，也不是「读数飘了」，而是 `10d13559` `fix(bsp): the vis table is offset pairs and rows are Source zero-run RLE` 之后的正确读数——门里的 pin 描述的是改之前的规则。用两次构建证明：
+
+| 读数 | `10d13559^`（t105-vt-pre） | `10d13559` = HEAD（t105-vt-post / t105-worldfix） | 是否动 |
+| --- | --- | --- | --- |
+| `cameraCluster` | 2108 | 2108 | 没动 |
+| `visibleFromCamera` | 1481 | 858 | 动了 |
+| `clusters` | 2940 | 2940 | 没动 |
+| `clusteredTriangles` | 34517 | 34517 | 没动 |
+| `inputTriangles` | 242109 | 242109 | 没动 |
+| `hiddenTriangles` | 15039 | 25995 | 动了 |
+| `drawnTriangles` | 227070 | 216114 | 动了 |
+| `reason` 里「kept by a cluster past the first」 | 2276 | 609 | 动了 |
+| `eyeMap` | (1359.6,-538.8,73.9) | 同左 | 没动 |
+
+- 命令与输入：同一份 snakewater control demo、同一串开关（`--world-sky --quality standard --capture-tick 0 --capture-frame`）、各自隔离的 settings；三个 exe 分别是 `10d13559^` 与 `10d13559` 两个干净 worktree 的构建（`t105-vt-pre` 2,900,480 B / `t105-vt-post` 2,908,160 B）和本 worktree 的 HEAD 构建。原始 trace 在 `.scratch/vtvis/{pre,post,head}.trace`，脚本 `.scratch/vt-vis.sh`。HEAD 与 `10d13559` 逐字相同。
+- 机制：vis lump 6 是「每 cluster 一对 (pvs,pas) offset」，行是 Source 的 zero-run RLE。旧解码把 offset 表当成了行开始（或把 RLE 走错），于是把不该可见的 cluster 也当成可见：`reason` 里「被第二个及之后的 cluster 保住」的三角形从 2,276 掉到 609，相机 PVS 从 1,481 个 cluster 降到 858 个，多藏起 10,956 个三角形。
+- 为什么这是「clip 处读数变了」，不是「丢了面」也不是「相机动了」：两边都满足 `drawn + hidden = input`（227070+15039 = 216114+25995 = 242109），且 `cameraCluster`、`clusters`、`clusteredTriangles`、`inputTriangles`、`eyeMap` 五个量两边逐字相同。
+- 6.1 那条「base `cd04373f` 上同样红」与此一致：`10d13559` 是 `cd04373f` 的祖先，所以 base 也是新读数。那条差分当时只能证明「不是本轮引入」，这次的两构建差分把它指到了具体提交。
+- 门禁本身已重定标（`world-material-check.sh` 的 vis 段，注释里带上面这张表和 identity 论证），不是把数字改绿了事。流程上的教训也写在这里：一个 pin 描述旧规则、而规则改了、门又没人跑，就会连着几天红着而没人知道；pin 必须带提交级因果，而不是只带数字。
+
+### 6.4 两道「缺 demo」的门：覆盖口、SKIP、本机实跑
+
+- 改动（断言一条没删，默认路径一个字没改）：
+  - `world-geometry-hole-check.sh:60`：`DEMO="${WORLD_CHECK_DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}"`，素材不存在时打印四行 SKIP、`SUMMARY checks=0 fail=0 skip=1` 与 `VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)` 后 `exit 0`——跳过计入 skip 计数，不会被读成「全部通过」。
+  - `world-render-reliability-check.sh:83`：`SUNSHINE="${WORLD_CHECK_SUNSHINE_DEMO:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/SUNSHINE.dem}"`，同样缺文件即 SKIP（`exit 0`），`--mutation` 分支不变。
+- SKIP 路径实测（不启动产品，RC=0）：
+```
+SKIP world-geometry-hole-check: the recording this gate measures is absent
+SKIP   wanted: /nonexistent/demo.dem
+SKIP   every pin (missing 97,453 px / enclosed 4,613 px / the named seam faces) is pl_odyssey at TICK=2000 in that recording; another recording is another pose on another map
+SKIP   set WORLD_CHECK_DEMO=<path> to run it
+SUMMARY checks=0 fail=0 skip=1
+VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)
+
+SKIP world-render-reliability-check: the T5 baseline recording is absent
+SKIP   wanted: /nonexistent/SUNSHINE.dem
+SKIP   section 1 (the T5 ending) and section 3 (the six sky sides) are readings of that recording; the control in section 2 is a different map and cannot stand in for them
+SKIP   set WORLD_CHECK_SUNSHINE_DEMO=<path> to run it
+SUMMARY checks=0 fail=0 skip=1
+VERDICT world-render-reliability: SKIP (0 assertions ran, 1 gate skipped)
+```
+- 可靠性门实跑（`.scratch/worldfix/rel.log`）：`WORLD_CHECK_SUNSHINE_DEMO='E:/demo测试/cp_sunshine/STV/SUNSHINE.dem'`（82,759,239 B，sha256 `7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08`），`checks=48 fail=0`，`WORLD-RENDER-RELIABILITY=PASS`。SUNSHINE.dem 就是 cp_sunshine 的录像，换的只是文件位置，门要验的 48 条（启动、帧、trace、退出码）一条没少。
+- 几何洞门实跑两次（同一份 `WORLD_CHECK_DEMO='E:/demo测试/pl_upward_f12/STV/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem'`，地图 pl_upward_f12，`TICK=2000` 不变）：
+  - 第一次 `.scratch/worldfix/geo.log`：门跑起来了，但缓存自洽性两条是假红——`--validate` 探针与 capture 子进程没继承 `WORLD_CHECK_DEMO`，`compute_inputs()` 按写死默认 demo 报 `identity input is missing`，于是 `FAIL ... (reason=none)`。修法：gate `export DEMO`，capture 侧改成 `DEMO=${CAPTURE_DEMO:-${DEMO:-写死默认}}`。
+  - 第二次 `.scratch/worldfix/geo2.log`：三条缓存断言全过（`PASS a trace that lost its "scene: camera" pose line is refused, not reused`、`PASS a frame whose executable identity changed is refused, not reused`、`PASS every frame this run wrote carries an identity and a pose-bearing trace`）。**成立的地图无关断言**：`PASS build`、`PASS native/ is clean`、`PASS sky face census`、`PASS face account unchanged`（`geometry faces total=21119 rendered=19845 sky=731 skippedNoDraw=0 skippedInvalid=0`）、`PASS the shipped rule keeps 0.771 of the eye's first hits; the two cells a flip would win read 0.325 and 0.283`、`PASS the binary this run built reproduces the pinned textured frame byte for byte`（这一条比的是本轮新构建与本次矩阵自己写的帧，是自洽性检查）。**失败的全是 pl_odyssey 专属 pin**：`stored textured/ref frame identity`（`f2b6aff5…`/`de610799…`）、`missing pixels 9 != 95892`、`missing pixels covered by a sky face 9 != 95892`、`enclosed missing pixels 9 != 4634`、`T23 95892`、`back-face population 4 != 49077`、`sky hull closed 0 != 1`、`enclosed components 0 != 1`、`capture-pose eye -1945.3,-1016.6,243.1 != 815.5,-147.8,-194.3`、seam 方向/成员 `238,4173,9189` 等；收尾 `FAIL: 1 assertion groups did not hold.`。
+  - 读法：换 demo 能让门跑起来并逐条指出「哪些是地图专属」，**不能读成绿**；同一份日志里这张图的空像素账是 9 个、全部被天空面覆盖、`unexplained=0`，不是渲染崩了。要让几何洞门真正复活，需要 pl_odyssey 录像的机器，或把 pin 连同 demo/map/camera 按地图重钉。缓存 key 里含 capture 脚本 sha（`cache rejected: identity-mismatch, fields= captureScript`），所以改脚本后第一次必然 18 帧全采，这是设计如此，不是缓存坏了。
+- 顺带修的一个真 bug：`mktemp -d` 在本机 TMPDIR 是 Windows 形态时返回 `C:/...`，而 `world-geometry-hole-capture.sh` 的绝对路径判定只认 `/*`，于是把 `$PWD/C:/...` 当相对路径又拼了一遍，`rm`/`mkdir` 报 `Invalid argument`。现在 capture 的 `case` 认 `[A-Za-z]:*`，check 在 `mktemp` 之后立刻 `ISO_DIR=$(cygpath -u "$ISO_DIR")`。这个坑只有换成需要 capture matrix 的 demo 才会露出来。
+
+### 6.5 外部证据（研究卡 research-source；Source 引擎源码，非本机实测）
+
+`D:/_shared/research/tf2-source-notes/NOTES.md` 是调研卡的引擎源码证据（官方 wiki 四页与 Wayback 副本都被 Anubis 反爬挡住，所以本文没有 B 级 wiki 引用），与本卡相关的三条：
+
+- **背面剔除**：引擎世界 pass 在 CPU 侧对每个面做 `Dot(normal, viewOrigin) - dist < -0.01` 的背面剔除，只有材质 `IsTwoSided` 才跳过；GPU 默认 `D3DCULL_CCW`、`MATERIAL_CULLMODE_CCW → D3DCULL_CCW`，屏幕空间顺时针为正面——与本产品的 `FrontCounterClockwise=FALSE` 一致。本文的读数仍是本机实测，这条只作交叉引用。
+- **天空不能被预设关掉**：TF2 里没有任何画质预设或 convar 会关天空盒（全量 string scan：只有 cheat 的 `r_drawskybox` 默认 1、`mat_loadtextures`；`r_draw3dskybox`/`mat_drawskybox` 不存在于引擎 dll；`tf/cfg` 里没有天空 convar）。⇒ 6.2 里「默认预设 `render.skybox=false` 不画天空」是**本产品的缺陷**，不是还原原版行为。
+- **vis 编码**：vis 表是 `dvis_t`（numclusters + 每 cluster 的 PVS/PAS 偏移）后跟零游程编码位向量（非零字节原样拷贝，零字节+计数=零游程）——这正是 `10d13559` 修的东西。6.3 的 pin 因果仍以本文那两次构建的实测数据为准，外部证据只说明「修的是编码不是数值」。
+- 一条**未验证**（NOTES 的 Unresolved）：「天空材质是否写深度」——本文不拿它做任何结论。
 
 ## 7. 没做的
 
 - 4,219 / 6,072 / 10,291 这组绝对计数来自几何卡自己的那一帧（相机与阈值不同），本文的分拨是本帧自己的定义与读数；比例相同（约 55/45），绝对数不同是帧不同，不是分类不一致。
 - 静态道具 vs 刷模型的命名：`--capture-pass-depth` 把它归到「实体 pass」，entity-id 给 `(1,1,1)`、染色负控不动它，据此命名为**静态道具**；逐像素的模型名 trace 不存在（也没有 `--static-prop-budget` 这个开关），具体是哪一个 prop 模型本文没有命名。
 - 七张地图的逐图材质普查（`.scratch/worldfix/materials-maps.sh`，7 次产品启动）没有跑：第 3 节的 B 读数只来自 pl_upward_f12。
-- world-material 的三条 pvs 派生 pin 需要单独重定标（读数见 6.1），不在本轮范围；几何洞门与渲染可靠性门要在有对应 demo 的机器上跑，或把门里写死的 demo 路径指到本地存在的素材（本机 `E:/demo测试/cp_sunshine` 下有本地 cp_sunshine 素材）。
+- world-material 的三条 pvs pin 已按 6.3 的两构建差分重定标并复跑 PASS；但这道门只在本机那一份 snakewater control demo 上读过，换 demo 读数会变，pin 与 6.3 的表是绑定的。
+- 几何洞门与渲染可靠性门已加覆盖口（6.4），判定基准仍绑原 demo：可靠性门换文件位置后 48 项全过；几何洞门的 pl_odyssey 专属 pin（`PIN_MISSING=95892` 等）在别的 demo 上不可能重现，本机只验到「不崩、不丢帧、洞统计自洽」，地图专属数值没有重置。
 - `evidence/t8-render-reliability-20261117101825-20636-forward/` 是失败那次的生成物，未提交，留着给 6.1 的引用落地。

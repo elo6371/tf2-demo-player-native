@@ -57,8 +57,26 @@ PYTHON="${PYTHON:-python}"
 PRODUCT=native/build-nmake/tf2_demo_native.exe
 PROBE=native/build-nmake/world_geometry_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
-DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+# Every pin in this gate (97,453 missing pixels, the 4,613 enclosed component,
+# the named seam faces) is a reading of pl_odyssey at TICK=2000 in THIS
+# recording, which is not part of the repo. WORLD_CHECK_DEMO points a copy at
+# another location; with no recording the gate SKIPs rather than FAILs -- a gate
+# that cannot look must not report that it looked and found nothing wrong.
+DEMO="${WORLD_CHECK_DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}"
+# Children (the capture script and its --validate cache probe) refuse to record an
+# identity when a demo is missing, so a WORLD_CHECK_DEMO copy has to reach them:
+# export it once instead of passing CAPTURE_DEMO at every call site.
+export DEMO
 TICK=2000
+if [ ! -f "$DEMO" ]; then
+  echo "SKIP world-geometry-hole-check: the recording this gate measures is absent"
+  echo "SKIP   wanted: $DEMO"
+  echo "SKIP   every pin (missing 97,453 px / enclosed 4,613 px / the named seam faces) is pl_odyssey at TICK=$TICK in that recording; another recording is another pose on another map"
+  echo "SKIP   set WORLD_CHECK_DEMO=<path> to run it"
+  echo "SUMMARY checks=0 fail=0 skip=1"
+  echo "VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)"
+  exit 0
+fi
 mkdir -p "$SCRATCH" "$ANA"
 # --- isolated settings (D-22) ----------------------------------------------
 # The product persists its settings and UI layout under %LOCALAPPDATA%/TF
@@ -68,6 +86,9 @@ mkdir -p "$SCRATCH" "$ANA"
 # instead, and it is removed on exit.
 ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-iso.XXXXXX") || {
   echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+# mktemp answers in whatever form TMPDIR has (a Windows path on this host), and
+# a C:/... path is not absolute to MSYS' rm/mkdir. Normalise once, here.
+ISO_DIR=$(cygpath -u "$ISO_DIR")
 ISO_SETTINGS="$ISO_DIR/settings.ini"
 ISO_UI="$ISO_DIR/ui.ini"
 # Chain any EXIT trap already installed instead of replacing it: an overwritten
@@ -719,7 +740,9 @@ fi
 # The matrix has to render with the same isolated settings as this gate's own
 # captures, otherwise the frames it pins and the frames it compares against are
 # drawn by two different renderer configurations (that was D-38).
-CAPTURE_ISO_DIR="$ISO_DIR" bash world-geometry-hole-capture.sh "$CAP" > "$SCRATCH/capture.txt" 2>&1
+# The capture script has its own demo default; pass this gate's (which may be a
+# WORLD_CHECK_DEMO copy) or the two disagree and the identity refuses to record.
+CAPTURE_ISO_DIR="$ISO_DIR" CAPTURE_DEMO="$DEMO" bash world-geometry-hole-capture.sh "$CAP" > "$SCRATCH/capture.txt" 2>&1
 if [ $? -ne 0 ]; then
   echo "  FAIL capture"
   tail -20 "$SCRATCH/capture.txt" | sed 's/^/       /'
