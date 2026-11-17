@@ -14,14 +14,20 @@ under any world geometry:
                    the sky-on frame -- i.e. pixels the sky pass painted
     far            how many of those pixels sit at the far plane in the sky-on
                    depth plane (no world geometry in front of them)
+    owned          pixels that are CLEAR in the sky-off frame AND sit at the far
+                   plane in the sky-on depth plane -- every pixel the sky pass
+                   is entitled to paint. diff == owned is the COMPLETENESS
+                   statement (the sky left no entitled pixel unpainted), its
+                   converse of far == diff is the SOUNDNESS statement (the sky
+                   painted nothing the world owns), and both of them hold on a
+                   pose with no sky visible at all, where all three are 0.
     enclosed_off   enclosed clear pixels in the sky-off frame
     enclosed_on    enclosed clear pixels in the sky-on frame
     enclosed_diff  how many of diff's pixels were ENCLOSED in the sky-off frame
 
 The old assertion becomes the identity
     enclosed_off - enclosed_on == enclosed_diff
-which cannot go stale, while  far == diff  is the soundness statement: the sky
-painted only pixels the world does not own, never one of the world's.
+which cannot go stale.
 
 Usage:
   world-sky-gate-reconcile.py ON.bmp OFF.bmp DEPTH.pgm
@@ -133,7 +139,7 @@ def main(argv):
         return 2
     on_enclosed = enclosed_mask(on_rows, width, height)
     off_enclosed = enclosed_mask(off_rows, width, height)
-    diff = far = enclosed_diff = 0
+    diff = far = owned = enclosed_diff = 0
     for y in range(height):
         on_row, off_row, plane_row = on_rows[y], off_rows[y], plane[y]
         for x in range(width):
@@ -147,13 +153,18 @@ def main(argv):
                 far += 1
             if off_enclosed[y][x]:
                 enclosed_diff += 1
+        # Entitled pixels, counted independently of what the sky did with them:
+        # clear in the sky-off frame and world-free in the sky-on depth plane.
+        for x in range(width):
+            if off_row[x] and plane_row[x] >= FAR:
+                owned += 1
     # The two enclosed totals come from their own masks: enclosed_off counts
     # every enclosed clear pixel of the OFF frame, not just the ones the sky
     # filled, and the identity the gate asserts is their difference.
     enclosed_off = sum(sum(row) for row in off_enclosed)
     enclosed_on = sum(sum(row) for row in on_enclosed)
-    print('diff=%d far=%d enclosed_off=%d enclosed_on=%d enclosed_diff=%d'
-          % (diff, far, enclosed_off, enclosed_on, enclosed_diff))
+    print('diff=%d far=%d owned=%d enclosed_off=%d enclosed_on=%d enclosed_diff=%d'
+          % (diff, far, owned, enclosed_off, enclosed_on, enclosed_diff))
     return 0
 
 

@@ -1244,6 +1244,136 @@ What this round did **not** change:
   untouched. No new convar, no new UI toggle; `skybox=0` still wins (gate E).
 - The displacement parameterisation and the fan/diagonal consistency gap: not this card (§13.7).
 
+## 14. The gate has to be run on the merge tree: branch-green is not merge-green
+
+### 14.1 What happened at the merge
+
+`work/integrate` (HEAD `aff39957`: candidate/e5 + the material card + P0's displacement fix + the four
+commits of this card + the map-overview card `09fc824c`) was built at 14:05 and the gate was run on that
+build. Twelve of thirteen assertions passed; C failed:
+
+```
+FAIL C: sky-on and sky-off differ by 0 px (expected > 0)
+```
+
+Nothing in the renderer changed between the two runs. The cause is the **pose**. C asserted on
+`pl_upward tick 1800`, the user-view pose, because on the branch that pose had sky-visible pixels to
+count: the 2,072 px population of §9 lived there. P0 fills the cracks that population came from, and on
+the merge tree the world covers that pose completely. Four numbers say it, one line apart:
+
+| pose / tree | diff | far | enclosed off / on / filled |
+| --- | --- | --- | --- |
+| tick 1800, branch (`2957a6a0`) | 2,072 | 2,072 | 2,072 / 0 / 2,072 |
+| tick 1800, merge (`aff39957`) | **0** | **0** | **0 / 0 / 0** |
+| tick 0, merge | 77,131 | 77,131 | 6,814 / 0 / 6,814 |
+
+`sky-on == sky-off` on the tick-1800 pose is the **correct** reading after P0: there is no sky in view, so
+drawing it changes no pixel. The assertion was not wrong about the sky; it was wrong about which pixels
+existed to be sky.
+
+### 14.2 The mistake in the assertion, twice
+
+§13.5 already recorded the first version of this mistake: C pinned the number `2,072`. When P0 made that
+number 0, a correct merge would have turned the gate red. The rework at that time replaced the constant
+with an account - and then kept `diff > 0` on the same pose, which is the same assumption in a thinner
+disguise: **"this pose has sky pixels" was still an assertion about the state of another defect.** It
+survived one merge because the number stayed 2,072 on the branch, and it was going to break at the first
+merge that fixed the cracks. The lesson generalises:
+
+> A gate may not assert a property that belongs to a defect it does not own. When an assertion is about
+> a population, it also needs a pose where that population is non-zero, or it silently degenerates into
+> `0 == 0`.
+
+Both W-1 gate failures on the way to this merge were instances of that one rule (the first one pinned the
+number, the second one thresholded it).
+
+### 14.3 What C asserts now, and what C+ adds
+
+`world-sky-gate-reconcile.py` now prints a fourth count next to `diff` and `far`:
+
+- `owned` = pixels that are **clear in the sky-off frame AND world-free at the far plane** in the sky-on
+  pass-depth plane: everything the sky pass is *entitled* to paint, independent of what it did.
+- **completeness:** `diff == owned` - the sky left no entitled pixel unpainted;
+- **soundness:** `far == diff` - the sky painted nothing the world owns;
+- **account:** `enclosed(off) - enclosed(on) == enclosed_filled`.
+
+All three hold at 0 when the pose shows no sky, which is exactly what makes them merge-safe. C is these
+three plus the "no-world-sky draws nothing" trace assertion; **C is deliberately allowed to be 0.**
+
+C+ then runs the same three statements on **tick 0 of the same demo**, a second pose whose world does not
+cover the frame (spawn, open sky): `diff > 0` is asserted **there**, together with completeness, soundness
+and the enclosed account. On the merge tree that pose paints **77,131 px** and answers
+`6814 - 0 == 6814` for the enclosed account, so the account is exercised on non-trivial numbers rather
+than on zeros. C+ is what stops "the sky stopped drawing entirely" from being a green gate: if the pass
+disappears, C reads 0/0/0 and passes, C+ reads 0 and fails.
+
+Two assertions, one rule: C is allowed to be vacuous on a covered pose **because** C+ proves the gate is
+not vacuous in general.
+
+### 14.4 A second defect this merge exposed: the field parser
+
+The first run of the reworked gate on the merge tree read `diff=6814` on the tick-0 pose, while the same
+three files re-measured by hand read `diff=77131`. The cause was `field()`, the helper that pulls a number
+out of the tools' one-line output: it used a greedy `sed`, so asking for `diff` matched
+`enclosed_diff=6814` (the line contains both keys and `enclosed_diff` comes last). On every pose the gate
+had used so far the two numbers happened to be equal - which is exactly why nobody noticed - and on the
+first pose where they differ the parser returned the wrong field. It is now an exact-key scan over
+whitespace-separated `key=value` tokens.
+
+The near-miss matters beyond the one bug: a green gate whose two independent numbers are numerically equal
+on every pose it tests has not tested that they are independent.
+
+### 14.5 Readings on the merge tree
+
+`work/integrate` @ `aff39957`, binary `native/build-nmake/tf2_demo_native.exe` built 14:05
+(no source change in this commit), output `.scratch/w1-fresh` (six fresh captures, no `--reuse`):
+
+```
+== W-1 sky gate: preset-0 isolate, pose pl_upward tick 1800 ==
+PASS A: preset 0 (empty settings file) draws the sky (state=active)
+PASS A: the sky pass recorded draws=1
+PASS A: the sky box is pinned to the far plane (farplane=1)
+PASS A: the sky pass uses the dedicated discard-free shader (shader=dedicated)
+PASS B: enclosed clear px == 0 (the hard condition; the old 2,072 pin now belongs to P0)
+PASS B: no clear-colour pixel remains in the frame
+PASS C: --no-world-sky records state=unavailable draws=0
+PASS C: the sky painted every px it owns on the tick 1800 pose (0 painted / 0 owned; a fully covered pose legally reads 0)
+PASS C: every px the sky painted is world-free at the far plane (0/0)
+PASS C: enclosed(off) - enclosed(on) == enclosed px the sky filled (0 - 0 == 0)
+PASS C+: on the tick 0 pose the sky paints 77131 px the world does not (diff > 0: the gate can still see the pass)
+PASS C+: the sky painted every px it owns on the tick 0 pose (77131 painted / 77131 owned)
+PASS C+: every px the sky painted there is world-free at the far plane (77131/77131)
+PASS C+: enclosed(off) - enclosed(on) == enclosed px the sky filled (6814 - 0 == 6814)
+PASS D: --world-depth draws no sky (state=unavailable draws=0)
+PASS E: preset=1 with skybox=0 draws no sky (the explicit key wins)
+PASS E: the explicit-key frame is the same picture as --no-world-sky (frame_diff=0)
+INFO A: preset-0 steady fps=56.8004 (frame time 17.61 ms)
+W-1 SKY GATE: 17 passed, 0 failed
+```
+
+P0 does not move the hard condition (B: `enclosed_clear = 0` still holds on the merge tree), and it does
+not move A, D or E: the pass is still drawn, still pinned to the far plane with the dedicated shader, still
+absent from the depth view, and the explicit key still produces exactly the `--no-world-sky` picture.
+
+### 14.6 The count, and the rule it now follows
+
+`13 -> 17` on this commit: A x4 + B x2 + C x4 (the trace assertion plus the three account statements on
+the default pose) + C+ x4 + D + E x2. The comment in `verify-all.sh` carries the arithmetic and the count
+history (9 -> 11 -> 13 -> 17).
+
+The rule this section exists to leave behind:
+
+1. **Run the gate on the merge tree before calling the merge safe.** A branch-green gate is evidence about
+   the branch. The merge tree is a *different world geometry*, and any assertion that counts pixels is a
+   statement about that world.
+2. **When a gate must survive other people's fixes, assert accounts, not populations** - equalities whose
+   truth does not depend on how much of the screen a hole happens to cover.
+3. **Pair every account with a sensitivity pose.** If the account can be satisfied by zeros, one pose where
+   the quantity is non-zero must be asserted too, or the gate can go green with the feature switched off.
+4. **Re-run the gate after merging, even if nothing you own changed.** The one merge in this card's history
+   that did not touch the renderer is the one that turned the gate red - twice, for two different reasons.
+
+
 
 
 

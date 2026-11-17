@@ -15,17 +15,27 @@
 #      The clear colour is RGB(14,18,22); a depth test cannot see the sky
 #      because the sky writes no depth, so colour is the only sound test.
 #   C. NEGATIVE CONTROL, RECONCILED PIXEL FOR PIXEL. --no-world-sky on the
-#      same pose must paint nothing ("state=unavailable draws=0") and the two
-#      frames must differ by exactly the pixels that (a) are clear with the sky
-#      off, (b) are not clear with the sky on, and (c) have NO world geometry in
-#      front of them in the sky-on pass-depth plane; plus the identity
-#      enclosed_clear(off) - enclosed_clear(on) == enclosed pixels the sky
-#      filled. History: C used to pin "2,072 enclosed clear px". That number
-#      was a property of a defect that has since been fixed elsewhere (the
-#      transposed displacement parameterisation, work/disp-param P0 -- those
-#      pixels are now painted by terrain), so pinning it would turn a correct
-#      merge red while asserting nothing about the sky. The reconciled form
-#      holds under any world geometry.
+#      same pose must paint nothing ("state=unavailable draws=0"), and then:
+#        soundness    every pixel the sky painted is world-free at the far plane
+#                     of the sky-on pass-depth plane (it never painted a pixel
+#                     the world owns);
+#        completeness every pixel that is world-free AND clear with the sky off
+#                     (i.e. every pixel the sky is ENTITLED to paint) was in
+#                     fact painted (diff == owned);
+#        account      enclosed_clear(off) - enclosed_clear(on) == enclosed px
+#                     the sky filled.
+#      All three hold when the pose shows no sky at all, where all counts are 0.
+#      History worth keeping: C once pinned "2,072 enclosed clear px" on the
+#      pl_upward tick-1800 pose. That population belonged to the transposed
+#      displacement parameterisation (work/disp-param P0): once those cracks are
+#      filled the world covers the pose completely and the sky is legitimately
+#      invisible there, so the pinned number went to 0 and the pin turned a
+#      CORRECT merge red (the same build is green on the branch and red after
+#      the merge -- see docs/WORLD-HOLES-2026-11-17.md section 14). A pinned
+#      population is not a property of the sky pass; the account is.
+#      C+ keeps C from degenerating: the SAME gate asserts on a second pose
+#      (tick 0) that the sky paints a non-zero, accounted-for population there,
+#      so "0 everywhere" cannot pass as a green gate.
 #   D. THE DEPTH VIEW STILL DOES NOT DRAW THE SKY (T52's contract: a depth
 #      frame is scalar). --world-depth must stay "state=unavailable draws=0".
 #   E. AN EXPLICIT KEY STILL WINS. A settings file that says preset=1 AND
@@ -59,6 +69,10 @@ PYTHON="${PYTHON:-python}"
 TF="${TF2_TF_ROOT:-/d/SteamLibrary/steamapps/common/Team Fortress 2/tf}"
 DEMO="${WORLD_SKY_DEMO:-/e/demo测试/pl_upward_f12/STV/a9630c6557468b24f0b8c2e7dab38ed8_match-20261030-2145-pl_upward_f12.dem}"
 TICK="${WORLD_SKY_TICK:-1800}"
+# Per-capture tick override. The default pose (TICK) is the user-view pose C and B
+# are about; C+ needs a second pose where the sky is visible, which is tick 0 of
+# the same demo (spawn, looking at open sky).
+CAPTURE_TICK="$TICK"
 OUT="${WORLD_SKY_OUT:-$here/.scratch/w1-world-sky}"
 PRODUCT="${WORLD_SKY_PRODUCT:-native/build-nmake/tf2_demo_native.exe}"
 REUSE=0
@@ -97,7 +111,7 @@ capture() { # name -- flags...
   fi
   fresh_isolate
   TF2_NATIVE_TRACE="$(win "$trace")" timeout 300 "$PRODUCT" \
-    --tf-root "$TF" --demo "$DEMO" --capture-tick "$TICK" \
+    --tf-root "$TF" --demo "$DEMO" --capture-tick "$CAPTURE_TICK" \
     --capture-frame "$(win "$frame")" \
     --settings-file "$(win "$OUT/iso/settings-empty.ini")" \
     --ui-settings-file "$(win "$OUT/iso/ui-empty.ini")" \
@@ -112,8 +126,13 @@ account() { # frame -> "clear_total=N enclosed_clear=M"
   "$PYTHON" world-sky-gate-account.py "$1" 2>/dev/null
 }
 
-field() { # "clear_total=12 enclosed_clear=3" key -> value
-  printf '%s' "$1" | sed -n "s/.*$2=\([0-9]*\).*/\1/p"
+field() { # "diff=77131 far=77131 owned=77131" key -> value, EXACT key only
+  # Was a greedy sed, which matched `enclosed_diff=...` when asked for `diff`
+  # (the line contains both keys). That read 0-vs-0 correctly on a fully covered
+  # pose and silently returned the wrong field wherever diff and enclosed_diff
+  # differ - found on the merge tree, where the tick-0 pose makes them differ.
+  printf '%s' "$1" | awk -v k="$2" '{ for (i = 1; i <= NF; i++) {
+      split($i, kv, "="); if (kv[1] == k) { print kv[2]; exit } } }'
 }
 
 echo "== W-1 sky gate: preset-0 isolate, pose pl_upward tick $TICK =="
@@ -180,14 +199,18 @@ if [ -n "${sky_plane:-}" ] && [ -f "$OUT/default.bmp" ] && [ -f "$OUT/skyoff.bmp
   reconciled=$("$PYTHON" world-sky-gate-reconcile.py "$OUT/default.bmp" "$OUT/skyoff.bmp" "$sky_plane" 2>/dev/null)
   rdiff=$(field "$reconciled" diff)
   rfar=$(field "$reconciled" far)
+  rowned=$(field "$reconciled" owned)
   renc_off=$(field "$reconciled" enclosed_off)
   renc_on=$(field "$reconciled" enclosed_on)
   renc_diff=$(field "$reconciled" enclosed_diff)
-  if [ -n "${rdiff:-}" ] && [ "${rdiff:-0}" -gt 0 ]; then
-    ok "C: the sky painted ${rdiff} px the world did not (diff > 0)"
-  else
-    bad "C: sky-on and sky-off differ by ${rdiff:-<none>} px (expected > 0)"
-  fi
+  # COMPLETENESS. Not a population constant: on this pose the correct answer
+  # depends on how much of the frame the world covers, and after the P0
+  # displacement fix it covers all of it (0 owned, 0 painted). What must hold on
+  # every tree is that the sky paints exactly the pixels it is entitled to.
+  [ "${rowned:-x}" = "${rdiff:-y}" ] \
+    && ok "C: the sky painted every px it owns on the tick ${TICK} pose (${rdiff} painted / ${rowned} owned; a fully covered pose legally reads 0)" \
+    || bad "C: ${rdiff:-<none>} px painted but ${rowned:-<none>} px owned on the tick ${TICK} pose (the sky left a world-free clear pixel unpainted, or painted outside its entitlement)"
+  # SOUNDNESS.
   [ "${rfar:-x}" = "${rdiff:-y}" ] \
     && ok "C: every px the sky painted is world-free at the far plane (${rfar:-?}/${rdiff:-?})" \
     || bad "C: ${rfar:-<none>} of ${rdiff:-<none>} sky-painted px are world-free (expected all)"
@@ -199,6 +222,46 @@ if [ -n "${sky_plane:-}" ] && [ -f "$OUT/default.bmp" ] && [ -f "$OUT/skyoff.bmp
   fi
 else
   bad "C: no pass-depth plane for the sky-on frame (expected 10-sky or 30-world-done)"
+fi
+
+# ---- C+: the same account where the sky is actually visible -----------------
+# C alone cannot tell "the sky is drawn and the world covers all of it" from
+# "the sky is not drawn at all": both read 0 on a fully covered pose. This second
+# pose (tick 0 of the same demo, spawn) is chosen because the world does NOT
+# cover the frame there, so the sky pass owns a large population and the gate can
+# still see it. Same three statements, all non-trivial at 0.
+CAPTURE_TICK=0 capture positive --capture-pass-depth "$(win "$OUT/positive-depth")"
+CAPTURE_TICK=0 capture positiveoff --no-world-sky
+CAPTURE_TICK="$TICK"
+pos_plane=$(ls "$OUT"/positive-depth-*-10-sky.pgm 2>/dev/null | head -1)
+[ -n "${pos_plane:-}" ] || pos_plane=$(ls "$OUT"/positive-depth-*-30-world-done.pgm 2>/dev/null | head -1)
+if [ -n "${pos_plane:-}" ] && [ -f "$OUT/positive.bmp" ] && [ -f "$OUT/positiveoff.bmp" ]; then
+  posacc=$("$PYTHON" world-sky-gate-reconcile.py "$OUT/positive.bmp" "$OUT/positiveoff.bmp" "$pos_plane" 2>/dev/null)
+  pdiff=$(field "$posacc" diff)
+  pfar=$(field "$posacc" far)
+  powned=$(field "$posacc" owned)
+  penc_off=$(field "$posacc" enclosed_off)
+  penc_on=$(field "$posacc" enclosed_on)
+  penc_diff=$(field "$posacc" enclosed_diff)
+  if [ -n "${pdiff:-}" ] && [ "${pdiff:-0}" -gt 0 ]; then
+    ok "C+: on the tick 0 pose the sky paints ${pdiff} px the world does not (diff > 0: the gate can still see the pass)"
+  else
+    bad "C+: the tick 0 pose now differs from --no-world-sky by ${pdiff:-<none>} px: the positive pose lost its sky, so C above proves nothing"
+  fi
+  [ "${powned:-x}" = "${pdiff:-y}" ] \
+    && ok "C+: the sky painted every px it owns on the tick 0 pose (${pdiff} painted / ${powned} owned)" \
+    || bad "C+: ${pdiff:-<none>} px painted but ${powned:-<none>} px owned on the tick 0 pose"
+  [ "${pfar:-x}" = "${pdiff:-y}" ] \
+    && ok "C+: every px the sky painted there is world-free at the far plane (${pfar:-?}/${pdiff:-?})" \
+    || bad "C+: ${pfar:-<none>} of ${pdiff:-<none>} sky-painted px are world-free on the tick 0 pose (expected all)"
+  if [ -n "${penc_off:-}" ] && [ -n "${penc_on:-}" ] && [ -n "${penc_diff:-}" ] \
+     && [ "$((penc_off - penc_on))" = "$penc_diff" ]; then
+    ok "C+: enclosed(off) - enclosed(on) == enclosed px the sky filled (${penc_off} - ${penc_on} == ${penc_diff})"
+  else
+    bad "C+: enclosed account does not reconcile (off=${penc_off:-<none>} on=${penc_on:-<none>} filled=${penc_diff:-<none>})"
+  fi
+else
+  bad "C+: no pass-depth plane for the tick 0 sky-on frame (expected 10-sky or 30-world-done)"
 fi
 
 # ---- D: the depth view contract --------------------------------------------

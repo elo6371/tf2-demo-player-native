@@ -1468,17 +1468,22 @@ WORLD_SKY_LOG="$WORLD_SKY_OUT/sky.txt"
 WORLD_SKY_OUT="$WORLD_SKY_OUT/evidence" bash world-sky-gate-check.sh > "$WORLD_SKY_LOG" 2>&1
 WORLD_SKY_RC=$?
 tail -8 "$WORLD_SKY_LOG"
-# 13 = A x4 + B x2 + C x4 + D + E x2, re-measured on the far-plane deferred-sky
-# build (2026-11-17) after C and E were re-derived. History of the count, in
-# order: 9 (round 2), 11 (A's farplane=1 and shader=dedicated added: the trace
-# says the pass is pinned to the far plane and uses the discard-free shader,
-# because a small box drawn first looks the same in this pose and would pass
-# every pixel assertion), 13 (P0 forced C off the 2,072 px constant and onto a
-# reconciled diff account, and E off the same constant and onto frame identity
-# - see docs/WORLD-HOLES-2026-11-17.md §13.5: a gate may not pin a number that
-# belongs to another defect, or two correct fixes cannot merge). Pinned like
-# every other assertion count: re-measure, never copy, when a later wave adds
-# an assertion.
+# 17 = A x4 + B x2 + C x4 (1 trace + 3 account) + C+ x4 + D + E x2, re-measured on the merged tree
+# (work/integrate, 2026-11-17) after C split into an account that holds on any
+# pose and a second pose that proves the gate can still see the sky. History of
+# the count, in order: 9 (round 2), 11 (A's farplane=1 and shader=dedicated
+# added: the trace says the pass is pinned to the far plane and uses the
+# discard-free shader, because a small box drawn first looks the same in this
+# pose and would pass every pixel assertion), 13 (P0 forced C off the 2,072 px
+# constant and onto a reconciled diff account, and E off the same constant and
+# onto frame identity - see docs/WORLD-HOLES-2026-11-17.md §13.5: a gate may not
+# pin a number that belongs to another defect, or two correct fixes cannot
+# merge), 17 (on the MERGE tree the tick-1800 pose has no sky left at all - P0
+# fills the cracks - so C's "diff > 0" turned a correct merge red; C is now the
+# account itself, which is 0-legal, and the "diff > 0" moved to C+ on tick 0
+# where the sky owns 77,131 px. See §14: a gate must be run on the merge tree).
+# Pinned like every other assertion count: re-measure, never copy, when a later
+# wave adds an assertion.
 WORLD_SKY_OK=$(grep -c '^  PASS ' "$WORLD_SKY_LOG" || true)
 if [ "$WORLD_SKY_RC" -eq 3 ]; then
   WORLD_SKY_REASON=$(grep -m1 '^SKIP ' "$WORLD_SKY_LOG" | sed 's/^SKIP //')
@@ -1486,10 +1491,10 @@ if [ "$WORLD_SKY_RC" -eq 3 ]; then
   skip_all=$((skip_all + 1))
   if [ -n "$skip_names" ]; then skip_names="$skip_names,WORLD-SKY-GATE"; else skip_names="WORLD-SKY-GATE"; fi
 elif [ "$WORLD_SKY_RC" -eq 0 ] && grep -q '^W-1 SKY GATE: [0-9]* passed, 0 failed' "$WORLD_SKY_LOG" \
-    && [ "$WORLD_SKY_OK" = "13" ]; then
-  echo "WORLD-SKY-GATE=PASS (13 assertions)"
+    && [ "$WORLD_SKY_OK" = "17" ]; then
+  echo "WORLD-SKY-GATE=PASS (17 assertions)"
 else
-  echo "WORLD-SKY-GATE=FAIL (rc=$WORLD_SKY_RC ok=$WORLD_SKY_OK expected 13)"; rc_all=1
+  echo "WORLD-SKY-GATE=FAIL (rc=$WORLD_SKY_RC ok=$WORLD_SKY_OK expected 17)"; rc_all=1
 fi
 step "29/30 world materials: a patch wrapper's include reaches the pixels"
 # T59. A map's own pak ships "patch" VMTs: the wrapper is only {include, replace}
