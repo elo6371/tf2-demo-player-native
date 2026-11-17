@@ -1,8 +1,11 @@
 # Map overview HUD (E11) -- 2026-11-17
 
-The spectator screen gets a real map: a 250 px square in the top-right corner,
-showing the map's own supplied top-down render with a marker per player, plus
-the two team rosters down the left and right edges. It replaces the 160 px
+The spectator screen gets a real map: a 250 px square in the bottom-right corner,
+showing the map's own supplied top-down render with a marker per player, plus the
+two team rosters, aligned on one row down the left and right edges. The clock and
+the score sit centred at the top of the screen; the watched player line stays on
+the left margin. (This replaces the first cut, where the map was top-right and
+BLU was stacked under it -- the 178 px mismatch the user reported.) It replaces the 160 px
 schematic panel while it is open (the schematic panel is still there, with its
 BSP linework, when the overview is closed).
 
@@ -99,31 +102,49 @@ Adding a map: add its key and bounds to `boundaries.json` and its PNG to
 
 ## Geometry, anchoring and the no-overlap rule
 
-- The panel is anchored top-right at a constant **pixel** margin: `side =
-  min(250, W-24, H-24)`, `x = W-12-side`, `y = 12`. A resize therefore never
-  moves it in fractions of the window and never resizes it while it fits. At
-  1264x681 the client area puts it at `1002,12`; at 1904x1041 at `1642,12`.
+- **The top band belongs to the score, not to the rosters.** The live readout
+  draws TIME and the RED/BLU score centred on the client: lines 1-2 at
+  `x = (W - chars*16) / 2`, y = 24 and 46. The watched-player line
+  (`NAME <n>  HP <h>`) stays on the left margin at x=24, y=68, because it is a
+  reading about one player rather than the scoreboard. The product publishes all
+  of it (`hud: live ... lineX= lineW= header= nameBlock=`) and
+  `hud-live-check.sh` pins the centring to 2 px, the left margin of line 3, and
+  the fact that the two blocks do not overlap.
+- The panel is anchored **bottom-right** at a constant **pixel** margin: `side =
+  min(250, W-24, H-24)`, `x = W-12-side`, `y = H-12-side`. A resize therefore
+  never moves it in fractions of the window and never resizes it while it fits.
+  At 1264x681 the client area puts it at `1002,419`; at 1904x1041 at `1642,779`.
 - The map area is the panel inset by the 2 px border: `side-8` = 242 px.
-- The left (RED) roster starts at `(12, 12)`. The right (BLU) roster starts at
-  `x = W-12-width`, `y = minimapBottom + 12`, i.e. **below** the minimap. This is
-  deliberately asymmetric: stacking BLU under the map costs one roster's height
-  and keeps both panels inside the safe area at 1280x720, which a 250 px map on
-  the right edge cannot otherwise afford. `map-overview-check.sh` asserts the
-  three rectangles (panel, RED, BLU) are mutually disjoint at 1280x720,
-  1920x1080 and 2560x1440, and that each stays inside the frame.
+- Both rosters share **one row, one size and symmetric margins**: RED at
+  `x = 12`, BLU at `x = W-12-width`, both at `y = 96` (the 84 px band below the
+  readout), with the same width `min(220, (W-36)/2)` and the same height. This
+  replaces the old asymmetric layout (RED at y=96, BLU stacked under the
+  minimap at y=274) that the user reported as misaligned -- the two sides
+  differed by 178 px. The row count is common to both panels
+  (`max(red, blu)`, clamped by the space below the readout), so the heights
+  match by construction.
+- **No-overlap is a rule, not a constant.** The panel is drawn only when its
+  rect intersects neither the published readout block nor either roster rect.
+  When it would, the map is not drawn at all (`reason=no-room`,
+  `panelPrimitives=0`) and the rosters keep their rows; there is no partially
+  drawn map state. `map-overview-check.sh` asserts the three rectangles (panel,
+  RED, BLU) are mutually disjoint at 1280x720, 1920x1080 and 2560x1440, that the
+  map clears the rosters by the 12 px margin, and that each stays inside frame.
 - Roster width is `min(220, (W-36)/2)`; below 80 px wide the roster is skipped
   rather than drawn as a sliver.
 - **Small windows**: the panel side is `min(250, clientW-24, clientH-24)`, so a
   short window shrinks the map instead of clipping it; below `kMinPanel = 60` px
-  the code guard would skip the panel entirely (`reason=panel-too-small`, side 0)
-  and the rosters clamp their rows instead of overlapping. That guard is not
-  reachable through `--window-size`: the prescan (`native/src/main.cpp:2999-3027`)
-  refuses an outer window below **320x240** with exit 13 -- "refuse, do not
-  guess", because a gate that asked for one size and silently got another would
-  produce incomparable captures. At the floor the client area is ~304x201, the
-  panel is ~177 px and the run still composes, captures and writes a bitmap.
-  `map-overview-check.sh` section D asserts exactly that, plus the 300x200
-  refusal (exit 13, no bitmap).
+  the code guard would skip the panel entirely (`reason=panel-too-small`, side
+  0). What actually fires at the supported floor is the no-overlap rule: at
+  320x240 (client ~304x201) the bottom-right panel would intersect the readout,
+  so the map is dropped with `reason=no-room` while both rosters keep two rows
+  and stay aligned. That floor guard is not reachable through `--window-size`:
+  the prescan (`native/src/main.cpp:2999-3027`) refuses an outer window below
+  **320x240** with exit 13 -- "refuse, do not guess", because a gate that asked
+  for one size and silently got another would produce incomparable captures.
+  `map-overview-check.sh` section D asserts the floor composition (no-room, no
+  map primitives, aligned rosters with rows) plus the 300x200 refusal (exit 13,
+  no bitmap).
 
 ## Keys: M toggles the map, Ctrl+M toggles mute
 
@@ -160,10 +181,19 @@ table.
 
     minimap: source=<key> exact=0|1 rule=<exact|trim|reverse-trim|reverse-trim-2> path=<png> loaded=0|1 reason=<token> w=<px> h=<px> format=DXGI_FORMAT_R8G8B8A8_UNORM sampler=linear-mip mip=<n> aspectDev=<percent> decodeMs=<ms> uploadMs=<ms>
     minimap: rect=<x,y,w,h> texture=<x,y,w,h> bounds=<minX,minY,maxX,maxY> scale=<s> offsetX=<px> offsetY=<px> legacy=0|1
-    overview: frame open=1 ready=0|1 reason=<token> map=<map> panel=<x,y,side> border=2 area=<x,y,side> red=<x,y,w,h> blu=<x,y,w,h> rowsRed=<n> rowsBlu=<n>
+    overview: frame open=1 ready=0|1 reason=<token> map=<map> panel=<x,y,side> border=2 area=<x,y,side> red=<x,y,w,h> blu=<x,y,w,h> rowsRed=<n> rowsBlu=<n> panelPrimitives=<n> header=<x,y,w,h>
     overview: mapping ok=0|1 reason=<token> bounds=<minX,minY,maxX,maxY> scale=<s> offsetX=<px> offsetY=<px> area=<x,y,side>
     overview: summary players=<n> shown=<n> hidden=<n> rowsRed=<n> rowsBlu=<n> skipped=<n> icons=<n> iconsSkipped=<n> iconsDead=<n> iconsNoPos=<n> iconsOffMap=<n> arrows=<n> classIcons=<n> chips=<n> deadRows=<n> images=<n> rects=<n> text=<n> circles=<n> hiddenEntity=<id>
     overview: toggle open=0|1 source=key      (only on the hotkey)
+    hud: live tick=<n> enabled=1 mode=<...> source=<...> text1="<TIME>" text2="<score>" text3="<NAME/HP>" glyphs=<n> region=<x,y,w,h> updates=<n> skips=<n> name=<name> reason=<...> ... lineX=<x1,x2,x3> lineW=<w1,w2,w3> header=<x,y,w,h> nameBlock=<x,y,w,h>
+
+`lineX` is the published origin of each of the three readout lines (the clock and
+the score centred, the name line on the left margin), `header` is the two score
+rows as one rect (`y=24`, `h=38` = 22 px pitch + 16 px cell, so it ends at y=62
+and never touches the name row at y=68), and `nameBlock` is the watched-player
+line. `region` is the union of the two blocks, so a consumer can treat it as one
+damage rect. `hud-live-check.sh` recomputes every width from the published text
+(16 px per cell) instead of trusting these numbers.
 
 `images=1` is the assertion that the basemap is one textured quad, not a
 `rects` mosaic. Marker accounting is `icons + iconsSkipped == shown` (a dead
