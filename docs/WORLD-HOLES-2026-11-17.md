@@ -659,12 +659,20 @@ if (!request.enabled) {
 }
 ```
 
-Order and depth: the box is drawn **first, before the world**, under its own rasteriser state
-(`native_renderer_frame.cpp:518-525`), and it writes **no depth**
-(`native_renderer.cpp:697-698`, `skyDepthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO`).
-It is not a "run after the world, paint only where depth is still 1.0" pass, and there is no CPU
-occlusion/mask buffer that decides sky visibility from world faces. When the pass is off, nothing
-covers the pixels the world leaves empty, and they stay clear colour.
+Order and depth, **as round 2 left it** (kept because §11's measurements were taken then; round 3
+reversed both halves, see the note after this paragraph): the box was drawn **first, before the world**,
+under its own rasteriser state, and it wrote **no depth** (`skyDepthDescription.DepthWriteMask =
+D3D11_DEPTH_WRITE_MASK_ZERO`). It was not a "run after the world, paint only where depth is still 1.0"
+pass, and there is no CPU occlusion/mask buffer that decides sky visibility from world faces. When the
+pass is off, nothing covers the pixels the world leaves empty, and they stay clear colour.
+
+**Round 3 changed the order and the shader, not the observable result of §11.** The box is now drawn
+**after** the world's opaque batches - deferred to flush points inside and after the batch loop, so a
+`$translucent` sub-batch still composites over it - and it is anchored at the far plane with its own
+discard-free pixel shader (§13.1-§13.2). "Writes no depth" survived the change
+(`native_renderer.cpp:698-706`). §11.2's "of those, painted by the sky" counts are therefore still the
+right attribution of *which pass* painted those pixels; what round 3 adds is proof that on the final
+build no world geometry owns them at all (§13.3).
 
 `--world-depth` additionally forces the sky off on purpose (T52 comment, `main.cpp:8632-8640`): a
 depth frame is a scalar image and a sky drawn into it would read as geometry.
@@ -755,24 +763,29 @@ New gate: `world-sky-gate-check.sh` with `world-sky-gate-account.py` (pure-stdli
 clear colour is RGB(14,18,22) and "enclosed" means 4-connected to the frame border through clear
 pixels).
 
-### 12.3 The gate: four assertions, all pass
+### 12.3 The gate: the assertions, all pass
 
 Captured on the pinned user-view pose (pl_upward tick 1800) with an **empty** settings file, i.e. the
 fresh-install configuration:
 
 | # | assertion | measured |
 | --- | --- | --- |
-| A | preset 0 draws the sky | `gpu: world sky state=active ... draws=1` - PASS (both assertions) |
+| A | preset 0 draws the sky, at the far plane, with the dedicated shader | `gpu: world sky state=active ... draws=1 ... farplane=1 shader=dedicated` - PASS (four assertions) |
 | B | enclosed clear px == 0, and no clear-colour pixel at all | `clear_total=0 enclosed_clear=0` - PASS |
 | C | negative control: `--no-world-sky` reproduces the old frame | `enclosed_clear=2072`, `state=unavailable draws=0` - PASS |
 | D | the depth view still draws no sky | `state=unavailable draws=0` - PASS |
 | E | an explicit key still wins: `preset=1` **and** `skybox=0` must not draw the sky | `state=unavailable draws=0`, `enclosed_clear=2072` - PASS (both assertions) |
 
-`W-1 SKY GATE: 9 passed, 0 failed` (A x2, B x2, C x2, D, E x2). E exists because the precedence has
+`W-1 SKY GATE: 11 passed, 0 failed` (A x4, B x2, C x2, D, E x2), re-run on the far-plane deferred build in
+§13. A's two extra assertions were added in round 3 so that "the sky is anchored at the far plane" and
+"the sky pass runs the discard-free shader" are readable from the trace and not merely implied by the
+pixels: the trace prints `farplane=1 shader=dedicated` on every capture that draws the sky, and both
+gates A and B would go red if either regressed. E exists because the precedence has
 two directions: before W-1 `preset=1` switched the sky **on** by itself, so E proves the preset stopped
-deciding it either way and that a user who writes `skybox=0` by hand is still obeyed. C is the control that makes B mean something: the same pose, same
-camera, same demo, one flag apart, still yields exactly the 2,072 px the card spent its first half
-attributing. The fix, not the measurement, is what moved them.
+deciding it either way and that a user who writes `skybox=0` by hand is still obeyed. C is the control
+that makes B mean something: the same pose, same camera, same demo, one flag apart. What C asserts was
+re-derived in round 3 and is stated in §13.5: it used to pin the 2,072 px population, and that number
+turned out to belong to a different defect.
 
 ### 12.4 Closing measurement: the three characterised poses after the fix
 
@@ -785,10 +798,19 @@ default way:
 | pl_upward tick 1800 | 2,072 enclosed clear px | **0** (clear_total 0) | `state=active ... side=512 draws=1` |
 | cp_process tick 600 | 985 enclosed clear px | **0** (clear_total 0) | `state=active ... side=1024 draws=1` |
 
-There is no residual. The lead's instruction was: if a residual remains after the sky fix, that is a
-real geometry remainder and gets a new round; if not, the answer to the user's "the floor and stairs
-are missing faces" is this section. The pixels were never missing geometry that the renderer dropped -
-they were pixels the renderer left unpainted while the sky pass was switched off by a preset.
+There is no residual clear pixel on any of the three poses, and the instrument says what kind of pixel
+they are: with the sky on, the per-pass depth planes (§13.3) read far-plane at these coordinates, i.e.
+no world geometry owns them. The lead's instruction was: if a residual remains after the sky fix, that
+is a real geometry remainder and gets a new round.
+
+**Correction (round 3).** The sentence that used to sit here - "the pixels were never missing geometry
+that the renderer dropped, they were pixels the renderer left unpainted while the sky pass was switched
+off by a preset" - is withdrawn. The P0 fix to the transposed displacement parameterisation adds
+**2,072 geometry pixels at the up1800 pose and loses none** (§13.7), which is exactly this population:
+every one of those pixels WAS a hole in the terrain, and the sky pass was painting behind it. Two
+defects landed on the same pixels - the sky being off made them black, the transposition made them
+holes - and §12's own claim (a fresh install drew no sky at all, §12.1) is unaffected. What is
+withdrawn is only the attribution of the *pixels*.
 
 Per-map census to check that this was not a three-pose coincidence: every demo this card holds, tick
 0, empty settings file, driver `.scratch/holes/census-sky.sh`, artifacts
@@ -806,13 +828,17 @@ Per-map census to check that this was not a three-pose coincidence: every demo t
 | koth_ashville_final1 | 0 | 0 | active, draws=1 |
 | koth_product_final | 2 | 2 | active, draws=1 |
 
-**Known residual (decided: recorded, not chased): 2 px, and only on koth_product_final.** They are
-two adjacent pixels at (997,125) and (998,125), i.e. 0.0002% of the frame, and they are not on any
-pose this card has characterised. Two adjacent pixels is the shape of a seam between two faces of the
-sky cage (the box is six quads, so a hairline where two of them meet is the ordinary way this fails)
-and not the shape of a culled face, which would be a block. **Criterion for the next reader:** if
-anyone later reports thin-line light leaks in the minimap or in spectator views, check this residual
-first - same shape, same cause candidate - before opening a world-geometry round.
+**The 2 px on koth_product_final: recorded on this branch, resolved elsewhere in round 3.** On this
+tree (pre-P0) they are two adjacent clear pixels at (997,125) and (998,125), 0.0002% of the frame, and
+the shape reasoning below held - a two-pixel hairline is a seam, not a culled face. On the P0 tree
+(work/disp-param) the same two pixels are **world geometry** (RGB 54,54,54 / 68,70,51): they were a
+seam of the transposed displacement parameterisation, and P0 removes them. So the paragraph is
+withdrawn as a *sky* residual and kept only as history - the shape diagnosis was right, the culprit was
+the terrain. On this branch they remain visible; a merge should delete this paragraph's first sentence
+and cite §13.7.
+
+**Criterion for the next reader:** a thin-line light leak that survives P0 is still worth checking
+against the sky cage first (six quads, hairline at a shared edge) before opening a geometry round.
 
 ### 12.5 Cost, measured and recorded
 
@@ -826,10 +852,12 @@ with `tick >= 1000`):
 
 delta **-6.28 fps / +3.59 ms per frame (-13.9% fps)** on this host. The pass is twelve triangles, so
 this is not geometry cost: it is the textured box covering the frame area the world leaves empty,
-which is exactly the work that was being skipped. It is recorded rather than hidden because it is the
-price of correctness; it is also the number to watch if the sky box ever gets a cheaper path (a
-full-screen gradient or a cubemap fetch per empty pixel would be the alternatives, not this card's
-scope).
+which is exactly the work that was being skipped.
+
+**Superseded by §13.6.** That "after" build still shaded the sky with the *world* pixel shader, whose
+`discard` forfeits early depth rejection, so the -6.28 fps is the price of that implementation and not
+of the pass. Round 3 gave the pass its own shader and anchored it at the far plane (§13.1-§13.2);
+re-measured with an alternating A/B protocol the per-frame cost is inside the machine's noise band.
 
 ### 12.6 What this changes about the earlier numbers
 
@@ -843,9 +871,14 @@ what the user sees.
 ### 12.7 Left open, stated rather than hidden
 
 - **No UI toggle** writes `skybox` yet; a user who wants the old frame edits the key by hand.
-- **verify-all.sh is not wired to the new gate.** `world-sky-gate-check.sh` is standalone and costs
-  four captures; the release chain's geometry step still runs only the hole gate. Registering it is a
-  chain change (the geometry step pins its own forward assertion count, 53) and is left to the lead.
+- ~~**verify-all.sh is not wired to the new gate.**~~ **Wired in round 3.** `verify-all.sh` step 28
+  ("world geometry at the pinned pose") now runs `world-sky-gate-check.sh` right after the 53-assertion
+  hole gate and reports `WORLD-SKY-GATE=PASS (11 assertions)`. The gate is self-sufficient: it writes
+  its own empty settings/ui files and derives the camera from the demo plus `--capture-tick`, so its
+  only external inputs are the product, the demo and a python. When one of those is missing it prints
+  `SKIP <reason>` and exits **3** - not a FAIL, and not a silent no-op. The chain counts that in a
+  separate skip counter and prints it beside the pass count, so a skipped gate can never be read as a
+  passed one: see §13.4 for the summary line.
 - **The T26 hole gate could not be re-run on this machine.** It was attempted after the fixture
   change and stopped at its identity step, on two independent inputs: (a) `native/` is uncommitted,
   which that gate refuses by design ("a gate must describe a committed tree") and is the expected
@@ -858,5 +891,360 @@ what the user sees.
   `evidence/t26-world-holes/analysis/identity.txt` before stopping; that file was restored with
   `git checkout -- evidence/t26-world-holes/analysis/identity.txt` and is not part of this round's
   diff.
+
+## 13. Round 3: why the pass cost what it cost, and what the far plane moved
+
+Round 2 (§12) fixed the defect and left one number unexplained: the sky cost **-6.28 fps / +3.59 ms**
+for twelve triangles. Round 3 asked what that cost actually was, what the far-plane anchor changes in
+the picture, and what the trace can assert about it - and it had to re-derive one gate assertion when a
+second defect (P0, §13.7) turned out to share the same pixels.
+
+### 13.1 The cost was never the order; it was the shader
+
+Same build, same pose, same preset 0, the sky drawn **first** vs drawn **last**:
+
+| order | median fps | frame time |
+| --- | --- | --- |
+| sky first (round 2) | 38.8 | 25.8 ms |
+| sky last (order swap only) | 37.3 | 26.8 ms |
+
+Moving the pass bought nothing - it came out slightly *worse*, inside noise. Root cause: the sky was
+being shaded by the **world** pixel shader, and that shader contains a `discard`. A pixel shader with a
+discard cannot rely on early depth rejection, so the sky's `LESS_EQUAL` test against the freshly drawn
+world could not save the twelve triangles' fill: every covered pixel was shaded and then overwritten.
+Order is a lever only when the pass can be rejected *before* shading.
+
+The fix has two halves and both are needed:
+
+1. **A dedicated pixel shader** - `skyPixelSource`, `native/src/native_renderer_shaders.cpp` (declared
+   `native/src/native_renderer_shaders.h:28`, compiled and created in `native/src/native_renderer.cpp`
+   beside the world pair): same cubemap, same `safeNormalize`, the same world vertex shader input, and a
+   body with no discard and no clip that returns only a colour,
+   `float4(envCube.Sample(sampler0, safeNormalize(worldPosition)).rgb, 1.0)`.
+2. **The far-plane anchor** (§13.2), so the depth test has a value that means "background" instead of
+   the box's own position in the scene.
+
+Nothing else moved: the pass still runs inside the world pass, flushed at the same points (blended
+batches, after the batch loop, before the placeholder quad); the depth state is unchanged
+(`native/src/native_renderer.cpp:698-706`: test on, `DepthWriteMask = ZERO`, `LESS_EQUAL`); and the
+entity and viewmodel passes are untouched. The change is entirely inside `drawWorldSkyBox` and the
+shader pair it binds. The pass writes **no depth at all** - not before, not now - so nothing later can
+compare against its pixels; the "does the far plane write depth" question is answered by the draw's own
+pixel shader, which has one `SV_Target` output and no `SV_Depth`.
+
+### 13.2 The far-plane anchor: what it does, and why it sits a hair inside
+
+Engine parity (Q6, external evidence: engine source, `tf2-source-notes/NOTES.md` Q6):
+`Shader_WorldEnd` runs `R_DrawSkyBox` **after** the opaque world and draws at `zFar`. The box here
+becomes that far plane. In `native/src/native_renderer_frame.cpp:644-646`, after
+`skyView * projection`:
+
+```cpp
+const float farPlanePin = 1.0f - 1.0e-6f;
+for (int row = 0; row < 4; ++row)
+  skyConstants.mvp.m[row][2] = skyConstants.mvp.m[row][3] * farPlanePin;
+```
+
+`XMFLOAT4X4` is row-major and the shader declares `row_major float4x4 mvp` and multiplies a row vector
+(`mul(float4(position, 1.0), mvp)`), so output component *j* is `sum_i p_i * m[i][j]`: column 3 is
+clip.w, and copying it into column 2 makes **clip.z == clip.w**, i.e. z_ndc = 1 for every vertex. The
+**w column is untouched**, so 1/w and perspective-correct interpolation are unchanged - which is also
+the structural refutation of the "the UV became screen-space affine" candidate in §13.3.
+
+Four pins measured, three poses each (empty settings, sky on; diff against the round-2 frames):
+
+| pin | up0 | up1800 | pr600 | verdict |
+| --- | --- | --- | --- | --- |
+| none (box at its 40-unit half-extent) | 0 px | 0 px | 0 px | reference row: these ARE the pre-round frames, so 0 is by construction; the sky sits at the box's depth, not at the far plane |
+| exactly 1.0 | 0 px | 0 px | 4 px ±1 | geometry lies on the clip plane; the boundary is float rounding |
+| `1 - 1e-6` | 2 px ±1 | 0 px | 2 px ±1 | **chosen** |
+| `1 - 1e-3` | 2 px ±1 **+ 681 px of world painted over** | 0 px | 2 px ±1 | rejected |
+
+The wider inset fails in the direction that matters: at 1e-3 the box sits deep enough inside the depth
+range that distant world surfaces stop rejecting it, and in the up0 pose the sky painted over **681 px
+of terrain**. The pin has to be as close to the far plane as float arithmetic allows. No pin at all is
+measured at zero differences, but it leaves the sky at the box's own half-extent, so a world surface
+farther than the box would win the depth test against the background - the far plane is the
+semantically correct anchor, and it is what the trace now asserts (§13.4).
+
+### 13.3 The bounded semantic correction: 4 px
+
+Against the round-2 frames the final build differs at four pixels, each 1 LSB in one channel (BMP is
+BGR; values below are RGB):
+
+| pose | pixel | before (RGB) | after (RGB) | delta |
+| --- | --- | --- | --- | --- |
+| pl_upward tick 0 | (45,52) | 92,127,154 | 93,127,154 | R +1 |
+| pl_upward tick 0 | (285,196) | 98,131,157 | 98,132,157 | G +1 |
+| pl_upward tick 1800 | - | - | - | **none (0 px)** |
+| cp_process tick 600 | (639,21) | 153,178,210 | 154,178,210 | R +1 |
+| cp_process tick 600 | (652,67) | 136,156,190 | 136,157,190 | G +1 |
+
+Four pixels of 3 x 1264 x 681 = 2,582,352 compared (1.5e-6), none at the middle pose.
+
+**Attribution (the load-bearing evidence).** With `--capture-pass-depth` on the sky-on frame, the
+per-pass depth planes read `depth=1.000000000 d24=16777215 far=yes` at all four pixels, at the
+`10-sky` dump (inside the deferred sky draw, world depth already present) and at `30-world-done`
+alike. No world geometry ever wrote depth at any of them, so no world pass can be responsible for the
+difference: the only pass that ever painted those pixels is the sky. Artifacts
+`.scratch/holes/skyfix-final/*-depth-*-10-sky.pgm` and `-30-world-done.pgm`.
+
+**Candidates ruled out.**
+
+- *Perspective-correct UV became screen-space affine.* Structurally impossible here: only matrix
+  column 2 - the z output - is overwritten; column 3, clip.w, which is what 1/w interpolation depends
+  on, is untouched. The shader's sample input is the pre-projection vertex attribute
+  (`output.worldPosition = input.position`), so changing the *direction* would require the
+  interpolation weights to change, which requires w to change - and a w change would move thousands of
+  pixels, not four.
+- *z = 1 depth tie at the same pixel centre.* Impossible at these pixels: the depth is the cleared 1.0
+  (no world geometry) and the sky writes no depth, so there is no second writer to tie with.
+- *Cube-face seam tie at the same pixel centre.* Not supported by the neighbourhood probe: three of the
+  four pixels sit in a flat sky gradient, the fourth beside a face diagonal whose two sides differ by
+  far more than 1 LSB (`neighbours_equal = 1/9` in all four 16x16 patches,
+  `.scratch/holes/skyfix-farplane/diff-patches.png`). A face-winner flip would be a visible colour
+  step, not ±1.
+
+**What remains, as the measured invariant rather than a story.** The difference appears **iff the pin
+is applied**; it is identical for `1 - 1e-6` and `1 - 1e-3` (a thousandfold z difference, same four
+pixels, same values); it is identical with the dedicated shader and with the world shader bound (probe
+build `.scratch/holes/skyfix-probe/`, bit-identical to the sky-shader frames); it is deterministic (two
+captures of the same pose with the same binary are bit-identical); and it is 1 LSB in one channel on
+pixels no world geometry owns. With the shader input and the interpolation weights provably unchanged,
+the residue is a rasteriser-side rounding difference of at most one ulp in primitive setup, landing on
+a trilinear mip-weight boundary at four of 2.6M pixels.
+
+**Conclusion, in the wording the ruling asked for: a recorded bounded semantic correction - 4 px,
+±1 LSB per channel, all of them sky-owned pixels - and not "no difference".** If pixel-exactness
+against the pre-round frames is ever required, the lever is the pin itself (0 px measured, table row 1),
+at the cost of the far-plane semantics.
+
+### 13.4 The trace now carries the claim
+
+The sky line prints two fields that were previously true only by construction
+(`native/src/main.cpp:9830`):
+
+```
+gpu: world sky state=active vertices=36 triangles=12 faces=6 draws=1 side=512|1024 resampled=1 farplane=1 shader=dedicated reason=six sides, 36 vertices
+```
+
+`farplane` is set where the pin is applied, and `shader` reports which pixel shader the draw bound
+(`dedicated` / `world` / `none`); both are reset each frame and copied into
+`WorldMaterialSampleState` (`native/include/native_renderer.h:597-604`), so the trace cannot describe
+something the draw did not do. Gate A gained two assertions on them, because a small box drawn first -
+or the world shader rebound - looks identical in the pinned poses and would fail no pixel test.
+
+`verify-all.sh` runs this gate as step 28 and prints `WORLD-SKY-GATE=PASS (13 assertions)`; a gate
+that cannot run prints `SKIP <reason>` and exits 3, which the chain counts in its own skip counter.
+### 13.5 Assertion C had to be re-derived
+
+Round 2's C read: "`--no-world-sky` reproduces 2,072 enclosed clear px." That number belongs to a
+*different* defect: P0 adds 2,072 geometry pixels at this pose and loses none (§13.7), so on a merged
+tree the same pose with the sky off is no longer black and the assertion would go red on a correct
+build. The ruling was explicit - do not re-pin another constant, and do not read P0 as having broken
+W-1 - so C is now stated in a form that holds under any world geometry:
+
+- capture the sky-on and sky-off frames **and** the sky-on per-pass depth plane;
+- `diff` = pixels clear with the sky off and not clear with the sky on. The world draws identically in
+  both runs, so a pixel that changed owner can only have been painted by the sky;
+- **C2** `diff > 0` - the pass painted something (a flag that stopped switching anything off fails);
+- **C3** every pixel of `diff` is far-plane in the sky-on depth plane - the sky painted only pixels the
+  world does not own, never one of the world's;
+- **C4** `enclosed_clear(off) - enclosed_clear(on) == |diff intersect enclosed(off)|` - the old
+  population statement as an identity that cannot go stale.
+
+The tool is `world-sky-gate-reconcile.py` (pure stdlib: BMP clear-colour mask, 4-connected enclosure,
+16-bit PGM depth read). E changed for the same reason: its pixel assertion used the 2,072 population
+too, and now asserts that the frame produced by `preset=1 skybox=0` is the **same picture** as
+`--no-world-sky` (`frame_diff=0`, raw RGB comparison via `world-sky-gate-account.py --diff`), so "the
+key lost" and "the flag works" cannot both be true.
+
+Count: A 4, B 2, C 4, D 1, E 2 = **13 assertions**.
+
+**General rule recorded here: a gate may not pin a number that belongs to another defect.** Two
+correct fixes then cannot merge - one of them always has to re-pin, and whoever merges second inherits
+a red tree that is nobody's bug.
+
+### 13.6 The pass costs less than this box can resolve: alternating A/B
+
+Metric and protocol are §12.5's: median fps of the `--metrics-file` rows with `tick >= 1000`, one
+build, empty settings, `--world-water off`, tick 1800. What is different is that the two arms
+**alternate** and the statistic is the **per-pair difference between neighbours** (sky-on minus
+sky-off inside one pair). Drift in machine load then cancels row by row instead of being baked into two
+independently computed medians.
+
+Four batches were needed, and the three that are void are recorded because voiding them is the
+protocol:
+
+| batch | pairs | what happened | verdict |
+| --- | --- | --- | --- |
+| 1, `.scratch/holes/skyfix-perf/` | 7 | within one arm 22.4 - 57.0 fps (2.5x); both arms ~10 fps under the 45.115 baseline; sky-on read *faster* than sky-off | **void by load**: physically impossible for a pass that only adds work. The script probed `/proc/loadavg`, which is empty under MSYS, so it could not see the load. |
+| 2, `.scratch/holes/skyfix-perf2/` | 1 of 6 | started 12:52, inside the lead's 12:40-12:58 capture window on the merge tree | **void by overlap**: killed mid-batch. |
+| 3, `.scratch/holes/skyfix-perf3/` | 6 | deltas -10.07 .. +4.88 fps, arm medians 48.7 / 48.0 | **void by self-overlap** - see below. |
+| 4, `.scratch/holes/skyfix-perf4/` | 6 | quiesced protocol | **headline** |
+
+**The finding that made batches 1-3 unusable is worth recording on its own**: a run's process does not
+end when the run ends. Its metrics CSV is complete, its exit code is returned, and 1-2 seconds later the
+box still reads 30-50% CPU load; `Get-Process tf2_demo_native` still shows the previous run (and
+sometimes the one before it) while the next run is starting. Batch 3's own log shows the mechanism:
+`load_after=33` / `load_before=45` across a pair boundary, and `foreign_procs_before=2` and `4`.
+So the pairs of batch 3 partly ran on top of each other's teardown, which is why its arms spread over
+33.9-52.4 fps.
+
+**The noise band is measured, not assumed.** A null control (`.scratch/holes/skyfix-null/`, six pairs,
+**both** arms `--no-world-sky`, same protocol and statistic) gives, after one cold first pair:
+per-pair differences `-1.007, -1.180, -1.257, +0.800, +0.977` fps, standard deviation **1.1 fps**,
+median **-0.10 fps**, arm medians 56.2 / 56.8 fps, arm range 55.8-57.6 fps. (The cold pair reads
+46.9/40.1 and is reported rather than dropped: it is the first run of the batch and its numbers say so.)
+That is the bar an on/off effect has to clear on this box: **±1.3 fps**.
+
+Batch 4 therefore waits, before every run, for **zero** `tf2_demo_native` processes and a CPU load of
+at most 10% (up to two minutes of waiting, logged per run), so no pair can contain another run's
+teardown:
+
+| pair | order | sky-on | sky-off | on-off | ms |
+| --- | --- | --- | --- | --- | --- |
+| 1 | on, off | 59.651 fps / 16.76 ms | 54.119 fps / 18.48 ms | **+5.531** | -1.71 |
+| 2 | off, on | 59.280 / 16.87 | 57.671 / 17.34 | **+1.608** | -0.47 |
+| 3 | on, off | 58.386 / 17.13 | 54.703 / 18.28 | **+3.683** | -1.15 |
+| 4 | off, on | 58.060 / 17.22 | 59.112 / 16.92 | **-1.052** | +0.31 |
+| 5 | on, off | 58.569 / 17.07 | 58.440 / 17.11 | **+0.129** | -0.04 |
+| 6 | off, on | 54.568 / 18.33 | 60.097 / 16.64 | **-5.529** | +1.69 |
+
+Arm medians, batch 4: sky-on **58.478 fps** (54.568 - 59.651) / 17.10 ms; sky-off **58.056 fps**
+(54.119 - 60.097) / 17.23 ms. Per-pair difference: median **+0.869 fps**, mean **+0.729 fps**,
+standard deviation **3.542 fps**, standard error 1.446 fps. Baseline for reference: 45.115 fps / 22.17 ms.
+
+The pairs also show an **order effect**, and it is the reason the table is read the way it is. In pairs
+1, 3 and 5 the sky-on run came first and the difference averages **+3.115 fps**; in pairs 2, 4 and 6 the
+sky-off run came first and the difference averages **-1.657 fps**. So the second run of a pair is
+systematically the slower one by about **2.4 fps** (thermal or teardown drift between neighbours), and
+alternating the order is what cancels it: the order-balanced estimate of the sky pass's cost is
+**(+3.115 - 1.657) / 2 = +0.73 fps**, i.e. indistinguishable from zero, and the sign of the raw
+difference flips exactly with the order. A real cost of the kind §12.5 measured would have kept one sign
+in all six pairs.
+
+The arms are also what they claim to be, from their own traces: every sky-on run prints
+`state=active ... farplane=1 shader=dedicated reason=six sides, 36 vertices`, every sky-off run prints
+`state=unavailable ... draws=0 farplane=0 shader=none reason=skybox draw disabled by the caller`.
+
+**Conclusion.** On this build the deferred, far-plane-pinned, discard-free sky pass **costs nothing the
+protocol can resolve**. The paired difference is +0.7 fps order-balanced, the null control puts two
+identical arms within ±1.3 fps of each other, and the per-pair scatter here (sd 3.5 fps) is the order
+effect, not the pass. The mechanism predicts exactly this: with the sky drawn after the opaque world and
+pinned to the far plane, early-z rejects every sky fragment whose pixel the world already wrote, so the
+pass only shades the pixels the sky is actually visible in - and in these three poses the map covers the
+large majority of the screen. What §12.5 recorded (-6.28 fps) was the world shader's `discard` defeating
+early-z, and that is gone.
+
+One caveat about absolute numbers, because it matters for anyone reading the table out of context: both
+arms of batch 4 read ~58 fps, i.e. ~13 fps above the 45.115 fps baseline, and the null control on the
+same day read 56.2-57.6 fps with the sky switched off. That is the state of the box (and of the branch,
+which now also carries the 86f2fc6f diagnostics) rather than anything round 3 did - so **only the
+within-batch paired difference is used above, never an arm-against-baseline subtraction**.
+
+### 13.7 What P0 changes about the hole attribution
+
+P0 is the separate fix (branch `work/disp-param`, commits `6bdbf421` + `d177282d`/`93affd2e`) for the
+transposed displacement parameterisation: this loader walks a displacement grid with
+`k = y*size + x` (+y along `quad[0]`->`quad[3]`, +x along `quad[0]`->`quad[1]`,
+`native/src/bsp_map.cpp:1227-1243`) while the engine walks `k = i*size + j` (+i along
+`polygon[0]`->`polygon[1]`, +j along `polygon[0]`->`polygon[3]`). The transposition makes adjacent
+displacement faces not share boundary vertices: on the nine-map set only **3,220 of 7,855** seam edges
+met within 0.01 map units before P0, and **7,502 of 7,855** after it (engine oracle 7,535); face 13233's
+maximum vertex deviation falls from 341.53 to 0.0055.
+
+Frame readings on P0's own branch, same captures as this card:
+
+| pose | enclosed clear before P0 (sky off) | after P0 |
+| --- | --- | --- |
+| pl_upward tick 1800 | 2,072 | **0** (2,072 geometry px added, 0 lost) |
+| pl_upward tick 0 | 8,976 | 3,262 |
+| cp_process tick 600 | 985 | 453 |
+| koth_product_final tick 0 | 9,453 | **0** |
+
+Three consequences for this card's record:
+
+1. **The "known residual 2 px" is withdrawn** (§12.4): on the P0 tree those two pixels are world
+   geometry (RGB 54,54,54 / 68,70,51). The shape diagnosis - a two-pixel hairline is a seam - was
+   right; the seam was the terrain's, not the sky cage's.
+2. **The up1800 population was a terrain gap**, the sky pass was painting behind it. Two defects landed
+   on the same pixels; §12.4's correction states what is withdrawn and what stands (a fresh install drew
+   no sky at all - that defect was real and is fixed here).
+3. **The three-way classification of a non-black hole collapses on the merged tree.** Before P0 it was:
+   (i) black/clear colour = the sky never drew; (ii) sky colour with depth < far = world geometry culled
+   or wound wrong; (iii) sky colour at depth = far and enclosed by world = culled *or* displacement seam,
+   separable only by face identity. After P0 the seam class is gone, so (iii) again means culling. Until
+   the merge, on this branch, (iii) is ambiguous exactly as stated - the discriminator is
+   `--world-face-id`: a seam follows displacement face edges and reports two adjacent displacement face
+   ids, a cull hole is whole triangles of one face.
+
+Not fixed, recorded as a consistency gap: the engine triangulates a displacement face as a recursive
+**fan** (checkerboard diagonals) while this loader uses a uniform diagonal
+(`quad[i] = polygon[(corner+i)%4]` plus fixed `p00,p11,p10` / `p00,p01,p11`). Recomputed on face 13233:
+16 of 32 undirected triangles coincide, 16 cells differ in diagonal direction - and both sides are
+32/32 clockwise and 32/32 outward, so the fan cannot be the hole cause (the vertices were in the wrong
+places, not the diagonals). If it is ever fixed it is a change to the displacement emission loop only,
+and it moves vertices: every pinned frame and per-face census on this card would need re-pinning. The
+"13233 culled from below is legitimate" conclusion (§10.6, with Q5 engine backing that displacements are
+effectively one-sided) stands, but per-face facing tables measured here must be labelled *measured under
+the transposed parameterisation* and recomputed after the merge.
+
+### 13.8 `--capture-pass-depth`: the pass list is a counter, not an index space
+
+The new sky dump point is the eleventh plane on a sky-on capture
+(`native/src/native_renderer_capture.cpp:97-156`): the file name is
+`<prefix>-<index>-<name>.pgm` and **`index` is a running counter over the dumps that actually
+executed**, incremented on each one. A pass that does not run therefore shifts every later index: a
+sky-off capture has no `10-sky` plane at all, and its subsequent planes sit one index lower. Every dump
+also prints `pass-depth: index=N name=... depthStateLastBind=...` on stdout, so the mapping for a given
+run is in that run's log.
+
+Consequences, checked before relying on it:
+
+- **No script or tool in the tree selects a plane by index** (searched `.sh`/`.py` for `pass-depth`
+  and for `-<digit><digit>-` filename patterns): there was nothing to break when the sky point was
+  inserted.
+- Anything written from now on must select **by name suffix** (`*-10-sky.pgm`), never by index. The new
+  gate does exactly that, with `*-30-world-done.pgm` as the fallback.
+- The plane is the full target size, P5 with 16-bit samples, `depth = value / 65535`, so
+  `d24 = round(depth * 16777215)`. `10-sky` is dumped *inside* the deferred sky draw, i.e. after the
+  world has drawn, which is what makes "far here" mean "no world geometry owns this pixel" - and is why
+  it cannot exist in a sky-off capture.
+
+### 13.9 This round in numbers, and what it did not change
+
+Measurements taken, so a later reader can tell what stands behind §13 (all poses `pl_upward` tick 1800
+unless named, empty settings file, sky on):
+
+- **Pin sweep**: four pins x three poses = 12 frames, compared against the round-2 reference set
+  (`.scratch/holes/skyfix/`); the "none" row *is* that set. Two `--capture-pass-depth` runs (up0 and
+  pr600, 11 planes each) for the attribution; three frames from the probe build that binds the world
+  pixel shader with the pin kept.
+- **Gate**: the reworked 13-assertion gate, five captures (two of them carrying pass-depth planes),
+  13 passed / 0 failed on the final build (`.scratch/holes/gate-final2`). The gate's own INFO line
+  reads `preset-0 steady fps=46.9326 (21.31 ms)` for the sky-on arm on a quiet box: it is a single
+  capture, not the A/B headline (§13.6), and it is *above* the 45.115 baseline recorded in §12.5 -
+  which is the clearest sign that the baseline and today's arms are not comparable across days.
+- **Perf**: three alternating batches - 7 pairs (void: load), 2 pairs (void: the lead's capture window
+  on the merge tree), 6 pairs (headline, §13.6) - plus a six-pair **null control** that runs the same
+  statistic with no treatment difference, to measure the box's paired-difference noise instead of
+  assuming it.
+- **Builds**: five after round 2 (exact pin; `1 - 1e-3` pin; `1 - 1e-6` pin; probe binding the world
+  shader; final, which adds the trace fields).
+
+What this round did **not** change:
+
+- §10's culling conclusions - the cull rule, the winding rule, and "face 13233 culled from below is
+  legitimate" - are untouched in code and re-confirmed only indirectly. After P0 they have to be
+  re-derived per face, and until then they are labelled as measured under the transposed
+  parameterisation (§13.7).
+- The hard hole condition: three poses at `enclosed_clear = 0` on the final build, same as round 2.
+- The world pass's own shading, the entity and viewmodel passes, the UI and the settings contract:
+  untouched. No new convar, no new UI toggle; `skybox=0` still wins (gate E).
+- The displacement parameterisation and the fan/diagonal consistency gap: not this card (§13.7).
+
+
+
 
 

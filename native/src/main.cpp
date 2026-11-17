@@ -10186,10 +10186,12 @@ bool outlineVertexExtent = false;
       displayMap.trianglesDropped > 0 ? "truncated" : "within");
     const auto sample = renderer.worldMaterialSampleState();
     traceFmt("gpu: world sky state=%s vertices=%u triangles=%u faces=%u draws=%u side=%u"
-      " resampled=%d reason=%s",
+      " resampled=%d farplane=%d shader=%s reason=%s",
       tf2::native::worldSkyStateName(sample.worldSkyState),
       sample.worldSkyVertexCount, sample.worldSkyTriangles, sample.worldSkyFaces,
       sample.worldSkyDraws, sample.worldSkySide, sample.worldSkyResampled ? 1 : 0,
+      sample.worldSkyFarPlane ? 1 : 0,
+      sample.worldSkyDedicatedShader ? "dedicated" : (sample.worldSkyDraws ? "world" : "none"),
       worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
     // T29: the world projection's clip planes, in the box unit the matrix takes
     // AND in the map units they mean. uploadWorldGeometry scales the map into a

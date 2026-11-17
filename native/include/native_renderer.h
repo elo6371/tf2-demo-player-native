@@ -602,6 +602,14 @@ struct WorldMaterialSampleState {
   std::uint32_t worldSkySide = 0;
   bool worldSkyResampled = false;
   std::string worldSkyReason;
+  // W-1 perf: how the deferred sky draw was anchored and drawn, recorded by the
+  // draw itself like worldSkyDraws above. `worldSkyFarPlane` says the box was
+  // pinned to the far plane (clip.z == clip.w) and `worldSkyDedicatedShader`
+  // says the discard-free sky pixel shader was bound -- the two facts that make
+  // early depth rejection real. Reading them here means a gate can assert the
+  // mechanism from the trace instead of inferring it from the picture.
+  bool worldSkyFarPlane = false;
+  bool worldSkyDedicatedShader = false;
   // The clip, as a fact about the last draw rather than a setting. `hidden` is
   // how many of the uploaded triangles the pvs refused; `drawn` is how many the
   // draw call was actually given. The difference between the two and the total
@@ -1813,6 +1821,10 @@ private:
   Microsoft::WRL::ComPtr<ID3D11VertexShader> modelVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> entityModelVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> worldPixelShader_;
+  // W-1 perf: the discard-free sky shader. Same colour as the world shader's
+  // sky branch, but early-depth-rejectable, which is what the deferred draw
+  // needs to stop shading the pixels the world already covers.
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> skyPixelShader_;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> modelPixelShader_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> worldInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> modelInputLayout_;
@@ -2359,6 +2371,8 @@ private:
   // reported draws=1 -- the reading described its own copy of the condition
   // rather than the pass. This field can only be true if the Draw call ran.
   bool worldSkyDrewThisFrame_ = false;
+  bool worldSkyFarPlane_ = false;
+  bool worldSkyDedicatedShader_ = false;
   WorldSkyState worldSkyState_ = WorldSkyState::Unavailable;
   std::string worldSkyReason_ = "no sky box was uploaded";
   // The pvs draw list: an index buffer over the world vertex buffer, rebuilt
