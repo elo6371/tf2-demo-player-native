@@ -14,23 +14,43 @@
 #      2,072 px before the fix and is the "black block" the report is about.
 #      The clear colour is RGB(14,18,22); a depth test cannot see the sky
 #      because the sky writes no depth, so colour is the only sound test.
-#   C. NEGATIVE CONTROL. --no-world-sky on the same pose must reproduce the
-#      pre-fix frame: 2,072 enclosed clear px, "state=unavailable draws=0".
-#      If this stops reproducing, the fix is not the thing that filled B.
+#   C. NEGATIVE CONTROL, RECONCILED PIXEL FOR PIXEL. --no-world-sky on the
+#      same pose must paint nothing ("state=unavailable draws=0") and the two
+#      frames must differ by exactly the pixels that (a) are clear with the sky
+#      off, (b) are not clear with the sky on, and (c) have NO world geometry in
+#      front of them in the sky-on pass-depth plane; plus the identity
+#      enclosed_clear(off) - enclosed_clear(on) == enclosed pixels the sky
+#      filled. History: C used to pin "2,072 enclosed clear px". That number
+#      was a property of a defect that has since been fixed elsewhere (the
+#      transposed displacement parameterisation, work/disp-param P0 -- those
+#      pixels are now painted by terrain), so pinning it would turn a correct
+#      merge red while asserting nothing about the sky. The reconciled form
+#      holds under any world geometry.
 #   D. THE DEPTH VIEW STILL DOES NOT DRAW THE SKY (T52's contract: a depth
 #      frame is scalar). --world-depth must stay "state=unavailable draws=0".
 #   E. AN EXPLICIT KEY STILL WINS. A settings file that says preset=1 AND
-#      skybox=0 must NOT draw the sky: the precedence is CLI > explicit key >
-#      compiled default, and the preset must have stopped deciding this in either
-#      direction. Before W-1 preset=1 forced the sky on; now the key does what it
-#      says even under the preset that used to disable nothing and enable it.
+#      skybox=0 must NOT draw the sky, and the frame it produces must be the
+#      same picture as --no-world-sky (frame_diff=0): the precedence is CLI >
+#      explicit key > compiled default, and the preset must have stopped
+#      deciding this in either direction. Before W-1 preset=1 forced the sky
+#      on. The picture comparison replaces an old pin on the 2,072 px
+#      population, for the reason given under C.
 #
-# COST: four captures at ~60 s each on the reference machine. --reuse keeps
-# frames and traces already under the output directory.
+# COST: four captures at ~60 s each on the reference machine; two of them also
+# dump the per-pass depth planes (--capture-pass-depth), so allow a little more
+# and a few hundred MB of spare space under the output directory. --reuse keeps
+# frames, traces and planes already there.
 #
 # Usage: bash world-sky-gate-check.sh [--reuse]
 # Exit:  0 = every assertion held; 1 = an assertion or a capture failed;
-#        2 = a required input (product, demo, python) is missing.
+#        3 = SKIPPED: a required input is missing. The reason is printed as
+#            "SKIP <reason>" on its own line so a calling chain can count it as
+#            a skip -- not as a pass, and not as a silent no-op.
+#
+# The gate is otherwise self-contained: it writes its own settings/ui files (an
+# EMPTY settings file is the fresh-install input) and derives the camera from
+# the demo plus --capture-tick. Its only external inputs are the product, the
+# demo and a python; any of those missing is the SKIP above.
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here" || exit 2
@@ -48,9 +68,9 @@ win() {
   if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
 }
 
-[ -x "$PRODUCT" ] || { echo "world-sky-gate: no product at $PRODUCT (build first)"; exit 2; }
-[ -f "$DEMO" ] || { echo "world-sky-gate: no demo at $DEMO"; exit 2; }
-command -v "$PYTHON" >/dev/null 2>&1 || { echo "world-sky-gate: no python ($PYTHON)"; exit 2; }
+[ -x "$PRODUCT" ] || { echo "SKIP no product at $PRODUCT (build first)"; exit 3; }
+[ -f "$DEMO" ] || { echo "SKIP no demo at $DEMO"; exit 3; }
+command -v "$PYTHON" >/dev/null 2>&1 || { echo "SKIP no python ($PYTHON)"; exit 3; }
 
 mkdir -p "$OUT/iso"
 pass=0
@@ -97,7 +117,9 @@ field() { # "clear_total=12 enclosed_clear=3" key -> value
 }
 
 echo "== W-1 sky gate: preset-0 isolate, pose pl_upward tick $TICK =="
-capture default
+# This capture carries the pass-depth planes C reconciles against, and the
+# trace both A and C read.
+capture default --capture-pass-depth "$(win "$OUT/default-depth")"
 
 # ---- A: a fresh install draws the sky --------------------------------------
 if grep -aq 'gpu: world sky state=active' "$OUT/default.trace" 2>/dev/null; then
@@ -110,29 +132,73 @@ if grep -aq 'gpu: world sky state=active.*draws=1' "$OUT/default.trace" 2>/dev/n
 else
   bad "A: the sky pass did not record draws=1"
 fi
+# The two words that make the pass what it is (W-1 perf A/B): the box is pinned
+# to the far plane (clip.z == clip.w) instead of being a small box the map is
+# drawn over, and the pixel shader is the discard-free sky one -- the world
+# shader contains a discard, which forfeits early depth rejection, so the draw
+# order alone would not cut the cost. Asserted from the trace, not the picture:
+# a small box drawn first looks the same in these poses and would fail no pixel
+# test.
+if grep -aq 'gpu: world sky state=active.*farplane=1' "$OUT/default.trace" 2>/dev/null; then
+  ok "A: the sky box is pinned to the far plane (farplane=1)"
+else
+  bad "A: the sky pass did not record farplane=1"
+fi
+if grep -aq 'gpu: world sky state=active.*shader=dedicated' "$OUT/default.trace" 2>/dev/null; then
+  ok "A: the sky pass uses the dedicated discard-free shader (shader=dedicated)"
+else
+  bad "A: the sky pass did not record shader=dedicated"
+fi
 
 # ---- B: the user-visible population is gone --------------------------------
 default_account=$(account "$OUT/default.bmp")
 default_total=$(field "$default_account" clear_total)
 default_enclosed=$(field "$default_account" enclosed_clear)
 [ "${default_enclosed:-}" = "0" ] \
-  && ok "B: enclosed clear px == 0 (the 2,072 px population)" \
+  && ok "B: enclosed clear px == 0 (the hard condition; the old 2,072 pin now belongs to P0)" \
   || bad "B: enclosed clear px = ${default_enclosed:-<none>} (expected 0)"
 [ "${default_total:-}" = "0" ] \
   && ok "B: no clear-colour pixel remains in the frame" \
   || bad "B: ${default_total:-<none>} clear-colour px remain (expected 0)"
 
-# ---- C: negative control ---------------------------------------------------
-capture skyoff --no-world-sky
-skyoff_account=$(account "$OUT/skyoff.bmp")
-skyoff_enclosed=$(field "$skyoff_account" enclosed_clear)
-[ "${skyoff_enclosed:-}" = "2072" ] \
-  && ok "C: --no-world-sky reproduces 2,072 enclosed clear px" \
-  || bad "C: --no-world-sky enclosed clear = ${skyoff_enclosed:-<none>} (expected 2072)"
+# ---- C: negative control, reconciled against the sky-on frame ---------------
+capture skyoff --no-world-sky --capture-pass-depth "$(win "$OUT/skyoff-depth")"
 if grep -aq 'gpu: world sky state=unavailable.*draws=0' "$OUT/skyoff.trace" 2>/dev/null; then
   ok "C: --no-world-sky records state=unavailable draws=0"
 else
   bad "C: --no-world-sky did not record state=unavailable draws=0"
+fi
+# The plane is selected by NAME, never by index: --capture-pass-depth numbers
+# its dumps with a running counter, so a skipped pass shifts every later index
+# (this very control skips the sky, so its own dump list is one plane shorter).
+# 10-sky is dumped inside the deferred sky draw, i.e. with the world's depth
+# already present, which is what makes "far here" mean "no world geometry owns
+# this pixel".
+sky_plane=$(ls "$OUT"/default-depth-*-10-sky.pgm 2>/dev/null | head -1)
+[ -n "${sky_plane:-}" ] || sky_plane=$(ls "$OUT"/default-depth-*-30-world-done.pgm 2>/dev/null | head -1)
+if [ -n "${sky_plane:-}" ] && [ -f "$OUT/default.bmp" ] && [ -f "$OUT/skyoff.bmp" ]; then
+  reconciled=$("$PYTHON" world-sky-gate-reconcile.py "$OUT/default.bmp" "$OUT/skyoff.bmp" "$sky_plane" 2>/dev/null)
+  rdiff=$(field "$reconciled" diff)
+  rfar=$(field "$reconciled" far)
+  renc_off=$(field "$reconciled" enclosed_off)
+  renc_on=$(field "$reconciled" enclosed_on)
+  renc_diff=$(field "$reconciled" enclosed_diff)
+  if [ -n "${rdiff:-}" ] && [ "${rdiff:-0}" -gt 0 ]; then
+    ok "C: the sky painted ${rdiff} px the world did not (diff > 0)"
+  else
+    bad "C: sky-on and sky-off differ by ${rdiff:-<none>} px (expected > 0)"
+  fi
+  [ "${rfar:-x}" = "${rdiff:-y}" ] \
+    && ok "C: every px the sky painted is world-free at the far plane (${rfar:-?}/${rdiff:-?})" \
+    || bad "C: ${rfar:-<none>} of ${rdiff:-<none>} sky-painted px are world-free (expected all)"
+  if [ -n "${renc_off:-}" ] && [ -n "${renc_on:-}" ] && [ -n "${renc_diff:-}" ] \
+     && [ "$((renc_off - renc_on))" = "$renc_diff" ]; then
+    ok "C: enclosed(off) - enclosed(on) == enclosed px the sky filled (${renc_off} - ${renc_on} == ${renc_diff})"
+  else
+    bad "C: enclosed account does not reconcile (off=${renc_off:-<none>} on=${renc_on:-<none>} filled=${renc_diff:-<none>})"
+  fi
+else
+  bad "C: no pass-depth plane for the sky-on frame (expected 10-sky or 30-world-done)"
 fi
 
 # ---- D: the depth view contract --------------------------------------------
@@ -152,11 +218,13 @@ if grep -aq 'gpu: world sky state=unavailable.*draws=0' "$OUT/explicitoff.trace"
 else
   bad "E: preset=1 with skybox=0 drew the sky (the explicit key lost)"
 fi
-explicit_account=$(account "$OUT/explicitoff.bmp")
-explicit_enclosed=$(field "$explicit_account" enclosed_clear)
-[ "${explicit_enclosed:-}" = "2072" ] \
-  && ok "E: preset=1 with skybox=0 reproduces the 2,072 px population" \
-  || bad "E: preset=1 with skybox=0 enclosed clear = ${explicit_enclosed:-<none>} (expected 2072)"
+# The picture, not a population constant: the key must produce exactly what the
+# CLI flag produces, so "the key lost" and "the flag works" cannot both be true.
+explicit_diff=$("$PYTHON" world-sky-gate-account.py "$OUT/explicitoff.bmp" \
+  --diff "$OUT/skyoff.bmp" 2>/dev/null | sed -n 's/^frame_diff=\(-\{0,1\}[0-9]*\).*/\1/p')
+[ "${explicit_diff:-}" = "0" ] \
+  && ok "E: the explicit-key frame is the same picture as --no-world-sky (frame_diff=0)" \
+  || bad "E: the explicit-key frame differs from --no-world-sky by ${explicit_diff:-<none>} px (expected 0)"
 
 # ---- cost, recorded not asserted -------------------------------------------
 fps=$(awk -F, 'NR > 1 && $4 >= 1000 && $3 > 0 { v[++n] = $3 }

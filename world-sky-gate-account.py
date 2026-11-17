@@ -16,8 +16,11 @@ This tool answers exactly two numbers for one BMP:
                     the user report is about
 
 Usage:
-  world-sky-gate-account.py FRAME.bmp
-Prints one line: `clear_total=N enclosed_clear=M`. Exit 2 = unreadable frame.
+  world-sky-gate-account.py FRAME.bmp [--coords] [--diff OTHER.bmp]
+Prints one line: `clear_total=N enclosed_clear=M`. With --diff it adds
+`frame_diff=N`, the number of pixels whose RGB differs from OTHER.bmp at all
+(raw pixel comparison, for frames that must be identical pictures). Exit 2 =
+unreadable frame.
 """
 import struct
 import sys
@@ -51,13 +54,48 @@ def read_bmp(path):
     return rows, width, height
 
 
+def read_pixels(path):
+    """Return (pixel_bytes, width, height) -- raw RGB triples, no interpretation."""
+    with open(path, 'rb') as handle:
+        data = handle.read()
+    if len(data) < 54 or data[0:2] != b'BM':
+        raise ValueError('not a BMP: ' + path)
+    offset = struct.unpack_from('<I', data, 10)[0]
+    width, height = struct.unpack_from('<ii', data, 18)
+    bpp = struct.unpack_from('<H', data, 28)[0]
+    compression = struct.unpack_from('<I', data, 30)[0]
+    if compression != 0 or bpp not in (24, 32):
+        raise ValueError('unsupported BMP (bpp=%d compression=%d)' % (bpp, compression))
+    stride = ((width * bpp // 8) + 3) & ~3
+    flip = height > 0
+    height = abs(height)
+    step = bpp // 8
+    pixels = bytearray()
+    for y in range(height):
+        start = offset + (height - 1 - y if flip else y) * stride
+        for x in range(width):
+            base = start + x * step
+            pixels += bytes((data[base + 2], data[base + 1], data[base]))
+    return pixels, width, height
+
+
 def main(argv):
-    coords = len(argv) == 3 and argv[2] == '--coords'
-    if not (len(argv) == 2 or coords):
+    args = argv[1:]
+    coords = '--coords' in args
+    args = [arg for arg in args if arg != '--coords']
+    other = None
+    if '--diff' in args:
+        index = args.index('--diff')
+        if index + 1 >= len(args):
+            print(__doc__.strip().splitlines()[-1])
+            return 2
+        other = args[index + 1]
+        del args[index:index + 2]
+    if len(args) != 1:
         print(__doc__.strip().splitlines()[-1])
         return 2
     try:
-        rows, width, height = read_bmp(argv[1])
+        rows, width, height = read_bmp(args[0])
     except (OSError, ValueError) as error:
         print('cannot read frame: %s' % error)
         return 2
@@ -92,6 +130,22 @@ def main(argv):
     print('clear_total=%d enclosed_clear=%d' % (total, enclosed))
     if coords:
         print('enclosed_points=' + ' '.join('%d,%d' % point for point in points))
+    if other:
+        # Raw pixel comparison, every channel, no clear-colour interpretation:
+        # used where two frames must be identical pictures (the explicit
+        # skybox=0 key against --no-world-sky), not merely equal in one mask.
+        try:
+            theirs, their_width, their_height = read_pixels(other)
+            ours, our_width, our_height = read_pixels(args[0])
+        except (OSError, ValueError) as error:
+            print('cannot read frame: %s' % error)
+            return 2
+        if (their_width, their_height) != (our_width, our_height):
+            print('frame_diff=-1 (size %dx%d vs %dx%d)'
+                  % (our_width, our_height, their_width, their_height))
+            return 0
+        differing = sum(1 for i in range(0, len(ours), 3) if ours[i:i + 3] != theirs[i:i + 3])
+        print('frame_diff=%d' % differing)
     return 0
 
 
