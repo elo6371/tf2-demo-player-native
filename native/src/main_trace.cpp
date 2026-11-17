@@ -96,6 +96,26 @@ void openTrace() {
   SetUnhandledExceptionFilter([](LPEXCEPTION_POINTERS info) -> LONG {
     traceFmt("UNHANDLED 0x%08lX",
       static_cast<unsigned long>(info->ExceptionRecord->ExceptionCode));
+    // E11 TEMP: the access violation has to name its own instruction. A bare
+    // "0xC0000005" cannot separate windowscodecs.dll from our HUD draw, and the
+    // module + offset is enough to resolve a line in the PDB.
+    const void* address = info->ExceptionRecord->ExceptionAddress;
+    traceFmt("UNHANDLED address=%p", const_cast<void*>(address));
+    HMODULE module = nullptr;
+    char moduleName[MAX_PATH] = {0};
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+            | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+          static_cast<LPCSTR>(address), &module) && module != nullptr) {
+      GetModuleFileNameA(module, moduleName, MAX_PATH);
+      const unsigned long long base = reinterpret_cast<unsigned long long>(module);
+      const unsigned long long at = reinterpret_cast<unsigned long long>(address);
+      traceFmt("UNHANDLED module=%s offset=0x%llX", moduleName, at - base);
+    }
+    if (info->ExceptionRecord->NumberParameters >= 2) {
+      traceFmt("UNHANDLED av mode=%llu target=%p",
+        static_cast<unsigned long long>(info->ExceptionRecord->ExceptionInformation[0]),
+        reinterpret_cast<void*>(info->ExceptionRecord->ExceptionInformation[1]));
+    }
     return EXCEPTION_EXECUTE_HANDLER;
   });
   traceCheckpoint("trace open");

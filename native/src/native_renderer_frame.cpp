@@ -260,6 +260,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     hudTextQuads_ = 0;
     hudGlyphCount_ = 0;
     hudUnmappedGlyphs_ = 0;
+    hudImageQuads_ = 0;
     hudPassOrdinal_ = 0;
     hudScissorApplied_ = false;
     hudLastRegion_ = HudPixelRectLast{};
@@ -1661,6 +1662,7 @@ void Renderer::drawHudPass() {
     hudTextQuads_ = 0;
     hudGlyphCount_ = 0;
     hudUnmappedGlyphs_ = 0;
+    hudImageQuads_ = 0;
     hudRectVertexCount_ = 0;
   };
   // Six vertices per quad, 11 floats each: pos2, colour4, local2, uv2, kind1.
@@ -1703,6 +1705,11 @@ void Renderer::drawHudPass() {
     const float width = primitive.w;
     const float height = primitive.h;
     if (!(width > 0.0f) || !(height > 0.0f)) continue;
+    // T68: an image primitive with nothing resident would sample an unbound t1.
+    // Skipping it is the same outcome as drawing nothing (an unbound fetch reads
+    // zero, which blends as transparent), but it also keeps the counter honest:
+    // hudImageQuads() answers "quads that read real pixels".
+    if (primitive.kind == HudPrimitiveKind::Image && !hudImageView_) continue;
     if (primitive.kind == HudPrimitiveKind::Text) {
       const std::vector<char32_t> codepoints = hudUtf8Decode(primitive.text);
       if (codepoints.empty()) continue;
@@ -1765,12 +1772,23 @@ void Renderer::drawHudPass() {
       (left - primitive.x) / width, (top - primitive.y) / height,
       (right - primitive.x) / width, (bottom - primitive.y) / height,
     };
-    const float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+    // T68: an Image primitive carries its own crop in uv, so the pass keeps one
+    // vertex format and one draw call; only the sampled slot and the shader path
+    // differ.
+    float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+    if (primitive.kind == HudPrimitiveKind::Image) {
+      uv[0] = primitive.uv[0];
+      uv[1] = primitive.uv[1];
+      uv[2] = primitive.uv[2];
+      uv[3] = primitive.uv[3];
+    }
     float kind = 0.0f;
     if (primitive.kind == HudPrimitiveKind::Circle) kind = 3.0f;
+    else if (primitive.kind == HudPrimitiveKind::Image) kind = 4.0f;
     else if (primitive.filled) kind = 1.0f;
     pushQuad(left, top, right, bottom, primitive.colour, locals, uv, kind);
     if (primitive.kind == HudPrimitiveKind::Rect) ++hudDrawnRects_;
+    else if (primitive.kind == HudPrimitiveKind::Image) ++hudImageQuads_;
     ++hudDrawnPrimitives_;
     regionLeft = (std::min)(regionLeft, static_cast<int>(left));
     regionTop = (std::min)(regionTop, static_cast<int>(top));
@@ -1857,14 +1875,22 @@ void Renderer::drawHudPass() {
   context_->PSSetShader(hudPixelShader_.Get(), nullptr, 0);
   auto* constants = hudConstants_.Get();
   context_->VSSetConstantBuffers(0, 1, &constants);
-  // The font atlas is the only texture this pass may sample. Binding it here and
-  // clearing it after the draw keeps the "a HUD frame differs from a HUD-less
-  // frame only in the pixels the pass drew" claim true for the resource slots as
-  // well as for the pixels.
+  // The font atlas and -- only when the list actually contained an image quad --
+  // the resident basemap are the only textures this pass may sample. Binding them
+  // here and clearing both after the draw keeps the "a HUD frame differs from a
+  // HUD-less frame only in the pixels the pass drew" claim true for the resource
+  // slots as well as for the pixels: a slot this pass never used is never left
+  // holding a view a later pass could sample by accident.
   auto* fontView = hudFontView_.Get();
   auto* fontSampler = hudSampler_.Get();
   context_->PSSetShaderResources(0, 1, &fontView);
   context_->PSSetSamplers(0, 1, &fontSampler);
+  if (hudImageQuads_ > 0 && hudImageView_ && hudImageSampler_) {
+    auto* imageView = hudImageView_.Get();
+    auto* imageSampler = hudImageSampler_.Get();
+    context_->PSSetShaderResources(1, 1, &imageView);
+    context_->PSSetSamplers(1, 1, &imageSampler);
+  }
   context_->Draw(hudRectVertexCount_, 0);
   hudPassOrdinal_ = ++framePassOrdinal_;
   // Restore the frame's own states so a HUD enabled frame and a HUD disabled
@@ -1880,10 +1906,10 @@ void Renderer::drawHudPass() {
   context_->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFFu);
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(rasterizerState_.Get());
-  ID3D11ShaderResourceView* noTexture = nullptr;
-  context_->PSSetShaderResources(0, 1, &noTexture);
-  ID3D11SamplerState* noSampler = nullptr;
-  context_->PSSetSamplers(0, 1, &noSampler);
+  ID3D11ShaderResourceView* noTexture[2] = {nullptr, nullptr};
+  context_->PSSetShaderResources(0, 2, noTexture);
+  ID3D11SamplerState* noSampler[2] = {nullptr, nullptr};
+  context_->PSSetSamplers(0, 2, noSampler);
 }
 
 } // namespace tf2::native

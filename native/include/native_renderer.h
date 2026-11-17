@@ -1284,7 +1284,7 @@ public:
   // for text, carries its own UTF-8 string: the pass expands one text primitive
   // into one quad per glyph against the embedded 8x8 font (hud_font.h). The
   // per-vertex kind keeps the whole HUD a single draw call.
-  enum class HudPrimitiveKind { Rect = 0, Text = 1, Circle = 2 };
+  enum class HudPrimitiveKind { Rect = 0, Text = 1, Circle = 2, Image = 3 };
   struct HudPrimitive {
     HudPrimitiveKind kind = HudPrimitiveKind::Rect;
     float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
@@ -1292,6 +1292,11 @@ public:
     bool filled = false; // Rect only: false keeps T51's bordered block
     std::string text;    // Text only: UTF-8
     float scale = 1.0f;  // Text only: pixels per font pixel
+    // Image only: the source rectangle inside the resident basemap texture, in
+    // normalized coordinates (left, top, right, bottom). One texture is resident
+    // at a time (setHudImageTexture), so the quad names its own crop and the pass
+    // keeps being one draw call.
+    float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
   };
   // Replaces the whole primitive list; an empty list disables the pass without
   // touching `enabled`, so "no HUD in this document" and "the user turned it
@@ -1314,6 +1319,28 @@ public:
   std::size_t hudGlyphCount() const { return hudGlyphCount_; }
   std::size_t hudUnmappedGlyphs() const { return hudUnmappedGlyphs_; }
   std::size_t hudPassOrdinal() const { return hudPassOrdinal_; }
+  // T68: the one sampled texture the HUD may read besides the font atlas. That
+  // is what lets the map overview draw the real top-down image instead of a
+  // mosaic of filled rectangles. Exactly one texture is resident: the tag says
+  // which pixels it holds, so a caller can tell whether what it uploaded is still
+  // the thing bound, and a rejected upload leaves the previous texture in place
+  // rather than a half-created one.
+  bool setHudImageTexture(UINT width, UINT height, const std::uint8_t* rgba,
+    const std::string& tag, std::string* error);
+  void clearHudImageTexture();
+  bool hudImageTextureReady() const { return hudImageView_ != nullptr; }
+  UINT hudImageTextureWidth() const { return hudImageWidth_; }
+  UINT hudImageTextureHeight() const { return hudImageHeight_; }
+  const std::string& hudImageTextureTag() const { return hudImageTag_; }
+  // What the basemap sampler actually is. The gate asserts "not nearest": the
+  // primitive path exists precisely so a downscaled map is filtered, so the
+  // filter is published rather than assumed ("linear-mip" / "none").
+  std::string hudImageSamplerMode() const;
+  UINT hudImageMipLevels() const { return hudImageMipLevels_; }
+  // The DXGI format name, or "none" when no image texture is resident.
+  std::string hudImageTextureFormat() const;
+  // Image quads the last draw emitted.
+  std::size_t hudImageQuads() const { return hudImageQuads_; }
   // Whether the pass scissored itself. Recorded from the draw rather than
   // asserted, because "the pass cannot paint outside its rects" is the claim the
   // world comparison rests on.
@@ -2555,6 +2582,17 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Texture2D> hudFontTexture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> hudFontView_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> hudSampler_;
+  // T68: the resident basemap image (kind 4 quads read it from t1/s1) and its
+  // linear sampler. The texture is created/updated only when the tag changes, so
+  // a static HUD uploads once.
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> hudImageTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> hudImageView_;
+  Microsoft::WRL::ComPtr<ID3D11SamplerState> hudImageSampler_;
+  UINT hudImageWidth_ = 0;
+  UINT hudImageHeight_ = 0;
+  UINT hudImageMipLevels_ = 0;
+  std::string hudImageTag_;
+  std::size_t hudImageQuads_ = 0;
 };
 
 } // namespace tf2::native
