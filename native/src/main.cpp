@@ -4720,6 +4720,32 @@ bool outlineVertexExtent = false;
     std::fflush(stderr);
     return 2;
   }
+  // T105: a switch that starts with `--` and was not recognised is refused, named
+  // and fatal. This product has always tolerated extra arguments (D-23 records
+  // them and draws on) and that leniency has a cost that was paid in evidence:
+  // the T105 defect pass wrote `--world-flat=1` -- the form that takes a value --
+  // against a switch that takes none, and the product drew four frames that were
+  // byte-identical across "four diagnostic modes" without saying a word. A
+  // switch nobody parsed is a measurement nobody took, so a run that asks for one
+  // now stops here instead of producing a picture of the wrong thing. The name is
+  // in the message because the typo is the point.
+  // MSVC counts block depth, and this function is already at the limit (C1061),
+  // so the refusal is spelled without a scope of its own.
+  std::wstring firstUnknownSwitch;
+  std::size_t unknownSwitchCount = 0;
+  for (const auto& unknownArgument : unrecognizedArguments) {
+    if (unknownArgument.rfind(L"--", 0) != 0) continue;
+    if (unknownSwitchCount == 0) firstUnknownSwitch = unknownArgument;
+    ++unknownSwitchCount;
+  }
+  if (unknownSwitchCount > 0) {
+    const std::string namedSwitch = narrowAscii(firstUnknownSwitch.c_str());
+    traceFmt("args: refused switch count=%zu first=%s", unknownSwitchCount, namedSwitch.c_str());
+    OutputDebugStringW((L"TF2 Demo Player: unrecognized switch refused: " + firstUnknownSwitch
+      + L" (the product does not have that switch; a run asked for it would draw"
+      L" through the default path and read as a measurement)\n").c_str());
+    return 13;
+  }
   // T52: the outline takes the overlay slot at startup, before anything can draw.
   // kUiPlay/F12 can then only change the FLAG; ownership is what makes "who is
   // driving the overlay" a field rather than an assumption. Applied AFTER the
