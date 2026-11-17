@@ -1,4 +1,7 @@
 #include "native_renderer.h"
+// T105 B: std::function carries the tile-fill reading's downscale so the check
+// runs the same lambda the fetch used rather than a copy of it.
+#include <functional>
 #include "asset_root.h"
 #include "map_lookup.h"
 #include "settings_store.h"
@@ -293,6 +296,173 @@ bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character
 
 namespace {
 
+// T105: claim a switch that takes no value, from the argument loop's fall-through
+// branch. See the call site: the else-if chain cannot grow a branch (C1061), and a
+// switch nobody parses is a measurement nobody took, so the two T105 switches are
+// matched here and everything else keeps D-23's record-and-continue behaviour.
+//
+// `--entity-tint-mutation` is the negative control for the team-tint fix and
+// `--world-tile-fill` asks for the per-material tile-fill ledger; both exist so a
+// gate can show its claim going RED, so both have to be reachable from a command
+// line without a branch of their own.
+void claimValueLessSwitch(const std::wstring& argument, std::vector<std::wstring>& unrecognized,
+    bool& entityTintMutation, bool& worldTileFill) {
+  if (argument == L"--entity-tint-mutation") {
+    entityTintMutation = true;
+    return;
+  }
+  if (argument == L"--world-tile-fill") {
+    worldTileFill = true;
+    return;
+  }
+  unrecognized.push_back(argument);
+}
+
+// T105 B: the VTF format's own numbering, named. The number alone leaves a reader
+// holding the format table in their head to tell "a DXT1 tile came out noisy"
+// from "the decoder read the bytes at the wrong stride"; the name is the
+// reading. The list is Source's VTF format enumeration, not this decoder's
+// private opinion, so the number in the trace and the name beside it are one
+// fact.
+const char* vtfFormatLabel(std::uint32_t format) {
+  switch (format) {
+    case 0u: return "RGBA8888";
+    case 1u: return "ABGR8888";
+    case 2u: return "RGB888";
+    case 3u: return "BGR888";
+    case 4u: return "RGB565";
+    case 5u: return "I8";
+    case 6u: return "IA88";
+    case 7u: return "P8";
+    case 8u: return "A8";
+    case 9u: return "RGB888_BLUESCREEN";
+    case 10u: return "BGR888_BLUESCREEN";
+    case 11u: return "ARGB8888";
+    case 12u: return "BGRA8888";
+    case 13u: return "DXT1";
+    case 14u: return "DXT3";
+    case 15u: return "DXT5";
+    case 16u: return "BGRX8888";
+    case 17u: return "BGR565";
+    case 18u: return "BGRX5551";
+    case 19u: return "BGRA4444";
+    case 20u: return "DXT1_ONEBITALPHA";
+    case 21u: return "BGRA5551";
+    case 22u: return "UV88";
+    case 23u: return "UVWQ8888";
+    case 24u: return "RGBA16161616F";
+    case 25u: return "RGBA16161616";
+    case 26u: return "UVLX8888";
+    default: return "unknown";
+  }
+}
+
+// T105 B: FNV-1a over bytes. Used only to compare two byte buffers this process
+// produced, so the hash needs to be cheap and deterministic, not cryptographic.
+std::uint32_t tileFillChecksum(const std::vector<std::uint8_t>& bytes) {
+  std::uint32_t hash = 2166136261u;
+  for (const std::uint8_t value : bytes) {
+    hash ^= value;
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
+// T105 B: how much of a buffer is near-white and how much is near-black. A glass
+// tile that looks like white noise on a dark base has a shape in these two
+// numbers -- and if the SOURCE decode already carries them, the noise is in the
+// asset rather than in the fill.
+void tileFillExtremes(const std::vector<std::uint8_t>& rgba, std::size_t& bright, std::size_t& dark) {
+  bright = 0;
+  dark = 0;
+  for (std::size_t at = 0; at + 3 < rgba.size(); at += 4) {
+    const std::uint32_t luma = (static_cast<std::uint32_t>(rgba[at]) * 77u
+      + static_cast<std::uint32_t>(rgba[at + 1]) * 150u
+      + static_cast<std::uint32_t>(rgba[at + 2]) * 29u) >> 8;
+    if (luma >= 200u) ++bright;
+    else if (luma < 24u) ++dark;
+  }
+}
+
+// T105 B: the tile-fill reading, one line per fetched material.
+//
+// The aggregate material-fetch ledger says how many materials got a tile; it
+// cannot say which mip, which format, or whether the tile holds the pixels the
+// decoder returned. This does, and it answers the question a noisy material
+// raises without a third-party decoder: the same VTF bytes are decoded AGAIN by
+// the product's own decoder and the same downscale is run again, so
+// `agreeDecode`/`agreeTile` compare the fill against a fresh run of the code
+// under test, not against a second implementation that could disagree for its
+// own reasons. `decodedBright`/`decodedDark` are measured on the SOURCE decode:
+// when they are non-zero the speckle is in the asset, and no fill change can
+// remove it.
+void traceWorldTileFill(const std::string& materialName, const std::string& vmtPath,
+    const std::string& vtfPath, const std::string& vtfStore,
+    const tf2::native::VtfTexture& texture, const std::vector<std::uint8_t>& bytes,
+    const std::vector<std::uint8_t>& decoded, const std::vector<std::uint8_t>& tile,
+    UINT tileWidth, UINT tileHeight,
+    const std::function<bool(const std::vector<std::uint8_t>&, UINT, UINT, UINT,
+      std::vector<std::uint8_t>&, UINT&, UINT&)>& downscale) {
+  const tf2::native::VtfHeader& header = texture.header();
+  const std::vector<std::uint8_t> redecode = texture.decodeRgba(bytes);
+  std::vector<std::uint8_t> retile;
+  UINT retileWidth = header.width;
+  UINT retileHeight = header.height;
+  const bool retileOk = !redecode.empty()
+    && downscale(redecode, header.width, header.height, 512u, retile, retileWidth, retileHeight);
+  std::size_t decodedBright = 0;
+  std::size_t decodedDark = 0;
+  std::size_t tileBright = 0;
+  std::size_t tileDark = 0;
+  tileFillExtremes(decoded, decodedBright, decodedDark);
+  tileFillExtremes(tile, tileBright, tileDark);
+  const std::uint32_t decodedChecksum = tileFillChecksum(decoded);
+  const std::uint32_t redecodeChecksum = tileFillChecksum(redecode);
+  const std::uint32_t tileChecksum = tileFillChecksum(tile);
+  const std::uint32_t retileChecksum = retileOk ? tileFillChecksum(retile) : 0u;
+  // T105 B (lead's mip follow-up): name the mip. decodeRgba always decodes the TOP
+  // mip of the chain, so decodeMip=0 answers "which mip produced these pixels"; the
+  // tile is that decode box-downscaled when it is wider than 512, so mipEquiv names
+  // the mip LEVEL the tile now corresponds to (0 = the tile is mip 0; 2 = the fill
+  // threw away two halvings before the sampler ever saw it). Glass at
+  // $transform scale 4 4 rotate 45 has high uv density, so a tile that starts life
+  // mip-equivalent-2 is a plausible source of speckle even with correct bytes: the
+  // tile kept a coarser level than the sampling density asked for. downscale=WxH is
+  // the integer ratio src/tile that produced that level, or 1x1 when no downscale
+  // ran. -- prints 0 remainders as exact ratios; a non-power-of-two ratio prints
+  // mipEquiv=-1 because it is not a mip level, it is a resample.
+  const UINT tileRatioWidth = tileWidth > 0u ? (header.width + tileWidth / 2u) / tileWidth : 1u;
+  const UINT tileRatioHeight = tileHeight > 0u ? (header.height + tileHeight / 2u) / tileHeight : 1u;
+  int tileMipEquivalent = -1;
+  if (tileRatioWidth >= 1u && tileRatioWidth == tileRatioHeight) {
+    UINT power = tileRatioWidth;
+    int level = 0;
+    bool exact = true;
+    while (power > 1u) {
+      if ((power & 1u) != 0u) { exact = false; break; }
+      power >>= 1u;
+      ++level;
+    }
+    if (exact) tileMipEquivalent = level;
+  }
+  traceFmt("gpu: world tile-fill material=%s vmt=%s vtf=%s store=%s format=%u(%s) mips=%u"
+    " decodeMip=0 mipEquiv=%d downscale=%ux%u src=%dx%d"
+    " decodedBytes=%zu decodedChecksum=%08x redecodeChecksum=%08x"
+    " redecodedBytes=%zu tile=%ux%u tileBytes=%zu tileChecksum=%08x retileChecksum=%08x"
+    " agreeDecode=%d agreeTile=%d decodedBright=%zu decodedDark=%zu"
+    " tileBright=%zu tileDark=%zu",
+    materialName.c_str(), vmtPath.empty() ? "-" : vmtPath.c_str(),
+    vtfPath.empty() ? "-" : vtfPath.c_str(), vtfStore.empty() ? "-" : vtfStore.c_str(),
+    header.format, vtfFormatLabel(header.format), static_cast<unsigned>(header.mipCount),
+    tileMipEquivalent, static_cast<unsigned>(tileRatioWidth), static_cast<unsigned>(tileRatioHeight),
+    static_cast<int>(header.width), static_cast<int>(header.height), decoded.size(),
+    decodedChecksum, redecodeChecksum, redecode.size(),
+    static_cast<unsigned>(tileWidth), static_cast<unsigned>(tileHeight), tile.size(),
+    tileChecksum, retileChecksum,
+    redecode.size() == decoded.size() && redecodeChecksum == decodedChecksum ? 1 : 0,
+    retileOk && retile.size() == tile.size() && retileChecksum == tileChecksum ? 1 : 0,
+    decodedBright, decodedDark, tileBright, tileDark);
+}
 // T61: pick the sequence a player model plays for a drive state.
 //
 // The sequence table is the model's own; this does not invent one. The whole of
@@ -3453,6 +3623,17 @@ bool outlineVertexExtent = false;
   // resolved.
   int worldDebugView = 0;
   int worldDebugViewGiven = 0;
+  // T105 negative control: --entity-tint-mutation puts the team tint back on a
+  // painted entity mesh. It exists so the gate that guards the fix can be shown
+  // going RED with the defect present rather than only green with it gone; the
+  // product's default is the fixed path, and the trace prints mutation=1 so a
+  // green run cannot be mistaken for a run where the control never fired.
+  bool entityTintMutation = false;
+  // T105 B: one line per fetched material with the VTF's format, dimensions,
+  // chosen mip, the byte counts on both sides of the fill and a checksum of the
+  // tile against a re-run of the same decode + downscale. Off by default because
+  // it decodes each material's VTF a second time, which no normal capture needs.
+  bool worldTileFillTrace = false;
   // T59 diagnostic: paint the untiled (flat-fallback) vertices magenta so the
   // refused set is countable in pixels. Separate from worldDebugView because it
   // moves the vertex colours, not the pixel shader.
@@ -4480,7 +4661,14 @@ bool outlineVertexExtent = false;
       } else {
         // D-23: recorded, not rejected. The default run still ignores it, which
         // is the behaviour every existing gate was written against.
-        unrecognizedArguments.push_back(arguments[i]);
+        //
+        // T105: two switches that take no value are claimed from HERE instead of
+        // from branches of their own. The else-if chain above already sits at
+        // MSVC's block-nesting limit (C1061) and a new `else if` is exactly what
+        // a T105 build failed on, so a value-less switch is resolved by name in a
+        // callee and everything else is recorded exactly as before.
+        claimValueLessSwitch(arguments[i], unrecognizedArguments, entityTintMutation,
+          worldTileFillTrace);
       }
     }
     persistent.render.normalize();
@@ -5265,6 +5453,26 @@ bool outlineVertexExtent = false;
   // model drawn for BLU asked for family 1, resolved nothing, and its instances
   // fell back to the world atlas.
   std::unordered_map<std::string, std::uint32_t> entitySkinFamilyCountByKey;
+  // T105: how many texture slots each prepared mesh actually PAINTED. The draw
+  // stage below multiplies every entity instance by a team colour, and that
+  // multiplication was only ever meant for a mesh with no texture at all (see
+  // the draw site's note). A painted mesh already carries its team colour in the
+  // skin family -- family 0 is red, family 1 is blu -- so painting it again with
+  // 0.86,0.28,0.22 turned every player into a flat red/blue silhouette. Measured
+  // on pl_upward_f12 tick 0: the Scout's shirt texel is 131,41,46 in the raw
+  // texel view and 113,11,10 in the shaded frame, which is that texel times
+  // exactly that tint. Keyed like entitySkinFamilyCountByKey so the draw stage
+  // can answer the question with the same key it already holds.
+  std::unordered_map<std::string, std::uint32_t> entityPaintedSlotCountByKey;
+  // T105 follow-up: the draw stage's key is the demo's spelling of the path, the
+  // paint stage's key is the prepared mesh's; they agreed for the startup models
+  // and a frame still counted 35 fallback instances, so the tint is looked up by
+  // NORMALISED MODEL PATH when the key misses. Measured, not assumed: the first
+  // capture after this was added read fallback=0 and the ledger below empty.
+  std::unordered_map<std::string, std::uint32_t> entityPaintedSlotCountByNormalizedPath;
+  // T105: which models still take the fallback tint, by (player|prop):path, so a
+  // nonzero fallback is a NAME instead of a number.
+  std::unordered_map<std::string, std::size_t> entityTintFallbackKeyCounts;
   // T83: the two tables the third-person weapon attach needs after the loader's
   // metadata is gone, keyed the same way the meshes are. The hold point is an
   // ATTACHMENT when the model ships one and a BONE otherwise, so both are kept:
@@ -5299,6 +5507,7 @@ bool outlineVertexExtent = false;
       for (auto it = entityMeshKeyByNormalizedPath.begin(); it != entityMeshKeyByNormalizedPath.end();) {
         if (it->second != victim) { ++it; continue; }
         attachMeshTried.erase(it->first);
+        entityPaintedSlotCountByNormalizedPath.erase(it->first);
         it = entityMeshKeyByNormalizedPath.erase(it);
       }
       for (auto it = attachEntityMeshes.begin(); it != attachEntityMeshes.end();) {
@@ -5306,6 +5515,7 @@ bool outlineVertexExtent = false;
         it = attachEntityMeshes.erase(it);
       }
       entitySkinFamilyCountByKey.erase(victim);
+      entityPaintedSlotCountByKey.erase(victim);
       entityAttachmentsByCacheKey.erase(victim);
       entityBoneNamesByCacheKey.erase(victim);
       ++attachMeshResupply;
@@ -5325,6 +5535,18 @@ bool outlineVertexExtent = false;
   // T60: how many (model, material slot, skin family) textures actually reached
   // the GPU. The reading that replaced "1" -- the single slot-0 paint.
   std::size_t entityPaintedSlotCount = 0;
+  // T105: the two halves of the tint decision, counted per drawn instance. A
+  // gate asserts white>0 and fallback==0 for a frame with a player in it; the
+  // negative control (--entity-tint-mutation) puts the team tint back and the
+  // same reading goes red. Kept as a pair because either number alone is a
+  // number with no contrast behind it.
+  std::size_t entityTintWhiteInstances = 0;
+  std::size_t entityTintFallbackInstances = 0;
+  // T105: an instance the draw stage hands over but layer A deferred is not
+  // resident, so it paints no pixel. Counting it as "took the tint" made the
+  // fallback number describe a draw that never happened (measured: 35 of 96 on
+  // pl_upward_f12 tick 0, all item/buildable models). Counted apart.
+  std::size_t entityTintDeferredInstances = 0;
   // One flag per prepared mesh, in the same order, so --dump-entity-materials
   // can say which models reached a GPU texture and which did not.
   std::vector<char> entityMaterialUploadFlags;
@@ -5894,6 +6116,11 @@ bool outlineVertexExtent = false;
     entityMeshKeyByNormalizedPath[normalized] = cacheKey;
     entitySkinFamilyCountByKey[cacheKey] =
       static_cast<std::uint32_t>(prepared.skinFamilies.families.size());
+    // T105: the same publish the startup paint stage does, for a mesh supplied
+    // mid-run (third-person weapon attach). Without it the attach's texture would
+    // be multiplied by the team tint while every other mesh draws white.
+    entityPaintedSlotCountByKey[cacheKey] = static_cast<std::uint32_t>(paintedCount);
+    entityPaintedSlotCountByNormalizedPath[normalized] = static_cast<std::uint32_t>(paintedCount);
     rememberEntityRig(cacheKey, request.inspection.metadata);
     attachEntityMeshes.push_back(std::move(prepared));
     ++attachMeshSupplied;
@@ -5924,6 +6151,8 @@ bool outlineVertexExtent = false;
         }
       }
       entitySkinFamilyCountByKey.erase(prepared.cacheKey);
+      entityPaintedSlotCountByKey.erase(prepared.cacheKey);
+      if (!normalizedPath.empty()) entityPaintedSlotCountByNormalizedPath.erase(normalizedPath);
       entityAttachmentsByCacheKey.erase(prepared.cacheKey);
       entityBoneNamesByCacheKey.erase(prepared.cacheKey);
     }
@@ -7472,6 +7701,13 @@ bool outlineVertexExtent = false;
           prepared.paintedSlots.push_back(std::move(painted));
         }
       }
+      // T105: publish the paint count for this key whether or not it painted
+      // anything -- a zero here is the fallback-tint case, and the draw stage
+      // cannot tell "no texture" from "key not in the table" otherwise.
+      entityPaintedSlotCountByKey[prepared.cacheKey] =
+        static_cast<std::uint32_t>(prepared.paintedSlots.size());
+      entityPaintedSlotCountByNormalizedPath[tf2::native::normalizeModelPath(prepared.path)] =
+        static_cast<std::uint32_t>(prepared.paintedSlots.size());
       if (!prepared.paintedSlots.empty()) {
         // Keep the slot-0 fields meaningful for the dump/title readers that still
         // look at them; the draw path uses paintedSlots, not these.
@@ -12745,6 +12981,10 @@ bool outlineVertexExtent = false;
             const auto found = entityMeshKeyByPath.find(instance.modelPath);
             if (found != entityMeshKeyByPath.end()) cacheKey = found->second;
           }
+          // T105: normalise once -- the deferral classification, the draw-stage
+          // model identity and the paint lookup all want the same spelling.
+          const std::string entityMeshNormalizedPath =
+            tf2::native::normalizeModelPath(instance.modelPath);
           const bool hasMesh = !cacheKey.empty() && !instance.viewModelSkipped
             && (instance.renderable || instance.playerClassFallback);
           // Was THIS model left out by layer A's budget? The check is by the
@@ -12754,7 +12994,7 @@ bool outlineVertexExtent = false;
           // being submitted, so a model that the attach supplied on demand (and
           // is therefore resident) never reaches this classification at all.
           const bool budgetDeferred = hasMesh
-            && prepareDeferredPaths.count(tf2::native::normalizeModelPath(instance.modelPath)) != 0;
+            && prepareDeferredPaths.count(entityMeshNormalizedPath) != 0;
           const bool hasDrawSlot = player ? playerDraws < playerBudget : propDraws < propBudget;
           if (hasMesh && !hasDrawSlot) {
             if (player) { ++playerDroppedByBudget; } else { ++propDroppedByBudget; }
@@ -12789,7 +13029,7 @@ bool outlineVertexExtent = false;
                 }
               }
               if (!hasOwnModelIndex) ++playerModelNoIndex;
-              const std::string drawnModel = tf2::native::normalizeModelPath(instance.modelPath);
+              const std::string drawnModel = entityMeshNormalizedPath;
               std::string expectedModel;
               std::string statusText = "unresolved";
               if (hasOwnModelIndex) {
@@ -12837,12 +13077,53 @@ bool outlineVertexExtent = false;
             draw.angles[0] = instance.transform.angles[0];
             draw.angles[1] = instance.transform.angles[1];
             draw.angles[2] = instance.transform.angles[2];
-            if (instance.transform.hasTeam && instance.transform.team == 2) {
-              draw.color[0] = 0.86f; draw.color[1] = 0.28f; draw.color[2] = 0.22f; draw.color[3] = 1.0f;
-            } else if (instance.transform.hasTeam && instance.transform.team == 3) {
-              draw.color[0] = 0.28f; draw.color[1] = 0.52f; draw.color[2] = 0.86f; draw.color[3] = 1.0f;
+            // T105: the team colour below is a FALLBACK for a mesh with no
+            // texture (the original note two lines down says the skin family is
+            // the paint index, not a tint, and it is right). The pixel shader
+            // consumes this as `albedo = sampled * colour.rgb` when colour.a is
+            // 1, so applying it to a painted mesh darkened every player to a
+            // single-team silhouette: red skin, red cap, red shoes. A painted
+            // mesh draws white and lets the skin family's own colour through.
+            // T105: the key the paint stage published is not always the key this
+            // stage holds -- the demo's spelling and the prepared mesh's spelling
+            // both reach here. Measured: 35 instances still counted as fallback
+            // while every prepared model reported painted slots, so the lookup
+            // falls back to the normalised model path and only a model with no
+            // painted slot ANYWHERE keeps the tint.
+            std::uint32_t paintedSlotCount = 0u;
+            const auto paintedSlotsForKey = entityPaintedSlotCountByKey.find(cacheKey);
+            if (paintedSlotsForKey != entityPaintedSlotCountByKey.end()) {
+              paintedSlotCount = paintedSlotsForKey->second;
+            }
+            if (paintedSlotCount == 0u) {
+              const auto paintedSlotsForPath =
+                entityPaintedSlotCountByNormalizedPath.find(entityMeshNormalizedPath);
+              if (paintedSlotsForPath != entityPaintedSlotCountByNormalizedPath.end()) {
+                paintedSlotCount = paintedSlotsForPath->second;
+              }
+            }
+            const bool entityIsPainted = paintedSlotCount > 0u;
+            if (budgetDeferred) {
+              // Not resident this frame: nothing is drawn, so this instance is
+              // neither white nor tinted. White is set anyway so no future code
+              // path can inherit a team colour through it.
+              draw.color[0] = 1.0f; draw.color[1] = 1.0f; draw.color[2] = 1.0f; draw.color[3] = 1.0f;
+              ++entityTintDeferredInstances;
+            } else if (entityIsPainted && !entityTintMutation) {
+              draw.color[0] = 1.0f; draw.color[1] = 1.0f; draw.color[2] = 1.0f; draw.color[3] = 1.0f;
+              ++entityTintWhiteInstances;
             } else {
-              draw.color[0] = 0.72f; draw.color[1] = 0.74f; draw.color[2] = 0.70f; draw.color[3] = 1.0f;
+              if (instance.transform.hasTeam && instance.transform.team == 2) {
+                draw.color[0] = 0.86f; draw.color[1] = 0.28f; draw.color[2] = 0.22f;
+              } else if (instance.transform.hasTeam && instance.transform.team == 3) {
+                draw.color[0] = 0.28f; draw.color[1] = 0.52f; draw.color[2] = 0.86f;
+              } else {
+                draw.color[0] = 0.72f; draw.color[1] = 0.74f; draw.color[2] = 0.70f;
+              }
+              draw.color[3] = 1.0f;
+              ++entityTintFallbackInstances;
+              ++entityTintFallbackKeyCounts[(player ? "player:" : "prop:")
+                + entityMeshNormalizedPath];
             }
             // T60: the skin family is the paint index, not a tint. Family 0 is
             // red and family 1 is blu in every class model's table; an entity
@@ -14750,6 +15031,34 @@ bool outlineVertexExtent = false;
         traceFmt("capture: armed requested=%d frame_tick=%d frames=%llu",
           static_cast<int>(captureTick), static_cast<int>(g_playback.tick),
           static_cast<unsigned long long>(renderedFrames));
+        // T105: the tint account travels with the frame it belongs to. white>0
+        // and fallback==0 is the fixed reading; fallback>0 means some instance
+        // in this frame had no painted texture and is still being colour-washed.
+        traceFmt("gpu: entity tint white=%zu fallback=%zu deferred=%zu mutation=%d",
+          entityTintWhiteInstances, entityTintFallbackInstances,
+          entityTintDeferredInstances, entityTintMutation ? 1 : 0);
+        // T105: a nonzero fallback is a number until it names the models behind
+        // it. Sorted by count, bounded at eight, so a frame that keeps tinting
+        // something says WHAT instead of only how many.
+        if (!entityTintFallbackKeyCounts.empty()) {
+          std::vector<std::pair<std::size_t, std::string>> fallbackRows;
+          fallbackRows.reserve(entityTintFallbackKeyCounts.size());
+          for (const auto& row : entityTintFallbackKeyCounts) {
+            fallbackRows.emplace_back(row.second, row.first);
+          }
+          std::sort(fallbackRows.begin(), fallbackRows.end(),
+            [](const std::pair<std::size_t, std::string>& left,
+               const std::pair<std::size_t, std::string>& right) {
+              return left.first != right.first ? left.first > right.first : left.second < right.second;
+            });
+          std::size_t fallbackRowsPrinted = 0;
+          for (const auto& row : fallbackRows) {
+            if (fallbackRowsPrinted >= 8) break;
+            traceFmt("gpu: entity tint fallback-key key=%s instances=%zu",
+              row.second.c_str(), row.first);
+            ++fallbackRowsPrinted;
+          }
+        }
       }
       if (g_renderer) {
         // The clip is decided before the draw it governs, so the frame that is
