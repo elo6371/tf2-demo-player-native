@@ -2031,7 +2031,7 @@ bool legacyVtfThumbnailSelfTest() {
   write(24, std::uint16_t{1}); write(52, 15u);
   bytes[56] = 1; write(57, 13u); bytes[61] = bytes[62] = 4;
   write(63, std::uint16_t{1});
-  std::fill(bytes.begin() + 80, bytes.begin() + 88, 0x7f);
+  std::fill(bytes.begin() + 80, bytes.begin() + 88, std::uint8_t{0x7f});
   bytes[88] = bytes[89] = 255;
   write(96, std::uint16_t{0xf800});
   tf2::native::VtfTexture texture;

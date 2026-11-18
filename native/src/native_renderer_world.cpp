@@ -515,8 +515,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       }
       std::fclose(file);
     };
-    std::string map;
-    map += "TF2 native world atlas dump\n";
+    std::string atlasMap;
+    atlasMap += "TF2 native world atlas dump\n";
     for (std::size_t batch = 0; batch < plan.batches.size(); ++batch) {
       const auto& layout = plan.batches[batch];
       char name[64];
@@ -530,7 +530,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       if (!bump2Pixels[batch].empty()) writePpm(prefix + "-bump2.ppm", bump2Pixels[batch], layout.width, layout.height);
       char line[256];
       std::snprintf(line, sizeof(line), "batch %zu %ux%u tiles=%d\n", batch, layout.width, layout.height, layout.tiles);
-      map += line;
+      atlasMap += line;
     }
     for (std::size_t index = 0; index < plan.slots.size(); ++index) {
       const auto& slot = plan.slots[index];
@@ -540,11 +540,11 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         slot.tile, slot.batch, slot.x, slot.y, slot.width, slot.height,
         slot.sourceWidth, slot.sourceHeight, slot.blend ? 1 : 0, slot.modulate ? 1 : 0,
         index < textures.size() ? textures[index].material.c_str() : "?");
-      map += line;
+      atlasMap += line;
     }
     const std::string mapPath = std::string(dumpDirectory) + "\\atlas-map.txt";
     if (std::FILE* file = std::fopen(mapPath.c_str(), "wb")) {
-      std::fwrite(map.data(), 1, map.size(), file);
+      std::fwrite(atlasMap.data(), 1, atlasMap.size(), file);
       std::fclose(file);
     }
   }

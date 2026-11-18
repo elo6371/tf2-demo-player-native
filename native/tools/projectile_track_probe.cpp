@@ -942,7 +942,7 @@ int runDemo(const std::string& demoPath, int top, bool expectEmptySearch,
 // that pushed to the front would produce), and reports both the invariant and the
 // search's behaviour. The gate asserts that the invariant reads FALSE here and
 // TRUE on the real path -- so the assertion is known to be able to fail.
-int runOrderingMutation(const std::string& demoPath, const std::string& tfRoot) {
+int runOrderingMutation(const std::string& demoPath, const std::string& /*tfRoot*/) {
   using namespace tf2::native;
   DemoHeader header;
   DemoIndex index;

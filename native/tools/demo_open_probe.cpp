@@ -964,9 +964,11 @@ int wmain(int argc, wchar_t** argv) {
           }
         }
         std::wstring cameraFirst5;
-        for (std::size_t i = 0; i < summary.cameraTickSamples.size() && i < 5u; ++i) {
-          if (i != 0) cameraFirst5 += L",";
-          cameraFirst5 += std::to_wstring(summary.cameraTickSamples[i].tick);
+        for (std::size_t cameraSampleIndex = 0;
+             cameraSampleIndex < summary.cameraTickSamples.size() && cameraSampleIndex < 5u;
+             ++cameraSampleIndex) {
+          if (cameraSampleIndex != 0) cameraFirst5 += L",";
+          cameraFirst5 += std::to_wstring(summary.cameraTickSamples[cameraSampleIndex].tick);
         }
         std::wcout << L" camera_rows=" << summary.cameraRows
                    << L" camera_rows_dropped=" << summary.cameraRowsDropped
@@ -1024,13 +1026,13 @@ int wmain(int argc, wchar_t** argv) {
         std::wstring first5, last5;
         const std::size_t sampleCount = summary.viewSamples.size();
         const std::size_t tailStart = sampleCount > 5u ? sampleCount - 5u : 0u;
-        for (std::size_t i = 0; i < sampleCount && i < 5u; ++i) {
-          if (i != 0) first5 += L",";
-          first5 += std::to_wstring(summary.viewSamples[i].tick);
+        for (std::size_t viewHeadIndex = 0; viewHeadIndex < sampleCount && viewHeadIndex < 5u; ++viewHeadIndex) {
+          if (viewHeadIndex != 0) first5 += L",";
+          first5 += std::to_wstring(summary.viewSamples[viewHeadIndex].tick);
         }
-        for (std::size_t i = tailStart; i < sampleCount; ++i) {
-          if (i != tailStart) last5 += L",";
-          last5 += std::to_wstring(summary.viewSamples[i].tick);
+        for (std::size_t viewTailIndex = tailStart; viewTailIndex < sampleCount; ++viewTailIndex) {
+          if (viewTailIndex != tailStart) last5 += L",";
+          last5 += std::to_wstring(summary.viewSamples[viewTailIndex].tick);
         }
         std::wcout << L" view_first5=" << first5 << L" view_last5=" << last5;
       }
@@ -1038,13 +1040,13 @@ int wmain(int argc, wchar_t** argv) {
         std::wstring firstTicks, lastTicks;
         const std::size_t tickCount = summary.packetServerTicks.size();
         const std::size_t tickTail = tickCount > 5u ? tickCount - 5u : 0u;
-        for (std::size_t i = 0; i < tickCount && i < 5u; ++i) {
-          if (i != 0) firstTicks += L",";
-          firstTicks += std::to_wstring(summary.packetServerTicks[i]);
+        for (std::size_t tickHeadIndex = 0; tickHeadIndex < tickCount && tickHeadIndex < 5u; ++tickHeadIndex) {
+          if (tickHeadIndex != 0) firstTicks += L",";
+          firstTicks += std::to_wstring(summary.packetServerTicks[tickHeadIndex]);
         }
-        for (std::size_t i = tickTail; i < tickCount; ++i) {
-          if (i != tickTail) lastTicks += L",";
-          lastTicks += std::to_wstring(summary.packetServerTicks[i]);
+        for (std::size_t tickTailIndex = tickTail; tickTailIndex < tickCount; ++tickTailIndex) {
+          if (tickTailIndex != tickTail) lastTicks += L",";
+          lastTicks += std::to_wstring(summary.packetServerTicks[tickTailIndex]);
         }
         std::wcout << L" packet_server_first5=" << firstTicks << L" packet_server_last5=" << lastTicks;
       }
@@ -1075,9 +1077,9 @@ int wmain(int argc, wchar_t** argv) {
         // this so it can assert the product's staleness equals the history's own
         // density instead of demanding a zero a checkpoint store cannot give.
         std::int32_t historyGapMax = 0;
-        for (std::size_t i = 1; i < summary.entityHistoryCheckpoints.size(); ++i) {
-          const std::int32_t gap = summary.entityHistoryCheckpoints[i].tick
-            - summary.entityHistoryCheckpoints[i - 1].tick;
+        for (std::size_t checkpointIndex = 1; checkpointIndex < summary.entityHistoryCheckpoints.size(); ++checkpointIndex) {
+          const std::int32_t gap = summary.entityHistoryCheckpoints[checkpointIndex].tick
+            - summary.entityHistoryCheckpoints[checkpointIndex - 1].tick;
           if (gap > historyGapMax) historyGapMax = gap;
         }
         // The snapshot query resolves against the THINNED ARCHIVE once the live
@@ -1085,9 +1087,9 @@ int wmain(int argc, wchar_t** argv) {
         // staleness reading has to be compared with; the live vector holds only
         // the two checkpoints the window still carries.
         std::int32_t archiveGapMax = 0;
-        for (std::size_t i = 1; i < summary.entityHistoryArchive.size(); ++i) {
-          const std::int32_t gap = summary.entityHistoryArchive[i].tick
-            - summary.entityHistoryArchive[i - 1].tick;
+        for (std::size_t archiveIndex = 1; archiveIndex < summary.entityHistoryArchive.size(); ++archiveIndex) {
+          const std::int32_t gap = summary.entityHistoryArchive[archiveIndex].tick
+            - summary.entityHistoryArchive[archiveIndex - 1].tick;
           if (gap > archiveGapMax) archiveGapMax = gap;
         }
         std::wcout << L" entity_history_checkpoints=" << summary.entityHistoryCheckpoints.size()

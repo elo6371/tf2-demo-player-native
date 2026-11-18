@@ -718,8 +718,8 @@ int selfTest(const tf2::native::AssetRoot* root) {
       // the mismatch could be a constant.
       auto matched = fixture;
       matched.entityModelPath = other.path;
-      const auto accepted = resolve(matched, otherDrawn, otherBinding);
-      check(accepted.status == tf2::native::ViewModelAnimationStatus::Ok,
+      const auto acceptedMatch = resolve(matched, otherDrawn, otherBinding);
+      check(acceptedMatch.status == tf2::native::ViewModelAnimationStatus::Ok,
             "the same input against a matching drawn model resolves to ok");
     }
     // A path the demo wrote with the other separator and mixed case is the same

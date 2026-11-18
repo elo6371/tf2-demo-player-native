@@ -90,7 +90,11 @@ int selfTest() {
   // legacy clamp then reads 0 and the whole recording lands on the first tick.
   // The helper computes wide and refuses instead.
   const std::int32_t intMin = std::numeric_limits<std::int32_t>::min();
-  const std::int32_t wrapped = static_cast<std::int32_t>(100 - intMin);
+  // Unsigned arithmetic on purpose: `100 - INT_MIN` is signed overflow (UB, and
+  // C4307 at /W4). The bit pattern is exactly what this control is about, and the
+  // unsigned form produces it without invoking undefined behaviour.
+  const std::int32_t wrapped = static_cast<std::int32_t>(
+      static_cast<std::uint32_t>(100) - static_cast<std::uint32_t>(intMin));
   check(wrapped < 0 && legacyClamp(100, intMin) == 0,
         "control: an INT_MIN origin wraps a positive tick negative, so the clamp reads 0");
   check(!tf2::native::soundEventRelativeTick(100, intMin, out),

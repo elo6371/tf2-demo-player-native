@@ -93,7 +93,7 @@ std::vector<std::uint8_t> makeVtf(std::uint16_t width, std::uint16_t height,
   };
   put32(4, 7);                    // major
   put32(8, depth > 0 ? 2 : 1);    // minor; 7.2 is the first version with a depth field
-  put32(12, headerSize);          // header size
+  put32(12, static_cast<std::uint32_t>(headerSize));  // header size; 64 or 65, bounded above
   put16(16, width);
   put16(18, height);
   put32(20, cubemap ? 0x00004000u : 0u);

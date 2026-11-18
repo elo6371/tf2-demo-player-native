@@ -888,14 +888,14 @@ bool Renderer::createPipeline() {
     viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     viewDescription.Texture2D.MipLevels = 1;
     if (FAILED(device_->CreateShaderResourceView(hudFontTexture_.Get(), &viewDescription, hudFontView_.GetAddressOf()))) return false;
-    D3D11_SAMPLER_DESC samplerDescription{};
-    samplerDescription.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-    samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    samplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    samplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    samplerDescription.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    samplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
-    if (FAILED(device_->CreateSamplerState(&samplerDescription, hudSampler_.GetAddressOf()))) return false;
+    D3D11_SAMPLER_DESC hudSamplerDescription{};
+    hudSamplerDescription.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    hudSamplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    hudSamplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    hudSamplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    hudSamplerDescription.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    hudSamplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
+    if (FAILED(device_->CreateSamplerState(&hudSamplerDescription, hudSampler_.GetAddressOf()))) return false;
   }
   D3D11_BUFFER_DESC modelConstantsDescription{};
   modelConstantsDescription.ByteWidth = 8208;

@@ -293,10 +293,10 @@ int main(int argc, char** argv) {
       std::vector<std::uint8_t> bytes;
       try {
         for (const auto& archive : archives) {
-          std::string error;
-          bytes = archive->read(path, &error);
+          std::string readError;
+          bytes = archive->read(path, &readError);
           if (!bytes.empty()) break;
-          if (!error.empty()) { ++cubemapParseFailures; break; }
+          if (!readError.empty()) { ++cubemapParseFailures; break; }
         }
         if (bytes.empty()) {
           const auto fullPath = tfRoot / std::filesystem::path(path);

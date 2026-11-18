@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--wire-self-test") {
-    const auto truncatedVarint = tf2::native::parseProtoWire(std::string({char(0x80)}));
+    const auto truncatedVarint = tf2::native::parseProtoWire(std::string({'\x80'}));
     const auto truncatedLength = tf2::native::parseProtoWire(std::string({char(0x0a), char(0x03), 'a', 'b'}));
     const auto valid = tf2::native::parseProtoWire(std::string({char(0x0a), char(0x03), 'a', 'b', 'c'}));
     const bool pass = !truncatedVarint.ok && !truncatedLength.ok && valid.ok;

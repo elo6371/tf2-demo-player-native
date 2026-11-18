@@ -373,7 +373,7 @@ bool runSelfTest() {
     precedence.serverClassSchemas.push_back(playerSchema);
     precedence.modelPrecache[12] = "models/player/scout.mdl";
     precedence.entityStates.resize(21);
-    for (auto& state : precedence.entityStates) state.classId = 0;
+    for (auto& entityState : precedence.entityStates) entityState.classId = 0;
     const auto setPrecedenceInt = [&precedence](std::size_t entity, const char* name, std::int64_t value) {
       tf2::native::EntityPropertyValue prop;
       prop.type = tf2::native::SendPropType::Int;
@@ -614,8 +614,8 @@ bool runSelfTest() {
     std::size_t freshChosen = 0, staleChosen = 0, freshnessDecided = 0;
     std::size_t rankTiePrefersLocal = 0, apiMatches = 0, tickRoundTrip = 0;
     for (const auto& shape : shapes) {
-      const auto state = buildState(shape.localTick, shape.nonLocalTick);
-      const auto ranked = tf2::native::rankPropertyCandidates(state, "m_vecOrigin");
+      const auto fixtureState = buildState(shape.localTick, shape.nonLocalTick);
+      const auto ranked = tf2::native::rankPropertyCandidates(fixtureState, "m_vecOrigin");
       if (ranked.size() != 2) return false;
       const auto& pick = ranked[0];
       if (pick.name != *shape.expected) return false;
@@ -637,9 +637,9 @@ bool runSelfTest() {
       // other counters would not notice.
       if (pick.name != kLocalName) ++freshnessDecided;
       // And the answer the renderer actually reads has to be the same answer.
-      const auto transform = tf2::native::EntityModelResolver::extractTransform(state);
-      if (transform.hasOrigin
-          && transform.origin[0] == (pick.name == kLocalName ? 1.0f : 3.0f)) {
+      const auto resolved = tf2::native::EntityModelResolver::extractTransform(fixtureState);
+      if (resolved.hasOrigin
+          && resolved.origin[0] == (pick.name == kLocalName ? 1.0f : 3.0f)) {
         ++apiMatches;
       }
     }
@@ -2040,8 +2040,9 @@ int runPlayerModelAudit(const std::string& tfRoot, const std::string& classTable
     // are resolved because a class model is worn by both teams.
     std::vector<tf2::native::ModelMeshMaterialRun> materialRuns;
     std::string materialRunsError;
-    const bool runsBuilt = meshBuilt
-      && tf2::native::ModelLoader::buildMaterialRuns(meshMetadata, materialRuns, materialRunsError);
+    if (meshBuilt) {
+      tf2::native::ModelLoader::buildMaterialRuns(meshMetadata, materialRuns, materialRunsError);
+    }
     std::set<std::uint32_t> lod0Slots;
     std::uint32_t dominantSlot = 0;
     std::uint32_t dominantVertices = 0;
@@ -2073,16 +2074,16 @@ int runPlayerModelAudit(const std::string& tfRoot, const std::string& classTable
       }
     }
     std::size_t redBluDistinct = 0;
-    for (const auto& entry : slotVtf) {
-      if (entry.second[0].empty() || entry.second[1].empty()) continue;
-      if (entry.second[0] != entry.second[1]) ++redBluDistinct;
+    for (const auto& slotEntry : slotVtf) {
+      if (slotEntry.second[0].empty() || slotEntry.second[1].empty()) continue;
+      if (slotEntry.second[0] != slotEntry.second[1]) ++redBluDistinct;
     }
     // How many different textures this class would actually paint. One is the
     // T57 reading (slot 0 for every mesh); a correct per-run bind paints one per
     // distinct material slot, so this count is what tells them apart.
     std::set<std::string> paintedStems;
-    for (const auto& entry : slotStem) {
-      if (!entry.second[0].empty()) paintedStems.insert(entry.second[0]);
+    for (const auto& stemEntry : slotStem) {
+      if (!stemEntry.second[0].empty()) paintedStems.insert(stemEntry.second[0]);
     }
     // "The head is not painted on the body". The body shell is the run with the
     // most vertices among runs whose OWN material slot is declared as a non-head

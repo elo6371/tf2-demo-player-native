@@ -699,8 +699,8 @@ int main(int argc, char** argv) {
         if (bestIndex >= map.triangles.size()) { ++misses; continue; }
         ++hits;
         const auto& t = map.triangles[bestIndex];
-        const float ux = t.b.x - t.a.x, uy = t.b.y - t.a.y, uz = t.b.z - t.a.z;
-        const float vx = t.c.x - t.a.x, vy = t.c.y - t.a.y, vz = t.c.z - t.a.z;
+        const float ux = t.b.x - t.a.x, uy = t.b.y - t.a.y;
+        const float vx = t.c.x - t.a.x, vy = t.c.y - t.a.y;
         const float nz = ux * vy - uy * vx;             // emitted normal, z only
         const bool emittedUp = orientedFacing(t, 0.0f, 0.0f, nz, 0.0f, 0.0f, 1.0f);
         const bool storedUp = (t.windingFlipped != 0) ? !emittedUp : emittedUp;

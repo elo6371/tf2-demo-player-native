@@ -200,7 +200,7 @@ void checkBookmarks(Readings& readings, const std::filesystem::path& settingsFil
       "a bookmark saves");
   }
   check(store.savedCount() == 3, "three bookmarks are stored");
-  readings.set("bookmarksSaved", store.savedCount());
+  readings.set("bookmarksSaved", static_cast<std::uint32_t>(store.savedCount()));
 
   // Exact restoration, straight from memory.
   std::uint32_t exact = 0;

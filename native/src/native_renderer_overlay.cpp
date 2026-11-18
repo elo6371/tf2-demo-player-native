@@ -158,7 +158,8 @@ void Renderer::setProjectileTimeline(const std::vector<ProjectileTimelineEvent>&
 // tick and the same retained rows produce the same vertices, with no dependence
 // on how long the process has been running.
 // ===========================================================================
-void Renderer::setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>& points, std::int32_t tick) {
+void Renderer::setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>& points,
+  [[maybe_unused]] std::int32_t tick) {
   projectileTrackVertexCount_ = 0;
   projectileTrackPointCount_ = points.size();
   if (!device_ || !worldBoundsValid_ || points.size() < 2) return;
@@ -449,10 +450,10 @@ void Renderer::rebuildOverlayBuffers() {
         };
         for (int axis = 0; axis < 3; ++axis) {
           const float* row = &rows.positionRows[axis * 4];
-          const float world = row[0] * modelPoint[0] + row[1] * modelPoint[1]
+          const float worldComponent = row[0] * modelPoint[0] + row[1] * modelPoint[1]
             + row[2] * modelPoint[2] + row[3];
-          cpu.worldMin[axis] = std::min(cpu.worldMin[axis], world);
-          cpu.worldMax[axis] = std::max(cpu.worldMax[axis], world);
+          cpu.worldMin[axis] = std::min(cpu.worldMin[axis], worldComponent);
+          cpu.worldMax[axis] = std::max(cpu.worldMax[axis], worldComponent);
         }
       }
       for (int row = 0; row < 3; ++row) {

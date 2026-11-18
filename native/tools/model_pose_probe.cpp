@@ -1116,7 +1116,9 @@ int playerAnimationEventCensus(int argc, char** argv) {
             ++hurtTotal;
             std::string victim, attacker;
             const bool hasVictim = fieldOf(event, "userid", victim);
-            const bool hasAttacker = fieldOf(event, "attacker", attacker);
+            // Read for the entindex lookup below; only the victim's presence is a
+            // reading of its own (N23: this result had no use).
+            fieldOf(event, "attacker", attacker);
             const auto victimIt = hasVictim ? entindexByUserid.find(victim) : entindexByUserid.end();
             const auto attackerIt = entindexByUserid.find(attacker);
             if (victimIt != entindexByUserid.end() && victimIt->second == sample.entity) {

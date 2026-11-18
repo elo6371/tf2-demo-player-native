@@ -731,13 +731,13 @@ int main(int argc, char** argv) {
         // Rigidity is measured on the 3x4 composition, before the column-major
         // lift: the upload layout is a pure reordering, so measuring it after the
         // lift would only measure the reordering.
-        const auto composed = mutation == Mutation::Order
+        const auto composedRigid = mutation == Mutation::Order
           ? concatTransforms(bone.poseToBone, animated)
           : concatTransforms(animated, bone.poseToBone);
-        const auto skin = toColumnMajor(composed);
+        const auto skin = toColumnMajor(composedRigid);
         ++matrices;
         if (matrices > kMaxUploadBones) break;
-        rigidityWorst = std::max(rigidityWorst, rigidityError(composed));
+        rigidityWorst = std::max(rigidityWorst, rigidityError(composedRigid));
         // The bind-pose identity reading is only defined where the pose *is* the
         // bind pose: an unanimated helper bone, or the bindpose mutation.
         if (world == nullptr || mutation == Mutation::BindPose) {

@@ -59,10 +59,24 @@ cat > "$OUT/one.sh" <<'WORKER'
 #!/usr/bin/env bash
 set -u
 ROOT="$1"; BUILD="$2"; OBJDIR="$3"; target="$4"; src="$5"
+# The checkout prefix this worker compiles under. It used to be the literal
+# "t105-e5" below, which silently stopped matching once the work moved to
+# another worktree: keys kept their absolute path, the external-header rule then
+# rewrote them to <external>/..., and the gate reported a clean tree as a
+# regression. Derived here so a worktree rename cannot do that again.
+rootwin=$(cygpath -m "$ROOT" 2>/dev/null || printf "%s" "$ROOT")
 export TF2_TOOLCHAIN_QUIET=1
 . "$ROOT/tools/tf2-toolchain.sh" >/dev/null 2>&1 || { echo "NO-TOOLCHAIN"; exit 3; }
 d="$BUILD/CMakeFiles/$target.dir"
 flags=$(sed -n "s/^CXX_FLAGS = //p" "$d/flags.make" | head -1)
+# The selftest plants a warning on purpose; a target that has /WX would turn it
+# into error C2220 and the comparator would never see it (measured 2026-11-18 when
+# tf2_core joined TF2_WX_DEFAULT_TARGETS and --selftest went red with
+# "planted-warning-not-observed"). Only the selftest asks for the strip: the gate
+# itself must compile with exactly the flags the target builds with.
+if [ "${WARNCHECK_NO_WX:-0}" = "1" ]; then
+  flags=$(printf "%s" "$flags" | sed -e "s#/WX##g")
+fi
 defs=$(sed -n "s/^CXX_DEFINES = //p" "$d/flags.make" | head -1)
 incs=$(sed -n "s/^CXX_INCLUDES = //p" "$d/flags.make" | head -1)
 incs=$(printf "%s" "$incs" | tr '\\' '/')
@@ -85,7 +99,7 @@ fi
 #     degenerates to "C:4813"; it also makes the key depend on the installed toolset
 #     version. Hence <external>/<basename>, applied AFTER the line/code extraction
 #     (before it, the trailing ": warning C..." text defeats the trailing anchor).
-grep "warning C" "$log" 2>/dev/null | sed -e "s#\\\\#/#g" -e "s#^.*t105-e5/##" \
+grep "warning C" "$log" 2>/dev/null | sed -e "s#\\\\#/#g" -e "s#^.*${rootwin}/##" \
   | sed -n "s#^\(.*\)(\([0-9]*\)): warning \(C[0-9]*\).*#\1:\2:\3#p" \
   | sed -e "s#^[A-Za-z]:/.*/\([^/:]*:\)#<external>/\1#"
 WORKER
@@ -182,8 +196,9 @@ case "$MODE" in
     {
       echo "# tools/warn-baseline.tsv -- the /W4 warnings that already exist."
       echo "# <count> TAB <file>:<line>:<code>. Regenerate with: bash tools/warn-check.sh --emit-baseline"
-      echo "# Measured 2026-11-15 on native/build-nmake; a warning that disappears is reported as"
-      echo "# FIXED and must not be treated as an improvement until the site is deleted."
+      echo "# Empty as of 2026-11-18: every target of native/ builds at /W4 with zero warnings"
+      echo "# (N23, docs/N23-WALL-LEVEL-2026-11-18.md), so every finding is NEW. A warning that"
+      echo "# disappears is still reported as FIXED and is no improvement until the site is gone."
       cat "$OUT/warn-counted.tsv"
     } > "$BASELINE"
     echo "WARN-GATE=BASELINE-WRITTEN lines=$(grep -vc "^#" "$BASELINE") path=tools/warn-baseline.tsv"
@@ -224,7 +239,7 @@ case "$MODE" in
     # 2026-11-16: an unused LOCAL of type std::size_t gives C4189 at /W4.
     { echo "#include <cstddef>"
       echo "void plantedWarningProbe() { std::size_t plantedAndNeverRead = 7; (void)0; }"; } > "$planted"
-    bash "$OUT/one.sh" "$ROOT" "$BUILD" "$OUT/selftest" "tf2_core" "$planted" > "$OUT/selftest/raw.txt" 2>&1
+    WARNCHECK_NO_WX=1 bash "$OUT/one.sh" "$ROOT" "$BUILD" "$OUT/selftest" "tf2_core" "$planted" > "$OUT/selftest/raw.txt" 2>&1
     # The worker rewrites each finding to file:line:code before it prints, so the
     # raw file no longer contains the string "warning C" -- counting that string
     # here made a working gate look dead. Count the rewritten shape instead.

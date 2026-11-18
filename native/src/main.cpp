@@ -3160,7 +3160,7 @@ static bool parseCaptureRangeDepthSwitch(const std::wstring& switchName,
   return true;
 }
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
+int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand) {
   openTrace();
   // Keep the render surface in physical pixels on mixed-DPI desktop setups.
   if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
@@ -3168,7 +3168,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   }
   const wchar_t* className = L"TF2DemoNativeRenderer";
   WNDCLASSW windowClass{};
-  windowClass.hInstance = instance;
+  windowClass.hInstance = processInstance;
   windowClass.lpfnWndProc = windowProc;
   windowClass.lpszClassName = className;
   windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
@@ -3206,7 +3206,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   HWND window = CreateWindowExW(
     0, className, L"TF2 Demo Player - Native D3D11",
     WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight,
-    nullptr, nullptr, instance, nullptr);
+    nullptr, nullptr, processInstance, nullptr);
   if (!window) return 11;
   {
     RECT createdClient{};
@@ -3294,7 +3294,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   nativeUi.setTfRoot(persistent.tfRoot);
   g_nativeUi = &nativeUi;
   DragAcceptFiles(window, TRUE);
-  createNativeUiControls(window, instance);
+  createNativeUiControls(window, processInstance);
   // T54: the logs panel is attached AFTER the argument loop, not here. Attached
   // here it copied the options as they stood -- defaults -- because the loop that
   // fills g_logsPanelOptions runs four hundred lines below: every scripted run
@@ -3794,10 +3794,10 @@ bool outlineVertexExtent = false;
   std::vector<std::string> worldExtraStaticClasses;
   for (int allowClassArg = 1; allowClassArg + 1 < argumentCount; ++allowClassArg) {
     if (wcscmp(arguments[allowClassArg], L"--world-allow-class") != 0) continue;
-    std::string className;
+    std::string allowClass;
     for (const wchar_t* ch = arguments[allowClassArg + 1]; *ch != 0 && *ch < 128; ++ch)
-      className.push_back(static_cast<char>(*ch));
-    if (!className.empty()) worldExtraStaticClasses.push_back(className);
+      allowClass.push_back(static_cast<char>(*ch));
+    if (!allowClass.empty()) worldExtraStaticClasses.push_back(allowClass);
   }
   bool worldIsolationRequested = false;
   long isolatedTriangle = -1;
@@ -4338,11 +4338,11 @@ bool outlineVertexExtent = false;
         // the per-frame camera so a frame can be compared across builds without
         // the observer view moving underneath it.
         g_debugCamera = true;
-        g_debugCameraEye[0] = _wtof(arguments[++i]);
-        g_debugCameraEye[1] = _wtof(arguments[++i]);
-        g_debugCameraEye[2] = _wtof(arguments[++i]);
-        g_debugCameraPitch = _wtof(arguments[++i]);
-        g_debugCameraYaw = _wtof(arguments[++i]);
+        g_debugCameraEye[0] = static_cast<float>(_wtof(arguments[++i]));
+        g_debugCameraEye[1] = static_cast<float>(_wtof(arguments[++i]));
+        g_debugCameraEye[2] = static_cast<float>(_wtof(arguments[++i]));
+        g_debugCameraPitch = static_cast<float>(_wtof(arguments[++i]));
+        g_debugCameraYaw = static_cast<float>(_wtof(arguments[++i]));
       } else if (wcscmp(arguments[i], L"--no-world-vis-clip") == 0) {
         worldVisClipRequested = false; worldVisClipGiven = true;
       } else if (wcscmp(arguments[i], L"--world-cull") == 0) {
@@ -5103,7 +5103,7 @@ bool outlineVertexExtent = false;
   // early while g_controller is null. That is the correct behaviour during
   // creation, and it is also why this attach point -- not the earlier one -- is
   // where the options become real.
-  tf2::native::logsPanelAttach(window, instance, g_logsPanelOptions);
+  tf2::native::logsPanelAttach(window, processInstance, g_logsPanelOptions);
   if (invalidWorldWaterArgument) {
     // T2 (2026-10-14): `--world-water` takes on|off and nothing else. Refusing
     // rather than defaulting matters because the pixel claim compares a water-on
@@ -8624,7 +8624,16 @@ bool outlineVertexExtent = false;
     //
     // So the same string goes to the trace, once per CHANGE (matching the
     // SetWindowTextW above) rather than once per frame.
-    traceFmt("title: %s", std::string(fullTitle.begin(), fullTitle.end()).c_str());
+    // The caption is wide and the demo path inside it can be outside ASCII, so
+    // the trace copy is transcoded instead of narrowed one wchar_t per char: the
+    // iterator-pair constructor truncates every code unit, which is both lossy
+    // in the trace file and the instantiation behind the C4244 in <xutility>.
+    const int titleBytes = WideCharToMultiByte(CP_UTF8, 0, fullTitle.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string titleNarrow(static_cast<std::size_t>(titleBytes > 1 ? titleBytes - 1 : 0), '\0');
+    if (titleBytes > 1) {
+      WideCharToMultiByte(CP_UTF8, 0, fullTitle.c_str(), -1, titleNarrow.data(), titleBytes, nullptr, nullptr);
+    }
+    traceFmt("title: %s", titleNarrow.c_str());
     lastTitle = std::move(fullTitle);
     return true;
   };
@@ -13960,15 +13969,15 @@ bool outlineVertexExtent = false;
                 const char* layerName = nullptr;
                 const char* layerReason = nullptr;
                 if (runtime.oneShotActive) {
-                  const std::int32_t elapsed = resolvedSceneTick - runtime.oneShotStartTick;
-                  if (elapsed >= 0 && elapsed < runtime.oneShotTicks && choice.flinch >= 0) {
+                  const std::int32_t flinchElapsed = resolvedSceneTick - runtime.oneShotStartTick;
+                  if (flinchElapsed >= 0 && flinchElapsed < runtime.oneShotTicks && choice.flinch >= 0) {
                     layered = true;
                     layerName = "flinch";
                     layerReason = "health-drop";
                     chosen = choice.flinch;
                     chosenLabel = choice.flinchLabel;
                     chosenCycle = runtime.oneShotTicks > 0
-                      ? static_cast<float>(elapsed) / static_cast<float>(runtime.oneShotTicks) : 0.0f;
+                      ? static_cast<float>(flinchElapsed) / static_cast<float>(runtime.oneShotTicks) : 0.0f;
                     ++playerAnimFlinch;
                   } else {
                     // The clip ended (or the body stopped being drawn): the

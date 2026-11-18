@@ -387,8 +387,8 @@ ViewModelMaterialSampleState Renderer::viewModelMaterialSampleState() const {
     : (fx.selfillum.reason.empty() ? std::string("no selfillum was read")
                                    : fx.selfillum.reason);
 
-  sample.texturesUploaded = viewModelTexturesUploaded_;
-  sample.texturesReused = viewModelTexturesReused_;
+  sample.texturesUploaded = static_cast<std::uint32_t>(viewModelTexturesUploaded_);
+  sample.texturesReused = static_cast<std::uint32_t>(viewModelTexturesReused_);
   return sample;
 }
 
@@ -710,8 +710,8 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
       constants.material = XMFLOAT4(textured ? 1.0f : 0.0f, range.alphaTest ? 1.0f : 0.0f, 0.0f, 0.0f);
       context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &constants, 0, 0);
       if (textured) {
-        auto* view = cached->second.Get();
-        context_->PSSetShaderResources(0, 1, &view);
+        auto* textureView = cached->second.Get();
+        context_->PSSetShaderResources(0, 1, &textureView);
         // Alpha blending is the material's own `$translucent`, not a default.
         context_->OMSetBlendState(range.translucent ? viewModelAlphaBlendState_.Get() : nullptr,
           nullptr, 0xffffffffu);
@@ -881,8 +881,8 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
           range.alphaTest ? 1.0f : 0.0f, 0.0f, 0.0f);
         context_->UpdateSubresource(viewModelConstants_.Get(), 0, nullptr, &weaponConstants, 0, 0);
         if (textured) {
-          auto* view = cached->second.Get();
-          bindSlot0(view, "weapon-range");
+          auto* textureView = cached->second.Get();
+          bindSlot0(textureView, "weapon-range");
           // T19: the leak question, asked at the draw. A range drawn while a
           // world atlas is at t0 is the defect this counter exists for; the
           // gate wants it at 0 and the mutation binds the atlas here to prove
