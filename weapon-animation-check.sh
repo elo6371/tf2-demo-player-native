@@ -42,7 +42,7 @@
 #            move, and to differ when it did.
 #      The three captures below pin the camera with --debug-camera (the WALL013
 #      pose T45/T52 use) and assert the trace names it. This demo's own eye is
-#      0,0,0 at every one of 5009 scene ticks (T34-NEARCLIP-2026-10-20.md), and
+#      0,0,0 at every one of 5009 scene ticks (docs/reports/T34-NEARCLIP-2026-10-20.md), and
 #      since T80 the renderer refuses that pose, so without a stated camera the
 #      frame comes from the fallback orbit camera while the trace prints
 #      src=held -- the reading and the picture would disagree. With the camera
@@ -756,7 +756,7 @@ for tick in "${TICKS[@]}"; do
   # window and audio device must not be visible to whoever else is logged in. T39
   # measured that adding them changes no pixel: the identity/control pair is
   # byte-identical under the flag pair and under the previous invocation (both
-  # frame hashes recorded in T39-WEAPON-ANIMATION-2026-10-21.md).
+  # frame hashes recorded in docs/reports/T39-WEAPON-ANIMATION-2026-10-21.md).
   case "$TRACE" in
     /*) FULL_TRACE="$TRACE" ;;
     *)  FULL_TRACE="$ROOT/$TRACE" ;;

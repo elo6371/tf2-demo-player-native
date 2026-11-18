@@ -12,6 +12,21 @@ World geometry/material rendering and third-person player models/animation are s
 
 See [CHANGELOG.md](CHANGELOG.md) for the current hosted snapshot, [docs/KNOWN-ISSUES-AND-FIXES.md](docs/KNOWN-ISSUES-AND-FIXES.md) for verified failure modes and their status, and [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md) for acceptance rules.
 
+## Repository layout
+
+| Path | What lives there |
+|---|---|
+| `native/` | The product: C++17 sources, headers, HLSL, probes (`native/tools/`) and CMake files. |
+| `native/build-nmake/` | Build output; not tracked. |
+| `*.sh`, `*.py` at the repository root | The gate suite — one script per gate plus the shared build and measurement helpers. They stay at the root because they resolve fixtures and the product binary relative to it. |
+| `docs/` | Live status, plans and design records. Start at [docs/README.md](docs/README.md). |
+| `docs/reports/` | The dated T-round reports that used to sit in the root, newest last ([index](docs/reports/README.md)). |
+| `analysis/` | Reference captures and image comparisons used as evidence. |
+| `testdata/` | Small fixtures the gates read. |
+| `evidence/` | Raw gate output, captures and traces, kept as the historical record. Large by design and not needed to build or run the product. |
+| `tools/` | Standalone helpers that are not gates. |
+
+
 ## Verification status
 
 - The last full `verify-all.sh --quick` chain completed on 2026-11-02 on HEAD `59d94a7`: 30 steps, 29 of them PASS. Step 27 went red before it measured anything — step 8's mutation suite restores the sources it patches, which moves their mtimes, so the gate's stale-binary guard refused the probe step 1 had built for being "older" than that tree's own sources (`git status` was clean and the source hashes matched the frozen set). `verify-all.sh` now rebuilds that probe at step 27, the way step 25 already rebuilds `model_pose_probe`; step 27 was then re-run alone on the same product sources and read `SPECTATE-CHECK=PASS`, 95 assertions, 0 FAIL. The chain was not run twice — `evidence/t66-sourcetv/CHAIN-RUN-20261102.md` states what ran, what was red, and what the single-step re-run did and did not repeat. `CHANGELOG.md` records the run and the gate work behind it.

@@ -442,7 +442,7 @@ sec "4/15 --install into a directory that holds nothing but the payload (the pac
 #   runs, so the installer does not own them and uninstall must not delete them;
 #   the manifest describes that with the state word the product defines for "it
 #   was already here and it is not ours" -- preserved, one of four states
-#   (native/include/install_manifest.h; T37-INSTALLER-2026-10-20.md section 4).
+#   (native/include/install_manifest.h; docs/reports/T37-INSTALLER-2026-10-20.md section 4).
 #   Commit e5851c1 (2026-10-22) added the licences to the package and updated the
 #   counts in this section but left these three pins at their pre-licence values,
 #   and its green list names INSTALL-READINESS only, so this gate never re-ran:
