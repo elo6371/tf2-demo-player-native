@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -486,6 +487,15 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     worldNearPlaneNormalized_ = worldNearPlane;
     worldFarPlaneNormalized_ = worldFarPlane;
     const float worldVerticalFov = sourceHorizontalFovToVertical(settings_.worldFov);
+    // N17 item 5: state the projection this frame actually used. 5a599d1e fixed
+    // the world FOV conversion; this line is what makes the fix readable in a
+    // capture log (horizontal 90 -> vertical 73.7398 through the 4:3 Source
+    // reference) instead of something a reader has to verify in the source.
+    if (!capturePath_.empty()) {
+      std::printf("capture: fov source=settings.worldFov horizontal=%.4f vertical=%.4f"
+        " rule=sourceHorizontalFovToVertical aspect=%.6f near=%.4f far=%.4f\n",
+        settings_.worldFov, worldVerticalFov, aspect, worldNearPlane, worldFarPlane);
+    }
     const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(worldVerticalFov), aspect, worldNearPlane, worldFarPlane);
     const XMMATRIX mvp = view * projection;
     WorldConstantsData& constants = frameConstants;
@@ -1184,10 +1194,33 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       // when that material is missing paints characters with unrelated map
       // tiles and makes a resource failure look like a valid draw.
       if (!range.textureView) continue;
-      // R1b negative control: drop one drawn range on purpose, only while the
-      // range probe is armed, to show the footprint follows the DRAW and not the
-      // tick. It changes the picture by design; it is a control, never a mode.
-      if (!rangeDepthPrefix_.empty() && entityRangeOrdinal == rangeDepthSkipIndex_) {
+      // R1b negative control: drop one drawn range on purpose to show the
+      // footprint follows the DRAW and not the tick. It changes the picture by
+      // design; it is a control, never a mode. N17: the gate reads the skip index
+      // alone -- requiring the depth prefix too meant a skip-only run silently
+      // rendered the unchanged frame, which is a control that cannot fail.
+      // N17 item 1: the per-range account the window was missing. Guarded by an
+      // environment variable (the same way TF2_NATIVE_TRACE is armed) so a normal
+      // run prints nothing; with TF2_NATIVE_RANGE_LIST=1 each numbered range names
+      // its model, run window and material, and a skip index can be checked
+      // against the geometry instead of being believed.
+      static const bool rangeListDump = std::getenv("TF2_NATIVE_RANGE_LIST") != nullptr;
+      if (rangeListDump) {
+        std::printf("range: ordinal=%d blended=%d slot=%u body=%u key=%s vertexStart=%u vertexCount=%u instanceStart=%u instanceCount=%u translucent=%d textured=%d dbg=%d\n",
+          entityRangeOrdinal, blended, range.materialSlot, range.body,
+          range.cacheKey.empty() ? "(unknown)" : range.cacheKey.c_str(),
+          range.vertexStart, range.vertexCount, range.instanceStart, range.instanceCount,
+          range.translucent ? 1 : 0, 1, worldDebugView_);
+      }
+      if (rangeDepthSkipIndex_ >= 0 && entityRangeOrdinal == rangeDepthSkipIndex_) {
+        // R1b: name what is being dropped. "skip 97" is not a finding; the model,
+        // the material run and the vertex window are. Printed once per frame,
+        // and only when a skip is armed.
+        std::printf("range-skip: ordinal=%d blended=%d slot=%u body=%u key=%s vertexStart=%u vertexCount=%u instanceStart=%u instanceCount=%u translucent=%d dbg=%d\n",
+          entityRangeOrdinal, blended, range.materialSlot, range.body,
+          range.cacheKey.empty() ? "(unknown)" : range.cacheKey.c_str(),
+          range.vertexStart, range.vertexCount, range.instanceStart, range.instanceCount,
+          range.translucent ? 1 : 0, worldDebugView_);
         ++entityRangeOrdinal;
         continue;
       }

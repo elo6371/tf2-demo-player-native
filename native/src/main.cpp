@@ -300,17 +300,26 @@ namespace {
 
 // T105: claim a switch that takes no value, from the argument loop's fall-through
 // branch. See the call site: the else-if chain cannot grow a branch (C1061), and a
-// switch nobody parses is a measurement nobody took, so the two T105 switches are
-// matched here and everything else keeps D-23's record-and-continue behaviour.
+// switch nobody parses is a measurement nobody took, so the value-less diagnostics
+// below are matched here and everything else keeps D-23's record-and-continue
+// behaviour.
 //
 // `--entity-tint-mutation` is the negative control for the team-tint fix and
 // `--world-tile-fill` asks for the per-material tile-fill ledger; both exist so a
 // gate can show its claim going RED, so both have to be reachable from a command
 // line without a branch of their own.
 void claimValueLessSwitch(const std::wstring& argument, std::vector<std::wstring>& unrecognized,
-    bool& entityTintMutation, bool& worldTileFill) {
+    bool& entityTintMutation, bool& worldTileFill, bool& entityBindPoseMutation) {
   if (argument == L"--entity-tint-mutation") {
     entityTintMutation = true;
+    return;
+  }
+  // Draw stage: the control that decides geometry vs skinning for the wedge the
+  // scout draws over its own chest. Value-less on purpose -- it either withholds the
+  // bone matrices or it does not, and a value would suggest a middle setting that
+  // would leave the reader unable to say which picture they were looking at.
+  if (argument == L"--entity-bind-pose-mutation") {
+    entityBindPoseMutation = true;
     return;
   }
   if (argument == L"--world-tile-fill") {
@@ -3679,6 +3688,12 @@ bool outlineVertexExtent = false;
   // product's default is the fixed path, and the trace prints mutation=1 so a
   // green run cannot be mistaken for a run where the control never fired.
   bool entityTintMutation = false;
+  // T105 draw stage: --entity-bind-pose-mutation draws every player mesh with identity
+  // bone matrices. The offline arithmetic says the scout's bind-pose soup holds no slab
+  // (7814 triangles, longest edge 5.69 map units, every mesh bbox sane), so the wedge
+  // over the chest is either geometry that range does not describe or motion that range
+  // does not show. Withholding the matrices is the one experiment that tells them apart.
+  bool entityBindPoseMutation = false;
   // T105 B: one line per fetched material with the VTF's format, dimensions,
   // chosen mip, the byte counts on both sides of the fill and a checksum of the
   // tile against a re-run of the same decode + downscale. Off by default because
@@ -4784,7 +4799,7 @@ bool outlineVertexExtent = false;
         // a T105 build failed on, so a value-less switch is resolved by name in a
         // callee and everything else is recorded exactly as before.
         claimValueLessSwitch(arguments[i], unrecognizedArguments, entityTintMutation,
-          worldTileFillTrace);
+          worldTileFillTrace, entityBindPoseMutation);
       }
     }
     persistent.render.normalize();
@@ -5692,6 +5707,17 @@ bool outlineVertexExtent = false;
   // fallback number describe a draw that never happened (measured: 35 of 96 on
   // pl_upward_f12 tick 0, all item/buildable models). Counted apart.
   std::size_t entityTintDeferredInstances = 0;
+  // T105 draw stage: how many player instances --entity-bind-pose-mutation forced to
+  // bind pose. The switch separates "the soup holds a slab" from "the bones fold the
+  // soup into a slab"; a run where the control never fired would look exactly like a
+  // run where it fired and changed nothing, so the count travels with the flag.
+  std::size_t entityBindPoseMutationInstances = 0;
+  // N17 item 3 positive control: draws whose bodygroup selector was overridden by
+  // TF2_NATIVE_BODY_MUTATION. The selector's own effect has to be a pixel reading,
+  // not a range count -- a count says the run was filtered, not that the picture
+  // followed -- so the control changes the value the draw carries and counts the
+  // draws it touched. Zero on every natural run.
+  std::size_t entityBodyMutationInstances = 0;
   // One flag per prepared mesh, in the same order, so --dump-entity-materials
   // can say which models reached a GPU texture and which did not.
   std::vector<char> entityMaterialUploadFlags;
@@ -5820,8 +5846,25 @@ bool outlineVertexExtent = false;
       // cannot be decoded is skipped WITH a reason -- guessing slot 0 for it is
       // the defect this round removes.
       std::string runsError;
-      if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs,
-            runsError, prepared.priority == tf2::native::EntityMeshPriority::WorldProp)) {
+      // N17 item 3: a player body needs the bodygroup metadata too -- without it
+      // every run's selectedForBody() is true and m_nBody is ignored. A model
+      // whose bodypart table cannot name its runs falls back to the bodygroup-free
+      // split instead of vanishing: the missing selector is then a trace line, not
+      // a missing player.
+      const bool bodygroupsWanted =
+        prepared.priority == tf2::native::EntityMeshPriority::WorldProp
+        || prepared.priority == tf2::native::EntityMeshPriority::PlayerBody;
+      bool materialRunsBuilt = tf2::native::ModelLoader::buildMaterialRuns(
+        request.inspection.metadata, prepared.runs, runsError, bodygroupsWanted);
+      if (!materialRunsBuilt && bodygroupsWanted) {
+        std::string withoutBodygroupsError;
+        materialRunsBuilt = tf2::native::ModelLoader::buildMaterialRuns(
+          request.inspection.metadata, prepared.runs, withoutBodygroupsError, false);
+        traceFmt("gpu: entity mesh bodygroups-unavailable path=%s reason=%s",
+          request.modelPath.c_str(), runsError.c_str());
+        runsError = withoutBodygroupsError;
+      }
+      if (!materialRunsBuilt) {
         // Review minor 3: a material-run failure is a build failure like any
         // other. Without this line built+failed < admitted and the ledger does
         // not balance, which is exactly what a budget account must never do.
@@ -13254,6 +13297,42 @@ bool outlineVertexExtent = false;
             draw.angles[0] = instance.transform.angles[0];
             draw.angles[1] = instance.transform.angles[1];
             draw.angles[2] = instance.transform.angles[2];
+            // N17 item 3: the player's bodygroup selector. m_nBody picks which
+            // model of each bodypart group to draw; it was read only for map
+            // models, so every subgroup of a player body drew at once. The model's
+            // own table decides what the value means -- a model with no bodygroup
+            // table has bodyCount == 0 and ignores it.
+            if (static_cast<std::size_t>(instance.entityIndex) < currentEntityStates.size()) {
+              const auto& bodyState =
+                currentEntityStates[static_cast<std::size_t>(instance.entityIndex)];
+              const auto bodyCandidates =
+                tf2::native::rankPropertyCandidates(bodyState, "m_nBody");
+              std::int64_t bodyValue = 0;
+              if (!bodyCandidates.empty()) {
+                const auto bodyProperty = bodyState.properties.find(bodyCandidates.front().name);
+                if (bodyProperty != bodyState.properties.end()) {
+                  bodyValue = bodyProperty->second.type == tf2::native::SendPropType::Float
+                    ? static_cast<std::int64_t>(bodyProperty->second.x)
+                    : bodyProperty->second.intValue;
+                }
+              }
+              draw.body = bodyValue > 0 ? static_cast<std::uint32_t>(bodyValue) : 0u;
+            }
+            // N17 item 3 positive control. The demo's players all report m_nBody = 0,
+            // so the selector's non-zero half cannot be exercised from the recording.
+            // This override names the value to force for every player draw; with it a
+            // single frame shows both sides -- the class whose bodypart model 1 is
+            // empty keeps its picture, the class whose model 1 is a different mesh
+            // changes -- which is what separates "the selector is consumed" from
+            // "the selector is parsed and dropped". Off unless the env names a value.
+            static const char* const bodyMutationEnv = std::getenv("TF2_NATIVE_BODY_MUTATION");
+            if (bodyMutationEnv != nullptr) {
+              const long forcedBody = std::strtol(bodyMutationEnv, nullptr, 0);
+              if (forcedBody >= 0) {
+                draw.body = static_cast<std::uint32_t>(forcedBody);
+                ++entityBodyMutationInstances;
+              }
+            }
             // T105: the team colour below is a FALLBACK for a mesh with no
             // texture (the original note two lines down says the skin family is
             // the paint index, not a tint, and it is right). The pixel shader
@@ -13655,7 +13734,13 @@ bool outlineVertexExtent = false;
               ledgerSkinBones = sampled.skinBones;
               ledgerValidBones = sampled.validBones;
               if (request.hasCycle) ledgerCycle = request.cycle;
-              if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
+              if (!sampled.bindPose && !sampled.skinMatrices.empty()
+                  && entityBindPoseMutation) {
+                // The pose is still sampled so the instance is otherwise identical;
+                // only the matrices are withheld. Nothing is appended to
+                // entityBoneMatrices, so no other instance's offset moves.
+                ++entityBindPoseMutationInstances;
+              } else if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
                 draw.skinningEnabled = true;
                 draw.boneOffset = static_cast<std::uint32_t>(entityBoneMatrices.size());
                 draw.boneCount = static_cast<std::uint32_t>(sampled.skinMatrices.size());
@@ -14156,6 +14241,14 @@ bool outlineVertexExtent = false;
           renderer.entityModelDrawRangeCount(), renderer.entityModelTexturedRangeCount(),
           renderer.entityModelTexturedInstanceCount(), renderer.entitySkinnedInstanceCount(),
           renderer.entityModelMeshCount(), renderer.entityModelTextureCount());
+        // N17 item 4: the entity pass silently skips a range with no material, so
+        // ranges == texturedRanges + untextured. Name the untextured ones instead
+        // of leaving the difference to arithmetic.
+        if (renderer.entityModelUntexturedRangeCount() > 0) {
+          traceFmt("scene: entityRanges untextured=%zu first=%s",
+            renderer.entityModelUntexturedRangeCount(),
+            renderer.entityModelFirstUntexturedRange().c_str());
+        }
         animationStats.bindingsResolved = animationBindings.resolveCalls();
         animationStats.cacheHits = animationBindings.cacheHits();
         animationStats.archiveReads = animationBindings.archiveReads();
@@ -15231,6 +15324,22 @@ bool outlineVertexExtent = false;
         traceFmt("gpu: entity tint white=%zu fallback=%zu deferred=%zu mutation=%d",
           entityTintWhiteInstances, entityTintFallbackInstances,
           entityTintDeferredInstances, entityTintMutation ? 1 : 0);
+        // T105 draw stage: printed only when the switch is on, so a default run's
+        // trace stays byte-identical, and a control run can be shown to have fired on
+        // N instances rather than merely to have been asked for.
+        if (entityBindPoseMutation) {
+          traceFmt("gpu: entity bindPoseMutation forced=%zu",
+            entityBindPoseMutationInstances);
+        }
+        // N17 item 3: the control's own receipt. Printed only when the environment
+        // named a value, so a natural trace keeps its old bytes, and the value that
+        // was forced is repeated here because the reader of the frame may not be the
+        // reader of the command line.
+        if (entityBodyMutationInstances > 0) {
+          traceFmt("gpu: entity bodyMutation forced=%zu body=%s",
+            entityBodyMutationInstances,
+            std::getenv("TF2_NATIVE_BODY_MUTATION") != nullptr ? std::getenv("TF2_NATIVE_BODY_MUTATION") : "-");
+        }
         // T105: a nonzero fallback is a number until it names the models behind
         // it. Sorted by count, bounded at eight, so a frame that keeps tinting
         // something says WHAT instead of only how many.

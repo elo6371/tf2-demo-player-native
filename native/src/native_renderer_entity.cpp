@@ -282,6 +282,65 @@ bool Renderer::uploadEntityModelMesh(const std::string& cacheKey, const std::vec
     }
     if (expected != count) { lastError_ = E_INVALIDARG; return false; }
   }
+  // N17 item 1: the slab's own numbers. Skipping range 97 removes it, which names
+  // the run that draws it (models/player/scout.mdl, material slot 0, window
+  // [0, 8490)) but says nothing about why those triangles look like a plank. Two
+  // candidates can be told apart here, from the CPU copy the buffer was built from:
+  // long triangles (a vertex dragged by its pose -- bind pose showed the shape
+  // changes with the pose) and texture coordinates spanning the atlas (one triangle
+  // smearing a whole sheet across the picture). Measured per material run;
+  // TF2_NATIVE_UV_DUMP holds a substring of the cache key to report, so a normal
+  // run prints nothing and cannot change a frame.
+  static const char* const slabInspectEnv = std::getenv("TF2_NATIVE_UV_DUMP");
+  if (slabInspectEnv != nullptr && !cacheKey.empty() && cacheKey.find(slabInspectEnv) != std::string::npos) {
+    for (const auto& run : validatedRuns) {
+      const auto squaredDistance = [](const EntityModelGpuVertex& p, const EntityModelGpuVertex& q) {
+        const double dx = static_cast<double>(p.x) - q.x;
+        const double dy = static_cast<double>(p.y) - q.y;
+        const double dz = static_cast<double>(p.z) - q.z;
+        return dx * dx + dy * dy + dz * dz;
+      };
+      double maxEdge = 0.0;
+      double maxUvArea = 0.0;
+      double farU = 0.0;
+      double farV = 0.0;
+      double worstU[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+      std::size_t triangles = 0;
+      std::size_t longEdges = 0;
+      std::size_t wideUv = 0;
+      std::size_t nonFinite = 0;
+      for (std::uint32_t t = 0; t + 2 < run.vertexCount; t += 3) {
+        const auto& a = local[run.vertexStart + t];
+        const auto& b = local[run.vertexStart + t + 1];
+        const auto& c = local[run.vertexStart + t + 2];
+        ++triangles;
+        if (!std::isfinite(a.u) || !std::isfinite(a.v) || !std::isfinite(b.u) || !std::isfinite(b.v)
+            || !std::isfinite(c.u) || !std::isfinite(c.v)) ++nonFinite;
+        for (const auto* p : {&a, &b, &c}) {
+          farU = std::max(farU, std::fabs(static_cast<double>(p->u)));
+          farV = std::max(farV, std::fabs(static_cast<double>(p->v)));
+        }
+        const double edge = std::sqrt(std::max({squaredDistance(a, b), squaredDistance(b, c), squaredDistance(c, a)}));
+        if (std::isfinite(edge)) {
+          maxEdge = std::max(maxEdge, edge);
+          if (edge > 8.0) ++longEdges;
+        }
+        const double uvArea = 0.5 * std::fabs((static_cast<double>(b.u) - a.u) * (static_cast<double>(c.v) - a.v)
+          - (static_cast<double>(c.u) - a.u) * (static_cast<double>(b.v) - a.v));
+        if (std::isfinite(uvArea)) {
+          if (uvArea > maxUvArea) {
+            maxUvArea = uvArea;
+            worstU[0] = a.u; worstU[1] = a.v; worstU[2] = b.u; worstU[3] = b.v; worstU[4] = c.u; worstU[5] = c.v;
+          }
+          if (uvArea > 0.02) ++wideUv;
+        }
+      }
+      std::printf("uv: key=%s slot=%u verts=%u tris=%zu maxEdge=%.2f longEdges=%zu maxUvArea=%.4f wideUv=%zu nanUv=%zu maxU=%.2f maxV=%.2f worstUv=(%.3f,%.3f)(%.3f,%.3f)(%.3f,%.3f)\n",
+        cacheKey.c_str(), run.materialSlot, run.vertexCount, triangles, maxEdge, longEdges,
+        maxUvArea, wideUv, nonFinite, farU, farV,
+        worstU[0], worstU[1], worstU[2], worstU[3], worstU[4], worstU[5]);
+    }
+  }
   D3D11_BUFFER_DESC description{};
   description.ByteWidth = static_cast<UINT>(count * sizeof(EntityModelGpuVertex));
   description.Usage = D3D11_USAGE_IMMUTABLE;
@@ -413,6 +472,8 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   entityModelSkinnedInstanceCount_ = 0;
   entityModelTexturedRangeCount_ = 0;
   entityModelTexturedInstanceCount_ = 0;
+  entityModelUntexturedRangeCount_ = 0;
+  entityModelFirstUntexturedRange_.clear();
   entityModelDrawRanges_.clear();
   if (!device_ || !context_ || !worldBoundsValid_ || instances.empty() || entityModelMeshes_.empty()) return;
   if (!std::isfinite(worldCenterX_) || !std::isfinite(worldCenterY_) || !std::isfinite(worldMinZ_)
@@ -433,6 +494,9 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     const EntityModelMesh* mesh = nullptr;
     std::uint32_t skinFamily = 0;
     std::uint32_t body = 0;
+    // The bucket's own identity string, kept so a range can be named by the same
+    // model#family#body key the instance trace uses.
+    std::string key;
     std::vector<EntityModelInstanceGpu> items;
   };
   std::vector<Bucket> buckets;
@@ -521,7 +585,11 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     // A mesh this update actually asked for is not evictable this frame. The
     // eviction policy reads this stamp (evictForEntityModelMesh).
     mesh->second.lastTouchedFrame = entityModelMeshFrame_;
-    const std::uint32_t selectedBody = instance.mapStaticProp ? instance.body : 0;
+    // N17 item 3: the bodygroup selector applies to any instance that carries
+    // one, not only to a BSP static prop -- a player body has m_nBody too. Zero
+    // is the neutral value: a model with no bodygroup table has bodyCount == 0,
+    // so every run still draws.
+    const std::uint32_t selectedBody = instance.body;
     const std::string bucketKey = instance.cacheKey + "#" + std::to_string(instance.skinFamily)
       + "#body=" + std::to_string(selectedBody);
     const auto inserted = bucketOf.emplace(bucketKey, buckets.size());
@@ -530,6 +598,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       created.mesh = &mesh->second;
       created.skinFamily = instance.skinFamily;
       created.body = selectedBody;
+      created.key = bucketKey;
       buckets.push_back(std::move(created));
     }
     EntityModelInstanceGpu gpu{};
@@ -568,16 +637,33 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     bool instanceCountedAsTextured = false;
     for (const auto& run : bucket.mesh->runs) {
       if (run.vertexCount < 3) continue;
-      if (bucket.mesh->mapStaticProp && !run.selectedForBody(bucket.body)) continue;
+      // N17 item 3: every bucket that has a bodygroup selection filters its runs,
+      // not just a static prop. Runs built without body metadata (bodyCount == 0)
+      // are unaffected, so this cannot remove geometry from a model that has no
+      // selector.
+      if (!run.selectedForBody(bucket.body)) continue;
       EntityModelDrawRange range;
       range.vertexBuffer = bucket.mesh->vertexBuffer.Get();
       range.vertexStart = run.vertexStart;
       range.vertexCount = run.vertexCount;
+      range.cacheKey = bucket.key;
+      range.body = bucket.body;
       range.instanceStart = static_cast<UINT>(packed.size());
       range.instanceCount = static_cast<UINT>(bucket.items.size());
       const auto texture = bucket.mesh->textures.find(
         EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));
       range.textureView = texture == bucket.mesh->textures.end() ? nullptr : texture->second.view();
+      if (!range.textureView) {
+        // N17 item 4: the draw loop skips a range without a material. Count it and
+        // keep the first example so the reason is on the record; a silent skip is
+        // what made 313 ranges read as 312 with no owner.
+        ++entityModelUntexturedRangeCount_;
+        if (entityModelFirstUntexturedRange_.empty()) {
+          entityModelFirstUntexturedRange_ = bucket.key + "#slot=" + std::to_string(run.materialSlot)
+            + "#verts=" + std::to_string(run.vertexCount)
+            + (bucket.mesh->mapStaticProp ? "#prop" : "#entity");
+        }
+      }
       const auto flags = bucket.mesh->materialFlags.find(
         EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));
       const auto materialFlags = flags == bucket.mesh->materialFlags.end() ? 0u : flags->second;
@@ -644,6 +730,8 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       entityModelDrawRanges_.clear();
       entityModelTexturedRangeCount_ = 0;
       entityModelTexturedInstanceCount_ = 0;
+      entityModelUntexturedRangeCount_ = 0;
+      entityModelFirstUntexturedRange_.clear();
       return;
     }
     entityModelInstanceBuffer_ = std::move(replacement);
