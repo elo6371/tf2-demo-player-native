@@ -19,7 +19,7 @@ part 只有契约没有代码，本文标出）。
 
 ## 2. 缺口（按画面影响排序）
 
-### C1（缺陷，最高）split 帧完全不画 ViewModel
+### C1（已实装 2026-11-18，残留一项待查）split 帧的 ViewModel
 
 `if (paneCount == 1u) drawViewModel();` `native_renderer_frame.cpp:1731`。
 代码注释与 `docs/FOUR-CARD-REPORT-2026-11-16.md:258` 都写明这是**有意的 defer**：
@@ -34,6 +34,26 @@ per-pane 投影 FOV/aspect 与每 pane viewmodel pass 的资源账」。
 的 pane 画，orbit/free-look pane 不画——武器不属于那种视角）。
 
 验收：同 tick 跑 split 与非 split 两帧，split 帧里 pane0 应出现武器且不被拉伸。
+
+#### C1 实装与实测（2026-11-18，work/integrate）
+
+改法（4 处，都是最小面）：
+- drawViewModel 收 pane 的宽高（native/include/native_renderer.h:1550、native/src/native_renderer_viewmodel.cpp:465），投影 aspect 由整窗改成 pane 宽/高。
+- 画哪些 pane：paneIndex == 0 且 camera == PaneCameraSource::DemoView（native/src/native_renderer_frame.cpp:1746-1750）。**不能只判 DemoView**：pane1 follow 一个玩家时两 pane 都是 DemoView，首版因此把武器画进了两个 pane。
+- 每个 pane 独立清深度（native_renderer_frame.cpp:204-210，pane>0 只清 DEPTH）：两 pane 是同一 surface 的互斥视口，pane0 的深度对 pane1 没有意义；色清仍只由 pane0 做。
+
+实测（同一 exe、同机位 1264×681、--pane-split --pane1-orbit 0.6 0.4 8.0，脚本 .scratch/n18-vm/capture*.sh）：
+
+| 对照组 | 差异像素（>8） | 说明 |
+| --- | --- | --- |
+| split vs split-novm | 32389（左 9954 / 右 22435） | 左 pane 差异就是武器+手臂（.scratch/n18-vm/diag-left.png 三联） |
+| split 三次同参 | 0 | BMP sha256 全 92046df99ae1714c，novm 恒 e5f1c8e7e4116dbf |
+| VM pass 在但 0 draw（模型不存在）vs novm | **0（逐字节相同）** | 扰动来自 VM 的 draw 本身，不是 pass 建立或清深度 |
+| pane1 改固定 orbit 后的右半残留 | 1203（103×48 一个远景道具，斑点状 9–140） | 见下 |
+
+**残留（待查）**：画了武器后 pane1 有微小差异，集中在远景道具的斑点上（约 0.28% 的右 pane；pane1 盯玩家实体时曾达 5%）。已排除：纹理图集（两跑 gpu: world atlas size=4112 bytes=67634176 atlases=2 一致）、深度（per-pane clear 前后 BMP sha 不变）、sampler 未重绑（native_renderer_frame.cpp:722 / :1149 每 pass 重绑）、世界 t0 被武器材质污染（worldDrawsWithWeaponTexture=0）。现象可复现且确定（同配置逐字节相同），机制未定位。不影响 pane0 的正确性，也不进默认帧（split 与 --player-animation 都是开关）。
+
+**契约语义变化**：split 下 VM 在 pane1 的世界之前，因此 gpu: viewmodel pass order ... worldPass=9 viewModelPass=8 afterWorld=0；viewmodel-contract-check.sh 的 afterWorld=1 断言只在单 pane 成立，split 帧要按「pane0 世界之后」读。
 
 ### C2 world FOV 只能改 settings.ini
 

@@ -1547,7 +1547,15 @@ public:
   // and before the frame capture, so the frame that gets written to disk is the
   // one that already contains the ViewModel. Returns true only when a draw was
   // actually issued.
-  bool drawViewModel();
+  //
+  // viewportWidth/Height name the pane this pass draws into. The ViewModel's
+  // projection has always been built from the window aspect, which is the pane's
+  // aspect in a single-pane frame; in a split frame the two are not the same, so
+  // the caller passes the pane it is drawing and the weapon stops being stretched
+  // by the window. Passing 0,0 keeps the window aspect (the pre-split behaviour
+  // for any caller that has no pane to name).
+  bool drawViewModel(std::uint32_t viewportWidth = 0u,
+    std::uint32_t viewportHeight = 0u);
   std::size_t viewModelDrawCount() const { return viewModelDrawCount_; }
   std::size_t viewModelDrawCallCount() const { return viewModelDrawCallCount_; }
   std::size_t viewModelVertexCount() const { return viewModelVertexCount_; }

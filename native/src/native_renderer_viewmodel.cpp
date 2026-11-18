@@ -462,7 +462,7 @@ void Renderer::setViewModelState(const ViewModelDrawState& state) {
   viewModelState_.fov = clampViewModelFov(state.fov);
 }
 
-bool Renderer::drawViewModel() {
+bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewportHeight) {
   viewModelMvp_.fill(0.0f);
   // Cleared before every early return, so a refusal this frame cannot leave the
   // previous frame's count behind and read as "it skinned".
@@ -562,7 +562,13 @@ bool Renderer::drawViewModel() {
     world[2], world[6], world[10], 0.0f,
     world[3], world[7], world[11], 1.0f);
   const XMMATRIX view = XMLoadFloat4x4(&frameView_);
-  const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
+  // N18: the pane's aspect when the caller named one. A split frame draws two
+  // panes on one surface; the window aspect would stretch the weapon into the
+  // half it is not drawn in (and squash it in the half it is).
+  const std::uint32_t aspectWidth = viewportWidth != 0u ? viewportWidth : width_;
+  const std::uint32_t aspectHeight = viewportHeight != 0u ? viewportHeight : height_;
+  const float aspect = aspectHeight == 0 ? 1.0f
+    : static_cast<float>(aspectWidth) / static_cast<float>(aspectHeight);
 
   // Its own projection: the ViewModel FOV, and a near plane derived from the
   // model's own radius so the whole weapon is in front of it.

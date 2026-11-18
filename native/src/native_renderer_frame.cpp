@@ -207,6 +207,18 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
       ++paneDepthClears_;
     }
+  } else if (depthStencilView_) {
+    // The colour clear above stays pane 0's job -- clearing it again would erase
+    // the half that is already drawn. Depth is the opposite: the two panes are
+    // disjoint viewports of one surface, so a depth value written by pane 0 says
+    // nothing about what pane 1 should occlude. Adding this clear did not change
+    // the captured split frame with a weapon (the ViewModel pass clears the same
+    // surface first), so it is a correctness fix rather than a visual one: the
+    // split frame that draws no weapon used to depth-test pane 1 against pane 0's
+    // map. A full-surface clear is safe here because pane 0 has finished drawing
+    // and nothing after the panes tests depth against it.
+    context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+    ++paneDepthClears_;
   }
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   // R1: the cleared baseline. Every plane below is measured against it -- if
@@ -1724,11 +1736,19 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   // First person, after the world and entity passes and before the capture, so
   // the frame written to disk already contains the weapon. The pass restores the
   // world depth state it overrides, so a later HUD pass (T3) is unaffected.
-  // U4 step 2b: the ViewModel pass builds its projection from the window aspect
-  // and clears the whole depth surface, so a split frame defers it -- the weapon
-  // overlay is not part of the two-pane skeleton, and drawing it twice would be
-  // the wrong fix. The single-pane path is unchanged.
-  if (paneCount == 1u) drawViewModel();
+  // U4 step 2b deferred the split frame's weapon because the pass built its
+  // projection from the window aspect. N18 closes that: the pass takes the pane's
+  // own width/height, and it draws only in pane 0 while that pane stands in the
+  // player. Pane 1 is a second camera -- a weapon overlay there would be the
+  // local player's gun drawn into somebody else's eyeline, and both panes are
+  // DemoView when pane 1 follows a player, so "any DemoView pane" is too loose.
+  // The single-pane path keeps drawing unconditionally, so a lone orbit view
+  // behaves exactly as before.
+  const bool paneStandsInPlayer =
+    paneIndex == 0u && paneBoundary_.panes[paneIndex].camera == PaneCameraSource::DemoView;
+  if (paneCount == 1u || paneStandsInPlayer) {
+    drawViewModel(paneWidth, paneHeight);
+  }
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   noteDepthState("post-viewmodel:write-all");
   capturePassDepth("80-post-viewmodel");
