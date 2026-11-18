@@ -3504,14 +3504,23 @@ bool outlineVertexExtent = false;
   // refused as `missing` and the bind pose is what gets drawn. Reaching a pose at
   // all on this input needs `--viewmodel-sequence` above.
   bool viewModelApplyAnimation = false;
-  // T61: third-person player animation. OFF by default, and the default is the
-  // point. The demos this product can play carry no per-player m_nSequence or
-  // m_flCycle -- a CTFPlayer entity's animation properties are absent, which is
-  // exactly why the entity pass refuses every player pose today. Turning this on
-  // makes a player body pose from its own origin speed through the pure clock,
-  // so a gate can prove the sampling chain end to end; a natural run keeps
-  // rendering the bind pose exactly as before.
-  bool playerAnimationEnabled = false;
+  // T61: third-person player animation. ON by default since 2026-11-18.
+  //
+  // The demos this product can play carry no per-player m_nSequence or m_flCycle
+  // -- a CTFPlayer entity's animation properties are absent -- so a player body
+  // can never pose from server data. What it does instead is pose from its own
+  // origin speed through the animation clock, which is what makes a standing
+  // Scout breathe and a running one run. The bind pose is not a neutral default:
+  // it is a visibly broken body, and the same-tick comparison that decided this
+  // (docs/N17-ANIMATION-DEFAULT-2026-11-18.md) shows every visible player in the
+  // frame changing pose.
+  //
+  // `--player-animation off` keeps the old, undriven picture byte for byte, which
+  // is what the pre-flip gate baselines and any A/B need. A bare
+  // `--player-animation` still means on, because the gates that already spell it
+  // that way pass it without a value, and a default change must not silently
+  // rewrite what they measure.
+  bool playerAnimationEnabled = true;
   // T84: the server-data-driven LAYER on top of T61's idle/moving drive.
   // legacy (the default) keeps the T61 pick and therefore the pre-T84 picture
   // byte for byte; states reads the player entity's own crouch and health
@@ -4628,7 +4637,18 @@ bool outlineVertexExtent = false;
         // the frame the caller wanted to keep as a baseline.
         playerWeaponAttachArgumentRejected = true;
       } else if (wcscmp(arguments[i], L"--player-animation") == 0) {
-        playerAnimationEnabled = true;
+        // The animation is on by default now, so the interesting spelling is the
+        // one that turns it off. `on|off` is parsed; a bare switch stays "on" so
+        // the gates that already spell it that way keep measuring the driven path.
+        if (i + 1 < argumentCount && wcscmp(arguments[i + 1], L"off") == 0) {
+          playerAnimationEnabled = false;
+          ++i;
+        } else if (i + 1 < argumentCount && wcscmp(arguments[i + 1], L"on") == 0) {
+          playerAnimationEnabled = true;
+          ++i;
+        } else {
+          playerAnimationEnabled = true;
+        }
       } else if (wcscmp(arguments[i], L"--animation-drive") == 0 && i + 1 < argumentCount) {
         // Refused rather than defaulted, for the same reason --capture-tick is:
         // "the gate asked for states" and "the gate asked for nothing" must not

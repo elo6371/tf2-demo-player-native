@@ -269,7 +269,8 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
   # and 1 for every identity/animated one. off is still compared to the other
   # passes inside the row -- same request, same tick, same scene tick -- which is
   # what the flag-inert assertions need; it just has no phase to be pinned to.
-  read -r off_rc off_view off_ft off_st off_ph off_try < <(run_frame_until_phase "$dir" off - "$eyeX" "$eyeY" "$eyeZ")
+  # The undriven frame now needs the switch: animation is on by default.
+  read -r off_rc off_view off_ft off_st off_ph off_try < <(run_frame_until_phase "$dir" off - "$eyeX" "$eyeY" "$eyeZ" --player-animation off)
 
   # The SAME request a second time, in a second process: this pair is what turns
   # the pixel count below from "a frame we got" into "the frame the request

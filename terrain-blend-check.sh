@@ -242,6 +242,7 @@ run_product() { # run_product <name> [extra args...]
     --settings-file "$ISO_SETTINGS" \
     --ui-settings-file "$ISO_UI" \
     --demo "$DEMO" --start-paused --capture-tick "$TICK" \
+    --player-animation off \
     --capture-frame "$(cygpath -m "$PWD/$bmp")" --metrics-file "$csv" "$@" \
     > "$log" 2>&1
   printf -v "RC_$name" '%s' "$?"

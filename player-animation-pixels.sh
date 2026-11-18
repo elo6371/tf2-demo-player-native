@@ -150,7 +150,10 @@ read -r cov_rc cov_view cov_ft cov_st < <(run_frame coverage --world-entity-cove
 echo "  coverage rc=$cov_rc view=$cov_view frameTick=$cov_ft sceneTick=$cov_st"
 read -r on_rc on_view on_ft on_st < <(run_frame animated --player-animation)
 echo "  animated rc=$on_rc view=$on_view frameTick=$on_ft sceneTick=$on_st"
-read -r off_rc off_view off_ft off_st < <(run_frame off)
+# `off` is spelled out: the animation is on by default since 2026-11-18, so an
+# unflagged run would be a second animated run and the A-B below would compare
+# two driven frames.
+read -r off_rc off_view off_ft off_st < <(run_frame off --player-animation off)
 echo "  off     rc=$off_rc view=$off_view frameTick=$off_ft sceneTick=$off_st"
 # Determinism: the same capture, run twice, must be byte-identical. A frame that
 # cannot be reproduced is not a controlled A-B -- the on/off comparison below

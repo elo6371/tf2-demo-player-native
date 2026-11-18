@@ -118,7 +118,8 @@ capture() {
 }
 
 capture driven --player-animation || say_fail "the driven capture failed"
-capture undriven || say_fail "the undriven capture failed"
+# Undriven is now a named switch rather than the absence of one.
+capture undriven --player-animation off || say_fail "the undriven capture failed"
 
 if [[ ! -s "$CAP/driven.trace" || ! -s "$CAP/undriven.trace" ]]; then
   echo "BONE-MISMATCH-SEMANTICS=FAIL no traces to judge"
