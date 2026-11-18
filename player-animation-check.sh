@@ -326,7 +326,18 @@ ticks=$(grep '^animticks mode=synthetic ' "$SCOUT_LOG" | head -1)
 echo "  $ticks"
 assert_eq "E synthetic ticks" "$(field "$ticks" ticks)" "61"
 assert_ge "E synthetic movingTicks" "$(field "$ticks" movingTicks)" 1
-moving_min=$(( $(field "$ticks" movingTicks) - 1 ))
+# NOTE (2026-11-14): do NOT nest a command substitution that contains a quoted word
+# inside `$(( ))` on this host. bash 5.3.20(1)-release (x86_64-pc-msys) silently leaves
+# the literal text "$(( 31 - 1 ))" unexpanded for that shape (reproducer:
+# D:/_shared/EXEC-2026-11-15/LEAD/arith-probe.sh), which made this assertion report a
+# nonsense "expected >= $(( 31 - 1 ))". Compute the value in two steps instead.
+moving_ticks=$(field "$ticks" movingTicks)
+case "$moving_ticks" in
+  ''|*[!0-9]*)
+    echo "  FAIL E synthetic movingTicks is not a non-negative integer: '${moving_ticks}'"; fail=1; moving_min=0 ;;
+  *)
+    moving_min=$(( moving_ticks - 1 )) ;;
+esac
 assert_ge "E synthetic movingAdvanced (baseline excluded)" "$(field "$ticks" movingAdvanced)" "$moving_min"
 assert_eq "E synthetic idleAdvanced" "$(field "$ticks" idleAdvanced)" "0"
 assert_eq "E synthetic maxIdleDelta" "$(field "$ticks" maxIdleDelta)" "0.000000000"
@@ -359,10 +370,31 @@ if [ "$DEMO_RC" = "0" ]; then
   assert_gt_float "E demo maxMovingDelta" "$(field "$demo" maxMovingDelta)" 0
   # The printed tick lines are the same rule at line granularity: a moving tick
   # that did not advance, or an idle tick that did, is the defect m1/m4 make.
-  bad_move=$(grep '^animtick mode=demo ' "$DEMO_LOG" | awk '{ speed=-1; adv=-1; state=""; for (i=1;i<=NF;i++) { split($i,kv,"="); if (kv[1]=="speed") speed=kv[2]; if (kv[1]=="advanced") adv=kv[2]; if (kv[1]=="state") state=kv[2] } if (state=="moving" && adv==0) print }' | wc -l | tr -d ' ')
-  bad_idle=$(grep '^animtick mode=demo ' "$DEMO_LOG" | awk '{ adv=-1; state=""; for (i=1;i<=NF;i++) { split($i,kv,"="); if (kv[1]=="advanced") adv=kv[2]; if (kv[1]=="state") state=kv[2] } if (state=="idle" && adv==1) print }' | wc -l | tr -d ' ')
-  assert_eq "E demo printed moving ticks that did not advance" "$bad_move" "0"
-  assert_eq "E demo printed idle ticks that advanced" "$bad_idle" "0"
+  # D55 (2026-11-15): the old reader (HEAD :362-:363) took advanced= as a NUMBER
+  # (adv==0 / adv==1), so it did catch a moving tick that did not advance and an idle
+  # tick that did -- measured, not assumed. What it also did was start adv at -1 and
+  # treat an UNREADABLE or MISSING advanced= field as "not a violation": a line with
+  # no advanced= at all left adv=-1, matched neither test, and both assertions passed
+  # (a silent false green). This reader normalises the CR the probe's MSVC text-mode
+  # stdout leaves ("1\r"), parses the field by name, and counts a line whose state=
+  # or advanced= cannot be read as a parse FAILURE rather than as clean.
+  tick_stats=$(grep '^animtick mode=demo ' "$DEMO_LOG" | tr -d '\r' | awk '
+    {
+      state = ""; adv = ""; ++lines
+      for (i = 1; i <= NF; ++i) {
+        if ($i ~ /^state=/) { split($i, kv, "="); state = kv[2] }
+        if ($i ~ /^advanced=/) { split($i, kv, "="); adv = kv[2] }
+      }
+      if (state == "" || adv == "") { ++bad_parse; next }
+      if (state == "moving" && adv + 0 == 0) ++bad_move
+      if (state == "idle" && adv + 0 == 1) ++bad_idle
+    }
+    END { printf "lines=%d bad_move=%d bad_idle=%d bad_parse=%d\n", lines + 0, bad_move + 0, bad_idle + 0, bad_parse + 0 }')
+  echo "  $tick_stats"
+  assert_ge "E demo printed tick lines (the rule below needs at least one)" "$(field "$tick_stats" lines)" 1
+  assert_eq "E demo printed tick lines whose advanced= field parsed" "$(field "$tick_stats" bad_parse)" "0"
+  assert_eq "E demo printed moving ticks that did not advance" "$(field "$tick_stats" bad_move)" "0"
+  assert_eq "E demo printed idle ticks that advanced" "$(field "$tick_stats" bad_idle)" "0"
 fi
 
 echo

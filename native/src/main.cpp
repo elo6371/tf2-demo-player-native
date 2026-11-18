@@ -1,4 +1,7 @@
 #include "native_renderer.h"
+// T105 B: std::function carries the tile-fill reading's downscale so the check
+// runs the same lambda the fetch used rather than a copy of it.
+#include <functional>
 #include "asset_root.h"
 #include "map_lookup.h"
 #include "settings_store.h"
@@ -34,12 +37,15 @@
 #include "animation_clock.h"
 #include "item_schema.h"
 #include "native_ui.h"
+#include "pane_input.h"
 // T70: the request/landing ledger. Pure logic (no Win32/D3D) so the probe
 // that checks the transport rules links the same translation unit the product
 // runs.
 #include "playback_control.h"
 #include "hud_import.h"
 #include "hud_state.h"
+#include "map_basemap.h"
+#include "map_overview.h"
 #include "hud_panel.h"
 // wideToUtf8 / utf8ToWide: the narrow/wide bridge the HUD document path needs,
 // shared with T50's settings layer rather than re-implemented here.
@@ -74,7 +80,16 @@
 #include "main_internal.h"
 #include "playback_state.h"
 #include "main_hud.h"
+#include "target_identity.h"
+// E9: the minimap panel's tables, projection and frame hand-off. Header-only by
+// design -- the product does not link src/minimap.cpp (that object belongs to the
+// probe target), so the drawing half calls the inline rules the header carries.
+#include "minimap.h"
 #include "main_camera.h"
+// T76 stage 4 (2026-11-13): the camera-script driver is a second translation
+// unit now (src/camera_script.cpp). Declarations only; the using-directive
+// below keeps every call site in this file spelled exactly as it was.
+#include "camera_script.h"
 
 using namespace tf2::native::main_internal;
 
@@ -164,10 +179,292 @@ bool g_keybindsLoaded = false;
 // True while a text field has focus. Set by the bookmark-name edit control's
 // EN_SETFOCUS/EN_KILLFOCUS; read by shouldDispatchHotkey before every key.
 bool g_textFieldFocused = false;
+// T76 stage 4 (2026-11-13): the T50 camera-script driver moved to
+// src/camera_script.cpp, and it names the key table, the pause controller, the
+// review session and the hotkey dispatcher. As in stage 3 the objects and the
+// two dispatchers stay DEFINED in this translation unit -- the same objects, in
+// the same order among themselves -- and only their linkage changed; the
+// declarations are in main_internal.h, following the pattern above.
+//
+// g_keyBinds stays here rather than moving into the camera module: the window
+// procedure's key arm and registerKeybinds own it, and hud-check.sh's
+// mutation-3 deletes a line out of registerKeybinds in THIS file.
+tf2::native::PauseKeyController g_pauseKey;
+tf2::native::KeyBindTable g_keyBinds = tf2::native::defaultKeyBindings();
+// Which action a key edge dispatched, last one only. Reported in the summary so
+// a run that pressed nothing and a run whose press found no binding are
+// different readings.
+std::string g_lastDispatchedAction;
+std::uint32_t g_hotkeySuppressedByFocus = 0;
+// The one session for this process. A global because the scripted step executor
+// (runCameraScriptStep) and the window procedure both reach it, and because its
+// lifetime must outlive the loop -- finish() is what closes the file.
+std::unique_ptr<tf2::native::ReviewSession> g_reviewSession;
+
+// One key edge, already classified by the window procedure. The action id drives
+// the work, so a rebound key does the same thing as the default key.
+bool handleCameraAction(const std::string& action, std::string& reason) {
+  using namespace tf2::native;
+  reason = "ok";
+  if (action == camera_actions::kFreeFly) {
+    // Free-fly is a MODE, not a one-shot: it leaves whatever feeds the camera
+    // and holds the orbit where the user put it (CameraMode::FreeLook).
+    const bool enabling = g_cameraMode.mode() != CameraMode::FreeLook;
+    g_cameraMode.setMode(enabling ? CameraMode::FreeLook : CameraMode::FirstPerson);
+    g_lastAppliedCameraMode = g_cameraMode.mode();
+    g_cameraDirector.setFreeFly(enabling);
+    if (g_renderer && enabling) g_renderer->clearObserverDemoView();
+    reason = enabling ? "free-fly-on" : "free-fly-off";
+    return true;
+  }
+  if (action == camera_actions::kResetToPlayer) {
+    // "Back to the player": first-person, and the demo eye is adopted at the
+    // next scene tick (the eye belongs to the tick, so applying it here would
+    // be overwritten immediately).
+    g_cameraMode.setMode(CameraMode::FirstPerson);
+    g_lastAppliedCameraMode = CameraMode::FirstPerson;
+    g_cameraDirector.setFreeFly(false);
+    g_cameraDirector.requestResetToPlayer();
+    reason = "reset-to-player";
+    return true;
+  }
+  if (action == camera_actions::kResetView) {
+    g_cameraDirector.resetView();
+    syncDirectorPoseToRenderer(CameraMoveSource::Reset);
+    reason = "reset-view";
+    return true;
+  }
+  for (std::size_t slot = 1; slot <= kCameraBookmarkSlots; ++slot) {
+    if (action == camera_actions::jumpBookmark(slot)) {
+      std::string jumpReason;
+      const bool ok = jumpToCameraBookmark(slot, jumpReason);
+      reason = jumpReason;
+      return ok;
+    }
+    if (action == camera_actions::saveBookmark(slot)) {
+      const bool ok = saveCameraBookmark(slot, std::string());
+      reason = ok ? "saved" : "refused";
+      return ok;
+    }
+    if (action == camera_actions::deleteBookmark(slot)) {
+      const bool ok = g_cameraBookmarks.remove(slot);
+      reason = ok ? "deleted" : "empty";
+      if (ok && g_renderer) g_renderer->clearCameraPreset(slot - 1);
+      return ok;
+    }
+  }
+  reason = "unhandled";
+  return false;
+}
+
+// One key edge, from the window procedure or the acceptance driver. The focus
+// rule is consulted FIRST, before the table: a text field owns every keystroke
+// while it has focus, including keys that are also bound.
+bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character,
+    std::string& action, std::string& result) {
+  if (!tf2::native::shouldDispatchHotkey(g_textFieldFocused, character)) {
+    ++g_hotkeySuppressedByFocus;
+    // Both the product counter and the table's own count move, so the summary
+    // line and the table cannot disagree about how often focus won.
+    g_keyBinds.noteSuppressedByFocus();
+    action.clear();
+    // The message names the rule, not just the failure: a user who wonders why
+    // F1 did nothing inside the name field gets "suppressed-by-focus" in the
+    // trace rather than silence.
+    result = "suppressed-by-focus";
+    return false;
+  }
+  tf2::native::KeyChord chord;
+  chord.vk = vk;
+  chord.ctrl = ctrl;
+  chord.alt = alt;
+  chord.shift = shift;
+  const auto dispatched = g_keyBinds.dispatch(chord);
+  if (dispatched.result != tf2::native::KeyDispatchResult::Ok) {
+    action.clear();
+    // "unbound" is a legal state and is reported as one: there is no fallback
+    // key table behind this, by design.
+    result = "unbound";
+    return false;
+  }
+  action = dispatched.action;
+  g_lastDispatchedAction = action;
+  std::string reason;
+  handleCameraAction(action, reason);
+  result = "ok:" + reason;
+  return true;
+}
 }  // namespace tf2::native::main_internal
 
 namespace {
 
+// T105: claim a switch that takes no value, from the argument loop's fall-through
+// branch. See the call site: the else-if chain cannot grow a branch (C1061), and a
+// switch nobody parses is a measurement nobody took, so the two T105 switches are
+// matched here and everything else keeps D-23's record-and-continue behaviour.
+//
+// `--entity-tint-mutation` is the negative control for the team-tint fix and
+// `--world-tile-fill` asks for the per-material tile-fill ledger; both exist so a
+// gate can show its claim going RED, so both have to be reachable from a command
+// line without a branch of their own.
+void claimValueLessSwitch(const std::wstring& argument, std::vector<std::wstring>& unrecognized,
+    bool& entityTintMutation, bool& worldTileFill) {
+  if (argument == L"--entity-tint-mutation") {
+    entityTintMutation = true;
+    return;
+  }
+  if (argument == L"--world-tile-fill") {
+    worldTileFill = true;
+    return;
+  }
+  unrecognized.push_back(argument);
+}
+
+// T105 B: the VTF format's own numbering, named. The number alone leaves a reader
+// holding the format table in their head to tell "a DXT1 tile came out noisy"
+// from "the decoder read the bytes at the wrong stride"; the name is the
+// reading. The list is Source's VTF format enumeration, not this decoder's
+// private opinion, so the number in the trace and the name beside it are one
+// fact.
+const char* vtfFormatLabel(std::uint32_t format) {
+  switch (format) {
+    case 0u: return "RGBA8888";
+    case 1u: return "ABGR8888";
+    case 2u: return "RGB888";
+    case 3u: return "BGR888";
+    case 4u: return "RGB565";
+    case 5u: return "I8";
+    case 6u: return "IA88";
+    case 7u: return "P8";
+    case 8u: return "A8";
+    case 9u: return "RGB888_BLUESCREEN";
+    case 10u: return "BGR888_BLUESCREEN";
+    case 11u: return "ARGB8888";
+    case 12u: return "BGRA8888";
+    case 13u: return "DXT1";
+    case 14u: return "DXT3";
+    case 15u: return "DXT5";
+    case 16u: return "BGRX8888";
+    case 17u: return "BGR565";
+    case 18u: return "BGRX5551";
+    case 19u: return "BGRA4444";
+    case 20u: return "DXT1_ONEBITALPHA";
+    case 21u: return "BGRA5551";
+    case 22u: return "UV88";
+    case 23u: return "UVWQ8888";
+    case 24u: return "RGBA16161616F";
+    case 25u: return "RGBA16161616";
+    case 26u: return "UVLX8888";
+    default: return "unknown";
+  }
+}
+
+// T105 B: FNV-1a over bytes. Used only to compare two byte buffers this process
+// produced, so the hash needs to be cheap and deterministic, not cryptographic.
+std::uint32_t tileFillChecksum(const std::vector<std::uint8_t>& bytes) {
+  std::uint32_t hash = 2166136261u;
+  for (const std::uint8_t value : bytes) {
+    hash ^= value;
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
+// T105 B: how much of a buffer is near-white and how much is near-black. A glass
+// tile that looks like white noise on a dark base has a shape in these two
+// numbers -- and if the SOURCE decode already carries them, the noise is in the
+// asset rather than in the fill.
+void tileFillExtremes(const std::vector<std::uint8_t>& rgba, std::size_t& bright, std::size_t& dark) {
+  bright = 0;
+  dark = 0;
+  for (std::size_t at = 0; at + 3 < rgba.size(); at += 4) {
+    const std::uint32_t luma = (static_cast<std::uint32_t>(rgba[at]) * 77u
+      + static_cast<std::uint32_t>(rgba[at + 1]) * 150u
+      + static_cast<std::uint32_t>(rgba[at + 2]) * 29u) >> 8;
+    if (luma >= 200u) ++bright;
+    else if (luma < 24u) ++dark;
+  }
+}
+
+// T105 B: the tile-fill reading, one line per fetched material.
+//
+// The aggregate material-fetch ledger says how many materials got a tile; it
+// cannot say which mip, which format, or whether the tile holds the pixels the
+// decoder returned. This does, and it answers the question a noisy material
+// raises without a third-party decoder: the same VTF bytes are decoded AGAIN by
+// the product's own decoder and the same downscale is run again, so
+// `agreeDecode`/`agreeTile` compare the fill against a fresh run of the code
+// under test, not against a second implementation that could disagree for its
+// own reasons. `decodedBright`/`decodedDark` are measured on the SOURCE decode:
+// when they are non-zero the speckle is in the asset, and no fill change can
+// remove it.
+void traceWorldTileFill(const std::string& materialName, const std::string& vmtPath,
+    const std::string& vtfPath, const std::string& vtfStore,
+    const tf2::native::VtfTexture& texture, const std::vector<std::uint8_t>& bytes,
+    const std::vector<std::uint8_t>& decoded, const std::vector<std::uint8_t>& tile,
+    UINT tileWidth, UINT tileHeight,
+    const std::function<bool(const std::vector<std::uint8_t>&, UINT, UINT, UINT,
+      std::vector<std::uint8_t>&, UINT&, UINT&)>& downscale) {
+  const tf2::native::VtfHeader& header = texture.header();
+  const std::vector<std::uint8_t> redecode = texture.decodeRgba(bytes);
+  std::vector<std::uint8_t> retile;
+  UINT retileWidth = header.width;
+  UINT retileHeight = header.height;
+  const bool retileOk = !redecode.empty()
+    && downscale(redecode, header.width, header.height, 512u, retile, retileWidth, retileHeight);
+  std::size_t decodedBright = 0;
+  std::size_t decodedDark = 0;
+  std::size_t tileBright = 0;
+  std::size_t tileDark = 0;
+  tileFillExtremes(decoded, decodedBright, decodedDark);
+  tileFillExtremes(tile, tileBright, tileDark);
+  const std::uint32_t decodedChecksum = tileFillChecksum(decoded);
+  const std::uint32_t redecodeChecksum = tileFillChecksum(redecode);
+  const std::uint32_t tileChecksum = tileFillChecksum(tile);
+  const std::uint32_t retileChecksum = retileOk ? tileFillChecksum(retile) : 0u;
+  // T105 B (lead's mip follow-up): name the mip. decodeRgba always decodes the TOP
+  // mip of the chain, so decodeMip=0 answers "which mip produced these pixels"; the
+  // tile is that decode box-downscaled when it is wider than 512, so mipEquiv names
+  // the mip LEVEL the tile now corresponds to (0 = the tile is mip 0; 2 = the fill
+  // threw away two halvings before the sampler ever saw it). Glass at
+  // $transform scale 4 4 rotate 45 has high uv density, so a tile that starts life
+  // mip-equivalent-2 is a plausible source of speckle even with correct bytes: the
+  // tile kept a coarser level than the sampling density asked for. downscale=WxH is
+  // the integer ratio src/tile that produced that level, or 1x1 when no downscale
+  // ran. -- prints 0 remainders as exact ratios; a non-power-of-two ratio prints
+  // mipEquiv=-1 because it is not a mip level, it is a resample.
+  const UINT tileRatioWidth = tileWidth > 0u ? (header.width + tileWidth / 2u) / tileWidth : 1u;
+  const UINT tileRatioHeight = tileHeight > 0u ? (header.height + tileHeight / 2u) / tileHeight : 1u;
+  int tileMipEquivalent = -1;
+  if (tileRatioWidth >= 1u && tileRatioWidth == tileRatioHeight) {
+    UINT power = tileRatioWidth;
+    int level = 0;
+    bool exact = true;
+    while (power > 1u) {
+      if ((power & 1u) != 0u) { exact = false; break; }
+      power >>= 1u;
+      ++level;
+    }
+    if (exact) tileMipEquivalent = level;
+  }
+  traceFmt("gpu: world tile-fill material=%s vmt=%s vtf=%s store=%s format=%u(%s) mips=%u"
+    " decodeMip=0 mipEquiv=%d downscale=%ux%u src=%dx%d"
+    " decodedBytes=%zu decodedChecksum=%08x redecodeChecksum=%08x"
+    " redecodedBytes=%zu tile=%ux%u tileBytes=%zu tileChecksum=%08x retileChecksum=%08x"
+    " agreeDecode=%d agreeTile=%d decodedBright=%zu decodedDark=%zu"
+    " tileBright=%zu tileDark=%zu",
+    materialName.c_str(), vmtPath.empty() ? "-" : vmtPath.c_str(),
+    vtfPath.empty() ? "-" : vtfPath.c_str(), vtfStore.empty() ? "-" : vtfStore.c_str(),
+    header.format, vtfFormatLabel(header.format), static_cast<unsigned>(header.mipCount),
+    tileMipEquivalent, static_cast<unsigned>(tileRatioWidth), static_cast<unsigned>(tileRatioHeight),
+    static_cast<int>(header.width), static_cast<int>(header.height), decoded.size(),
+    decodedChecksum, redecodeChecksum, redecode.size(),
+    static_cast<unsigned>(tileWidth), static_cast<unsigned>(tileHeight), tile.size(),
+    tileChecksum, retileChecksum,
+    redecode.size() == decoded.size() && redecodeChecksum == decodedChecksum ? 1 : 0,
+    retileOk && retile.size() == tile.size() && retileChecksum == tileChecksum ? 1 : 0,
+    decodedBright, decodedDark, tileBright, tileDark);
+}
 // T61: pick the sequence a player model plays for a drive state.
 //
 // The sequence table is the model's own; this does not invent one. The whole of
@@ -182,9 +479,8 @@ namespace {
 // FIRST token is the needle wins -- run_PRIMARY is a cycle, while
 // layer_AttackStandMelee_runS_arms merely mentions "run".
 //
-// IDLE keeps the pre-T61.1 substring test and gets no primary tier. The matching
-// "stand"/"AttackStand" defect is a separate task: this change fixes one cause
-// and does not retune the selector.
+// IDLE uses the same token and primary-action rules: stand_PRIMARY is a generic
+// standing cycle, while AttackStand_PRIMARY is an attack action, not idle.
 //
 // Returns -1 when the table has no such label; the caller then leaves the entity
 // alone rather than forcing sequence 0, which on a player model is a stand pose
@@ -211,8 +507,7 @@ std::int32_t choosePlayerAnimationSequence(
       binding.anims.sequences.size(), labelAt, frameCountAt,
       moving ? tf2::native::kMovingNeedles : tf2::native::kIdleNeedles,
       moving ? tf2::native::kMovingNeedleCount : tf2::native::kIdleNeedleCount,
-      moving ? tf2::native::SequenceMatchMode::WholeToken
-             : tf2::native::SequenceMatchMode::Substring,
+      tf2::native::SequenceMatchMode::WholeToken,
       label);
 }
 
@@ -294,21 +589,16 @@ tf2::native::OverlaySampleTier overlaySampleTier = tf2::native::OverlaySampleTie
 float g_debugCameraEye[3] = {0.0f, 0.0f, 0.0f};
 float g_debugCameraPitch = 0.0f;
 float g_debugCameraYaw = 0.0f;
-tf2::native::PauseKeyController g_pauseKey;
 // T76: the last applied mode is defined in src/main_camera.cpp (it is written by
-// jumpToCameraBookmark there and read by handleCameraAction below).
+// jumpToCameraBookmark there and read by handleCameraAction, which T76 stage 4
+// moved to the namespace block at the top of this file).
 
 // T50. The camera director owns the freeze rule and the camera operations; the
 // bookmark store owns the named positions. T76: both objects are defined in
-// src/main_camera.cpp with the pose/bookmark functions. The key table below
-// stays HERE on purpose: the window procedure's key arm and registerKeybinds
-// own it, and hud-check.sh's mutation-3 deletes a line out of this file.
-tf2::native::KeyBindTable g_keyBinds = tf2::native::defaultKeyBindings();
-// Which action a key edge dispatched, last one only. Reported in the summary so
-// a run that pressed nothing and a run whose press found no binding are
-// different readings.
-std::string g_lastDispatchedAction;
-std::uint32_t g_hotkeySuppressedByFocus = 0;
+// src/main_camera.cpp with the pose/bookmark functions, and T76 stage 4 moved
+// the shared key table up to the namespace block at the top of this file so
+// src/camera_script.cpp can name it; registerKeybinds and the window
+// procedure's key arm stay here.
 std::uint32_t g_cameraFollows = 0;       // scene ticks that followed an observe target
 std::uint32_t g_cameraHoldsNoTarget = 0; // scene ticks with no target: camera held, never moved
 std::uint32_t g_cameraFreezeFrames = 0;  // free-look scene ticks: nothing fed the camera
@@ -321,6 +611,77 @@ std::uint32_t g_cameraModeApplies = 0;
 // comparing against it would make a mode set while paused look already applied --
 // the exact false green T85 defect B is about.
 tf2::native::CameraMode g_frameAppliedCameraMode = tf2::native::CameraMode::FirstPerson;
+// U4 step 3: the pane the pointer/keyboard spoke to last, and whether the frame
+// is split at all. The window procedure needs both as file-scope state (the
+// --pane-split flag itself is a local of main), and both are inert unless
+// g_paneSplit is true -- which is what keeps the single-pane path the same code
+// it was.
+bool g_paneSplit = false;
+std::uint32_t g_activePane = 0;
+// Pane 1's own camera mode, its applied-mode latch and its follow director. The
+// pane starts in FreeLook (set where paneSplit is declared) so a split opens
+// exactly as step 2b drew it: the second pane is an orbit pose until the user
+// selects it and cycles.
+tf2::native::CameraModeController g_pane1CameraMode;
+tf2::native::CameraMode g_pane1ModeApplied = tf2::native::CameraMode::FreeLook;
+std::uint32_t g_pane1ModeApplies = 0;
+tf2::native::SpectateDirector g_pane1Director;
+std::int32_t g_pane1PendingPick = -1;
+std::int32_t g_pane1Target = -1;
+bool g_pane1FollowPinned = false;
+std::uint32_t g_pane1Commands = 0;
+std::uint32_t g_pane1CommandRejected = 0;
+// Pane 1's camera trace is printed on CHANGE of (mode, target, source): the same
+// reason the relay's camera line is throttled -- a line per frame is what made a
+// previous longest trace unreadable.
+std::int32_t g_pane1TraceMode = -1;
+std::int32_t g_pane1TraceTarget = -2;
+std::int32_t g_pane1TraceSource = -1;
+std::int32_t g_pane1TraceHidden = -2;
+// Pane 1's pick is handed to its director at the frame the slot table exists, and
+// the director's answer (manualPicks/manualRejected) only exists after its own
+// update later in that frame. These three carry the handoff across that gap so the
+// trace can say accepted=0 instead of leaving the run looking like a pick nobody
+// made. Measured defect this exists for: adopting the pick before any snapshot
+// existed spent it on the first empty update and left target1=-1 for the whole run.
+std::int32_t g_pane1PickAwaiting = -1;
+std::uint32_t g_pane1PickAcceptedBefore = 0;
+std::uint32_t g_pane1PickRejectedBefore = 0;
+
+// U4 step 3: one SPACE edge, routed to whichever pane is active. Pane 0's body is
+// the pre-existing path unchanged; pane 1 has its own controller and its own
+// demo-view latch. Returns true when the active pane's mode moved, so the caller
+// updates the UI exactly like the single-pane arm always did.
+// The three mode names --pane-mode accepts. Spelled here rather than reusing an
+// index, so a typo on the command line is a rejected flag and not a mode.
+bool paneCameraModeFromName(const wchar_t* name, tf2::native::CameraMode& out) {
+  if (wcscmp(name, L"first") == 0) { out = tf2::native::CameraMode::FirstPerson; return true; }
+  if (wcscmp(name, L"third") == 0) { out = tf2::native::CameraMode::ThirdPerson; return true; }
+  if (wcscmp(name, L"free") == 0) { out = tf2::native::CameraMode::FreeLook; return true; }
+  return false;
+}
+
+bool cycleActivePaneCameraMode(std::uint32_t nowMs) {
+  using namespace tf2::native;
+  if (g_paneSplit && g_activePane == 1u) {
+    if (!g_pane1CameraMode.spacePress(nowMs)) return false;
+    if (g_pane1CameraMode.mode() != CameraMode::FirstPerson && g_renderer) {
+      // Leaving first person releases the pane's demo eye at once, for the same
+      // reason pane 0 does: an orbit fighting a stale eye for one frame.
+      g_renderer->clearPaneCameraDemoView(1u);
+      g_pane1ModeApplied = g_pane1CameraMode.mode();
+    }
+    return true;
+  }
+  if (!g_cameraMode.spacePress(nowMs)) return false;
+  if (g_cameraMode.mode() != CameraMode::FirstPerson && g_renderer) {
+    // Leaving first-person must release the demo eye immediately, not at the next
+    // scene tick, or the orbit would fight a stale observer view for one frame.
+    g_renderer->clearObserverDemoView();
+    g_lastAppliedCameraMode = g_cameraMode.mode();
+  }
+  return true;
+}
 // T80: did the scene tick that is being drawn give the camera a real eye? False
 // means the demo's own view was missing or implausible (SourceTV reports
 // eye=0,0,0), so the spectate relay's focus is the only thing that can place the
@@ -355,7 +716,532 @@ bool g_spectateCameraEyePrinted = false;
 // plane is not a picture. This is a CAMERA rule, not a corpse rule -- it is
 // independent of m_lifeState and it applies to a living player.
 std::int32_t g_spectateCameraHiddenEntity = -1;
+// U4 step 3: the body PANE 1's camera stands inside. The relay's rule (T81) hides one
+// body for the whole frame; with a second pane there is a second candidate, and the
+// model instance list is built before the pane camera block decides, so this is the
+// answer the NEXT frame's filter uses -- the same one-frame lag the pane-0 rule has
+// had since T81. Both are unioned into one hide set: the list is frame-global, so a
+// body hidden for either pane is out of the picture for both. That is a documented
+// cost of one shared instance list, not a claim that the panes hide independently.
+std::int32_t g_pane1CameraHiddenEntity = -1;
 std::uint32_t g_spectateCameraHiddenInstances = 0;
+
+// N12-A: the demo's eye is the origin PLUS m_vecViewOffset[2].
+//
+// The cmdinfo viewOrigin a demo packet carries is the player's FOOT origin: the
+// oracle's dem_packet decode measured viewOrigin - m_vecOrigin == (0,0,0) on
+// every comparable tick (N12-ORACLE/README.md:22-24). The 6/6 axis agreement
+// recorded before this change therefore proves the cmdinfo chain parses
+// correctly and, in the same measurement, that the camera was standing on the
+// player's feet. The offset is a real netprop and not a per-class table:
+// 75.000072 on a Sniper, 68.000065 on a Demoman, 45.000043 crouched, all read
+// out of the demo's own property stream.
+//
+// Read it in two steps, exactly like m_vecOrigin (entity_model.cpp:87-91): the
+// vector's z lands in the scalar sibling "m_vecViewOffset[2]" and its value is
+// in that Float's .x field. Reading "m_vecViewOffset" as one whole vector
+// returns z = 0 forever -- the state this fix exists to remove -- so the
+// negative control for this change is a trace line whose offsetZ is 0 on a
+// living player.
+struct EyeOffsetReading {
+  bool hasValue = false;
+  float z = 0.0f;
+  std::int32_t lastWriteTick = -1;
+  const char* reason = "view-offset-missing";
+};
+
+EyeOffsetReading readEyeOffsetZ(const tf2::native::EntityState& state) {
+  EyeOffsetReading reading;
+  const std::vector<tf2::native::PropertyCandidate> ranked =
+    tf2::native::rankPropertyCandidates(state, "m_vecViewOffset[2]");
+  if (ranked.empty()) return reading;
+  reading.lastWriteTick = ranked.front().lastWriteTick;
+  const auto found = state.properties.find(ranked.front().name);
+  if (found == state.properties.end()) return reading;
+  const tf2::native::EntityPropertyValue& value = found->second;
+  const float z = value.type == tf2::native::SendPropType::Int
+    ? static_cast<float>(value.intValue) : value.x;
+  if (!std::isfinite(z)) {
+    reading.reason = "view-offset-non-finite";
+    return reading;
+  }
+  // A view offset is a body height in map units. Outside (0, 300] it is not
+  // one -- 0 is exactly what a whole-vector read produces, and the tallest TF2
+  // eye is 75 -- and adding it would put the camera where no player can stand.
+  if (!(z > 0.0f) || z > 300.0f) {
+    reading.reason = "view-offset-out-of-range";
+    return reading;
+  }
+  reading.hasValue = true;
+  reading.z = z;
+  reading.reason = "";
+  return reading;
+}
+
+// N12-C step 2: how far the camera row track is allowed to backfill one tick.
+//
+// A scene tick can only be missing a row when that packet produced none (no view
+// target, no final tick, or a packet that did not decode end to end), and the
+// track holds one row per packet, so the nearest older row is normally one packet
+// away -- one tick, occasionally a few when several packets share a server tick.
+// Two ticks is about 30 ms at the demo's 66 Hz, which is under one interpolation
+// step (cl_interp ~0.031 s): a backfilled eye is still the pose of this frame and
+// not a camera from the past. Anything older is the snapshot's job. The next
+// NEWER row is never used -- an eye from the future would be a guess wearing a
+// number, and it is the one mistake this limit cannot make.
+constexpr std::int32_t kCameraEyeBackfillMaxTicks = 2;
+
+// What the eye resolution did, per consumer (POV and relay each own a set).
+//
+// The eye is three floats; these are the reasons it is those three floats, and
+// they are the only place the difference between "read at exactly this tick" and
+// "the old snapshot derivation answered" is visible. Printed once at exit.
+struct CameraEyeStats {
+  std::size_t queries = 0;                 // exact-track queries made (an unresolved tick is not one)
+  std::size_t exact = 0;                   // the requested tick had a row
+  std::size_t backfill = 0;                // nearest older row taken, within kCameraEyeBackfillMaxTicks
+  std::int32_t backfillMaxTicks = -1;      // largest backfill distance actually taken
+  std::size_t fallbackNoSample = 0;        // no row at or before the tick: the track starts later
+  std::size_t fallbackDistance = 0;        // an older row exists but is further than the backfill limit
+  std::size_t fallbackTickUnresolved = 0;  // the scene had no tick: the track was never asked
+  std::size_t identityMismatch = 0;        // the row describes another entity than the one wanted
+  std::size_t rowMissingOrigin = 0;        // kCameraHasOrigin unset
+  std::size_t rowMissingOffset = 0;        // kCameraHasViewOffset unset
+  std::size_t rowOffsetOutOfRange = 0;     // offset outside (0, 300]
+  std::size_t rowIncomplete = 0;           // a slot the row could not describe (origin/angles/offset)
+  std::size_t rowDead = 0;                 // the row says this eye is dead: no lift
+  std::size_t rowObserving = 0;            // the row says this eye is observing: no lift
+  std::size_t applied = 0;                 // the camera row produced the eye
+  std::size_t snapshotFallbacks = 0;       // fell through to the entity-snapshot path
+};
+CameraEyeStats g_cameraPovEyeStats;
+CameraEyeStats g_cameraRelayEyeStats;
+
+// One decision about which row describes a tick, shared by both eyes so the POV
+// and the relay cannot disagree about what "the row for tick N" means.
+struct CameraEyeRow {
+  const tf2::native::CameraTickSample* sample = nullptr;
+  std::int32_t requestedTick = -1;  // the scene tick that was asked for
+  std::int32_t rowTick = -1;       // the row's own tick (equals the request on an exact hit)
+  std::int32_t previousTick = -1;  // nearest older row tick, as the query reported it
+  std::int32_t nextTick = -1;      // nearest newer row tick: reported, never taken
+  std::size_t rowsAtTick = 0;      // rows sharing rowTick; the query answers with the last
+  bool backfilled = false;
+  const char* miss = "";           // "no-sample" | "distance-exceeded" | "tick-unresolved"
+};
+
+CameraEyeRow lookupCameraEyeRow(const tf2::native::DemoNetworkSummary& summary,
+                                std::int32_t requestedTick, CameraEyeStats& stats) {
+  CameraEyeRow out;
+  out.requestedTick = requestedTick;
+  // Q5's lesson, applied BEFORE the track instead of after the snapshot: an
+  // unresolved scene tick is -1, and -1 is not a tick. Asking the track for it
+  // would answer "no sample" for a tick that was never known, which reads like a
+  // measured miss and hides the real reason.
+  if (requestedTick < 0) {
+    out.miss = "tick-unresolved";
+    ++stats.fallbackTickUnresolved;
+    return out;
+  }
+  ++stats.queries;
+  const tf2::native::CameraTickQueryResult exact =
+      tf2::native::queryCameraTickSample(summary, requestedTick);
+  out.previousTick = exact.previousTick;
+  out.nextTick = exact.nextTick;
+  if (exact.hit) {
+    out.sample = exact.sample;
+    out.rowTick = requestedTick;
+    out.rowsAtTick = exact.rowsAtTick;
+    ++stats.exact;
+    return out;
+  }
+  if (exact.previousTick >= 0
+      && requestedTick - exact.previousTick <= kCameraEyeBackfillMaxTicks) {
+    const tf2::native::CameraTickQueryResult previous =
+        tf2::native::queryCameraTickSample(summary, exact.previousTick);
+    if (previous.hit) {
+      out.sample = previous.sample;
+      out.rowTick = exact.previousTick;
+      out.rowsAtTick = previous.rowsAtTick;
+      out.backfilled = true;
+      const std::int32_t distance = requestedTick - exact.previousTick;
+      if (distance > stats.backfillMaxTicks) stats.backfillMaxTicks = distance;
+      ++stats.backfill;
+      return out;
+    }
+  }
+  if (exact.previousTick >= 0) {
+    out.miss = "distance-exceeded";
+    ++stats.fallbackDistance;
+  } else {
+    out.miss = "no-sample";
+    ++stats.fallbackNoSample;
+  }
+  return out;
+}
+
+// The POV eye this scene tick is drawn with, plus the reasons it may be the
+// bare origin.
+//
+// A camera that is not standing inside a living, self-controlled player must
+// not be lifted. Two recorded cases: the player is dead and the demo is showing
+// a death camera, and the recording is a spectator whose own entity never moves
+// (SourceTV: one signon svc_SetView(index=1) onto entity 1, which is frozen at
+// OBS_MODE 7). POV-upward tick 20000 is the first case -- its view_origin is a
+// static map entity's origin and its viewOffset is a 253-tick-old zero -- and
+// lifting that one by 68 units would put the camera above a corpse.
+struct PovEye {
+  bool hasOrigin = false;
+  float eye[3] = {0.0f, 0.0f, 0.0f};
+  bool offsetApplied = false;
+  float offsetZ = 0.0f;
+  std::int32_t offsetTick = -1;
+  std::int32_t entityIndex = -1;
+  std::int32_t lifeState = -1;
+  std::int32_t observerMode = -1;
+  const char* reason = "no-demo-view";
+  // N12-C step 2 provenance. None of it is printed on the frozen "scene: eye"
+  // line: source names which derivation produced the eye, origin is the vector it
+  // was built from, originTick is that source's own tick, and ageTick is the tick
+  // offsetAge is measured against. They exist so the reader can tell an eye read
+  // at exactly the scene tick from one derived out of a checkpoint.
+  const char* source = "none";  // "camera" | "camera-backfill" | "snapshot" | "none"
+  float origin[3] = {0.0f, 0.0f, 0.0f};
+  std::int32_t originTick = -1;
+  std::int32_t ageTick = -1;
+  std::int32_t rowTick = -1;      // camera row tick used (== request unless backfilled)
+  std::int32_t requestedTick = -1;
+  std::uint32_t flags = 0;        // the row's kCameraHas* mask, 0 when no row was used
+  bool backfilled = false;
+  // What the row itself carried, as sampled and unmodified -- a rejected row still
+  // reports it, which is the point: it lets a reader compare the row the product
+  // found against the row the probe dumps for the same tick. Read them together
+  // with flags: a field is only meaningful when its kCameraHas bit is set, and a
+  // zero offset here means "the slot could not be read", not "the eye is on the
+  // floor". The origin the eye was actually built from is origin above (printed as
+  // srcOrigin); these two are never substituted into it.
+  float rowOrigin[3] = {0.0f, 0.0f, 0.0f};
+  float rowOffsetZ = 0.0f;
+  const char* rowMiss = "";       // why no row answered: query miss, or why a row was rejected
+};
+
+// Same rank-then-deref shape as readMapInt below (main.cpp:10139-10146): the
+// selection rule is asked which slot wins, so this reader cannot drift from the
+// model resolver's idea of which duplicate is freshest.
+bool readIntSlot(const tf2::native::EntityState& state, const char* suffix, std::int32_t& out) {
+  const std::vector<tf2::native::PropertyCandidate> ranked =
+    tf2::native::rankPropertyCandidates(state, suffix);
+  if (ranked.empty()) return false;
+  const auto found = state.properties.find(ranked.front().name);
+  if (found == state.properties.end()) return false;
+  const tf2::native::EntityPropertyValue& value = found->second;
+  out = value.type == tf2::native::SendPropType::Int
+    ? static_cast<std::int32_t>(value.intValue) : static_cast<std::int32_t>(value.x);
+  return true;
+}
+
+// N12-C step 2: ask the per-tick camera row track for this scene tick's eye.
+//
+// The track holds one row per data packet, stamped with the packet's final server
+// tick -- the same tick the playback clock publishes in "scene: clock". Asking it
+// at EXACTLY that tick therefore returns the eye as the recording wrote it, where
+// the snapshot derivation below answers with a checkpoint that can be thousands
+// of ticks old (measured: 2372 ticks at POV tick 20000, whose offset was 343
+// ticks older than even that checkpoint).
+//
+// Returns true when this tick's eye is decided: either the row produced it, or the
+// row is an authoritative "do not lift this eye" (dead / observing). Returns false
+// when the caller must fall back to the snapshot path -- no row, a row for another
+// entity, a row that could not read the slots, or an implausible offset.
+bool applyCameraPovEye(const tf2::native::DemoNetworkSummary& summary,
+                       std::int32_t sceneServerTick, std::uint32_t viewEntity,
+                       PovEye& out) {
+  CameraEyeStats& stats = g_cameraPovEyeStats;
+  const CameraEyeRow row = lookupCameraEyeRow(summary, sceneServerTick, stats);
+  out.requestedTick = sceneServerTick;
+  out.rowMiss = row.miss;
+  if (row.sample == nullptr) return false;
+  const tf2::native::CameraTickSample& sample = *row.sample;
+  out.rowTick = row.rowTick;
+  out.backfilled = row.backfilled;
+  out.flags = sample.flags;
+  // Publish what the row held before any gate below can reject it, so the trace
+  // can be diffed against the probe's dump of the same tick. Unreadable fields are
+  // copied as-is; flags says which ones mean anything.
+  out.rowOrigin[0] = sample.origin[0];
+  out.rowOrigin[1] = sample.origin[1];
+  out.rowOrigin[2] = sample.origin[2];
+  out.rowOffsetZ = sample.viewOffsetZ;
+  // The row describes the view target that was current when it was captured. A
+  // SetView inside the same packet can move the target after the entity table was
+  // read, and which order the wire uses is UNMEASURED (step 1: 0 packets carried
+  // both). So a mismatch is never guessed past -- it is counted, and the snapshot
+  // (keyed by the same lastViewEntity) answers instead. Using the row anyway would
+  // place the camera at another player's eye and print it as this player's.
+  if (static_cast<std::uint32_t>(sample.entityIndex) != viewEntity) {
+    ++stats.identityMismatch;
+    out.rowMiss = "identity-mismatch";
+    return false;
+  }
+  if ((sample.flags & tf2::native::kCameraHasOrigin) == 0) {
+    ++stats.rowMissingOrigin;
+    out.rowMiss = "origin-missing";
+    return false;
+  }
+  if ((sample.flags & tf2::native::kCameraHasViewOffset) == 0) {
+    ++stats.rowMissingOffset;
+    out.rowMiss = "offset-missing";
+    return false;
+  }
+  // The same (0, 300] policy readEyeOffsetZ applies to the snapshot value: a view
+  // offset is a body height, 0 is exactly what a whole-vector read produces, and
+  // the tallest TF2 eye is 75.
+  const float offsetZ = sample.viewOffsetZ;
+  if (!std::isfinite(offsetZ) || !(offsetZ > 0.0f) || offsetZ > 300.0f) {
+    ++stats.rowOffsetOutOfRange;
+    out.rowMiss = "offset-out-of-range";
+    return false;
+  }
+  // kCameraHas* unset means the row could not READ the slot: unknown, never 0.
+  // Writing 0 here would claim "alive" and "not observing" for a tick that never
+  // said either, so the field stays -1 and the gate below does not fire.
+  const bool hasLifeState = (sample.flags & tf2::native::kCameraHasLifeState) != 0;
+  const bool hasObserverMode = (sample.flags & tf2::native::kCameraHasObserverMode) != 0;
+  out.lifeState = hasLifeState ? sample.lifeState : -1;
+  out.observerMode = hasObserverMode ? sample.observerMode : -1;
+  out.source = row.backfilled ? "camera-backfill" : "camera";
+  out.ageTick = sceneServerTick;
+  if (hasLifeState && sample.lifeState != 0) {
+    // A death camera is not lifted, and that verdict is this tick's, not the
+    // checkpoint's: the eye keeps the demo view sample's origin exactly as the
+    // snapshot path leaves it.
+    ++stats.rowDead;
+    out.reason = "dead-no-eye-offset";
+    return true;
+  }
+  if (hasObserverMode && sample.observerMode != 0) {
+    ++stats.rowObserving;
+    out.reason = "observing-no-eye-offset";
+    return true;
+  }
+  out.origin[0] = sample.origin[0];
+  out.origin[1] = sample.origin[1];
+  out.origin[2] = sample.origin[2];
+  out.eye[0] = sample.origin[0];
+  out.eye[1] = sample.origin[1];
+  out.eye[2] = sample.origin[2] + offsetZ;
+  out.originTick = sample.tick;
+  out.offsetApplied = true;
+  out.offsetZ = offsetZ;
+  // The eye height and the tick it came from are the same row, so the age printed
+  // for it is the row's distance from the requested tick: 0 on an exact hit.
+  out.offsetTick = sample.tick;
+  out.reason = "applied";
+  ++stats.applied;
+  return true;
+}
+
+// The eye: the per-tick camera row when the track has one for this tick (N12-C
+// step 2), otherwise the pre-existing derivation -- origin from the demo view
+// sample (entry-tick space, the sample the camera decision consumes) and the
+// offset from the snapshot resolved at the SERVER tick. On the snapshot path the
+// two tick spaces are deliberately kept apart (main.cpp:9890-9902) and the offset
+// is allowed to be older than the origin, which is why its own stamp is carried
+// out and printed.
+PovEye resolvePovEye(const std::vector<tf2::native::EntityState>& states,
+                     std::uint32_t viewEntity, bool viewEntityKnown,
+                     const tf2::native::DemoViewSample& view,
+                     const tf2::native::DemoNetworkSummary& summary,
+                     std::int32_t sceneServerTick) {
+  PovEye out;
+  if (!view.hasOrigin) return out;
+  out.hasOrigin = true;
+  out.origin[0] = view.origin[0];
+  out.origin[1] = view.origin[1];
+  out.origin[2] = view.origin[2];
+  out.eye[0] = view.origin[0];
+  out.eye[1] = view.origin[1];
+  out.eye[2] = view.origin[2];
+  out.originTick = view.tick;
+  // summary.lastViewEntity defaults to 0, so "no svc_SetView was ever read"
+  // must be tested before the index is trusted: otherwise entity 0 is the
+  // camera on every recording that never names one.
+  if (!viewEntityKnown) {
+    out.reason = "set-view-missing";
+    return out;
+  }
+  if (static_cast<std::size_t>(viewEntity) >= states.size()) {
+    out.reason = "view-entity-out-of-range";
+    return out;
+  }
+  out.entityIndex = static_cast<std::int32_t>(viewEntity);
+  // N12-C step 2: the track first, in the tick space of the packet being drawn.
+  if (applyCameraPovEye(summary, sceneServerTick, viewEntity, out)) return out;
+  ++g_cameraPovEyeStats.snapshotFallbacks;
+  // From here on this is the derivation that shipped before step 2, unchanged.
+  out.source = "snapshot";
+  const tf2::native::EntityState& row = states[static_cast<std::size_t>(viewEntity)];
+  std::int32_t lifeState = 0;
+  const bool hasLifeState = readIntSlot(row, "m_lifeState", lifeState);
+  if (hasLifeState) out.lifeState = lifeState;
+  std::int32_t observerMode = 0;
+  const bool hasObserverMode = readIntSlot(row, "m_iObserverMode", observerMode);
+  if (hasObserverMode) out.observerMode = observerMode;
+  if (hasLifeState && lifeState != 0) {
+    out.reason = "dead-no-eye-offset";
+    return out;
+  }
+  if (hasObserverMode && observerMode != 0) {
+    out.reason = "observing-no-eye-offset";
+    return out;
+  }
+  const EyeOffsetReading offset = readEyeOffsetZ(row);
+  if (!offset.hasValue) {
+    out.reason = offset.reason;
+    return out;
+  }
+  out.offsetApplied = true;
+  out.offsetZ = offset.z;
+  out.offsetTick = offset.lastWriteTick;
+  out.eye[2] = view.origin[2] + offset.z;
+  out.reason = "applied";
+  return out;
+}
+
+// The eye the current scene tick resolved, published for the trace line printed
+// after the camera decision. A struct rather than floats because the reasons
+// are the diagnosis: "the camera is at the feet" and "the camera is at the feet
+// because this player is dead" are the same three numbers and different bugs.
+PovEye g_scenePovEye;
+// N12-B: the server tick the current scene snapshot resolved to, published so
+// the relay can state offsetAge in the same tick space as the POV line. -1 when
+// the scene had no server tick and no snapshot was queried. Declared next to
+// g_scenePovEye because both are "what the last scene tick resolved".
+std::int32_t g_sceneResolvedServerTick = -1;
+
+// N12-B: the eye height the relay lifts a followed player by, and where that
+// number came from.
+//
+// The relay used to add the framing constant kSpectatorEyeHeight (68) to every
+// followed player. 68 is the STANDING height of Soldier/Demoman/Pyro/Engineer
+// and 23 units too high for a crouched player: m_vecViewOffset[2] reads
+// 45.000043 crouched, 68.000065 standing, 75.000072 for Sniper/Medic/Heavy/Spy
+// and 65.000060 for Scout, all out of the demo's own property stream. A
+// crouched target therefore got a camera floating 23 u above its own eye for
+// as long as it stayed crouched -- measured as +23.0059 u on stv-t40000.
+//
+// The reading comes from the SAME EntityState row the origin came from
+// (placeSpectatorView's `row`), so origin and offset cannot come from two
+// different ticks. The origin was correct all along; only the height added to
+// it was a constant.
+//
+// offsetSrc is the distinction this trace exists for:
+//   netprop  -- m_vecViewOffset[2] was read; offsetZ is that value.
+//   fallback -- nothing readable; offsetZ is kSpectatorEyeHeight and reason
+//               names which of the failed reads produced it.
+//   none     -- the row is dead or observing; NO height is added, because
+//               lifting the camera 68 u over a corpse is the defect that
+//               branch exists to avoid (the same rule as resolvePovEye).
+struct RelayEye {
+  float offsetZ = kSpectatorEyeHeight;
+  const char* source = "fallback";
+  std::int32_t offsetTick = -1;
+  std::int32_t lifeState = -1;
+  std::int32_t observerMode = -1;
+  const char* reason = "view-offset-missing";
+  // N12-C step 2 provenance, deliberately kept OFF the frozen relay line: the
+  // gate parses target= from it and the B-series acceptance reads offsetSrc /
+  // offsetTick / offsetAge there. rowSource says which tick the height came from.
+  const char* rowSource = "snapshot";  // "camera" | "camera-backfill" | "snapshot"
+  std::int32_t requestedTick = -1;
+  std::int32_t rowTick = -1;
+  std::uint32_t flags = 0;
+  bool backfilled = false;
+  const char* rowReject = "";  // why a camera row that existed was not used
+};
+
+// The relay's eye height for one frame.
+//
+// When the caller accepted a camera row for THIS target, the height comes from
+// that row -- the same tick the eye is placed at, so origin and offset cannot be
+// stitched across two moments. kCameraHas* unset means the slot was unreadable:
+// it stays -1 and the gate below does not fire, rather than becoming a 0 that
+// would claim "alive" and "not observing".
+RelayEye resolveRelayEye(const tf2::native::EntityState& row,
+                         const tf2::native::CameraTickSample* cameraRow,
+                         const CameraEyeRow& lookup,
+                         const char* rowReject) {
+  RelayEye out;
+  out.requestedTick = lookup.requestedTick;
+  out.rowReject = rowReject;
+  if (cameraRow != nullptr) {
+    out.rowSource = lookup.backfilled ? "camera-backfill" : "camera";
+    out.rowTick = lookup.rowTick;
+    out.flags = cameraRow->flags;
+    out.backfilled = lookup.backfilled;
+    const bool hasLifeState = (cameraRow->flags & tf2::native::kCameraHasLifeState) != 0;
+    const bool hasObserverMode = (cameraRow->flags & tf2::native::kCameraHasObserverMode) != 0;
+    out.lifeState = hasLifeState ? cameraRow->lifeState : -1;
+    out.observerMode = hasObserverMode ? cameraRow->observerMode : -1;
+    if (hasLifeState && cameraRow->lifeState != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "dead-no-eye-offset";
+      ++g_cameraRelayEyeStats.rowDead;
+      return out;
+    }
+    if (hasObserverMode && cameraRow->observerMode != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "observing-no-eye-offset";
+      ++g_cameraRelayEyeStats.rowObserving;
+      return out;
+    }
+    out.offsetZ = cameraRow->viewOffsetZ;
+    out.offsetTick = cameraRow->tick;
+    out.source = "netprop";
+    out.reason = "applied";
+    ++g_cameraRelayEyeStats.applied;
+    return out;
+  }
+  ++g_cameraRelayEyeStats.snapshotFallbacks;
+  std::int32_t lifeState = 0;
+  if (readIntSlot(row, "m_lifeState", lifeState)) {
+    out.lifeState = lifeState;
+    if (lifeState != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "dead-no-eye-offset";
+      return out;
+    }
+  }
+  std::int32_t observerMode = 0;
+  if (readIntSlot(row, "m_iObserverMode", observerMode)) {
+    out.observerMode = observerMode;
+    if (observerMode != 0) {
+      out.offsetZ = 0.0f;
+      out.source = "none";
+      out.reason = "observing-no-eye-offset";
+      return out;
+    }
+  }
+  const EyeOffsetReading offset = readEyeOffsetZ(row);
+  out.offsetTick = offset.lastWriteTick;
+  if (!offset.hasValue) {
+    out.reason = offset.reason;
+    return out;
+  }
+  out.offsetZ = offset.z;
+  out.source = "netprop";
+  out.reason = "applied";
+  return out;
+}
+
+// The reading the relay used on the frame that just ran, published for the
+// scene-tick trace line below. A struct for the same reason g_scenePovEye is
+// one: "45 because this player is crouched" and "45 because the read failed
+// and 45 is the fallback" are the same number and different facts.
+RelayEye g_sceneRelayEye;
 
 // Place the camera behind the relayed player, looking where that player looks.
 //
@@ -373,7 +1259,9 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
                         std::int32_t targetIndex,
                         const float focus[3],
                         float outEye[3],
-                        float outAngles[2]) {
+                        float outAngles[2],
+                        const tf2::native::DemoNetworkSummary& summary,
+                        std::int32_t sceneServerTick) {
   // The snapshot is a dense vector: the entity index IS the slot. That is the
   // same rule the spectate slot builder above uses, so the two cannot disagree
   // about which row belongs to the player the relay picked.
@@ -381,18 +1269,75 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
   const tf2::native::EntityState& row = states[static_cast<std::size_t>(targetIndex)];
   const tf2::native::ModelInstanceTransform transform =
     tf2::native::EntityModelResolver::extractTransform(row);
-  if (!transform.hasOrigin || !transform.hasAngles) return false;
+  // N12-C step 2: a per-tick camera row that describes THIS target places the
+  // relay from the row itself -- origin, facing and eye height all from one tick,
+  // instead of from a checkpoint whose properties may be thousands of ticks old.
+  //
+  // A row describing another entity is rejected, never used: the relay follows a
+  // player the recording names (svc_SetView), so a row for someone else would
+  // stand the camera inside a stranger's head -- a mistake that looks exactly like
+  // a working camera. Which packets can even produce that (SetView after
+  // PacketEntities) is unmeasured, so it is counted, not reasoned about.
+  const CameraEyeRow cameraLookup =
+      lookupCameraEyeRow(summary, sceneServerTick, g_cameraRelayEyeStats);
+  const tf2::native::CameraTickSample* cameraRow = nullptr;
+  const char* cameraReject = "";
+  if (cameraLookup.sample != nullptr) {
+    const tf2::native::CameraTickSample& candidate = *cameraLookup.sample;
+    if (static_cast<std::uint32_t>(candidate.entityIndex) != static_cast<std::uint32_t>(targetIndex)) {
+      ++g_cameraRelayEyeStats.identityMismatch;
+      cameraReject = "identity-mismatch";
+    } else if ((candidate.flags & tf2::native::kCameraHasOrigin) == 0) {
+      ++g_cameraRelayEyeStats.rowMissingOrigin;
+      cameraReject = "origin-missing";
+    } else if ((candidate.flags & tf2::native::kCameraHasAngles) == 0) {
+      ++g_cameraRelayEyeStats.rowIncomplete;
+      cameraReject = "angles-missing";
+    } else if ((candidate.flags & tf2::native::kCameraHasViewOffset) == 0) {
+      ++g_cameraRelayEyeStats.rowMissingOffset;
+      cameraReject = "offset-missing";
+    } else if (!std::isfinite(candidate.viewOffsetZ) || !(candidate.viewOffsetZ > 0.0f)
+               || candidate.viewOffsetZ > 300.0f) {
+      ++g_cameraRelayEyeStats.rowOffsetOutOfRange;
+      cameraReject = "offset-out-of-range";
+    } else {
+      cameraRow = &candidate;
+    }
+  }
+  // Origin and facing are taken from the SAME source: a row's origin under a
+  // snapshot's angles would put the camera at one tick's position looking along
+  // another tick's facing.
+  float origin[3] = {0.0f, 0.0f, 0.0f};
+  float angles[2] = {0.0f, 0.0f};
+  if (cameraRow != nullptr) {
+    origin[0] = cameraRow->origin[0];
+    origin[1] = cameraRow->origin[1];
+    origin[2] = cameraRow->origin[2];
+    angles[0] = cameraRow->angles[0];
+    angles[1] = cameraRow->angles[1];
+  } else {
+    // N12-B: no camera row, so the snapshot answers -- its origin, its facing and
+    // its own m_vecViewOffset[2] (see resolveRelayEye), one row throughout.
+    if (!transform.hasOrigin || !transform.hasAngles) return false;
+    origin[0] = transform.origin[0];
+    origin[1] = transform.origin[1];
+    origin[2] = transform.origin[2];
+    angles[0] = transform.angles[0];
+    angles[1] = transform.angles[1];
+  }
+  const RelayEye relayEye = resolveRelayEye(row, cameraRow, cameraLookup, cameraReject);
+  g_sceneRelayEye = relayEye;
   float forward[3] = {0.0f, 0.0f, 0.0f};
-  tf2::native::demoViewForward(transform.angles[0], transform.angles[1], forward);
+  tf2::native::demoViewForward(angles[0], angles[1], forward);
   const float eye[3] = {
-    transform.origin[0] - forward[0] * kSpectatorBackUnits,
-    transform.origin[1] - forward[1] * kSpectatorBackUnits,
-    transform.origin[2] + kSpectatorEyeHeight - forward[2] * kSpectatorBackUnits
+    origin[0] - forward[0] * kSpectatorBackUnits,
+    origin[1] - forward[1] * kSpectatorBackUnits,
+    origin[2] + relayEye.offsetZ - forward[2] * kSpectatorBackUnits
   };
   for (const float value : eye) {
     if (!std::isfinite(value)) return false;
   }
-  renderer.setObserverDemoViewWorld(eye[0], eye[1], eye[2], transform.angles[0], transform.angles[1]);
+  renderer.setObserverDemoViewWorld(eye[0], eye[1], eye[2], angles[0], angles[1]);
   // T79: hand the pose back so the frame's trace line can name the lens the
   // frame is actually drawn with. Callers that only want the side effects pass
   // nullptr.
@@ -402,8 +1347,8 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
     outEye[2] = eye[2];
   }
   if (outAngles != nullptr) {
-    outAngles[0] = transform.angles[0];
-    outAngles[1] = transform.angles[1];
+    outAngles[0] = angles[0];
+    outAngles[1] = angles[1];
   }
   // The camera is inside this player's head, so their body must not be submitted.
   g_spectateCameraHiddenEntity = targetIndex;
@@ -415,9 +1360,52 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
     g_spectateCameraLastEye[1] = eye[1];
     g_spectateCameraLastEye[2] = eye[2];
     g_spectateCameraEyePrinted = true;
-    traceFmt("spectate: camera relay target=%d eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f behind=%.0f",
-      static_cast<int>(targetIndex), eye[0], eye[1], eye[2], transform.angles[0],
-      transform.angles[1], kSpectatorBackUnits);
+    // N12-B appends the height provenance to the SAME line rather than starting a
+    // second one: "the camera is at 585.7" and "585.7 is origin+45.0000 read from
+    // this player's own m_vecViewOffset[2]" have to be readable as one fact, and
+    // the fields the gates parse (target=) stay in the same place.
+    //
+    // offsetAge is measured in the SERVER tick space: g_sceneResolvedServerTick
+    // is the tick queryEntitySnapshotAtOrBeforeTick resolved to, and offsetTick
+    // is the server tick that property was last written on the wire. Their
+    // difference is "how old was the height I just used", which is exactly the
+    // question a crouch-stand flick raises and the oracle's prop_tick column
+    // cannot answer on its own (different tick space).
+    const std::int32_t offsetAge =
+      (g_sceneResolvedServerTick >= 0 && g_sceneRelayEye.offsetTick >= 0)
+        ? g_sceneResolvedServerTick - g_sceneRelayEye.offsetTick
+        : -1;
+    traceFmt("spectate: camera relay target=%d eye=%.1f,%.1f,%.1f pitch=%.2f yaw=%.2f behind=%.0f offsetZ=%.4f offsetSrc=%s offsetTick=%d offsetAge=%d life=%d obs=%d reason=%s",
+      static_cast<int>(targetIndex), eye[0], eye[1], eye[2], angles[0],
+      angles[1], kSpectatorBackUnits, g_sceneRelayEye.offsetZ,
+      g_sceneRelayEye.source, static_cast<int>(g_sceneRelayEye.offsetTick),
+      static_cast<int>(offsetAge), static_cast<int>(g_sceneRelayEye.lifeState),
+      static_cast<int>(g_sceneRelayEye.observerMode), g_sceneRelayEye.reason);
+    // N12-C step 2: the line above keeps its exact shape (the gate parses
+    // target= and the B-series acceptance reads its offset fields), so which tick
+    // the eye really came from is published on this new one, printed on the same
+    // throttled cadence: "src=camera rowTick=REQ" is the claim that the eye is the
+    // recording's own eye at exactly this scene tick.
+    //
+    // Every row field here describes the row the LOOKUP found, never the accepted
+    // one: when a row exists but is rejected (the STV case -- the row names the
+    // recording's own observer while the relay follows a player), the fact worth
+    // recording is "a row was there at this tick, and here is whose it was".
+    // Printing the accepted row's values instead renders that case as
+    // rowTick=-1 camEntity=-1 -- indistinguishable from "no row at all", which is
+    // the opposite of what happened.
+    const tf2::native::CameraTickSample* const cameraCandidate = cameraLookup.sample;
+    const std::int32_t rowAge =
+      (cameraLookup.requestedTick >= 0 && cameraLookup.rowTick >= 0)
+        ? cameraLookup.requestedTick - cameraLookup.rowTick : -1;
+    traceFmt("spectate: camera row src=%s reqTick=%d rowTick=%d rowAge=%d backfill=%d flags=%u camEntity=%d target=%d used=%d miss=%s reject=%s",
+      g_sceneRelayEye.rowSource, static_cast<int>(cameraLookup.requestedTick),
+      static_cast<int>(cameraLookup.rowTick), static_cast<int>(rowAge),
+      cameraLookup.backfilled ? 1 : 0,
+      static_cast<unsigned>(cameraCandidate != nullptr ? cameraCandidate->flags : 0u),
+      static_cast<int>(cameraCandidate != nullptr ? cameraCandidate->entityIndex : -1),
+      static_cast<int>(targetIndex), cameraRow != nullptr ? 1 : 0, cameraLookup.miss,
+      g_sceneRelayEye.rowReject);
   }
   (void)focus;  // kept for the caller's symmetry; the eye is derived from the row
   return true;
@@ -432,6 +1420,627 @@ std::int32_t g_spectateManualTarget = -1;
 std::uint32_t g_spectateArgumentRejected = 0;
 std::int32_t g_spectateLastTarget = -2;
 std::int32_t g_spectateLastTransitioning = -1;
+
+// ---------------------------------------------------------------------------
+// N13 step 1 (2026-11-15): the follow command's own state.
+//
+// A follow command is the user SAYING which player to watch. The relay director
+// answers the same question every frame and has to, or a death would freeze the
+// camera on a corpse. The two must not share one variable: a handover would
+// silently un-pin the user, and a pin that OUTRANKS the director is step 2's
+// precedence rule, not this change. So the pin lives here, the director is
+// untouched, and step 1 changes no camera behaviour. The only thing a command
+// hands the relay is a pickManual() request, through a variable of its own,
+// because two writers on g_spectateManualTarget could not be told apart in a
+// trace (design section 7).
+//
+// What is new in the trace is the follow: line: what the pin is, what happened
+// to it, and -- when it was refused -- that nothing was applied. A run that
+// issued no follow command prints no follow: line at all, and no existing line
+// changes: that is this step's A8 guardrail.
+// ---------------------------------------------------------------------------
+tf2::native::FollowTarget g_followTarget;
+tf2::native::FollowState g_followState = tf2::native::FollowState::Unset;
+tf2::native::FollowReason g_followLastReason = tf2::native::FollowReason::None;
+// True when this frame has a snapshot the director would accept. Both the command
+// path and the trace read it rather than re-deriving it, so "there is nothing to
+// follow yet" cannot mean two different things in one frame.
+bool g_followSnapshotReady = false;
+// N13 step 1 (revision 2): the argument scan QUEUES commands instead of latching
+// one. A gate has to drive sequences -- "select 7, select 7" for A2, "select 7,
+// next" for A3 -- and a single latch can only hold the last flag written, so argv
+// order was already lost before the first frame ran. The queue is bounded because
+// this is a command line, not a script engine: past the bound an item is dropped and
+// counted, so an overflowing run is visible instead of silently truncated.
+struct FollowQueuedCommand {
+  tf2::native::FollowAction action = tf2::native::FollowAction::None;
+  std::int32_t entity = -1;
+};
+constexpr std::size_t kFollowQueueMax = 16;
+FollowQueuedCommand g_followQueue[kFollowQueueMax];
+std::size_t g_followQueueHead = 0;
+std::size_t g_followQueueCount = 0;
+std::uint32_t g_followQueueOverflows = 0;
+
+// Declared here because followQueuePush counts an overflow on it; the single
+// definition is in the counter block below.
+extern std::uint32_t g_followArgumentRejected;
+
+// Append one command, in the order its flag appeared on the command line.
+// Overflow is counted both where every unusable argument is counted
+// (followArgumentRejected) and on its own counter: "the command line asked for 17
+// commands" is not the same reading as "one of them did not parse".
+bool followQueuePush(tf2::native::FollowAction action, std::int32_t entity) {
+  if (g_followQueueCount >= kFollowQueueMax) {
+    ++g_followArgumentRejected;
+    ++g_followQueueOverflows;
+    return false;
+  }
+  FollowQueuedCommand& slot = g_followQueue[(g_followQueueHead + g_followQueueCount) % kFollowQueueMax];
+  slot.action = action;
+  slot.entity = entity;
+  ++g_followQueueCount;
+  return true;
+}
+
+// Take the OLDEST queued command. The frame site calls this at most once per
+// frame and only when the snapshot is ready -- that is what "one command per
+// frame, held until it can be applied" means: five flags in one argv spread over
+// five frames, and each prints its own follow: line.
+bool followQueuePop(tf2::native::FollowAction& action, std::int32_t& entity) {
+  if (g_followQueueCount == 0) return false;
+  action = g_followQueue[g_followQueueHead].action;
+  entity = g_followQueue[g_followQueueHead].entity;
+  g_followQueue[g_followQueueHead] = FollowQueuedCommand();
+  g_followQueueHead = (g_followQueueHead + 1) % kFollowQueueMax;
+  --g_followQueueCount;
+  return true;
+}
+// The pick a successful command asks the director to adopt. Separate from
+// g_spectateManualTarget so a --spectate-target run and a --follow-target run can
+// never overwrite each other's hand-off.
+std::int32_t g_followPendingEntity = -1;
+// One command's print intent, set by handleFollowAction and consumed by
+// followPublishTrace. A refusal prints even though nothing changed: "the command
+// was refused" is a reading no state comparison can express.
+bool g_followCommandRefused = false;
+std::int32_t g_followCommandEntity = -1;
+tf2::native::FollowReason g_followCommandReason = tf2::native::FollowReason::None;
+// Latched so the director-refused line prints once on the transition into "the
+// pin is not what the relay is watching", never per frame (design section 5.1).
+bool g_followDirectorRefused = false;
+// The tuple the follow: line last printed. A line that repeats an unchanged tuple
+// is exactly the per-frame print the design forbids.
+struct FollowPrintKey {
+  std::int32_t target = -2;
+  std::uint32_t serial = 0;
+  tf2::native::SpectateSource source = tf2::native::SpectateSource::None;
+  bool pinned = false;
+  bool valid = false;
+  tf2::native::FollowState state = tf2::native::FollowState::Unset;
+  bool nameKnown = false;
+};
+bool followPrintKeyEqual(const FollowPrintKey& left, const FollowPrintKey& right) {
+  return left.target == right.target && left.serial == right.serial
+    && left.source == right.source && left.pinned == right.pinned
+    && left.valid == right.valid && left.state == right.state
+    && left.nameKnown == right.nameKnown;
+}
+FollowPrintKey g_followPrintKey;
+bool g_followHavePrintKey = false;
+// The counters of design section 5.1, one name each. The reject reasons are
+// bucketed so the summary can print every one of them, zeros included: a gate
+// asserts no-slot=0, it does not infer it from a missing line.
+std::uint32_t g_followPicks = 0;
+std::uint32_t g_followIdempotent = 0;
+std::uint32_t g_followRejects = 0;
+std::uint32_t g_followFallbacks = 0;
+std::uint32_t g_followPinnedDeaths = 0;
+std::uint32_t g_followNameMissing = 0;
+std::uint32_t g_followArgumentRejected = 0;
+// index-out-of-range, no-slot, not-observable, is-observer, dead, no-candidates,
+// no-pov-eye -- followRejectBucket()'s order, which the summary repeats.
+std::uint32_t g_followRejectByBucket[7] = {0, 0, 0, 0, 0, 0, 0};
+
+// N13 step 1: the two --follow-* flags, consumed BEFORE the argument ladder for the
+// reason the flags above it already give: that ladder sits at MSVC's block-nesting
+// limit (C1061), and four more rungs put it over the top. Consuming them here is
+// behaviour-preserving by construction -- argv is still read left to right; each
+// flag still queues exactly the command it queued in the ladder; a spelling only
+// these branches match cannot observe where in the loop it was tested; and no other
+// branch in the loop reads or writes either name.
+bool followConsumeArgument(LPWSTR* arguments, int argumentCount, int& i) {
+  if (wcscmp(arguments[i], L"--follow-target") == 0) {
+    if (i + 1 < argumentCount) {
+      wchar_t* end = nullptr;
+      const long parsed = std::wcstol(arguments[++i], &end, 10);
+      // The same 0..2047 entity range --spectate-target accepts, refused rather
+      // than clamped when it does not parse: "the gate asked for player 5" and
+      // "the gate asked for nothing" must not read the same in the trace. This
+      // does NOT write g_spectateManualTarget: the follow command has its own
+      // hand-off, and two writers could not be told apart in a trace.
+      if (end && *end == L'\0' && parsed >= 0 && parsed <= 2047) {
+        // Naming a target is asking to watch it: one Select item, queued where
+        // the flag appeared, so argv order is the command order.
+        followQueuePush(tf2::native::FollowAction::Select, static_cast<std::int32_t>(parsed));
+      } else {
+        ++g_followArgumentRejected;
+      }
+    } else {
+      ++g_followArgumentRejected;
+    }
+    return true;
+  }
+  if (wcscmp(arguments[i], L"--follow-action") == 0) {
+    // Compared in wide characters, like every other value in this scan. An
+    // unknown action is COUNTED, not defaulted to select: a misspelled action
+    // that silently followed somebody would be the worse of the two failures.
+    if (i + 1 < argumentCount) {
+      const wchar_t* value = arguments[++i];
+      tf2::native::FollowAction action = tf2::native::FollowAction::None;
+      if (wcscmp(value, L"select") == 0) {
+        action = tf2::native::FollowAction::Select;
+      } else if (wcscmp(value, L"next") == 0) {
+        action = tf2::native::FollowAction::Next;
+      } else if (wcscmp(value, L"prev") == 0) {
+        action = tf2::native::FollowAction::Prev;
+      } else if (wcscmp(value, L"unfollow") == 0) {
+        action = tf2::native::FollowAction::Unfollow;
+      } else if (wcscmp(value, L"back-to-pov") == 0 || wcscmp(value, L"backToPov") == 0) {
+        action = tf2::native::FollowAction::BackToPov;
+      }
+      if (action != tf2::native::FollowAction::None) {
+        // Queued with entity -1. A bare select therefore reaches the validator
+        // with no target and refuses as index-out-of-range -- observable and
+        // counted, never silently paired with some other flag.
+        followQueuePush(action, -1);
+      } else {
+        ++g_followArgumentRejected;
+      }
+    } else {
+      ++g_followArgumentRejected;
+    }
+    return true;
+  }
+  return false;
+}
+
+// Which summary bucket a refusal lands in; 7 for a token that is not a refusal
+// (the printer only asks for refusals, so 7 is only ever a guard).
+std::size_t followRejectBucket(tf2::native::FollowReason reason) {
+  using tf2::native::FollowReason;
+  switch (reason) {
+    case FollowReason::IndexOutOfRange: return 0;
+    case FollowReason::NoSlot: return 1;
+    case FollowReason::NotObservable: return 2;
+    case FollowReason::IsObserver: return 3;
+    case FollowReason::Dead: return 4;
+    case FollowReason::NoCandidates: return 5;
+    case FollowReason::NoPovEye: return 6;
+    default: return 7;
+  }
+}
+
+// The same linear scan the director uses (spectate_target.cpp:322). One row per
+// entity, and a command must not answer a different question than the frames
+// that follow it -- two lookups is how a command and a camera come to disagree.
+const tf2::native::SpectateSlot* followSlotAt(
+    const std::vector<tf2::native::SpectateSlot>& slots, std::int32_t entityIndex) {
+  if (entityIndex < 0) return nullptr;
+  for (const tf2::native::SpectateSlot& slot : slots) {
+    if (slot.entityIndex == entityIndex) return &slot;
+  }
+  return nullptr;
+}
+
+// N13 step 1: there is no serial source yet. SpectateSlot
+// (include/spectate_target.h:53) and EntityState (include/demo_header.h:111)
+// carry no CBaseHandle, and the only decoded handle the product has is the
+// camera's own m_hObserverTarget. 0 therefore means UNKNOWN, and the reuse gate
+// reads it as unverifiable rather than as evidence of reuse: a gate that fired on
+// missing data would un-pin every user on the first frame. Filling this in needs
+// a per-entity handle in the snapshot and belongs to a later step.
+std::uint32_t followSlotSerial(const tf2::native::SpectateSlot& /*slot*/) {
+  return 0;
+}
+
+// N13 step 1 revision 2: WHICH CAMERA OWNS THIS FRAME, as the follow line reports
+// it. "The pin was accepted" and "the picture moved to the pin" are two readings,
+// and a step-1 run can have the first without the second: a POV demo publishes its
+// own eye (g_cameraDemoViewUsable) and the pin cannot outrank it until step 2. Without
+// this field such a run reads as "following works" in the trace.
+//
+// The relay branch repeats the three readings the placement guard itself uses
+// (main.cpp, the !g_debugCamera && !g_cameraDemoViewUsable && FirstPerson guard)
+// rather than calling into the camera: no camera function is invoked here and no
+// camera state is written. "unknown" covers the camera paths this step does not name:
+// a snapshot-ready frame whose mode is not FirstPerson (free look, a mode the relay
+// will not place) is neither the demo's eye nor the relay, and saying so is better
+// than calling it relay.
+const char* followCameraEffectName(bool snapshotReady) {
+  if (!snapshotReady) return "no-snapshot";
+  if (g_cameraDemoViewUsable) return "pov-eye-wins";
+  if (!g_debugCamera && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
+    return "relay";
+  }
+  return "unknown";
+}
+
+// The four gates of design section 3, in order: index range, slot present,
+// observable (which is where the spectator/team-1 refusal lives), alive. The
+// second gate is what makes out-of-range and no-slot different readings: past the
+// end of the entity table is a stale pin, a gap inside it is a snapshot that
+// skipped a row. Every caller refuses on the returned reason and leaves the pin
+// untouched, so "refused" and "dropped" are never reachable from one command.
+tf2::native::FollowState followValidate(
+    const std::vector<tf2::native::SpectateSlot>& slots, std::int32_t entityIndex,
+    tf2::native::FollowReason& reason) {
+  using tf2::native::FollowReason;
+  using tf2::native::FollowState;
+  reason = FollowReason::None;
+  // gate 1: the entity table's own range.
+  if (entityIndex < 0 || static_cast<std::size_t>(entityIndex) >= slots.size()) {
+    reason = FollowReason::IndexOutOfRange;
+    return FollowState::GoneIndexOutOfRange;
+  }
+  // gate 2: the row exists.
+  const tf2::native::SpectateSlot* slot = followSlotAt(slots, entityIndex);
+  if (slot == nullptr) {
+    reason = FollowReason::NoSlot;
+    return FollowState::GoneNoSlot;
+  }
+  // gate 3: a camera-side slot is not somebody to watch. The team boundary is
+  // slotObservable's own (spectate_target.cpp:50), so observer and not-observable
+  // cannot come to mean different players.
+  if (!slot->isPlayer) {
+    reason = FollowReason::NotObservable;
+    return FollowState::GoneNotObservable;
+  }
+  if (slot->hasTeam && slot->team < 2) {
+    reason = FollowReason::IsObserver;
+    return FollowState::Observer;
+  }
+  if (!tf2::native::slotObservable(*slot)) {
+    reason = FollowReason::NotObservable;
+    return FollowState::GoneNotObservable;
+  }
+  // gate 4: a dead player is not a target. slotAlive also refuses a row that
+  // carries no evidence of life, which is the same denial the relay makes.
+  if (!tf2::native::slotAlive(*slot)) {
+    reason = FollowReason::Dead;
+    return FollowState::Dead;
+  }
+  return FollowState::Ok;
+}
+
+// A refusal: counted, bucketed, named, and remembered so this frame's trace can
+// say the command was refused even though no state moved.
+bool followRefuse(tf2::native::FollowReason reason, std::int32_t entity, std::string& out) {
+  ++g_followRejects;
+  const std::size_t bucket = followRejectBucket(reason);
+  if (bucket < 7) ++g_followRejectByBucket[bucket];
+  g_followCommandRefused = true;
+  g_followCommandEntity = entity;
+  g_followCommandReason = reason;
+  g_followLastReason = reason;
+  out = tf2::native::followReasonName(reason);
+  return false;
+}
+
+// One follow command. True when it was applied or already was the case, false on
+// a refusal with reason naming it. Counters move in both cases -- a refusal
+// nobody counted is a command that vanished -- and the PRINT decision is the
+// caller's: an idempotent success changes no state and prints nothing, which is
+// A2 (two selects print one line).
+bool handleFollowAction(tf2::native::FollowAction action, std::int32_t entity,
+    const std::vector<tf2::native::SpectateSlot>& slots, std::string& reason) {
+  using tf2::native::FollowAction;
+  using tf2::native::FollowReason;
+  using tf2::native::FollowState;
+  using tf2::native::SpectateSource;
+  reason = "ok";
+  g_followCommandRefused = false;
+  g_followCommandEntity = -1;
+  g_followCommandReason = FollowReason::None;
+  ++g_followPicks;
+  if (action == FollowAction::Unfollow) {
+    // Not following is a no-op SUCCESS with its own reason, not a refusal: the
+    // user asked for a state the product is already in.
+    if (!g_followTarget.valid || !g_followTarget.pinned) {
+      ++g_followIdempotent;
+      g_followLastReason = FollowReason::NotFollowing;
+      reason = "not-following";
+      return true;
+    }
+    // Only this and backToPov clear the identity: they are the user saying
+    // "nobody". A lost target keeps the identity so the line can still name it.
+    g_followTarget = tf2::native::FollowTarget();
+    g_followState = FollowState::Unset;
+    g_followDirectorRefused = false;
+    g_followLastReason = FollowReason::Ok;
+    reason = "unfollow";
+    return true;
+  }
+  if (action == FollowAction::BackToPov) {
+    if (!g_cameraDemoViewUsable) {
+      // No demo eye means there is no POV to go back to. Refusing is the only
+      // answer that does not quietly pick a different camera instead.
+      return followRefuse(FollowReason::NoPovEye, entity, reason);
+    }
+    g_followTarget = tf2::native::FollowTarget();
+    g_followState = FollowState::Unset;
+    g_followDirectorRefused = false;
+    // The action F10 dispatches, not a second copy of what it does (main.cpp:213):
+    // "back to POV" must not drift from "reset to player".
+    std::string cameraReason;
+    const bool applied = handleCameraAction(tf2::native::camera_actions::kResetToPlayer, cameraReason);
+    g_followLastReason = FollowReason::Ok;
+    reason = applied ? "back-to-pov" : cameraReason;
+    return applied;
+  }
+  // select / next / prev share everything once the identity is chosen.
+  std::int32_t wanted = entity;
+  if (action == FollowAction::Next || action == FollowAction::Prev) {
+    std::vector<std::int32_t> candidates;
+    for (const tf2::native::SpectateSlot& slot : slots) {
+      if (slot.entityIndex < 0) continue;
+      if (!tf2::native::slotObservable(slot) || !tf2::native::slotAlive(slot)) continue;
+      candidates.push_back(slot.entityIndex);
+    }
+    if (candidates.empty()) return followRefuse(FollowReason::NoCandidates, entity, reason);
+    // Ascending entity index, wrapping: the order pickStable() walks
+    // (spectate_target.cpp:334), so next agrees with what a handover would have
+    // chosen. Two orders in one product is how the camera and the command come to
+    // disagree.
+    std::sort(candidates.begin(), candidates.end());
+    const std::int32_t from = (g_followTarget.valid && g_followTarget.pinned
+        && g_followState == FollowState::Ok) ? g_followTarget.entityIndex
+      : g_spectateDirector.targetIndex();
+    wanted = -1;
+    if (action == FollowAction::Next) {
+      for (const std::int32_t candidate : candidates) {
+        if (from < 0 || candidate > from) { wanted = candidate; break; }
+      }
+      if (wanted < 0) wanted = candidates.front();
+    } else {
+      for (const std::int32_t candidate : candidates) {
+        if (from >= 0 && candidate < from) wanted = candidate;
+      }
+      if (wanted < 0) wanted = candidates.back();
+    }
+  }
+  FollowReason why = FollowReason::None;
+  const FollowState state = followValidate(slots, wanted, why);
+  if (state != FollowState::Ok) return followRefuse(why, wanted, reason);
+  // Idempotent select: success, counted, and silent (A2).
+  if (g_followTarget.valid && g_followTarget.pinned
+      && g_followTarget.entityIndex == wanted && g_followState == FollowState::Ok) {
+    ++g_followIdempotent;
+    g_followLastReason = FollowReason::AlreadyFollowing;
+    reason = "already-following";
+    return true;
+  }
+  g_followTarget.entityIndex = wanted;
+  // 0 = unknown today (followSlotSerial); written from the slot the day a source
+  // exists, so the reconciliation gate has something real to compare.
+  const tf2::native::SpectateSlot* pinnedSlot = followSlotAt(slots, wanted);
+  g_followTarget.serial = pinnedSlot != nullptr ? followSlotSerial(*pinnedSlot) : 0;
+  g_followTarget.source = SpectateSource::Manual;
+  g_followTarget.pinned = true;
+  g_followTarget.valid = true;
+  g_followState = FollowState::Ok;
+  g_followDirectorRefused = false;
+  g_followLastReason = FollowReason::Ok;
+  // The director adopts the pick through the same one-shot path its own manual
+  // pick uses; the relay's decision is never written directly.
+  g_followPendingEntity = wanted;
+  reason = "ok";
+  return true;
+}
+
+// U4 step 3: the same command vocabulary, applied to pane 1. It is a separate
+// function rather than a pane parameter on handleFollowAction because pane 0's
+// path has to stay byte for byte what it was: its counters, its trace lines and
+// its pin state belong to the pane that owns the relay, and a shared function
+// with a pane switch inside would put that ownership up for reinterpretation.
+bool handlePane1FollowAction(tf2::native::FollowAction action, std::int32_t entity,
+                             const std::vector<tf2::native::SpectateSlot>& slots,
+                             std::string& reason) {
+  using namespace tf2::native;
+  ++g_pane1Commands;
+  if (action == FollowAction::Select) {
+    FollowReason why = FollowReason::None;
+    const FollowState state = followValidate(slots, entity, why);
+    if (state != FollowState::Ok) {
+      ++g_pane1CommandRejected;
+      reason = followReasonName(why);
+      return false;
+    }
+    if (g_pane1Target == entity && g_pane1FollowPinned) {
+      reason = "already-following";
+      return true;
+    }
+    g_pane1Target = entity;
+    g_pane1PendingPick = entity;
+    g_pane1FollowPinned = true;
+    reason = "ok";
+    return true;
+  }
+  if (action == FollowAction::Unfollow) {
+    g_pane1FollowPinned = false;
+    g_pane1PendingPick = -1;
+    g_pane1Target = -1;
+    reason = "unfollow";
+    return true;
+  }
+  // Next/prev walk the same candidate order and the same predicate as pane 0's
+  // handler, but around pane 1's own target: the two panes cannot drag each
+  // other's picks along.
+  std::vector<std::int32_t> candidates;
+  for (const SpectateSlot& slot : slots) {
+    if (slot.entityIndex < 0) continue;
+    if (!slotObservable(slot) || !slotAlive(slot)) continue;
+    candidates.push_back(slot.entityIndex);
+  }
+  if (candidates.empty()) {
+    ++g_pane1CommandRejected;
+    reason = followReasonName(FollowReason::NoCandidates);
+    return false;
+  }
+  std::sort(candidates.begin(), candidates.end());
+  std::int32_t wanted = -1;
+  const std::int32_t from = g_pane1FollowPinned ? g_pane1Target : -1;
+  if (action == FollowAction::Next) {
+    for (const std::int32_t candidate : candidates) {
+      if (from < 0 || candidate > from) { wanted = candidate; break; }
+    }
+    if (wanted < 0) wanted = candidates.front();
+  } else {
+    for (const std::int32_t candidate : candidates) {
+      if (from >= 0 && candidate < from) wanted = candidate;
+    }
+    if (wanted < 0) wanted = candidates.back();
+  }
+  g_pane1Target = wanted;
+  g_pane1PendingPick = wanted;
+  g_pane1FollowPinned = true;
+  reason = "ok";
+  return true;
+}
+
+// design section 6.2: the pin's own state machine, run on this frame's slots
+// before the director is asked to decide (the call site is after the scene block
+// built the slots and before the director's update()), so the state this frame
+// prints describes the snapshot this frame draws.
+//
+// DRIFT, deliberate: the design gates no-snapshot on resolvedTick<0. Here the
+// evidence is snapshotReady instead, because a scene can resolve to a snapshot
+// with no server tick at all (g_sceneResolvedServerTick is -1 for exactly that
+// case, main.cpp:865-869) and the slots are still perfectly usable -- gating on
+// the tick would report no-snapshot for a frame that has one.
+void followReconcile(const std::vector<tf2::native::SpectateSlot>& slots, bool snapshotReady) {
+  using tf2::native::FollowState;
+  if (!g_followTarget.valid) {
+    g_followState = FollowState::Unset;
+    return;
+  }
+  // A snapshot that did not resolve is not evidence about anybody: the pin
+  // survives it untouched (design section 6.2, first clause).
+  if (!snapshotReady) {
+    g_followState = FollowState::NoSnapshot;
+    return;
+  }
+  const std::int32_t index = g_followTarget.entityIndex;
+  if (index < 0 || static_cast<std::size_t>(index) >= slots.size()) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneIndexOutOfRange;
+    return;
+  }
+  const tf2::native::SpectateSlot* slot = followSlotAt(slots, index);
+  if (slot == nullptr) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneNoSlot;
+    return;
+  }
+  // Only a KNOWN serial can contradict a known one; see followSlotSerial. The
+  // branch is coded and unreachable in this step, which the report says out loud.
+  const std::uint32_t serial = followSlotSerial(*slot);
+  if (g_followTarget.serial != 0 && serial != 0 && serial != g_followTarget.serial) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneIndexReused;
+    return;
+  }
+  if (slot->isPlayer && slot->hasTeam && slot->team < 2) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::Observer;
+    return;
+  }
+  if (!slot->isPlayer || !tf2::native::slotObservable(*slot)) {
+    g_followTarget.pinned = false;
+    g_followState = FollowState::GoneNotObservable;
+    return;
+  }
+  if (!tf2::native::slotAlive(*slot)) {
+    // A pin that dies is a different reading from a pin that was never alive: the
+    // counter is what says "your player died" instead of "your command was wrong".
+    if (g_followTarget.pinned) ++g_followPinnedDeaths;
+    g_followTarget.pinned = false;
+    g_followState = FollowState::Dead;
+    return;
+  }
+  g_followState = FollowState::Ok;
+}
+
+// design section 5.1: one line, fixed field order, printed when the tuple it
+// describes changed or when a command ran (success or refusal), and never
+// otherwise -- a line per frame makes the trace a frame counter and hides the
+// transitions it exists to show. The name comes through hudFollowResolveName,
+// the HUD readout's own resolution (main_hud.cpp), so the pinned player's name
+// and the readout's name cannot disagree.
+//
+// force/forceReason exist for the one cause that is not a command: a pin the
+// relay declined (step 1 cannot outrank it). That line reuses this shape with
+// state=unchanged on purpose: the pin's state did not move, and no field is added
+// for a cause the design already names in reason=.
+void followPublishTrace(const tf2::native::DemoNetworkSummary& summary,
+    std::int32_t resolvedTick, bool force, tf2::native::FollowReason forceReason,
+    const char* cameraEffect, int pinAccepted) {
+  const bool refused = g_followCommandRefused || force;
+  const std::int32_t nameEntity = g_followCommandRefused ? g_followCommandEntity
+    : g_followTarget.entityIndex;
+  const tf2::native::main_internal::FollowNameInfo name =
+    hudFollowResolveName(summary, nameEntity, resolvedTick);
+  FollowPrintKey key;
+  key.target = g_followTarget.entityIndex;
+  key.serial = g_followTarget.serial;
+  key.source = g_followTarget.source;
+  key.pinned = g_followTarget.pinned;
+  key.valid = g_followTarget.valid;
+  key.state = g_followState;
+  key.nameKnown = name.known;
+  const bool keyChanged = !g_followHavePrintKey || !followPrintKeyEqual(key, g_followPrintKey);
+  const bool neverFollowed = !g_followHavePrintKey && !g_followTarget.valid
+    && g_followState == tf2::native::FollowState::Unset;
+  if (neverFollowed && !refused) return;
+  bool printed = false;
+  if (refused) {
+    if (!name.known) ++g_followNameMissing;
+    const tf2::native::FollowReason why = g_followCommandRefused ? g_followCommandReason
+      : forceReason;
+    traceFmt("follow: target=%d serial=%u src=%s pinned=%d valid=%d state=%s reason=%s"
+      " nameKnown=%d nameSource=%s nameReason=%s name=\"%s\" tick=%d cameraEffect=%s"
+      " pinAccepted=%d",
+      static_cast<int>(g_followCommandRefused ? g_followCommandEntity : g_followTarget.entityIndex),
+      static_cast<unsigned>(g_followTarget.serial),
+      tf2::native::spectateSourceName(g_followTarget.source),
+      g_followTarget.pinned ? 1 : 0, g_followTarget.valid ? 1 : 0,
+      tf2::native::kFollowStateUnchanged, tf2::native::followReasonName(why),
+      name.known ? 1 : 0, name.source.c_str(), name.reason.c_str(),
+      name.display.c_str(), static_cast<int>(resolvedTick), cameraEffect, pinAccepted);
+    printed = true;
+  }
+  if (keyChanged && (g_followHavePrintKey || !printed)) {
+    if (!name.known && !refused) ++g_followNameMissing;
+    traceFmt("follow: target=%d serial=%u src=%s pinned=%d valid=%d state=%s reason=%s"
+      " nameKnown=%d nameSource=%s nameReason=%s name=\"%s\" tick=%d cameraEffect=%s"
+      " pinAccepted=%d",
+      static_cast<int>(g_followTarget.entityIndex),
+      static_cast<unsigned>(g_followTarget.serial),
+      tf2::native::spectateSourceName(g_followTarget.source),
+      g_followTarget.pinned ? 1 : 0, g_followTarget.valid ? 1 : 0,
+      tf2::native::followStateName(g_followState),
+      tf2::native::followReasonName(g_followLastReason),
+      name.known ? 1 : 0, name.source.c_str(), name.reason.c_str(),
+      name.display.c_str(), static_cast<int>(resolvedTick), cameraEffect, pinAccepted);
+    printed = true;
+  }
+  if (!printed) return;
+  g_followPrintKey = key;
+  g_followHavePrintKey = true;
+  g_followCommandRefused = false;
+  g_followCommandEntity = -1;
+  g_followCommandReason = tf2::native::FollowReason::None;
+}
 
 // T66: --spectate-pause-at <playback tick> stops the demo once, keeps rendering
 // for --spectate-pause-seconds, then resumes. The pause is not the point: the
@@ -540,7 +2149,7 @@ class ProductReviewPorts final : public tf2::native::ReviewSessionPorts {
         camera.pose.distance)) {
       return false;
     }
-    g_renderer->setViewModelFov(camera.fov);
+    g_renderer->setWorldFov(camera.fov);
     g_renderer->clearObserverDemoView();
     syncRendererPoseToDirector(tf2::native::CameraMoveSource::Bookmark);
     if (camera.mode == "first-person") g_cameraMode.setMode(tf2::native::CameraMode::FirstPerson);
@@ -561,10 +2170,6 @@ class ProductReviewPorts final : public tf2::native::ReviewSessionPorts {
   }
 };
 
-// The one session for this process. A global because the scripted step executor
-// (runCameraScriptStep) and the window procedure both reach it, and because its
-// lifetime must outlive the loop -- finish() is what closes the file.
-std::unique_ptr<tf2::native::ReviewSession> g_reviewSession;
 
 // Creates the session and binds it to the demo that is open. The event lookup is
 // the decoded T68 table, so the bookmark-add-event step can only bookmark an
@@ -629,99 +2234,7 @@ void beginReviewSession(const std::filesystem::path& workspacePath,
   g_reviewSession->begin(demoPath, demoHash, endTick);
 }
 
-// One key edge, already classified by the window procedure. The action id drives
-// the work, so a rebound key does the same thing as the default key.
-bool handleCameraAction(const std::string& action, std::string& reason) {
-  using namespace tf2::native;
-  reason = "ok";
-  if (action == camera_actions::kFreeFly) {
-    // Free-fly is a MODE, not a one-shot: it leaves whatever feeds the camera
-    // and holds the orbit where the user put it (CameraMode::FreeLook).
-    const bool enabling = g_cameraMode.mode() != CameraMode::FreeLook;
-    g_cameraMode.setMode(enabling ? CameraMode::FreeLook : CameraMode::FirstPerson);
-    g_lastAppliedCameraMode = g_cameraMode.mode();
-    g_cameraDirector.setFreeFly(enabling);
-    if (g_renderer && enabling) g_renderer->clearObserverDemoView();
-    reason = enabling ? "free-fly-on" : "free-fly-off";
-    return true;
-  }
-  if (action == camera_actions::kResetToPlayer) {
-    // "Back to the player": first-person, and the demo eye is adopted at the
-    // next scene tick (the eye belongs to the tick, so applying it here would
-    // be overwritten immediately).
-    g_cameraMode.setMode(CameraMode::FirstPerson);
-    g_lastAppliedCameraMode = CameraMode::FirstPerson;
-    g_cameraDirector.setFreeFly(false);
-    g_cameraDirector.requestResetToPlayer();
-    reason = "reset-to-player";
-    return true;
-  }
-  if (action == camera_actions::kResetView) {
-    g_cameraDirector.resetView();
-    syncDirectorPoseToRenderer(CameraMoveSource::Reset);
-    reason = "reset-view";
-    return true;
-  }
-  for (std::size_t slot = 1; slot <= kCameraBookmarkSlots; ++slot) {
-    if (action == camera_actions::jumpBookmark(slot)) {
-      std::string jumpReason;
-      const bool ok = jumpToCameraBookmark(slot, jumpReason);
-      reason = jumpReason;
-      return ok;
-    }
-    if (action == camera_actions::saveBookmark(slot)) {
-      const bool ok = saveCameraBookmark(slot, std::string());
-      reason = ok ? "saved" : "refused";
-      return ok;
-    }
-    if (action == camera_actions::deleteBookmark(slot)) {
-      const bool ok = g_cameraBookmarks.remove(slot);
-      reason = ok ? "deleted" : "empty";
-      if (ok && g_renderer) g_renderer->clearCameraPreset(slot - 1);
-      return ok;
-    }
-  }
-  reason = "unhandled";
-  return false;
-}
 
-// One key edge, from the window procedure or the acceptance driver. The focus
-// rule is consulted FIRST, before the table: a text field owns every keystroke
-// while it has focus, including keys that are also bound.
-bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character,
-    std::string& action, std::string& result) {
-  if (!tf2::native::shouldDispatchHotkey(g_textFieldFocused, character)) {
-    ++g_hotkeySuppressedByFocus;
-    // Both the product counter and the table's own count move, so the summary
-    // line and the table cannot disagree about how often focus won.
-    g_keyBinds.noteSuppressedByFocus();
-    action.clear();
-    // The message names the rule, not just the failure: a user who wonders why
-    // F1 did nothing inside the name field gets "suppressed-by-focus" in the
-    // trace rather than silence.
-    result = "suppressed-by-focus";
-    return false;
-  }
-  tf2::native::KeyChord chord;
-  chord.vk = vk;
-  chord.ctrl = ctrl;
-  chord.alt = alt;
-  chord.shift = shift;
-  const auto dispatched = g_keyBinds.dispatch(chord);
-  if (dispatched.result != tf2::native::KeyDispatchResult::Ok) {
-    action.clear();
-    // "unbound" is a legal state and is reported as one: there is no fallback
-    // key table behind this, by design.
-    result = "unbound";
-    return false;
-  }
-  action = dispatched.action;
-  g_lastDispatchedAction = action;
-  std::string reason;
-  handleCameraAction(action, reason);
-  result = "ok:" + reason;
-  return true;
-}
 
 
 // ---------------------------------------------------------------------------
@@ -739,604 +2252,18 @@ bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character
 // product run takes none of it, and every step reports itself so a gate can
 // tell "the step did nothing" from "the step was never run".
 // ---------------------------------------------------------------------------
-
-struct CameraScriptStep {
-  std::string command;
-  std::vector<std::string> args;
-  // The raw line, so the trace quotes what was asked for and not a
-  // re-serialisation of it.
-  std::string text;
-};
-
-std::vector<CameraScriptStep> g_cameraScript;
-std::size_t g_cameraScriptIndex = 0;
-bool g_cameraScriptMode = false;
-bool g_cameraScriptDone = false;
-std::uint32_t g_cameraScriptStepsRun = 0;
-std::uint32_t g_cameraScriptStepsFailed = 0;
-// A capture step waits for the frame it asked for; the loop must not quit on it
-// the way the one-shot --capture-frame path does.
-bool g_scriptCapturePending = false;
-std::string g_scriptCapturePath;
-std::string g_scriptCaptureLabel;
-std::uint32_t g_cameraCaptures = 0;
-// Frames to wait before the next step, for steps whose effect lands on a later
-// frame (a capture, a scene-tick camera application).
-std::uint32_t g_cameraScriptWaitFrames = 0;
-// The tick a `mark-tick` step recorded, for `expect-same-tick` to compare against.
-std::int32_t g_scriptTickMark = -1;
-// The exit code a `quit` step asked for; -1 means "no script ran".
-int g_cameraScriptExitCode = -1;
-
-std::vector<std::string> splitWords(const std::string& line) {
-  std::vector<std::string> words;
-  std::size_t index = 0;
-  while (index < line.size()) {
-    while (index < line.size() && (line[index] == ' ' || line[index] == '\t')) ++index;
-    if (index >= line.size()) break;
-    const std::size_t start = index;
-    while (index < line.size() && line[index] != ' ' && line[index] != '\t') ++index;
-    words.push_back(line.substr(start, index - start));
-  }
-  return words;
-}
-
-bool loadCameraScript(const std::filesystem::path& file) {
-  g_cameraScript.clear();
-  std::ifstream input(file);
-  if (!input) return false;
-  std::string line;
-  while (std::getline(input, line)) {
-    while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
-    if (line.empty() || line[0] == '#') continue;
-    auto words = splitWords(line);
-    if (words.empty()) continue;
-    CameraScriptStep step;
-    step.text = line;
-    step.command = words.front();
-    step.args.assign(words.begin() + 1, words.end());
-    g_cameraScript.push_back(std::move(step));
-  }
-  return !g_cameraScript.empty();
-}
-
-// Every step reports through this pair so a failed step is a reading, not a
-// silent skip: `camera: accept` carries the step index, the command and a
-// one-word result.
-void cameraScriptReport(std::size_t index, const std::string& command,
-    const std::string& result, const std::string& detail) {
-  traceFmt("camera: accept step=%zu cmd=%s result=%s detail=%s", index,
-    command.c_str(), result.c_str(), detail.empty() ? "-" : detail.c_str());
-}
-
-// Parses a pose out of the renderer and reports it. `label` names the moment;
-// the gate compares two labels' numbers, which is what makes "the camera moved
-// while the tick did not" a measurement rather than a claim.
-void cameraSnapshot(const std::string& label) {
-  if (!g_renderer) {
-    traceFmt("camera: snapshot label=%s valid=0", label.c_str());
-    return;
-  }
-  const auto reading = g_renderer->orbitPose();
-  if (!reading.valid) {
-    traceFmt("camera: snapshot label=%s valid=0 tick=%d", label.c_str(),
-      static_cast<int>(g_playback.tick));
-    return;
-  }
-  tf2::native::CameraPose pose;
-  pose.focusX = reading.focusX; pose.focusY = reading.focusY; pose.focusZ = reading.focusZ;
-  pose.yaw = reading.yaw; pose.pitch = reading.pitch; pose.distance = reading.distance;
-  pose.valid = true;
-  traceFmt("camera: snapshot label=%s valid=1 tick=%d paused=%d mode=%s demoView=%d fov=%.6f %s",
-    label.c_str(), static_cast<int>(g_playback.tick), g_playback.paused ? 1 : 0,
-    cameraModeToken(g_cameraMode.mode()), reading.demoView ? 1 : 0,
-    static_cast<double>(reading.fovDegrees), tf2::native::poseTraceFields(pose).c_str());
-}
-
-// Runs the pending script step. Returns true when a step ran (the caller then
-// continues the loop without doing anything else this iteration), so the
-// sequence of steps is deterministic even when the machine is loaded.
-bool runCameraScriptStep() {
-  using namespace tf2::native;
-  if (!g_cameraScriptMode || g_cameraScriptIndex >= g_cameraScript.size()) return false;
-  if (g_cameraScriptWaitFrames > 0) { --g_cameraScriptWaitFrames; return true; }
-  if (g_scriptCapturePending) return true;   // the capture owns the loop
-  const std::size_t index = g_cameraScriptIndex;
-  const CameraScriptStep& step = g_cameraScript[index];
-  ++g_cameraScriptIndex;
-  ++g_cameraScriptStepsRun;
-  const auto fail = [&](const std::string& detail) {
-    ++g_cameraScriptStepsFailed;
-    cameraScriptReport(index, step.command, "fail", detail);
-    return true;
-  };
-  const auto ok = [&](const std::string& detail) {
-    cameraScriptReport(index, step.command, "ok", detail);
-    return true;
-  };
-  const auto number = [&](std::size_t position, double& value) {
-    if (position >= step.args.size()) return false;
-    char* end = nullptr;
-    value = std::strtod(step.args[position].c_str(), &end);
-    return end && *end == '\0';
-  };
-  if (step.command == "tick") {
-    double wanted = 0.0;
-    if (!number(0, wanted)) return fail("bad-argument");
-    // Waiting is not failing: the step stays unexecuted until the tick arrives.
-    // The execution counter is rolled back with the index, or a long wait would
-    // report dozens of executed steps that never ran and the gate's
-    // "steps executed" assertion would count iterations instead of steps.
-    if (g_playback.tick < static_cast<std::int32_t>(wanted)) {
-      --g_cameraScriptIndex;
-      --g_cameraScriptStepsRun;
-      return true;
-    }
-    return ok("tick=" + std::to_string(g_playback.tick));
-  }
-  if (step.command == "frames") {
-    double count = 0.0;
-    if (!number(0, count)) return fail("bad-argument");
-    g_cameraScriptWaitFrames = static_cast<std::uint32_t>(count);
-    return ok("wait=" + std::to_string(g_cameraScriptWaitFrames));
-  }
-  if (step.command == "pause" || step.command == "resume") {
-    const bool paused = step.command == "pause";
-    tf2::native::PlaybackRequest request;
-    request.kind = tf2::native::PlaybackRequestKind::SetPaused;
-    request.paused = paused;
-    request.source = "camera-script";
-    applyPlaybackRequest(request);
-    g_pauseKey.paused = paused;
-    g_cameraDirector.setPaused(paused);
-    return ok(paused ? "paused" : "playing");
-  }
-  if (step.command == "orbit") {
-    double dx = 0.0, dy = 0.0;
-    if (!number(0, dx) || !number(1, dy)) return fail("bad-argument");
-    // Through the renderer, which is what the product does for a drag: the
-    // director then reads the pose back, so both halves agree.
-    if (!g_renderer) return fail("no-renderer");
-    g_renderer->orbitCamera(static_cast<float>(dx), static_cast<float>(dy));
-    syncRendererPoseToDirector();
-    return ok("moved");
-  }
-  if (step.command == "zoom") {
-    double delta = 0.0;
-    if (!number(0, delta)) return fail("bad-argument");
-    if (!g_renderer) return fail("no-renderer");
-    g_renderer->zoomCamera(static_cast<float>(delta));
-    syncRendererPoseToDirector();
-    return ok("zoomed");
-  }
-  if (step.command == "save") {
-    double slot = 0.0;
-    if (!number(0, slot)) return fail("bad-argument");
-    std::string name;
-    for (std::size_t position = 1; position < step.args.size(); ++position) {
-      if (!name.empty()) name += " ";
-      name += step.args[position];
-    }
-    const bool saved = saveCameraBookmark(static_cast<std::size_t>(slot), name);
-    traceFmt("camera: bookmark action=save slot=%d name=%s ok=%d",
-      static_cast<int>(slot), name.empty() ? "-" : name.c_str(), saved ? 1 : 0);
-    return saved ? ok("slot=" + std::to_string(static_cast<int>(slot))) : fail("refused");
-  }
-  if (step.command == "jump") {
-    double slot = 0.0;
-    if (!number(0, slot)) return fail("bad-argument");
-    std::string reason;
-    const bool jumped = jumpToCameraBookmark(static_cast<std::size_t>(slot), reason);
-    const auto pose = g_cameraDirector.pose();
-    traceFmt("camera: bookmark action=jump slot=%d ok=%d reason=%s %s",
-      static_cast<int>(slot), jumped ? 1 : 0, reason.c_str(),
-      pose.valid ? tf2::native::poseTraceFields(pose).c_str() : "focus=-");
-    return jumped ? ok(reason) : fail(reason);
-  }
-  if (step.command == "delete") {
-    double slot = 0.0;
-    if (!number(0, slot)) return fail("bad-argument");
-    const bool removed = g_cameraBookmarks.remove(static_cast<std::size_t>(slot));
-    if (removed && g_renderer) g_renderer->clearCameraPreset(static_cast<std::size_t>(slot) - 1);
-    traceFmt("camera: bookmark action=delete slot=%d ok=%d",
-      static_cast<int>(slot), removed ? 1 : 0);
-    return removed ? ok("deleted") : fail("empty");
-  }
-  if (step.command == "reset-view") {
-    g_cameraDirector.resetView();
-    syncDirectorPoseToRenderer(CameraMoveSource::Reset);
-    return ok("reset-view");
-  }
-  if (step.command == "reset-to-player") {
-    std::string reason;
-    handleCameraAction(camera_actions::kResetToPlayer, reason);
-    return ok(reason);
-  }
-  if (step.command == "freefly") {
-    const bool on = !step.args.empty() && step.args[0] == "on";
-    const std::string action = camera_actions::kFreeFly;
-    std::string reason;
-    handleCameraAction(action, reason);
-    if (on != g_cameraDirector.freeFly()) {
-      // The action toggles; a script that asks for a state gets that state.
-      handleCameraAction(action, reason);
-    }
-    // T93-B: the step reports the state it LEFT the product in, not the state it
-    // asked for. T85 read `result=ok detail=on` on a run whose freeFlySteps was
-    // 0 and whose every drawn frame said mode=first-person: "on" was a promise
-    // about a toggle and nothing checked it. The detail now carries the mode the
-    // product is actually in, and a state the step cannot reach fails the step.
-    if (on != g_cameraDirector.freeFly()) return fail("unreachable");
-    return ok(std::string(g_cameraDirector.freeFly() ? "on" : "off")
-      + " mode=" + tf2::native::cameraModeName(g_cameraMode.mode()));
-  }
-  if (step.command == "snapshot") {
-    cameraSnapshot(step.args.empty() ? "unnamed" : step.args[0]);
-    return ok(step.args.empty() ? "unnamed" : step.args[0]);
-  }
-  if (step.command == "verify-bookmark") {
-    // The exactness assertion, inside the product. Compares the renderer's own
-    // pose with the bookmarked one through the same poseEqual a save/jump round
-    // trip uses, so "the pose came back" is exact rather than to 6 decimals on a
-    // trace line. A jump that lands 1e-3 away reports match=0.
-    double slot = 0.0;
-    if (!number(0, slot)) return fail("bad-argument");
-    const std::size_t wanted = static_cast<std::size_t>(slot);
-    if (!g_cameraBookmarks.saved(wanted) || !g_renderer) return fail("no-bookmark");
-    const auto reading = g_renderer->orbitPose();
-    if (!reading.valid) return fail("no-pose");
-    tf2::native::CameraPose current;
-    current.focusX = reading.focusX; current.focusY = reading.focusY;
-    current.focusZ = reading.focusZ; current.yaw = reading.yaw;
-    current.pitch = reading.pitch; current.distance = reading.distance;
-    current.valid = true;
-    const auto& saved = g_cameraBookmarks.at(wanted);
-    // Two separate readings, because the mutation harness proves each one can go
-    // red on its own: the six orbit fields, and the projection the frame is
-    // drawn through. A jump that restores the orbit into the wrong fov is a
-    // different picture even though the pose numbers match.
-    const bool match = tf2::native::poseEqual(current, saved.pose);
-    const bool fovMatch = reading.fovDegrees == saved.fov;
-    traceFmt("camera: verify kind=bookmark slot=%d match=%d fovMatch=%d fovWant=%s fovGot=%s want=%s got=%s",
-      static_cast<int>(wanted), match ? 1 : 0, fovMatch ? 1 : 0,
-      tf2::native::formatPoseField(saved.fov).c_str(),
-      tf2::native::formatPoseField(reading.fovDegrees).c_str(),
-      tf2::native::formatPose(saved.pose).c_str(), tf2::native::formatPose(current).c_str());
-    return match && fovMatch ? ok("exact") : fail(match ? "fov-mismatch" : "pose-mismatch");
-  }
-  if (step.command == "verify-name") {
-    double slot = 0.0;
-    if (!number(0, slot)) return fail("bad-argument");
-    std::string wanted;
-    for (std::size_t position = 1; position < step.args.size(); ++position) {
-      if (!wanted.empty()) wanted += " ";
-      wanted += step.args[position];
-    }
-    const auto& bookmark = g_cameraBookmarks.at(static_cast<std::size_t>(slot));
-    const bool match = bookmark.saved && bookmark.name == wanted;
-    traceFmt("camera: verify kind=name slot=%d match=%d name=%s",
-      static_cast<int>(slot), match ? 1 : 0, bookmark.name.c_str());
-    return match ? ok("named") : fail("name-mismatch");
-  }
-  if (step.command == "capture") {
-    if (!g_renderer || step.args.empty()) return fail("bad-argument");
-    g_scriptCapturePath = step.args[0];
-    g_scriptCaptureLabel = step.args.size() > 1 ? step.args[1] : step.args[0];
-    g_scriptCapturePending = true;
-    // The capture is armed here and requested on the next drawn frame; the
-    // `camera: capture` line then names the tick it landed on. The step still
-    // reports, so "the step was executed" and "the frame was written" stay two
-    // separate readings.
-    return ok("armed=" + g_scriptCaptureLabel);
-  }
-  if (step.command == "key") {
-    double vk = 0.0;
-    if (!number(0, vk)) return fail("bad-argument");
-    bool ctrl = false, alt = false, shift = false;
-    for (std::size_t position = 1; position < step.args.size(); ++position) {
-      if (step.args[position] == "ctrl") ctrl = true;
-      else if (step.args[position] == "alt") alt = true;
-      else if (step.args[position] == "shift") shift = true;
-    }
-    std::string action;
-    std::string result;
-    dispatchHotkey(static_cast<unsigned>(vk), ctrl, alt, shift, false, action, result);
-    traceFmt("camera: keys vk=%d ctrl=%d alt=%d shift=%d action=%s result=%s",
-      static_cast<int>(vk), ctrl ? 1 : 0, alt ? 1 : 0, shift ? 1 : 0,
-      action.empty() ? "-" : action.c_str(), result.c_str());
-    return ok(result);
-  }
-  if (step.command == "conflict") {
-    // Binds `action` to `chord` and reports whether the table accepted it.
-    // This is the step the gate uses to prove conflict detection is real: the
-    // answer must be "refused" and the action must keep its own key.
-    if (step.args.size() < 2) return fail("bad-argument");
-    const auto chord = tf2::native::parseChord(step.args[1]);
-    const bool accepted = g_keyBinds.set(step.args[0], chord);
-    traceFmt("camera: keys action=%s chord=%s result=%s current=%s",
-      step.args[0].c_str(), tf2::native::formatChord(chord).c_str(),
-      accepted ? "accepted" : "conflict",
-      tf2::native::formatChord(g_keyBinds.actionKey(step.args[0])).c_str());
-    return ok(accepted ? "accepted" : "conflict");
-  }
-  if (step.command == "bind") {
-    if (step.args.size() < 2) return fail("bad-argument");
-    const auto chord = tf2::native::parseChord(step.args[1]);
-    const bool accepted = g_keyBinds.set(step.args[0], chord);
-    traceFmt("camera: keys action=%s chord=%s result=%s current=%s",
-      step.args[0].c_str(), tf2::native::formatChord(chord).c_str(),
-      accepted ? "accepted" : "conflict",
-      tf2::native::formatChord(g_keyBinds.actionKey(step.args[0])).c_str());
-    return ok(accepted ? "accepted" : "conflict");
-  }
-  if (step.command == "unbind") {
-    if (step.args.empty()) return fail("bad-argument");
-    g_keyBinds.unbind(step.args[0]);
-    traceFmt("camera: keys action=%s result=unbound", step.args[0].c_str());
-    return ok("unbound");
-  }
-  if (step.command == "reset-keys") {
-    g_keyBinds.resetAll();
-    traceFmt("camera: keys action=* result=reset-all resets=%u",
-      g_keyBinds.resetCount());
-    return ok("reset-all");
-  }
-  if (step.command == "focus-text") {
-    g_textFieldFocused = !step.args.empty() && step.args[0] == "on";
-    return ok(g_textFieldFocused ? "on" : "off");
-  }
-  if (step.command == "director") {
-    traceFmt("camera: director frozen=%u advanced=%u violations=%u tick=%d"
-      " moves=%u movesWhilePaused=%u freeFlySteps=%u bookmarkApplies=%u"
-      " resetToPlayer=%u/%u resetView=%u focusSuppressed=%u",
-      g_cameraDirector.frozenDemoFrames(), g_cameraDirector.advancedDemoFrames(),
-      g_cameraDirector.pauseViolations(), static_cast<int>(g_cameraDirector.lastTick()),
-      g_cameraDirector.cameraMoves(), g_cameraDirector.cameraMovesWhilePaused(),
-      g_cameraDirector.freeFlySteps(), g_cameraDirector.bookmarkApplies(),
-      g_cameraDirector.resetToPlayerRequests(), g_cameraDirector.resetToPlayerApplies(),
-      g_cameraDirector.resetViewCount(), g_hotkeySuppressedByFocus);
-    return ok("reported");
-  }
-  if (step.command == "expect-tick") {
-    double wanted = -1.0;
-    if (!number(0, wanted)) return fail("bad-argument");
-    traceFmt("camera: expect what=tick expected=%d actual=%d match=%d",
-      static_cast<int>(wanted), static_cast<int>(g_playback.tick),
-      static_cast<int>(wanted) == g_playback.tick ? 1 : 0);
-    return static_cast<std::int32_t>(wanted) == g_playback.tick
-      ? ok("match") : fail("mismatch");
-  }
-  if (step.command == "mark-tick") {
-    g_scriptTickMark = g_playback.tick;
-    traceFmt("camera: mark tick=%d", static_cast<int>(g_scriptTickMark));
-    return ok("marked");
-  }
-  if (step.command == "expect-same-tick") {
-    // "the tick is exactly where it was when the mark was taken". Exact rather
-    // than "did not move much": the pause contract is that the cursor stands
-    // still, and a gate that accepted a wobble would accept a broken freeze.
-    const bool same = g_playback.tick == g_scriptTickMark;
-    traceFmt("camera: expect what=same-tick marked=%d actual=%d match=%d",
-      static_cast<int>(g_scriptTickMark), static_cast<int>(g_playback.tick),
-      same ? 1 : 0);
-    return same ? ok("frozen") : fail("tick-moved");
-  }
-  if (step.command == "expect-tick-gt") {
-    // "the tick advanced past N". Separate from expect-tick because the
-    // resume half of the contract is a claim about direction, not about a
-    // particular value: the loop is free to draw several ticks between two
-    // steps and pinning an exact number would make the gate a timing test.
-    double wanted = -1.0;
-    if (!number(0, wanted)) return fail("bad-argument");
-    const bool advanced = g_cameraDirector.lastTick() > static_cast<std::int32_t>(wanted);
-    traceFmt("camera: expect what=tick-gt expected=%d actual=%d match=%d",
-      static_cast<int>(wanted), static_cast<int>(g_cameraDirector.lastTick()),
-      advanced ? 1 : 0);
-    return advanced ? ok("advanced") : fail("not-advanced");
-  }
-  if (step.command == "save-settings") {
-    const bool bookmarks = g_cameraBookmarks.saveToSettings(tf2::native::settingsPath());
-    const bool keys = g_keyBinds.saveToSettings(tf2::native::settingsPath());
-    traceFmt("camera: settings bookmarks=%d keys=%d path=%s", bookmarks ? 1 : 0,
-      keys ? 1 : 0, tf2::native::settingsPath().u8string().c_str());
-    return bookmarks && keys ? ok("saved") : fail("refused");
-  }
-  if (step.command == "load-settings") {
-    const bool bookmarks = g_cameraBookmarks.loadFromSettings(tf2::native::settingsPath());
-    const bool keys = g_keyBinds.loadFromSettings(tf2::native::settingsPath());
-    traceFmt("camera: settings bookmarks=%d keys=%d loaded=1 slots=%zu",
-      bookmarks ? 1 : 0, keys ? 1 : 0, g_cameraBookmarks.savedCount());
-    return ok("loaded");
-  }
-  // T70: the scripted transport driver. Every command goes through the same
-  // request() the keyboard uses, so a scripted acceptance run exercises the
-  // production path rather than a test-only copy.
-  if (step.command == "step") {
-    double delta = 0.0;
-    if (!number(0, delta)) return fail("bad-argument");
-    tf2::native::PlaybackRequest request;
-    request.kind = tf2::native::PlaybackRequestKind::StepTicks;
-    request.ticks = static_cast<std::int32_t>(delta);
-    request.source = "camera-script";
-    applyPlaybackRequest(request);
-    return ok("tick=" + std::to_string(g_playback.tick));
-  }
-  if (step.command == "jump-seconds") {
-    double seconds = 0.0;
-    if (!number(0, seconds)) return fail("bad-argument");
-    tf2::native::PlaybackRequest request;
-    request.kind = tf2::native::PlaybackRequestKind::JumpSeconds;
-    request.seconds = seconds;
-    request.source = "camera-script";
-    applyPlaybackRequest(request);
-    return ok("tick=" + std::to_string(g_playback.tick));
-  }
-  if (step.command == "seek") {
-    double tick = 0.0;
-    if (!number(0, tick)) return fail("bad-argument");
-    tf2::native::PlaybackRequest request;
-    request.kind = tf2::native::PlaybackRequestKind::JumpTicks;
-    request.tick = static_cast<std::int32_t>(tick);
-    request.source = "camera-script";
-    applyPlaybackRequest(request);
-    return ok("tick=" + std::to_string(g_playback.tick));
-  }
-  if (step.command == "speed") {
-    double speed = 0.0;
-    if (!number(0, speed)) return fail("bad-argument");
-    tf2::native::PlaybackRequest request;
-    request.kind = tf2::native::PlaybackRequestKind::SetSpeed;
-    request.speed = speed;
-    request.source = "camera-script";
-    applyPlaybackRequest(request);
-    return ok("speed=" + std::to_string(g_playback.speed));
-  }
-  if (step.command == "playback-state") {
-    const tf2::native::PlaybackView view = g_playbackControl.view();
-    const tf2::native::PlaybackReadings readings = g_playbackControl.readings();
-    traceFmt("playback: state phase=%s cursor=%d end=%d paused=%d reverse=%d speed=%.6f"
-      " rate=%.6f firstPacketTick=%d origin=%d pending=%d lastRequest=%d lastStatus=%s"
-      " lastFrameRequest=%d boundary=%d requests=%llu landings=%llu rejected=%llu",
-      tf2::native::PlaybackControl::phaseName(view.phase),
-      static_cast<int>(view.cursorTick), static_cast<int>(view.endTick),
-      view.paused ? 1 : 0, view.reverse ? 1 : 0, view.speed, view.tickRate,
-      static_cast<int>(view.firstPacketTick), view.firstPacketOriginKnown ? 1 : 0,
-      static_cast<int>(view.pendingRequestId), static_cast<int>(view.lastRequestId),
-      tf2::native::PlaybackControl::statusName(view.lastStatus),
-      static_cast<int>(view.lastFrameRequest), view.boundary ? 1 : 0,
-      static_cast<unsigned long long>(readings.requests),
-      static_cast<unsigned long long>(readings.landings),
-      static_cast<unsigned long long>(readings.rejected));
-    return ok("cursor=" + std::to_string(view.cursorTick));
-  }
-  if (step.command == "save-bookmark") {
-    // A T50 numbered slot, saved the way the key handler saves it, so the
-    // workspace carries more than the camera the user is standing in.
-    if (step.args.empty()) return fail("save-bookmark needs a slot");
-    char* slotEnd = nullptr;
-    const unsigned long long slotValue = std::strtoull(step.args[0].c_str(), &slotEnd, 10);
-    if (!slotEnd || *slotEnd != 0 || slotValue < 1) return fail("bad-slot");
-    std::string slotName;
-    for (std::size_t k = 1; k < step.args.size(); ++k) {
-      if (!slotName.empty()) slotName.push_back(32);
-      slotName += step.args[k];
-    }
-    if (!saveCameraBookmark(static_cast<std::size_t>(slotValue), slotName)) {
-      return fail("bookmark-refused");
-    }
-    return ok("slot=" + std::to_string(slotValue));
-  }
-  // T71/T72: the review workspace and its bookmarks, drivable from the same
-  // script the camera gates use. Nothing here has a shortcut into the stores: a
-  // step calls the session, the session calls the store, and the store writes
-  // the file, so "the product saved a workspace" is a file on disk after the run.
-  if (step.command == "workspace-report") {
-    if (!g_reviewSession) return fail("no-workspace");
-    g_reviewSession->traceState();
-    return ok("reported");
-  }
-  if (step.command == "workspace-apply") {
-    if (!g_reviewSession) return fail("no-workspace");
-    std::string detail;
-    return g_reviewSession->applyPlayback(detail) ? ok(detail) : fail(detail);
-  }
-  if (step.command == "workspace-save") {
-    if (!g_reviewSession) return fail("no-workspace");
-    // force writes even when nothing changed; the default is an autosave, the
-    // same call the process makes on the way out.
-    const bool force = !step.args.empty() && step.args.front() == "force";
-    std::string detail;
-    return g_reviewSession->save(force, detail) ? ok(detail) : fail(detail);
-  }
-  const auto bookmarkId = [&](std::size_t position, std::uint64_t& value) {
-    if (position >= step.args.size()) return false;
-    char* end = nullptr;
-    value = std::strtoull(step.args[position].c_str(), &end, 10);
-    return end && *end == '\0' && value > 0;
-  };
-  const auto restFrom = [&](std::size_t position) {
-    std::string joined;
-    for (std::size_t k = position; k < step.args.size(); ++k) {
-      if (!joined.empty()) joined.push_back(' ');
-      joined += step.args[k];
-    }
-    return joined;
-  };
-  if (step.command == "bookmark-add") {
-    if (!g_reviewSession) return fail("no-workspace");
-    if (step.args.empty()) return fail("bad-argument");
-    std::string detail;
-    const bool added = g_reviewSession->addManual(g_playback.tick, step.args.front(),
-      restFrom(1), detail);
-    return added ? ok(detail) : fail(detail);
-  }
-  if (step.command == "bookmark-add-event") {
-    if (!g_reviewSession) return fail("no-workspace");
-    double wanted = 0.0;
-    if (!number(0, wanted)) return fail("bad-argument");
-    const std::string title = step.args.size() > 1 ? step.args[1] : std::string("event");
-    std::string detail;
-    const bool added = g_reviewSession->addEvent(static_cast<std::int32_t>(wanted), title,
-      restFrom(2), detail);
-    return added ? ok(detail) : fail(detail);
-  }
-  if (step.command == "bookmark-list") {
-    if (!g_reviewSession) return fail("no-workspace");
-    tf2::native::ReviewSort sort = tf2::native::ReviewSort::Tick;
-    if (!step.args.empty()) {
-      const std::string& name = step.args.front();
-      if (name == "created") sort = tf2::native::ReviewSort::Created;
-      else if (name == "title") sort = tf2::native::ReviewSort::Title;
-      else if (name != "tick") return fail("bad-argument");
-    }
-    g_reviewSession->list(sort, nullptr, step.args.empty() ? "all" : step.args.front());
-    return ok("listed");
-  }
-  if (step.command == "bookmark-query") {
-    if (!g_reviewSession) return fail("no-workspace");
-    tf2::native::ReviewQuery query;
-    query.text = restFrom(0);
-    g_reviewSession->list(tf2::native::ReviewSort::Tick, &query, "query");
-    return ok("queried");
-  }
-  if (step.command == "bookmark-update") {
-    if (!g_reviewSession) return fail("no-workspace");
-    std::uint64_t id = 0;
-    if (!bookmarkId(0, id)) return fail("bad-argument");
-    std::string detail;
-    const bool updated = g_reviewSession->update(id,
-      step.args.size() > 1 ? step.args[1] : std::string(), restFrom(2), detail);
-    return updated ? ok(detail) : fail(detail);
-  }
-  if (step.command == "bookmark-remove") {
-    if (!g_reviewSession) return fail("no-workspace");
-    std::uint64_t id = 0;
-    if (!bookmarkId(0, id)) return fail("bad-argument");
-    std::string detail;
-    return g_reviewSession->erase(id, detail) ? ok(detail) : fail(detail);
-  }
-  if (step.command == "bookmark-jump") {
-    if (!g_reviewSession) return fail("no-workspace");
-    std::uint64_t id = 0;
-    if (!bookmarkId(0, id)) return fail("bad-argument");
-    std::string detail;
-    return g_reviewSession->jump(id, detail) ? ok(detail) : fail(detail);
-  }
-
-  if (step.command == "quit") {
-    traceFmt("camera: accept steps=%u failures=%u captures=%u",
-      g_cameraScriptStepsRun, g_cameraScriptStepsFailed, g_cameraCaptures);
-    // The exit code is recorded here rather than read back from WM_QUIT: the
-    // main loop leaves through `break` on g_cameraScriptDone, so the queued quit
-    // message is never the thing that ends the process and message.wParam would
-    // still hold whatever was last dispatched. A gate reading a wrong exit code
-    // as "the run passed" is the failure this avoids.
-    g_cameraScriptExitCode = g_cameraScriptStepsFailed == 0 ? 0 : 1;
-    g_cameraScriptDone = true;
-    return true;
-  }
-  return fail("unknown-command");
-}
+// ---------------------------------------------------------------------------
+// T76 stage 4 (2026-11-13): the camera-script driver -- the step struct, its
+// thirteen state objects and the five functions (splitWords, loadCameraScript,
+// cameraScriptReport, cameraSnapshot, runCameraScriptStep) -- moved to
+// src/camera_script.cpp; the declarations are in camera_script.h.
+//
+// This was a move, not a rewrite. Every "camera: ..." line the gates read is
+// emitted from the same text it was emitted from before, and the three call
+// sites in wWinMain still say the same thing: loadCameraScript(cameraScriptPath),
+// runCameraScriptStep() and cameraSnapshot(g_scriptCaptureLabel). The exit code
+// is still the same g_cameraScriptExitCode read before the WM_QUIT return.
+// ---------------------------------------------------------------------------
 
 
 
@@ -1381,17 +2308,46 @@ void registerKeybinds(const std::filesystem::path& settingsFile) {
   g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("H"));
   g_keybinds.registerDefault("hud.preview", tf2::native::parseChord("Ctrl+P"));
   g_keybinds.registerDefault("hud.reset", tf2::native::parseChord("Ctrl+Shift+H"));
+  // E11: the map-overview show/hide. 2026-11-17 用户拍板：小地图占 M，静音让位。
+  // (The first choice for mute was F9 per the lead's earlier note, but F9 is the
+  // camera free-fly default -- keybinds.cpp:399 -- and camera-ui-check pins it;
+  // the ranked fallback table then picked Ctrl+M. F9 was never touched.)
+  // Bare M now reaches this table and the dispatch above returns before the mute
+  // branch, so one press cannot do both: this line is the only owner of bare M.
+  g_keybinds.registerDefault("hud.overview", tf2::native::parseChord("M"));
   // The user's file is applied ON TOP of the defaults, so an action absent from it
   // keeps its default and an action present with an empty value is unbound.
   if (!settingsFile.empty()) g_keybinds.loadFromSettings(settingsFile);
   g_keybindsLoaded = true;
   // The reading the gate asserts: the three actions exist, are bound, and their
   // canonical text is what the contract says.
-  for (const char* action : {"hud.toggle", "hud.preview", "hud.reset"}) {
+  for (const char* action : {"hud.toggle", "hud.preview", "hud.reset", "hud.overview"}) {
     const auto chord = g_keybinds.actionKey(action);
     traceFmt("hud: keys action=%s chord=%s bound=%d", action,
       tf2::native::formatChord(chord).c_str(), chord.bound() ? 1 : 0);
   }
+  // The permanent reading of the 2026-11-17 key decision. It is a trace line and
+  // not a help panel on purpose: the product has no user-visible key help for
+  // these actions, and inventing one here would ship a text nobody asked for.
+  traceFmt("hud: keys minimap=M mute=ctrl+m (mute moved off M 2026-11-17 by user)");
+  // Why ctrl+m and not a lone key, as a reading rather than a comment only: the
+  // lead's ranked table was walked in order and the first free entry won. Repo
+  // search covered native/, tools, *.sh and docs (keys are also written as
+  // parseChord("...") strings, which is how F9 was missed the first time):
+  //   ctrl+m    chosen -- no reference anywhere before this change
+  //   F9        camera.freeFly, keybinds.cpp:399; camera-ui-check pins it
+  //   VK_OEM_5  free
+  //   VK_PAUSE  free
+  //   VK_INSERT name table only (keybinds.cpp:35), never bound
+  //   VK_HOME   playback arm in this file (main.cpp:2570)
+  //   VK_END    playback arm in this file (main.cpp:2581)
+  //   VK_PRIOR  name table only (keybinds.cpp:37), never bound
+  //   VK_NEXT   name table only (keybinds.cpp:37), never bound
+  //   VK_DELETE reserved for the N16 splitview contract
+  //             (docs/N16-SPLITVIEW-CONTRACT-2026-11-16.md:303), unbound on purpose
+  traceFmt("hud: keys mute-candidates ctrl+m=chosen f9=camera.freeFly oem5=free "
+      "pause=free insert=unused home=playback end=playback prior=unused next=unused "
+      "delete=reserved-n16");
 }
 
 
@@ -1457,6 +2413,23 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // T54: the panel's splitter. Consumed only when the press landed on the
     // splitter, so ordinary left clicks still reach the default procedure.
     if (tf2::native::logsPanelMouse(window, message, wParam, lParam)) return 0;
+    // U4 step 3: a left press inside the client selects the pane it landed in.
+    // Only a split frame has anything to select, and only the PRESS selects -- a
+    // release must not steal the pane from a drag that started elsewhere.
+    if (message == WM_LBUTTONDOWN && g_paneSplit) {
+      RECT paneClient{};
+      GetClientRect(window, &paneClient);
+      const int paneWidth = static_cast<int>(paneClient.right - paneClient.left);
+      const int paneX = static_cast<int>(static_cast<short>(LOWORD(lParam)));
+      const int pane = tf2::native::paneForClientX(paneX, paneWidth, tf2::native::kPaneMaxPanes);
+      if (pane >= 0) {
+        g_activePane = static_cast<std::uint32_t>(pane);
+        traceFmt("paneActivate: pane=%d x=%d width=%d height=%ld active=%u source=mouse",
+          pane, paneX, paneWidth,
+          static_cast<long>(paneClient.bottom - paneClient.top), g_activePane);
+      }
+      return 0;
+    }
     return DefWindowProcW(window, message, wParam, lParam);
   case WM_RBUTTONDOWN:
     g_orbiting = true;
@@ -1472,12 +2445,28 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     if (tf2::native::logsPanelMouse(window, message, wParam, lParam)) return 0;
     if (g_orbiting && g_renderer) {
       const POINT current{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
-      g_renderer->orbitCamera(static_cast<float>(current.x - g_lastMouse.x), static_cast<float>(current.y - g_lastMouse.y));
+      const float deltaX = static_cast<float>(current.x - g_lastMouse.x);
+      const float deltaY = static_cast<float>(current.y - g_lastMouse.y);
+      // U4 step 3: the drag belongs to the pane the left press selected. A single
+      // pane has exactly the old path, because g_paneSplit is false there.
+      if (g_paneSplit && g_activePane == 1u) {
+        g_renderer->orbitPaneCamera(1u, deltaX, deltaY);
+      } else {
+        g_renderer->orbitCamera(deltaX, deltaY);
+      }
       g_lastMouse = current;
     }
     return 0;
   case WM_MOUSEWHEEL:
-    if (g_renderer) g_renderer->zoomCamera(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA));
+    if (g_renderer) {
+      const float wheelSteps = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA);
+      // U4 step 3: the wheel zooms the selected pane, like the drag orbits it.
+      if (g_paneSplit && g_activePane == 1u) {
+        g_renderer->zoomPaneCamera(1u, wheelSteps);
+      } else {
+        g_renderer->zoomCamera(wheelSteps);
+      }
+    }
     return 0;
   case WM_DROPFILES: {
     if (g_nativeUi) {
@@ -1676,11 +2665,15 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   case WM_KEYDOWN: {
     // Toggle commands must be edge-triggered; Windows may repeat WM_KEYDOWN
     // while a key is held, which otherwise flips state several times. 'P' is
-    // in this list for the same reason: a held P would flip pause every
-    // repeat.
+    // in this list for the same reason: a held P would flip pause every repeat,
+    // and AUD-03 adds 'M' for the same reason: a held M would toggle mute on
+    // every repeat instead of once per press. Since 2026-11-17 'M' covers both
+    // halves of the split -- bare M is the map overview, Ctrl+M is the mute -- and
+    // both are toggles, so one filter entry still covers them: the filter is
+    // about repeats, not about which chord the key was part of.
     if ((lParam & (1u << 30)) != 0u
-        && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == VK_HOME
-            || wParam == VK_END || wParam == VK_F12
+        && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == 'M'
+            || wParam == VK_HOME || wParam == VK_END || wParam == VK_F12
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
     // T51: the shared hotkey table (contract 1.2) gets the first look.
     //
@@ -1715,6 +2708,10 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             g_hud.setEnabled(g_hud.settings().preview);
           } else if (action == "hud.reset") {
             hudResetToDefault(window);
+          } else if (action == "hud.overview") {
+            tf2::native::mapOverviewToggle();
+            traceFmt("overview: toggle open=%d source=key",
+              tf2::native::mapOverviewOpen() ? 1 : 0);
           }
           // One place applies the consequence, so four branches cannot each pick
           // a different subset of "redraw, update the status line, publish".
@@ -1762,8 +2759,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         return 0;
       }
       // Not a bound action: fall through to the playback keys below, which are
-      // transport rather than feature bindings.
-      if (control || alt) return 0;
+      // transport rather than feature bindings. Ctrl+M is the one chord that
+      // must survive this: since 2026-11-17 the mute lives on Ctrl+M (bare M is
+      // the map overview), and the mute arm is BELOW this block, so a blanket
+      // control/alt return here would swallow the chord before it ever saw it.
+      const bool muteChord = control && !alt && wParam == 'M';
+      if ((control || alt) && !muteChord) return 0;
     }
     if (wParam == VK_HOME) {
       if (g_renderer) g_renderer->resetCamera();
@@ -1789,14 +2790,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       // below). One edge press advances the mode; a second press inside the
       // controller's double-click window jumps to free-look. The controller
       // is pure, so the window is a number a gate measures, not a feeling.
-      if (g_cameraMode.spacePress(static_cast<std::uint32_t>(GetTickCount64()))) {
-        if (g_cameraMode.mode() != tf2::native::CameraMode::FirstPerson && g_renderer) {
-          // Leaving first-person must release the demo eye immediately, not
-          // at the next scene tick, or the orbit would fight a stale
-          // observer view for one frame.
-          g_renderer->clearObserverDemoView();
-          g_lastAppliedCameraMode = g_cameraMode.mode();
-        }
+      if (cycleActivePaneCameraMode(static_cast<std::uint32_t>(GetTickCount64()))) {
         updateNativeUiControls(window);
       }
     } else if (wParam == 'P' && g_playback.enabled) {
@@ -1809,6 +2803,44 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       request.fromKeyboard = true;
       request.textFieldFocused = g_textFieldFocused;
       applyPlaybackRequest(request);
+    } else if (wParam == VK_OEM_4 || wParam == VK_OEM_6
+        || (wParam == 'M' && (GetKeyState(VK_CONTROL) & 0x8000) != 0)) {
+      // AUD-03: the master volume and the mute toggle, on keys rather than on new
+      // buttons -- planUiLayout's rectangles are pinned by camera-ui-check and by
+      // the camera/UI contract, and the volume field already exists in ui.ini.
+      // Mute is edge-triggered (the repeat filter above); the volume keys are
+      // not, so holding one steps in 10-point increments.
+      //
+      // 2026-11-17 user decision: bare M is the map overview's toggle
+      // (hud.overview, dispatched above), so the mute moved to Ctrl+M. The
+      // modifier is read from GetKeyState because WM_KEYDOWN does not carry it --
+      // the idiom hudActionForKey (main_hud.cpp:129-138) and the camera dispatch
+      // (main.cpp:2549-2551) already use. Bare M cannot reach this arm: the hud
+      // table claims it first and returns, so this guard is the second,
+      // independent reason the two toggles can never fire together.
+      const bool muteKey = wParam == 'M';
+      if (g_nativeUi) {
+        if (!muteKey && g_nativeUi->muted()) {
+          // A volume key while muted would step a number nobody can hear. The key
+          // means "I want to hear it", so it unmutes first and then steps.
+          g_nativeUi->toggleMute();
+        }
+        if (muteKey) {
+          g_nativeUi->toggleMute();
+        } else {
+          int percent = static_cast<int>(g_nativeUi->volume() * 100.0f + 0.5f)
+              + (wParam == VK_OEM_6 ? 10 : -10);
+          percent = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+          g_nativeUi->setVolume(static_cast<float>(percent) / 100.0f);
+        }
+        // Persist immediately: --capture-frame and the failure exits leave before
+        // the shutdown save, and a setting that only survives a clean exit is not
+        // a setting.
+        g_nativeUi->saveSettings();
+        traceFmt("audio: master volume=%.2f muted=%d source=%s",
+            static_cast<double>(g_nativeUi->volume()), g_nativeUi->muted() ? 1 : 0,
+            muteKey ? "key-ctrl-m" : (wParam == VK_OEM_6 ? "key-volume-up" : "key-volume-down"));
+      }
     } else if (wParam == 'R' && g_playback.enabled) {
       if (!g_playback.reverse && g_playback.tick == 0) {
         tf2::native::PlaybackRequest jump;
@@ -2083,6 +3115,41 @@ int runRendererSelftest(tf2::native::Renderer& renderer, HWND window, bool fault
 
 }  // namespace
 
+// R1b (2026-11-16): the --capture-range-{depth,window,skip} switches. Kept out of
+// the argument chain in wWinMain because that chain is at the compiler's
+// block-nesting limit (C1061, hit for real while adding this probe), and a switch
+// body here costs no nesting there. Returns false on a malformed value.
+static bool parseCaptureRangeDepthSwitch(const std::wstring& switchName,
+    const std::wstring& value, std::filesystem::path* prefix, unsigned window[4],
+    int* skip) {
+  if (switchName == L"--capture-range-skip") {
+    // A drawn-range ordinal, counted in the same order the entity draws run.
+    wchar_t* end = nullptr;
+    const long parsedSkip = std::wcstol(value.c_str(), &end, 10);
+    if (!end || *end != L'\0' || parsedSkip < 0) return false;
+    *skip = static_cast<int>(parsedSkip);
+    return true;
+  }
+  if (switchName[16] == L'w') {
+    // x,y,width,height in frame pixels; a zero extent would read back nothing.
+    unsigned wx = 0;
+    unsigned wy = 0;
+    unsigned ww = 0;
+    unsigned wh = 0;
+    if (std::swscanf(value.c_str(), L"%u,%u,%u,%u", &wx, &wy, &ww, &wh) != 4
+        || ww == 0 || wh == 0) {
+      return false;
+    }
+    window[0] = wx;
+    window[1] = wy;
+    window[2] = ww;
+    window[3] = wh;
+    return true;
+  }
+  *prefix = value;
+  return true;
+}
+
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   openTrace();
   // Keep the render surface in physical pixels on mixed-DPI desktop setups.
@@ -2251,6 +3318,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // want, and a depth plane is two bytes a pixel of extra output.
   std::filesystem::path captureDepthPath;
   bool captureDepthRejected = false;
+  // R1: per-pass depth readback. The prefix names the family of PGMs written for
+  // ONE capture frame (\<prefix\>-\<index\>-\<pass\>.pgm); it needs --capture-frame
+  // for the same reason --capture-depth does, and it never changes the picture.
+  std::filesystem::path capturePassDepthPrefix;
+  bool capturePassDepthRejected = false;
+  // R1b (2026-11-16): the per-range depth probe. Same family shape as the pass
+  // probe: a prefix that names the output, a window that keeps the readback small
+  // enough to run per draw, and a skip index used only as a negative control.
+  std::filesystem::path captureRangeDepthPrefix;
+  bool captureRangeRejected = false;
+  unsigned captureRangeWindow[4] = {0, 0, 0, 0};
+  int captureRangeSkip = -1;
   // T51 acceptance surface. The HUD is a user feature with a picker, but a gate
   // cannot click one, so the same code path is reachable from the command line:
   //   --hud-root DIR          the folder the picker would have returned
@@ -2277,6 +3356,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
   // boolean here is the one the readout gates on, so "off" means off for both.
   bool hudOffCli = false;
   bool hudLiveCli = false;
+  // E9: --hud-minimap. Off in every run that does not pass it, which is every run
+  // the pixel gates make: the panel is a new thing to draw, so it must be asked for.
+  bool hudMinimapCli = false;
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
@@ -2554,10 +3636,27 @@ bool outlineVertexExtent = false;
   // numbers themselves come from the map's env_fog_controller (displayMap.fog);
   // --fog-start/--fog-end exist so a gate can pin values without editing the map.
   bool worldFogGiven = false;
+  // I-23: the rescue batch is ON by default. The off switch exists so one frame
+  // can show the refusal fallback and count it; a switch that could not produce
+  // the old picture would make the new picture unfalsifiable.
+  bool worldAtlasTranslucentRescue = true;
   bool worldFogStartGiven = false;
   bool worldFogEndGiven = false;
   float worldFogStartOverride = 0.0f;
   float worldFogEndOverride = 0.0f;
+  // U4 step 2b: --pane-split composes two views of the same demo frame into one
+  // window: left half pane 0 (the existing orbit/observer camera), right half
+  // pane 1 (--pane1-orbit, or pane 0's camera when it was not given). The demo
+  // clock stays shared by design -- this is a viewport/camera split, not a second
+  // playback, and the audit table says so.
+  bool paneSplit = false;
+  // U4 step 3: the second pane opens in FreeLook, so a split without any pane
+  // command draws exactly the picture step 2b did (pane 1's orbit pose, written
+  // by --pane1-orbit). Selecting the pane and pressing SPACE is what starts
+  // feeding it a camera. The latch starts equal so that this initial state is
+  // not reported as a mode change on the first frame.
+  g_pane1CameraMode.setMode(tf2::native::CameraMode::FreeLook);
+  g_pane1ModeApplied = tf2::native::CameraMode::FreeLook;
   bool worldVisClipRequested = true;
   bool worldVisClipGiven = false;
   // T10 diagnostic: the world pass rasterises with back-face culling by
@@ -2574,6 +3673,17 @@ bool outlineVertexExtent = false;
   // resolved.
   int worldDebugView = 0;
   int worldDebugViewGiven = 0;
+  // T105 negative control: --entity-tint-mutation puts the team tint back on a
+  // painted entity mesh. It exists so the gate that guards the fix can be shown
+  // going RED with the defect present rather than only green with it gone; the
+  // product's default is the fixed path, and the trace prints mutation=1 so a
+  // green run cannot be mistaken for a run where the control never fired.
+  bool entityTintMutation = false;
+  // T105 B: one line per fetched material with the VTF's format, dimensions,
+  // chosen mip, the byte counts on both sides of the fill and a checksum of the
+  // tile against a re-run of the same decode + downscale. Off by default because
+  // it decodes each material's VTF a second time, which no normal capture needs.
+  bool worldTileFillTrace = false;
   // T59 diagnostic: paint the untiled (flat-fallback) vertices magenta so the
   // refused set is countable in pixels. Separate from worldDebugView because it
   // moves the vertex colours, not the pixel shader.
@@ -2584,11 +3694,22 @@ bool outlineVertexExtent = false;
   // Off by default: a per-face trace is a diagnostic, and a normal run's trace
   // should not carry 24 lines nobody asked for.
   bool worldFaceTraceRequested = false;
+  // N05 step 3: ask the renderer to take the clip-space position out of the
+  // vertex stage of the isolated draw. Separate from the face trace because it
+  // is a different instrument: the face trace predicts a screen point from the
+  // same matrix on the CPU, and this reads what the GPU produced with that
+  // matrix, so the two together can say whether they agree.
+  bool worldClipCaptureRequested = false;
   // T26: the screen points the empty-pixel trace names, as "x,y;x,y;...". They
   // come from the accounting mask rather than from a fixed grid: the point of
   // the trace is to name the face under a pixel the frame does not fill.
   std::vector<std::pair<int, int>> worldHoleTracePoints;
   int invalidWorldHoleTraceArgument = 0;
+  // E5/F1-5: the face trace's fixed 28 points are useful for the visual
+  // baseline, but a black-pixel finding names six specific pixels. This
+  // override lets a run ask for those pixels without removing the fixed set.
+  std::vector<std::pair<int, int>> worldFaceTracePoints;
+  int invalidWorldFaceTraceArgument = 0;
   // T2 (2026-10-14): the water surface follows the same shape as T1's two
   // switches -- on by default, with an explicit off switch -- for the same
   // reason: "the water is drawn" is only a reading if "the water is not drawn"
@@ -2618,7 +3739,24 @@ bool outlineVertexExtent = false;
   // sky" without guessing from a colour.
   enum class WorldGeometryFilter { All, Terrain, Sky, None };
   WorldGeometryFilter worldGeometry = WorldGeometryFilter::All;
+  // Diagnostic (W-1 step 2): parse with the displacement reversal disabled.
+  // Scanned before the argument chain so that chain's nesting depth is unchanged
+  // (adding one more else-if there hits C1061 on this compiler).
+  bool worldKeepMapWinding = false;
+  for (int keepWindingArg = 1; keepWindingArg < argumentCount; ++keepWindingArg)
+    if (wcscmp(arguments[keepWindingArg], L"--world-keep-map-winding") == 0) worldKeepMapWinding = true;
+  // M4 gate: brush-model classes to draw for one run, on top of the static whitelist.
+  // Scanned before the argument chain for the same C1061 reason as the flag above.
+  std::vector<std::string> worldExtraStaticClasses;
+  for (int allowClassArg = 1; allowClassArg + 1 < argumentCount; ++allowClassArg) {
+    if (wcscmp(arguments[allowClassArg], L"--world-allow-class") != 0) continue;
+    std::string className;
+    for (const wchar_t* ch = arguments[allowClassArg + 1]; *ch != 0 && *ch < 128; ++ch)
+      className.push_back(static_cast<char>(*ch));
+    if (!className.empty()) worldExtraStaticClasses.push_back(className);
+  }
   bool worldIsolationRequested = false;
+  long isolatedTriangle = -1;
   int invalidWorldGeometryArgument = 0;
   // T17: the lightmap A/B. The product had no way to draw the world with the
   // lightmap term removed, so "this surface is dark because its lightmap is
@@ -2814,6 +3952,49 @@ bool outlineVertexExtent = false;
         // what they were written to measure; this flag is how a gate asks for it.
         hudLiveCli = true;
         return true;
+      } else if (wcscmp(arguments[i], L"--overview-open") == 0) {
+        // E11: the map-overview screen, on from launch. The hotkey is the
+        // interactive door; this one is the door every gate uses, because a gate
+        // must not depend on a WM_KEYDOWN reaching the window it captured.
+        tf2::native::mapOverviewSetOpen(true);
+        return true;
+      } else if (wcscmp(arguments[i], L"--overview-root") == 0 && i + 1 < argumentCount) {
+        // The demos.tf basemap package (images/*.png + boundaries.json). Defaults
+        // to the checkout's E:/demo测试/demos_tf_maps, but a build server or a
+        // different machine passes its own root; the panel names the reason when
+        // a map or file is missing instead of drawing a guessed rectangle.
+        std::string overviewRoot;
+        if (!tf2::native::wideToUtf8(arguments[++i], overviewRoot) || overviewRoot.empty()) {
+          std::fprintf(stderr, "--overview-root: bad path\n");
+          std::fflush(stderr);
+          return false;
+        }
+        tf2::native::basemapSetRoot(overviewRoot);
+        return true;
+      } else if (wcscmp(arguments[i], L"--overview-image") == 0 && i + 1 < argumentCount) {
+        // The single base-image override (a PNG from the package, or any WIC-
+        // decodable file). With no override the path is <overview-root>/images/
+        // <resolved key>.png, so the shipped package drops in with no code change.
+        std::string overviewImage;
+        if (!tf2::native::wideToUtf8(arguments[++i], overviewImage) || overviewImage.empty()) {
+          std::fprintf(stderr, "--overview-image: bad path\n");
+          std::fflush(stderr);
+          return false;
+        }
+        tf2::native::mapOverviewSetImageOverride(overviewImage);
+        tf2::native::mapOverviewSetOpen(true);
+        return true;
+      } else if (wcscmp(arguments[i], L"--overview-hide") == 0 && i + 1 < argumentCount) {
+        // Negative-control hook: remove one entity from the screen so the gate can
+        // prove a removal removes exactly one icon and exactly one row.
+        tf2::native::mapOverviewSetHiddenEntity(_wtoi(arguments[++i]));
+        return true;
+      } else if (wcscmp(arguments[i], L"--hud-minimap") == 0) {
+        // E9: draw the minimap panel beside the readout. Separate from --hud-live
+        // on purpose: a gate may want the readout without the panel, and the panel
+        // is the only thing here that changes pixels outside the readout.
+        hudMinimapCli = true;
+        return true;
       } else if (wcscmp(arguments[i], L"--hud-reset") == 0) {
         hudResetRequested = true;
         hudConfigRequested = true;
@@ -2859,6 +4040,19 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--start-paused") == 0) { startPaused = true; continue; }
       if (wcscmp(arguments[i], L"--vsync") == 0) { persistent.render.vsync = true; continue; }
       if (wcscmp(arguments[i], L"--no-vsync") == 0) { persistent.render.vsync = false; continue; }
+      // T105: --window-size is honoured before this loop runs -- it is pre-scanned
+      // above CreateWindowExW (main.cpp:3169-3197) because the window has to exist
+      // with that rect, and a WxH that will not parse or is out of range has
+      // already returned 13 there. The loop must still CLAIM the switch and eat
+      // its value: the unknown-switch rule after this loop refuses every `--`
+      // argument nobody parsed, and a switch the product actually honours must
+      // not be counted among them. Without this claim the merged tree refused a
+      // run whose window had already been created with the requested size
+      // (`args: refused switch count=1 first=--window-size`, exit 13), which is
+      // why map-overview-check.sh went red there and green before the merge.
+      // A dangling `--window-size` with no value is deliberately left unclaimed:
+      // that run pinned nothing, so its command line really was not understood.
+      if (wcscmp(arguments[i], L"--window-size") == 0 && i + 1 < argumentCount) { ++i; continue; }
       // T101: the fog switches, in the same pre-ladder block and for the same
       // reason -- each one only sets a local. Two of them take a value, which the
       // note above did not anticipate; they are consumed here rather than in the
@@ -2866,6 +4060,9 @@ bool outlineVertexExtent = false;
       // a flag that is not consumed anywhere is an unrecognised argument (pushed
       // at main.cpp:3133, refused by --strict-args at main.cpp:3173).
       if (wcscmp(arguments[i], L"--world-fog") == 0) { worldFogGiven = true; continue; }
+      if (wcscmp(arguments[i], L"--world-atlas-no-translucent-rescue") == 0) {
+        worldAtlasTranslucentRescue = false; continue;
+      }
       if (wcscmp(arguments[i], L"--fog-start") == 0 && i + 1 < argumentCount) {
         worldFogStartOverride = static_cast<float>(_wtof(arguments[++i]));
         worldFogStartGiven = true;
@@ -2874,6 +4071,106 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--fog-end") == 0 && i + 1 < argumentCount) {
         worldFogEndOverride = static_cast<float>(_wtof(arguments[++i]));
         worldFogEndGiven = true;
+        continue;
+      }
+      // U4 step 2b: the two-pane switches. --pane1-orbit takes the three numbers
+      // orbitCamera/zoomCamera would have produced (yaw, pitch, distance) and
+      // writes them into pane 1's camera only; pane 0 keeps taking its camera from
+      // the existing observer/orbit path. Without --pane1-orbit the two panes show
+      // the same camera, which is the control frame for "the panes are
+      // independent": the two halves must then be the same picture.
+      // g_paneSplit is the file-scope switch the window procedure and the tick block
+      // read, and it is latched HERE rather than after the parse loop: a command
+      // line is read left to right, so --pane-split --pane-cycle has to cycle pane 0
+      // (no split yet) and --pane-split first has to be visible to everything that
+      // follows it. Leaving the latch to the end of the loop is what made a
+      // --pane-activate trace say split=0 on a run that was split.
+      if (wcscmp(arguments[i], L"--pane-split") == 0) { paneSplit = true; g_paneSplit = true; continue; }
+      if (wcscmp(arguments[i], L"--pane1-orbit") == 0 && i + 3 < argumentCount) {
+        const float pane1Yaw = static_cast<float>(_wtof(arguments[++i]));
+        const float pane1Pitch = static_cast<float>(_wtof(arguments[++i]));
+        const float pane1Distance = static_cast<float>(_wtof(arguments[++i]));
+        renderer.setPaneCameraOrbit(1u, pane1Yaw, pane1Pitch, pane1Distance);
+        continue;
+      }
+      // U4 step 3: the interaction switches. --pane-click runs the SAME hit test
+      // the window procedure runs (paneForClientX) on the client width the caller
+      // states, so a command line proves which pane a given x selects without a
+      // synthetic mouse message; --pane-activate sets the selection directly for
+      // runs that only need the input routed. Both are inert without --pane-split,
+      // exactly like the mouse path.
+      if (wcscmp(arguments[i], L"--pane-activate") == 0 && i + 1 < argumentCount) {
+        const long pane = std::wcstol(arguments[++i], nullptr, 10);
+        if (pane >= 0 && pane < static_cast<long>(tf2::native::kPaneMaxPanes)) {
+          g_activePane = static_cast<std::uint32_t>(pane);
+          traceFmt("paneActivate: pane=%ld active=%u source=cli split=%d", pane,
+            g_activePane, g_paneSplit ? 1 : 0);
+        } else {
+          traceFmt("pane: activate rejected=%ld", pane);
+        }
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-click") == 0 && i + 2 < argumentCount) {
+        const long clickX = std::wcstol(arguments[++i], nullptr, 10);
+        const long clickWidth = std::wcstol(arguments[++i], nullptr, 10);
+        const int hit = tf2::native::paneForClientX(static_cast<int>(clickX),
+          static_cast<int>(clickWidth), tf2::native::kPaneMaxPanes);
+        if (hit >= 0) {
+          g_activePane = static_cast<std::uint32_t>(hit);
+          traceFmt("paneActivate: pane=%d x=%ld width=%ld active=%u source=click", hit,
+            clickX, clickWidth, g_activePane);
+        } else {
+          traceFmt("pane: click rejected x=%ld width=%ld", clickX, clickWidth);
+        }
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-cycle") == 0) {
+        // Exactly the edge the SPACE arm dispatches, so the CLI cannot take a
+        // different path through the interaction than a key press does.
+        const bool moved =
+          cycleActivePaneCameraMode(static_cast<std::uint32_t>(GetTickCount64()));
+        traceFmt("paneCycle: active=%u moved=%d mode0=%s mode1=%s source=cli", g_activePane,
+          moved ? 1 : 0, tf2::native::cameraModeName(g_cameraMode.mode()),
+          tf2::native::cameraModeName(g_pane1CameraMode.mode()));
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-mode") == 0 && i + 2 < argumentCount) {
+        const long pane = std::wcstol(arguments[++i], nullptr, 10);
+        tf2::native::CameraMode paneMode = tf2::native::CameraMode::FirstPerson;
+        const bool known = paneCameraModeFromName(arguments[++i], paneMode);
+        if (known && pane >= 0 && pane < static_cast<long>(tf2::native::kPaneMaxPanes)) {
+          if (pane == 0) {
+            g_cameraMode.setMode(paneMode);
+            g_lastAppliedCameraMode = paneMode;
+          } else {
+            g_pane1CameraMode.setMode(paneMode);
+          }
+          traceFmt("paneMode: pane=%ld mode=%s source=cli", pane,
+            tf2::native::cameraModeName(paneMode));
+        } else {
+          traceFmt("pane: mode rejected pane=%ld", pane);
+        }
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--pane-follow") == 0 && i + 2 < argumentCount) {
+        const long pane = std::wcstol(arguments[++i], nullptr, 10);
+        wchar_t* paneFollowEnd = nullptr;
+        const long paneEntity = std::wcstol(arguments[++i], &paneFollowEnd, 10);
+        if (paneFollowEnd != nullptr && *paneFollowEnd == L'\0' && paneEntity >= 0
+            && paneEntity <= 2047 && pane >= 0
+            && pane < static_cast<long>(tf2::native::kPaneMaxPanes)) {
+          if (pane == 0) {
+            followQueuePush(tf2::native::FollowAction::Select,
+              static_cast<std::int32_t>(paneEntity));
+          } else {
+            g_pane1PendingPick = static_cast<std::int32_t>(paneEntity);
+            g_pane1Target = g_pane1PendingPick;
+            g_pane1FollowPinned = true;
+          }
+          traceFmt("paneFollow: pane=%ld entity=%ld source=cli", pane, paneEntity);
+        } else {
+          traceFmt("pane: follow rejected pane=%ld", pane);
+        }
         continue;
       }
       // The hermeticity pair is taken by the pre-scan at main.cpp:1898-1920, which has
@@ -2897,6 +4194,9 @@ bool outlineVertexExtent = false;
       // --strict-args changes nothing by itself; it only decides what happens to the
       // arguments this loop would otherwise ignore (see the block after the loop).
       if (wcscmp(arguments[i], L"--strict-args") == 0) { strictArguments = true; continue; }
+      // N13 step 1: the two --follow-* flags are consumed here, outside the ladder,
+      // so the ladder keeps the exact nesting depth it had before this step.
+      if (followConsumeArgument(arguments, argumentCount, i)) continue;
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"standard") == 0) {
           persistent.render = tf2::native::RenderSettings::fromPreset(
@@ -2981,6 +4281,41 @@ bool outlineVertexExtent = false;
         ++worldDebugViewGiven; worldDebugView = 9;
       } else if (wcscmp(arguments[i], L"--world-face-trace") == 0) {
         worldFaceTraceRequested = true;
+      } else if (wcscmp(arguments[i], L"--world-clip-capture") == 0) {
+        // Refused without --world-triangle: the stream output target holds three
+        // vertices, and a batched draw would stop at capacity and read back as a
+        // whole sample. Refusing at parse time makes that a startup error rather
+        // than a silently truncated number on a capture frame.
+        worldClipCaptureRequested = true;
+      } else if (wcscmp(arguments[i], L"--world-face-trace-points") == 0 && i + 1 < argumentCount) {
+        // "x,y;x,y;..." -- same strict parse as --world-hole-trace. A typo that
+        // produced zero points would silently fall back to the fixed grid and
+        // the black-pixel reading would be about the wrong pixels.
+        const std::wstring list = arguments[++i];
+        std::size_t at = 0;
+        while (at <= list.size()) {
+          const auto semicolon = list.find(L';', at);
+          const std::wstring token = list.substr(at, semicolon == std::wstring::npos
+            ? std::wstring::npos : semicolon - at);
+          if (!token.empty()) {
+            const auto comma = token.find(L',');
+            if (comma == std::wstring::npos) { ++invalidWorldFaceTraceArgument; break; }
+            wchar_t* endX = nullptr;
+            wchar_t* endY = nullptr;
+            const wchar_t* xText = token.c_str();
+            const long x = std::wcstol(xText, &endX, 10);
+            const long y = std::wcstol(token.c_str() + comma + 1, &endY, 10);
+            if (endX == xText || *endX != L',' || endY == token.c_str() + comma + 1 || *endY != L'\0') {
+              ++invalidWorldFaceTraceArgument;
+              break;
+            }
+            worldFaceTracePoints.emplace_back(static_cast<int>(x), static_cast<int>(y));
+          }
+          if (semicolon == std::wstring::npos) break;
+          at = semicolon + 1;
+        }
+      } else if (wcscmp(arguments[i], L"--world-face-trace-points") == 0) {
+        ++invalidWorldFaceTraceArgument;
       } else if (wcscmp(arguments[i], L"--world-hole-trace") == 0 && i + 1 < argumentCount) {
         // "x,y;x,y;..." -- parsed strictly, because a typo that silently
         // produced zero points would make the empty-pixel claim vacuous.
@@ -3105,8 +4440,14 @@ bool outlineVertexExtent = false;
         else ++invalidWorldGeometryArgument;
       } else if (wcscmp(arguments[i], L"--world-geometry") == 0) {
         ++invalidWorldGeometryArgument;
+      } else if (wcscmp(arguments[i], L"--world-magenta") == 0) {
+        ++worldDebugViewGiven; worldDebugView = 10;
       } else if (wcscmp(arguments[i], L"--world-isolate") == 0) {
         worldIsolationRequested = true;
+      } else if (wcscmp(arguments[i], L"--world-triangle") == 0 && i + 1 < argumentCount) {
+        // N05 step 2: draw one triangle and nothing else, so "does the rasterizer
+        // cover this pixel with it" is a picture rather than an inference.
+        isolatedTriangle = std::wcstol(arguments[++i], nullptr, 10);
       } else if (wcscmp(arguments[i], L"--tf-root") == 0 && i + 1 < argumentCount) {
         commandTfRoot = arguments[++i];
       } else if (wcscmp(arguments[i], L"--demo") == 0 && i + 1 < argumentCount) {
@@ -3386,10 +4727,46 @@ bool outlineVertexExtent = false;
         dumpEntityMaterialsPath = arguments[++i];
       } else if (wcscmp(arguments[i], L"--capture-frame") == 0 && i + 1 < argumentCount) {
         captureFramePath = arguments[++i];
-      } else if (wcscmp(arguments[i], L"--capture-depth") == 0 && i + 1 < argumentCount) {
-        captureDepthPath = arguments[++i];
-      } else if (wcscmp(arguments[i], L"--capture-depth") == 0) {
-        captureDepthRejected = true;
+      } else if (wcscmp(arguments[i], L"--capture-depth") == 0
+                 || wcscmp(arguments[i], L"--capture-pass-depth") == 0) {
+        // One branch for both depth switches: the else-if chain around this one
+        // is already at the compiler's block-nesting limit (C1061), so the pair
+        // shares a branch instead of adding two more.
+        const bool passDepthSwitch = arguments[i][10] == L'p';
+        if (i + 1 < argumentCount) {
+          const std::wstring value = arguments[++i];
+          if (passDepthSwitch) capturePassDepthPrefix = value;
+          else captureDepthPath = value;
+        } else if (passDepthSwitch) {
+          capturePassDepthRejected = true;
+        } else {
+          captureDepthRejected = true;
+        }
+      } else if (wcscmp(arguments[i], L"--capture-range-depth") == 0
+                 || wcscmp(arguments[i], L"--capture-range-window") == 0
+                 || wcscmp(arguments[i], L"--capture-range-skip") == 0) {
+        // The R1b family is three switches in one branch, and its body lives in
+        // parseCaptureRangeDepthSwitch: this chain already sits at the compiler's
+        // block-nesting limit (C1061), so neither the branch count nor the depth
+        // inside a branch has room to grow.
+        //
+        // The switch name is copied out BEFORE i advances. Passing
+        // `arguments[i]` and `arguments[++i]` in one call makes the two
+        // expressions indeterminately sequenced, and MSVC evaluates the
+        // `++i` side first: the helper then saw the VALUE as the switch name.
+        // With only --capture-range-depth on the command line that was
+        // invisible (the fall-through wrote the value into the prefix anyway);
+        // with --capture-range-window or --capture-range-skip after it, the
+        // prefix was overwritten by "880,330,76,110" / "93" and the planes
+        // landed in the working directory instead of the scratch dir.
+        const std::wstring rangeSwitch = arguments[i];
+        const bool rangeHasValue = i + 1 < argumentCount;
+        if (rangeHasValue) ++i;
+        if (!rangeHasValue
+            || !parseCaptureRangeDepthSwitch(rangeSwitch, arguments[i],
+                 &captureRangeDepthPrefix, captureRangeWindow, &captureRangeSkip)) {
+          captureRangeRejected = true;
+        }
       } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
         wchar_t* end = nullptr;
         const long long parsed = std::wcstoll(arguments[++i], &end, 10);
@@ -3400,7 +4777,14 @@ bool outlineVertexExtent = false;
       } else {
         // D-23: recorded, not rejected. The default run still ignores it, which
         // is the behaviour every existing gate was written against.
-        unrecognizedArguments.push_back(arguments[i]);
+        //
+        // T105: two switches that take no value are claimed from HERE instead of
+        // from branches of their own. The else-if chain above already sits at
+        // MSVC's block-nesting limit (C1061) and a new `else if` is exactly what
+        // a T105 build failed on, so a value-less switch is resolved by name in a
+        // callee and everything else is recorded exactly as before.
+        claimValueLessSwitch(arguments[i], unrecognizedArguments, entityTintMutation,
+          worldTileFillTrace);
       }
     }
     persistent.render.normalize();
@@ -3452,6 +4836,32 @@ bool outlineVertexExtent = false;
     std::fflush(stderr);
     return 2;
   }
+  // T105: a switch that starts with `--` and was not recognised is refused, named
+  // and fatal. This product has always tolerated extra arguments (D-23 records
+  // them and draws on) and that leniency has a cost that was paid in evidence:
+  // the T105 defect pass wrote `--world-flat=1` -- the form that takes a value --
+  // against a switch that takes none, and the product drew four frames that were
+  // byte-identical across "four diagnostic modes" without saying a word. A
+  // switch nobody parsed is a measurement nobody took, so a run that asks for one
+  // now stops here instead of producing a picture of the wrong thing. The name is
+  // in the message because the typo is the point.
+  // MSVC counts block depth, and this function is already at the limit (C1061),
+  // so the refusal is spelled without a scope of its own.
+  std::wstring firstUnknownSwitch;
+  std::size_t unknownSwitchCount = 0;
+  for (const auto& unknownArgument : unrecognizedArguments) {
+    if (unknownArgument.rfind(L"--", 0) != 0) continue;
+    if (unknownSwitchCount == 0) firstUnknownSwitch = unknownArgument;
+    ++unknownSwitchCount;
+  }
+  if (unknownSwitchCount > 0) {
+    const std::string namedSwitch = narrowAscii(firstUnknownSwitch.c_str());
+    traceFmt("args: refused switch count=%zu first=%s", unknownSwitchCount, namedSwitch.c_str());
+    OutputDebugStringW((L"TF2 Demo Player: unrecognized switch refused: " + firstUnknownSwitch
+      + L" (the product does not have that switch; a run asked for it would draw"
+      L" through the default path and read as a measurement)\n").c_str());
+    return 13;
+  }
   // T52: the outline takes the overlay slot at startup, before anything can draw.
   // kUiPlay/F12 can then only change the FLAG; ownership is what makes "who is
   // driving the overlay" a field rather than an assumption. Applied AFTER the
@@ -3486,6 +4896,25 @@ bool outlineVertexExtent = false;
   }
   if (captureDepthRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-depth; it needs a path and a --capture-frame.\n");
+    return 13;
+  }
+  if (!capturePassDepthPrefix.empty() && captureFramePath.empty()) {
+    // Same rule as the depth plane above: a pass family is an account of ONE
+    // frame's depth, so without that frame it would write nothing and exit 0.
+    capturePassDepthRejected = true;
+  }
+  if (capturePassDepthRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-pass-depth; it needs a prefix and a --capture-frame.\n");
+    return 13;
+  }
+  if (!captureRangeDepthPrefix.empty() && captureFramePath.empty()) {
+    // R1b: the range family is a per-draw account of ONE frame's depth, so like
+    // the pass family it must be refused rather than silently write nothing.
+    captureRangeRejected = true;
+  }
+  if (captureRangeRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-range-depth family; it needs a prefix "
+      L"and a --capture-frame (the window is x,y,width,height, the skip a drawn-range index).\n");
     return 13;
   }
   if (cameraScriptRejected) {
@@ -3608,6 +5037,10 @@ bool outlineVertexExtent = false;
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-hole-trace; it takes screen points as x,y;x,y.\n");
     return 13;
   }
+  if (invalidWorldFaceTraceArgument) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-face-trace-points; it takes screen points as x,y;x,y.\n");
+    return 13;
+  }
   if (invalidViewModelEffectArgument) {
     // T2 (2026-10-14): same rule for the three advanced-material switches.
     OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel-phong/--viewmodel-bump/--viewmodel-selfillum; each takes on or off.\n");
@@ -3689,6 +5122,9 @@ bool outlineVertexExtent = false;
     assets.tfDirectory.empty() ? "-" : assets.tfDirectory.string().c_str(),
     assets.valid() ? 1 : 0);
   nativeUi.setTfRoot(assets.valid() ? assets.tfDirectory : persistent.tfRoot);
+  // E11: the class-icon chain reads materials out of this same install.
+  tf2::native::mapOverviewSetTfRoot(assets.valid() ? assets.tfDirectory.string()
+    : persistent.tfRoot.string());
   std::string cacheStatus;
   const auto cacheDirectory = localCacheDirectory(cacheStatus);
   std::string hashStatus = commandDemo.empty() ? "missing" : "failed";
@@ -3717,6 +5153,12 @@ bool outlineVertexExtent = false;
   tf2::native::DemoHeader demoHeader;
   tf2::native::DemoIndex demoIndex;
   tf2::native::DemoNetworkSummary demoNetworkSummary;
+  // N12-C step 2: the product's eyes (POV and relay) read the per-tick camera row
+  // track, so the product opts in BEFORE the scan below -- scanKnownDemoMessages
+  // keeps cameraTrackLimits across its own summary reset, so setting it here is
+  // what makes the rows exist. Cost on the POV sample: 300,642 rows x 56 B =
+  // 16.8 MB, capped at maxSamples (400k rows / 22.4 MB).
+  demoNetworkSummary.cameraTrackLimits.enabled = true;
   if (!commandDemo.empty()) {
     if (tf2::native::parseDemoHeaderFile(commandDemo, demoHeader)) {
       tf2::native::indexDemoFile(commandDemo, demoHeader, demoIndex);
@@ -4156,6 +5598,26 @@ bool outlineVertexExtent = false;
   // model drawn for BLU asked for family 1, resolved nothing, and its instances
   // fell back to the world atlas.
   std::unordered_map<std::string, std::uint32_t> entitySkinFamilyCountByKey;
+  // T105: how many texture slots each prepared mesh actually PAINTED. The draw
+  // stage below multiplies every entity instance by a team colour, and that
+  // multiplication was only ever meant for a mesh with no texture at all (see
+  // the draw site's note). A painted mesh already carries its team colour in the
+  // skin family -- family 0 is red, family 1 is blu -- so painting it again with
+  // 0.86,0.28,0.22 turned every player into a flat red/blue silhouette. Measured
+  // on pl_upward_f12 tick 0: the Scout's shirt texel is 131,41,46 in the raw
+  // texel view and 113,11,10 in the shaded frame, which is that texel times
+  // exactly that tint. Keyed like entitySkinFamilyCountByKey so the draw stage
+  // can answer the question with the same key it already holds.
+  std::unordered_map<std::string, std::uint32_t> entityPaintedSlotCountByKey;
+  // T105 follow-up: the draw stage's key is the demo's spelling of the path, the
+  // paint stage's key is the prepared mesh's; they agreed for the startup models
+  // and a frame still counted 35 fallback instances, so the tint is looked up by
+  // NORMALISED MODEL PATH when the key misses. Measured, not assumed: the first
+  // capture after this was added read fallback=0 and the ledger below empty.
+  std::unordered_map<std::string, std::uint32_t> entityPaintedSlotCountByNormalizedPath;
+  // T105: which models still take the fallback tint, by (player|prop):path, so a
+  // nonzero fallback is a NAME instead of a number.
+  std::unordered_map<std::string, std::size_t> entityTintFallbackKeyCounts;
   // T83: the two tables the third-person weapon attach needs after the loader's
   // metadata is gone, keyed the same way the meshes are. The hold point is an
   // ATTACHMENT when the model ships one and a BONE otherwise, so both are kept:
@@ -4190,6 +5652,7 @@ bool outlineVertexExtent = false;
       for (auto it = entityMeshKeyByNormalizedPath.begin(); it != entityMeshKeyByNormalizedPath.end();) {
         if (it->second != victim) { ++it; continue; }
         attachMeshTried.erase(it->first);
+        entityPaintedSlotCountByNormalizedPath.erase(it->first);
         it = entityMeshKeyByNormalizedPath.erase(it);
       }
       for (auto it = attachEntityMeshes.begin(); it != attachEntityMeshes.end();) {
@@ -4197,6 +5660,7 @@ bool outlineVertexExtent = false;
         it = attachEntityMeshes.erase(it);
       }
       entitySkinFamilyCountByKey.erase(victim);
+      entityPaintedSlotCountByKey.erase(victim);
       entityAttachmentsByCacheKey.erase(victim);
       entityBoneNamesByCacheKey.erase(victim);
       ++attachMeshResupply;
@@ -4216,6 +5680,18 @@ bool outlineVertexExtent = false;
   // T60: how many (model, material slot, skin family) textures actually reached
   // the GPU. The reading that replaced "1" -- the single slot-0 paint.
   std::size_t entityPaintedSlotCount = 0;
+  // T105: the two halves of the tint decision, counted per drawn instance. A
+  // gate asserts white>0 and fallback==0 for a frame with a player in it; the
+  // negative control (--entity-tint-mutation) puts the team tint back and the
+  // same reading goes red. Kept as a pair because either number alone is a
+  // number with no contrast behind it.
+  std::size_t entityTintWhiteInstances = 0;
+  std::size_t entityTintFallbackInstances = 0;
+  // T105: an instance the draw stage hands over but layer A deferred is not
+  // resident, so it paints no pixel. Counting it as "took the tint" made the
+  // fallback number describe a draw that never happened (measured: 35 of 96 on
+  // pl_upward_f12 tick 0, all item/buildable models). Counted apart.
+  std::size_t entityTintDeferredInstances = 0;
   // One flag per prepared mesh, in the same order, so --dump-entity-materials
   // can say which models reached a GPU texture and which did not.
   std::vector<char> entityMaterialUploadFlags;
@@ -4785,6 +6261,11 @@ bool outlineVertexExtent = false;
     entityMeshKeyByNormalizedPath[normalized] = cacheKey;
     entitySkinFamilyCountByKey[cacheKey] =
       static_cast<std::uint32_t>(prepared.skinFamilies.families.size());
+    // T105: the same publish the startup paint stage does, for a mesh supplied
+    // mid-run (third-person weapon attach). Without it the attach's texture would
+    // be multiplied by the team tint while every other mesh draws white.
+    entityPaintedSlotCountByKey[cacheKey] = static_cast<std::uint32_t>(paintedCount);
+    entityPaintedSlotCountByNormalizedPath[normalized] = static_cast<std::uint32_t>(paintedCount);
     rememberEntityRig(cacheKey, request.inspection.metadata);
     attachEntityMeshes.push_back(std::move(prepared));
     ++attachMeshSupplied;
@@ -4815,6 +6296,8 @@ bool outlineVertexExtent = false;
         }
       }
       entitySkinFamilyCountByKey.erase(prepared.cacheKey);
+      entityPaintedSlotCountByKey.erase(prepared.cacheKey);
+      if (!normalizedPath.empty()) entityPaintedSlotCountByNormalizedPath.erase(normalizedPath);
       entityAttachmentsByCacheKey.erase(prepared.cacheKey);
       entityBoneNamesByCacheKey.erase(prepared.cacheKey);
     }
@@ -4939,7 +6422,8 @@ bool outlineVertexExtent = false;
     // buffer. It is a capacity, not an aspiration: if a map ever exceeds it, the
     // `map: geometry budget` trace line says so with numbers.
     constexpr std::size_t kWorldTriangleCapacity = 400000;
-    tf2::native::BspParser::parse(mapBytes, displayMap, kWorldTriangleCapacity);
+    tf2::native::BspParser::parse(mapBytes, displayMap, kWorldTriangleCapacity, 4096,
+      worldKeepMapWinding, worldExtraStaticClasses);
     // T88: the budget as a reading, on the map-load path, so every run -- a
     // probe, a normal window, a --capture-frame -- carries it. state=within with
     // requested <= capacity is the pass; state=truncated names the first face
@@ -4951,6 +6435,194 @@ bool outlineVertexExtent = false;
       displayMap.brushModelsDroppedByBudget, static_cast<int>(displayMap.firstDroppedFace),
       displayMap.firstDroppedBrushModel.empty() ? "-" : displayMap.firstDroppedBrushModel.c_str(),
       displayMap.trianglesDropped > 0 ? "truncated" : "within");
+    // W-1 step 2 diagnostic: the reversal rule as a reading, so an A/B capture can
+    // prove the flag changed the buffer instead of trusting the pixel diff.
+    traceFmt("map: geometry winding keepMapWinding=%d flipped=%zu misfaced=%zu misfacedDisplaced=%zu",
+      worldKeepMapWinding ? 1 : 0, displayMap.windingFlippedTriangles,
+      displayMap.windingMisfacedTriangles, displayMap.windingMisfacedDisplaced);
+    // N14/U3a: the minimap's basemap, sampled ONCE here, where the parsed map still
+    // lives locally.
+    //
+    // Why the geometry has to cross the boundary as data: displayMap is a local of
+    // this function and main_hud.cpp has no path to it, the same reason the camera
+    // pose is pushed rather than read. Only triangles go over -- not the BspMap, not
+    // the material strings, not the plane table -- because whether a face is floor at
+    // all is decided here, where the plane table and the material names are.
+    //
+    // The floor test is the one the offline oracle states (tools/n14-oracle/
+    // bsp_oracle.py: 'upward-facing (nz > 0.7), non-tool, non-sky'), and every part of
+    // it is load-bearing: a tools/ face is a clip brush that is invisible in game, a
+    // skybox face is the 256x-scaled cage overhead (N14 4.1: pl_upward's outer block is
+    // exactly 16^2 times the playable area), and a downward face is a ceiling. Drawing
+    // any of the three would put a floor where a player cannot stand.
+    if (hudMinimapCli) {
+      std::vector<tf2::native::MinimapFloorTriangle> floorTriangles;
+      std::size_t floorRejectedSide = 0;
+      std::size_t floorRejectedTool = 0;
+      std::size_t floorRejectedSky = 0;
+      std::size_t floorRejectedPlane = 0;
+      // U3a window 2: a census of the whole triangle table before any floor test.
+      // The floor counters below cannot say whether the materials the filter looks
+      // for exist at all -- a test that rejects nothing is indistinguishable from a
+      // test that matches nothing. These counts are taken on every triangle, so
+      // "the exclusion had no target on this map" is a reading and not a guess.
+      std::vector<std::string> floorTripletKeys;
+      std::size_t censusTriangles = 0;
+      std::size_t censusToolRaw = 0;
+      std::size_t censusToolLower = 0;
+      std::size_t censusSkyRaw = 0;
+      std::size_t censusSkyLower = 0;
+      const auto materialLowered = [](const std::string& text) {
+        std::string lowered = text;
+        for (char& ch : lowered) {
+          ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        }
+        return lowered;
+      };
+      for (const tf2::native::BspTriangle& triangle : displayMap.triangles) {
+        ++censusTriangles;
+        if (triangle.material.rfind("tools/", 0) == 0) ++censusToolRaw;
+        const std::string loweredMaterial = materialLowered(triangle.material);
+        if (loweredMaterial.rfind("tools/", 0) == 0) ++censusToolLower;
+        if (triangle.material.find("skybox") != std::string::npos) ++censusSkyRaw;
+        if (loweredMaterial.find("skybox") != std::string::npos) ++censusSkyLower;
+        if (triangle.planeIndex < 0
+            || static_cast<std::size_t>(triangle.planeIndex) >= displayMap.planes.size()) {
+          ++floorRejectedPlane;
+          continue;
+        }
+        const tf2::native::BspPlane& plane =
+          displayMap.planes[static_cast<std::size_t>(triangle.planeIndex)];
+        // A face's stored plane can point the other way; the side flag is which way
+        // this face actually looks (the same idiom native/tools/world_geometry_probe.cpp
+        // uses). Without the sign the test passes for ceilings as happily as floors.
+        const float sideSign = triangle.planeSide == 0 ? 1.0f : -1.0f;
+        if (sideSign * plane.normal[2] <= 0.7f) {
+          ++floorRejectedSide;
+          continue;
+        }
+        // U3a window 2: the BSP stores texture names uppercase (METAL/...,
+        // TOOLS/TOOLSSKYBOX), so a case-sensitive prefix test could never match and
+        // the exclusion was dead on every real map -- which is what
+        // rejectedTool=0 / rejectedSky=0 were saying. Fold for the comparison and
+        // leave the stored name untouched: the renderer resolves material paths
+        // from it. Measured targets on the two reference maps: 389 and 86
+        // reachable faces carry a tool/editor/skybox name.
+        if (loweredMaterial.rfind("tools/", 0) == 0
+            || loweredMaterial.rfind("editor/", 0) == 0) {
+          ++floorRejectedTool;
+          continue;
+        }
+        if (loweredMaterial.find("skybox") != std::string::npos) {
+          ++floorRejectedSky;
+          continue;
+        }
+        // U3a window 2: the identity triple, taken where the triangle still knows
+        // its own plane. Compared against the dface header offline, this says
+        // whether a triangle's plane pair is its face's, which is the one thing a
+        // face count alone cannot show.
+        floorTripletKeys.push_back(std::to_string(triangle.faceIndex) + ":"
+          + std::to_string(triangle.planeIndex) + ":"
+          + std::to_string(static_cast<int>(triangle.planeSide)));
+        tf2::native::MinimapFloorTriangle entry;
+        entry.ax = triangle.a.x; entry.ay = triangle.a.y; entry.az = triangle.a.z;
+        entry.bx = triangle.b.x; entry.by = triangle.b.y; entry.bz = triangle.b.z;
+        entry.cx = triangle.c.x; entry.cy = triangle.c.y; entry.cz = triangle.c.z;
+        // The surface this triangle belongs to (dface_t index). The HUD judges a
+        // face's area and height, not a triangle's -- a displacement face carries
+        // 32..512 triangles and up to 1024 u of height, so per-triangle tests would
+        // both drop real floor and shred one slope across several z bands. See the
+        // comment on MinimapFloorFace in native/include/minimap_linework.h.
+        entry.face = triangle.faceIndex;
+        floorTriangles.push_back(entry);
+      }
+      // The counters are printed before the handover, so a basemap that comes out
+      // empty can be attributed to the map or to the test without a second run.
+      std::size_t floorFaces = 0;
+      {
+        std::vector<std::int32_t> seen;
+        seen.reserve(floorTriangles.size());
+        for (const tf2::native::MinimapFloorTriangle& entry : floorTriangles) {
+          seen.push_back(entry.face);
+        }
+        std::sort(seen.begin(), seen.end());
+        seen.erase(std::unique(seen.begin(), seen.end()), seen.end());
+        floorFaces = seen.size();
+      }
+      // U3a window 2: the identity reading. A face count below the map's dface
+      // count cannot by itself say whether those ids ARE dface ids -- a count over
+      // a foreign id space looks the same. These fields make the difference
+      // readable against the BSP's own numbers (pl_upward_f12 15155 dface,
+      // cp_sunshine 20449), and against displayMap.faceCount which the parser set
+      // from the same lump this map was loaded from.
+      std::size_t floorIdsOutOfRange = 0;
+      std::size_t floorIdsNegative = 0;
+      std::int32_t floorIdMin = -1;
+      std::int32_t floorIdMax = -1;
+      std::size_t floorTriPerFaceMax = 0;
+      std::string floorFirstIds;
+      {
+        std::vector<std::int32_t> ids;
+        ids.reserve(floorTriangles.size());
+        for (const tf2::native::MinimapFloorTriangle& entry : floorTriangles) {
+          ids.push_back(entry.face);
+        }
+        std::sort(ids.begin(), ids.end());
+        if (!ids.empty()) {
+          floorIdMin = ids.front();
+          floorIdMax = ids.back();
+        }
+        for (std::size_t index = 0; index < ids.size();) {
+          std::size_t end = index;
+          while (end < ids.size() && ids[end] == ids[index]) ++end;
+          floorTriPerFaceMax = std::max(floorTriPerFaceMax, end - index);
+          index = end;
+        }
+        for (const auto id : ids) {
+          if (id < 0) { ++floorIdsNegative; continue; }
+          if (static_cast<std::size_t>(id) >= displayMap.faceCount) ++floorIdsOutOfRange;
+        }
+        std::int32_t last = 0;
+        bool haveLast = false;
+        std::size_t written = 0;
+        for (const auto id : ids) {
+          if (haveLast && id == last) continue;
+          last = id;
+          haveLast = true;
+          if (written >= 8) break;
+          if (!floorFirstIds.empty()) floorFirstIds += ',';
+          floorFirstIds += std::to_string(id);
+          ++written;
+        }
+      }
+      traceFmt("minimap: floor triangles=%zu of %zu faces=%zu rejectedPlane=%zu"
+        " rejectedSide=%zu rejectedTool=%zu rejectedSky=%zu",
+        floorTriangles.size(), displayMap.triangles.size(), floorFaces, floorRejectedPlane,
+        floorRejectedSide, floorRejectedTool, floorRejectedSky);
+      traceFmt("minimap: floor identity faces=%zu idsOutOfRange=%zu idsNegative=%zu"
+        " idMin=%d idMax=%d triPerFaceMax=%zu firstIds=%s mapFaces=%zu worldFaces=%zu"
+        " brushFaces=%zu planes=%zu triangles=%zu",
+        floorFaces, floorIdsOutOfRange, floorIdsNegative, static_cast<int>(floorIdMin),
+        static_cast<int>(floorIdMax), floorTriPerFaceMax, floorFirstIds.c_str(),
+        displayMap.faceCount, displayMap.worldFaceCount, displayMap.brushFaceCount,
+        displayMap.planes.size(), displayMap.triangleCount);
+      {
+        std::sort(floorTripletKeys.begin(), floorTripletKeys.end());
+        floorTripletKeys.erase(std::unique(floorTripletKeys.begin(), floorTripletKeys.end()),
+          floorTripletKeys.end());
+        std::string joined;
+        for (const std::string& key : floorTripletKeys) {
+          if (!joined.empty()) joined += ';';
+          joined += key;
+        }
+        traceFmt("minimap: floor triplets count=%zu list=%s", floorTripletKeys.size(),
+          joined.c_str());
+      }
+      traceFmt("minimap: floor materials allTriangles=%zu toolRaw=%zu toolLower=%zu"
+        " skyRaw=%zu skyLower=%zu",
+        censusTriangles, censusToolRaw, censusToolLower, censusSkyRaw, censusSkyLower);
+      tf2::native::minimapHudSetFloorGeometry(std::move(floorTriangles));
+    }
     // T24: the bytes now live in an owner that survives this block, because the
     // pakfile reader below is called from outside it. `mapBytesView` is the
     // local name for the same bytes; `mapBytes` must not be used again.
@@ -5578,6 +7250,10 @@ bool outlineVertexExtent = false;
                           tiledPixels, tiledWidth, tiledHeight)) {
           ++fetchDecodeEmpty; chain.reason = "downscale-failed"; continue;
         }
+        if (worldTileFillTrace) {
+          traceWorldTileFill(materialName, materialPath, texturePath, chain.vtfStore, texture,
+            textureBytes, rgba, tiledPixels, tiledWidth, tiledHeight, boxDownscale);
+        }
         chain.tileWidth = static_cast<int>(tiledWidth);
         chain.tileHeight = static_cast<int>(tiledHeight);
         chain.blend = secondDeclared;
@@ -6180,6 +7856,13 @@ bool outlineVertexExtent = false;
           prepared.paintedSlots.push_back(std::move(painted));
         }
       }
+      // T105: publish the paint count for this key whether or not it painted
+      // anything -- a zero here is the fallback-tint case, and the draw stage
+      // cannot tell "no texture" from "key not in the table" otherwise.
+      entityPaintedSlotCountByKey[prepared.cacheKey] =
+        static_cast<std::uint32_t>(prepared.paintedSlots.size());
+      entityPaintedSlotCountByNormalizedPath[tf2::native::normalizeModelPath(prepared.path)] =
+        static_cast<std::uint32_t>(prepared.paintedSlots.size());
       if (!prepared.paintedSlots.empty()) {
         // Keep the slot-0 fields meaningful for the dump/title readers that still
         // look at them; the draw path uses paintedSlots, not these.
@@ -7381,8 +9064,13 @@ bool outlineVertexExtent = false;
     renderer.setWorldSkyFaceOnly(worldGeometry == WorldGeometryFilter::Sky);
     renderer.setWorldFaceIdUpload(worldDebugView == 4);
     renderer.setWorldRefusedMask(worldRefusedMask != 0);
+    renderer.setWorldAtlasTranslucentRescue(worldAtlasTranslucentRescue);
     renderer.setWorldDiagnosticIsolation(
       worldIsolationRequested || worldGeometry != WorldGeometryFilter::All);
+    renderer.setWorldIsolatedTriangle(static_cast<int>(isolatedTriangle));
+    renderer.setWorldClipCaptureEnabled(worldClipCaptureRequested && isolatedTriangle >= 0);
+    traceFmt("gpu: world isolation requested=%ld stored=%d",
+      isolatedTriangle, renderer.worldIsolatedTriangle());
     // T17: this one changes a draw-time constant, not the upload. It is set here
     // so the reading and the frames of one run describe one configuration.
     renderer.setWorldLightmapEnabled(worldLightmapGiven ? worldLightmapRequested : true);
@@ -7464,6 +9152,11 @@ bool outlineVertexExtent = false;
     if (!uploadedWorld && worldGeometry == WorldGeometryFilter::All) {
       uploadedWorld = renderer.uploadWorldGeometry(displayMap, mapMaterialName, mapWidth, mapHeight);
     }
+    // N05: outside the fallback branch -- inside it, the reading only existed when
+    // the atlas overload had failed, which is the case that never runs here.
+    traceFmt("gpu: world isolation indexCount=%u batches=%zu firstBatchIndices=%u isolated=%d",
+      renderer.worldIndexCount(), renderer.worldDrawBatchCount(), renderer.worldFirstBatchIndices(),
+      renderer.worldIsolatedTriangle());
     traceFmt("gpu: world geometry=%s blend=%s",
       worldGeometry == WorldGeometryFilter::Terrain ? "terrain"
         : worldGeometry == WorldGeometryFilter::Sky ? "sky"
@@ -7698,7 +9391,7 @@ bool outlineVertexExtent = false;
             tf2::native::WorldWaterVertex vertex{};
             vertex.x = (point.x - renderer.worldCenterX()) * renderer.worldHorizontalScale();
             vertex.y = (point.y - renderer.worldCenterY()) * renderer.worldHorizontalScale();
-            vertex.z = (point.z - renderer.worldMinZ()) / renderer.worldSpanZ() * 0.8f + 0.1f;
+            vertex.z = (point.z - renderer.worldMinZ()) * renderer.worldHorizontalScale() + 0.1f;
             vertex.r = waterShade; vertex.g = waterShade; vertex.b = waterBlue; vertex.a = 1.0f;
             return vertex;
           };
@@ -8504,10 +10197,12 @@ bool outlineVertexExtent = false;
       displayMap.trianglesDropped > 0 ? "truncated" : "within");
     const auto sample = renderer.worldMaterialSampleState();
     traceFmt("gpu: world sky state=%s vertices=%u triangles=%u faces=%u draws=%u side=%u"
-      " resampled=%d reason=%s",
+      " resampled=%d farplane=%d shader=%s reason=%s",
       tf2::native::worldSkyStateName(sample.worldSkyState),
       sample.worldSkyVertexCount, sample.worldSkyTriangles, sample.worldSkyFaces,
       sample.worldSkyDraws, sample.worldSkySide, sample.worldSkyResampled ? 1 : 0,
+      sample.worldSkyFarPlane ? 1 : 0,
+      sample.worldSkyDedicatedShader ? "dedicated" : (sample.worldSkyDraws ? "world" : "none"),
       worldSkyReason.empty() ? "-" : worldSkyReason.c_str());
     // T29: the world projection's clip planes, in the box unit the matrix takes
     // AND in the map units they mean. uploadWorldGeometry scales the map into a
@@ -8528,6 +10223,17 @@ bool outlineVertexExtent = false;
         haveTransform ? nearBox / scale : -1.0f,
         haveTransform ? farBox / scale : -1.0f,
         scale, haveTransform ? "published" : "no-transform");
+      const auto metric = renderer.worldShaderConstants();
+      if (haveTransform && metric.valid) {
+        traceFmt("gpu: world metric scale=%.9g center=%.9g,%.9g minZ=%.9g spanZ=%.9g",
+          scale, renderer.worldCenterX(), renderer.worldCenterY(),
+          renderer.worldMinZ(), renderer.worldSpanZ());
+        for (int row = 0; row < 4; ++row) {
+          traceFmt("gpu: world metric-mvp row=%d values=%.9g,%.9g,%.9g,%.9g", row,
+            metric.mvp[row * 4], metric.mvp[row * 4 + 1],
+            metric.mvp[row * 4 + 2], metric.mvp[row * 4 + 3]);
+        }
+      }
     }
     // T2 (2026-10-14): the water surface as a DRAW, read from the renderer
     // after the frame -- the same discipline the sky and vis lines above use.
@@ -8581,10 +10287,11 @@ bool outlineVertexExtent = false;
     // material affects the reference frame" is a count of triangles that
     // survived the clip and not an estimate.
     traceFmt("gpu: world atlas-plan batches=%zu blendBatches=%zu tiled=%zu refused=%zu"
-      " malformed=%zu duplicate=%zu budget=%zu layerBytes=%llu reason=%s",
+      " malformed=%zu duplicate=%zu budget=%zu translucentRefused=%zu layerBytes=%llu reason=%s",
       sample.worldAtlasBatches, sample.worldAtlasBlendBatches, sample.worldTilesTiled,
       sample.worldTilesRefused, sample.worldTilesRefusedMalformed,
       sample.worldTilesRefusedDuplicate, sample.worldTilesRefusedBudget,
+      sample.worldTilesRefusedTranslucent,
       static_cast<unsigned long long>(sample.worldAtlasLayerBytes),
       sample.worldAtlasPlanReason.empty() ? "-" : sample.worldAtlasPlanReason.c_str());
     {
@@ -8617,6 +10324,9 @@ bool outlineVertexExtent = false;
     // The two cross-pass questions, read from the ledger the draws fill. A
     // zero here is the statement the task asks for; the mutation makes one of
     // them non-zero so the zero can be trusted.
+    traceFmt("gpu: world draw branch batchesIndexed=%d indexCount=%u batchDrawCalls=%zu isolated=%d",
+      renderer.worldBatchesIndexedAtDraw(), renderer.worldIndexCountAtDraw(),
+      renderer.worldBatchDrawCallCount(), renderer.worldIsolatedTriangle());
     traceFmt("gpu: world isolation weaponDrawsWithWorldAtlas=%zu worldDrawsWithWeaponTexture=%zu"
       " slot0Binds=%zu batchDraws=%zu texturedBatchDraws=%zu",
       sample.weaponDrawsWithWorldAtlas, sample.worldDrawsWithWeaponTexture,
@@ -8943,7 +10653,7 @@ bool outlineVertexExtent = false;
                                   float& sx, float& sy, float& depth, float& invW) {
     const float x = (point.x - p.centerX) * p.scale;
     const float y = (point.y - p.centerY) * p.scale;
-    const float z = (point.z - p.minZ) / p.spanZ * 0.8f + 0.1f;
+    const float z = (point.z - p.minZ) * p.scale + 0.1f;
     const float* m = p.m;
     const float cx = x * m[0] + y * m[4] + z * m[8] + m[12];
     const float cy = x * m[1] + y * m[5] + z * m[9] + m[13];
@@ -9036,6 +10746,37 @@ bool outlineVertexExtent = false;
       }
       return true;
     };
+    // E5/F1-5: the same filter with the alpha channel kept. `texel=` has always
+    // meant RGB; adding A to that string would break every consumer that parses
+    // three components, so the alpha is a separate `texelA=` field.
+    const auto sampleBilinearRgba = [](const std::vector<std::uint8_t>& rgba, int width, int height,
+                                       float u, float v, unsigned char out[4]) {
+      if (rgba.empty() || width <= 0 || height <= 0) return false;
+      const auto wrapIndex = [](int value, int size) {
+        const int wrapped = value % size;
+        return wrapped < 0 ? wrapped + size : wrapped;
+      };
+      const int x0 = static_cast<int>(std::floor(u));
+      const int y0 = static_cast<int>(std::floor(v));
+      const float fx = u - static_cast<float>(x0);
+      const float fy = v - static_cast<float>(y0);
+      float sum[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+      for (int dy = 0; dy < 2; ++dy) {
+        for (int dx = 0; dx < 2; ++dx) {
+          const int x = wrapIndex(x0 + dx, width);
+          const int y = wrapIndex(y0 + dy, height);
+          const float weight = (dx ? fx : 1.0f - fx) * (dy ? fy : 1.0f - fy);
+          const std::size_t at = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+            + static_cast<std::size_t>(x)) * 4u;
+          if (at + 3u >= rgba.size()) return false;
+          for (int c = 0; c < 4; ++c) sum[c] += weight * static_cast<float>(rgba[at + static_cast<std::size_t>(c)]);
+        }
+      }
+      for (int c = 0; c < 4; ++c) {
+        out[c] = static_cast<unsigned char>(std::clamp(std::lround(sum[c]), 0l, 255l));
+      }
+      return true;
+    };
     const auto shadeFor = [](const std::string& material) {
       const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(material));
       return 0.78f + static_cast<float>(hash % 23) / 100.0f;
@@ -9044,9 +10785,16 @@ bool outlineVertexExtent = false;
       && !worldVisKeptIndices.empty();
     std::size_t hits = 0, tiledHits = 0, untiledHits = 0, blendHits = 0, oversizedHits = 0;
     std::size_t beyondCapHits = 0, depthMatched = 0, discriminatingHits = 0;
-    for (const auto& point : kPoints) {
-      const int px = point[0];
-      const int py = point[1];
+    std::vector<std::pair<int, int>> tracePoints;
+    if (worldFaceTracePoints.empty()) {
+      tracePoints.reserve(sizeof(kPoints) / sizeof(kPoints[0]));
+      for (const auto& point : kPoints) tracePoints.emplace_back(point[0], point[1]);
+    } else {
+      tracePoints = worldFaceTracePoints;
+    }
+    for (const auto& point : tracePoints) {
+      const int px = point.first;
+      const int py = point.second;
       if (px < 0 || py < 0 || px >= frameWidth || py >= frameHeight) continue;
       const float fx = static_cast<float>(px) + 0.5f;
       const float fy = static_cast<float>(py) + 0.5f;
@@ -9054,6 +10802,7 @@ bool outlineVertexExtent = false;
       float bestDepth = 2.0f;
       float bestBary[3] = {0.0f, 0.0f, 0.0f};
       float bestInvW[3] = {1.0f, 1.0f, 1.0f};
+      float bestScreen[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
       const auto consider = [&](std::size_t ordinal) {
         if (ordinal >= displayMap.triangles.size()) return;
         const auto& triangle = displayMap.triangles[ordinal];
@@ -9076,6 +10825,13 @@ bool outlineVertexExtent = false;
         bestTriangle = static_cast<int>(ordinal);
         bestBary[0] = w0; bestBary[1] = w1; bestBary[2] = w2;
         bestInvW[0] = aw; bestInvW[1] = bw; bestInvW[2] = cw;
+        // N05: the projected corners of the winning triangle. The id frame says
+        // which face covers the pixel; these say where the oracle THINKS the
+        // triangle is, which is the only way to tell a fill-rule case from a
+        // projection that disagrees with the rasterizer.
+        bestScreen[0] = ax; bestScreen[1] = ay;
+        bestScreen[2] = bx; bestScreen[3] = by;
+        bestScreen[4] = cx; bestScreen[5] = cy;
       };
       if (clipApplied) {
         for (const std::size_t ordinal : worldVisKeptIndices) consider(ordinal);
@@ -9087,6 +10843,19 @@ bool outlineVertexExtent = false;
           px, py);
         continue;
       }
+      // N05: a self-contained line, printed where the values are still in scope.
+      // The first attempt appended these to the big face-trace format string and
+      // the arguments shifted, so the readings were other fields' numbers -- an
+      // instrument bug that looked exactly like a product bug.
+      traceFmt("gpu: world tri-proj point=%d,%d tri=%d w=%.5f,%.5f,%.5f screen=%.2f,%.2f;%.2f,%.2f;%.2f,%.2f",
+        px, py, bestTriangle, 1.0f / bestInvW[0], 1.0f / bestInvW[1], 1.0f / bestInvW[2],
+        bestScreen[0], bestScreen[1], bestScreen[2], bestScreen[3], bestScreen[4], bestScreen[5]);
+    // The matrix, one row per line, so a shifted argument cannot hide inside it.
+    for (int row = 0; row < 4; ++row) {
+      traceFmt("gpu: world mvp row=%d % .6f % .6f % .6f % .6f", row,
+        projection.m[row * 4 + 0], projection.m[row * 4 + 1],
+        projection.m[row * 4 + 2], projection.m[row * 4 + 3]);
+    }
       const auto& triangle = displayMap.triangles[static_cast<std::size_t>(bestTriangle)];
       // Does the frame's own depth agree that this face owns the pixel? A model,
       // the water pass or a nearer triangle would answer no. Unmeasured (-1)
@@ -9139,6 +10908,7 @@ bool outlineVertexExtent = false;
       bool insideTile = false;
       std::string uvText = "-";
       std::string texelText = "-";
+      std::string texelAlphaText = "-";
       std::string blendText = "-";
       std::string albedoText = "-";
       std::string albedoTileText = "-";
@@ -9248,14 +11018,15 @@ bool outlineVertexExtent = false;
           }
           return true;
         };
-        unsigned char texel[3];
-        if (haveTexture && sampleBilinear(textureIt->second->rgba, tile->width, tile->height,
+        unsigned char texel[4];
+        if (haveTexture && sampleBilinearRgba(textureIt->second->rgba, tile->width, tile->height,
               tileU, tileV, texel)) {
           // (the tile buffer is the downscaled texture, so this is the texel
           // the shader's linear sampler reads at the interpolated uv)
           char texelBuffer[48];
           std::snprintf(texelBuffer, sizeof(texelBuffer), "%u,%u,%u", texel[0], texel[1], texel[2]);
           texelText = texelBuffer;
+          texelAlphaText = std::to_string(static_cast<unsigned>(texel[3]));
         }
         if (chain.blend && haveTexture) ++blendHits;
         predictAlbedo(tileU, tileV, albedo, &blendText);
@@ -9354,10 +11125,34 @@ bool outlineVertexExtent = false;
       std::snprintf(expectedBuffer, sizeof(expectedBuffer), "%d,%d,%d", expected[0], expected[1], expected[2]);
       expectedText = expectedBuffer;
       ++hits;
+      // N05: the colour the vertex buffer actually carries for this triangle.
+      // `albedo` above is computed from the material chain on the CPU; the pixel
+      // shader multiplies by COLOR0, so "the frame is black where the CPU says
+      // 84,83,81" is only answerable with this number in the same line.
+      // N05: the box-space positions the buffer holds for this ordinal. The
+      // oracle projects displayMap's vertices; if the two orders differ, the
+      // comparison is between different triangles and every reading below is
+      // meaningless -- so print both and let the numbers say it.
+      float bufferPosition[9] = {0.0f};
+      const bool haveBufferPosition = renderer.worldTrianglePositionAt(static_cast<std::size_t>(bestTriangle), bufferPosition);
+      float vertexColour[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+      const bool haveVertexColour = renderer.worldTriangleColourAt(static_cast<std::size_t>(bestTriangle), vertexColour);
+      char vertexColourBuffer[64];
+      std::snprintf(vertexColourBuffer, sizeof(vertexColourBuffer), "%d,%d,%d,%d",
+        static_cast<int>(std::lround(vertexColour[0] * 255.0f)),
+        static_cast<int>(std::lround(vertexColour[1] * 255.0f)),
+        static_cast<int>(std::lround(vertexColour[2] * 255.0f)),
+        static_cast<int>(std::lround(vertexColour[3] * 255.0f)));
       traceFmt("gpu: world face-trace point=%d,%d tri=%d material=%s vmt=%s vmtStore=%s vtf=%s"
-        " vtfStore=%s src=%dx%d tile=%d/%d size=%dx%d rect=%d,%d atlas=%dx%d uv=%s uvInside=%d texel=%s"
+        " vtfStore=%s src=%dx%d tile=%d/%d size=%dx%d rect=%d,%d atlas=%dx%d uv=%s uvInside=%d texel=%s texelA=%s"
         " blend=%s luv=%.4f,%.4f light=%d,%d,%d albedo=%s albedoTile=%s expected=%s reason=%s"
-        " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x",
+        " beyondOldCap=%d oldOrder=%zu depth=%.4f frameDepth=%.4f finalDepth=%.4f depthMatch=%d frameRaw=%08x"
+        " vertexColour=%s vertexColourKnown=%d"
+        " triScreen=%.2f,%.2f;%.2f,%.2f;%.2f,%.2f"
+        " bufPos=%.3f,%.3f,%.3f bufferPosKnown=%d"
+        " mapA=%.3f,%.3f,%.3f box=%.6f,%.3f,%.3f,%.3f,%.3f drawn=%d"
+        " bufAll=%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f"
+        " mapAll=%.3f,%.3f,%.3f;%.3f,%.3f,%.3f;%.3f,%.3f,%.3f",
         px, py, bestTriangle, triangle.material.c_str(),
         chain.vmtPath.empty() ? "-" : chain.vmtPath.c_str(), chain.vmtStore.c_str(),
         chain.vtfPath.empty() ? "-" : chain.vtfPath.c_str(), chain.vtfStore.c_str(),
@@ -9366,14 +11161,26 @@ bool outlineVertexExtent = false;
         tiled ? tile->width : 0, tiled ? tile->height : 0,
         tiled ? tile->x : 0, tiled ? tile->y : 0,
         tiled ? tile->atlasWidth : 0, tiled ? tile->atlasHeight : 0,
-        uvText.c_str(), insideTile ? 1 : 0, texelText.c_str(), blendText.c_str(), lu, lv,
+        uvText.c_str(), insideTile ? 1 : 0, texelText.c_str(), texelAlphaText.c_str(), blendText.c_str(), lu, lv,
         static_cast<int>(std::lround(light[0] * 255.0f)),
         static_cast<int>(std::lround(light[1] * 255.0f)),
         static_cast<int>(std::lround(light[2] * 255.0f)),
         albedoText.c_str(), albedoTileText.c_str(), expectedText.c_str(),
         tiled ? "tiled" : (tile != nullptr ? tile->reason.c_str() : chain.reason.c_str()),
         chain.beyondOldCap ? 1 : 0, chain.oldOrderAccepted, bestDepth, frameDepth, finalDepth,
-        depthMatch ? 1 : 0, renderer.capturedDepthRawAt(px, py));
+        depthMatch ? 1 : 0, renderer.capturedDepthRawAt(px, py),
+        vertexColourBuffer, haveVertexColour ? 1 : 0,
+        bestScreen[0], bestScreen[1], bestScreen[2], bestScreen[3], bestScreen[4], bestScreen[5],
+        bufferPosition[0], bufferPosition[1], bufferPosition[2], haveBufferPosition ? 1 : 0,
+        triangle.a.x, triangle.a.y, triangle.a.z,
+        projection.scale, projection.centerX, projection.centerY, projection.minZ, projection.spanZ,
+        renderer.worldTriangleDrawnAt(static_cast<std::size_t>(bestTriangle)),
+        bufferPosition[0], bufferPosition[1], bufferPosition[2],
+        bufferPosition[3], bufferPosition[4], bufferPosition[5],
+        bufferPosition[6], bufferPosition[7], bufferPosition[8],
+        triangle.a.x, triangle.a.y, triangle.a.z,
+        triangle.b.x, triangle.b.y, triangle.b.z,
+        triangle.c.x, triangle.c.y, triangle.c.z);
     }
     // Named refusals, weighted by the pvs-visible triangles they cost. The
     // aggregate material-fetch line says `vmtMissing=3`; this says how much of
@@ -9451,12 +11258,140 @@ bool outlineVertexExtent = false;
   // barycentrics, keep the nearest. `frameDepth` is the depth the capture
   // actually holds, so a point the oracle calls empty and the buffer calls
   // occupied is a reading that contradicts itself and is printed as such.
+  // ---- N05 step 3: the clip-space capture and its known-answer control ----
+  //
+  // Two numbers per vertex: what the GPU vertex stage produced (streamed out of
+  // the draw that actually ran) and what the CPU predicts from the same mvp and
+  // the same box-space vertex. Agreement is the control that makes the channel
+  // usable; disagreement is the reading that says the difference already exists
+  // before the rasteriser sees anything, which is what the isolation frames
+  // could not distinguish from a clipping or state defect.
+  //
+  // The CPU arm multiplies the vertex BUFFER value, not a map point: the world
+  // VS does `mul(float4(input.position, 1.0), mvp)` on the thing the buffer
+  // holds, and `worldTrianglePositionAt` reports exactly that thing.
+  // The frame number is a parameter, not a capture: `renderedFrames` is
+  // declared further down the loop than this lambda, so a capture would name it
+  // before it exists. Passing it in keeps the reading tied to the frame that
+  // drew the sample rather than to whatever counter exists at call time.
+  const auto traceWorldClipCapture = [&](std::uint64_t frameNumber) {
+    if (!worldClipCaptureRequested) return;
+    const int clipStatus = renderer.worldClipCaptureStatus();
+    if (clipStatus == 0) {
+      traceFmt("gpu: world clip-capture status=not-attempted reason=no-isolated-indexed-draw");
+      return;
+    }
+    if (clipStatus < 0) {
+      const char* why = renderer.worldClipCaptureFailure();
+      traceFmt("gpu: world clip-capture status=unavailable reason=%s",
+        (why && *why) ? why : "the channel reported failure without a reason");
+      return;
+    }
+    const auto clipProjection = worldTraceProjection();
+    if (!clipProjection.valid) {
+      traceFmt("gpu: world clip-capture status=unavailable reason=no-world-constants");
+      return;
+    }
+    float clipSample[12] = {};
+    if (!renderer.worldClipCaptureSample(clipSample)) {
+      traceFmt("gpu: world clip-capture status=unavailable reason=no-sample");
+      return;
+    }
+    unsigned int clipIndices[3] = {};
+    float clipViewport[4] = {};
+    unsigned int clipHash = 0u;
+    if (!renderer.worldClipCaptureDrawState(clipIndices, clipViewport, clipHash)) {
+      traceFmt("gpu: world clip-capture status=unavailable reason=no-draw-state");
+      return;
+    }
+    const long clipTriangle = renderer.worldIsolatedTriangle();
+    float clipBuffer[9] = {};
+    const bool clipHasBuffer = clipTriangle >= 0
+      && renderer.worldTrianglePositionAt(static_cast<std::size_t>(clipTriangle), clipBuffer);
+    // The frame, the index triple, the viewport and the constant hash travel
+    // with the values: a clip number with no frame attached cannot be compared
+    // to anything, which is the same rule the capture gate applies to bitmaps.
+    traceFmt("gpu: world clip-capture status=ok tri=%ld indices=%u,%u,%u"
+      " viewport=%.1f,%.1f,%.1f,%.1f constants=0x%08x frame=%llu",
+      clipTriangle, clipIndices[0], clipIndices[1], clipIndices[2],
+      clipViewport[0], clipViewport[1], clipViewport[2], clipViewport[3],
+      clipHash, static_cast<unsigned long long>(frameNumber));
+    if (!clipHasBuffer) {
+      traceFmt("gpu: world clip-capture control=unavailable reason=no-vertex-buffer-position");
+      return;
+    }
+    int clipMatched = 0;
+    int clipCompared = 0;
+    float clipWorstRelative = 0.0f;
+    for (int v = 0; v < 3; ++v) {
+      const float bx = clipBuffer[v * 3 + 0];
+      const float by = clipBuffer[v * 3 + 1];
+      const float bz = clipBuffer[v * 3 + 2];
+      const float* m = clipProjection.m;
+      const float cpx = bx * m[0] + by * m[4] + bz * m[8] + m[12];
+      const float cpy = bx * m[1] + by * m[5] + bz * m[9] + m[13];
+      const float cpz = bx * m[2] + by * m[6] + bz * m[10] + m[14];
+      const float cpw = bx * m[3] + by * m[7] + bz * m[11] + m[15];
+      const float gx = clipSample[v * 4 + 0];
+      const float gy = clipSample[v * 4 + 1];
+      const float gz = clipSample[v * 4 + 2];
+      const float gw = clipSample[v * 4 + 3];
+      // Relative error against the magnitude actually being compared. w is the
+      // divisor for the perspective divide, so an error in it moves a screen
+      // point by more than the same error in x; the tile below prints all four
+      // so a small-but-load-bearing w difference is visible rather than averaged
+      // away.
+      const auto clipRel = [](float a, float b) {
+        const float scale = std::max(std::fabs(a), std::fabs(b));
+        if (!(scale > 1.0e-9f)) return 0.0f;
+        return std::fabs(a - b) / scale;
+      };
+      const float relX = clipRel(cpx, gx);
+      const float relY = clipRel(cpy, gy);
+      const float relZ = clipRel(cpz, gz);
+      const float relW = clipRel(cpw, gw);
+      const float worst = std::max(std::max(relX, relY), std::max(relZ, relW));
+      clipWorstRelative = std::max(clipWorstRelative, worst);
+      ++clipCompared;
+      const bool vertexAgrees = std::isfinite(gw) && std::isfinite(cpw) && worst < 1.0e-5f;
+      if (vertexAgrees) ++clipMatched;
+      traceFmt("gpu: world clip-capture vertex=%d box=%.6f,%.6f,%.6f"
+        " gpu=%.6f,%.6f,%.6f,%.6f cpu=%.6f,%.6f,%.6f,%.6f"
+        " relX=%.3e relY=%.3e relZ=%.3e relW=%.3e agree=%d",
+        v, bx, by, bz, gx, gy, gz, gw, cpx, cpy, cpz, cpw,
+        relX, relY, relZ, relW, vertexAgrees ? 1 : 0);
+      // Inside the clip volume, per this frame's own w: -w <= x,y <= w and
+      // 0 <= z <= w. Reported separately from the CPU agreement because the two
+      // answer different questions -- "does the CPU know where this vertex is"
+      // and "will the rasteriser keep it".
+      const bool insideClip = std::isfinite(gw) && gw > 0.0f
+        && gx >= -gw && gx <= gw && gy >= -gw && gy <= gw && gz >= 0.0f && gz <= gw;
+      const float screenX = (gx / gw * 0.5f + 0.5f) * static_cast<float>(clipProjection.width);
+      const float screenY = (0.5f - gy / gw * 0.5f) * static_cast<float>(clipProjection.height);
+      traceFmt("gpu: world clip-capture screen vertex=%d x=%.3f y=%.3f depth=%.6f inside=%d",
+        v, screenX, screenY, gz / gw, insideClip ? 1 : 0);
+    }
+    traceFmt("gpu: world clip-capture control compared=%d matched=%d worstRelative=%.3e"
+      " threshold=1.0e-05 verdict=%s",
+      clipCompared, clipMatched, clipWorstRelative,
+      (clipCompared == 3 && clipMatched == 3) ? "agree" : "disagree");
+  };
+
   const auto traceWorldHoles = [&]() {
     if (worldHoleTracePoints.empty()) return;
     const auto projection = worldTraceProjection();
     if (!projection.valid) {
       traceFmt("gpu: world hole-trace status=unavailable reason=no-world-constants");
       return;
+    }
+    // T105: the pose this traced frame was captured at. A facing audit needs
+    // the eye that belongs to the pixels; inferring it afterwards is how W-1's
+    // "measurement artifact" verdict nearly became a bug report.
+    {
+      float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
+      if (renderer.cameraEyeMapWorld(eyeX, eyeY, eyeZ)) {
+        traceFmt("camera: capture eye=%.3f,%.3f,%.3f", eyeX, eyeY, eyeZ);
+      }
     }
     const auto drawState = renderer.worldMaterialSampleState();
     const bool cullEnabled = drawState.worldCullBackfaces;
@@ -10133,6 +12068,20 @@ bool outlineVertexExtent = false;
   // damaged without printing a line per frame on a healthy run.
   std::size_t tracedResourceRefusals = 0;
   std::size_t tracedResourceMapRefusals = 0;
+  // E9 follow-up (2026-11-14): the minimap keeps the last pose it was handed for
+  // the map the demo names. A paused demo does not recompute a camera, so the
+  // frame drawn after the pause has no pose of its own; the panel then refused to
+  // draw and the map vanished the moment the clock stopped. Measured on
+  // cp_process_f12 and cp_gullywash_f9 with --start-paused: loop n=1 published
+  // state=ready shapes=14, loop n=2 published reason=no-camera-pose shapes=0, and
+  // the captured frame was byte-identical to the no-flag control. The pose is
+  // reused only for the same map name, so a demo change cannot put one map's
+  // viewer dot on another map's floor plan.
+  bool minimapPoseValid = false;
+  std::string minimapPoseMap;
+  float minimapPoseEyeX = 0.0f;
+  float minimapPoseEyeY = 0.0f;
+  float minimapPoseYaw = 0.0f;
   while (running) {
     ++mainLoopIterations;
     traceFmt("loop n=%llu tick=%d", static_cast<unsigned long long>(mainLoopIterations),
@@ -10157,6 +12106,18 @@ bool outlineVertexExtent = false;
     // temporary OS stall. The next frame resumes at the current playback rate.
     const double elapsed = std::clamp(measuredElapsed, 0.0, 0.25);
     if (measuredElapsed > 0.25) tickAccumulator = 0.0;
+    // AUD-03: the scheduler's master gain follows the settings once per frame,
+    // paused or not -- a run that pauses, mutes and resumes must land on the new
+    // value instead of the one it started with. Printed only when it moves, so a
+    // steady-state run does not pay one trace line per frame.
+    if (g_nativeUi) {
+      const float masterVolume = g_nativeUi->muted() ? 0.0f : g_nativeUi->volume();
+      if (masterVolume != soundScheduler.masterVolume()) {
+        soundScheduler.setMasterVolume(masterVolume);
+        traceFmt("audio: master applied volume=%.2f muted=%d",
+            static_cast<double>(masterVolume), g_nativeUi->muted() ? 1 : 0);
+      }
+    }
     if (g_playback.paused != lastPaused) {
       if (g_playback.paused) soundScheduler.stop();
       else soundScheduler.reset(g_playback.tick);
@@ -10293,6 +12254,23 @@ bool outlineVertexExtent = false;
           static_cast<int>(g_playback.tick), g_playback.paused ? 1 : 0);
       }
     }
+    // U4 step 3: pane 1's mode latch, applied on the frame the mode is requested
+    // for the same reason as pane 0's above -- a mode set while paused must still
+    // reach the renderer. Leaving first person releases the pane's demo eye here
+    // too, so the orbit never fights a stale eye for a frame.
+    if (g_paneSplit && g_renderer) {
+      const tf2::native::CameraMode pendingPane1Mode = g_pane1CameraMode.mode();
+      if (pendingPane1Mode != g_pane1ModeApplied) {
+        if (pendingPane1Mode != tf2::native::CameraMode::FirstPerson) {
+          g_renderer->clearPaneCameraDemoView(1u);
+        }
+        g_pane1ModeApplied = pendingPane1Mode;
+        ++g_pane1ModeApplies;
+        traceFmt("camera: mode applied=%s pane=1 tick=%d paused=%d",
+          tf2::native::cameraModeName(pendingPane1Mode),
+          static_cast<int>(g_playback.tick), g_playback.paused ? 1 : 0);
+      }
+    }
     if (!g_renderer && g_playbackControl.needsSceneResolve()) {
       // No renderer means no scene query will ever run; the landing must say so
       // instead of leaving the pending request to block advance() forever.
@@ -10341,11 +12319,21 @@ bool outlineVertexExtent = false;
         traceFmt("scene: clock tick=%d entryTick=%d serverTick=-1 serverTickKnown=0 reason=%s",
           static_cast<int>(g_playback.tick), static_cast<int>(sceneEntryTick), sceneClockReason);
       }
-      std::int32_t resolvedSceneTick = sceneTick;
+      // N12-C / Q5: the query below writes a tick only on the two branches that
+      // actually resolve a snapshot (Available, Checkpoint); Gap, NoHistory and
+      // TickBeforeHistory leave the out-parameter untouched. Seeding it with
+      // sceneTick therefore made "no snapshot" indistinguishable from "the
+      // snapshot is exactly this tick": stale read 0, and the publish below
+      // claimed a resolved tick for a snapshot that was never resolved. Start
+      // unknown and let the status decide.
+      std::int32_t resolvedSceneTick = -1;
       if (sceneTickKnown) {
         entitySnapshotStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
             demoNetworkSummary, sceneTick, currentEntityStates, &resolvedSceneTick);
-        entitySnapshotStaleness = sceneTick - resolvedSceneTick;
+        // Staleness is defined only when a tick was resolved. With the -1 seed,
+        // the old expression would read sceneTick + 1 here -- a value that looks
+        // like a measurement and is an artifact of the sentinel.
+        entitySnapshotStaleness = resolvedSceneTick >= 0 ? sceneTick - resolvedSceneTick : -1;
       } else {
         // A packet before the first svc_NetTick has no server tick. Querying it
         // would quietly use an entry tick as a server tick, which is the defect;
@@ -10358,6 +12346,21 @@ bool outlineVertexExtent = false;
       traceFmt("scene: snapshot status=%d stale=%d states=%zu",
         static_cast<int>(entitySnapshotStatus), static_cast<int>(entitySnapshotStaleness),
         currentEntityStates.size());
+      // N12-B: the relay reads its offset out of exactly this snapshot, so the
+      // age it prints must be measured against exactly this tick, not against
+      // whatever the playback clock says by the time the relay runs.
+      //
+      // N12-C / Q5: publish only a tick a query actually produced. After Gap /
+      // NoHistory / TickBeforeHistory the states in hand are the previous query's
+      // survivors and no tick describes them, so publishing sceneTick made the
+      // relay's age arithmetic look current on a snapshot that was stale or
+      // absent. -1 is the value every reader already treats as unknown: the relay
+      // gate at :779 requires >= 0 and the POV eye gate at :10273 does too, and
+      // snapshotDrawable (:10390) already reads the status rather than this tick.
+      const bool sceneTickResolved =
+          entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
+          || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
+      g_sceneResolvedServerTick = sceneTickResolved ? resolvedSceneTick : -1;
       tf2::native::DemoViewSample observerView;
       // T34: the eye this scene tick resolved, in map units, read from the
       // same observer view the camera decision below consumes. Defaults keep
@@ -10400,10 +12403,73 @@ bool outlineVertexExtent = false;
         g_playbackControl.noteSceneResolved(sceneRequestId, queryStatus, sceneTick,
           resolvedSceneTick, haveObserverView ? observerView.tick : -1, haveObserverView);
       }
+      // N12-A: the demo view sample is a FOOT origin, so the eye is that origin
+      // plus the player's own m_vecViewOffset[2]. The offset is read from the
+      // snapshot resolved at the SERVER tick while the origin comes from the
+      // entry-tick view sample: the offset may be older than the origin, which
+      // is why its own stamp is printed.
+      // N12-C step 2: the eye is read from the per-tick camera row track when it
+      // has a row for exactly this scene tick, and only falls back to the
+      // snapshot derivation below when it does not (see applyCameraPovEye).
+      g_scenePovEye = resolvePovEye(currentEntityStates, demoNetworkSummary.lastViewEntity,
+        demoNetworkSummary.setViewCount > 0, observerView, demoNetworkSummary,
+        sceneTickKnown ? sceneTick : -1);
+      // The snapshot path's offset age is measured against the snapshot's tick,
+      // which is what the line below has always printed; the camera path already
+      // named its own base tick (the scene tick it read).
+      if (g_scenePovEye.ageTick < 0) g_scenePovEye.ageTick = resolvedSceneTick;
       if (haveObserverView) {
-        cameraEyeX = observerView.origin[0];
-        cameraEyeY = observerView.origin[1];
-        cameraEyeZ = observerView.origin[2];
+        cameraEyeX = g_scenePovEye.eye[0];
+        cameraEyeY = g_scenePovEye.eye[1];
+        cameraEyeZ = g_scenePovEye.eye[2];
+      }
+      // Printed on every resolved scene tick, beside the eye it explains: the
+      // origin, the offset, the final eye, and each source's tick. The negative
+      // controls read this line -- offsetZ=0 on a living player means the
+      // offset was read as a whole vector (z lands in the scalar sibling), and
+      // reason=dead-no-eye-offset means a death camera was lifted.
+      if (haveObserverView) {
+        traceFmt("scene: eye origin=%.1f,%.1f,%.1f offsetZ=%.4f eye=%.1f,%.1f,%.1f"
+                 " viewEntity=%d originTick=%d offsetTick=%d offsetAge=%d"
+                 " life=%d obs=%d reason=%s",
+          g_scenePovEye.origin[0], g_scenePovEye.origin[1], g_scenePovEye.origin[2],
+          g_scenePovEye.offsetApplied ? g_scenePovEye.offsetZ : 0.0f,
+          g_scenePovEye.eye[0], g_scenePovEye.eye[1], g_scenePovEye.eye[2],
+          static_cast<int>(g_scenePovEye.entityIndex), static_cast<int>(g_scenePovEye.originTick),
+          static_cast<int>(g_scenePovEye.offsetTick),
+          // offsetAge is measured in the SERVER tick space, not the entry tick
+          // space: ageTick - offsetTick, both stamps coming from the entity
+          // history (lastWriteTick is a packet server tick). It is the quantity a
+          // reader compares against the oracle's prop_tick column. ageTick is the
+          // snapshot's resolved tick on the snapshot path and the requested scene
+          // tick on the camera-row path, so the number keeps its meaning.
+          g_scenePovEye.offsetTick >= 0 && g_scenePovEye.ageTick >= 0
+            ? static_cast<int>(g_scenePovEye.ageTick - g_scenePovEye.offsetTick) : -1,
+          static_cast<int>(g_scenePovEye.lifeState), static_cast<int>(g_scenePovEye.observerMode),
+          g_scenePovEye.reason);
+        // N12-C step 2: which tick the eye above was really read at. The line
+        // above keeps its exact shape -- its origin/originTick fields now describe
+        // whichever source produced the eye (the camera row's own tick in SERVER
+        // space, or the demo view sample's tick in entry space) -- so the
+        // provenance that a reader needs to tell the two apart is published here.
+        // rowOrigin/rowOffsetZ are the ROW's own fields at four decimals, i.e. the
+        // values the probe's --camera-row prints for the same tick, so a reader can
+        // confirm the product found the row the probe read instead of trusting the
+        // 0.1 u print quantum of the frozen line. They are reported even when the
+        // row was rejected -- flags says whether either can be used. srcOrigin is
+        // the vector the eye was actually built from, which equals rowOrigin only
+        // when the camera path applied.
+        traceFmt("scene: eye row src=%s reqTick=%d rowTick=%d backfill=%d flags=%u"
+                 " rowOrigin=%.4f,%.4f,%.4f rowOffsetZ=%.4f"
+                 " srcOrigin=%.4f,%.4f,%.4f offsetAge=%d miss=%s",
+          g_scenePovEye.source, static_cast<int>(g_scenePovEye.requestedTick),
+          static_cast<int>(g_scenePovEye.rowTick), g_scenePovEye.backfilled ? 1 : 0,
+          g_scenePovEye.flags, g_scenePovEye.rowOrigin[0], g_scenePovEye.rowOrigin[1],
+          g_scenePovEye.rowOrigin[2], g_scenePovEye.rowOffsetZ,
+          g_scenePovEye.origin[0], g_scenePovEye.origin[1], g_scenePovEye.origin[2],
+          g_scenePovEye.offsetTick >= 0 && g_scenePovEye.ageTick >= 0
+            ? static_cast<int>(g_scenePovEye.ageTick - g_scenePovEye.offsetTick) : -1,
+          g_scenePovEye.rowMiss);
       }
       // T84: the debug camera below REPLACES whatever this tick resolved, and it
       // is re-stated immediately before the draw, so these are the numbers that
@@ -10448,8 +12514,10 @@ bool outlineVertexExtent = false;
         && g_spectateDirector.targetIndex() >= 0;
       switch (tf2::native::decideCameraSceneAction(cameraMode, haveObserverView)) {
         case tf2::native::CameraSceneAction::SetDemoView:
-          renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
-            observerView.origin[2], observerView.angles[0], observerView.angles[1]);
+          // The eye the trace above explains, not the raw foot origin: the
+          // rendered camera and the printed camera must be the same camera.
+          renderer.setObserverDemoViewWorld(g_scenePovEye.eye[0], g_scenePovEye.eye[1],
+            g_scenePovEye.eye[2], observerView.angles[0], observerView.angles[1]);
           ++g_cameraFollows;
           break;
         case tf2::native::CameraSceneAction::SetOrbitFocus:
@@ -10497,11 +12565,11 @@ bool outlineVertexExtent = false;
         // makes the adoption explicit for the record and re-asserts it, so the
         // command has the same effect whether the mode was already first-person
         // or the handler had just set it.
-        renderer.setObserverDemoViewWorld(observerView.origin[0], observerView.origin[1],
-          observerView.origin[2], observerView.angles[0], observerView.angles[1]);
+        renderer.setObserverDemoViewWorld(g_scenePovEye.eye[0], g_scenePovEye.eye[1],
+          g_scenePovEye.eye[2], observerView.angles[0], observerView.angles[1]);
         traceFmt("camera: reset-to-player applied=1 tick=%d eye=%.1f,%.1f,%.1f",
-          static_cast<int>(g_playback.tick), observerView.origin[0],
-          observerView.origin[1], observerView.origin[2]);
+          static_cast<int>(g_playback.tick), g_scenePovEye.eye[0],
+          g_scenePovEye.eye[1], g_scenePovEye.eye[2]);
       }
       // T10 diagnostic camera, applied EVERY frame rather than once: the
       // one-shot apply after the world upload lost to an ordering this file
@@ -10823,9 +12891,17 @@ bool outlineVertexExtent = false;
         for (const auto& candidate : modelInstances) {
           // T81: the relay camera stands in one player's eye; that player's body
           // is hidden whether they are alive or not (see g_spectateCameraHiddenEntity).
+          // U4 step 3: the same rule for pane 1's own eye. The candidate list is one
+          // list for the whole frame -- the panes share the surface, the instance
+          // buffer and the constants -- so the hide is the UNION of both panes'
+          // bodies. A per-pane list is the correct fix and is not this step: what
+          // this step has to guarantee is that a first-person pane is never drawn
+          // from inside a body, which the union does.
           const bool hiddenForCamera =
-            g_spectateCameraHiddenEntity >= 0
-            && static_cast<std::int32_t>(candidate.entityIndex) == g_spectateCameraHiddenEntity;
+            (g_spectateCameraHiddenEntity >= 0
+             && static_cast<std::int32_t>(candidate.entityIndex) == g_spectateCameraHiddenEntity)
+            || (g_paneSplit && g_pane1CameraHiddenEntity >= 0
+                && static_cast<std::int32_t>(candidate.entityIndex) == g_pane1CameraHiddenEntity);
           if (hiddenForCamera) {
             // Counted separately from the corpse rule: the corpse counters are a
             // T66 contract with fixed meanings, and "the camera is inside this
@@ -10844,13 +12920,21 @@ bool outlineVertexExtent = false;
           }
           drawCandidates.push_back(candidate);
         }
-        static std::string lastCameraSignature;
-        if (cameraSignature != lastCameraSignature) {
-          lastCameraSignature = cameraSignature;
-          traceFmt("scene: cameraFilter removed=%zu indices=%s candidates=%zu submitted=%zu",
+        // The union hide set's two sources are part of the change key: a pane whose
+        // eye moved off a body changes this line even when the instance count it
+        // removed happens to be the same as last frame's.
+        const std::string cameraKey = cameraSignature + '|'
+          + std::to_string(g_spectateCameraHiddenEntity) + ','
+          + std::to_string(g_pane1CameraHiddenEntity);
+        static std::string lastCameraKey;
+        if (cameraKey != lastCameraKey) {
+          lastCameraKey = cameraKey;
+          traceFmt("scene: cameraFilter removed=%zu indices=%s candidates=%zu submitted=%zu hidden0=%d hidden1=%d",
             cameraSignature.empty() ? 0 : std::count(cameraSignature.begin(), cameraSignature.end(), ',') + 1,
             cameraSignature.empty() ? "-" : cameraSignature.c_str(),
-            drawCandidates.size(), modelInstances.size());
+            drawCandidates.size(), modelInstances.size(),
+            static_cast<int>(g_spectateCameraHiddenEntity),
+            static_cast<int>(g_pane1CameraHiddenEntity));
         }
         static std::string lastCorpseSignature;
         if (corpseSignature != lastCorpseSignature) {
@@ -11074,6 +13158,10 @@ bool outlineVertexExtent = false;
             const auto found = entityMeshKeyByPath.find(instance.modelPath);
             if (found != entityMeshKeyByPath.end()) cacheKey = found->second;
           }
+          // T105: normalise once -- the deferral classification, the draw-stage
+          // model identity and the paint lookup all want the same spelling.
+          const std::string entityMeshNormalizedPath =
+            tf2::native::normalizeModelPath(instance.modelPath);
           const bool hasMesh = !cacheKey.empty() && !instance.viewModelSkipped
             && (instance.renderable || instance.playerClassFallback);
           // Was THIS model left out by layer A's budget? The check is by the
@@ -11083,7 +13171,7 @@ bool outlineVertexExtent = false;
           // being submitted, so a model that the attach supplied on demand (and
           // is therefore resident) never reaches this classification at all.
           const bool budgetDeferred = hasMesh
-            && prepareDeferredPaths.count(tf2::native::normalizeModelPath(instance.modelPath)) != 0;
+            && prepareDeferredPaths.count(entityMeshNormalizedPath) != 0;
           const bool hasDrawSlot = player ? playerDraws < playerBudget : propDraws < propBudget;
           if (hasMesh && !hasDrawSlot) {
             if (player) { ++playerDroppedByBudget; } else { ++propDroppedByBudget; }
@@ -11118,7 +13206,7 @@ bool outlineVertexExtent = false;
                 }
               }
               if (!hasOwnModelIndex) ++playerModelNoIndex;
-              const std::string drawnModel = tf2::native::normalizeModelPath(instance.modelPath);
+              const std::string drawnModel = entityMeshNormalizedPath;
               std::string expectedModel;
               std::string statusText = "unresolved";
               if (hasOwnModelIndex) {
@@ -11166,12 +13254,53 @@ bool outlineVertexExtent = false;
             draw.angles[0] = instance.transform.angles[0];
             draw.angles[1] = instance.transform.angles[1];
             draw.angles[2] = instance.transform.angles[2];
-            if (instance.transform.hasTeam && instance.transform.team == 2) {
-              draw.color[0] = 0.86f; draw.color[1] = 0.28f; draw.color[2] = 0.22f; draw.color[3] = 1.0f;
-            } else if (instance.transform.hasTeam && instance.transform.team == 3) {
-              draw.color[0] = 0.28f; draw.color[1] = 0.52f; draw.color[2] = 0.86f; draw.color[3] = 1.0f;
+            // T105: the team colour below is a FALLBACK for a mesh with no
+            // texture (the original note two lines down says the skin family is
+            // the paint index, not a tint, and it is right). The pixel shader
+            // consumes this as `albedo = sampled * colour.rgb` when colour.a is
+            // 1, so applying it to a painted mesh darkened every player to a
+            // single-team silhouette: red skin, red cap, red shoes. A painted
+            // mesh draws white and lets the skin family's own colour through.
+            // T105: the key the paint stage published is not always the key this
+            // stage holds -- the demo's spelling and the prepared mesh's spelling
+            // both reach here. Measured: 35 instances still counted as fallback
+            // while every prepared model reported painted slots, so the lookup
+            // falls back to the normalised model path and only a model with no
+            // painted slot ANYWHERE keeps the tint.
+            std::uint32_t paintedSlotCount = 0u;
+            const auto paintedSlotsForKey = entityPaintedSlotCountByKey.find(cacheKey);
+            if (paintedSlotsForKey != entityPaintedSlotCountByKey.end()) {
+              paintedSlotCount = paintedSlotsForKey->second;
+            }
+            if (paintedSlotCount == 0u) {
+              const auto paintedSlotsForPath =
+                entityPaintedSlotCountByNormalizedPath.find(entityMeshNormalizedPath);
+              if (paintedSlotsForPath != entityPaintedSlotCountByNormalizedPath.end()) {
+                paintedSlotCount = paintedSlotsForPath->second;
+              }
+            }
+            const bool entityIsPainted = paintedSlotCount > 0u;
+            if (budgetDeferred) {
+              // Not resident this frame: nothing is drawn, so this instance is
+              // neither white nor tinted. White is set anyway so no future code
+              // path can inherit a team colour through it.
+              draw.color[0] = 1.0f; draw.color[1] = 1.0f; draw.color[2] = 1.0f; draw.color[3] = 1.0f;
+              ++entityTintDeferredInstances;
+            } else if (entityIsPainted && !entityTintMutation) {
+              draw.color[0] = 1.0f; draw.color[1] = 1.0f; draw.color[2] = 1.0f; draw.color[3] = 1.0f;
+              ++entityTintWhiteInstances;
             } else {
-              draw.color[0] = 0.72f; draw.color[1] = 0.74f; draw.color[2] = 0.70f; draw.color[3] = 1.0f;
+              if (instance.transform.hasTeam && instance.transform.team == 2) {
+                draw.color[0] = 0.86f; draw.color[1] = 0.28f; draw.color[2] = 0.22f;
+              } else if (instance.transform.hasTeam && instance.transform.team == 3) {
+                draw.color[0] = 0.28f; draw.color[1] = 0.52f; draw.color[2] = 0.86f;
+              } else {
+                draw.color[0] = 0.72f; draw.color[1] = 0.74f; draw.color[2] = 0.70f;
+              }
+              draw.color[3] = 1.0f;
+              ++entityTintFallbackInstances;
+              ++entityTintFallbackKeyCounts[(player ? "player:" : "prop:")
+                + entityMeshNormalizedPath];
             }
             // T60: the skin family is the paint index, not a tint. Family 0 is
             // red and family 1 is blu in every class model's table; an entity
@@ -11202,6 +13331,13 @@ bool outlineVertexExtent = false;
             std::string ledgerState = "-";
             std::int32_t ledgerSeq = -1;
             std::string ledgerLabel = "-";
+            std::int32_t ledgerFrame = -1;
+            std::int32_t ledgerFrameCount = 0;
+            std::int32_t ledgerLocalFrame = -1;
+            std::int32_t ledgerSectionFrames = 0;
+            std::size_t ledgerSkinBones = 0;
+            std::size_t ledgerValidBones = 0;
+            float ledgerCycle = -1.0f;
             tf2::native::AnimationInputStatus animStatus = tf2::native::AnimationInputStatus::ModelMissing;
             std::string animReason;
             const auto* binding = animationBindings.resolve(instance.modelPath, animStatus, animReason);
@@ -11512,6 +13648,13 @@ bool outlineVertexExtent = false;
             tf2::native::EntityModelDrawInstance attachDraw;
             if (binding != nullptr) {
               const auto sampled = tf2::native::buildAnimationSkinMatrices(binding, request);
+              ledgerFrame = sampled.frame;
+              ledgerFrameCount = sampled.frameCount;
+              ledgerLocalFrame = sampled.localFrame;
+              ledgerSectionFrames = sampled.sectionFrames;
+              ledgerSkinBones = sampled.skinBones;
+              ledgerValidBones = sampled.validBones;
+              if (request.hasCycle) ledgerCycle = request.cycle;
               if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
                 draw.skinningEnabled = true;
                 draw.boneOffset = static_cast<std::uint32_t>(entityBoneMatrices.size());
@@ -11718,14 +13861,16 @@ bool outlineVertexExtent = false;
                 // line as the id: family is what the draw asked the material
                 // atlas for, team is the demo's own m_iTeamNum, and the id is
                 // only meaningful for the pixels if it can be located.
-                traceFmt("entity: id=%d ent=%d model=%s team=%d family=%d state=%s seq=%d label=%s skinned=%d origin=%.1f,%.1f,%.1f frame_tick=%d",
+                traceFmt("entity: id=%d ent=%d model=%s team=%d family=%d state=%s seq=%d label=%s skinned=%d origin=%.1f,%.1f,%.1f frame_tick=%d cycle=%.6f frame=%d/%d localFrame=%d sectionFrames=%d skinBones=%zu validBones=%zu",
                   entityId, static_cast<int>(instance.entityIndex), instance.modelPath.c_str(),
                   instance.transform.hasTeam ? static_cast<int>(instance.transform.team) : -1,
                   static_cast<int>(draw.skinFamily),
                   ledgerState.c_str(), static_cast<int>(ledgerSeq), ledgerLabel.c_str(),
                   draw.skinningEnabled ? 1 : 0,
                   instance.transform.origin[0], instance.transform.origin[1],
-                  instance.transform.origin[2], static_cast<int>(g_playback.tick));
+                  instance.transform.origin[2], static_cast<int>(g_playback.tick),
+                  static_cast<double>(ledgerCycle), ledgerFrame, ledgerFrameCount,
+                  ledgerLocalFrame, ledgerSectionFrames, ledgerSkinBones, ledgerValidBones);
               } else {
                 // More bodies than one red byte can name. Refusing is the only
                 // honest option: clamping would paint two bodies the same colour
@@ -12068,8 +14213,13 @@ bool outlineVertexExtent = false;
             const std::size_t samplesSampled = samples.size();
             for (std::size_t i = 0; i < samples.size();) {
               const auto entityIndex = static_cast<std::int32_t>(samples[i].entityIndex);
+              // U4 step 3: both panes' camera-hidden bodies, the same union the world
+              // pass removes above -- the silhouette set has to stay a subset of the
+              // body set, and with two panes there are two bodies to drop.
               const bool cameraHides =
-                g_spectateCameraHiddenEntity >= 0 && entityIndex == g_spectateCameraHiddenEntity;
+                (g_spectateCameraHiddenEntity >= 0 && entityIndex == g_spectateCameraHiddenEntity)
+                || (g_paneSplit && g_pane1CameraHiddenEntity >= 0
+                    && entityIndex == g_pane1CameraHiddenEntity);
               const bool corpseHides =
                 !g_spectateShowCorpses && g_spectateDirector.hidesModel(entityIndex);
               if (cameraHides || corpseHides) {
@@ -12673,6 +14823,55 @@ bool outlineVertexExtent = false;
         traceFmt("spectate: resume-after tick=%d wall=%.6f", static_cast<int>(g_playback.tick), wallSeconds);
       }
     }
+    // N13 step 1: a follow command is applied HERE, because this is the first place
+    // in the frame where the slot table, the snapshot verdict and the demo network
+    // summary are all in scope at once -- after the scene block built the slots and
+    // before the director decides, which is the order design section 7 requires. The
+    // queue is drained only when a snapshot exists: having none yet is not a refusal of
+    // a command nobody could have applied.
+    g_followSnapshotReady = spectateSnapshotDrawable && spectateSceneTick >= 0;
+    followReconcile(spectateSlots, g_followSnapshotReady);
+    // N13 step 1 revision 2: at most ONE queued command per frame, and only when a
+    // snapshot exists -- commands are held, not refused, while there is none. One per
+    // frame is what makes a sequence observable: select then next prints two follow:
+    // lines on two frames, in argv order.
+    if (g_followSnapshotReady) {
+      tf2::native::FollowAction queuedAction = tf2::native::FollowAction::None;
+      std::int32_t queuedEntity = -1;
+      if (followQueuePop(queuedAction, queuedEntity)) {
+        std::string followReason;
+        // U4 step 3: a queued follow command acts on the SELECTED pane. Pane 0
+        // keeps the existing handler unchanged; pane 1 has its own director and
+        // its own pinned target, so choosing to watch someone in the right pane
+        // cannot move the left one.
+        if (g_paneSplit && g_activePane == 1u) {
+          handlePane1FollowAction(queuedAction, queuedEntity, spectateSlots, followReason);
+        } else {
+          handleFollowAction(queuedAction, queuedEntity, spectateSlots, followReason);
+        }
+      }
+    }
+    if (g_followPendingEntity >= 0) {
+      g_spectateDirector.pickManual(g_followPendingEntity);
+      g_followPendingEntity = -1;
+    }
+    // U4 step 3: pane 1's pick is adopted at the same point in the frame as pane
+    // 0's, so a --pane-follow or a queued command lands on the same tick. It is
+    // held until a snapshot exists, for the same reason the command queue is: the
+    // director judges a pick against the slot table, so handing it a pick on a
+    // frame that has no snapshot spends it on a rejection nobody asked for.
+    if (g_paneSplit && g_pane1PendingPick >= 0 && g_followSnapshotReady) {
+      g_pane1PickAwaiting = g_pane1PendingPick;
+      g_pane1PickAcceptedBefore = g_pane1Director.manualPicks();
+      g_pane1PickRejectedBefore = g_pane1Director.manualRejected();
+      g_pane1Director.pickManual(g_pane1PendingPick);
+      g_pane1PendingPick = -1;
+    }
+    const char* followEffect = followCameraEffectName(g_followSnapshotReady);
+    const int followPinAccepted = (g_followTarget.entityIndex >= 0
+        && g_spectateDirector.targetIndex() == g_followTarget.entityIndex) ? 1 : 0;
+    followPublishTrace(demoNetworkSummary, g_sceneResolvedServerTick, false,
+      tf2::native::FollowReason::None, followEffect, followPinAccepted);
     if (g_spectateManualTarget >= 0) {
       g_spectateDirector.pickManual(g_spectateManualTarget);
       g_spectateManualTarget = -1;
@@ -12684,6 +14883,48 @@ bool outlineVertexExtent = false;
       // 16x replay reads as continuous playback instead of a seek on every frame.
       g_spectateDirector.update(wallSeconds, spectateSlots, spectateDirectorHandle, spectateSceneTick,
                                 static_cast<double>(g_playback.speed));
+      // U4 step 3: pane 1's director runs on the SAME snapshot and the same scene
+      // tick as pane 0's, which is what keeps the two panes seeking together. The
+      // director handle 0 is deliberate: the recording names ONE observer target
+      // and that one belongs to pane 0, so pane 1 starts from the stable order or
+      // from its own pick and never from the recording's camera.
+      if (g_paneSplit) {
+        g_pane1Director.update(wallSeconds, spectateSlots, 0, spectateSceneTick,
+                               static_cast<double>(g_playback.speed));
+        // The director's verdict on this frame's pick is only readable now.
+        if (g_pane1PickAwaiting >= 0) {
+          const bool accepted = g_pane1Director.manualPicks() != g_pane1PickAcceptedBefore;
+          const bool rejected = !accepted
+            && g_pane1Director.manualRejected() != g_pane1PickRejectedBefore;
+          traceFmt("pane1Pick: entity=%d accepted=%d rejected=%d target1=%d source=cli",
+            static_cast<int>(g_pane1PickAwaiting), accepted ? 1 : 0, rejected ? 1 : 0,
+            static_cast<int>(g_pane1Director.targetIndex()));
+          g_pane1PickAwaiting = -1;
+        }
+      }
+      // N13 step 1 cannot make a pin outrank the relay's own decision -- that
+      // precedence is step 2 -- so a pin the director declines is COUNTED, not
+      // forced: followFallbacks is the number saying the pin is not being honoured,
+      // and the line printed once per transition names the cause, so a run with
+      // fallbacks>0 can never be read as "following works". Read after update()
+      // above because the director's answer for this frame only exists once it has
+      // decided.
+      if (g_followTarget.pinned && g_followTarget.valid
+          && g_followState == tf2::native::FollowState::Ok
+          && g_spectateDirector.targetIndex() != g_followTarget.entityIndex) {
+        ++g_followFallbacks;
+        if (!g_followDirectorRefused) {
+          g_followDirectorRefused = true;
+          // pinAccepted is 0 by construction on THIS line: the branch condition above
+          // is the director's target differing from the pin, i.e. the director saying
+          // no. No comparison is repeated for a value the branch already decided.
+          followPublishTrace(demoNetworkSummary, g_sceneResolvedServerTick, true,
+            tf2::native::FollowReason::DirectorRefused,
+            followCameraEffectName(g_followSnapshotReady), 0);
+        }
+      } else if (g_followDirectorRefused) {
+        g_followDirectorRefused = false;
+      }
     }
     if (g_spectateDirector.focusValid()) {
       float spectateFocus[3] = {0.0f, 0.0f, 0.0f};
@@ -12707,9 +14948,13 @@ bool outlineVertexExtent = false;
             && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
           float relayEye[3] = {0.0f, 0.0f, 0.0f};
           float relayAngles[2] = {0.0f, 0.0f};
+          // N12-C step 2: the relay asks the camera row track at the tick its
+          // snapshot resolved to -- the tick the bodies it draws belong to -- so a
+          // row can only describe the player at the moment that player is drawn.
           if (!placeSpectatorView(renderer, currentEntityStates,
                                   g_spectateDirector.targetIndex(), spectateFocus,
-                                  relayEye, relayAngles)) {
+                                  relayEye, relayAngles, demoNetworkSummary,
+                                  g_sceneResolvedServerTick)) {
             // No readable facing for the target: fall back to the orbit, but at
             // a distance in map units rather than a fraction of the map.
             renderer.setObserverOrbitDistanceWorld(kSpectateOrbitWorldUnits);
@@ -12734,6 +14979,96 @@ bool outlineVertexExtent = false;
           // hidden on the camera's account.
           g_spectateCameraHiddenEntity = -1;
         }
+      }
+    }
+    // U4 step 3: pane 1's camera, applied every frame from the same resolved
+    // snapshot the relay above used, so a seek moves both panes on the same tick.
+    // Nothing here writes a pane-0 member or counter: the panes share the surface
+    // and the snapshot, not the camera. Pane 1 reads the snapshot's origin/facing
+    // and its m_vecViewOffset[2] directly (the same fields N12-B reads); the
+    // per-tick camera row stays pane 0's privilege because svc_SetView names one
+    // observer.
+    if (g_paneSplit) {
+      const tf2::native::CameraMode pane1Mode = g_pane1CameraMode.mode();
+      const std::int32_t pane1Target = g_pane1Director.targetIndex();
+      const char* pane1Source = "held";
+      int pane1SourceCode = 0;
+      float pane1Eye[3] = {0.0f, 0.0f, 0.0f};
+      bool pane1Placed = false;
+      bool pane1HasFocus = false;
+      if (pane1Mode == tf2::native::CameraMode::FirstPerson && !g_debugCamera
+          && pane1Target >= 0
+          && static_cast<std::size_t>(pane1Target) < currentEntityStates.size()) {
+        const tf2::native::EntityState& pane1Row =
+          currentEntityStates[static_cast<std::size_t>(pane1Target)];
+        const tf2::native::ModelInstanceTransform pane1Transform =
+          tf2::native::EntityModelResolver::extractTransform(pane1Row);
+        const EyeOffsetReading pane1Offset = readEyeOffsetZ(pane1Row);
+        if (pane1Transform.hasOrigin && pane1Transform.hasAngles && pane1Offset.hasValue) {
+          float pane1Forward[3] = {0.0f, 0.0f, 0.0f};
+          tf2::native::demoViewForward(pane1Transform.angles[0], pane1Transform.angles[1],
+            pane1Forward);
+          pane1Eye[0] = pane1Transform.origin[0] - pane1Forward[0] * kSpectatorBackUnits;
+          pane1Eye[1] = pane1Transform.origin[1] - pane1Forward[1] * kSpectatorBackUnits;
+          pane1Eye[2] = pane1Transform.origin[2] + pane1Offset.z
+            - pane1Forward[2] * kSpectatorBackUnits;
+          if (std::isfinite(pane1Eye[0]) && std::isfinite(pane1Eye[1])
+              && std::isfinite(pane1Eye[2])) {
+            renderer.setPaneCameraDemoViewWorld(1u, pane1Eye[0], pane1Eye[1], pane1Eye[2],
+              pane1Transform.angles[0], pane1Transform.angles[1]);
+            pane1Source = "follow";
+            pane1SourceCode = 1;
+            pane1Placed = true;
+          }
+        }
+      }
+      if (pane1Mode == tf2::native::CameraMode::FirstPerson && !pane1Placed
+          && g_pane1Director.focusValid()) {
+        // No readable eye for the pane's target: orbit its focus instead of
+        // leaving the pane on the last eye it had. A stale first-person pose after
+        // a death or a seek is the defect this branch exists to avoid.
+        float pane1FocusFallback[3] = {0.0f, 0.0f, 0.0f};
+        g_pane1Director.focus(pane1FocusFallback);
+        renderer.setPaneCameraFocusWorld(1u, pane1FocusFallback[0], pane1FocusFallback[1],
+          pane1FocusFallback[2]);
+        pane1Source = "orbit-fallback";
+        pane1SourceCode = 3;
+        pane1HasFocus = true;
+      }
+      if (pane1Mode == tf2::native::CameraMode::ThirdPerson && g_pane1Director.focusValid()) {
+        float pane1Focus[3] = {0.0f, 0.0f, 0.0f};
+        g_pane1Director.focus(pane1Focus);
+        if (std::isfinite(pane1Focus[0]) && std::isfinite(pane1Focus[1])
+            && std::isfinite(pane1Focus[2])) {
+          renderer.setPaneCameraFocusWorld(1u, pane1Focus[0], pane1Focus[1], pane1Focus[2]);
+          pane1Eye[0] = pane1Focus[0];
+          pane1Eye[1] = pane1Focus[1];
+          pane1Eye[2] = pane1Focus[2];
+          pane1Source = "focus";
+          pane1SourceCode = 2;
+          pane1HasFocus = true;
+        }
+      }
+      // FreeLook: nothing feeds pane 1 -- its orbit pose IS the camera, which is
+      // what step 2b drew and what a right drag or the wheel now updates.
+      // U4 step 3: a first-person pane stands in its target's eye, so that body must
+      // leave the frame's instance list for the same reason pane 0's does. FreeLook
+      // and third-person panes watch from outside and hide nothing.
+      g_pane1CameraHiddenEntity =
+        (pane1Mode == tf2::native::CameraMode::FirstPerson && pane1Placed) ? pane1Target : -1;
+      const int pane1ModeCode = static_cast<int>(pane1Mode);
+      if (pane1ModeCode != g_pane1TraceMode || pane1Target != g_pane1TraceTarget
+          || pane1SourceCode != g_pane1TraceSource
+          || g_pane1CameraHiddenEntity != g_pane1TraceHidden) {
+        g_pane1TraceMode = pane1ModeCode;
+        g_pane1TraceTarget = pane1Target;
+        g_pane1TraceSource = pane1SourceCode;
+        g_pane1TraceHidden = g_pane1CameraHiddenEntity;
+        traceFmt("pane1: mode=%s target=%d eye=%.1f,%.1f,%.1f focus=%d src=%s hidden=%d tick=%d active=%u",
+          tf2::native::cameraModeName(pane1Mode), static_cast<int>(pane1Target),
+          pane1Eye[0], pane1Eye[1], pane1Eye[2], pane1HasFocus ? 1 : 0, pane1Source,
+          static_cast<int>(g_pane1CameraHiddenEntity),
+          static_cast<int>(g_sceneResolvedServerTick), g_activePane);
       }
     }
     // T79/T84: the frame's camera, printed after every site that can move it and
@@ -12797,7 +15132,43 @@ bool outlineVertexExtent = false;
     // player the camera is behind, not to the signon svc_SetView entity that
     // summary.lastViewEntity holds. Both are passed even with no target so the
     // fallback is a reading in the trace (nameFallback=1) rather than a guess.
+    // E9: hand the panel the pose of the frame it is about to be drawn on. Only a
+    // run that asked for the panel pays for this; without the switch the HUD's
+    // minimapHudFramePushed() answers false and nothing is composed or printed.
+    // cameraTraceEye/cameraTraceYaw are this frame's camera readings (declared with
+    // the rest of the frame state above), and the map is the one the DEMO names --
+    // not a launch default -- so the panel and the demo cannot disagree about where
+    // the player is standing.
+    if (hudMinimapCli) {
+      tf2::native::MinimapHudFrame minimapFrame;
+      if (cameraTraceReady) {
+        minimapPoseValid = true;
+        minimapPoseMap = demoHeader.mapName;
+        minimapPoseEyeX = cameraTraceEye[0];
+        minimapPoseEyeY = cameraTraceEye[1];
+        minimapPoseYaw = cameraTraceYaw;
+      }
+      // A frame with no camera reading still has a camera: the one the last frame
+      // was drawn with, on a stopped clock. Reuse it when it belongs to this map,
+      // and draw nothing only when no pose has ever been produced for this map.
+      const bool reusePose = !cameraTraceReady && minimapPoseValid
+        && minimapPoseMap == demoHeader.mapName;
+      minimapFrame.valid = cameraTraceReady || reusePose;
+      minimapFrame.mapName = demoHeader.mapName;
+      // Read only a pose a frame actually produced. The locals below carry
+      // whatever the last branch left, so this frame's reading is used when it has
+      // one, the tracked last pose of this map when it does not, and nothing else.
+      minimapFrame.eyeX = cameraTraceReady ? cameraTraceEye[0]
+        : (reusePose ? minimapPoseEyeX : 0.0f);
+      minimapFrame.eyeY = cameraTraceReady ? cameraTraceEye[1]
+        : (reusePose ? minimapPoseEyeY : 0.0f);
+      minimapFrame.yawDegrees = cameraTraceReady ? cameraTraceYaw
+        : (reusePose ? minimapPoseYaw : 0.0f);
+      minimapFrame.tick = g_playback.tick;
+      tf2::native::minimapHudSetFrame(minimapFrame);
+    }
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
+      demoHeader.mapName,
       g_playback, hudState, currentEntityStates, demoNetworkSummary,
       g_spectateDirector.targetIndex(), g_spectateDirector.focusValid());
     writeMetrics(now, false);
@@ -12833,6 +15204,14 @@ bool outlineVertexExtent = false;
       // stale rectangle would make the frame comparison measure the wrong region.
       if (captureArmed && g_renderer) hudApplyRects(window);
       if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
+        // R1: the pass family is armed beside the frame it describes, so both are
+        // consumed by the same draw. Cleared inside the renderer when it writes.
+        renderer.setPassDepthPrefix(capturePassDepthPrefix.wstring());
+        // R1b: the range probe rides the same capture frame as the pass probe.
+        renderer.setRangeDepthPrefix(captureRangeDepthPrefix.wstring());
+        renderer.setRangeDepthWindow(captureRangeWindow[0], captureRangeWindow[1],
+          captureRangeWindow[2], captureRangeWindow[3]);
+        renderer.setRangeDepthSkip(captureRangeSkip);
         renderer.requestFrameCapture(captureFramePath.wstring(), captureDepthPath.wstring());
         captureArmed = false;
         captureRequested = true;
@@ -12846,6 +15225,34 @@ bool outlineVertexExtent = false;
         traceFmt("capture: armed requested=%d frame_tick=%d frames=%llu",
           static_cast<int>(captureTick), static_cast<int>(g_playback.tick),
           static_cast<unsigned long long>(renderedFrames));
+        // T105: the tint account travels with the frame it belongs to. white>0
+        // and fallback==0 is the fixed reading; fallback>0 means some instance
+        // in this frame had no painted texture and is still being colour-washed.
+        traceFmt("gpu: entity tint white=%zu fallback=%zu deferred=%zu mutation=%d",
+          entityTintWhiteInstances, entityTintFallbackInstances,
+          entityTintDeferredInstances, entityTintMutation ? 1 : 0);
+        // T105: a nonzero fallback is a number until it names the models behind
+        // it. Sorted by count, bounded at eight, so a frame that keeps tinting
+        // something says WHAT instead of only how many.
+        if (!entityTintFallbackKeyCounts.empty()) {
+          std::vector<std::pair<std::size_t, std::string>> fallbackRows;
+          fallbackRows.reserve(entityTintFallbackKeyCounts.size());
+          for (const auto& row : entityTintFallbackKeyCounts) {
+            fallbackRows.emplace_back(row.second, row.first);
+          }
+          std::sort(fallbackRows.begin(), fallbackRows.end(),
+            [](const std::pair<std::size_t, std::string>& left,
+               const std::pair<std::size_t, std::string>& right) {
+              return left.first != right.first ? left.first > right.first : left.second < right.second;
+            });
+          std::size_t fallbackRowsPrinted = 0;
+          for (const auto& row : fallbackRows) {
+            if (fallbackRowsPrinted >= 8) break;
+            traceFmt("gpu: entity tint fallback-key key=%s instances=%zu",
+              row.second.c_str(), row.first);
+            ++fallbackRowsPrinted;
+          }
+        }
       }
       if (g_renderer) {
         // The clip is decided before the draw it governs, so the frame that is
@@ -12893,7 +15300,13 @@ bool outlineVertexExtent = false;
       const float clearR = worldDebugView == 2 ? 0.0f : 0.055f;
       const float clearG = worldDebugView == 2 ? 0.0f : 0.07f;
       const float clearB = worldDebugView == 2 ? 0.0f : 0.085f;
-      if (g_renderer && renderer.draw(clearR, clearG, clearB)) {
+      // U4 step 2b: one window, one surface, one frame -- composed from two
+      // viewports when --pane-split asked for it. Same clear colour and same demo
+      // clock; the panes differ only in the camera each one draws with.
+      const bool drewFrame = g_renderer && (paneSplit
+        ? renderer.drawSplit(clearR, clearG, clearB)
+        : renderer.draw(clearR, clearG, clearB));
+      if (drewFrame) {
         ++renderedFrames;
         // T54: the responsiveness reading, taken where a FRAME exists. The
         // interval is the time since the previous draw (lastFrame is only moved
@@ -12937,6 +15350,48 @@ bool outlineVertexExtent = false;
           window ? GetDpiForWindow(window) : 0u);
       }
       if (captureRequested && g_renderer) {
+        // U4 step 1: the single-surface pane contract, read from the draw that
+        // produced the frame on disk (see native/include/pane_boundary.h). This
+        // line is additive: every camera/viewport/depth binding the frame used is
+        // printed with whether it still describes ONE surface, so the boundary a
+        // second pane has to change is visible before that pane exists.
+        const tf2::native::PaneBoundaryReadings pane = g_renderer->paneBoundary();
+        traceFmt("pane: draw=%u viewport=%ux%u client=%ux%u targets=%u depth=%u"
+          " viewports=%u camera=%s hud=%u scissor=%u mismatches=0x%x",
+          pane.drawOrdinal, pane.viewportWidth, pane.viewportHeight,
+          pane.clientWidth, pane.clientHeight, pane.renderTargets, pane.depthViews,
+          pane.viewports, tf2::native::paneCameraSourceName(pane.camera),
+          pane.hudPasses, pane.hudScissorApplied ? 1 : 0,
+          g_renderer->paneBoundaryMismatches());
+      }
+      if (captureRequested && g_renderer) {
+        // U4 step 2b: the budget readings the split introduced. depthTargets is the
+        // surface count (one; panes share it by design through disjoint
+        // viewports), depthClears counts every full-surface depth clear in the
+        // frame (frame start + the ViewModel pass), passes is the sum of every pass
+        // ordinal handed out across the panes, and hud is the number of HUD passes.
+        // Those four numbers are what a PIP->four-window budget has to be able to
+        // count before it can argue one, and they are on the captured frame.
+        const tf2::native::PaneBoundaryReadings panesBudget = g_renderer->paneBoundary();
+        // U4 step 3 adds the interaction readings to the same line: which pane
+        // the pointer/keyboard is addressing, pane 1's mode and its director's
+        // target, the two counters that make "the command reached its pane" a
+        // number instead of a claim, and the two bodies the frame's instance list
+        // withheld because a camera stands inside them. Everything before active=
+        // is step 2b's budget readings, unchanged.
+        traceFmt("panes: count=%u viewports=%u depthTargets=%u depthClears=%u passes=%u hud=%u"
+          " active=%u mode1=%s target1=%d applies1=%u commands1=%u rejected1=%u"
+          " hidden0=%d hidden1=%d",
+          g_renderer->paneCountLastFrame(), panesBudget.viewports, panesBudget.renderTargets,
+          g_renderer->paneDepthClearsLastFrame(), g_renderer->panePassesLastFrame(),
+          panesBudget.hudPasses, g_activePane,
+          tf2::native::cameraModeName(g_pane1CameraMode.mode()),
+          static_cast<int>(g_pane1Director.targetIndex()), g_pane1ModeApplies,
+          g_pane1Commands, g_pane1CommandRejected,
+          static_cast<int>(g_spectateCameraHiddenEntity),
+          static_cast<int>(g_pane1CameraHiddenEntity));
+      }
+      if (captureRequested && g_renderer) {
         // The RESOLVER's union is printed on the same line as the RENDERER's
         // region, and that is not decoration: the startup publish happens before
         // the capture-time re-resolution (hudApplyRects above), so a window whose
@@ -12966,6 +15421,11 @@ bool outlineVertexExtent = false;
       // T21: the face trace is taken on the same frame, after the draw. Its
       // screen points are pixels of the bitmap the capture just wrote.
       if (captureRequested) traceWorldFaces();
+      // N05 step 3: the clip-space capture and its control, on the same frame as
+      // the bitmap. Emitted beside the face trace because the two are one
+      // instrument: the face trace predicts a screen point from the matrix, this
+      // reads what the GPU produced with that matrix.
+      if (captureRequested) traceWorldClipCapture(renderedFrames);
       // T26: the same frame, the other question. Emitted after the capture so
       // `frameDepth` is the depth buffer of the frame on disk.
       if (captureRequested) traceWorldHoles();
@@ -12979,8 +15439,17 @@ bool outlineVertexExtent = false;
         // A depth plane that was asked for and not written is a failed capture:
         // the caller reads a PGM next, and a missing file must not exit 0.
         const bool depthFailed = !captureDepthPath.empty() && !renderer.lastDepthCaptureSucceeded();
+        // R1: a pass family that was asked for and wrote nothing is a failed
+        // capture for the same reason -- the caller reads those PGMs next.
+        const bool passDepthFailed = !capturePassDepthPrefix.empty()
+          && (renderer.passDepthWritten() == 0 || !renderer.lastPassDepthSucceeded());
+        // R1b: a range family that was asked for and wrote nothing is a failed
+        // capture, for the same reason the pass family is.
+        const bool rangeDepthFailed = !captureRangeDepthPrefix.empty()
+          && (renderer.rangeDepthWritten() == 0 || !renderer.lastRangeDepthSucceeded());
         PostQuitMessage(entityIdOverflow ? 17
-          : ((renderer.lastFrameCaptureSucceeded() && !depthFailed) ? 0 : 16));
+          : ((renderer.lastFrameCaptureSucceeded() && !depthFailed && !passDepthFailed
+              && !rangeDepthFailed) ? 0 : 16));
         continue;
       }
       lastFrame = now;
@@ -13039,8 +15508,10 @@ bool outlineVertexExtent = false;
   // same value the exit code was chosen from. `audio_device_opened` is the
   // process-wide waveOutOpen call count -- 0 means no device was opened or
   // even asked for, which is the reading that separates "--audio-disabled
-  // works" from "the flag was ignored". `events_skipped` folds the two skip
-  // classes (voice, device-disabled); the contract cares that nothing played.
+  // works" from "the flag was ignored". AUD-10: `events_skipped` counts the voice
+  // class only and `events_skipped_disabled` is printed beside it -- one folded
+  // number made "--audio-disabled skipped everything" read exactly like "the sound
+  // was lost". The contract still cares that nothing played.
   {
     const bool windowAlive = window && IsWindow(window) != 0;
     const auto& audioStats = soundScheduler.stats();
@@ -13050,7 +15521,7 @@ bool outlineVertexExtent = false;
     // "N attempts, not one succeeded" are different readings. Under
     // --audio-disabled all three are 0.
     traceFmt("mode: summary window_created=%d window_visible=%d audio_mode=%s audio_device_opened=%zu"
-      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_missing=%zu drawn=%llu capture_written=%d capture_depth_written=%d capture_depth_bytes=%llu metrics_written=%d exit=%d",
+      " audio_device_open_attempts=%u audio_device_opens_ok=%u events_seen=%zu events_played=%zu events_skipped=%zu events_skipped_disabled=%zu events_missing=%zu drawn=%llu capture_written=%d capture_depth_written=%d capture_depth_bytes=%llu pass_depth_written=%d metrics_written=%d exit=%d audio_master_volume=%.4f audio_muted=%d",
       windowAlive ? 1 : 0,
       (windowAlive && IsWindowVisible(window)) ? 1 : 0,
       audioDisabled ? "disabled" : "device",
@@ -13058,14 +15529,20 @@ bool outlineVertexExtent = false;
       tf2::native::audioDeviceOpenAttempts(),
       tf2::native::audioDeviceOpenedCount(),
       audioStats.eventsSeen, audioStats.eventsPlayed,
-      audioStats.eventsSkippedVoice + audioStats.eventsSkippedDisabled,
+      // AUD-10: the voice and device-disabled skip classes are separate
+      // readings now; folding them was the defect.
+      audioStats.eventsSkippedVoice,
+      audioStats.eventsSkippedDisabled,
       audioStats.eventsMissingResource,
       static_cast<unsigned long long>(renderedFrames),
       (captureRequested && renderer.lastFrameCaptureSucceeded()) ? 1 : 0,
       (!captureDepthPath.empty() && renderer.lastDepthCaptureSucceeded()) ? 1 : 0,
       renderer.lastDepthCaptureBytes(),
+      renderer.passDepthWritten(),
       (!metricsPath.empty() && metricsFile.is_open() && metricsWriteCalls > 0) ? 1 : 0,
-      static_cast<int>(message.wParam));
+      static_cast<int>(message.wParam),
+      static_cast<double>(g_nativeUi ? g_nativeUi->volume() : 1.0f),
+      (g_nativeUi != nullptr && g_nativeUi->muted()) ? 1 : 0);
     // The eight fields the audio wiring is accepted on, on one line so a gate
     // reads them from a single place. `soundEventsRead` is what the decoder
     // produced, `soundEventsScheduled` what survived the origin/name filter and
@@ -13080,13 +15557,15 @@ bool outlineVertexExtent = false;
       " soundEventsSkippedVoice=%zu soundEventsMissingResource=%zu firstPacketTick=%d"
       " soundOriginTick=%d reverseRecoveries=%zu duplicateTicks=%zu"
       " soundEventsMp3Seen=%zu soundEventsMp3Played=%zu soundEventsMp3Skipped=%zu"
-      " soundEventsMp3Failed=%zu soundEventsMp3Inaudible=%zu soundEventsInaudible=%zu",
+      " soundEventsMp3Failed=%zu soundEventsMp3Inaudible=%zu soundEventsInaudible=%zu"
+      " soundEventsSkippedDisabled=%zu",
       soundEventsRead, soundTimeline.size(), audioStats.eventsPlayed,
       audioStats.eventsSkippedVoice, audioStats.eventsMissingResource,
       static_cast<int>(firstPacketTick), static_cast<int>(soundOriginTick),
       audioStats.reverseRecoveries, audioStats.duplicateTicks,
       audioStats.mp3EventsSeen, audioStats.mp3EventsPlayed, audioStats.mp3EventsSkipped,
-      audioStats.mp3EventsFailed, audioStats.mp3EventsInaudible, audioStats.eventsInaudible);
+      audioStats.mp3EventsFailed, audioStats.mp3EventsInaudible, audioStats.eventsInaudible,
+      audioStats.eventsSkippedDisabled);
     // The camera/HUD contract, on one line so camera-ui-check.sh can pin it:
     // the mode the run ended in, the double-click window the controller
     // advertises (a constant, so a drift shows up as a changed reading), the
@@ -13109,6 +15588,39 @@ bool outlineVertexExtent = false;
     traceFmt("spectate: summary rejectedFlags=%u corpses=%d hiddenInstances=%u %s",
       g_spectateArgumentRejected, g_spectateShowCorpses ? 1 : 0,
       g_spectateHiddenInstances, g_spectateDirector.traceFields().c_str());
+    // N13 step 1, design section 5.1: the follow counters. Both lines are gated on
+    // "this run did something with follow", and that gate is the A8 guardrail in its
+    // strictest form: a run that never mentioned a follow flag prints NEITHER line,
+    // so its trace is byte-identical to what step 1 found -- not merely compatible
+    // line by line. When they do print they print together, every reject bucket
+    // present with its zeros: a gate asserts noSlot=0, it does not infer it from an
+    // absent field.
+    const bool followActivity = g_followPicks > 0 || g_followFallbacks > 0
+      || g_followTarget.valid || g_followArgumentRejected > 0;
+    if (followActivity) {
+      traceFmt("follow: summary picks=%u idempotent=%u rejects=%u fallbacks=%u pinnedDeaths=%u"
+        " nameMissing=%u rejectedFlags=%u state=%s target=%d serial=%u",
+        static_cast<unsigned>(g_followPicks), static_cast<unsigned>(g_followIdempotent),
+        static_cast<unsigned>(g_followRejects), static_cast<unsigned>(g_followFallbacks),
+        static_cast<unsigned>(g_followPinnedDeaths), static_cast<unsigned>(g_followNameMissing),
+        static_cast<unsigned>(g_followArgumentRejected),
+        tf2::native::followStateName(g_followState),
+        static_cast<int>(g_followTarget.entityIndex),
+        static_cast<unsigned>(g_followTarget.serial));
+      traceFmt("follow: rejects indexOutOfRange=%u noSlot=%u notObservable=%u isObserver=%u"
+        " dead=%u noCandidates=%u noPovEye=%u",
+        static_cast<unsigned>(g_followRejectByBucket[0]),
+        static_cast<unsigned>(g_followRejectByBucket[1]),
+        static_cast<unsigned>(g_followRejectByBucket[2]),
+        static_cast<unsigned>(g_followRejectByBucket[3]),
+        static_cast<unsigned>(g_followRejectByBucket[4]),
+        static_cast<unsigned>(g_followRejectByBucket[5]),
+        static_cast<unsigned>(g_followRejectByBucket[6]));
+      traceFmt("follow: queue capacity=%u overflow=%u pending=%u",
+        static_cast<unsigned>(kFollowQueueMax),
+        static_cast<unsigned>(g_followQueueOverflows),
+        static_cast<unsigned>(g_followQueueCount));
+    }
     // T50: the contract this round adds, on its own line so the T4 gate's
     // readings above are untouched. `frozenFrames` counts main-loop iterations
     // that ran while paused with the tick holding; `violations` counts the ones
@@ -13273,6 +15785,40 @@ bool outlineVertexExtent = false;
     g_reviewSession.reset();
   }
 
+  // N12-C step 2: the eye counters, once, on the same exit path as the other
+  // summaries. The eyes themselves are three floats in the trace; this is the
+  // account of where each one came from, and it is the only reading that can tell
+  // "the camera track answered every scene tick" from "the snapshot answered and
+  // the track was never consulted".
+  {
+    const CameraEyeStats& pov = g_cameraPovEyeStats;
+    const CameraEyeStats& relay = g_cameraRelayEyeStats;
+    traceFmt("camera: eye summary trackEnabled=%d trackRows=%zu trackBytes=%zu trackOrdered=%d"
+      " povQueries=%zu povExact=%zu povBackfill=%zu povBackfillMaxTicks=%d"
+      " povFallbackNoSample=%zu povFallbackDistance=%zu povFallbackTickUnresolved=%zu"
+      " povIdentityMismatch=%zu povRowMissingOrigin=%zu povRowMissingOffset=%zu"
+      " povRowOffsetOutOfRange=%zu povRowIncomplete=%zu povRowDead=%zu povRowObserving=%zu"
+      " povApplied=%zu povSnapshotFallbacks=%zu"
+      " relayQueries=%zu relayExact=%zu relayBackfill=%zu relayBackfillMaxTicks=%d"
+      " relayFallbackNoSample=%zu relayFallbackDistance=%zu relayFallbackTickUnresolved=%zu"
+      " relayIdentityMismatch=%zu relayRowMissingOrigin=%zu relayRowMissingOffset=%zu"
+      " relayRowOffsetOutOfRange=%zu relayRowIncomplete=%zu relayRowDead=%zu relayRowObserving=%zu"
+      " relayApplied=%zu relaySnapshotFallbacks=%zu",
+      demoNetworkSummary.cameraTrackLimits.enabled ? 1 : 0,
+      demoNetworkSummary.cameraTickSamples.size(),
+      demoNetworkSummary.cameraTickSamples.size() * sizeof(tf2::native::CameraTickSample),
+      tf2::native::cameraTickOrderingHolds(demoNetworkSummary, nullptr) ? 1 : 0,
+      pov.queries, pov.exact, pov.backfill, static_cast<int>(pov.backfillMaxTicks),
+      pov.fallbackNoSample, pov.fallbackDistance, pov.fallbackTickUnresolved,
+      pov.identityMismatch, pov.rowMissingOrigin, pov.rowMissingOffset,
+      pov.rowOffsetOutOfRange, pov.rowIncomplete, pov.rowDead, pov.rowObserving,
+      pov.applied, pov.snapshotFallbacks,
+      relay.queries, relay.exact, relay.backfill, static_cast<int>(relay.backfillMaxTicks),
+      relay.fallbackNoSample, relay.fallbackDistance, relay.fallbackTickUnresolved,
+      relay.identityMismatch, relay.rowMissingOrigin, relay.rowMissingOffset,
+      relay.rowOffsetOutOfRange, relay.rowIncomplete, relay.rowDead, relay.rowObserving,
+      relay.applied, relay.snapshotFallbacks);
+  }
   g_renderer = nullptr;
   // A scripted run reports its own failures through this code; every other run
   // keeps the historical WM_QUIT code.

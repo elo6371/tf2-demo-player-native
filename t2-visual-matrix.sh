@@ -43,35 +43,66 @@
 #   the two camera frames differing by 99.99% is what proves it.
 #
 # WHAT IT ASSERTS, AND WHAT EACH BOUND IS
-#   Readings (from the traces, tick-0 point; all measured on the current line
-#   before the assertions were written):
+#   Readings (from the traces, tick-0 point):
 #     sky on  : state=active vertices=36 triangles=12 faces=6 draws=1
 #     sky off : state=unavailable vertices=0 draws=0, reason names the caller
-#     vis on  : clipApplied=1 state=active input=200000 drawn=184961 hidden=15039
-#     vis off : clipApplied=0 state=disabled drawn=200000 (the whole buffer)
+#     vis on  : clipApplied=1 state=active, input=242109 drawn=216114 hidden=25995
+#     vis off : clipApplied=0 state=disabled drawn = input (the whole buffer)
 #     water on: state=active faces=18 triangles=36 draws=1 visible=1
 #     water off: state=unavailable draws=0, reason names the caller
-#     drawn(on) < drawn(off); drawn + hidden = input on the on run.
 #     the camera launches' last `scene: camera` line carries the pinned pose
 #     (eye=, pitch=) and src=debug -- the frame is the camera it names.
+#
+#   THE CLIP IS JUDGED BY DERIVED BOUNDS, NOT BY PINNED COUNTS (2026-11-16)
+#   This block used to pin vis input=200000 (drawn 184961, hidden 15039) and to
+#   require that turning the clip off change >= 5% of the frame. All three bounds
+#   described a tree that no longer exists:
+#     * input was the parser's triangle capacity, a number no map had been
+#       measured against. T88 raised it to 400,000 after measuring the maps
+#       (evidence/t88-maps/demand.txt: cp_snakewater_final1 asks for 242361), so
+#       the buffer now holds 242,109 triangles and 200000 is simply a count of the
+#       previous buffer.
+#     * hidden is a property of the CAMERA (which clusters the frame's own eye can
+#       see), not of the map: 25995 here, while world-material-check.sh pins 15039
+#       for its own camera. One gate's number is not the other's.
+#     * the >= 5% pair was written while the clip queried a camera other than the
+#       one the frame was drawn with, so the difference was the clip hiding
+#       geometry the frame could see. T80/T84 moved the query onto the frame's own
+#       eye and the difference went to zero -- which is what a correct pvs clip
+#       does (see NOTE).
+#   Swapping 200000 for 242109 would pin the current arithmetic and still say
+#   nothing about whether the arithmetic is right. So the clip is judged by what
+#   its own trace reports, and the frame pair by pixel neutrality:
+#     map load : `map: geometry budget` reads state=within, dropped=0, and a
+#                capacity that covers `requested`. A truncated walk is geometry
+#                the frame never had, whatever the vis census says.
+#     input    : equals the demand the same run measured, within 1%. `requested`
+#                counts triangles a displacement grid registers and then resizes
+#                away when the grid fails mid-build (252 of them here), so exact
+#                equality is not a property of the product; a short buffer is.
+#     census   : withoutCluster + clustered = input; drawn >= withoutCluster (a
+#                triangle with no cluster is never hidden -- it cannot be tested);
+#                hidden = clustered - (drawn - withoutCluster); drawn + hidden =
+#                input; 0 < hidden < clustered (neither vacuous nor total).
+#     geometry : vis-on drawn < vis-off drawn, and vis-off drawn = vis-on input.
 #   Frames (byte-level, 1264x681x24; measured values in the comments):
 #     sky-on vs sky-off     differ >= 50 percent  (measured 100.0000%, delta 235)
 #     water-on vs water-off differ >= 0.1 percent and
-#                           max channel delta >= 8 (measured 1.3930%, delta 65)
-#     on vs vis-off         differ >= 5 percent   (measured 19.5944%; see NOTE)
+#                           max channel delta >= 8 (measured 0.8216%, delta 83)
+#     clip on vs clip off   differ by exactly 0 (--max-delta 0; measured 0.0000%)
 #     on vs repeat          differ by exactly 0 (--max-delta 0)
-#     water camera vs sky camera differ >= 50 percent (measured 99.9932%): the
-#     camera is what moved, not the world.
+#     water camera vs sky camera differ >= 50 percent (measured 99.9660%, delta
+#     249): the camera is what moved, not the world.
 #
-#   NOTE on the clip pair: the pvs clip hides triangles the camera's cluster
-#   cannot see, and a perfect clip would be pixel-NEUTRAL. Measured, it is not:
-#   the clip switch changes 19.59% of the frame (bbox x=0..1263 y=100..668),
-#   and that grew from 13.44% when T83 began drawing brush-model geometry.
-#   This script asserts only what was measured -- the switch changes pixels and
-#   the frame -- and does not assert which of the two frames is "right". The
-#   face-to-cluster mapping is this repo's first-leaf approximation, not
-#   cross-verified against Source (T1 report section 8 item 5), and coincident
-#   brush surfaces resolve differently once the extra triangles are drawn.
+#   NOTE on the clip pair: the pvs clip hides triangles none of whose clusters the
+#   camera's cluster can see (world_material.cpp clipWorldTrianglesByVis keeps a
+#   triangle when ANY of its clusters is visible), and the pair is taken at the
+#   camera the clip itself queried -- so a correct clip is pixel-NEUTRAL, and any
+#   difference is the clip hiding geometry the camera could see. Measured 0.0000%
+#   (the two BMPs are byte-identical). The old >= 5% bound asserted that the
+#   switch "changes the frame", which a correct clip has no reason to do;
+#   `--mutation` keeps this from being an assertion that cannot fail (m2-invert
+#   hides the visible set and the pair goes red).
 #
 # OUTPUT
 #   $OUT (default evidence/t2-visual-<date>): the extracted readings, the frame
@@ -81,7 +112,13 @@
 #   $SCRATCH holds the raw BMPs/traces/CSVs (they are not committed).
 #   Verdict: T2-VISUAL-MATRIX=PASS / =FAIL.
 #
-# Usage: bash t2-visual-matrix.sh
+# Usage: bash t2-visual-matrix.sh [--mutation]
+#   --mutation: after a green run, inject three defects one at a time (the old
+#   200,000 capacity, an inverted visibility test, and a clip that hides the
+#   triangles with no cluster), rebuild with build-target.sh, re-run only the vis
+#   captures, and require the intended assertion to go red. Sources are restored
+#   by byte copy and the final rebuild must reproduce the forward exe. Takes the
+#   serial host lock (it builds) and about ten minutes.
 # Exit:  0 = every assertion held; 1 = one did not or an input was missing.
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -139,6 +176,98 @@ assert_bound() { # assert_bound <label> <tool-output-line> <status-token>
   fi
 }
 
+MUTATION=0
+for arg in "$@"; do
+  case "$arg" in
+    --mutation) MUTATION=1 ;;
+    *) echo "FATAL: unknown argument: $arg (usage: bash t2-visual-matrix.sh [--mutation])" >&2; exit 2 ;;
+  esac
+done
+
+# judge_vis <map-line> <vis-on-line> <vis-off-line>
+# Judges the pvs clip from what the run itself reports: no map triangle count is
+# pinned, because the buffer's capacity and the camera's hidden set move with the
+# tree (see the header note).
+judge_vis() {
+  local map="$1" on="$2" off="$3"
+  local cap req dropped state
+  local inp drawn hidden clustered no_cluster
+  cap=$(rfield "$map" capacity);            req=$(rfield "$map" requested)
+  dropped=$(rfield "$map" dropped);         state=$(rtext "$map" state)
+  inp=$(rfield "$on" inputTriangles);       drawn=$(rfield "$on" drawnTriangles)
+  hidden=$(rfield "$on" hiddenTriangles);   clustered=$(rfield "$on" clusteredTriangles)
+  no_cluster=$(rfield "$on" withoutCluster)
+
+  # A truncated walk is geometry the frame never had; no vis count can excuse it.
+  assert_eq "map budget state" "$state" "within"
+  assert_eq "map budget dropped" "$dropped" "0"
+  if [ -n "$cap" ] && [ -n "$req" ]; then
+    if [ "$cap" -ge "$req" ]; then
+      echo "  OK   the capacity covers the map's demand ($cap >= $req)"; okcount=$((okcount + 1))
+    else
+      echo "  FAIL the capacity is below the map's demand ($cap < $req)"; fail=1
+    fi
+  else
+    echo "  FAIL the map budget line has no capacity/requested: ${map:-<none>}"; fail=1
+  fi
+
+  case "$inp$drawn$hidden$clustered$no_cluster" in
+    ''|*[!0-9]*) echo "  FAIL the vis line is missing a census field: ${on:-<none>}"; fail=1; return ;;
+  esac
+
+  # input is the buffer the map wanted. It trails 'requested' by the triangles a
+  # half-built displacement grid registers and then resizes away (252 on this
+  # map), so it is judged against the same run's demand with a 1% residual.
+  if [ "$inp" -le "$req" ] && [ "$(( inp * 100 ))" -ge "$(( req * 99 ))" ]; then
+    echo "  OK   the buffer holds the map's demand ($inp of $req requested)"; okcount=$((okcount + 1))
+  else
+    echo "  FAIL the buffer holds $inp of the $req triangles the map asked for"; fail=1
+  fi
+
+  assert_eq "vis census adds up" "$(( no_cluster + clustered ))" "$inp"
+  # A triangle with no cluster is never hidden: it cannot be tested, so the clip
+  # keeps it and counts it.
+  if [ "$drawn" -ge "$no_cluster" ]; then
+    echo "  OK   the clip keeps every triangle with no cluster ($no_cluster kept)"; okcount=$((okcount + 1))
+  else
+    echo "  FAIL the clip hid triangles with no cluster (drawn $drawn < withoutCluster $no_cluster)"; fail=1
+  fi
+  # What is hidden is the clustered total minus the clustered triangles drawn.
+  assert_eq "vis hidden from the census" "$hidden" "$(( clustered - (drawn - no_cluster) ))"
+  assert_eq "vis identity drawn+hidden=input" "$(( drawn + hidden ))" "$inp"
+  # Neither absent nor total: zero would make the clip vacuous, all of them would
+  # mean the census and the clip disagree.
+  if [ "$hidden" -gt 0 ] && [ "$hidden" -lt "$clustered" ]; then
+    echo "  OK   the clip hid some but not all clustered triangles ($hidden of $clustered)"; okcount=$((okcount + 1))
+  else
+    echo "  FAIL the clip hid $hidden of $clustered clustered triangles"; fail=1
+  fi
+
+  assert_eq "vis on clip applied" "$(rfield "$on" clipApplied)" "1"
+  assert_eq "vis on state" "$(rtext "$on" state)" "active"
+  assert_eq "vis off state" "$(rtext "$off" state)" "disabled"
+  assert_eq "vis off applied" "$(rfield "$off" clipApplied)" "0"
+  local off_drawn; off_drawn=$(rfield "$off" drawnTriangles)
+  case "$off_drawn" in
+    ''|*[!0-9]*) echo "  FAIL the vis-off line has no drawnTriangles: ${off:-<none>}"; fail=1; return ;;
+  esac
+  assert_eq "vis off drawn = input" "$off_drawn" "$inp"
+  if [ "$drawn" -lt "$off_drawn" ]; then
+    echo "  OK   the clip changes the geometry ($drawn < $off_drawn)"; okcount=$((okcount + 1))
+  else
+    echo "  FAIL the clip left the drawn geometry unchanged ($drawn vs $off_drawn)"; fail=1
+  fi
+}
+
+cmp_pair() { # cmp_pair <label> <a.bmp> <b.bmp> [bounds...]
+  local label="$1" a="$2" b="$3"; shift 3
+  local out
+  out=$("$PY" bmp-pixel-diff.py "$a" "$b" "$@" 2>&1)
+  echo "  $label: $out"
+  assert_bound "$label" "$out" PASS
+  printf '%s\n' "$label: $out" >> "$OUT/frames/comparisons.txt"
+}
+
 # run_capture <label> <tick> <pause 0|1> [extra args...]
 # Sets RC / REACHED. Writes bmp/csv/trace/log under $SCRATCH.
 run_capture() {
@@ -165,6 +294,32 @@ rfield() { printf '%s\n' "$1" | grep -oE "$2=[0-9-]+" | head -1 | cut -d= -f2; }
 rtext() { # rtext <line> <key> -> word value (for state=/reason style fields)
   printf '%s\n' "$1" | grep -oE "$2=[a-z-]+" | head -1 | cut -d= -f2
 }
+
+# ---- the mutation path: only the vis captures, judged by the shipped function --
+# T2V_QUICK=1 runs the two launches a defect build needs and exits with their
+# verdict, so an injected defect is judged by the assertions the gate ships rather
+# than by a second copy of them.
+if [ "${T2V_QUICK:-0}" = "1" ]; then
+  echo "=== quick: the pvs clip only (the mutation judgment) ==="
+  run_capture on-0      0 1 --world-sky --world-water on
+  assert_eq "on run rc" "$RC" "0"; assert_eq "on reached tick" "$REACHED" "0"
+  ON_TRACE="$TRACE"; ON_BMP="$BMP"
+  run_capture vis-off-0 0 1 --world-sky --no-world-vis-clip --world-water on
+  assert_eq "vis-off run rc" "$RC" "0"; assert_eq "vis-off reached tick" "$REACHED" "0"
+  VISOFF_TRACE="$TRACE"; VISOFF_BMP="$BMP"
+  MAP_ON=$(grep -o 'map: geometry budget .*' "$ON_TRACE" 2>/dev/null | tail -1)
+  VIS_ON=$(rline "$ON_TRACE" "gpu: world vis")
+  VIS_OFF=$(rline "$VISOFF_TRACE" "gpu: world vis")
+  [ -n "$MAP_ON" ] || { echo "  FAIL no map: geometry budget line in the on run"; fail=1; }
+  [ -n "$VIS_ON" ] || { echo "  FAIL no vis line in the on run"; fail=1; }
+  [ -n "$VIS_OFF" ] || { echo "  FAIL no vis line in the vis-off run"; fail=1; }
+  judge_vis "$MAP_ON" "$VIS_ON" "$VIS_OFF"
+  cmp_pair "clip pixel neutrality" "$ON_BMP" "$VISOFF_BMP" --max-delta 0
+  echo
+  echo "assertions_ok=$okcount"
+  [ "$fail" -eq 0 ] && echo "T2-VISUAL-MATRIX=PASS" || echo "T2-VISUAL-MATRIX=FAIL"
+  exit "$fail"
+fi
 
 echo "=== 1/4 the deterministic point: tick 0, paused ==="
 run_capture on-0       0 1 --world-sky --world-water on
@@ -206,7 +361,9 @@ VIS_ON=$(rline "$ON_TRACE" "gpu: world vis");       [ -n "$VIS_ON" ] || { echo "
 VIS_OFF=$(rline "$VISOFF_TRACE" "gpu: world vis");  [ -n "$VIS_OFF" ] || { echo "  FAIL no vis-off line"; fail=1; }
 WAT_ON=$(rline "$ON_TRACE" "gpu: world water");     [ -n "$WAT_ON" ] || { echo "  FAIL no water line"; fail=1; }
 WAT_OFF=$(rline "$WATOFF_TRACE" "gpu: world water");[ -n "$WAT_OFF" ] || { echo "  FAIL no water-off line"; fail=1; }
-printf '%s\n' "$SKY_ON" "$SKY_OFF" "$VIS_ON" "$VIS_OFF" "$WAT_ON" "$WAT_OFF" > "$OUT/readings/switches-tick0.txt"
+MAP_ON=$(grep -o 'map: geometry budget .*' "$ON_TRACE" 2>/dev/null | tail -1)
+[ -n "$MAP_ON" ] || { echo "  FAIL no map: geometry budget line in the on run"; fail=1; }
+printf '%s\n' "$MAP_ON" "$SKY_ON" "$SKY_OFF" "$VIS_ON" "$VIS_OFF" "$WAT_ON" "$WAT_OFF" > "$OUT/readings/switches-tick0.txt"
 assert_eq "sky on state"   "$(rtext "$SKY_ON" state)"   "active"
 assert_eq "sky on vertices" "$(rfield "$SKY_ON" vertices)" "36"
 assert_eq "sky on faces"   "$(rfield "$SKY_ON" faces)"  "6"
@@ -215,27 +372,7 @@ assert_eq "sky off state"  "$(rtext "$SKY_OFF" state)"  "unavailable"
 assert_eq "sky off vertices" "$(rfield "$SKY_OFF" vertices)" "0"
 assert_eq "sky off draws"  "$(rfield "$SKY_OFF" draws)" "0"
 case "$SKY_OFF" in *"disabled by the caller"*) echo "  OK   sky off reason names the caller"; okcount=$((okcount + 1));; *) echo "  FAIL sky off reason: $SKY_OFF"; fail=1;; esac
-assert_eq "vis on clip applied" "$(rfield "$VIS_ON" clipApplied)" "1"
-assert_eq "vis on input"  "$(rfield "$VIS_ON" inputTriangles)" "200000"
-# Re-pinned 2026-11-01 (was 29756 = drawn 170244). Three changes moved it and each
-# is attributed in the visual-baseline re-pin of the same date: the T80 relay
-# camera (the tick-0 frame is no longer the orbit camera's neighbour), the T82
-# any-leaf pvs fix (a face is drawn when ANY of its clusters is visible) and the
-# T83 brushModel geometry (1,237 faces added to the same buffer). Measured here on
-# the tree this script ships with: 15039 with drawn 184961, and the identity
-# drawn+hidden=input is asserted below so the pair cannot drift apart.
-assert_eq "vis on hidden" "$(rfield "$VIS_ON" hiddenTriangles)" "15039"
-assert_eq "vis off state" "$(rtext "$VIS_OFF" state)" "disabled"
-assert_eq "vis off applied" "$(rfield "$VIS_OFF" clipApplied)" "0"
-VIS_ON_DRAWN=$(rfield "$VIS_ON" drawnTriangles)
-VIS_OFF_DRAWN=$(rfield "$VIS_OFF" drawnTriangles)
-assert_eq "vis off drawn = input" "$VIS_OFF_DRAWN" "$(rfield "$VIS_ON" inputTriangles)"
-if [ "$VIS_ON_DRAWN" -lt "$VIS_OFF_DRAWN" ] 2>/dev/null; then
-  echo "  OK   the clip changes the geometry ($VIS_ON_DRAWN < $VIS_OFF_DRAWN)"; okcount=$((okcount + 1))
-else
-  echo "  FAIL the clip left the drawn geometry unchanged ($VIS_ON_DRAWN vs $VIS_OFF_DRAWN)"; fail=1
-fi
-assert_eq "vis identity drawn+hidden=input" "$(( VIS_ON_DRAWN + $(rfield "$VIS_ON" hiddenTriangles) ))" "$(rfield "$VIS_ON" inputTriangles)"
+judge_vis "$MAP_ON" "$VIS_ON" "$VIS_OFF"
 assert_eq "water on state" "$(rtext "$WAT_ON" state)" "active"
 assert_eq "water on faces" "$(rfield "$WAT_ON" faces)" "18"
 assert_eq "water on triangles" "$(rfield "$WAT_ON" triangles)" "36"
@@ -260,18 +397,11 @@ camassert "water camera on" "$WCAM_ON_TRACE"   "-600.0,3800.0,150.0" "70.00"
 
 echo
 echo "=== 3/4 the tick-0 frame pairs ==="
-cmp_pair() { # cmp_pair <label> <a.bmp> <b.bmp> [bounds...]
-  local label="$1" a="$2" b="$3"; shift 3
-  local out
-  out=$("$PY" bmp-pixel-diff.py "$a" "$b" "$@" 2>&1)
-  echo "  $label: $out"
-  assert_bound "$label" "$out" PASS
-  printf '%s\n' "$label: $out" >> "$OUT/frames/comparisons.txt"
-}
+
 : > "$OUT/frames/comparisons.txt"
 cmp_pair "sky-on vs sky-off    " "$SKYCAM_ON_BMP" "$SKYCAM_OFF_BMP" --min-diff-percent 50
 cmp_pair "water-on vs water-off" "$WCAM_ON_BMP" "$WCAM_OFF_BMP" --min-diff-percent 0.1 --min-delta 8
-cmp_pair "on vs vis-off        " "$ON_BMP" "$VISOFF_BMP" --min-diff-percent 5
+cmp_pair "clip pixel neutrality" "$ON_BMP" "$VISOFF_BMP" --max-delta 0
 cmp_pair "on vs repeat         " "$ON_BMP" "$REPEAT_BMP" --max-delta 0
 cmp_pair "water cam vs sky cam " "$WCAM_ON_BMP" "$SKYCAM_ON_BMP" --min-diff-percent 50
 echo "  --- difference regions:"
@@ -323,6 +453,78 @@ camframe sky-camera-off  "$SKYCAM_OFF_BMP"
 camframe water-camera-on "$WCAM_ON_BMP"
 camframe water-camera-off "$WCAM_OFF_BMP"
 cat "$OUT/frames/sha256-cameras.txt"
+
+# ---- injected defects: three, and each must turn the judgment red -----------
+# A gate whose new bounds cannot fail is not evidence. Each case changes ONE line,
+# rebuilds, runs the quick judgment only (T2V_QUICK=1: the two vis launches), and
+# requires the intended assertion in the FAIL output. The forward run must be
+# green first.
+mutation_one() { # mutation_one <id> <file> <from> <to> <expect-substring>
+  local id="$1" file="$2" from="$3" to="$4" expect="$5"
+  local backup="$SCRATCH/mut-$id.bak"
+  echo "-- $id  $file: '$from' -> '$to'"
+  cp "$file" "$backup" || { echo "  FAIL $id could not back $file up"; fail=1; return 1; }
+  sed -i "s|$from|$to|" "$file"
+  if ! grep -qF -- "$to" "$file"; then
+    cp "$backup" "$file"; echo "  FAIL $id was not applied (pattern not in $file)"; fail=1; return 1
+  fi
+  if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mut-$id-build.log" 2>&1; then
+    cp "$backup" "$file"; echo "  FAIL $id did not build (mut-$id-build.log)"; fail=1; return 1
+  fi
+  local log="$SCRATCH/mut-$id-gate.log" grc
+  T2V_QUICK=1 T2V_SCRATCH="$SCRATCH/mut-$id/scratch" T2V_OUT="$SCRATCH/mut-$id/out" \
+    bash "$0" > "$log" 2>&1
+  grc=$?
+  cp "$backup" "$file"
+  cmp -s "$backup" "$file" || { echo "  FAIL $id restore is not byte-identical"; fail=1; return 1; }
+  local reds hits
+  reds=$(grep -c '^  FAIL' "$log" 2>/dev/null)
+  hits=$(grep '^  FAIL' "$log" 2>/dev/null | grep -cF -- "$expect")
+  echo "   MUTATION $id rc=$grc red=${reds:-0} expected=${hits:-0} (log mut-$id-gate.log)"
+  if [ "$grc" -eq 0 ]; then
+    echo "  FAIL $id was NOT caught: the judgment stayed green"; fail=1; return 1
+  fi
+  if [ "${hits:-0}" -eq 0 ]; then
+    echo "  FAIL $id went red, but not on \"$expect\" -- the red is for the wrong reason"; fail=1; return 1
+  fi
+  echo "  OK   $id was caught on \"$expect\""; okcount=$((okcount + 1))
+}
+
+section_mutation() {
+  if [ "$MUTATION" -ne 1 ]; then
+    echo "=== mutation (skipped: pass --mutation to build and inject three defects) ==="
+    return 0
+  fi
+  echo "=== mutation: three injected defects must turn the judgment red ==="
+  if [ "$fail" -ne 0 ]; then
+    echo "  FAIL mutation refuses to judge over a red forward run"; fail=1; return 0
+  fi
+  local fwd; fwd=$(sha256sum "$PRODUCT" | awk '{print $1}')
+  echo "   forward exe sha256=$fwd"
+  mutation_one m1-capacity native/src/main.cpp \
+    'constexpr std::size_t kWorldTriangleCapacity = 400000;' \
+    'constexpr std::size_t kWorldTriangleCapacity = 200000;' \
+    "the map asked for"
+  mutation_one m2-invert native/src/world_material.cpp \
+    'if (visible) {' \
+    'if (!visible) {' \
+    "clip pixel neutrality"
+  mutation_one m3-clusterless native/src/world_material.cpp \
+    '      ++reading.trianglesWithoutCluster;' \
+    '      ++reading.trianglesWithoutCluster; if (true) { ++reading.hiddenTriangles; continue; }' \
+    "hid triangles with no cluster"
+  echo "   rebuilding the forward tree"
+  if ! bash build-target.sh tf2_demo_native > "$SCRATCH/mut-restore-build.log" 2>&1; then
+    echo "  FAIL the restore rebuild failed (mut-restore-build.log)"; fail=1; return 0
+  fi
+  local now; now=$(sha256sum "$PRODUCT" | awk '{print $1}')
+  if [ "$now" = "$fwd" ]; then
+    echo "  OK   the restored build reproduces the forward exe ($fwd)"; okcount=$((okcount + 1))
+  else
+    echo "  FAIL the restored build is $now, not $fwd -- the source did not come back"; fail=1
+  fi
+}
+section_mutation
 
 echo
 echo "assertions_ok=$okcount"

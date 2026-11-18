@@ -17,23 +17,17 @@
 # flags as the product target (/W4 /permissive-) so a header change that would
 # break the product cannot hide behind a lenient probe build.
 add_executable(entity_protocol_probe
-  tools/entity_protocol_probe.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/proto_wire.cpp
-)
+  tools/entity_protocol_probe.cpp)
 target_include_directories(entity_protocol_probe PRIVATE include)
-target_link_libraries(entity_protocol_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(entity_protocol_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_protocol_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(entity_protocol_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # Synthetic wire fixtures for the message decoders. Same sources and same
 # strictness as the product target so a layout regression cannot hide here.
 add_executable(entity_message_fixture_probe
-  tools/entity_message_fixture_probe.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/proto_wire.cpp
-)
+  tools/entity_message_fixture_probe.cpp)
 target_include_directories(entity_message_fixture_probe PRIVATE include)
-target_link_libraries(entity_message_fixture_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(entity_message_fixture_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_message_fixture_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(entity_message_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)

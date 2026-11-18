@@ -89,7 +89,10 @@ if [ "$probe_rc" -ne 0 ]; then
   echo "RC=$probe_rc"
   exit "$probe_rc"
 fi
-if ! grep -q '^minimap: probe done ok=1$' "$OUT/probe.txt"; then
+# D93: the probe writes its trace with CRLF line endings on Windows, so a
+# $-anchored match would reject a completion line that IS there ("...ok=1\r").
+# Normalise CR before the exact match; the asserted text is unchanged.
+if ! tr -d '\r' < "$OUT/probe.txt" | grep -qx 'minimap: probe done ok=1'; then
   echo "NOT RUN: probe printed no completion line (output empty or truncated)"
   echo "MINIMAP-CHECK=FAIL"
   echo "RC=3"

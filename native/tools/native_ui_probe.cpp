@@ -1,4 +1,6 @@
 #include "native_ui.h"
+#include "pane_boundary.h"
+#include "pane_input.h"
 
 #include <Windows.h>
 #include <cassert>
@@ -297,6 +299,172 @@ void checkHudComposer(Readings& readings) {
   readings.set("hudFields", 5u);
 }
 
+void checkPaneBoundary(Readings& readings) {
+  using namespace tf2::native;
+  PaneBoundaryReadings pristine;
+  pristine.drawOrdinal = 3;
+  pristine.renderTargets = 1;
+  pristine.depthViews = 1;
+  pristine.viewports = 1;
+  pristine.viewportWidth = 1280;
+  pristine.viewportHeight = 720;
+  pristine.clientWidth = 1280;
+  pristine.clientHeight = 720;
+  pristine.camera = PaneCameraSource::DemoView;
+  pristine.hudPasses = 1;
+  pristine.hudScissorApplied = true;
+  // Step 2a: the single-pane reading is also a ONE-PANE record now. R4 checks
+  // that the legacy extent pair and panes[0] agree, so a renderer that fills
+  // one and not the other is refused rather than passing on the half it filled.
+  pristine.panes[0].x = 0u;
+  pristine.panes[0].y = 0u;
+  pristine.panes[0].width = 1280u;
+  pristine.panes[0].height = 720u;
+  pristine.panes[0].camera = PaneCameraSource::DemoView;
+  pristine.panes[0].viewHash = 0x1234u;
+  pristine.panes[0].cameraFingerprint = 0x5678u;
+  pristine.panes[0].cameraSlot = 0u;
+  check(paneBoundaryMismatches(pristine) == kPaneMismatchNone,
+    "pane: one target, one depth view, one client-sized viewport, a camera and a scissored HUD pass is clean");
+
+  // Each rule is mutated on its own and must produce EXACTLY its bit. A
+  // predicate that answers 0 for everything (the gate-that-checks-nothing
+  // failure this repository has paid for) cannot pass this: `covered` below
+  // must end up as all seven bits.
+  std::uint32_t covered = kPaneMismatchNone;
+  const auto expectOnly = [&](const PaneBoundaryReadings& bad, std::uint32_t expected, const char* what) {
+    const std::uint32_t got = paneBoundaryMismatches(bad);
+    check(got == expected, what);
+    covered |= expected;
+  };
+  { PaneBoundaryReadings bad = pristine; bad.renderTargets = 2;
+    expectOnly(bad, kPaneMismatchRenderTargets, "pane: two render targets breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.depthViews = 0;
+    expectOnly(bad, kPaneMismatchDepthViews, "pane: no depth view breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.viewports = 2;
+    expectOnly(bad, kPaneMismatchViewportCount, "pane: two viewports breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.viewportWidth = 640;
+    expectOnly(bad, kPaneMismatchViewportExtent, "pane: a viewport narrower than the client breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.viewportHeight = 360;
+    expectOnly(bad, kPaneMismatchViewportExtent, "pane: a viewport shorter than the client breaks the same extent rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.camera = PaneCameraSource::None;
+    expectOnly(bad, kPaneMismatchCamera, "pane: a frame with no world camera breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.hudPasses = 2;
+    expectOnly(bad, kPaneMismatchHudPasses, "pane: two HUD passes break exactly that rule"); }
+  { PaneBoundaryReadings bad = pristine; bad.hudScissorApplied = false;
+    expectOnly(bad, kPaneMismatchHudScissor, "pane: a HUD pass that did not scissor breaks exactly that rule"); }
+  // Step 2a: the three defects a second pane can introduce (plus the two ways
+  // a split can fail to tile the client), each fed through the predicate on
+  // its own. These are the negative controls the pane step rests on: a
+  // predicate that cannot name them cannot refuse them, and an implementation
+  // that half-builds a second pane fails here instead of drawing one camera
+  // twice.
+  PaneBoundaryReadings split = pristine;
+  split.paneCount = 2u;
+  split.viewports = 2u;
+  split.viewportWidth = 640u;
+  split.viewportHeight = 720u;
+  split.panes[0].width = 640u;
+  split.panes[0].height = 720u;
+  split.panes[1].x = 640u;
+  split.panes[1].width = 640u;
+  split.panes[1].height = 720u;
+  split.panes[1].camera = PaneCameraSource::Orbit;
+  split.panes[1].viewHash = 0x1111u;
+  split.panes[1].cameraFingerprint = 0x2222u;
+  split.panes[1].cameraSlot = 1u;
+  check(paneBoundaryMismatches(split) == kPaneMismatchNone,
+    "pane: two panes with disjoint viewports, their own matrices and their own camera slots are clean");
+  { PaneBoundaryReadings bad = split; bad.viewports = 1u;
+    expectOnly(bad, kPaneMismatchViewportCount, "pane: two panes sharing one viewport breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = split;
+    bad.panes[1].viewHash = bad.panes[0].viewHash;
+    expectOnly(bad, kPaneMismatchSharedView, "pane: a second pane reporting the first pane's view matrix breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = split;
+    bad.panes[1].cameraSlot = bad.panes[0].cameraSlot;
+    expectOnly(bad, kPaneMismatchSharedCamera, "pane: two panes drawing from one camera state slot breaks exactly that rule"); }
+  { PaneBoundaryReadings bad = split; bad.panes[1].x = 0u;
+    expectOnly(bad, kPaneMismatchPaneLayout, "pane: two panes claiming the same half break the layout rule"); }
+  { PaneBoundaryReadings bad = split; bad.panes[1].width = 639u;
+    expectOnly(bad, kPaneMismatchPaneLayout, "pane: a split that leaves a strip uncovered breaks the layout rule"); }
+  check(covered == kPaneMismatchAll, "pane: all ten rules are separately reachable");
+
+  // A frame with the HUD off must stay clean: the scissor rule is about a pass
+  // that RAN, not about the HUD being enabled.
+  PaneBoundaryReadings noHud = pristine;
+  noHud.hudPasses = 0;
+  noHud.hudScissorApplied = false;
+  check(paneBoundaryMismatches(noHud) == kPaneMismatchNone,
+    "pane: a frame that ran no HUD pass is clean with the scissor reading false");
+
+  check(std::strcmp(paneCameraSourceName(PaneCameraSource::DemoView), "demo-view") == 0
+    && std::strcmp(paneCameraSourceName(PaneCameraSource::Orbit), "orbit") == 0
+    && std::strcmp(paneCameraSourceName(PaneCameraSource::None), "none") == 0,
+    "pane: the camera source names the trace prints are stable");
+
+  // The readings prune nothing: every field that is checked above must be the
+  // field a draw fills. Proving the predicate and proving the fill are two
+  // different claims; this one is the product trace's `pane:` line.
+  readings.set("paneBoundaryRules", 10u);
+  readings.set("paneBoundaryNegatives", 13u);
+  readings.set("paneCameraSources", 3u);
+}
+
+// U4 step 3: the click-to-pane rule the window procedure dispatches through. The
+// cases below are the whole rule as numbers: a probe that only checked "1264 splits
+// at 632" would pass for an implementation that never rejects a click outside the
+// client, or that silently drops a pane count instead of clamping it. The expected
+// value is written for every case, negatives included -- an expectOnly-style check
+// that only asserts "not this" would not pin which pane a pixel selects.
+void checkPaneInput(Readings& readings) {
+  using namespace tf2::native;
+  std::uint32_t cases = 0;
+  std::uint32_t negatives = 0;
+  const auto expect = [&](int x, int width, std::uint32_t panes, int want, const char* what) {
+    ++cases;
+    if (want < 0) ++negatives;
+    check(paneForClientX(x, width, panes) == want, what);
+  };
+
+  // One pane: every pixel of the client selects pane 0, and nothing outside it does.
+  expect(0, 1264, 1u, 0, "pane input: a single pane owns the left edge");
+  expect(631, 1264, 1u, 0, "pane input: a single pane owns the left half");
+  expect(632, 1264, 1u, 0, "pane input: a single pane owns the right half");
+  expect(1263, 1264, 1u, 0, "pane input: a single pane owns the last pixel");
+  expect(-1, 1264, 1u, -1, "pane input: a click left of the client selects nothing");
+  expect(1264, 1264, 1u, -1, "pane input: a click on the right edge selects nothing (the client is half-open)");
+
+  // Two panes at the shipped 1264-wide client: the left half is [0, 632), because
+  // drawSplit's left viewport is width_ / 2.
+  expect(0, 1264, 2u, 0, "pane input: pixel 0 of a split selects pane 0");
+  expect(631, 1264, 2u, 0, "pane input: the last pixel of the left half selects pane 0");
+  expect(632, 1264, 2u, 1, "pane input: the first pixel of the right half selects pane 1");
+  expect(1263, 1264, 2u, 1, "pane input: the last pixel of a split selects pane 1");
+  expect(-1, 1264, 2u, -1, "pane input: a split rejects a click left of the client");
+  expect(1264, 1264, 2u, -1, "pane input: a split rejects a click right of the client");
+
+  // Odd width: the left half truncates, exactly like the viewport arithmetic, and
+  // the extra pixel belongs to the right pane.
+  expect(631, 1265, 2u, 0, "pane input: an odd client width keeps 632 pixels on the left");
+  expect(632, 1265, 2u, 1, "pane input: an odd client width gives the extra pixel to the right pane");
+
+  // A one-pixel client has an EMPTY left viewport, so its only pixel selects pane 1.
+  // Refusing the click instead would make a one-pixel split interactable by nothing.
+  expect(0, 1, 2u, 1, "pane input: a one-pixel split has no left pixel and selects the right pane");
+
+  // Degenerate inputs are answered, not guessed.
+  expect(0, 0, 2u, -1, "pane input: width 0 selects nothing");
+  expect(0, -5, 2u, -1, "pane input: a negative width selects nothing");
+  expect(0, 1264, 0u, -1, "pane input: no panes selects nothing");
+
+  // A pane count above the maximum is clamped to the panes that exist: three means
+  // two, so the split stays at the same pixel rather than inventing a third half.
+  expect(0, 1264, 3u, 0, "pane input: an over-large pane count clamps to the left pane");
+  expect(632, 1264, 3u, 1, "pane input: an over-large pane count clamps to the right pane");
+
+  readings.set("paneInputCases", cases);
+  readings.set("paneInputNegatives", negatives);
+}
 } // namespace
 
 int main() {
@@ -307,6 +475,8 @@ int main() {
   checkPauseKey(readings);
   checkLayoutPlanner(readings);
   checkHudComposer(readings);
+  checkPaneBoundary(readings);
+  checkPaneInput(readings);
 
   // The original screen-flow contract, kept verbatim but made real: every
   // former assert is a counted check.

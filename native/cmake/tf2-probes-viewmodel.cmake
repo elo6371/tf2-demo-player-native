@@ -14,53 +14,29 @@
 # T75-BODY-START
 # ---------------------------------------------------------------------------
 add_executable(viewmodel_fov_probe
-  tools/viewmodel_fov_probe.cpp
-  src/viewmodel.cpp
+  tools/viewmodel_fov_probe.cpp)
   # viewmodel.cpp calls buildAnimationSkinMatrices, so the T1 animation layer is
   # a link dependency of every target that compiles it. Left out, the link fails,
   # NMAKE stops, and every target after this one is silently not built.
-  src/animation_binding.cpp
-  src/animation_decoder.cpp
   # T1: viewmodel.cpp now calls the shared material resolver, which parses VMTs
   # and decodes VTFs. Same failure class as the animation layer above -- a link
   # dependency left out fails the link, NMAKE stops, and every target after this
   # one is silently not built. Caught by verify-fast.sh, not by any viewmodel gate.
-  src/viewmodel_material.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/proto_wire.cpp
   # viewmodel.cpp also resolves the model's material chain (MDL texture slot ->
   # $cdmaterials -> .vmt -> $basetexture -> .vtf), so VmtParser is a link
   # dependency of every target that compiles it. Same failure mode as the
   # animation layer above: left out, the link fails and NMAKE stops.
-  src/vmt_material.cpp)
 target_include_directories(viewmodel_fov_probe PRIVATE include third_party/lzma)
-target_link_libraries(viewmodel_fov_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(viewmodel_fov_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(viewmodel_fov_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_fov_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(viewmodel_contract_probe
-  tools/viewmodel_contract_probe.cpp
-  src/viewmodel.cpp
-  src/animation_binding.cpp
-  src/animation_decoder.cpp
+  tools/viewmodel_contract_probe.cpp)
   # T1 material chain: viewmodel.cpp calls into it, so it links wherever
   # viewmodel.cpp does. See the note on viewmodel_fov_probe.
-  src/viewmodel_material.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/proto_wire.cpp
-  src/vmt_material.cpp)
 target_include_directories(viewmodel_contract_probe PRIVATE include third_party/lzma)
-target_link_libraries(viewmodel_contract_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(viewmodel_contract_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(viewmodel_contract_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
@@ -70,24 +46,11 @@ set_target_properties(viewmodel_contract_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # product's own path rule and its own resolver instead of trusting a second copy
 # of either.
 add_executable(viewmodel_animation_probe
-  tools/viewmodel_animation_probe.cpp
-  src/viewmodel.cpp
-  src/animation_binding.cpp
-  src/animation_decoder.cpp
+  tools/viewmodel_animation_probe.cpp)
   # T1 material chain: viewmodel.cpp calls into it, so it links wherever
   # viewmodel.cpp does. See the note on viewmodel_fov_probe.
-  src/viewmodel_material.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp
-  src/entity_model.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/proto_wire.cpp
-  src/vmt_material.cpp)
 target_include_directories(viewmodel_animation_probe PRIVATE include third_party/lzma)
-target_link_libraries(viewmodel_animation_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(viewmodel_animation_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(viewmodel_animation_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(viewmodel_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
@@ -101,40 +64,17 @@ set_target_properties(viewmodel_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # ones that need a broken installation are left to mutation in
 # weapon-body-check.sh.
 add_executable(weapon_body_probe
-  tools/weapon_body_probe.cpp
-  src/viewmodel.cpp
-  src/viewmodel_material.cpp
-  src/animation_binding.cpp
-  src/animation_decoder.cpp
-  src/entity_model.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/proto_wire.cpp)
+  tools/weapon_body_probe.cpp)
 target_include_directories(weapon_body_probe PRIVATE include third_party/lzma)
-target_link_libraries(weapon_body_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(weapon_body_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(weapon_body_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(weapon_body_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 add_executable(animation_viewmodel_probe
-  tools/animation_viewmodel_probe.cpp
-  src/animation_decoder.cpp
-  src/animation_binding.cpp
-  src/viewmodel.cpp
+  tools/animation_viewmodel_probe.cpp)
   # T1 material chain: viewmodel.cpp calls into it, so it links wherever
   # viewmodel.cpp does. See the note on viewmodel_fov_probe.
-  src/viewmodel_material.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp
-  src/vmt_material.cpp)
 target_include_directories(animation_viewmodel_probe PRIVATE include)
-target_link_libraries(animation_viewmodel_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(animation_viewmodel_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(animation_viewmodel_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(animation_viewmodel_probe PROPERTIES WIN32_EXECUTABLE OFF)

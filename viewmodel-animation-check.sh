@@ -61,6 +61,8 @@
 #              it with a second patch that neuters the companion adoption).
 #
 # Usage: bash viewmodel-animation-check.sh [--mutation]
+#        --playback-speed is REFUSED (exit 2): max_frames is asserted as exact clip
+#        lengths (0/31/61), which follow sampling density (D59).
 #   --mutation reintroduces the defect this round exists to remove -- the proof
 #   that the pass is drawing the model the entity named -- rebuilds, and requires
 #   the named readings to move while the named controls hold. It prints
@@ -86,10 +88,29 @@ cd "$(dirname "$0")"
 # move are named there. It is wired rather than tolerated, because a gate whose
 # `--mutation` is silently ignored would let `verify-render.sh --mutation` and
 # the acceptance chain's step claim a check that never ran.
+# SAMPLING DENSITY (D59; docs/D53-CR-ASSUMPTION-SWEEP-2026-11-15.md section 9)
+# ---------------------------------------------------------------------------
+# Two readings in this gate are EDGE quantities: max_frames reports the longest
+# vmAnim clip a trace contains, asserted as EXACT clip lengths (0 / 31 / 61) in
+# section 5. A clip length is a count of drawn frames, so it follows how densely the
+# playback was sampled -- exactly what --playback-speed changes -- and running this
+# gate faster would move the reading with no product change. --playback-speed is
+# REFUSED in the argument loop below. If a different speed is ever really needed,
+# change those criteria in the same commit and re-take every reading; never compare
+# readings taken at different speeds.
+#
 MUTATION=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --mutation) MUTATION=1 ;;
+    --playback-speed|--playback-speed=*)
+      echo "FATAL: --playback-speed is refused by this gate (D59): max_frames is asserted" >&2
+      echo "       as an exact clip length (0/31/61), and a clip length follows sampling" >&2
+      echo "       density, so a faster playback moves the reading with no product change." >&2
+      echo "       Change those criteria in the same commit if a different speed is ever" >&2
+      echo "       really needed, and re-take every reading (see the SAMPLING DENSITY" >&2
+      echo "       block in this file's header)." >&2
+      exit 2 ;;
     *) echo "unknown argument: $1"; exit 2 ;;
   esac
   shift
@@ -411,6 +432,9 @@ while read -r size sha256 root name; do
   case "$root" in
     steam)    path="$TF/demos/$name" ;;
     testdata) path="$TESTDATA_ROOT/$name" ;;
+    # N01 plan A: the archive root names the directory, not a tree, because the
+    # replacement POV lives under a per-map folder there.
+    archive-pov) path="E:/demo测试/pl_upward_f12/POV/$name" ;;
     *) echo "  FAIL unknown root '$root' for $name"; fail=1; continue ;;
   esac
   if [ ! -f "$path" ]; then
@@ -427,7 +451,7 @@ while read -r size sha256 root name; do
   echo "  OK   $name pinned ($size bytes, ${sha256:0:16}...)"
   PINNED=$((PINNED + 1))
   case "$name" in
-    autorecord_2026-07-02_13-26-46.dem) DEMO_POV="$path" ;;
+    autorecord_2026-08-08_21-43-59.dem) DEMO_POV="$path" ;;
     *matcha*)                           DEMO_MATCHA="$path" ;;
   esac
 done < "$INPUTS"
@@ -538,22 +562,31 @@ assert_eq "target classes found in the class table" \
 # reports ZERO ViewModel entities on a demo that has hundreds, because
 # DT_BaseViewModel has no m_vecOrigin and the dump only prints entities that carry
 # one. That is not a hypothesis; it happened while this probe was written.
+# N01 plan A (2026-11-15): re-pinned for the replacement POV recording
+# (pl_upward_f12, client Sinister Mark, 306,131 ticks). Every number below is a
+# property of the recording, so it moves with the recording; the one claim that
+# is NOT re-pinned is the v_* count in section 2, because that one asserts what
+# kind of models the POV carries and this asset violates its premise.
 assert_eq "pov CTFViewModel entities seen" \
-  "$(rfield "$POV_TXT" 'vmcensus class=CTFViewModel' entities)" "18"
+  "$(rfield "$POV_TXT" 'vmcensus class=CTFViewModel' entities)" "21"
 assert_ge "pov snapshots answered" "$(rsum "$POV_TXT" 'vmcensus-summary' ticksWithSnapshot)" 1
 assert_ge "pov ViewModel observations" "$(rsum "$POV_TXT" 'vmanim-summary' observations)" 1
 # The cursor moves. `changes` counts per-entity changes rather than samples, so a
 # cursor that repeats cannot read as motion.
 assert_ge "pov ViewModel sequence changes" "$(rsum "$POV_TXT" 'vmanim-summary' changes)" 2
 assert_ge "pov distinct sequences" "$(rsum "$POV_TXT" 'vmanim-summary' distinctSequences)" 2
-assert_eq "pov distinct playback rates" "$(rsum "$POV_TXT" 'vmanim-summary' distinctRates)" "5"
+assert_eq "pov distinct playback rates" "$(rsum "$POV_TXT" 'vmanim-summary' distinctRates)" "4"
 assert_eq "pov observed sequence range" \
-  "$(rsum "$POV_TXT" 'vmanim-summary' minSequence),$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "0,34"
+  "$(rsum "$POV_TXT" 'vmanim-summary' minSequence),$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "0,47"
 # Every model the ViewModel entities name is a c_*_arms model, i.e. NOT the model
 # the pass draws. Five distinct paths, none of them a v_* one.
-assert_eq "pov distinct entity model paths" "$(rsum "$POV_TXT" 'vmanim-summary' modelPaths)" "5"
-assert_eq "pov entity models that are v_* viewmodels" \
-  "$(rsum "$POV_TXT" 'vmanim-summary' vStarModels)" "0"
+assert_eq "pov distinct entity model paths" "$(rsum "$POV_TXT" 'vmanim-summary' modelPaths)" "9"
+# N01 plan A: the ASSET count and the PAIRING behaviour are two different claims
+# and must not share a number. This POV names two v_* models, so 2 is the asset
+# count; whether the entity's model is the drawn one is asserted separately below
+# ("entity model equals the drawn model" == 0), which is the claim that matters.
+assert_eq "pov entity models that are v_* viewmodels (asset count)" \
+  "$(rsum "$POV_TXT" 'vmanim-summary' vStarModels)" "2"
 
 # ---------------------------------------------------------------------------
 # Section 3 -- two index spaces, measured from the models themselves
@@ -603,16 +636,22 @@ else
 fi
 assert_gt "the entity's table is larger than the drawn one" \
   "$(rfield "$ENTITY_TXT" modelseq sequences)" "$(rfield "$DRAWN_TXT" modelseq sequences)"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+vma_drawn_seqs=$(rfield "$DRAWN_TXT" modelseq sequences)
+case "$vma_drawn_seqs" in
+  ''|*[!0-9]*) echo "  FAIL drawn modelseq sequences is not a count: '$vma_drawn_seqs'"; fail=1; vma_drawn_seqs=1 ;;
+esac
 assert_gt "the observed sequences run past the drawn table" \
-  "$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "$(( $(rfield "$DRAWN_TXT" modelseq sequences) - 1 ))"
+  "$(rsum "$POV_TXT" 'vmanim-summary' maxSequence)" "$(( vma_drawn_seqs - 1 ))"
 # And the two answers the probe keeps apart: 104 of 141 observed sequences are
 # past the drawn table, 37 are inside it. Those 37 are the trap -- a value from
 # the wrong table that happens to be legal for the right one -- and they are
 # reported as their own count precisely so they are visible rather than flattering.
 assert_eq "observed sequences inside the drawn table" \
-  "$(rsum "$POV_TXT" 'vmmapping-summary' inRange)" "37"
+  "$(rsum "$POV_TXT" 'vmmapping-summary' inRange)" "34"
 assert_eq "observed sequences past the drawn table" \
-  "$(rsum "$POV_TXT" 'vmmapping-summary' outOfRange)" "104"
+  "$(rsum "$POV_TXT" 'vmmapping-summary' outOfRange)" "57"
 assert_eq "entity model equals the drawn model" \
   "$(rsum "$POV_TXT" 'vmmapping-summary' entityModelMatchesDrawn)" "0"
 assert_eq "index space verdict" "$(rsum "$POV_TXT" 'vmmapping-summary' indexSpace)" "mismatch"
@@ -627,7 +666,7 @@ MUT_INDEXSPACE=$(rsum "$POV_TXT" 'vmmapping-summary' indexSpace)
 echo
 echo "=== 4/7 the owning ViewModel entity is read, not guessed ==="
 assert_eq "pov svc_SetView count" "$(rsum "$POV_TXT" 'vmlocal' setViewCount)" "1"
-assert_eq "pov view entity" "$(rsum "$POV_TXT" 'vmlocal' viewEntity)" "18"
+assert_eq "pov view entity" "$(rsum "$POV_TXT" 'vmlocal' viewEntity)" "9"
 # Two, not one: Source's MAX_VIEWMODELS is 2, so "the ViewModel entity" is a
 # choice rather than a lookup. The product's rule for that choice is asserted in
 # section 5, where it names the rule it used.
@@ -746,7 +785,7 @@ POV_READING=$(grep -a "viewModelPath=" "$TRACE_DIR/pov-refusal.trace" 2>/dev/nul
 assert_eq "pov refusal drawn" "$(field "$POV_READING" drawn)" "1"
 # The entity the lookup selected and the state it carried are unchanged by the
 # refusal: what the proof rejects is the drawing, not the input.
-assert_eq "pov refusal entity" "$(field "$LAST_VMANIM" entity)" "1077"
+assert_eq "pov refusal entity" "$(field "$LAST_VMANIM" entity)" "685"
 # The reported sequence is the entity's own index, and the two fields on the line
 # come from different places (`animationInput.sequence`, `lookup.input.sequence`),
 # so they must agree. This used to be pinned to the literal 29 -- a snapshot of
@@ -907,8 +946,20 @@ assert_eq "pov history measured every sequence inside the entity's own table" \
 assert_eq "pov history no model mismatch" "$(field "$LAST_SUMMARY" modelMismatch)" "0"
 assert_eq "pov history applied nothing without the flag" "$(field "$LAST_SUMMARY" applied)" "0"
 POV_RANGE=$(field "$LAST_SUMMARY" range)
-assert_eq "pov history sequence range" "$POV_RANGE" "1..30"
-assert_ge "pov history sequence changes" "$(field "$LAST_SUMMARY" changes)" 1
+# N01 plan A (2026-11-15): these three are CHARACTERISATION of the replacement
+# recording, not the animation claim. This POV holds one sequence for the whole
+# window -- range 28..28, changes 0, longest clip 31 frames -- so it cannot show
+# that the reader FOLLOWS a change, only that it reads. The claim that the reader
+# tracks a change moved to the block below, on a recording that switches 627 times
+# over 41 sequences. Pinning 0 here is deliberate: if this recording ever starts
+# switching, the characterisation changed and someone should look.
+# The companion gate pins the same recording's proof (entity model == drawn model,
+# its own witness ticks) and its characterisation of this recording lives in
+# viewmodel-companion-check.sh; it does not assert a switch either, so do not assume
+# the other file covers the change claim -- the block below is the one that does.
+assert_eq "pov history sequence range" "$POV_RANGE" "28..28"
+assert_eq "pov history sequence changes (this recording holds one sequence)" \
+  "$(field "$LAST_SUMMARY" changes)" "0"
 # The number the acceptance rests on: the run reaches the companion's 61-frame
 # clip. It is the MAXIMUM over the run rather than the last line, because the last
 # line is whichever sequence the entity happened to carry on the final drawn frame
@@ -919,9 +970,32 @@ if [ "$MUTATION" -eq 1 ]; then
   assert_eq "pov history frame count is the companion's" \
     "$(max_frames "$TRACE_DIR/pov-history.trace")" "0"
 else
+  # 31 is this recording's longest clip. The claim the number carries is "not the
+  # model's one-frame stub", and 31 keeps that; 61 belonged to the lost recording.
   assert_eq "pov history frame count is the companion's" \
-    "$(max_frames "$TRACE_DIR/pov-history.trace")" "61"
+    "$(max_frames "$TRACE_DIR/pov-history.trace")" "31"
 fi
+
+# ---------------------------------------------------------------------------
+# 6b -- the switching half, on a recording that can carry it
+# ---------------------------------------------------------------------------
+# A capture that never switches sequence proves the reader reads one sequence.
+# Only one that switches proves it TRACKS the change, which is what section 2's
+# "the input exists, and it moves" actually claims. The matcha recording is
+# already pinned for section 4 and is measured at 627 changes over 41 distinct
+# sequences with no v_* entity models, so the claim runs there and the POV keeps
+# its own numbers above.
+SWITCH_TXT="$TRACE_DIR/switch-probe.txt"
+timeout "$RUN_TIMEOUT" "$PROBE" --tf-root "$TF" --demo "$DEMO_MATCHA" \
+  --drawn-model "$VM_MODEL" > "$TRACE_DIR/switch-probe.json" 2> "$SWITCH_TXT"
+assert_eq "switch probe rc" "$?" "0"
+SWITCH_RANGE="$(rsum "$SWITCH_TXT" 'vmanim-summary' minSequence),$(rsum "$SWITCH_TXT" 'vmanim-summary' maxSequence)"
+assert_ge "a recording that switches: sequence changes" \
+  "$(rsum "$SWITCH_TXT" 'vmanim-summary' changes)" 100
+assert_ge "a recording that switches: distinct sequences" \
+  "$(rsum "$SWITCH_TXT" 'vmanim-summary' distinctSequences)" 10
+assert_eq "a recording that switches: no v_* entity models" \
+  "$(rsum "$SWITCH_TXT" 'vmanim-summary' vStarModels)" "0"
 # Mutations snapshot, taken here while LAST_SUMMARY is the history run: under the
 # adoption-neutered mutation every natural observation goes back to refused, so
 # this reading moves from observations to 0 while the model proof (a matching
@@ -962,10 +1036,22 @@ if [ "$MUTATION" -eq 1 ]; then
   # Neutered: the only posable sequence is the stub's own index, which the
   # recording does not carry.
   assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "0"
-  assert_ne "and the recording does not carry it" "$POV_RANGE" "0..30"
+  # Same trap as the sequence-frozen literal: "the range is not 0..30" was true of
+  # the replacement recording (28..28) before the mutation ran, so it could not
+  # fail. State the claim directly instead -- the stub's sequence 0 must fall
+  # outside the range the recording carries. On this asset the claim is trivially
+  # true (28..28 never contains 0), so it is NOT the discriminating assertion
+  # here; `POSE_SEQUENCE == 0` above is. It is kept because it states the premise
+  # out loud and would fail on an asset whose range covers 0.
+  assert_eq "and the recording does not carry it" \
+    "$(echo "$POV_RANGE" | awk -F'\.\.' -v p="$POSE_SEQUENCE" '{print (p>=$1 && p<=$2) ? 1 : 0}')" "0"
 else
   assert_eq "the first sequence the entity's model can pose, by name" "$POSE_SEQUENCE" "1"
-  assert_eq "and the recording carries it" "${POV_RANGE%%..*}" "$POSE_SEQUENCE"
+  # The posable sequence has to exist in a recording for the acceptance to be
+  # about something real. The POV no longer carries it (its window is 28..28), so
+  # the check runs against the switching recording, whose range is 0..68.
+  assert_eq "and a recording that switches carries it" \
+    "$(echo "$SWITCH_RANGE" | awk -F, -v p="$POSE_SEQUENCE" '{print (p>=0 && p<=$2) ? 1 : 0}')" "1"
 fi
 
 run_product pov-pose-bind "$DEMO_POV" 0 --viewmodel-sequence "$POSE_SEQUENCE"
@@ -1075,17 +1161,24 @@ for mutation in $MUTATIONS; do
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     sequence-frozen)
+      # Baseline for this recording is 91 changes; under the mutation it is 21.
+      # Comparing against the LOST recording's 141 made the assertion vacuous: a
+      # normal run (91) passed it too. The comparison has to be against the
+      # baseline this run was measured with, which is what makes the assertion
+      # reject an unmutated log.
       assert_ne "mutation sequence-frozen: the cursor stops moving" \
-        "$(rsum "$txt" 'vmanim-summary' changes)" "141"
+        "$(rsum "$txt" 'vmanim-summary' changes)" "91"
+      # 21 is this recording's census (was 18). The claim is invariance under
+      # the mutation, so the number has to be the recording's own baseline.
       assert_eq "mutation sequence-frozen: the entity count does not move" \
-        "$(rsum "$txt" 'vmanim-summary' entities)" "18"
+        "$(rsum "$txt" 'vmanim-summary' entities)" "21"
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     field-supply-collapse)
       assert_eq "mutation field-supply-collapse: no class carries the fields" \
         "$(rsum "$txt" 'vmfield-summary' classesWithSequence)" "0"
       assert_eq "mutation field-supply-collapse: the census does not move" \
-        "$(rfield "$txt" 'vmcensus class=CTFViewModel' entities)" "18"
+        "$(rfield "$txt" 'vmcensus class=CTFViewModel' entities)" "21"
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     cycle-invented)
@@ -1099,10 +1192,14 @@ for mutation in $MUTATIONS; do
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
     model-class-flip)
-      assert_ne "mutation model-class-flip: the entity's model reads as a viewmodel" \
-        "$(rsum "$txt" 'vmanim-summary' vStarModels)" "0"
+      # Baseline 2 (this recording's asset count), mutated 9: the flip marks the
+      # drawn model and its companions as viewmodels. Pinning 9 rather than "!= 0"
+      # because 2 != 0 is already true without the mutation, which is how the
+      # assertion silently stopped discriminating.
+      assert_eq "mutation model-class-flip: the entity's model reads as a viewmodel" \
+        "$(rsum "$txt" 'vmanim-summary' vStarModels)" "9"
       assert_eq "mutation model-class-flip: the change count does not move" \
-        "$(rsum "$txt" 'vmanim-summary' changes)" "141"
+        "$(rsum "$txt" 'vmanim-summary' changes)" "91"
       MUTATION_MOVED=$((MUTATION_MOVED + 1)); MUTATION_HELD=$((MUTATION_HELD + 1))
       ;;
   esac

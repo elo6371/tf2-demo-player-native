@@ -25,6 +25,13 @@ extern const char vertexSource[];
 extern const char pixelSource[];
 extern const char worldVertexSource[];
 extern const char worldPixelSource[];
+extern const char skyPixelSource[];
+// N05 step 3: a passthrough geometry shader whose only job is to stream the
+// world vertex shader's own SV_POSITION out to a buffer. It re-declares the
+// world VS output struct field for field and copies every field through, so the
+// rasteriser sees exactly the vertices it would have seen without it; only the
+// stream output declaration narrows what is written back, to position alone.
+extern const char worldClipCaptureGeometrySource[];
 extern const char modelVertexSource[];
 extern const char modelPixelSource[];
 extern const char overlayLineVertexSource[];

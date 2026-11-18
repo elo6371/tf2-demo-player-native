@@ -22,17 +22,8 @@
 # skeleton, the overlay sampler is the only per-tick player reader, and
 # EntityModelResolver owns the origin the speed is measured from.
 add_executable(model_pose_probe
-  tools/model_pose_probe.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  src/animation_binding.cpp
-  src/animation_clock.cpp
-  src/animation_decoder.cpp
-  src/entity_overlay.cpp
-  src/entity_model.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp)
-target_link_libraries(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+  tools/model_pose_probe.cpp)
+target_link_libraries(model_pose_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(model_pose_probe PRIVATE include third_party/lzma)
 set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
@@ -41,8 +32,8 @@ set_target_properties(model_pose_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # "only one 600-vertex range" can be attributed to a cause instead of inferred
 # from the pass's own vertex count. Links only the loader: the readings are the
 # parser's, and a probe that drew would need a device the gate does not have.
-add_executable(viewmodel_range_probe tools/viewmodel_range_probe.cpp src/model_loader.cpp src/asset_root.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp)
-target_link_libraries(viewmodel_range_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+add_executable(viewmodel_range_probe tools/viewmodel_range_probe.cpp )
+target_link_libraries(viewmodel_range_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(viewmodel_range_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(viewmodel_range_probe PRIVATE include)
 set_target_properties(viewmodel_range_probe PROPERTIES WIN32_EXECUTABLE OFF)
@@ -55,23 +46,14 @@ set_target_properties(viewmodel_range_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # animation binding and the same material reader the draw pass uses; it does not
 # link the renderer and does not draw.
 add_executable(model_robustness_probe
-  tools/model_robustness_probe.cpp
-  src/animation_binding.cpp
-  src/animation_decoder.cpp
-  src/viewmodel_material.cpp
-  src/vmt_material.cpp
-  src/vtf_texture.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  ${TF2_DEMO_HEADER_SOURCES}
-  src/item_schema.cpp)
-target_link_libraries(model_robustness_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+  tools/model_robustness_probe.cpp)
+target_link_libraries(model_robustness_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(model_robustness_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(model_robustness_probe PRIVATE include third_party/lzma)
 set_target_properties(model_robustness_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(entity_model_probe tools/entity_model_probe.cpp src/entity_model.cpp src/model_loader.cpp src/asset_root.cpp src/asset_lookup.cpp src/bsp_map.cpp src/world_material.cpp ${TF2_DEMO_HEADER_SOURCES} src/item_schema.cpp src/vmt_material.cpp src/vtf_texture.cpp)
-target_link_libraries(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+add_executable(entity_model_probe tools/entity_model_probe.cpp )
+target_link_libraries(entity_model_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_model_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(entity_model_probe PRIVATE include third_party/lzma)
 set_target_properties(entity_model_probe PROPERTIES WIN32_EXECUTABLE OFF)

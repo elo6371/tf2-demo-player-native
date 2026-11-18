@@ -18,7 +18,8 @@
 # grammar and the rectangle arithmetic, and cannot be helped by any installed
 # content or any GPU. The product links the same source file, so the probe and
 # the product cannot disagree about what a document means.
-add_executable(hud_probe tools/hud_probe.cpp src/hud_import.cpp)
+add_executable(hud_probe tools/hud_probe.cpp )
+target_link_libraries(hud_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(hud_probe PRIVATE include)
 target_compile_definitions(hud_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 set_target_properties(hud_probe PROPERTIES WIN32_EXECUTABLE OFF)

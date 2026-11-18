@@ -1,6 +1,7 @@
 #include "camera_bookmarks.h"
 #include "camera_director.h"
 #include "keybinds.h"
+#include "world_fov.h"
 
 #include <Windows.h>
 
@@ -521,6 +522,12 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
 } // namespace
 
 int main() {
+  check(std::abs(tf2::native::sourceHorizontalFovToVertical(90.0f) - 73.7398f) < 0.001f,
+    "Source horizontal 90 at 4:3 converts to vertical 73.7398 degrees");
+  check(std::abs(tf2::native::sourceHorizontalFovToVertical(75.0f) - 59.8404f) < 0.002f,
+    "Source horizontal 75 at 4:3 converts to vertical 59.8404 degrees");
+  check(tf2::native::sourceHorizontalFovToVertical(0.0f) < 0.0f,
+    "invalid zero FOV is rejected");
   using namespace tf2::native;
   Readings readings;
 

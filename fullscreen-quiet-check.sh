@@ -93,7 +93,11 @@ OUT="$ROOT/.scratch/fullscreen-quiet"
 mkdir -p "$OUT"
 EXE="$ROOT/native/build-nmake/tf2_demo_native.exe"
 GUARD="$ROOT/desktop-guard.ps1"
-MODE_PROBE="$ROOT/.scratch/t49/mode-probe.ps1"
+# A TRACKED path, not .scratch: the probe is the gate's precondition, and a
+# .scratch path made the gate refuse on every clean checkout ("mode probe missing")
+# and stop measuring at all once .scratch was cleaned. See tools/display-mode-probe.ps1
+# for why it reads EnumDisplaySettings current settings rather than a cached mode.
+MODE_PROBE="$ROOT/tools/display-mode-probe.ps1"
 # The product's real process name, DERIVED from the executable that is launched
 # rather than typed a second time. (tf_win64, which kept appearing in guard
 # readings, is an unrelated application on this desktop: it shows up in the
@@ -123,14 +127,19 @@ ISO_UI="$ISO_DIR/ui.ini"
 iso_seed_gate_settings "$ISO_DIR" || {
   echo "FATAL: cannot seed the isolated gate settings" >&2; exit 2; }
 RUN_TIMEOUT=180
-# 32 s, not 16. The product opens its archives for ~18 s before it creates and shows
-# its window (vpk: archives opened=4 at 18540.6 ms, mode: window_created at 19506.5 ms
-# of the control run), so a 16 s guard closes ~4 s BEFORE the product has a window at
-# all. Its counters then read zero, which is indistinguishable from a product that
-# never interfered -- the first full run of this gate reported exactly that. The
-# coverage assertions below make this a checked precondition instead of a magic
-# number: if startup ever slows past the margin, the gate fails instead of going green.
-GUARD_SECONDS=${GUARD_SECONDS:-32}
+# 45 s, and the history matters because this number has already been wrong twice.
+# 16 s was the first version: the product opens its archives for ~18 s before it creates
+# and shows its window (vpk: archives opened=4 at 18540.6 ms, mode: window_created at
+# 19506.5 ms of the control run), so a 16 s guard closed ~4 s BEFORE the product had a
+# window at all and its zeroes were indistinguishable from a product that never
+# interfered. 32 s fixed that, but cover_window also requires the guard to OUTLIVE the
+# product's process, and a control run on 2026-11-17 took product_wall_ms=34400 (window
+# at ~19.5 s, exit at 34.4 s): the 32 s guard stopped 2.9 s before the process exited and
+# the coverage assertion failed for a reason that had nothing to do with the product.
+# 45 s keeps the same 2 s lead / 2 s tail rule with >10 s of headroom over the slowest
+# run measured. The coverage assertions below still check it rather than assume it: if
+# the run ever gets slower than this, the gate fails instead of going green.
+GUARD_SECONDS=${GUARD_SECONDS:-45}
 
 fail=0
 ok_count=0
@@ -714,8 +723,14 @@ if want_phase keyprobe; then
   rm -f "$OUT/keyprobe.probe.txt" "$OUT/keyprobe.rc" "$OUT/keyprobe.probe.log"
   run_product "$OUT/keyprobe" --hidden-window --audio-disabled > "$OUT/keyprobe.rc" &
   kpid=$!
-  powershell -NoProfile -ExecutionPolicy Bypass -File "$ROOT/evidence/t49/key-dispatch-probe.ps1" \
-    -ProcessName "$PRODUCT_NAME" -Out "$(cygpath -m "$OUT/keyprobe.probe.txt")" > "$OUT/keyprobe.probe.log" 2>&1 &
+  # The probe is the TRACKED copy in tools/, pinned to this run's command line. The
+  # evidence/t49 original selects its process by name alone, and on 2026-11-17 this host
+  # had two worktrees running the product at once: the probe posted H and F9 to the other
+  # one (hSent=1 f9Sent=1 while this run's trace said dispatched=0) and the gate failed
+  # for a reason that was not about the product. See tools/key-dispatch-probe.ps1.
+  powershell -NoProfile -ExecutionPolicy Bypass -File "$ROOT/tools/key-dispatch-probe.ps1" \
+    -ProcessName "$PRODUCT_NAME" -CommandLineMatch '.scratch/fullscreen-quiet/' \
+    -Out "$(cygpath -m "$OUT/keyprobe.probe.txt")" > "$OUT/keyprobe.probe.log" 2>&1 &
   kppid=$!
   wait "$kpid"; k_wait_rc=$?
   wait "$kppid" 2>/dev/null
@@ -809,8 +824,18 @@ fi
 
 # No product process may survive the run: a leftover one would keep holding the
 # window it created and make the next phase's reading not the one it claims to be.
-leftover=$(powershell -NoProfile -Command "if (Get-Process -Name '$PRODUCT_NAME' -ErrorAction SilentlyContinue) { 'yes' } else { 'no' }" | tr -d '\r')
+# Scoped by COMMAND LINE, not by name. This host runs several TF2 worktrees at once
+# under one lock that not every run honours: the first full run of this revision
+# found an unrelated tf2_demo_native.exe (t105-holes' skyfix run, started in the middle
+# of this gate's control phase) and the name-only check charged it to this gate. The
+# gate's own processes are the ones whose command line carries this gate's output
+# directory, because run_product passes --capture-frame "$prefix.bmp" from $OUT.
+leftover=$(powershell -NoProfile -Command "\$n = @(Get-CimInstance Win32_Process -Filter \"Name='$PRODUCT_NAME.exe'\" | Where-Object { \$_.CommandLine -and \$_.CommandLine.Replace([char]92, [char]47).Contains('.scratch/fullscreen-quiet/') }); if (\$n.Count -gt 0) { 'yes' } else { 'no' }" | tr -d '\r')
+foreign=$(powershell -NoProfile -Command "\$n = @(Get-CimInstance Win32_Process -Filter \"Name='$PRODUCT_NAME.exe'\" | Where-Object { -not (\$_.CommandLine -and \$_.CommandLine.Replace([char]92, [char]47).Contains('.scratch/fullscreen-quiet/')) }); (\$n | ForEach-Object { \$_.ProcessId }) -join ','" | tr -d '\r')
 echo "  product processes left after the run: $leftover"
+if [ -n "$foreign" ]; then
+  echo "  NOTE a $PRODUCT_NAME process this gate did not start is running (pid $foreign); ignored, it holds no window this gate created"
+fi
 assert_eq "no product process survived the run" "$leftover" "no"
 
 echo

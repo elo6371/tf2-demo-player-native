@@ -1,0 +1,33 @@
+seam mode=product (exact <= 0.01, no-pair gate 0.5)
+map                     pairs    exact  within1  over1 nopair    median       max  unrec
+pl_upward_f12             933       31       33     14    886       0.0      40.0      1
+    dispinfo 304 pairs: [[299, 304, None], [300, 304, None], [304, 309, None], [304, 477, None]]
+    unreconstructable dispinfo 350 face 13279: triangle count 0 != 32
+cp_process_f12           1774     1722     1722      0     52       0.0       0.0      0
+    dispinfo 304 pairs: [[304, 306, 0.0], [304, 308, 0.0], [304, 307, 0.0], [304, 309, 0.0]]
+cp_sunshine               886        8       22      8    856     0.364    12.643      0
+    dispinfo 304 pairs: [[277, 304, None], [303, 304, None]]
+cp_sultry_b8a             274      114      120      0    154       0.0      0.14      0
+    dispinfo 304 pairs: [[304, 308, 0.0], [304, 306, 0.0], [304, 307, 0.0]]
+cp_gullywash_f9           736       64       64      2    670       0.0    14.734      0
+    dispinfo 304 pairs: [[304, 305, None]]
+cp_reckoner               685       98      172      8    505       0.0       5.0      6
+    dispinfo 304 pairs: [[301, 304, None], [303, 304, 0.3578], [304, 307, None]]
+    unreconstructable dispinfo 58 face 15902: triangle count 0 != 32
+    unreconstructable dispinfo 64 face 15908: triangle count 0 != 32
+    unreconstructable dispinfo 70 face 15914: triangle count 0 != 32
+koth_bagel_rc11          1658      898      945     87    626       0.0      4.07     14
+    dispinfo 304 pairs: [[240, 304, 0.0], [303, 304, 0.0], [304, 305, 0.0]]
+    unreconstructable dispinfo 421 face 10151: triangle count 0 != 32
+    unreconstructable dispinfo 429 face 10159: cell 1: 2 shared vertices
+    unreconstructable dispinfo 1258 face 10988: triangle count 0 != 32
+koth_ashville_final1       68        1        1      1     66     31.78     31.78      3
+    unreconstructable dispinfo 17 face 4951: triangle count 0 != 32
+    unreconstructable dispinfo 35 face 4969: triangle count 0 != 32
+    unreconstructable dispinfo 42 face 4976: triangle count 0 != 32
+koth_product_final        841      284      342      2    497       0.0     5.657      4
+    dispinfo 304 pairs: [[301, 304, 0.0], [302, 304, 0.0], [304, 309, 0.0]]
+    unreconstructable dispinfo 85 face 9138: triangle count 0 != 32
+    unreconstructable dispinfo 297 face 9350: triangle count 0 != 32
+    unreconstructable dispinfo 327 face 9380: triangle count 0 != 32
+TOTAL                    7855     3220     3421    122   4312

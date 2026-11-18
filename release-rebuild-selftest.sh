@@ -19,6 +19,10 @@
 #   C6 no build tree                                                -> exit 2
 #   C7 the build rewrites an ignored output                         -> PASS (not an input)
 #   C8 comment-only edit: exe bytes identical, content moved        -> PASS by identity
+#   C9 dependency byte moved, build lies -> FAIL (D-93 red)
+#   C10 bytes restored, mtimes touched -> PASS (D-93 green)
+#   C11 nothing changed -> PASS (D-93 green)
+#   C12 allowed-but-not-read file moved -> PASS (D-93) / superset rule would red
 #      (D-54: the pre-D-54 rule failed this shape; see the inline replay)
 #
 # Usage: bash release-rebuild-selftest.sh
@@ -27,7 +31,13 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 2
 HERE=$(pwd)
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT INT TERM
+# KEEP_WORK=1 preserves the mock trees and the per-case gate logs; the evidence
+# for the D-93 negative controls is copied out of this directory.
+if [ "${KEEP_WORK:-0}" = 1 ]; then
+  trap 'printf "selftest work kept: %s\n" "$WORK"' EXIT INT TERM
+else
+  trap 'rm -rf "$WORK"' EXIT INT TERM
+fi
 
 failures=0
 count=0
@@ -58,6 +68,41 @@ BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
 mkdir -p "$BUILD"
 # Inputs are tracked files only, like the real gate: native/generated is the
 # build's own ignored output and must never feed the link identity.
+mock_dep_file() { # <target> -- write the dependency scan the gate reads
+  local t="$1" d="$BUILD/CMakeFiles/$t.dir" root
+  mkdir -p "$d"
+  root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  root=${root//\\//}
+  {
+    printf '# CMAKE generated file: DO NOT EDIT!\n'
+    printf '# mock compiler dependency scan (NMake shape)\n\n'
+    printf 'CMakeFiles/%s.dir/%s.cpp.obj\n' "$t" "$t"
+    if [ "$t" = tf2_demo_native ]; then
+      printf ' %s/native/src/a.cpp\n' "$root"
+      printf ' %s/native/include/a.h\n' "$root"
+    else
+      printf ' %s/native/tools/%s.cpp\n' "$root" "$t"
+      printf ' %s/native/src/a.cpp\n' "$root"
+      printf ' %s/native/include/a.h\n' "$root"
+    fi
+    printf ' C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/include/vector\n'
+  } > "$d/compiler_depend.internal"
+}
+
+mock_dep_sha() { # <target> -- link identity = content actually read for this target
+  local t="$1"
+  {
+    if [ "$t" != tf2_demo_native ]; then
+      printf '%s\n' "native/tools/$t.cpp"
+      grep -v '^[[:space:]]*//' "native/tools/$t.cpp" 2>/dev/null
+    fi
+    printf '%s\n' "native/src/a.cpp"
+    grep -v '^[[:space:]]*//' native/src/a.cpp 2>/dev/null
+    printf '%s\n' "native/include/a.h"
+    grep -v '^[[:space:]]*//' native/include/a.h 2>/dev/null
+  } | sha256sum | cut -d' ' -f1
+}
+
 mock_code_sha() {
   find native/src native/include native/tools -type f 2>/dev/null | LC_ALL=C sort |
     while IFS= read -r f; do
@@ -75,6 +120,10 @@ for t in "$@"; do
   # tf2_identity is an ALL target that writes sidecars; it links no binary.
   [ "$t" = tf2_identity ] && continue
   exe="$BUILD/$t.exe"
+  # The build writes the dependency scan it actually read for this target, exactly
+  # as CMake does; the gate's per-target rule reads that file (D-93).
+  mock_dep_file "$t"
+  h=$(mock_dep_sha "$t")
   [ -n "${MOCK_FAIL:-}" ] && exit 3
   # MOCK_LIE models a build that relinks nothing AND refreshes nothing: the
   # stale sidecar / manifest is what the gate must catch.
@@ -99,6 +148,8 @@ new_case() { # new_case <name> -> echoes the case dir, creates tree + exes
   local dir="$WORK/$1"
   mkdir -p "$dir/native/src" "$dir/native/include" "$dir/native/generated" "$dir/native/tools" "$dir/native/build-nmake"
   printf 'int a;\n' > "$dir/native/src/a.cpp"
+  # inside the gate's allowed superset, never read by any target (D-93 C12)
+  printf 'int unrelated;\n' > "$dir/native/src/other.cpp"
   printf '// header\n' > "$dir/native/include/a.h"
   printf '// generated\n' > "$dir/native/generated/g.h"
   mkdir -p "$dir/native/cmake"
@@ -223,6 +274,69 @@ if [ -n "$old_in" ] && [ "$old_in" != "$new_in" ] && [ "$old_bin" = "$exe_after"
   ok "C8 the pre-D-54 rule would have failed here (inputs moved, binary did not)"
 else
   bad "C8 the pre-D-54 red was not reproducible (old_in=${old_in:0:12} new_in=${new_in:0:12} old_bin=${old_bin:0:12} exe=${exe_after:0:12})"
+fi
+
+# --- C9: a dependency's bytes moved, the build lies (must be red) -----------
+# 判据负控 1/3: 改一个字节的源码 -> 必红.
+# native/src/a.cpp is in every target's dependency scan, so its content move must
+# be answered by a binary move; MOCK_LIE models a build that rebuilds nothing.
+d9=$(new_case c9)
+rc=$(run_gate "$d9" "$WORK/c9-baseline.log")
+expect_rc "C9 baseline run passes" "$rc" 0
+rc=$(run_gate "$d9" "$WORK/c9-baseline-2.log")
+expect_rc "C9 second run is strict on dependencies and passes" "$rc" 0
+expect_has "C9 dependency method is recorded" "$d9/native/build-nmake/.rebuild-inputs/world_geometry_probe.env" "deps_method=cmake-compiler-depend"
+dep_before=$(sed -n 's/^deps_sha256=//p' "$d9/native/build-nmake/.rebuild-inputs/world_geometry_probe.env")
+printf 'int a;\nint lied;\n' > "$d9/native/src/a.cpp"
+rc=$(run_gate "$d9" "$WORK/c9-red-edit-byte.log" MOCK_LIE=1)
+expect_rc "C9 changed dependency byte + lying build fails" "$rc" 1
+expect_has "C9 red names the changed-dependency rule" "$WORK/c9-red-edit-byte.log" "reason=inputs-changed-binary-not-rebuilt"
+expect_has "C9 red reports the dependency definition used" "$WORK/c9-red-edit-byte.log" "deps_method=cmake-compiler-depend"
+dep_after=$(sed -n 's/^deps_sha256=//p' "$d9/native/build-nmake/.rebuild-inputs/world_geometry_probe.env")
+if [ -n "$dep_before" ] && [ "$dep_before" = "$dep_after" ]; then
+  ok "C9 the failed run left the dependency baseline alone"
+else
+  bad "C9 the failed run overwrote the baseline (before=$dep_before after=$dep_after)"
+fi
+
+# --- C10: restore the bytes, touch only (must be green) ---------------------
+# 判据负控 2/3: 把字节复原只 touch -> 必绿.
+printf 'int a;\n' > "$d9/native/src/a.cpp"
+find "$d9/native/src" "$d9/native/include" "$d9/native/tools" -type f -exec touch -d '+2 hours' {} +
+rc=$(run_gate "$d9" "$WORK/c10-green-restore-touch.log" MOCK_LIE=1)
+expect_rc "C10 restored bytes + newer mtimes pass" "$rc" 0
+expect_lacks "C10 no red left when only mtime moved" "$WORK/c10-green-restore-touch.log" "REBUILD-FRESH=FAIL"
+
+# --- C11: nothing changed (must be green) -----------------------------------
+# 判据负控 3/3: 不动 -> 必绿.
+rc=$(run_gate "$d9" "$WORK/c11-green-unchanged.log" MOCK_LIE=1)
+expect_rc "C11 unchanged tree passes" "$rc" 0
+expect_lacks "C11 no stale red when nothing moved" "$WORK/c11-green-unchanged.log" "REBUILD-FRESH=FAIL"
+
+# --- C12: allowed-but-not-read file moved (the 2026-11-16 merge false red) ---
+# D-93 red-first evidence: native/src/other.cpp is tracked and inside the probes'
+# allowed superset, yet no target includes it. The superset hash moves while the
+# per-target dependency set does not -- exactly the merge false-red shape; the new
+# rule must stay green, and the inequality proves the old rule would have gone red.
+d12=$(new_case c12)
+rc=$(run_gate "$d12" "$WORK/c12-baseline.log")
+expect_rc "C12 baseline run passes" "$rc" 0
+old_in=$(sed -n 's/^inputs_sha256=//p' "$d12/native/build-nmake/.rebuild-inputs/world_geometry_probe.env")
+old_dep=$(sed -n 's/^deps_sha256=//p' "$d12/native/build-nmake/.rebuild-inputs/world_geometry_probe.env")
+printf 'int unrelated;\nint moved;\n' > "$d12/native/src/other.cpp"
+# No MOCK_LIE here: the mock build must be allowed to refresh the product sidecar,
+# because this file really is part of the product's content set. What must NOT
+# move is the probe's dependency set, and a mock that rebuilds honestly demonstrates
+# that a full build leaves the probe binary byte-identical.
+rc=$(run_gate "$d12" "$WORK/c12-allowed-not-actual.log")
+expect_rc "C12 editing an allowed-but-not-read file passes" "$rc" 0
+expect_lacks "C12 no false red from the superset" "$WORK/c12-allowed-not-actual.log" "REBUILD-FRESH=FAIL"
+new_in=$(sed -n 's/^inputs_sha256=//p' "$d12/native/build-nmake/.rebuild-inputs/world_geometry_probe.env")
+new_dep=$(sed -n 's/^deps_sha256=//p' "$d12/native/build-nmake/.rebuild-inputs/world_geometry_probe.env")
+if [ -n "$old_in" ] && [ "$old_in" != "$new_in" ] && [ "$old_dep" = "$new_dep" ]; then
+  ok "C12 the old superset rule would have failed here (superset moved, dependency set did not)"
+else
+  bad "C12 superset red not reproducible (old_in=$old_in new_in=$new_in old_dep=$old_dep new_dep=$new_dep)"
 fi
 
 echo

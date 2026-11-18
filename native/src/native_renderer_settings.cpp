@@ -52,6 +52,7 @@ void RenderSettings::normalize() {
   modelLod = clampValue(modelLod, 0, 8);
   renderScale = clampValue(renderScale, 0.5f, 2.0f);
   viewModelFov = clampViewModelFov(viewModelFov);
+  worldFov = clampViewModelFov(worldFov);
   // T24 (2026-10-19): this block used to force the Performance preset's shading
   // flags to false here as well as in fromPreset().
   //

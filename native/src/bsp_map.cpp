@@ -253,7 +253,8 @@ void writeLuxel(std::uint8_t* dest, const std::uint8_t* sample, std::uint64_t& t
 }
 
 bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
-    std::size_t triangleLimit, int atlasMaxWidth) {
+    std::size_t triangleLimit, int atlasMaxWidth, bool keepMapWinding,
+    const std::vector<std::string>& extraStaticClasses) {
   map = {}; auto fail = [&](const char* message) { map.error = message; return false; };
   if (bytes.size() < kHeaderSize || read<std::uint32_t>(bytes, 0) != 0x50534256u) return fail("BSP header is invalid");
   map.version = read<std::int32_t>(bytes, 4); map.revision = read<std::int32_t>(bytes, 8 + 64 * 16);
@@ -582,9 +583,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   // func_illusionary (probe-runs/bsp_skipped_faces.py). It was excluded only
   // because the list was written from the three classes earlier tasks had
   // needed, and a class that is missing from a whitelist fails silently.
-  const auto brushClassIsStatic = [](const std::string& name) {
-    return name == "func_brush" || name == "func_wall" || name == "func_lod"
-        || name == "func_illusionary";
+  // M4 gate: the classes named on the command line are added to the whitelist for
+  // one run (`--world-allow-class`). The default list is untouched, so a normal run
+  // parses exactly what it parsed before this flag existed.
+  const auto brushClassIsStatic = [&extraStaticClasses](const std::string& name) {
+    if (name == "func_brush" || name == "func_wall" || name == "func_lod"
+        || name == "func_illusionary") return true;
+    for (const auto& extra : extraStaticClasses) if (extra == name) return true;
+    return false;
   };
   std::vector<char> modelDrawn(modelCount, 0);
   // T88: which brush models lost a face to the triangle budget, so
@@ -1111,7 +1117,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         // side-aware outward direction, which is the cell the previous round
         // pinned as `displacedMisfaced=38614` and the cell that holds the
         // top-down view's right half.
-        if (haveFaceOutward && displacement) {
+        // Diagnostic (W-1 step 2): keepMapWinding disables the displacement
+        // reversal so a capture can ask whether the map's own grid order is the
+        // one that faces the observer. Brush triangles are never reversed by this
+        // rule, so "displacement only" and "everything" are the same scope here.
+        if (haveFaceOutward && displacement && !keepMapWinding) {
           if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
             std::swap(b, c);
             std::swap(bAlpha, cAlpha);
@@ -1224,20 +1234,31 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           // honest degradation.
           std::vector<float> gridAlpha(static_cast<std::size_t>(size) * static_cast<std::size_t>(size), -1.0f);
           bool finite = true;
-          for (int y = 0; y < size && finite; ++y) {
-            const float fy = static_cast<float>(y) / static_cast<float>(size - 1);
-            const auto left = lerpVertex(quad[0], quad[3], fy);
-            const auto right = lerpVertex(quad[1], quad[2], fy);
-            for (int x = 0; x < size; ++x) {
-              const float fx = static_cast<float>(x) / static_cast<float>(size - 1);
-              const auto flat = lerpVertex(left, right, fx);
-              const auto vertAt = (static_cast<std::size_t>(vertStart) + static_cast<std::size_t>(y * size + x)) * 20u;
+          // T105: the grid is walked the way the engine walks it, not the way it
+          // looks laid out on paper. Source addresses the displacement vertices
+          // with k = i * size + j where +i runs points[0]->points[1] with stride
+          // size and +j runs points[0]->points[3] with stride 1; points[0] is the
+          // polygon corner nearest startPosition, which is quad[0] here. Walked
+          // the other way (k = y*size + x with the strides swapped) a patch keeps
+          // its shape but loses its orientation, and a boundary vertex the map
+          // sewed to its neighbour lands on a different lattice point -- measured
+          // on pl_upward_f12: 31 of 933 sewn pairs agreed within 0.01, against
+          // 787 for the engine's own walk (analysis/world-disp-param-seam-before.txt).
+          for (int i = 0; i < size && finite; ++i) {
+            const float fi = static_cast<float>(i) / static_cast<float>(size - 1);
+            const auto rowLeft = lerpVertex(quad[0], quad[1], fi);
+            const auto rowRight = lerpVertex(quad[3], quad[2], fi);
+            for (int j = 0; j < size; ++j) {
+              const float fj = static_cast<float>(j) / static_cast<float>(size - 1);
+              const auto flat = lerpVertex(rowLeft, rowRight, fj);
+              const auto index = static_cast<std::size_t>(i * size + j);
+              const auto vertAt = (static_cast<std::size_t>(vertStart) + index) * 20u;
               const float vx = read<float>(dispVerts, vertAt), vy = read<float>(dispVerts, vertAt + 4), vz = read<float>(dispVerts, vertAt + 8), dist = read<float>(dispVerts, vertAt + 12);
               const float alpha = read<float>(dispVerts, vertAt + 16);
               if (!std::isfinite(vx) || !std::isfinite(vy) || !std::isfinite(vz) || !std::isfinite(dist) || std::fabs(dist) > 4096.0f) { finite = false; break; }
-              grid[static_cast<std::size_t>(y * size + x)] = {flat.x + vx * dist, flat.y + vy * dist, flat.z + vz * dist};
+              grid[index] = {flat.x + vx * dist, flat.y + vy * dist, flat.z + vz * dist};
               if (std::isfinite(alpha)) {
-                gridAlpha[static_cast<std::size_t>(y * size + x)] = std::clamp(alpha, 0.0f, 1.0f);
+                gridAlpha[index] = std::clamp(alpha, 0.0f, 1.0f);
               }
             }
           }
@@ -1291,8 +1312,11 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               if (matched != 3) ++map.alphaPairingDetached;
             };
             for (int y = 0; y < size - 1; ++y) for (int x = 0; x < size - 1; ++x) {
-              const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gy * size + gx)]; };
-              const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gy * size + gx)]; };
+              // x is the +i axis (quad[0]->quad[1]) and y the +j axis
+              // (quad[0]->quad[3]), so the flat index is x*size + y -- the index
+              // the vertex itself was stored at.
+              const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gx * size + gy)]; };
+              const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gx * size + gy)]; };
               const auto p00 = at(x, y), p10 = at(x + 1, y), p11 = at(x + 1, y + 1), p01 = at(x, y + 1);
               if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) {
                 displacementComplete = false;

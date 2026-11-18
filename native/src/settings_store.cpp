@@ -56,6 +56,11 @@ std::filesystem::path settingsPath() {
 
 PersistentSettings loadSettings() {
   PersistentSettings result{};
+  // W-1 (2026-11-17): the compiled default when there is no settings file at all
+  // -- the sky is on. This is the same value the `skybox` key falls back to
+  // below; it is set before the early return so "no file" and "file without the
+  // key" cannot disagree.
+  result.render.skybox = true;
   const auto file = settingsPath();
   if (file.empty()) return result;
   const bool standardQuality = readInt(file, L"preset", 0) == 1;
@@ -69,20 +74,38 @@ PersistentSettings loadSettings() {
   // disabled by the caller`, and 20.2% of the reference frame was clear colour
   // because the sky pass never ran.
   //
-  // The sky is taken from the preset because it decides what geometry the world
-  // pass draws. The other Standard flags (dynamic lighting, specular, bump,
-  // shadows, water reflection, mip bias, anisotropy, model lod) stay exactly
-  // where this reader left them: each of those changes the SHADING, and a
-  // shading change has to be measured before it is claimed. Enabling them here
-  // would have moved every region pin in this task's own evidence for a reason
-  // the task did not measure, which is the opposite of what T17 asks for. That
-  // half of the contradiction is written down in
+  // The other Standard flags (dynamic lighting, specular, bump, shadows, water
+  // reflection, mip bias, anisotropy, model lod) stay exactly where this reader
+  // left them: each of those changes the SHADING, and a shading change has to be
+  // measured before it is claimed. Enabling them here would have moved every
+  // region pin in this task's own evidence for a reason the task did not
+  // measure. That half of the contradiction is written down in
   // T17-WORLD-VISUAL-2026-10-19.md §6 and belongs to the render-regression
   // round.
-  result.render.skybox = standardQuality;
+  //
+  // W-1 (2026-11-17): THE SKY IS NOT ONE OF THEM, and deriving it from the
+  // preset was wrong. `result.render.skybox = standardQuality` made the COMPILED
+  // default -- `preset` absent reads as 0, which is Performance -- a frame with
+  // no sky at all: every pixel the world pass leaves empty stayed clear colour
+  // RGB(14,18,22). Measured at pl_upward tick 1800 with the pass forced on, all
+  // 2,072 enclosed clear pixels became sky; at cp_process tick 600 the frame
+  // carried 19.74% clear colour that is sky in the map. The cost account is what
+  // decides it: the pass is 12 triangles, 6 faces, 1 draw, so its absence is not
+  // "a lower preset", it is a frame whose empty pixels show the clear colour --
+  // and a fresh install (no settings file, so preset 0) inherited exactly that.
+  //
+  // Precedence for the sky, highest first: --world-sky / --no-world-sky
+  // (main.cpp:8641) > an explicit `skybox=` key in this file > the compiled
+  // default, true. The preset no longer touches it. Nothing writes the key yet,
+  // so the old frame stays reachable by hand; a UI toggle would write it the
+  // same way.
+  result.render.skybox = readBool(file, L"skybox", true);
   result.render.renderScale = static_cast<float>(readInt(file, L"renderScalePercent", 100)) / 100.0f;
   result.render.viewModelFov = static_cast<float>(
     migrateLegacyViewModelFov(readInt(file, L"viewModelFov", kDefaultViewModelFovInt)));
+  // World camera FOV uses Source's horizontal-at-4:3 convention. Never inherit
+  // viewModelFov here: that legacy coupling made a weapon setting move the map.
+  result.render.worldFov = static_cast<float>(readInt(file, L"worldFov", 90));
   result.render.vsync = readBool(file, L"vsync", false);
   // T52: the overlay's two keys. They are read here, with everything else, so a
   // gate that pins its own settings file makes the COMPILED default the input --
@@ -130,6 +153,7 @@ bool saveSettings(const PersistentSettings& settings) {
   if (!writeInt(temporary, L"preset", render.preset == QualityPreset::Standard ? 1 : 0)
       || !writeInt(temporary, L"renderScalePercent", static_cast<int>(render.renderScale * 100.0f + 0.5f))
       || !writeInt(temporary, L"viewModelFov", static_cast<int>(render.viewModelFov + 0.5f))
+      || !writeInt(temporary, L"worldFov", static_cast<int>(render.worldFov + 0.5f))
       || !writeBool(temporary, L"vsync", render.vsync)
       // T52: the overlay's two keys, written here so there is ONE ini writer. A
       // second writer racing this one is how a settings file ends up with half of

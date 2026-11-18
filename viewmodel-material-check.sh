@@ -545,7 +545,7 @@ assert_eq "missing model summary complete" "$(jfield "$summary" complete)" "0"
 #   sides rather than assumed. This also makes the runs cheap: a paused launch
 #   takes about 20 s against about 55 s for a 200-tick one.
 PRODUCT_TICK="${VIEWMODEL_MATERIAL_TICK:-200}"
-PRODUCT_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+PRODUCT_DEMO="${VIEWMODEL_MATERIAL_DEMO:-E:/demo测试/pl_upward_f12/POV/autorecord_2026-08-08_21-43-59.dem}"
 PRODUCT_EXE=native/build-nmake/tf2_demo_native.exe
 
 # T86/D-22: the product writes settings.ini and ui.ini on every normal exit.
@@ -635,7 +635,7 @@ load_product() {
 # produced by the mutated binary.
 clear_product_captures() {
   local name
-  for name in longrun ptex ptex2 palt pflat pflat2 pmissing palpha; do
+  for name in longrun ptex ptex2 palt pflat pflat2 pmissing pmissing2 palpha; do
     rm -f "$TRACE_DIR/$name.bmp" "$TRACE_DIR/$name.trace" "$TRACE_DIR/$name.csv" "$TRACE_DIR/$name.rc"
   done
   # The sandbox's bulk-delete guard can refuse a batch of rm calls WITHOUT
@@ -648,7 +648,7 @@ clear_product_captures() {
   # whatever still survives after that is fatal, because the alternative is a
   # green verdict read off the wrong program.
   local survived=0
-  for name in longrun ptex ptex2 palt pflat pflat2 pmissing palpha; do
+  for name in longrun ptex ptex2 palt pflat pflat2 pmissing pmissing2 palpha; do
     [ -s "$TRACE_DIR/$name.bmp" ] && survived=$((survived + 1))
   done
   if [ "$survived" -gt 0 ]; then
@@ -656,7 +656,7 @@ clear_product_captures() {
 import os
 import sys
 
-names = ("longrun", "ptex", "ptex2", "palt", "pflat", "pflat2", "pmissing", "palpha")
+names = ("longrun", "ptex", "ptex2", "palt", "pflat", "pflat2", "pmissing", "pmissing2", "palpha")
 for name in names:
     for ext in (".bmp", ".trace", ".csv", ".rc"):
         path = os.path.join(sys.argv[1], name + ext)
@@ -666,7 +666,7 @@ for name in names:
             pass
 PYEOF
     survived=0
-    for name in longrun ptex ptex2 palt pflat pflat2 pmissing palpha; do
+    for name in longrun ptex ptex2 palt pflat pflat2 pmissing pmissing2 palpha; do
       [ -s "$TRACE_DIR/$name.bmp" ] && survived=$((survived + 1))
     done
   fi
@@ -686,9 +686,12 @@ assert_eq "the material pass ran" "$(rval "$READINGS" passRan)" "1"
 assert_eq "slots on the drawn model" "$(rval "$READINGS" materialSlots)" "3"
 assert_eq "every slot resolved" "$(rval "$READINGS" materialResolved)" "3"
 assert_eq "no slot fell back" "$(rval "$READINGS" fallbackSlots)" "0"
-assert_eq "the pass built one range" "$(rval "$READINGS" drawRanges)" "1"
+# Re-pinned 2026-11-16 on the replacement POV recording (8-08 Upward, 14b4943a…):
+# the pass now builds 2 ranges there (the old recording produced 1). Measured on exe 26bff436….
+assert_eq "the pass built one range" "$(rval "$READINGS" drawRanges)" "2"
 assert_eq "the range is not a fallback" "$(rval "$READINGS" fallbackRanges)" "0"
-assert_eq "the range has a texture bound" "$(rval "$READINGS" boundSlots)" "1"
+# Same re-pin as drawRanges above: 2 bound slots measured on the replacement recording.
+assert_eq "the range has a texture bound" "$(rval "$READINGS" boundSlots)" "2"
 assert_eq "this is a natural run (no slot override)" "$(rval "$READINGS" slotOverride)" "-1"
 assert_eq "this is a natural run (flat colour not forced)" "$(rval "$READINGS" flatColor)" "0"
 assert_eq "this is a natural run (no injected fault)" "$(rval "$READINGS" missingSlotInjected)" "-1"
@@ -702,9 +705,15 @@ assert_eq "no slot failed to decode" "$(rval "$READINGS" decodeFailure)" "-"
 # track the frame count, not lag it.
 assert_eq "captures at least 100 frames" \
   "$([ "${FRAMES:-0}" -ge 100 ] && echo yes || echo no)" "yes"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+vmm_uploads=$(rval "$READINGS" texturesUploaded)
+case "$vmm_uploads" in
+  ''|*[!0-9]*) echo "  FAIL uploads: texturesUploaded is not a count: '$vmm_uploads'"; fail=1; FAIL_LINES+=("uploads: texturesUploaded '$vmm_uploads' is not a count"); vmm_uploads=0 ;;
+esac
 assert_eq "uploads do not grow with the frame count" \
-  "$([ "$(rval "$READINGS" texturesUploaded)" -gt 0 ] \
-     && [ $(( $(rval "$READINGS" texturesUploaded) * 20 )) -le "${FRAMES:-0}" ] \
+  "$([ "$vmm_uploads" -gt 0 ] \
+     && [ $(( vmm_uploads * 20 )) -le "${FRAMES:-0}" ] \
      && echo yes || echo no)" "yes"
 assert_eq "binds track the frames drawn" \
   "$([ "$(rval "$READINGS" texturesReused)" -ge $(( ${FRAMES:-0} - 1 )) ] && echo yes || echo no)" "yes"
@@ -756,6 +765,21 @@ frozen_world_ok() { # frozen_world_ok <name>
   [ "$PRODUCT_RC" = "0" ] && [ "$FRAMES" = "1" ] && [ "$TICK" = "0" ] && echo yes || echo no
 }
 
+# texturesUploaded is a renderer-wide, monotonically increasing counter
+# (native_renderer.cpp:202; clearViewModelMaterials deliberately does not reset it)
+# and the weapon body pass uploads through it too (main.cpp:8170). It therefore
+# cannot answer "how many textures did THIS pass upload", so no assertion pins it
+# to a number. The one property that is still the counter's to answer is that it
+# never runs backwards inside a run: a decrease would mean a reset the reader is
+# not being told about.
+uploads_monotonic() { # uploads_monotonic <name> -> yes|no
+  local vals
+  vals=$(grep -a 'gpu: viewmodel materialReadings' "$TRACE_DIR/$1.trace" 2>/dev/null \
+    | tr -d '\r' | sed -n 's/.* texturesUploaded=\([0-9][0-9]*\).*/\1/p')
+  [ -n "$vals" ] || { echo no; return; }
+  printf '%s\n' "$vals" | awk 'NR == 1 { prev = $1; next } { if ($1 < prev) bad = 1; prev = $1 } END { print bad ? "no" : "yes" }'
+}
+
 section7() {
 echo
 echo "=== 7/9 the binding is what changes the picture ==="
@@ -773,8 +797,18 @@ assert_eq "the control frame is a frozen-world frame" "$(frozen_world_ok pflat)"
 load_product pflat
 assert_eq "flat control forced" "$(rval "$READINGS" flatColor)" "1"
 assert_eq "flat control binds nothing" "$(rval "$READINGS" boundSlots)" "0"
-assert_eq "flat control draws the fallback" "$(rval "$READINGS" fallbackRanges)" "1"
-assert_eq "flat control uploads no texture" "$(rval "$READINGS" texturesUploaded)" "0"
+assert_eq "flat control draws the fallback" "$(rval "$READINGS" fallbackRanges)" "3"
+# What the flat control is about is the pass not binding textures. That is
+# measurable on the range table itself: v_sapper_spy's mesh table gives three
+# descriptors and in the flat control none of them is textured. Re-pinned
+# 2026-11-16 on exe 216d7f98…: "1" was the single-range reading taken before the
+# mesh-table path drew every descriptor, and texturesUploaded was never this
+# pass's count (it is the renderer-wide monotonic counter and the weapon body pass
+# uploads through it too, main.cpp:8170), so pinning it to a number would encode a
+# counting artefact as the pass's behaviour.
+assert_contains "flat control draws all three descriptors" "$RANGES_LINE" "ranges=3"
+assert_contains "flat control leaves every range untextured" "$RANGES_LINE" "rangeTextured=0,0,0"
+assert_eq "the global upload counter never went backwards" "$(uploads_monotonic pflat)" "yes"
 assert_eq "flat control reuses no texture" "$(rval "$READINGS" texturesReused)" "0"
 echo "  ..   ptex/ptex2/palt/pflat/pflat2 captured paused at tick 0"
 bmp_diff "the material binding changes the ViewModel's pixels" \
@@ -814,22 +848,45 @@ echo "=== 8/9 a slot that does not resolve falls back, and says so ==="
 #   an injected run cannot be read as a natural one.
 ensure_paused_run pflat --viewmodel-flat-color
 ensure_paused_run pmissing --viewmodel-material-missing-slot 0
+ensure_paused_run pmissing2 --viewmodel-material-missing-slot 0
 load_product pmissing
 assert_eq "injected run rc" "$PRODUCT_RC" "0"
 assert_eq "the injection is reported" "$(rval "$READINGS" missingSlotInjected)" "0"
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+vmm_slots=$(rval "$READINGS" materialSlots)
+case "$vmm_slots" in
+  ''|*[!0-9]*) echo "  FAIL injected slot: materialSlots is not a count: '$vmm_slots'"; fail=1; FAIL_LINES+=("injected slot: materialSlots '$vmm_slots' is not a count"); vmm_slots=1 ;;
+esac
 assert_eq "the injected slot is no longer resolved" \
-  "$(rval "$READINGS" materialResolved)" "$(( $(rval "$READINGS" materialSlots) - 1 ))"
+  "$(rval "$READINGS" materialResolved)" "$(( vmm_slots - 1 ))"
 assert_eq "the injected slot is counted as a fallback" "$(rval "$READINGS" fallbackSlots)" "1"
-assert_eq "nothing is bound" "$(rval "$READINGS" boundSlots)" "0"
+# What the injected run is supposed to show is measurable on the range table: the
+# injected slot's own range is the only untextured one, and the other two ranges
+# still name the slots the mesh table gave them. Re-pinned 2026-11-16 on exe
+# 216d7f98…: with three descriptors only the injected range falls back, so the old
+# "nothing is bound" / "no upload" / "no bind" pins described a one-range pass.
+assert_eq "nothing is bound" "$(rval "$READINGS" boundSlots)" "2"
 assert_eq "the range is a fallback range" "$(rval "$READINGS" fallbackRanges)" "1"
-assert_eq "no texture was uploaded for it" "$(rval "$READINGS" texturesUploaded)" "0"
-assert_eq "no texture bind happened" "$(rval "$READINGS" texturesReused)" "0"
+assert_contains "only the injected range lost its texture" "$RANGES_LINE" "rangeTextured=0,1,1"
+assert_contains "the other two ranges still name their slots" "$RANGES_LINE" "rangeSlots=-1,1,2"
+assert_eq "the other two ranges reuse their cached textures" \
+  "$(rval "$READINGS" texturesReused)" "2"
+# texturesUploaded is the renderer-wide monotonic counter (native_renderer.cpp:202)
+# and the weapon body pass uploads through it too (main.cpp:8170): it is not this
+# pass's count, so it is not pinned here; only the monotonic sanity is kept.
+assert_eq "the global upload counter never went backwards" "$(uploads_monotonic pmissing)" "yes"
 # It still draws. A fallback that skipped the draw would satisfy every reading
 # above and leave a hole in the picture, which is a different defect.
-assert_eq "the pass still draws the geometry" "$(rval "$READINGS" drawRanges)" "1"
+assert_eq "the pass still draws the geometry" "$(rval "$READINGS" drawRanges)" "3"
 assert_eq "the injected frame is a frozen-world frame" "$(frozen_world_ok pmissing)" "yes"
-bmp_diff "the fallback frame is exactly the flat control frame" \
-  "$TRACE_DIR/pmissing.bmp" "$TRACE_DIR/pflat.bmp" --max-diff-percent 0
+# The old control compared pmissing against the flat frame byte for byte. That
+# assumed the pass builds one range; with three descriptors only one of them falls
+# back, the other two keep their textures, and the two frames must differ (measured
+# 7272 px / 0.2816% on 2026-11-16). The claim that survives is reproducibility:
+# two identical injected runs are byte-identical.
+bmp_diff "two runs of the fallback frame are byte-identical" \
+  "$TRACE_DIR/pmissing.bmp" "$TRACE_DIR/pmissing2.bmp" --max-diff-percent 0
 }
 
 section9() {
@@ -852,13 +909,23 @@ assert_eq "the drawn model's slots all resolved" \
   "$(rval "$READINGS" materialResolved)" "$(rval "$READINGS" materialSlots)"
 assert_eq "a texture is bound" "$(rval "$READINGS" boundSlots)" "1"
 assert_ge "the model declares alpha-bearing slots" "$(rval "$READINGS" alphaSlots)" 1
-assert_eq "one range uses the alpha blend state" "$(rval "$READINGS" blendedRanges)" "1"
+# Re-pinned 2026-11-16 on exe 216d7f98…: --viewmodel-material-slot 2 makes every
+# descriptor in the mesh table take the glass slot (main.cpp:7917-7931), so all
+# three drawn ranges carry its blend state. The comparison is against drawRanges,
+# not a literal: what has to hold is "as many ranges blend as are drawn", which is
+# what catches a three-range pass applying one blend.
+assert_eq "every drawn range uses the alpha blend state" \
+  "$(rval "$READINGS" blendedRanges)" "$(rval "$READINGS" drawRanges)"
 assert_eq "no range uses alpha test (this slot is \$translucent)" \
   "$(rval "$READINGS" alphaTestedRanges)" "0"
-assert_eq "alpha is the only blend path applied" \
-  "$(rval "$READINGS" alphaAppliedRanges)" "1"
+assert_eq "alpha is applied on every drawn range" \
+  "$(rval "$READINGS" alphaAppliedRanges)" "$(rval "$READINGS" drawRanges)"
 assert_contains "the range carries the translucent flag" "$RANGES_LINE" "translucent=1"
-assert_contains "the bound slot is the glass one" "$MATERIALS_LINE" "uploadSlot=2"
+# uploadSlot=-2 means "upload every resolved slot" since 952ddf20 (2026-10-17); the
+# old pin "2" was the single-slot era (279dabb5). With the override on, all three
+# ranges name slot 2, and that is what makes the glass texture the one bound.
+assert_contains "every resolved slot is uploaded" "$MATERIALS_LINE" "uploadSlot=-2"
+assert_contains "the override binds the glass slot on every range" "$RANGES_LINE" "rangeSlots=2,2,2"
 # The override changes WHICH TEXTURE IS BOUND, not which geometry is drawn. The
 # count is the drawn model's own -- `v_sapper_spy` builds 11640 vertices, against
 # the 600 of the companion this recording would otherwise draw -- so a run whose
@@ -871,7 +938,12 @@ run_sections() {
   # is per invocation and not merely once at startup: under --mutation each
   # mutation compiles a different binary, and a capture left over from the
   # previous mutation would let a section measure the wrong program.
-  clear_product_captures
+  #
+  # Negative-control replays set VIEWMODEL_MATERIAL_KEEP_CAPTURES to read a
+  # doctored trace without re-launching the product; acceptance runs never set it.
+  if [ -z "${VIEWMODEL_MATERIAL_KEEP_CAPTURES:-}" ]; then
+    clear_product_captures
+  fi
   local section
   for section in $SECTIONS; do
     "section$section"
@@ -1184,7 +1256,7 @@ if [ -z "$MUTATION" ]; then
     # trace files, which are gate output and are not committed. `longrun` is the
     # only many-frame launch: the rest are the paused, world-frozen captures the
     # pixel comparisons use, and their `frames=1 tick=0` is the point of them.
-    for name in longrun ptex ptex2 palt pflat pflat2 pmissing palpha; do
+    for name in longrun ptex ptex2 palt pflat pflat2 pmissing pmissing2 palpha; do
       [ -s "$TRACE_DIR/$name.trace" ] || continue
       echo "run $name: rc=$(cat "$TRACE_DIR/$name.rc" 2>/dev/null) frames=$(tail -1 "$TRACE_DIR/$name.csv" 2>/dev/null | tr -d '\r' | awk -F, '{print $2}')"
       grep -a 'gpu: viewmodel materials\|gpu: viewmodel ranges\|gpu: viewmodel materialReadings\|gpu: viewmodel pass order' \

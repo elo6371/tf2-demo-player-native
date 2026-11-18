@@ -39,11 +39,19 @@
 #   is exactly the cleanup that would reintroduce it.
 #
 # USAGE
-#   bash verify-fast.sh              # incremental build + the six self-tests
+#   bash verify-fast.sh              # incremental build + the six self-tests +
+#                                    # the gate-registry check
 #   bash verify-fast.sh --mutation   # perturb each captured output and require
 #                                    # the assertions to go red (discriminating
 #                                    # power, not a second opinion)
 #   bash verify-fast.sh --no-build   # skip the build; the probes are current
+#
+# STEP 3/3 -- THE GATE REGISTRY
+#   I-32: a new gate can be added and referenced by nothing, so its assertions
+#   never protect a release. gate-registry-check.sh requires every *-check.sh
+#   to be on a non-comment line of a chain script or to have a reasoned row in
+#   docs/GATES-UNREGISTERED.md. It is static (no product, no demo), so it can
+#   run in this tier. Its own --selftest proves an unlisted gate goes red.
 #
 #   Mutation is off by default and is not needed after every edit: it is for when
 #   the assertion logic itself changed, not when the code under it did.
@@ -74,7 +82,7 @@ FAST_ASSERTIONS=43
 # The build is the first assertion of this tier and its failure is reported by
 # build-target.sh's exit status; nothing else here can be trusted if it failed.
 if [ "$BUILD" -eq 1 ]; then
-  echo "=== 1/2 incremental build ==="
+  echo "=== 1/3 incremental build ==="
   # tf2_demo_native is included even though this tier never runs it: a change to
   # a shared .cpp can compile into a probe and still break the program, and the
   # whole point of a fast tier is to learn that now rather than in an hour.
@@ -84,11 +92,11 @@ if [ "$BUILD" -eq 1 ]; then
   echo "build_rc=$rc_build"
   if [ "$rc_build" -ne 0 ]; then echo "VERIFY-FAST=FAIL (build)"; exit 1; fi
 else
-  echo "=== 1/2 incremental build (skipped: --no-build) ==="
+  echo "=== 1/3 incremental build (skipped: --no-build) ==="
 fi
 
 echo
-echo "=== 2/2 probe self-tests ==="
+echo "=== 2/3 probe self-tests ==="
 
 B=native/build-nmake
 ok=0
@@ -208,6 +216,13 @@ run_expectations "$OUT/viewmodel-fov-probe.txt" "${E_VIEWMODEL_FOV[@]}"
 
 echo "assertions_ok=$ok assertions_bad=$bad"
 
+echo
+echo "=== 3/3 gate registry (every check is registered or named) ==="
+bash gate-registry-check.sh > "$OUT/gate-registry.txt" 2>&1
+reg_rc=$?
+cat "$OUT/gate-registry.txt"
+if [ "$reg_rc" -ne 0 ]; then echo "VERIFY-FAST-GATE-REGISTRY=FAIL"; fi
+
 if [ "$MUTATION" -eq 1 ]; then
   echo
   echo "=== mutation: perturb each capture and require its assertions to go red ==="
@@ -249,9 +264,9 @@ if [ "$MUTATION" -eq 1 ]; then
 fi
 
 echo
-if [ "$bad" -eq 0 ] && [ "$ok" -eq "$FAST_ASSERTIONS" ]; then
-  echo "VERIFY-FAST=PASS (assertions_ok=$ok)"
+if [ "$bad" -eq 0 ] && [ "$ok" -eq "$FAST_ASSERTIONS" ] && [ "${reg_rc:-1}" -eq 0 ]; then
+  echo "VERIFY-FAST=PASS (assertions_ok=$ok, gate_registry=PASS)"
   exit 0
 fi
-echo "VERIFY-FAST=FAIL (assertions_ok=$ok, assertions_bad=$bad, expected $FAST_ASSERTIONS assertions)"
+echo "VERIFY-FAST=FAIL (assertions_ok=$ok, assertions_bad=$bad, expected $FAST_ASSERTIONS assertions, gate_registry_rc=${reg_rc:-<not-run>})"
 exit 1

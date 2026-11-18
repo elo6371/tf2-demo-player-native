@@ -574,6 +574,10 @@ int wmain(int argc, wchar_t** argv) {
     return runParserBoundsSelfTest();
   }
   bool scan = false;
+  // --camera-track: opt in to the N12-C per-tick camera row track. Recording it
+  // costs a row per stamped packet (56 B each) and nothing reads it in the
+  // product, so like the other dump switches it is off unless asked for.
+  bool cameraTrack = false;
   std::int32_t snapshotTick = -1;
   std::int32_t cameraTick = -1;
   int firstPath = 1;
@@ -588,6 +592,10 @@ int wmain(int argc, wchar_t** argv) {
     snapshotTick = static_cast<std::int32_t>(parsed);
     firstPath += 2;
   }
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--camera-track") {
+    cameraTrack = true;
+    firstPath += 1;
+  }
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--camera-tick") {
     wchar_t* end = nullptr;
     const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
@@ -596,6 +604,50 @@ int wmain(int argc, wchar_t** argv) {
       return 2;
     }
     cameraTick = static_cast<std::int32_t>(parsed);
+    firstPath += 2;
+  }
+  // N12-C step 2 evidence: --camera-row dumps the camera track's own row at one or
+  // more EXACT server ticks (comma separated). That row is what the product's eye
+  // now reads, so it is the independent value the product trace is compared
+  // against, printed at four/six decimals instead of the trace's 0.1 u quantum.
+  std::vector<std::int32_t> cameraRowTicks;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--camera-row") {
+    const std::wstring list(argv[firstPath + 1]);
+    std::size_t start = 0;
+    while (start <= list.size()) {
+      const std::size_t comma = list.find(L',', start);
+      const std::wstring item = list.substr(start, comma == std::wstring::npos ? std::wstring::npos : comma - start);
+      if (!item.empty()) {
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(item.c_str(), &end, 10);
+        if (end == item.c_str() || *end != L'\0' || parsed < 0
+            || parsed > std::numeric_limits<std::int32_t>::max()) {
+          std::wcerr << L"invalid camera row tick\n";
+          return 2;
+        }
+        cameraRowTicks.push_back(static_cast<std::int32_t>(parsed));
+      }
+      if (comma == std::wstring::npos) break;
+      start = comma + 1;
+    }
+    firstPath += 2;
+  }
+
+  // N12-C step 3 evidence: --props <entityIndex> dumps every property the engine
+  // actually put in the LIVE entity table for that index, sorted by name, with the
+  // stored type and values. The camera row builder reads the SAME table, so this is
+  // the only honest way to learn which names this engine sends: a guessed alias
+  // ("m_vecViewOffset_Z", "m_vecViewOffset2", ...) would miss silently and the
+  // flags counter would still read zero without saying why.
+  int propsEntity = -1;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--props") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0 || parsed > 65535) {
+      std::wcerr << L"invalid props entity index\n";
+      return 2;
+    }
+    propsEntity = static_cast<int>(parsed);
     firstPath += 2;
   }
 
@@ -680,6 +732,10 @@ int wmain(int argc, wchar_t** argv) {
     std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
+  // N04/D46: a caller that checks the exit status must be able to tell a parsed
+  // file from one that could not be opened; this probe used to answer 0 for all
+  // four cases. 2 = could not open, 1 = opened but did not parse, 0 = parsed.
+  int failureCode = 0;
   for (int i = firstPath; i < argc; ++i) {
     const std::filesystem::path path(argv[i]);
     // Raw UTF-8 row dump, written with the narrow stream after the wide summary
@@ -687,12 +743,17 @@ int wmain(int argc, wchar_t** argv) {
     // mangle the UTF-8 player names that golden rows contain.
     std::string eventDump;
     std::string userInfoDumpText;
+    // N12-C step 3 evidence: sorted property-name dump (see --props).
+    std::string propsDumpText;
     std::size_t eventRows = 0;
     std::size_t eventDupes = 0;
     tf2::native::DemoHeader header;
     const bool headerOk = tf2::native::parseDemoHeaderFile(path, header);
     tf2::native::DemoIndex index;
     const bool indexOk = headerOk && tf2::native::indexDemoFile(path, header, index);
+    if (!headerOk || !indexOk) {
+      if (failureCode == 0) failureCode = headerOk ? 1 : 2;
+    }
     // Keep probe output ASCII-compatible; the input path itself may contain
     // characters unsupported by the active console code page.
     std::wcout << L"path=<wide-path>"
@@ -712,6 +773,7 @@ int wmain(int argc, wchar_t** argv) {
     if (scan && indexOk) {
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
+      summary.cameraTrackLimits.enabled = cameraTrack;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       std::string firstTempClassName;
       for (const auto& serverClass : summary.serverClassSchemas) {
@@ -783,6 +845,16 @@ int wmain(int argc, wchar_t** argv) {
                 << L" sound_failures=" << summary.decodedSoundEventFailures
                 << L" sound_matches=" << summary.decodedSoundResourceMatches
                 << L" sound_misses=" << summary.decodedSoundResourceMisses
+                // P3b/N21: the decoded list can only hold events from messages whose raw payload
+                // was captured (64 KiB / 4096-message cap, native/src/demo_header_sound.cpp).
+                // counted / dropped / decoded make that cap visible, and the dropped total is
+                // split by reason (task B): a designed drop is never decoded, so sound_failures
+                // now counts only messages whose payload was captured.
+                << L" sound_messages=" << summary.soundMessageCount
+                << L" sound_dropped=" << summary.rawSoundMessagesDropped
+                << L" sound_dropped_payload_too_large=" << summary.rawSoundMessagesDroppedPayloadTooLarge
+                << L" sound_dropped_message_cap=" << summary.rawSoundMessagesDroppedMessageCap
+                << L" sound_decoded=" << summary.decodedSoundEvents.size()
                 << L" entities=" << summary.packetEntityUpdates
                 << L" entity_failures=" << summary.packetEntityDecodeFailures
                 << L" entity_header_failures=" << summary.entityUpdateHeaderFailures
@@ -874,6 +946,80 @@ int wmain(int argc, wchar_t** argv) {
                  << L" fixangle_samples=" << summary.fixAngleSamples.size()
                  << L" packets_with_own_net_tick=" << summary.packetsWithOwnNetTick
                  << L" first_data_packet_own_net_tick=" << summary.firstDataPacketOwnNetTick;
+      if (cameraTrack) {
+        std::size_t cameraFirstInversion = 0;
+        const bool cameraOrdered =
+            tf2::native::cameraTickOrderingHolds(summary, &cameraFirstInversion);
+        const long long cameraFirstRowTick = summary.cameraTickSamples.empty()
+            ? -1 : static_cast<long long>(summary.cameraTickSamples.front().tick);
+        const long long cameraLastRowTick = summary.cameraTickSamples.empty()
+            ? -1 : static_cast<long long>(summary.cameraTickSamples.back().tick);
+        // N12-C: the track is expected to start where the first PacketEntities
+        // carries a view target. Count what sits below that line and echo the
+        // first ticks, so a head gap is measured rather than argued about.
+        std::size_t cameraRowsBeforeEntities = 0;
+        for (const tf2::native::CameraTickSample& cameraRow : summary.cameraTickSamples) {
+          if (static_cast<long long>(cameraRow.tick) < static_cast<long long>(summary.firstPacketEntitiesTick)) {
+            ++cameraRowsBeforeEntities;
+          }
+        }
+        std::wstring cameraFirst5;
+        for (std::size_t i = 0; i < summary.cameraTickSamples.size() && i < 5u; ++i) {
+          if (i != 0) cameraFirst5 += L",";
+          cameraFirst5 += std::to_wstring(summary.cameraTickSamples[i].tick);
+        }
+        std::wcout << L" camera_rows=" << summary.cameraRows
+                   << L" camera_rows_dropped=" << summary.cameraRowsDropped
+                   << L" camera_row_tick_mismatch=" << summary.cameraRowTickMismatch
+                   << L" camera_identity_mismatch=" << summary.cameraIdentityMismatch
+                   << L" camera_identity_rebuilt=" << summary.cameraIdentityRebuilt
+                   << L" camera_rows_no_tick=" << summary.cameraRowsNoTick
+                   << L" camera_rows_incomplete_packet=" << summary.cameraRowsIncompletePacket
+                   << L" camera_rows_no_target=" << summary.cameraRowsNoTarget
+                   << L" camera_first_no_target_tick=" << summary.cameraFirstNoTargetTick
+                   << L" camera_duplicate_tick_rows=" << summary.cameraDuplicateTickRows
+                   << L" camera_packets_with_set_view=" << summary.cameraPacketsWithSetView
+                   << L" camera_set_view_before_entities=" << summary.cameraPacketsSetViewBeforeEntities
+                   << L" camera_set_view_after_entities=" << summary.cameraPacketsSetViewAfterEntities
+                   << L" camera_tick_ordering=" << (cameraOrdered ? 1 : 0)
+                   << L" camera_first_inversion=" << cameraFirstInversion
+                   << L" camera_tick_samples=" << summary.cameraTickSamples.size()
+                   << L" camera_first_row_tick=" << cameraFirstRowTick
+                   << L" camera_last_row_tick=" << cameraLastRowTick
+                   << L" camera_rows_before_first_entities=" << cameraRowsBeforeEntities
+                   << L" camera_first5_ticks=" << cameraFirst5
+                   << L" camera_bytes=" << (summary.cameraTickSamples.size() * sizeof(tf2::native::CameraTickSample));
+      }
+      // N12-C step 2: the track's own row at each requested exact tick. Printed
+      // only when --camera-row was given, so every other scan line stays
+      // byte-identical to the step-1 output.
+      for (const std::int32_t requestedCameraRow : cameraRowTicks) {
+        const tf2::native::CameraTickQueryResult rowResult =
+            tf2::native::queryCameraTickSample(summary, requestedCameraRow);
+        std::wcout << L" camera_row_req=" << requestedCameraRow
+                   << L" camera_row_hit=" << (rowResult.hit ? 1 : 0)
+                   << L" camera_row_rows_at_tick=" << rowResult.rowsAtTick
+                   << L" camera_row_prev=" << rowResult.previousTick
+                   << L" camera_row_next=" << rowResult.nextTick;
+        if (rowResult.sample != nullptr) {
+          const tf2::native::CameraTickSample& row = *rowResult.sample;
+          char numbers[512];
+          std::snprintf(numbers, sizeof numbers,
+            " camera_row_tick=%d camera_row_entity=%d camera_row_class=%d"
+            " camera_row_generation=%u camera_row_flags=%u"
+            " camera_row_origin=%.4f,%.4f,%.4f camera_row_view_offset_z=%.6f"
+            " camera_row_eye_z=%.6f camera_row_angles=%.4f,%.4f,%.4f"
+            " camera_row_life=%d camera_row_obs=%d",
+            static_cast<int>(row.tick), static_cast<int>(row.entityIndex),
+            static_cast<int>(row.classId), static_cast<unsigned>(row.generation),
+            static_cast<unsigned>(row.flags), row.origin[0], row.origin[1], row.origin[2],
+            static_cast<double>(row.viewOffsetZ),
+            static_cast<double>(row.origin[2] + row.viewOffsetZ),
+            row.angles[0], row.angles[1], row.angles[2],
+            static_cast<int>(row.lifeState), static_cast<int>(row.observerMode));
+          std::wcout << numbers;
+        }
+      }
       {
         std::wstring first5, last5;
         const std::size_t sampleCount = summary.viewSamples.size();
@@ -964,11 +1110,23 @@ int wmain(int argc, wchar_t** argv) {
           }
           return L"unknown";
         };
+        // N12-C/Q5 cross-end spelling of "no snapshot": the query leaves
+        // resolvedTick untouched on Gap / NoHistory / TickBeforeHistory, so the
+        // old seed (snapshotTick) printed stale=0 for a tick that resolved to
+        // NOTHING. The product publishes g_sceneResolvedServerTick = -1 on exactly
+        // these statuses, and demo-clock-check.sh A3 compares the two numbers, so
+        // both ends spell it -1: -1 means UNRESOLVED, it does not mean zero
+        // staleness. snapshot_resolved_tick is left as it was (raw), because other
+        // readers of this line bind to it.
+        const bool snapshotResolved = status == tf2::native::EntitySnapshotQueryStatus::Available
+            || status == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
+        const long long snapshotStale = snapshotResolved
+            ? static_cast<long long>(snapshotTick) - resolvedTick : -1LL;
         std::wcout << L" snapshot_tick=" << snapshotTick
                    << L" snapshot_status=" << statusName(status)
                    << L" snapshot_states=" << states.size()
                    << L" snapshot_resolved_tick=" << resolvedTick
-                   << L" snapshot_stale=" << (snapshotTick - resolvedTick);
+                   << L" snapshot_stale=" << snapshotStale;
       }
       if (userInfo || userInfoDumpLimit >= 0 || !userInfoAtTicks.empty()) {
         std::size_t named = 0;
@@ -1062,14 +1220,42 @@ int wmain(int argc, wchar_t** argv) {
           }
         }
       }
+      if (propsEntity >= 0) {
+        const auto& table = summary.entityStates;
+        if (static_cast<std::size_t>(propsEntity) < table.size()) {
+          const tf2::native::EntityState& state = table[static_cast<std::size_t>(propsEntity)];
+          std::set<std::string> names;
+          for (const auto& entry : state.properties) names.insert(entry.first);
+          propsDumpText += "props\tentity\t" + std::to_string(propsEntity)
+            + "\tclass\t" + std::to_string(state.classId)
+            + "\tcount\t" + std::to_string(names.size()) + "\n";
+          for (const std::string& name : names) {
+            const auto found = state.properties.find(name);
+            if (found == state.properties.end()) continue;
+            char buffer[256];
+            std::snprintf(buffer, sizeof(buffer),
+              "prop\t%s\ttype\t%d\tx\t%.6f\ty\t%.6f\tz\t%.6f\tint\t%lld\tlastWriteTick\t%d",
+              name.c_str(), static_cast<int>(found->second.type),
+              static_cast<double>(found->second.x), static_cast<double>(found->second.y),
+              static_cast<double>(found->second.z),
+              static_cast<long long>(found->second.intValue), found->second.lastWriteTick);
+            propsDumpText += buffer;
+            propsDumpText += "\n";
+          }
+        } else {
+          propsDumpText += "props\tentity\t" + std::to_string(propsEntity)
+            + "\tclass\t-1\tcount\t0\tout_of_range\t1\n";
+        }
+      }
     }
     std::wcout << L'\n';
-    if (!eventDump.empty() || !userInfoDumpText.empty()) {
+    if (!eventDump.empty() || !userInfoDumpText.empty() || !propsDumpText.empty()) {
       std::wcout.flush();
       std::cout.write(eventDump.data(), static_cast<std::streamsize>(eventDump.size()));
       std::cout.write(userInfoDumpText.data(), static_cast<std::streamsize>(userInfoDumpText.size()));
+      std::cout.write(propsDumpText.data(), static_cast<std::streamsize>(propsDumpText.size()));
       std::cout.flush();
     }
   }
-  return 0;
+  return failureCode;
 }

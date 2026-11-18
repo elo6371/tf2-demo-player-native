@@ -413,6 +413,11 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.worldSkySide = worldSkySide_;
   state.worldSkyResampled = worldSkyResampled_;
     state.worldSkyReason = worldSkyReason_;
+  // W-1 perf: the far-plane pin and the sky-only shader, both set by the draw.
+  // A disabled sky reads neither: those words describe a pass, and with the
+  // pass switched off there is no pass to describe.
+  state.worldSkyFarPlane = worldSkyEnabled_ && worldSkyFarPlane_;
+  state.worldSkyDedicatedShader = worldSkyEnabled_ && worldSkyDedicatedShader_;
   // The pvs clip: the state, whether the last draw took the indexed branch, and
   // how many triangles that branch withheld. `worldVisDrawnTriangles` is the
   // number the draw call saw, which is the number that has to move when the
@@ -434,6 +439,7 @@ WorldMaterialSampleState Renderer::worldMaterialSampleState() const {
   state.worldTilesRefusedMalformed = worldTilesRefusedMalformed_;
   state.worldTilesRefusedDuplicate = worldTilesRefusedDuplicate_;
   state.worldTilesRefusedBudget = worldTilesRefusedBudget_;
+  state.worldTilesRefusedTranslucent = worldTilesRefusedTranslucent_;
   state.worldAtlasBatches = worldAtlasBatches_;
   state.worldAtlasBlendBatches = worldAtlasBlendBatches_;
   state.worldAtlasLayerBytes = worldAtlasLayerBytes_;

@@ -16,6 +16,42 @@
 # nine and check each one, rather than a four-hour census of 1634 POV files that share
 # one code path with the five POV demos already in the oracle set.
 #
+# Input resolution (2026-11-16)
+# -----------------------------
+# The Steam install's tf/demos directory no longer holds eight of the nine pinned
+# recordings -- only proc2.dem is still there. Three of the eight were found intact
+# elsewhere on this host and are resolved by explicit path in REPLACED below; each
+# decodes to exactly the values pinned in the 2026-11-10 dumps (73.dem 112,179
+# commands / 112,175 packets, SUNSHINE.dem 120,933 / 120,929, prodcutscout.dem
+# 88,311 / 88,307) and each now carries a sha256 pin (A6).
+#
+# review1.dem (82,903,524 B, sha256 bf36a2b0dd7a433d30d59a561d1f7ba5a1db3749b783b9f2e35c7353d8575def,
+# 91,247 packets, koth_ashville_final1) is gone. Per the 2026-11-16 ruling the slot
+# reads the 2026-11-15 SourceTV recording of the same map instead, registered in
+# docs/GATE-INPUT-REPLACEMENT-2026-11-16.md. That is a replacement, not a recovery: a
+# shorter recording (69,646 ticks vs 91,265), so the old nine-row pin of 917,543 falls
+# to 895,939 packets (-21,604, -2.35%).
+#
+# The 2026-11-16 corpus ruling then covered the remaining four lost files:
+#   gullyscout.dem, processdemo.dem and review44.dem are also gone, and each slot now
+#   reads a registered same-map SourceTV recording (explicit path, sha256 pin in A6 and
+#   the reason in REPLACED_NOTE). Their rows carry the replacement's measured values.
+#   review12.dem (cp_reckoner, 80,261,474 B, 120,917 packets) was BLOCKED-INPUT in the
+#   first pass of that ruling. The user then supplied a cp_reckoner SourceTV recording,
+#   accepted in a separate recovery task, so the slot now reads that file. BLOCKED_INPUTS
+#   is empty but the mechanism stays in the script for future blocked inputs.
+#
+# So the active set is nine recordings, 9/9 when every row reads. Five rows read a
+# substitute recording (review1, gullyscout, processdemo, review44, review12); four read
+# the pinned bytes, three of them at relocated paths. "All nine slots covered by an
+# accepted input" is not the same claim as "the nine original files are back".
+#
+# Accounting, in one place (the numbers that used to float around are different things):
+# 917,543 = original nine-recording target; 895,939 = pin after the review1 substitution;
+# 834,460 = eight-row pin between the two corpus passes; 955,845 = current nine-row pin
+# (112175+120929+120922+61544+120920+88307+69643+140020+121385). W2 compares the measured
+# sum to that exact pin, not to a rounded floor under it.
+#
 # What it asserts per demo
 # ------------------------
 #   A1 the header classifier and the in-stream scan agree it is SourceTV
@@ -33,20 +69,26 @@
 # semantics"): it counts entity updates whose delta base was never available, which is
 # the SourceTV-specific failure mode a POV recording cannot show.
 #
-# Cost: ~3.5 min for all nine (664 MB, ~918k packets). The probe runs once per demo and
+# Cost: ~5 min for all nine (688 MB, ~955k packets). The probe runs once per demo and
 # its raw output is kept under evidence/source-tv-coverage/, so --mutation only
 # perturbs the comparison and does not re-decode.
 #
 # Usage: bash source-tv-coverage-check.sh [--mutation] [--refresh]
-#          --mutation  nudge two compared values and require exactly 9 red rows each
+#          --mutation  nudge two compared values and require one red row per active demo
+#                      each red pass (a work-count red is counted separately)
 #          --refresh   re-run the probe even if a fresh dump is already present
-# Exit:  0 = every demo read end to end with zero failures.
+# Exit:  0 = every active demo read end to end with zero failures.
 set -uo pipefail
 cd "$(dirname "$0")"
 
 PROBE=native/build-nmake/entity_protocol_probe.exe
 DEMOS_DIR="${SOURCE_TV_DEMOS_DIR:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos}"
 OUT="${SOURCE_TV_OUT:-evidence/source-tv-coverage}"
+
+# Exact packet pin for the active nine-recording set (see "Accounting" above). W2
+# requires the measured sum to reach it, so a run that read nothing, skipped a row or
+# read a row wrong cannot print PASS, and no row may be edited to reach it.
+W2_PIN=955845
 
 MUTATION=0
 REFRESH=0
@@ -67,14 +109,59 @@ done
 DEMOS=(
   "73.dem|106397681|112175|koth_ashville_final1"
   "SUNSHINE.dem|82759239|120929|cp_sunshine"
-  "gullyscout.dem|76066801|120929|cp_gullywash_f9"
+  "gullyscout.dem|81660813|120922|cp_gullywash_f9"
   "proc2.dem|38541519|61544|cp_process_f12"
-  "processdemo.dem|81960416|120904|cp_process_f12"
+  "processdemo.dem|90995077|120920|cp_process_f12"
   "prodcutscout.dem|62389932|88307|koth_product_final"
-  "review1.dem|82903524|91247|koth_ashville_final1"
-  "review12.dem|80261474|120917|cp_reckoner"
-  "review44.dem|53569778|80591|cp_sultry_b8a"
+  "review1.dem|64122700|69643|koth_ashville_final1"
+  "review12.dem|75843581|121385|cp_reckoner"
+  "review44.dem|85506321|140020|cp_sultry_b8a"
 )
+
+# Overridden inputs: slot name -> absolute path, the file's own sha256 pin (A6), and a
+# one-line note printed at start-up. Three entries are relocations of the pinned bytes;
+# five are replacements (review1, gullyscout, processdemo, review44, review12), and each
+# replacement row above carries that file's measured values, not the lost recording's.
+declare -A REPLACED=(
+  ["73.dem"]="D:/TF2_Demo_Player/work/protocol-rescue-20261005/73.dem"
+  ["SUNSHINE.dem"]="E:/demo测试/cp_sunshine/STV/SUNSHINE.dem"
+  ["prodcutscout.dem"]="E:/demo测试/koth_product_final/STV/prodcutscout.dem"
+  ["review1.dem"]="E:/demo测试/koth_ashville_final1/STV/597450fbb345099739e824bfc762773f_match-20261115-1910-koth_ashville_final1.dem"
+  ["gullyscout.dem"]="E:/demo测试/cp_gullywash_f9/STV/gully4454.dem"
+  ["processdemo.dem"]="E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem"
+  ["review44.dem"]="E:/demo测试/cp_sultry_b8a/STV/f63a7a2040379d7d6a8414f76bbb81dc_matcha-20260703-1442-cp_sultry_b8a.dem"
+  ["review12.dem"]="E:/demo测试/cp_reckoner/STV/546392288740b01f46035778bbc3b9ed_match-20261115-2106-cp_reckoner.dem"
+)
+declare -A REPLACED_SHA=(
+  ["73.dem"]="69f9a864c88c6cf885cf46068f0be590e2fbd47b8d8ef9bbb2e6c71bccebccce"
+  ["SUNSHINE.dem"]="7b8db6b4d5f375761723ededb89c232c842d1998f61d6134d9ad4ddc712e6a08"
+  ["prodcutscout.dem"]="378734bc25bb4d3746503b36f9602489b195a58ecb2932e01436bc670d63557e"
+  ["review1.dem"]="4edc6058e9b3de17b2a2f58bbd88e7dab149613d9798b012f69ad8ae10976b06"
+  ["gullyscout.dem"]="3d9c3e64a0e94e618bbfa2075467f32722db4d82ee52f9ea1e9e88e093ece16d"
+  ["processdemo.dem"]="81ceb1afa4c54ad5fdf14201b1f1a9049c183d11aa70c6ed431a69ebf9f73b94"
+  ["review44.dem"]="032bbd5ab719012cc2a7b4858f0a5d4e1ba882b4cdae1d86f2b966a3578c4374"
+  ["review12.dem"]="6736334f4657172cef3d5b5d547b6b29f5a40d4918cf9ba7bd347f0c7e6aa541"
+)
+declare -A REPLACED_NOTE=(
+  ["73.dem"]="relocated, pinned bytes unchanged"
+  ["SUNSHINE.dem"]="relocated, pinned bytes unchanged"
+  ["prodcutscout.dem"]="relocated, pinned bytes unchanged"
+  ["review1.dem"]="replacement for the lost file: original 82903524 B sha256 bf36a2b0dd7a433d30d59a561d1f7ba5a1db3749b783b9f2e35c7353d8575def, 91247 packets"
+  ["gullyscout.dem"]="registered same-map replacement (2026-11-16 ruling): the pinned cp_gullywash_f9 recording is gone; this SourceTV recording decodes to 120922 packets / 81660813 B"
+  ["processdemo.dem"]="registered same-map replacement (2026-11-16 ruling): the pinned cp_process_f12 recording is gone; this SourceTV recording decodes to 120920 packets / 90995077 B"
+  ["review44.dem"]="registered same-map replacement (2026-11-16 ruling): the pinned cp_sultry_b8a recording is gone; this SourceTV recording decodes to 140020 packets / 85506321 B"
+  ["review12.dem"]="recovery task (2026-11-16): user-supplied cp_reckoner SourceTV recording after the pinned file was lost; decodes to 121385 packets / 75843581 B"
+)
+demo_path() { # demo_path <slot name>
+  if [ -n "${REPLACED[$1]:-}" ]; then printf '%s' "${REPLACED[$1]}"; else printf '%s/%s' "$DEMOS_DIR" "$1"; fi
+}
+
+# Blocked inputs: pinned recordings that left the executable set without a
+# replacement. They are reported at start-up and in the summary; they are not silent.
+# name|size_bytes|last_measured_packets|map
+BLOCKED_INPUTS=(
+)
+BLOCKED_NOTE="none as of 2026-11-16 15:05: the only blocked input (review12.dem, cp_reckoner) was recovered by a user-supplied SourceTV recording and reintroduced in a separate recovery task."
 
 [ -x "$PROBE" ] || { echo "FATAL: probe not found: $PROBE"; exit 1; }
 mkdir -p "$OUT"
@@ -93,27 +180,36 @@ field() { # field <dump> <name>
 #                    same source differ by two bytes), so mtime is the only freshness
 #                    signal available, and a stale dump compared against a new binary
 #                    is exactly the "gate that proves nothing" failure this file
-#                    exists to avoid.
+#                    exists to avoid. A dump that is fresh by mtime but records a file
+#                    length other than the row's is stale too: `git checkout --`
+#                    restores a dump with the current time, and mtime alone would keep
+#                    trusting a reading of the file the slot pointed at before.
 #   collect missing  run only where there is no usable dump at all. Used by
 #                    --mutation, which perturbs the comparison and nothing else: the
 #                    straight run in the same step has just written these dumps with
 #                    the current binary, so re-decoding 664 MB to re-derive identical
 #                    numbers would double the step's cost and buy no information.
 collect() {
-  local mode="$1" entry name path dump
+  local mode="$1" entry name size path dump
   for entry in "${DEMOS[@]}"; do
     name=$(printf '%s' "$entry" | cut -d'|' -f1)
-    path="$DEMOS_DIR/$name"
+    size=$(printf '%s' "$entry" | cut -d'|' -f2)
+    path=$(demo_path "$name")
     dump="$OUT/$name.txt"
     if [ ! -f "$path" ]; then
-      printf 'MISSING %s (%s)\n' "$name" "$path" > "$dump"
+      # A moved input must not destroy the last reading of the file the slot used to
+      # point at: keep an existing dump and let the assertion report the missing input.
+      if [ ! -s "$dump" ]; then
+        printf 'MISSING %s (%s)\n' "$name" "$path" > "$dump"
+      fi
       continue
     fi
     if [ -s "$dump" ] && ! grep -q '^MISSING ' "$dump"; then
       if [ "$mode" = "missing" ]; then
         continue
       fi
-      if [ "$REFRESH" -eq 0 ] && [ "$dump" -nt "$PROBE" ]; then
+      if [ "$REFRESH" -eq 0 ] && [ "$dump" -nt "$PROBE" ] \
+         && [ "$(field "$dump" index_tail_bytes)" = "$size" ]; then
         continue
       fi
     fi
@@ -141,7 +237,7 @@ run_assertions() {
     size=$(printf '%s' "$entry" | cut -d'|' -f2)
     packets=$(printf '%s' "$entry" | cut -d'|' -f3)
     map=$(printf '%s' "$entry" | cut -d'|' -f4)
-    path="$DEMOS_DIR/$name"
+    path=$(demo_path "$name")
     dump="$OUT/$name.txt"
     want_packets="$packets"
     want_flag=1
@@ -223,13 +319,32 @@ run_assertions() {
       fail=$((fail + 1))
     fi
 
+    # A6 -- a replaced slot proves it read the registered file, not whatever else sits
+    # at that path. Only replaced slots carry this pin: the shipped eight were frozen
+    # in place before any sha256 was recorded for them, and inventing hashes for files
+    # the gate never measured would be a claim, not an assertion.
+    if [ -n "${REPLACED_SHA[$name]:-}" ]; then
+      got_sha=$(sha256sum "$path" 2>/dev/null | cut -d' ' -f1)
+      if [ "$got_sha" = "${REPLACED_SHA[$name]}" ]; then
+        printf '  OK   A6 replacement identity %s: sha256=%s\n' "$name" "$got_sha"
+        ok=$((ok + 1))
+      else
+        printf '  FAIL A6 replacement identity %s: sha256=%s want=%s\n' "$name" "$got_sha" "${REPLACED_SHA[$name]}"
+        fail=$((fail + 1))
+      fi
+    fi
+
     sum_packets=$((sum_packets + ${want_packets:-0}))
     ef=$(field "$dump" entity_failures)
     sum_failures=$((sum_failures + ${ef:-0}))
   done
 
-  # The work counts. Nine demos and 917543 packets is the pinned coverage; a run that
-  # read nothing must not be able to print PASS.
+  # The work counts. Nine active recordings and 955,845 packets is the current pin (three
+  # relocated inputs, five substitute recordings, review12 recovered in its own task). The
+  # older numbers stay apart: 917,543 is the original nine-recording target, 895,939 the pin
+  # after the review1 substitution, 834,460 the eight-row pin between passes -- none is this
+  # gate's pin now. W2 compares the measured sum to the exact pin, so a run that read nothing
+  # or read a row wrong cannot print PASS.
   if [ "$demos_read" -eq "${#DEMOS[@]}" ]; then
     printf '  OK   W1 demos read: %s/%s\n' "$demos_read" "${#DEMOS[@]}"
     ok=$((ok + 1))
@@ -237,16 +352,24 @@ run_assertions() {
     printf '  FAIL W1 demos read: %s/%s\n' "$demos_read" "${#DEMOS[@]}"
     fail=$((fail + 1))
   fi
-  if [ "$sum_packets" -ge 900000 ]; then
-    printf '  OK   W2 packets covered: %s (floor 900000)\n' "$sum_packets"
+  if [ "$sum_packets" -ge "$W2_PIN" ]; then
+    printf '  OK   W2 packets covered: %s (pin %s)\n' "$sum_packets" "$W2_PIN"
     ok=$((ok + 1))
   else
-    printf '  FAIL W2 packets covered: %s (floor 900000)\n' "$sum_packets"
+    printf '  FAIL W2 packets covered: %s (pin %s)\n' "$sum_packets" "$W2_PIN"
     fail=$((fail + 1))
   fi
 }
 
-echo "source-tv-coverage-check  demos_dir=$DEMOS_DIR"
+echo "source-tv-coverage-check  demos_dir=$DEMOS_DIR  active=${#DEMOS[@]}  blocked=${#BLOCKED_INPUTS[@]}"
+for _name in "${!REPLACED[@]}"; do
+  printf 'input override %s -> %s\n' "$_name" "${REPLACED[$_name]}"
+  printf '                 %s\n' "${REPLACED_NOTE[$_name]:-}"
+done
+for _row in "${BLOCKED_INPUTS[@]}"; do
+  printf 'blocked input %s\n' "$_row"
+done
+printf 'blocked note: %s\n' "$BLOCKED_NOTE"
 echo
 
 if [ "$MUTATION" -eq 1 ]; then
@@ -264,13 +387,21 @@ if [ "$MUTATION" -eq 1 ]; then
   # Each perturbation must be caught, and by exactly the demos it targets: a
   # perturbation that reddens everything, or nothing, would not show that the
   # comparison is per-demo.
+  # Expected reds = one per corpus row (each perturbed row reddens, each missing input
+  # fails as missing) plus whichever work counts fail on this corpus. The work counts are
+  # not perturbations, so they are counted separately instead of being folded into the
+  # per-demo proof: a corpus that cannot cover the pin must show that here, not hide it.
+  work_reds=0
+  [ "$demos_read" -eq "${#DEMOS[@]}" ] || work_reds=$((work_reds + 1))
+  [ "$sum_packets" -ge "$W2_PIN" ] || work_reds=$((work_reds + 1))
+  want_reds=$((${#DEMOS[@]} + work_reds))
   mut_rc=0
-  [ "$p1_fail" -eq "${#DEMOS[@]}" ] || mut_rc=1
-  [ "$p2_fail" -eq "${#DEMOS[@]}" ] || mut_rc=1
+  [ "$p1_fail" -eq "$want_reds" ] || mut_rc=1
+  [ "$p2_fail" -eq "$want_reds" ] || mut_rc=1
   if [ "$mut_rc" -eq 0 ]; then
-    echo "MUTATION-CAUGHT=PASS (2/2 perturbations caught, red_rows=$((p1_fail + p2_fail)))"
+    echo "MUTATION-CAUGHT=PASS (2/2 caught: per_demo_reds=${#DEMOS[@]} work_reds=$work_reds red_rows=$((p1_fail + p2_fail)))"
   else
-    echo "MUTATION-CAUGHT=FAIL (p1_fail=$p1_fail p2_fail=$p2_fail want ${#DEMOS[@]} each)"
+    echo "MUTATION-CAUGHT=FAIL (p1_fail=$p1_fail p2_fail=$p2_fail want $want_reds each = ${#DEMOS[@]} demos + $work_reds work counts)"
   fi
   exit "$mut_rc"
 fi
@@ -282,7 +413,9 @@ echo
 printf 'demos_read=%s packets_scanned=%s entity_failures=%s assertions_ok=%s assertions_fail=%s\n' \
   "$demos_read" "$sum_packets" "$sum_failures" "$ok" "$fail"
 if [ "$fail" -eq 0 ]; then
-  echo "SOURCE-TV-COVERAGE=PASS (demos=$demos_read packets=$sum_packets assertions_ok=$ok)"
+  _target=$((${#DEMOS[@]} + ${#BLOCKED_INPUTS[@]}))
+  echo "SOURCE-TV-COVERAGE=PASS (active=$demos_read/${#DEMOS[@]} blocked=${#BLOCKED_INPUTS[@]} packets=$sum_packets pin=$W2_PIN assertions_ok=$ok)"
+  echo "coverage: active set $demos_read/${#DEMOS[@]}; all $_target slots read an accepted input (blocked=${#BLOCKED_INPUTS[@]})"
   exit 0
 fi
 echo "SOURCE-TV-COVERAGE=FAIL (assertions_fail=$fail)"

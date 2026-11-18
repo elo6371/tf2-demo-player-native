@@ -1,0 +1,97 @@
+# 项目功能实现情况 — 2026-11-18
+
+本文回答一个问题：**这个东西现在到底能做什么、哪些是已经验证过的、哪些还不能说**。
+逐卡缺陷与验收细则仍以 [N-STATUS](N-STATUS-2026-11-14.md) 和
+[PROJECT-NEXT-TASKS](PROJECT-NEXT-TASKS-2026-11-14.md) 为准，本文是它们的摘要，不覆盖其结论。
+
+## 一句话
+
+Windows 原生 TF2 demo 播放器与渲染器（C++17 + Win32 + Direct3D 11）：能打开 demo、
+按 tick 播放，渲染世界几何与材质、第三人称实体、第一人称武器、HUD 与音频，并有一套
+142 个脚本的门禁体系。**它不是一个能替代 TF2 客户端的成品**，视觉正确性按子系统分别签收，
+目前世界渲染接近收口、角色动画与部分 UI 仍未闭环。
+
+## 代码规模
+
+| 项目 | 数量 |
+|---|---|
+| 产品源码（`native/src` + `native/include`） | 90 个文件、约 75,294 行 C++ 与 HLSL 字符串 |
+| `native/` 全部（含探针与测试） | 278 个文件、182,064 行 |
+| 探针工具 `native/tools/` | 54 个 |
+| 门禁脚本（仓库根） | 142 个 |
+| 文档 | 123 篇 + 63 篇历史报告 |
+| 证据 `evidence/` | 6,173 个文件、约 1.0 GB |
+
+## 分支现状
+
+| 分支 | 内容 |
+|---|---|
+| `work/integrate` | 当前开发线，本轮 2026-11-18 的渲染修复在 `daa607e` |
+| `p0-entity-protocol` / `main` | 2026-11-13 的干净交接树（`6f475caf`），不含之后的开发提交 |
+| `archive/full-history-2026-11-13` | 历史全量归档 |
+
+`work/integrate` 领先交接树 1,327 个提交；两条线不是祖先关系，需要合并才能让公开分支
+带上当前代码。
+
+## 已实现且能跑通的子系统
+
+1. **demo 播放与协议层**：`.dem` 解析、entity protocol、packetentities/snapshot 解码、
+   server class 表、PVS、logs（击杀/回合）、按 tick 定位与播放。
+2. **世界几何与材质**：BSP 面与位移贴图、VMT/VTF 材质链、lightmap、detail、
+   六面天空盒、雾、水体、`$alphatest` 镂空、多材质 atlas 合批。
+3. **实体与角色**：MDL/VVD/VTX 模型加载、骨骼蒙皮与矩阵绑定、动画序列选择、
+   LOD 与 `renderMode` 处理。
+4. **第一人称 ViewModel 与武器**：手臂与武器绘制、材质、多 range 手部。
+5. **UI**：HUD（血量/弹药/计分/时钟）、日志面板、多 pane、地图总览、DPI 布局。
+6. **音频**：内容类别、真实设备输出、按 tick 调度。
+7. **相机与观战**：POV/STV 眼高、跟随与自由视角、调试相机、tick 轨道。
+8. **安装与资源**：安装生命周期、VPK 构建、资源发现与缺失时的明确失败路径。
+9. **工程**：CMake/NMake 构建、门禁套件、变异测试、`verify-all.sh` 整链。
+
+## 各子系统实现状态（据 N-STATUS 2026-11-17/18）
+
+| 子系统 | 状态 | 未闭环的部分 |
+|---|---|---|
+| 世界画面（N06/N07） | 主要缺面根因已修 | 仍有 pr600 绕序残点、退化位移面、world-material 基线 |
+| 天空/位移（N10） | 报告级局部 PASS | `sky_camera` 路径 UNSUPPORTED，3D skybox 未实现 |
+| 相机（N12） | A/B PASS | STV 蹲伏眼高有一次 COINCIDENT 不算绿；精确 tick 消费端未改 |
+| 角色外观（N17） | 投影与 idle 选序已窄修 | **默认仍是 bind pose**；LOD/UV/material 未逐项签收 |
+| 第一人称/武器（N18） | 独立未验 | 第三人称闭环不替代 arms/viewmodel 验收 |
+| UI（N13–N16） | 侦察与契约为主 | 没有 follow/选人命令；DPI/HUD 遮挡未过；多视角只有契约 |
+| 音频（N21） | 覆盖报告 | 听感需要人在场 |
+| 工程（N22–N26） | 部分门禁修复落地 | CI 未远端跑；`verify-all` 未在当前树上端到端跑完 |
+| 导出/发布（N27–N30） | 契约已裁决 | 产品内导出未实现；干净环境走查与 release 链未跑 |
+
+## 2026-11-18 修掉的四个渲染缺陷
+
+| 缺陷 | 根因 | 修复 | 实测 |
+|---|---|---|---|
+| 全地图左右镜像，模型像被掏空 | 视图基把游戏左侧画到屏幕右侧；实体三角形是按左手裁剪空间绕序写的 | 投影 clip-X 取反 + `FrontCounterClockwise` 成对翻转；模型加载时对调三角形后两个索引 | `TF2_NATIVE_FLIP_X` A/B 两帧精确水平镜像，翻转后中位像素差 0.0 |
+| 远距离世界贴图闪动 | 世界 atlas 没有 mip 链 | 新增 `Texture2D::createMipped`，`GENERATE_MIPS` 生成到 1x1 | — |
+| 铁丝网逐像素椒盐/黑点 | 像素着色器把**插值后的** feature float 直接 `(uint)` 截断，mask 16 变成 15：`$alphatest` 位丢失、`detail` 位被点亮采样黑色填充 | 三处改为四舍五入 `(uint)(x + 0.5)` | 实测区域纯黑 15,595 px（39.9%）→ 0，行向高频 154.8 → 3.3，全帧纯黑 94,043 → 700 |
+
+诊断开关保留在构建里（不设环境变量即完全惰性）：`TF2_NATIVE_WORLD_VIEW=11..18`、
+`TF2_NATIVE_DUMP_ATLAS`、`TF2_NATIVE_HIDE_MATERIAL`、`TF2_NATIVE_ONLY_MATERIAL`、
+`TF2_NATIVE_FLIP_X`、`TF2_NATIVE_MODEL_WINDING`。
+
+## 明确**不能**说的
+
+- 不能说「任意地图/材质/职业都渲染正确」：七图矩阵 14 格目前只有 2 格合格。
+- 不能说「角色动画已闭环」：默认启动不开玩家动画，仍是 bind pose。
+- 不能说「整链门禁全绿」：`verify-all.sh` 没有在当前树上端到端跑完；
+  最近一次全链是 2026-11-02 在 `59d94a7` 上。
+- 不能说「可以发布」：N29/N30 阻塞，没有干净环境走查。
+
+## 怎么构建、怎么验
+
+```bash
+bash build-cmake.sh                    # 配置 + Release 构建 → native/build-nmake/
+bash build-target.sh tf2_demo_native   # 增量构建产品
+bash verify-all.sh --quick             # 整链门禁（约 2.7 小时）
+```
+
+## 下一步优先级
+
+1. 角色默认动画（bind pose → 可验证的 idle/pose/blend），这是当前最大的功能缺口。
+2. 世界残项：pr600 绕序残点、退化位移面、world-material 基线。
+3. 让公开分支带上当前代码，并决定 `evidence/` 是否继续随仓库分发。

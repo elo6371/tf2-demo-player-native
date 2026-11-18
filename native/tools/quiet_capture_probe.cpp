@@ -615,6 +615,8 @@ int main(int argc, char** argv) {
   const long long quietSkipped = number(quiet.summary, "events_skipped");
   const long long normalMissing = number(normal.summary, "events_missing");
   const long long quietMissing = number(quiet.summary, "events_missing");
+  const long long normalSkippedDisabled = number(normal.summary, "events_skipped_disabled");
+  const long long quietSkippedDisabled = number(quiet.summary, "events_skipped_disabled");
 
   if (live) {
     // The control that gives the quiet readings their power: on this pair the
@@ -632,11 +634,19 @@ int main(int argc, char** argv) {
     // The events the normal run played are exactly the events the quiet run
     // skipped: same predicate, the last step differs by policy, and `skipped`
     // is the answer that says so instead of `failed`.
-    checks.add(quietSkipped == normalPlayed, "live.events_skipped_eq_normal_played");
+    // AUD-10: the two skip classes are separate readings now, so the tie has to
+    // name both. Folding them was what made a --audio-disabled run look like a
+    // run whose sound was lost.
+    checks.add(quietSkipped + quietSkippedDisabled == normalPlayed,
+      "live.events_skipped_eq_normal_played");
+    // And the disabled class has to be live on its own: the quiet side skips
+    // everything, so a zero here means the counter went back to being invisible.
+    checks.add(quietSkippedDisabled >= 1, "live.quiet_events_skipped_disabled_ge_1");
+    checks.add(normalSkippedDisabled == 0, "live.normal_events_skipped_disabled_is_zero");
     // Both accountings have to close on their own side.
-    checks.add(normalSeen == normalPlayed + normalSkipped + normalMissing,
+    checks.add(normalSeen == normalPlayed + normalSkipped + normalSkippedDisabled + normalMissing,
       "live.normal_accounting_closes");
-    checks.add(quietSeen == quietPlayed + quietSkipped + quietMissing,
+    checks.add(quietSeen == quietPlayed + quietSkipped + quietSkippedDisabled + quietMissing,
       "live.quiet_accounting_closes");
   }
 
@@ -657,6 +667,7 @@ int main(int argc, char** argv) {
   emit("normal.events_seen", normalSeen);
   emit("normal.events_played", normalPlayed);
   emit("normal.events_skipped", normalSkipped);
+  emit("normal.events_skipped_disabled", normalSkippedDisabled);
   emit("normal.events_missing", normalMissing);
   emit("normal.drawn", number(normal.summary, "drawn"));
   emit("normal.capture_written", number(normal.summary, "capture_written"));
@@ -671,6 +682,7 @@ int main(int argc, char** argv) {
   emit("quiet.events_seen", quietSeen);
   emit("quiet.events_played", quietPlayed);
   emit("quiet.events_skipped", quietSkipped);
+  emit("quiet.events_skipped_disabled", quietSkippedDisabled);
   emit("quiet.events_missing", quietMissing);
   emit("quiet.drawn", number(quiet.summary, "drawn"));
   emit("quiet.capture_written", number(quiet.summary, "capture_written"));

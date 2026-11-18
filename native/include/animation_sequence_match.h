@@ -8,18 +8,11 @@
 // substring test answers "does this word appear anywhere in that string", which
 // is not the question being asked.
 //
-// SCOPE. Both rules below are used by the MOVING side only. The idle side keeps
-// the pre-T61.1 case-blind substring match, because the review of the first
-// draft of this change drew the task boundary there: this task fixes "walk"
-// matching inside "airwalk" and changes no other motion rule. The matching idle
-// defect ("stand" inside "AttackStand") was measured on a live demo -- every
-// idle sample read AttackStand_PRIMARY -- but it belongs to its own task and
-// must not be verified together with this one. sequenceLabelHasSubstring below
-// exists so the idle path keeps the old behaviour through THIS header instead
-// of through a second copy of the matcher living somewhere else.
+// Moving and idle selection both use token boundaries and prefer the matching
+// primary action. This prevents idle selection from accepting AttackStand or a
+// taunt/layer clip merely because its label contains "stand" or "idle".
 //
-// The two moving rules, both measured against the nine class tables before they
-// were written (evidence/t57-player-model/raw/player_models.json):
+// The matching rules are checked against all nine class tables:
 //
 //   1. TOKEN boundary. A needle matches only where it is a whole token, both
 //      sides delimited by a non-alphanumeric character, the end of the label,
@@ -30,12 +23,8 @@
 //      token in both, but only the first is a run cycle, and the second is an
 //      arm overlay that happens to carry "run" in its name.
 //
-// Rule 2 is not decoration. Measured over all nine classes, rule 1 alone
-// removes airwalk but leaves five classes on an arm-layer clip
-// (layer_AttackStandMelee_runS_arms, layer_gesture_primary_help_runN_armL,
-// armslayer_PDA_run_fire), i.e. it swaps one wrong clip for another. With rule
-// 2 every class lands on its own locomotion cycle: run_PRIMARY in eight
-// classes and run_SECONDARY for the Spy.
+// Primary-action preference separates generic idle/locomotion cycles from
+// action and arm-layer clips that also contain the requested token.
 //
 // ONE SELECTOR. chooseSequenceByNeedles below is the whole of the choice: the
 // needle lists, the two match modes, the one-frame-pose staircase and the
@@ -43,8 +32,7 @@
 // (native/tools/model_pose_probe.cpp) both call it, so the probe cannot report
 // a sequence the product would not have played. The first draft of this change
 // had the candidate order and the needle list written twice, once in each
-// translation unit; a review of that draft named it, correctly, as a second
-// place for the same rule to drift.
+// translation unit; sharing it prevents the product and probe from drifting.
 //
 // Deliberately NOT here: an activity-number test. Source assigns the same
 // activity 0 to AIM matrix poses, airwalk variants and run cycles alike in
@@ -168,9 +156,8 @@ inline bool sequenceLabelIsOneShot(const std::string& label) {
 //   animatedPrimary, animated, posedPrimary, posed, fallbackPrimary, fallback
 // where 'animated' means frameCount > 1, 'posed' means frameCount == 1 and
 // 'fallback' means the sequence carries no descriptor at all. Within a tier the
-// earliest sequence index wins, and the 'primary' tiers only exist in WholeToken
-// mode -- which is what keeps the idle pick byte-identical to its pre-T61.1
-// behaviour.
+// earliest sequence index wins; WholeToken mode prefers the requested action
+// as the label's leading token (for example stand_PRIMARY over AttackStand).
 template <typename LabelAt, typename FrameCountAt>
 std::int32_t chooseSequenceByNeedles(std::size_t sequenceCount,
     const LabelAt& labelAt, const FrameCountAt& frameCountAt,

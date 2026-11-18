@@ -7,27 +7,32 @@ including user-facing features and engineering foundations. It supersedes the
 older phase ordering as a task plan; historical evidence and the frozen T85
 support-scope document remain historical records.
 
-Observed baseline at handoff:
+Observed baseline at Phase E handoff (2026-11-13):
 
 - Worktree: `D:/TF2_Native_Worktrees/t105-e5`, branch `candidate/e5`, HEAD
-  `917332d`.
-- The worktree contains 21 modified tracked files and two new documents
-  (`MAP-MATERIAL-PROGRESS` and this roadmap). The map renderer/material work is
-  not committed. Do not reset it,
-  overwrite it, or treat its executable as a clean canonical release build.
-- Latest measured executable for the map captures is
-  `d40363b7ff4609d5eef7269804ffa9456bcd9aedb9afa75eb513ef164579e0f8`.
-- The host lock was free and no product process was running when this plan was
-  written. The full 15-step release chain has not passed on the current tree.
-- The user wants useful product work to continue without a daily full-chain
-  run. Run focused tests for the changed domain and reserve the full release
-  chain for the final frozen candidate.
-- Current map evidence is incomplete: six-map tick-0 smoke passed for BSP
-  lookup/camera/sky-face availability, and Upward has a separate cart movement
-  pair. There is no final seven-map visual acceptance. Sultry still has
-  unexplained black regions, six-face sky loading is not 3D skybox support, and
-  some model material slots are unresolved. Do not describe terrain, sky, or
-  map parity as complete.
+  `9deed76`, clean at report close. Product exe SHA256 begins `2ae5067c`, size
+  2,976,768 bytes; sourceContent begins `41458a7f`; identity sidecar reports
+  `dirty=0`. These are captured report values, not a claim that a later local
+  rebuild has been checked.
+- Phase E landed camera-script extraction, the `tf2_core` static library,
+  Sultry translucent-atlas rescue, and audio master-volume / skipped-counter
+  changes. Build actions fell 634 to 137 and measured clean-build time 648 to
+  221 seconds. See the cumulative completion log for evidence limits.
+- The full 15-step release chain has not passed on this tree. Continue useful
+  work using focused tests and segmented regression; reserve the release chain
+  for the final frozen candidate.
+- The first-release maps remain `cp_process_f12`, `cp_sunshine`,
+  `cp_gullywash_f9`, `cp_sultry_b8a`, `koth_product_final`,
+  `koth_bagel_rc11`, and `pl_upward_f12`. `pl_odyssey` is excluded.
+- Map and feature acceptance is incomplete. Phase E proved atlas counts and
+  state for ten rescued translucent materials, not their pixel-level
+  appearance. I-20/I-21 black-pixel attribution, I-24 material-coverage pins,
+  seven-map visual acceptance, 3D skybox, minimap, and named feature coverage
+  stay open below.
+- The report identifies I-31 as a likely audio product regression between the
+  2026-11-12 build and v8. Bisect before changing its expectation.
+  Quiet-capture is not headless-safe; do not run its live path until I-29 is
+  fixed or the run is isolated from the audio device.
 
 ## Product target
 
@@ -577,16 +582,23 @@ Parallel assignments mean research and implementation in separate worktrees.
 If two cards reserve the same shared file, the integrator schedules windows;
 the lower-priority card waits rather than editing concurrently.
 
-## Immediate assignments
+## Immediate assignments - Phase F
 
-| Priority | Owner | First deliverable | Parallel status |
+| Order | Owner | First deliverable | Parallel / serialization |
 |---|---|---|---|
-| A | Integrator | R0-1: preserve dirty-tree inventory, exact baseline identity, output folders; open task cards and assign named owners | First; reserve current tree for map owner |
-| B | Map renderer | R0-2 then R2-1: review dirty map diff, rebuild focused targets, produce seven-map asset/demo/camera inventory | Owns shared map/model/renderer files; no simultaneous character lane edits |
-| C | QA / defect lead | R1-1: reconcile current QA registry and produce reproduced/static/open status ledger | Read-only parallel; fixes assigned after reproduction |
-| D | UI / workflow | R3-1 and R5-1: POV/STV corpus matrix plus minimap source/license report | Parallel research; product UI changes wait for R0 baseline |
-| E | Character / weapon | R4-1: class/action/weapon/ViewModel evidence matrix and required demo/asset gaps | Read-only parallel; code waits for shared-file reservation |
-| F | Architecture | R6-1: build/gate/source ownership baseline and first safe extraction proposal | Inventory parallel; no CMake/main.cpp edits until integrator books a window |
+| F0 | Integrator + audio owner | F1-1: bisect I-31 from the known-good 2026-11-12 build through v8 and identify the first `firstPacketTick=0`; preserve each identity and same-demo trace | First product investigation; no expectation edits until cause is proven |
+| F0a | QA / gate owner | F1-2: register `sultry-translucent-atlas-check.sh` in the appropriate fast/release checks and add a named registry for all other unregistered gates | Can audit scripts in parallel with F1-1; edits to verify scripts serialized |
+| F1 | Gate / integration owner | F1-3: correct I-24 `material-coverage` pins and add `drawn + hidden == input` after tracing the causal change from `10d1355` | After F1-2; pixel/pin writer has exclusive evidence window |
+| F1 | Audio/UI owner | F1-4: make quiet-capture genuinely headless-safe (I-29), then test M mute, [ / ] volume changes, persistence across restart, and an audible/device-enabled smoke | Source work can be designed in parallel; device and product runs serialize under host lock |
+| F1 | Map renderer + QA | F1-5: add pixel-attributed evidence for I-23's ten translucent materials; then resolve I-20/I-21 black-pixel claims on named first-release scenes | After stable I-24 captures; map renderer owns shared world files |
+| F2 | UI owner | F2-1: rebase/review the prepared E9 minimap patch on current `9deed76`, confirm provenance and seven-map linework limits, then integrate through a focused product gate | Separate UI files can progress in parallel; shared `main.cpp`/UI integration scheduled alone |
+| F2 | Architecture owner | F2-2: run the 54 built probes in measured batches, then set a minimum exit for `tf2_core`, `/W4`, CI, and incremental build measurements | Probe batches can parallelize only where they do not contend for the GPU/host lock |
+| F2 | Map renderer | R2-9/R2-10: seven-map `$nocull` material census and a named translucency-ordering investigation | Read-only work parallel; any world-renderer edits serialize with minimap renderer integration |
+| F3 | Playback/camera + renderer | R8-1 through R8-5: first two-player split view, then PIP/four-view expansion after per-pane target/mode/input isolation and frame-time are measured | Contract/resolver work precedes render-loop changes; renderer and UI integration are serialized |
+| F3 | Map renderer | R2-8: implement 3D skybox from the prepared design and verify one representative map before broadening | Separate feature branch/worktree; do not overlap world-renderer writer |
+| Final | Integrator + release lead | R7-1 through R7-3: freeze scope, current seven-map/feature evidence, reproducible build, one authorized 15-step release chain | Last; no concurrent source, gate, asset, or pin writes |
+
+Do not repeat the complete release chain during these phases. Use the affected probe and focused gate for each task, then a short segmented regression at integration points. Only run the release chain on the frozen release candidate.
 
 ## Work not to schedule as daily full-chain work
 
@@ -674,3 +686,214 @@ implied.
 - P5: minimap contract and implementation are open (only BSP-derived source data exists).
 - P6: CI workflow, /W4 coverage, caching measurement and the library boundary are drafted/measured but not landed.
 - P7: merge window, seven-map final evidence, final release chain and publishing are untouched.
+
+## Update - 2026-11-13 Candidate Fix Review and Multi-View Feature
+
+### Candidate-fix review
+
+The supplied files are proposals, not drop-in patches. Current source inspection found:
+
+- Animation sequence token matching already lives in `native/include/animation_sequence_match.h`; demo pose sampling, parent composition, inverse-bind application and GPU matrix packing already run through `native/src/animation_binding.cpp`. Do not add the duplicate selector or synthetic `evaluateEntitySkinningMatrices` from the attachment. That evaluator ignores `cycle`, body angles and movement after clamping them, so it does not animate a pose.
+- WorldVertexTransition already samples the second albedo and blend-modulate textures and applies the SDK-shaped smooth transition in `native/src/native_renderer_shaders.cpp`. RGBExp32 lightmap sampling and linear-light handling are also present. The attachment's extra HDR clamp to 4.0 is not accepted without a map-specific image comparison.
+- ViewModel skinning, independent projection and Phong inputs already exist. The supplied four-weight shader is incompatible with the current three-weight vertex layout. The simple bone-name lookup is not a complete bone-merge transform.
+- Confirmed source gap to validate on first-release maps: `$nocull` is parsed and used for entity-model ranges, but the world-texture record and world draw batches do not carry a per-material cull flag. The world brush pass currently uses the global cull state. This is a code-path finding, not yet proof of a visible first-release defect.
+- Confirmed limitation, not an attachment-ready fix: world translucent faces are grouped after opaque faces, but are not sorted per face back-to-front. The current PVS/index ordering and per-atlas batch layout must be preserved or deliberately redesigned; a generic center-distance sort is insufficient.
+
+### Multi-player multi-view feature
+
+Goal: show 2-4 player cameras concurrently, either in equal split panes or a selectable picture-in-picture inset. Clicking a pane selects it; camera-mode controls then change that pane among first-person, third-person and free-look. Every pane keeps its own player target, camera mode and free-look pose while playback time and decoded demo state remain shared.
+
+Implementation order and acceptance:
+
+| ID | Owner | Deliverable and exit condition | Scheduling |
+|---|---|---|---|
+| R8-1 | Product/UI | Contract for 2/3/4-pane layouts, PIP placement, target selection, click/focus behavior, per-pane mode state, invalid/dead targets and keyboard routing | Read-only; parallel with R2-9 and R6-1 |
+| R8-2 | Playback/camera | Per-view state type and resolver: player entity, first/third/free mode, orbit pose and fallback reason; prove two views can resolve different players at the same demo tick | After R8-1; camera-state files only |
+| R8-3 | Renderer | Render one shared scene snapshot through N camera views using per-view camera constants, viewport/scissor rectangles and independent depth clears; do not decode/seek the demo once per pane | After R8-2; serialize all renderer-frame/world edits |
+| R8-4 | UI | Split/PIP layout controls and pane hit-testing; clicking a pane makes it the sole target of camera-mode and free-look input | After R8-1 and R8-3; serialize UI integration |
+| R8-5 | QA/performance | Same-tick two-player positive case, 2/4-pane captures, all three modes per selected pane, click/input isolation, target-loss fallback, resize/DPI layout, deterministic repeat and frame-time measurement | After R8-2 through R8-4 |
+
+First implementation should target two views and equal split. Add PIP and four views after two-view isolation and frame-time are proven. Rendering cost grows with view count; demo decoding, entity interpolation and asset preparation must be shared, while camera-dependent passes repeat. The feature is accepted only when switching one pane leaves every other pane's target and camera state unchanged.
+
+### New assignable map tasks
+
+| ID | Owner | First deliverable | Dependency / scheduling |
+|---|---|---|---|
+| R2-9 | Map renderer + QA | Census `$nocull` declarations on the seven first-release maps; choose a fixed visible face/material per affected map and capture culling-on/off controls | Read-only census parallel; renderer change only after a positive case; shares world/frame files with R8-3, so serialize implementation |
+| R2-10 | Map renderer | Establish whether unsorted translucent faces cause a visible error on a named first-release scene; compare source ordering, camera-relative face depth and atlas/PVS constraints | After R2-1; read-only analysis parallel, implementation requires a separate approved design and pixel gate |
+
+### Integration decision
+
+No attachment source or shader text was copied into product files. The implementations already present remain authoritative. R2-9 is the only proposed product change with a concrete missing data path; it stays unimplemented until a first-release map fixture proves it is needed and an affected-material gate can discriminate the behavior. R2-10 remains investigation-only until a same-camera reference demonstrates an ordering defect.
+
+### Batch 3 - 2026-11-13 Phase E (report accepted; no release claim)
+
+- Source report: `D:/_shared/EXEC-2026-11-13/ROUND-REPORT-2026-11-13-PHASE-E.md`.
+- Reported tree: `t105-e5`, `candidate/e5`, HEAD `9deed76`, clean; exe SHA begins
+  `2ae5067c`, sourceContent begins `41458a7f`, `dirty=0`. No push, tag, release,
+  history rewrite, or full release chain.
+- **Completed implementation with bounded evidence:** E1 moved the camera
+  script into its own translation unit; five fixed-camera BMP comparisons were
+  byte-identical, but E1 mutation coverage was not run. E2 created `tf2_core`;
+  build actions decreased 634 to 137 and measured clean build 648 s to 221 s.
+  Behavior checks covered two gates and two fixed views, not all 54 built probes.
+  E10 rescued ten Sultry translucent materials under the existing 384 MiB
+  budget; `sultry-translucent-atlas-check.sh` passed 121 assertions and its
+  positive/negative/budget controls, but pixel-level transparency appearance is
+  still unproven. E11 connected master gain/mute to PCM bytes and separated
+  disabled-event counts; the probe passed 15 checks, but key handling,
+  persistence across restart and audible output are not verified.
+- **Current confirmed/likely defects:** I-31 is a likely product regression in
+  audio event origin (`firstPacketTick=0` vs prior `29368`); bisect before
+  changing its gate. I-29 makes quiet-capture unsafe for headless use because
+  its live process can open a real audio device. I-24 is pre-existing material
+  coverage pin drift associated with the 2026-11-12 re-pin; update all six
+  affected readings only after causal comparison. I-28 path-prefix handling
+  recurred in the E11 wrappers and wrote into a shadow path; make absolute and
+  relative output path handling an explicit gate contract. I-30 establishes
+  that wall-clock counters such as `renderedFrames` are not stable pin values.
+- **Gate/evidence gaps:** the new Sultry gate is not registered in a chain
+  (I-32); E10 mutation coverage was not run; 54 built probes were not run as a
+  batch; the full release chain remains unrun. `material-coverage` and
+  `world-material-semantics` remain red from I-24. Do not call Phase E a full
+  regression pass.
+- **Prepared but not landed:** E9 minimap patch and gate; E3 3D-skybox design;
+  I-20/I-21 diagnostic plan; reload observation plan. Rebase and review these
+  against current `9deed76` before applying. The minimap has no supplied radar
+  image for the seven maps, so its first version is BSP-derived linework; this
+  limitation must be visible in acceptance notes. Odyssey remains excluded.
+- **This batch did not prove:** Source-client parity, full seven-map visual
+  acceptance, pixel-level I-23 transparency, I-20/I-21 black-pixel causes,
+  audible audio, end-to-end mute/volume persistence, all probes passing, or
+  release readiness.
+
+### Phase F task cards
+
+| ID | Owner | Task and acceptance evidence | Dependency / parallelism |
+|---|---|---|---|
+| F1-1 | Audio + QA | Bisect I-31 across preserved exe identities; identify first bad build with the same demo, same startup flags and same packet-origin trace; fix product only after root cause is isolated | Highest priority; read-only identity analysis can parallel with F1-2, product edits wait for finding |
+| F1-2 | Gate owner | Register `sultry-translucent-atlas-check.sh` in appropriate fast/release coverage; add a gate registry rule so every check is registered or has a named exclusion; verify the registry catches a deliberately unlisted gate | Script-only, parallel with I-31 investigation; serialize edits to verify scripts |
+| F1-3 | QA + map owner | Repair I-24 material-coverage pins from current identified product; include the six affected values and `drawn + hidden == input`; document why the pre-patch exe reproduces the drift | After F1-2; one evidence/pin writer at a time |
+| F1-4 | Audio/UI | Make quiet-capture safe without an audio device (I-29); test `M`, `[` and `]`, settings persistence across restart, PCM gain/mute, and one explicit audio-enabled smoke | Host-lock/device runs serialized; no real-device test while unattended |
+| F1-5 | Map renderer + QA | Prove I-23 with material-region pixel masks and same-camera on/off controls; then run the I-20/I-21 face/alpha/depth/PVS diagnosis on named first-release views | After stable map captures; world-renderer edits serialized |
+| F1-6 | Gate owner | Fix I-28 output-path normalization and add relative/absolute OUT controls; replace exact assertions on I-30 wall-clock counters with stable invariants or pixel/serialized-output evidence | Small gate-only patch; do not change product expectations to hide I-31 |
+| F2-1 | UI owner | Rebase E9 minimap patch and gate onto `9deed76`, review `demos.tf` provenance already recorded, implement selectable in-app minimap with seven-map BSP linework, objective/player markers, orientation, zoom and visibility states | Can prototype isolated UI pieces in parallel; shared `main.cpp` integration gets one writer window |
+| F2-2 | Architecture + QA | Run the 54 built probes in lock-aware batches and report counts/identities/failures; then define remaining `tf2_core` exit, `/W4`, CI and build-cache tasks using the new 137-action/221-second baseline | Probe builds/runs coordinated with host lock; CI draft can proceed in parallel after build scripts are stable |
+| F2-3 | Map renderer + QA | R2-9: census `$nocull` on the seven release maps, capture affected-face positive/control pairs, and add per-material culling only if a target scene demonstrates loss | Read-only census parallel; renderer fix is serialized and requires an affected-material pixel gate |
+| F2-4 | Map renderer | R2-10: quantify visible translucent sorting errors on a named scene; preserve atlas and PVS mapping in any later ordering design | Investigation parallel; no generic sort patch without a pixel oracle |
+| F2-5 | Map renderer | Implement E3 3D skybox from its prepared design: parse `sky_camera`, select correct sky clusters, transform using map scale, provide `--no-sky3d` fallback and one-map positive/control evidence | Separate implementation slot; no concurrent writer to shared world-render files |
+| F2-6 | Animation owner + QA | Close reload observability gap: increase observation density around measured 30-60 tick reload windows, prove existing playback first, then add or correct product behavior only if evidence shows it fails | Probe/fixture design parallel; animation product source edits serialized |
+| F3-1 | Playback/camera + renderer | R8-1..R8-5 multi-view: define and implement two-player split first, independent per-pane player/mode/free-look state, pane focus/input routing; then PIP and four views after frame-time and isolation gates pass | Resolver before render loop; renderer and UI integration serial; share one demo decode/state snapshot per frame |
+| F3-2 | Character/weapon/effects | Complete first-release ViewModel/weapon slots and nine-class runtime action evidence; implement only approved Pyro weapon effects, Medic healing beam and bleeding, excluding ragdolls and general particles | Inventory in parallel; shared model/shader/frame edits scheduled one owner at a time |
+| F3-3 | Map + asset owner | Complete seven-map object/material acceptance, missing-asset provenance, control points, Upward cart, dynamic brush and sky evidence; include only first-release maps | Map inventory parallel; shared renderer implementation serialized |
+| F4-1 | Integrator | Update feature matrix and invalidation map after F1-F3; freeze only when known P0/P1 findings are fixed or explicitly accepted | After feature owners report exits |
+| F4-2 | Release lead | Reproducible clean build, final seven-map/feature evidence and exactly one authorized 15-step release-chain attempt | Last; exclusive freeze window |
+
+### Phase F scheduling rules
+
+- Run F1-1 and F1-2 first. They can proceed in parallel because one is a
+  read-only product regression investigation and the other is gate registration.
+  Do not re-pin I-24 or alter the audio gate until I-31's cause is known.
+- Gate-only work (registry, OUT normalization, counter assertions) can run beside
+  read-only map, asset, animation, minimap-source and architecture inventory.
+  Only one writer may touch the shared `verify-*.sh` set at a time.
+- `native/src/main.cpp`, world/frame renderer files, camera state, model/shader
+  files, and CMake target graph each get a named writer window. Multi-view
+  rendering must not overlap map-renderer changes to the same frame/world files.
+- Product captures, builds that replace the active binary, audio-device tests,
+  and evidence pinning are serialized under the host lock. Keep outputs outside
+  tracked evidence unless the task explicitly updates committed pins.
+- Use the narrowest relevant probe/gate after each change, then a segmented
+  regression for the combined feature set. No daily full chain; the single full
+  release chain remains the final F4-2 action.
+
+### Batch 4 - 2026-11-13 Phase F (F1-1 through F2-3)
+
+- Full report: `docs/PHASE-F-REPORT-2026-11-13.md`
+  (shared copy `D:/_shared/EXEC-2026-11-13/ROUND-REPORT-2026-11-13-PHASE-F.md`).
+
+- Base: `9deed76`; tree `t105-e5`, branch `candidate/e5`; no release chain, no
+  push, no tag, no history rewrite. All product runs and builds were inside the
+  host lock; captures and logs are outside tracked evidence under
+  `D:/_shared/EXEC-2026-11-13/F1/` and `D:/_shared/EXEC-2026-11-13/F2/`.
+- F1-1 (I-31) closed as a **gate semantic mismatch, not a product regression**.
+  Five preserved exes (`d40363b7`, `6c06c6ad`, v5 `8bff0858`, v6 `2a63a4c3`,
+  v8 `c19776d5`, v9 `2ae5067c`) all print `firstPacketTick=0` on the same demo
+  and argv. `5ee9642` (2026-10-24) deliberately changed the product field to the
+  data-entry origin; the census's `firstPacketTick` is the signon tick 29368.
+  `da1461d` compares the product field to the census `packetOrigin` instead.
+  Evidence: `VERIFY-AUDIO=PASS assertions_ok=235`, all 17 mutation cases caught.
+- F1-2 (I-32) closed. `9fc3feb` adds `gate-registry-check.sh` and
+  `docs/GATES-UNREGISTERED.md`; `75aa99e` runs the Sultry rescue gate in
+  `verify-all.sh` step 29. Evidence: registry self-test 5/5 controls,
+  `GATE-REGISTRY=PASS gates=84 registered=34 excluded=50`, `VERIFY-FAST=PASS`
+  with 43 assertions, Sultry gate `139 OK / 0 FAIL`.
+- F1-3 (I-24) closed. `8fb52c1` re-pins the six material-coverage readings
+  (`42 / 705 / 5 / 5 / 216114 / 89488`) and adds
+  `inputTriangles=242109` + `drawn + hidden == input`. The pre-patch run
+  reproduced exactly the six failures; the post-patch run is
+  `MATERIAL-COVERAGE=PASS` with 100 OK. `verify-all`'s stale 89 count was
+  re-measured to 100. Cause: `10d1355`'s PVS zero-run decode; geometry and
+  atlas-plan counts are unchanged.
+- F1-4 (I-29 / AUD-03) closed headlessly. `ed4beee` makes
+  `quiet-capture-check.sh` default to pinned + headless-live with no device,
+  makes the audible live pair opt-in `--device`, and adds
+  `audio-keys-check.sh` + `send-window-keys.ps1`. Evidence:
+  `QUIET-CAPTURE=PASS (pinned + headless live; device-pair=SKIPPED)` and
+  `AUDIO-KEYS=PASS` (six real WM_KEYDOWN edges, ui.ini volumePercent=60
+  muted=1, two restart reads). The audible device-6 pair is **NOT VERIFIED**;
+  it was not run unattended.
+- F1-5 (I-23 pixel half) closed. `d18c985` adds sultry gate section 4: camera
+  `--debug-camera 949 -1016 784 15 180` sees the named
+  `glasswindow001a_649_-1016_704`; rescue on/off changes 84,965 pixels and the
+  six hole-trace points attribute five of them to that material and one to an
+  opaque BRICK/WALL028 control. I-20/I-21 diagnosis: `1ace36b` adds
+  `--world-face-trace-points` and `texelA=`; `8cea550` adds
+  `world-black-account-check.sh`. Measured: 1143,132 and 1110,136 are
+  TREELINECARD texel `255,255,255` with alpha 0 (transparent sheet over a dark
+  background, not a white texture drawn black); 1110 additionally has vertex
+  colour 0. 873,366 is METALGRATE alpha 0. `--world-texel` shows 849,396 reads
+  texel `84,83,81` but albedo 0 (vertex colour 0), and 919,379 reads
+  texel=albedo `210,208,197` (face-trace UV disagreement). 849/919 are pinned
+  **OPEN**, not explained away.
+- F2-1 (minimap) landed. `1bfbba7` applies the E9 patch to four files;
+  `d15332c` adds `minimap-hud-check.sh`; `17a7ef3` registers it. The gate fixes
+  two harness defects found on first run: `${RC_$name}` bad substitution and a
+  nondeterministic old-exe A10 control (both old runs now `--start-paused`).
+  Evidence: forward `MINIMAP-HUD=PASS assertions=96 skipped_controls=0`, including
+  A1-A11, y-flip/x-mirror controls, yaw rotation, old-exe negative and the
+  untabulated map. A12 was then run: `m1-yflip` caught correctly; `m2-heading`
+  and `m3-anchor` were caught but on different assertions than the gate expected
+  (`MINIMAP-HUD=FAIL assertions=100 failed=2`). That is a gate-expectation bug,
+  not a product regression; the restored build reproduced `00ec8b99...`
+  byte-for-byte. Seven-map linework is tabulated but only Upward and Sunshine
+  have frames; the other five are **NOT VERIFIED**.
+- F2-3 (R2-9) census done, read-only: `docs/R2-9-NOCULL-CENSUS-2026-11-13.md`.
+  Only `koth_bagel_rc11` has visible `$nocull` candidates in its own BSP pak
+  (three oak trees, tarp, detail-sprite sheet); the other six maps only declare
+  the invisible `tools/toolstrigger` material. A fixed oak camera showed
+  `--no-world-cull` changes 689,683 pixels and `--world-geometry none` 860,784,
+  but those are global world controls, not a per-material `$nocull` case; the
+  oak is a static prop. No world-renderer change is justified until a targeted
+  world-brush face fixture exists.
+- F2-2 probe coverage done once: `docs/F2-2-PROBE-SWEEP-2026-11-13.md`.
+  52 `*_probe.exe` files were started under the host lock: 29 exited 0 on
+  `--self-test`; a second batch ran 8 argument-bearing probes with real
+  map/TF-root/demo inputs, all 8 rc=0; a third/fourth batch covered the
+  remaining probes (`playback`, `review-workspace`, three ViewModel probes,
+  model robustness, WinMM dry run, install CLI, entity protocol, brush entity,
+  sound corpus, item schema, PCF, texture quad, quiet capture). All 52 have now
+  been invoked once. **One OPEN probe result:** `animation_viewmodel_probe`
+  reports synthetic `loop=false` while `realLoop=true` and every other flag is
+  true; it needs triage. This is not full domain/rendering acceptance.
+- Identity at batch close: exe `00ec8b99fc779327eb2cf0eb0cb9a0e59eca3a4d0413e1ea29b36c7bcbec2078`,
+  2,988,544 B; `sourceContent=1d9c0ead...`; canonical rebuild after the batch
+  commits reports `sourceTree=f533293`, `dirty=0`. The earlier build during the
+  working batch reported `dirty=1` only because the roadmap document was still
+  uncommitted; the exe bytes are identical.
+- Still open: F1-5's 849 vertex-colour and 919 UV discrepancy; F1-4 audible device smoke;
+  F2-1 A12 expectation fix and five-map frames; F2-2 `animation_viewmodel_probe`
+  `loop=false` triage; F2-3's targeted world-brush `$nocull` fixture;
+  F2-4/F2-5/F2-6; F3/F4; one full release
+  chain only at freeze.
+

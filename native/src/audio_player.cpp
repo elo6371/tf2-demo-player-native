@@ -404,7 +404,10 @@ AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeli
     WavPcmData wav;
     auto& player = players_[nextVoice_++ % kVoiceCount];
     lastSpatialMix_ = listenerValid_ ? computeSpatialMix(event.origin, listener_) : SpatialMix{1.0f, 0.0f};
-    const float volume = event.volume * lastSpatialMix_.gain;
+    // AUD-03: the master gain multiplies the event volume here -- before the
+    // missing/inaudible decision below and before applyPcmPan scales the buffer,
+    // so a muted master writes silence instead of full-scale samples.
+    const float volume = event.volume * lastSpatialMix_.gain * masterVolume_;
     const bool resolved = resolver_ != nullptr && resolver_(event.name, wav) && wav.valid;
     // The codec comes from the buffer the resolver produced, so an event whose
     // name says .mp3 but whose bytes decoded as something else is counted as

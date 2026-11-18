@@ -42,6 +42,79 @@ struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv
 Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; output.feature = input.feature; output.tangent = input.tangent; return output; }
 )HLSL";
 
+  // N05 step 3: the stream output channel.
+  //
+  // The world vertex shader above is left byte for byte alone -- it is the one
+  // that draws, and a capture that changed it would be measuring a different
+  // draw. This geometry shader declares the world VS output struct as its input
+  // and copies every field straight through, so nothing downstream sees a
+  // different vertex; the only thing narrowed is the stream output declaration,
+  // which emits position (clip xyzw) and nothing else. A pixel that disagrees
+  // with the CPU prediction can then be attributed to the vertex stage with a
+  // reading rather than by inference.
+  //
+  // The output stream is a TRIANGLE stream, not a point stream, and that is the
+  // whole reason the captured frame is still the frame: after a geometry shader
+  // the rasteriser draws the primitive the output stream type declares, so a
+  // point stream would replace the triangle under test with three dots and the
+  // bitmap would no longer be the picture these clip values describe.
+  //
+  // The nine input fields must match the world VS Output exactly, including the
+  // order of the semantics: a GS input signature that drifts from the VS output
+  // signature is a silently mismatched pairing (the stage still runs, reading
+  // whatever the VS wrote under that semantic name), which is why this block is
+  // written out in full rather than trimmed to the one field that is used.
+  extern const char worldClipCaptureGeometrySource[] = R"HLSL(
+struct WorldOutput {
+  float4 position : SV_POSITION;
+  float4 colour : COLOR0;
+  float2 uv : TEXCOORD0;
+  float3 normal : NORMAL0;
+  float3 worldPosition : TEXCOORD2;
+  float2 lightUv : TEXCOORD3;
+  float blend : TEXCOORD4;
+  float blendModulate : TEXCOORD5;
+  float4 feature : TEXCOORD6;
+  float4 tangent : TEXCOORD7;
+};
+struct ClipSample {
+  float4 position : SV_POSITION;
+  float4 colour : COLOR0;
+  float2 uv : TEXCOORD0;
+  float3 normal : NORMAL0;
+  float3 worldPosition : TEXCOORD2;
+  float2 lightUv : TEXCOORD3;
+  float blend : TEXCOORD4;
+  float blendModulate : TEXCOORD5;
+  float4 feature : TEXCOORD6;
+  float4 tangent : TEXCOORD7;
+};
+[maxvertexcount(3)]
+void main(triangle WorldOutput input[3], inout TriangleStream<ClipSample> stream) {
+  [unroll] for (uint i = 0; i < 3; ++i) {
+    ClipSample sample;
+    // Every field is copied through, not just the one that gets streamed out.
+    // The pixel shader consumes the interpolants below SV_POSITION, and a
+    // geometry shader that dropped them would leave the pixel stage reading
+    // elements its producer never wrote -- the captured frame would then differ
+    // from the frame without the channel for a reason that has nothing to do
+    // with the vertices under test.
+    sample.position = input[i].position;
+    sample.colour = input[i].colour;
+    sample.uv = input[i].uv;
+    sample.normal = input[i].normal;
+    sample.worldPosition = input[i].worldPosition;
+    sample.lightUv = input[i].lightUv;
+    sample.blend = input[i].blend;
+    sample.blendModulate = input[i].blendModulate;
+    sample.feature = input[i].feature;
+    sample.tangent = input[i].tangent;
+    stream.Append(sample);
+  }
+  stream.RestartStrip();
+}
+)HLSL";
+
   extern const char worldPixelSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
   row_major float4x4 mvp;
@@ -147,6 +220,10 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // model can be carried by another with no reading to show it. This arm
   // sits ABOVE the sentinel because the entity pass hands it 11.0 and
   // 11.0 > 9.5: an arm placed below would be unreachable.
+  // N05 step 2: the magenta isolation view. Placed above every other arm because
+  // it is the one that must be unambiguous: a pixel is 255,0,255 only if this
+  // pass wrote it.
+  if (envFeatures.x > 11.5) return float4(1.0, 0.0, 1.0, 1.0);
   if (envFeatures.x > 10.5) {
     return float4(colour.rgb, 1.0);
   }
@@ -154,7 +231,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     return float4(1.0, 0.0, 1.0, 1.0);
   }
   if (envFeatures.x > 8.5) {
-    uint entityDetail = ((uint)feature.x) & 4u;
+    uint entityDetail = ((uint)(feature.x + 0.5)) & 4u;
     return float4(saturate(blend), saturate(blendModulate),
       entityDetail != 0u ? 1.0 : 0.0, 1.0);
   }
@@ -232,6 +309,25 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   }
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
+  // N06 probe 6/7 (forensic, 2026-11-18): one vector per arm, so no reading can
+  // be attributed to the wrong channel. View 16 is the vertex colour the albedo is
+  // lerped from plus the blend weight; 17 is the albedo next to the sample, the
+  // sample's alpha and the vertex alpha. Both ride the gap between the terms probe
+  // (1.52) and the lightmap probe (1.62).
+  if (envFeatures.x > 1.585) return float4(colour.r, colour.g, colour.a, blendWeight);
+  if (envFeatures.x > 1.565) return float4(albedo.r, sampled.r, sampledTexel.a, colour.a);
+  // N06 probe: the terms whose product is the albedo, side by side, so a black
+  // pixel can be attributed to the vertex colour or to the blend layer instead
+  // of being guessed at. R = albedo, G = the vertex colour's red, B = the blend
+  // weight. View 12 is the same pixel one step earlier: R = colour.a,
+  // G = colour.g, B = the sampled texel's alpha. Both are placed after the
+  // declarations they read: the first cut sat above them and HLSL refused it.
+  // The two probe modes ride 1.9 and 2.4 because every other value is already
+  // claimed by an arm above: 12 and up is magenta, 3.5-11.5 are the T11/T26/T61
+  // views, 2.5-3.5 is the environment cube and 0.5-1.5 is the raw texel. The
+  // gap between them is dead on the product path, so nothing else can read it.
+  if (envFeatures.x > 2.3) return float4(colour.a, colour.g, sampledTexel.a, 1.0);
+  if (envFeatures.x > 1.85) return float4(albedo.r, colour.r, blendWeight, 1.0);
   // T27: `$detail`. The layer is combined with the SAME TextureCombine the SDK
   // uses (common_ps_fxc.h), at the point the SDK calls it: on the base colour
   // with the vertex tint already applied, before lighting (`albedo =
@@ -240,7 +336,9 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // CPU -- this pass has one atlas uv per vertex, so the repetition has to live
   // in the pixels rather than in a second texcoord. A material with no detail
   // tile has bit 2 clear and never samples here.
-  uint featureMask = (uint)feature.x;
+  // Round, never truncate: `feature` is interpolated, so a mask 16 can arrive as
+  // 15.9999998 and truncate to 15 -- losing `$alphatest`, gaining detail (black).
+  uint featureMask = (uint)(feature.x + 0.5);
   // Map-only unlit/model blend modes. World and player feature masks never set
   // these bits. UnlitTwoTexture multiplies both textures and adds with ONE/ONE;
   // Modulate interpolates from neutral grey through the texture's alpha before
@@ -265,7 +363,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   }
   if ((featureMask & 4u) != 0u) {
     float4 detailColor = detailAtlas.Sample(sampler0, uv);
-    albedo = combineDetail(albedo, detailColor, (uint)feature.y, feature.z);
+    albedo = combineDetail(albedo, detailColor, (uint)(feature.y + 0.5), feature.z);
   }
   // T21: mode 6 is the ALBEDO the material path produced -- both layers of a
   // blend material already mixed, the detail layer combined, the flat branch for
@@ -275,6 +373,9 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // which is the only way to tell "the wall is dark because the material is
   // dark" from "the wall is dark because it sampled the wrong tile".
   if (envFeatures.y > 0.5) return float4(albedo, 1.0);
+  // N06 probe 8: the same albedo one branch later, next to the vertex colour it
+  // came from, so view 17 and the albedo view can be compared in one frame.
+  if (envFeatures.x > 1.545) return float4(albedo.r, colour.r, sampled.r, sampledTexel.a);
   // T62: the ambient here is the map's lightmap intensity, which is a per-map
   // compensation for lightmapped world faces. A draw with NO lightmap uv (the
   // entity vertex shader writes lightUv = (-1,-1)) never reaches the lightmap
@@ -305,6 +406,16 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     lightColour = pow(max(lightmapTexture.Sample(sampler0, lightUv).rgb, 0.0), 1.0 / 2.2);
   }
   albedo *= lightColour;
+  // N06 probe 3: attribute a black product to the lightmap instead of guessing.
+  // R = the light colour actually multiplied in, G = the raw lightmap texel's
+  // red, B = whether this pass samples the lightmap at all (lightmapFeatures.w).
+  // It rides 1.7: every arm above claims another value (2.3 and up, 1.85-2.3,
+  // 0.5-1.5, 2.5-3.5 and 3.5+), so 1.5-1.85 is the last free gap.
+  if (envFeatures.x > 1.65) {
+    return float4(lightColour.r,
+      lightmapTexture.Sample(sampler0, max(lightUv, float2(0.0, 0.0))).r,
+      lightmapFeatures.w, 1.0);
+  }
   float3 Ng = safeNormalize(normal);
   // T27: the per-material normal. Bit 0 means this material's own `$bumpmap`
   // tile was blitted into the batch's bump atlas; the vertex's tangent frame
@@ -395,10 +506,20 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   //
   // The distance is measured in MAP units. worldPosition is the normalised box
   // vertex (the vertex shader copies input.position straight through), so the
-  // delta is multiplied by the same two scales the vertex convert used
-  // (native_renderer_world.cpp:93-101): 1/horizontalScale for x/y, spanZ/0.8
-  // for z. One scalar would put the fog at a different depth in every map whose
-  // long axis is not 0.8 wide.
+  // delta is multiplied by the inverse vertex scale on all axes
+  // (native_renderer_world.cpp:93-101). The uniform world transform keeps fog
+  // distance and camera geometry in the same map metric.
+  // N06 probe 4/5. 1.62 is the colour the product path is about to write, with
+  // fog not yet blended in: if a surface reads black in a product capture but
+  // shows a grey here, the arithmetic that ran after the lightmap zeroed it, and
+  // if it is black here too the value itself is zero and the next question is
+  // which term. 1.52 returns those terms: R = diffuse (0 with a dead normal),
+  // G = |Ng| (0 when the vertex carried no usable normal), B = lighting / 2 (a
+  // product of albedo and lighting cannot be black while lighting is not).
+  if (envFeatures.x > 1.5) {
+    if (envFeatures.x < 1.6) return float4(diffuse, saturate(length(Ng)), lighting * 0.5, 1.0);
+    return float4(albedo * lighting, 1.0);
+  }
   if ((featureMask & 32u) != 0u && fogParams.w > 0.5) {
     float3 fogDelta = (cameraPositionAndSpecular.xyz - worldPosition) * fogScale.xyz;
     float fogDistance = length(fogDelta);
@@ -409,6 +530,33 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   return float4(albedo * lighting, outputAlpha);
 }
 )HLSL";
+
+  // W-1 perf: the sky's own pixel shader.
+  //
+  // The world pixel shader above contains `discard` (the alpha-test arm), and a
+  // draw whose pixel shader can discard cannot be early-depth-rejected: the
+  // hardware has to run the shader before it can know whether the depth test
+  // would have killed the pixel. That is why deferring the sky to the end of the
+  // world pass changed nothing measurable (W-1 A/B: 45.1 fps sky off, 38.8 fps
+  // sky first, 37.3 fps sky last -- the same 12 triangles shaded every frame
+  // pixel in both orders). This shader is the sky branch of the world shader and
+  // nothing else: it returns the same colour the branch already returned (the
+  // branch returns before the lighting half runs), but with no discard, no depth
+  // output and no read beyond the cube, which is what lets the depth test run
+  // first and reject the pixels the world already covers.
+  extern const char skyPixelSource[] = R"HLSL(
+TextureCube envCube : register(t5);
+SamplerState sampler0 : register(s0);
+float3 safeNormalize(float3 value) {
+  float lengthSquared = dot(value, value);
+  if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
+  return value * rsqrt(lengthSquared);
+}
+// The input signature matches the world vertex shader's output struct byte for
+// byte, so the same input layout and the same vertex shader feed it.
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5, float4 feature : TEXCOORD6, float4 tangent : TEXCOORD7) : SV_TARGET {
+  return float4(envCube.Sample(sampler0, safeNormalize(worldPosition)).rgb, 1.0);
+})HLSL";
 
   extern const char modelVertexSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) { row_major float4x4 mvp; float4 unused0; float4 unused1; float4 unused2; float4 unused3; };
@@ -984,8 +1132,13 @@ Output main(Input input) {
 //       of the panel behind it, which is what makes a frame comparison exact.
 //   3 = circle: the 0..1 local coordinate spans the bounding box, so a squared
 //       distance from the centre above 0.25 is outside the disc.
+//   4 = image: sample the one resident basemap texture with the primitive's own
+//       crop in uv, and multiply by the primitive's colour so a caller can dim or
+//       tint it. The pass binds t1/s1 only when an image primitive is present.
 Texture2D<float> fontAtlas : register(t0);
 SamplerState fontSampler : register(s0);
+Texture2D<float4> hudImage : register(t1);
+SamplerState hudImageSampler : register(s1);
 struct Input {
   float4 position : SV_POSITION;
   float4 colour : COLOR0;
@@ -1005,6 +1158,7 @@ float4 main(Input input) : SV_TARGET {
     if (dot(offset, offset) > 0.25) discard;
     return input.colour;
   }
+  if (kind == 4) return hudImage.Sample(hudImageSampler, input.uv) * input.colour;
   if (kind == 1) return input.colour;
   const float edge = min(min(input.local.x, input.local.y),
                          min(1.0 - input.local.x, 1.0 - input.local.y));

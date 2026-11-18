@@ -120,7 +120,7 @@ bool jumpToCameraBookmark(std::size_t slot, std::string& reason) {
   }
   // The projection is part of the saved view: an orbit restored into a
   // different FOV is a different frame, so the jump writes it back too.
-  g_renderer->setViewModelFov(bookmark.fov);
+  g_renderer->setWorldFov(bookmark.fov);
   // A jump leaves the demo eye: the pose IS the new camera, and a demo view
   // left armed would overwrite it on the next scene tick.
   g_renderer->clearObserverDemoView();

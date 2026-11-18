@@ -234,6 +234,11 @@ ORACLE_SAMPLE=40
 OUT=evidence/verify
 mkdir -p "$OUT"
 rc_all=0
+# A gate may be SKIPPED when an input it needs is genuinely absent, but only by
+# printing "SKIP <reason>" and exiting with its own distinct code: the count
+# below appears in the summary, so a skipped gate can never pass as a green one.
+skip_all=0
+skip_names=""
 
 step() { printf '\n=== %s ===\n' "$1"; }
 
@@ -939,7 +944,7 @@ tail -16 "$OUT/22-weapon-animation.txt"
 #
 # T39 replaced section 4's whole-frame byte bound with the measured-silhouette
 # rule and its real-pose control (11 -> 12 assertions; see
-# T39-WEAPON-ANIMATION-2026-10-21.md), and the forward run on the final tree
+# docs/reports/T39-WEAPON-ANIMATION-2026-10-21.md), and the forward run on the final tree
 # emits 57 OK + 0 FAIL = 57 with per-section counts 27 / 6 / 5 / 12 / 6 / 1.
 #
 # 2026-10-29, after T60: 57 -> 62, per-section 27 / 6 / 5 / 17 / 6 / 1.
@@ -1443,6 +1448,54 @@ if [ "$GEOMETRY_RC" -eq 0 ] && grep -q '^PASS: every empty pixel' "$GEOMETRY_LOG
 else
   echo "WORLD-GEOMETRY-CHECK=FAIL (rc=$GEOMETRY_RC ok=$GEOMETRY_OK expected 53)"; rc_all=1
 fi
+# W-1: the sky gate rides along with the geometry step, because it is the same
+# question asked at the same pose from the other side -- the hole gate asks
+# whether every empty pixel is the map's own sky; this one asks whether the
+# frame still SHOWS the clear colour where the sky should be. It is not folded
+# into the geometry gate's log, because that gate's assertion count (53 above)
+# must keep counting only its own assertions.
+#
+# The sky gate is self-contained: it writes its own empty settings/ui files and
+# derives the camera from the demo plus --capture-tick. Its only inputs are the
+# product, the demo and python. When one is missing it prints "SKIP <reason>"
+# and exits 3; this chain counts that in skip_all instead of failing, because a
+# chain that reds on an absent demo is a chain people stop running. Anything
+# else -- a capture that ran and disagreed, a frame that did not land, an
+# assertion count that moved -- is FAIL.
+WORLD_SKY_OUT="$OUT/28-world-geometry/sky"
+mkdir -p "$WORLD_SKY_OUT"
+WORLD_SKY_LOG="$WORLD_SKY_OUT/sky.txt"
+WORLD_SKY_OUT="$WORLD_SKY_OUT/evidence" bash world-sky-gate-check.sh > "$WORLD_SKY_LOG" 2>&1
+WORLD_SKY_RC=$?
+tail -8 "$WORLD_SKY_LOG"
+# 17 = A x4 + B x2 + C x4 (1 trace + 3 account) + C+ x4 + D + E x2, re-measured on the merged tree
+# (work/integrate, 2026-11-17) after C split into an account that holds on any
+# pose and a second pose that proves the gate can still see the sky. History of
+# the count, in order: 9 (round 2), 11 (A's farplane=1 and shader=dedicated
+# added: the trace says the pass is pinned to the far plane and uses the
+# discard-free shader, because a small box drawn first looks the same in this
+# pose and would pass every pixel assertion), 13 (P0 forced C off the 2,072 px
+# constant and onto a reconciled diff account, and E off the same constant and
+# onto frame identity - see docs/WORLD-HOLES-2026-11-17.md §13.5: a gate may not
+# pin a number that belongs to another defect, or two correct fixes cannot
+# merge), 17 (on the MERGE tree the tick-1800 pose has no sky left at all - P0
+# fills the cracks - so C's "diff > 0" turned a correct merge red; C is now the
+# account itself, which is 0-legal, and the "diff > 0" moved to C+ on tick 0
+# where the sky owns 77,131 px. See §14: a gate must be run on the merge tree).
+# Pinned like every other assertion count: re-measure, never copy, when a later
+# wave adds an assertion.
+WORLD_SKY_OK=$(grep -c '^  PASS ' "$WORLD_SKY_LOG" || true)
+if [ "$WORLD_SKY_RC" -eq 3 ]; then
+  WORLD_SKY_REASON=$(grep -m1 '^SKIP ' "$WORLD_SKY_LOG" | sed 's/^SKIP //')
+  echo "WORLD-SKY-GATE=SKIP ($WORLD_SKY_REASON)"
+  skip_all=$((skip_all + 1))
+  if [ -n "$skip_names" ]; then skip_names="$skip_names,WORLD-SKY-GATE"; else skip_names="WORLD-SKY-GATE"; fi
+elif [ "$WORLD_SKY_RC" -eq 0 ] && grep -q '^W-1 SKY GATE: [0-9]* passed, 0 failed' "$WORLD_SKY_LOG" \
+    && [ "$WORLD_SKY_OK" = "17" ]; then
+  echo "WORLD-SKY-GATE=PASS (17 assertions)"
+else
+  echo "WORLD-SKY-GATE=FAIL (rc=$WORLD_SKY_RC ok=$WORLD_SKY_OK expected 17)"; rc_all=1
+fi
 step "29/30 world materials: a patch wrapper's include reaches the pixels"
 # T59. A map's own pak ships "patch" VMTs: the wrapper is only {include, replace}
 # and the shader with its $basetexture lives in the included file. The product used
@@ -1469,6 +1522,11 @@ step "29/30 world materials: a patch wrapper's include reaches the pixels"
 # and the batch split is now asserted (batch 2 = 13), which is the one assertion
 # this round added. The count moved by exactly that one; none was removed or
 # loosened.
+# Re-pinned 2026-11-13: 100. The 2026-11-13 I-24 run measured 92 OK / 6 FAIL
+# (98 assertions) before the six PVS pins were repaired; the two new assertions
+# are "input triangles" and "drawn + hidden == input", so the forward count is
+# 100. The old 89 was stale: it had not been re-measured since the gate grew its
+# alpha/control/include sections. Re-measured, never copied.
 # Pinned for the same reason as the other steps: a gate that prints PASS while
 # its assertions quietly disappear is not a gate. Do not re-pin to make this
 # chain green; a re-pin must name the reading that moved and why.
@@ -1481,10 +1539,30 @@ COV_RC=$?
 tail -10 "$COV_LOG"
 COV_OK=$(grep -c '^  OK' "$COV_LOG" || true)
 if [ "$COV_RC" -eq 0 ] && grep -q '^MATERIAL-COVERAGE=PASS' "$COV_LOG" \
-    && [ "$COV_OK" = "89" ]; then
-  echo "MATERIAL-COVERAGE-CHECK=PASS (89 assertions)"
+    && [ "$COV_OK" = "100" ]; then
+  echo "MATERIAL-COVERAGE-CHECK=PASS (100 assertions)"
 else
-  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 89)"; rc_all=1
+  echo "MATERIAL-COVERAGE-CHECK=FAIL (rc=$COV_RC ok=$COV_OK expected 100)"; rc_all=1
+fi
+# I-32: the translucent rescue gate was added in Phase E and referenced by
+# nothing. It belongs next to the material gate it extends: the same Sultry
+# frame, the product's own off switch as the negative control, and a Sunshine
+# frame where the rescue has no candidate. F1-5 added section 4: a camera that
+# sees the named glass window, a rescue on/off pixel diff, and hole-trace
+# attribution to that material. 139 is the count measured on 2026-11-13
+# (121 before section 4, +18 pixel/attribution assertions).
+SULTRY_OUT="$COV_OUT/sultry"
+SULTRY_LOG="$COV_OUT/sultry.txt"
+SULTRY_ATLAS_OUT="$SULTRY_OUT/evidence" SULTRY_ATLAS_SCRATCH="$SULTRY_OUT/scratch" \
+  bash sultry-translucent-atlas-check.sh > "$SULTRY_LOG" 2>&1
+SULTRY_RC=$?
+tail -6 "$SULTRY_LOG"
+SULTRY_OK=$(grep -c '^  OK ' "$SULTRY_LOG" || true)
+if [ "$SULTRY_RC" -eq 0 ] && grep -q '^SULTRY-TRANSLUCENT-ATLAS=PASS' "$SULTRY_LOG" \
+    && [ "$SULTRY_OK" = "139" ]; then
+  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=PASS (139 assertions)"
+else
+  echo "SULTRY-TRANSLUCENT-ATLAS-CHECK=FAIL (rc=$SULTRY_RC ok=$SULTRY_OK expected 139)"; rc_all=1
 fi
 # 30. the review workspace, driven by the product ---------------------------------
 # T71/T72 shipped as a store plus a probe. Every assertion passed while the only
@@ -1514,6 +1592,19 @@ if [ "$WS_RC" -eq 0 ] && grep -q '^REVIEW-WORKSPACE-CHECK=PASS' "$WS_LOG" \
 else
   echo "REVIEW-WORKSPACE-CHECK=FAIL (rc=$WS_RC ok=$WS_OK expected 186)"; rc_all=1
 fi
-if [ "$rc_all" -eq 0 ]; then echo "VERIFY=PASS"; else echo "VERIFY=FAIL"; fi
+# The summary carries the skip count beside the verdict, so a skipped gate is
+# visible here and cannot be mistaken for a green one (it is not a FAIL either:
+# a missing input is not a disagreement about pixels).
+if [ -n "$skip_names" ]; then
+  if [ "$rc_all" -eq 0 ]; then
+    echo "VERIFY=PASS (30 steps, $skip_all skipped: $skip_names)"
+  else
+    echo "VERIFY=FAIL (30 steps, $skip_all skipped: $skip_names)"
+  fi
+elif [ "$rc_all" -eq 0 ]; then
+  echo "VERIFY=PASS (30 steps, 0 skipped)"
+else
+  echo "VERIFY=FAIL (30 steps, 0 skipped)"
+fi
 exit "$rc_all"
 

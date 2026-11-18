@@ -176,13 +176,13 @@ bool decodeDemoMessageStream(const std::vector<std::uint8_t>& payload,
     else if (type == 13) { if (!readUpdateStringTable(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 14) { if (!readVoiceInit(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 15) { if (!readVoiceData(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
-    else if (type == 18) { if (!readSetView(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 18) { if (!readSetView(bits, summary)) result.packetValid = false; else { result.decodedAny = true; result.lastSetViewMessageBit = static_cast<std::int64_t>(messageBit); } }  // N12-C: where svc_SetView sat inside this packet
     else if (type == 17) { if (!readSounds(bits, summary, entryTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 19) { if (!readFixAngle(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 23) { if (!readUserMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 24) { if (!readEntityMessage(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 25) { if (!readGameEvent(bits, summary, entryTick, packetOrdinal, static_cast<std::uint32_t>(messageBit))) result.packetValid = false; else { result.decodedAny = true; } }
-    else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
+    else if (type == 26) { if (summary.firstPacketEntitiesMessageBit < 0) summary.firstPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); result.lastPacketEntitiesMessageBit = static_cast<std::int64_t>(messageBit); if (!readPacketEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }  // N12-C: the last svc_PacketEntities position, for the SetView ordering count
     else if (type == 27) { if (!readTempEntities(bits, summary, networkTick)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 28) { if (!readPrefetch(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
     else if (type == 30) { if (!readGameEventList(bits, summary)) result.packetValid = false; else { result.decodedAny = true; } }
@@ -228,9 +228,15 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   // asked for the measurement. Zero-value limits (a caller that set nothing) still
   // resolve to the struct's own defaults, so the reset stays the default path.
   const ProjectileTrackLimits projectileTrackLimits = summary.projectileTrackLimits;
+  // N12-C: same rule, same reason, for the camera retention's limits. A caller
+  // that sets enabled/maxSamples expects to keep them across this reset, and a
+  // reset that dropped them would report zero rows on the run that asked for
+  // them -- which reads exactly like "there was nothing to retain".
+  const CameraTrackLimits cameraTrackLimits = summary.cameraTrackLimits;
   summary = {};
   setParserBudgetRejectReason(nullptr);
   summary.projectileTrackLimits = projectileTrackLimits;
+  summary.cameraTrackLimits = cameraTrackLimits;
   summary.networkProtocol = networkProtocol;
   if (index.entries.empty()) return false;
   summary.entityClassByIndex.assign(2048u, -1);
@@ -285,6 +291,11 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
     }
     std::vector<std::uint8_t> payload;
     if (!readEntryPayload(file, entry, payload, 128u * 1024u * 1024u)) { ++summary.malformedPackets; continue; }
+    // N12-C: the camera capture is per-packet scratch, and readPacketEntities runs
+    // inside decodeDemoMessageStream below. Reset it at the packet boundary so a
+    // packet that carries no svc_PacketEntities reads the live table instead of
+    // inheriting the previous packet's capture.
+    resetCameraCaptureForPacket(summary);
     DemoMessageStreamResult stream;
     const bool streamOk = decodeDemoMessageStream(payload, payload.size() * 8u, entry.tick,
                                                   summary.lastNetworkTick, summary, stream,
@@ -326,6 +337,13 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
           ++summary.serverTickKnownCount;
           if (summary.firstDataNetTick < 0) summary.firstDataNetTick = stream.finalNetworkTick;
         }
+        // N12-C: stamp this packet's camera row HERE, next to the write of the
+        // value the row is indexed by. The row's tick is stream.finalNetworkTick,
+        // the same value packetServerTicks[row] just received, so a playback
+        // position and a row name the same tick by equality. Stamping anywhere
+        // else would be a second derivation of that tick, and a second derivation
+        // is a second chance to disagree with the clock.
+        stampCameraTickRow(summary, stream, row, tickKnown);
       }
       if (stream.sawNetTick) ++summary.packetsWithOwnNetTick;
       if (summary.firstDataPacketOwnNetTick < 0) {

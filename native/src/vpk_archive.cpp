@@ -292,16 +292,27 @@ std::vector<std::uint8_t> VpkArchive::read(const std::string& path, std::string*
 VpkArchiveSet VpkArchiveSet::openDirectory(const std::filesystem::path& tfDirectory) {
   VpkArchiveSet set;
   std::error_code error;
-  for (const auto& entry : std::filesystem::directory_iterator(tfDirectory, error)) {
-    if (error) break;
-    if (!entry.is_regular_file(error) || error) continue;
-    const auto name = entry.path().filename().string();
-    if (name.size() < 8 || name.substr(name.size() - 8) != "_dir.vpk") continue;
-    Held held;
-    held.path = entry.path();
-    if (!held.archive.open(held.path)) continue;
-    set.archives_.push_back(std::move(held));
-  }
+  const auto mount = [&set](const std::filesystem::path& directory) {
+    std::error_code walkError;
+    for (const auto& entry : std::filesystem::directory_iterator(directory, walkError)) {
+      if (walkError) break;
+      if (!entry.is_regular_file(walkError) || walkError) continue;
+      const auto name = entry.path().filename().string();
+      if (name.size() < 8 || name.substr(name.size() - 8) != "_dir.vpk") continue;
+      Held held;
+      held.path = entry.path();
+      if (!held.archive.open(held.path)) continue;
+      set.archives_.push_back(std::move(held));
+    }
+  };
+  mount(tfDirectory);
+  // N07 (2026-11-15): TF2 mounts the base game's content, and a map's DEV, PROPS
+  // and GLASS materials live in hl2/hl2_misc_dir.vpk, not in tf2_misc. Without
+  // this set every such material read as absent -- measured on sultry: 10 names,
+  // including DEV/REFLECTIVITY_30B, PROPS/HAZARDSTRIP001A and
+  // GLASS/GLASSWINDOW008D -- and the world pass drew them flat. Mounted AFTER tf
+  // so tf2's own files still win, which is the same order the engine uses.
+  if (tfDirectory.has_parent_path()) mount(tfDirectory.parent_path() / "hl2");
   return set;
 }
 

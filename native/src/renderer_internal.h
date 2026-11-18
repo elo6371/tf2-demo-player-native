@@ -7,12 +7,42 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 #include <DirectXMath.h>
 
 #include "world_material.h"
 
 namespace tf2::native {
+
+// ---- horizontal flip correction (2026-11-18) -------------------------------
+// Source's `AngleVectors` (mathlib_base.cpp:946-951) gives right = (sin yaw,
+// -cos yaw, 0), i.e. at yaw 0 the player's right is -Y: in the game's world
+// space +Y points to the player's LEFT. This renderer builds its view basis as
+// right = up x forward (native_renderer_frame.cpp:456), which is +Y at yaw 0,
+// so everything it drew came out mirrored left-to-right -- a correct forward
+// vector with an inverted right vector, not a data problem.
+//
+// The correction negates clip-space X in every pass that consumes the world
+// view matrix. That flips the screen-space winding of every triangle, so the
+// rasterisers that cull must flip `FrontCounterClockwise` with it or the world
+// (whose winding is calibrated in this same codebase) turns inside out while
+// the models stay the other way round. HUD and overlay passes are screen-space
+// and never take the flip.
+//
+// TF2_NATIVE_FLIP_X=0/off/keep restores the mirrored pipeline for A/B captures;
+// the corrected pipeline is the default because it is the one that matches the
+// game.
+inline bool horizontalFlipCorrectionEnabled() {
+  char* raw = nullptr;
+  std::size_t length = 0;
+  if (_dupenv_s(&raw, &length, "TF2_NATIVE_FLIP_X") != 0 || raw == nullptr) return true;
+  const bool disabled = std::strcmp(raw, "0") == 0 || std::strcmp(raw, "off") == 0
+    || std::strcmp(raw, "keep") == 0;
+  std::free(raw);
+  return !disabled;
+}
 
 struct WorldVertex {
   float x, y, z;

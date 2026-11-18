@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -25,42 +26,260 @@ namespace tf2::native {
 
 
 bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
+  paneCountThisDraw_ = 1;
+  paneIndexThisDraw_ = 0;
+  syncPrimaryPaneCamera();
+  return drawPaneInternal(clearRed, clearGreen, clearBlue, 0, 1);
+}
+
+// U4 step 2b: two panes, one surface, one clock. The panes are composed by
+// running the same draw body twice with disjoint viewports; the demo playback
+// clock is shared by design (see docs/U4-PANE-OWNERSHIP-2026-11-16.md), so this
+// is a viewport/camera split and not a second simulation.
+bool Renderer::drawSplit(float clearRed, float clearGreen, float clearBlue) {
   if (!context_ || !target_ || !swapChain_) return false;
+  paneCountThisDraw_ = kPaneMaxPanes;
+  syncPrimaryPaneCamera();
+  paneDepthClears_ = 0;
+  bool drawn = true;
+  DirectX::XMFLOAT4X4 primaryView{};
+  float primaryEye[3] = {};
+  float primaryForward[3] = {};
+  float primaryUp[3] = {};
+  float primaryRight[3] = {};
+  for (std::uint32_t pane = 0; pane < kPaneMaxPanes; ++pane) {
+    paneIndexThisDraw_ = pane;
+    drawn = drawPaneInternal(clearRed, clearGreen, clearBlue, pane, kPaneMaxPanes) && drawn;
+    if (pane == 0) {
+      primaryView = frameView_;
+      for (int i = 0; i < 3; ++i) {
+        primaryEye[i] = frameEye_[i];
+        primaryForward[i] = frameForward_[i];
+        primaryUp[i] = frameUp_[i];
+        primaryRight[i] = frameRight_[i];
+      }
+    }
+  }
+  // The camera the rest of the program reads after a frame is pane 0's: the
+  // single-pane camera, not whichever pane was drawn last.
+  frameView_ = primaryView;
+  for (int i = 0; i < 3; ++i) {
+    frameEye_[i] = primaryEye[i];
+    frameForward_[i] = primaryForward[i];
+    frameUp_[i] = primaryUp[i];
+    frameRight_[i] = primaryRight[i];
+  }
+  return drawn;
+}
+
+// Pane 0's camera is the orbit/observer state every existing caller drives.
+// Copying it once per frame keeps one source of truth: pane 1 is written only by
+// setPaneCameraOrbit, so camera input cannot reach it by accident.
+void Renderer::syncPrimaryPaneCamera() {
+  PaneCameraState& camera = paneCameras_[0];
+  camera = PaneCameraState{};
+  camera.demoView = observerDemoView_;
+  camera.demoEye[0] = observerDemoEyeX_;
+  camera.demoEye[1] = observerDemoEyeY_;
+  camera.demoEye[2] = observerDemoEyeZ_;
+  camera.demoPitchDeg = observerDemoPitchDeg_;
+  camera.demoYawDeg = observerDemoYawDeg_;
+  camera.focusValid = observerFocusValid_;
+  camera.focus[0] = observerFocusX_;
+  camera.focus[1] = observerFocusY_;
+  camera.focus[2] = observerFocusZ_;
+  camera.orbitYaw = cameraYaw_;
+  camera.orbitPitch = cameraPitch_;
+  camera.orbitDistance = cameraDistance_;
+}
+
+void Renderer::setPaneCameraOrbit(std::uint32_t pane, float yaw, float pitch, float distance) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;  // pane 0 belongs to the orbit camera
+  PaneCameraState& camera = paneCameras_[pane];
+  camera = PaneCameraState{};
+  camera.orbitYaw = yaw;
+  camera.orbitPitch = pitch;
+  camera.orbitDistance = distance;
+}
+
+void Renderer::setPaneCameraFocusWorld(std::uint32_t pane, float x, float y, float z) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;  // pane 0 belongs to the orbit camera
+  if (!worldBoundsValid_ || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)
+      || !std::isfinite(worldCenterX_) || !std::isfinite(worldCenterY_)
+      || !std::isfinite(worldMinZ_) || !std::isfinite(worldSpanZ_)
+      || !std::isfinite(worldHorizontalScale_) || worldSpanZ_ <= 0.0f
+      || worldHorizontalScale_ <= 0.0f) return;
+  // The same three lines as setObserverFocusWorld, deliberately copied instead of
+  // factored out of it: the pane-0 conversion every existing capture depends on
+  // must not move while a second pane is added.
+  const float normalizedX = (x - worldCenterX_) * worldHorizontalScale_;
+  const float normalizedY = (y - worldCenterY_) * worldHorizontalScale_;
+  const float normalizedZ = (z - worldMinZ_) * worldHorizontalScale_ + 0.1f;
+  if (!std::isfinite(normalizedX) || !std::isfinite(normalizedY) || !std::isfinite(normalizedZ)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  camera.focus[0] = std::clamp(normalizedX, -1.0e6f, 1.0e6f);
+  camera.focus[1] = std::clamp(normalizedY, -1.0e6f, 1.0e6f);
+  camera.focus[2] = std::clamp(normalizedZ, -1.0e6f, 1.0e6f);
+  camera.focusValid = true;
+  // Third person is the orbit around this focus, never a stale demo eye: a pane
+  // that kept its eye would ignore the focus it was just handed.
+  camera.demoView = false;
+}
+
+void Renderer::setPaneCameraDemoViewWorld(std::uint32_t pane, float x, float y, float z,
+    float pitchDegrees, float yawDegrees) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  if (!std::isfinite(pitchDegrees) || !std::isfinite(yawDegrees)) return;
+  if (!worldBoundsValid_ || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)
+      || !std::isfinite(worldCenterX_) || !std::isfinite(worldCenterY_)
+      || !std::isfinite(worldMinZ_) || !std::isfinite(worldSpanZ_)
+      || !std::isfinite(worldHorizontalScale_) || worldSpanZ_ <= 0.0f
+      || worldHorizontalScale_ <= 0.0f) return;
+  const float normalizedX = (x - worldCenterX_) * worldHorizontalScale_;
+  const float normalizedY = (y - worldCenterY_) * worldHorizontalScale_;
+  const float normalizedZ = (z - worldMinZ_) * worldHorizontalScale_ + 0.1f;
+  if (!std::isfinite(normalizedX) || !std::isfinite(normalizedY) || !std::isfinite(normalizedZ)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  camera.demoView = true;
+  camera.demoEye[0] = std::clamp(normalizedX, -1.0e6f, 1.0e6f);
+  camera.demoEye[1] = std::clamp(normalizedY, -1.0e6f, 1.0e6f);
+  camera.demoEye[2] = std::clamp(normalizedZ, -1.0e6f, 1.0e6f);
+  camera.demoPitchDeg = pitchDegrees;
+  camera.demoYawDeg = yawDegrees;
+  // Mirrors setObserverDemoViewWorld: the eye is also the focus, so leaving first
+  // person for third has a target rather than jumping back to the origin.
+  camera.focusValid = true;
+  camera.focus[0] = camera.demoEye[0];
+  camera.focus[1] = camera.demoEye[1];
+  camera.focus[2] = camera.demoEye[2];
+}
+
+void Renderer::clearPaneCameraDemoView(std::uint32_t pane) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  paneCameras_[pane].demoView = false;
+}
+
+void Renderer::orbitPaneCamera(std::uint32_t pane, float deltaX, float deltaY) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  if (!std::isfinite(deltaX) || !std::isfinite(deltaY)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  constexpr float kPi = 3.14159265358979323846f;
+  const float yaw = std::remainder(camera.orbitYaw + deltaX * 0.008f, kPi * 2.0f);
+  const float pitch = camera.orbitPitch + deltaY * 0.008f;
+  if (std::isfinite(yaw)) camera.orbitYaw = yaw;
+  if (std::isfinite(pitch)) camera.orbitPitch = std::clamp(pitch, 0.25f, 1.45f);
+  // Right-dragging is the user taking the camera: it leaves the demo eye, for the
+  // same reason orbitCamera clears pane 0's.
+  camera.demoView = false;
+}
+
+void Renderer::zoomPaneCamera(std::uint32_t pane, float delta) {
+  if (pane == 0u || pane >= kPaneMaxPanes) return;
+  if (!std::isfinite(delta)) return;
+  PaneCameraState& camera = paneCameras_[pane];
+  const float distance = camera.orbitDistance * std::exp(-delta * 0.08f);
+  if (std::isfinite(distance)) camera.orbitDistance = std::clamp(distance, 0.8f, 12.0f);
+}
+
+bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlue,
+                                std::uint32_t paneIndex, std::uint32_t paneCount) {
+  if (!context_ || !target_ || !swapChain_) return false;
+  // The back-buffer rectangle this pane owns: the whole surface in a single-pane
+  // frame, half of it in a split (the remainder goes to the right pane, so an odd
+  // width loses no column).
+  std::uint32_t paneX = 0;
+  std::uint32_t paneWidth = width_;
+  std::uint32_t paneHeight = height_;
+  if (paneCount > 1u) {
+    const std::uint32_t leftWidth = width_ / 2u;
+    paneWidth = paneIndex == 0u ? leftWidth : width_ - leftWidth;
+    paneX = paneIndex == 0u ? 0u : leftWidth;
+  }
   const float colour[4] = { clearRed, clearGreen, clearBlue, 1.0f };
   context_->OMSetRenderTargets(1, target_.GetAddressOf(), depthStencilView_.Get());
-  context_->ClearRenderTargetView(target_.Get(), colour);
-  if (depthStencilView_) context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+  // One surface serves both panes through disjoint viewports, so the frame is
+  // cleared once, by the pane that starts it. Clearing per pane would erase the
+  // half that was already drawn.
+  if (paneIndex == 0u) {
+    context_->ClearRenderTargetView(target_.Get(), colour);
+    if (depthStencilView_) {
+      context_->ClearDepthStencilView(depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+      ++paneDepthClears_;
+    }
+  }
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+  // R1: the cleared baseline. Every plane below is measured against it -- if
+  // anything but 1.0 shows up here, the dump itself is the suspect.
+  noteDepthState("frame-start:write-all");
+  capturePassDepth("00-cleared");
   context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                           : worldNoCullRasterizerState_.Get());
   D3D11_VIEWPORT viewport{};
-  viewport.Width = static_cast<float>(width_);
-  viewport.Height = static_cast<float>(height_);
+  viewport.TopLeftX = static_cast<float>(paneX);
+  viewport.Width = static_cast<float>(paneWidth);
+  viewport.Height = static_cast<float>(paneHeight);
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   context_->RSSetViewports(1, &viewport);
+  // U4 step 1: record the bindings this draw just made against the
+  // single-surface pane contract (pane_boundary.h). Taken here, at the point the
+  // bindings are made, so the reading cannot describe a different frame; the
+  // camera and HUD fields are filled where those decisions are made below.
+  if (paneIndex == 0u) {
+    RECT paneClientRect{};
+    if (window_) GetClientRect(window_, &paneClientRect);
+    paneBoundary_ = PaneBoundaryReadings{};
+    paneBoundary_.drawOrdinal = ++paneDrawOrdinal_;
+    paneBoundary_.renderTargets = target_ ? 1u : 0u;
+    paneBoundary_.depthViews = depthStencilView_ ? 1u : 0u;
+    paneBoundary_.viewports = paneCount;
+    paneBoundary_.viewportWidth = paneWidth;
+    paneBoundary_.viewportHeight = paneHeight;
+    paneBoundary_.paneCount = paneCount;
+    paneBoundary_.clientWidth = window_
+      ? static_cast<std::uint32_t>(paneClientRect.right - paneClientRect.left) : 0u;
+    paneBoundary_.clientHeight = window_
+      ? static_cast<std::uint32_t>(paneClientRect.bottom - paneClientRect.top) : 0u;
+  }
   context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  framePassOrdinal_ = 0;
-  viewModelWorldPassOrdinal_ = 0;
+  // Per-frame counters are reset by the pane that starts the frame; later panes
+  // keep counting into the same frame totals, which is what makes the budget
+  // trace's pass count a frame number rather than a pane number.
+  if (paneIndex == 0u) {
+    framePassOrdinal_ = 0;
+    viewModelWorldPassOrdinal_ = 0;
+  }
   // T51: the HUD readings are per-frame, reset here for the reason the ordinal
   // above is: a drawHudPass that did not run this frame must read as "nothing was
   // drawn", not as "the last frame that drew something". Without this, turning the
   // HUD off would leave drawn=<the previous count> on the trace and a gate would
-  // read a HUD that no longer exists.
-  hudDrawnRects_ = 0;
-  hudDrawnPrimitives_ = 0;
-  hudTextQuads_ = 0;
-  hudGlyphCount_ = 0;
-  hudUnmappedGlyphs_ = 0;
-  hudPassOrdinal_ = 0;
-  hudScissorApplied_ = false;
-  hudLastRegion_ = HudPixelRectLast{};
-  // Both readings below are written by the draw calls themselves and read back
-  // by worldMaterialSampleState(). They are reset here, once per frame, so that
-  // "the sky drew" and "the world drew indexed" are statements about this frame
-  // and cannot survive on a frame where the corresponding call did not run.
-  worldSkyDrewThisFrame_ = false;
-  worldVisDrewIndexed_ = false;
+  // read a HUD that no longer exists. U4 step 2b: once per frame, at pane 0, for
+  // the same reason -- a split frame's HUD reading describes the frame, not pane 1.
+  if (paneIndex == 0u) {
+    hudDrawnRects_ = 0;
+    hudDrawnPrimitives_ = 0;
+    hudTextQuads_ = 0;
+    hudGlyphCount_ = 0;
+    hudUnmappedGlyphs_ = 0;
+    hudImageQuads_ = 0;
+    hudPassOrdinal_ = 0;
+    hudScissorApplied_ = false;
+    hudLastRegion_ = HudPixelRectLast{};
+    // Both readings below are written by the draw calls themselves and read back
+    // by worldMaterialSampleState(). They are reset here, once per frame, so that
+    // "the sky drew" and "the world drew indexed" are statements about this frame
+    // and cannot survive on a frame where the corresponding call did not run.
+    worldSkyDrewThisFrame_ = false;
+    worldSkyFarPlane_ = false;
+    worldSkyDedicatedShader_ = false;
+    worldVisDrewIndexed_ = false;
+    // N05 step 3: the clip capture describes one draw, so it is cleared once per
+    // frame for the same reason the two readings above are: a frame where the
+    // capture did not run must read as "not attempted", never as the previous
+    // frame's vertices.
+    worldClipCaptureValid_ = false;
+    worldClipCaptureAttempted_ = false;
+  }
   // Defaults for the case where worldConstants_ is missing: a Z-up camera
   // looking down +X, so the ViewModel pass always has a camera to place against.
   frameView_ = {};
@@ -103,18 +322,91 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     "ModelMaterialProxy constants must match their D3D11 buffer");
   WorldConstantsData frameConstants{};
   bool frameConstantsValid = false;
+  // W-1 perf (A/B): the sky's DRAW is deferred to the end of the opaque world
+  // pass. The constants upload below stays where it was; only the draw moves.
+  // Same 12 triangles, same rasterizer and depth states -- the difference is
+  // that the depth buffer is now full of world pixels, so the part of the
+  // screen the world covers rejects the sky in the depth test instead of the
+  // sky shading that area and the world overdrawing it.
+  //
+  // Moving the draw alone was not enough: with the world's pixel shader bound
+  // the sky still shaded every frame pixel, because that shader contains
+  // `discard` and a shader that can discard forfeits early depth rejection
+  // (measured in the A/B: 38.8 fps sky first vs 37.3 fps sky last). The draw
+  // therefore binds skyPixelShader_, the same branch with no discard and no
+  // depth output, which is the state early-z needs. That is also why this is a
+  // separate shader rather than a mode switch in the world one.
+  bool skyDrawPending = false;
+  auto drawWorldSkyBox = [this]() {
+    const UINT skyStride = sizeof(WorldVertex), skyOffset = 0;
+    auto* skyBuffer = worldSkyVertexBuffer_.Get();
+    auto* skyCube = worldSkyView_.Get();
+    auto* skyConstantsBuffer = worldSkyConstants_.Get();
+    context_->RSSetState(worldSkyRasterizerState_.Get());
+    context_->OMSetDepthStencilState(worldSkyDepthStencilState_.Get(), 0);
+    noteDepthState("sky:write-off");
+    context_->IASetInputLayout(worldInputLayout_.Get());
+    context_->IASetVertexBuffers(0, 1, &skyBuffer, &skyStride, &skyOffset);
+    context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
+    context_->VSSetConstantBuffers(0, 1, &skyConstantsBuffer);
+    // W-1 perf: the discard-free shader, not the world one -- see the note on
+    // skyDrawPending above. The vertex shader and input layout stay the world's,
+    // because the box is built from the same vertex format.
+    context_->PSSetShader(skyPixelShader_.Get(), nullptr, 0);
+    context_->PSSetConstantBuffers(0, 1, &skyConstantsBuffer);
+    context_->PSSetShaderResources(5, 1, &skyCube);
+    context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+    context_->Draw(worldSkyVertexCount_, 0);
+    worldSkyDrewThisFrame_ = true;
+    // W-1 perf: two facts a gate can assert from the trace, recorded by the
+    // draw itself -- the box is pinned to the far plane (clip.z == clip.w) and
+    // the discard-free sky shader is the one bound. If either is lost the pass
+    // is back to a small box shaded by the world shader, which the picture can
+    // hide (it is depth-rejected either way) but the trace cannot.
+    worldSkyFarPlane_ = true;
+    worldSkyDedicatedShader_ = true;
+    capturePassDepth("10-sky");
+    // The next world draw must not inherit the sky's cube or its cull state.
+    // T10: "the world's cull state" is the one the caller configured -- the
+    // no-cull diagnostic must survive the sky's restore, or the capture's
+    // world triangles would rasterise culled while the reading says they did
+    // not.
+    context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
+                                            : worldNoCullRasterizerState_.Get());
+    context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+    noteDepthState("world:write-all");
+    // The world's own slot 5 is its reflection cubemap, and its vertex and
+    // constant-buffer bindings are the ones the batch loop expects to still be
+    // in place: the sky borrowed all three, so all three go straight back.
+    ID3D11ShaderResourceView* cubeView = worldCubemapView_.Get();
+    context_->PSSetShaderResources(5, 1, &cubeView);
+    auto* worldBuffer = worldVertexBuffer_.Get();
+    auto* worldConstantsBuffer = worldConstants_.Get();
+    const UINT worldStride = sizeof(WorldVertex), worldOffset = 0;
+    context_->IASetVertexBuffers(0, 1, &worldBuffer, &worldStride, &worldOffset);
+    context_->VSSetConstantBuffers(0, 1, &worldConstantsBuffer);
+    context_->PSSetConstantBuffers(0, 1, &worldConstantsBuffer);
+    // The sky borrowed the pixel shader too: every later world draw in this
+    // frame expects the map shader bound, so it goes back here and not at the
+    // next bind site.
+    context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+  };
   if (worldConstants_) {
     using namespace DirectX;
+    // U4 step 2b: this pane's camera, not the frame's. Pane 0's state was copied
+    // from the orbit/observer members at frame start; pane 1's is whatever
+    // setPaneCameraOrbit wrote, and camera input never touches it.
+    const PaneCameraState& paneCamera = paneCameras_[paneIndex];
     XMVECTOR target = XMVectorSet(
-      observerFocusValid_ ? observerFocusX_ : 0.0f,
-      observerFocusValid_ ? observerFocusY_ : 0.0f,
-      observerFocusValid_ ? observerFocusZ_ : 0.5f, 1.0f);
+      paneCamera.focusValid ? paneCamera.focus[0] : 0.0f,
+      paneCamera.focusValid ? paneCamera.focus[1] : 0.0f,
+      paneCamera.focusValid ? paneCamera.focus[2] : 0.5f, 1.0f);
     XMVECTOR eye;
     XMVECTOR up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-    if (observerDemoView_) {
+    if (paneCamera.demoView) {
       float forward[3] = {};
-      demoViewForward(observerDemoPitchDeg_, observerDemoYawDeg_, forward);
-      eye = XMVectorSet(observerDemoEyeX_, observerDemoEyeY_, observerDemoEyeZ_, 1.0f);
+      demoViewForward(paneCamera.demoPitchDeg, paneCamera.demoYawDeg, forward);
+      eye = XMVectorSet(paneCamera.demoEye[0], paneCamera.demoEye[1], paneCamera.demoEye[2], 1.0f);
       // The debug eye is stored in the same normalized unit box as the world
       // vertex buffer. Its angles are authored in map units, so the direction
       // must pass through the same map-to-buffer scale as the eye; adding a
@@ -122,23 +414,44 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // the map and turns otherwise ordinary faces into giant screen shards.
       const float normalizedForwardX = forward[0] * worldHorizontalScale_;
       const float normalizedForwardY = forward[1] * worldHorizontalScale_;
-      const float normalizedForwardZ = forward[2] * (0.8f / std::max(worldSpanZ_, 1.0e-6f));
-      target = XMVectorSet(observerDemoEyeX_ + normalizedForwardX,
-        observerDemoEyeY_ + normalizedForwardY,
-        observerDemoEyeZ_ + normalizedForwardZ, 1.0f);
+      const float normalizedForwardZ = forward[2] * worldHorizontalScale_;
+      target = XMVectorSet(paneCamera.demoEye[0] + normalizedForwardX,
+        paneCamera.demoEye[1] + normalizedForwardY,
+        paneCamera.demoEye[2] + normalizedForwardZ, 1.0f);
       if (std::fabs(forward[2]) > 0.95f) up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     } else {
-      const float horizontal = std::cos(cameraPitch_) * cameraDistance_;
+      const float horizontal = std::cos(paneCamera.orbitPitch) * paneCamera.orbitDistance;
       eye = XMVectorSet(
-        XMVectorGetX(target) + std::cos(cameraYaw_) * horizontal,
-        XMVectorGetY(target) + std::sin(cameraYaw_) * horizontal,
-        XMVectorGetZ(target) + std::sin(cameraPitch_) * cameraDistance_, 1.0f);
+        XMVectorGetX(target) + std::cos(paneCamera.orbitYaw) * horizontal,
+        XMVectorGetY(target) + std::sin(paneCamera.orbitYaw) * horizontal,
+        XMVectorGetZ(target) + std::sin(paneCamera.orbitPitch) * paneCamera.orbitDistance, 1.0f);
     }
+    // U4 step 1/2b: name the camera the view matrix below is built from. This is
+    // THIS pane's camera, not the one a caller requested; a pane reading
+    // "demo-view" here while its own request said otherwise is the defect the
+    // pane trace exists to surface.
+    const PaneCameraSource paneCameraSource = paneCamera.demoView
+      ? PaneCameraSource::DemoView : PaneCameraSource::Orbit;
     const XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
     // Publish the frame camera for the ViewModel pass. The pass places the
     // weapon in this camera's space and reuses this view matrix, so the two
     // passes cannot drift apart.
     XMStoreFloat4x4(&frameView_, view);
+    // U4 step 2b: record THIS pane in the pane-aware readings. The fingerprint is
+    // the camera input set the view above was built from and the view hash is the
+    // matrix that was actually stored, so the predicate can tell "two panes
+    // reported one matrix" from "two panes asked for one camera". The slot is the
+    // state array index: two panes quoting one slot is the shared-camera defect,
+    // whatever their matrices say.
+    paneBoundary_.panes[paneIndex].x = paneX;
+    paneBoundary_.panes[paneIndex].y = 0u;
+    paneBoundary_.panes[paneIndex].width = paneWidth;
+    paneBoundary_.panes[paneIndex].height = paneHeight;
+    paneBoundary_.panes[paneIndex].camera = paneCameraSource;
+    paneBoundary_.panes[paneIndex].viewHash = paneHashFloats(&frameView_.m[0][0], 16u);
+    paneBoundary_.panes[paneIndex].cameraFingerprint = paneCameraFingerprint(paneCamera);
+    paneBoundary_.panes[paneIndex].cameraSlot = paneIndex;
+    if (paneIndex == 0u) paneBoundary_.camera = paneCameraSource;
     const XMVECTOR forwardVector = XMVector3Normalize(XMVectorSubtract(target, eye));
     // Left-handed basis: right = up x forward.
     const XMVECTOR rightVector = XMVector3Normalize(XMVector3Cross(up, forwardVector));
@@ -146,7 +459,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     frameForward_[0] = XMVectorGetX(forwardVector); frameForward_[1] = XMVectorGetY(forwardVector); frameForward_[2] = XMVectorGetZ(forwardVector);
     frameUp_[0] = XMVectorGetX(up); frameUp_[1] = XMVectorGetY(up); frameUp_[2] = XMVectorGetZ(up);
     frameRight_[0] = XMVectorGetX(rightVector); frameRight_[1] = XMVectorGetY(rightVector); frameRight_[2] = XMVectorGetZ(rightVector);
-    const float aspect = height_ == 0 ? 1.0f : static_cast<float>(width_) / static_cast<float>(height_);
+    // U4 step 2b: the pane's aspect, not the window's -- a half-width viewport
+    // projected with the window's aspect would stretch every pane of a split.
+    const float aspect = paneHeight == 0u ? 1.0f
+      : static_cast<float>(paneWidth) / static_cast<float>(paneHeight);
     // T29: THE WORLD IS NOT IN METRES. uploadWorldGeometry scales the map into
     // a normalized box at worldHorizontalScale_ map units per box unit, so a
     // near plane written in box units is a clip distance in MAP units:
@@ -170,7 +486,14 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     const float worldFarPlane = 100.0f;
     worldNearPlaneNormalized_ = worldNearPlane;
     worldFarPlaneNormalized_ = worldFarPlane;
-    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(settings_.viewModelFov), aspect, worldNearPlane, worldFarPlane);
+    const float worldVerticalFov = sourceHorizontalFovToVertical(settings_.worldFov);
+    XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(worldVerticalFov), aspect, worldNearPlane, worldFarPlane);
+    // The view basis puts game LEFT on screen right (see the proof in
+    // renderer_internal.h's horizontalFlipCorrectionEnabled); negating clip-space
+    // X is what puts the world back the way the game shows it. The matching cull
+    // flip lives in native_renderer.cpp's rasterizer states -- the two are one
+    // change and must never be applied separately.
+    if (horizontalFlipCorrectionEnabled()) projection.r[0] = XMVectorNegate(projection.r[0]);
     const XMMATRIX mvp = view * projection;
     WorldConstantsData& constants = frameConstants;
     XMStoreFloat4x4(&constants.mvp, mvp);
@@ -203,7 +526,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // only builds it when all six faces decoded.
     constants.envFeatures = XMFLOAT4(static_cast<float>(worldEnvMode()), 0.0f,
       worldBump2Diagnostic_ ? 1.0f : 0.0f, 0.0f);
-    // T101: the fog, converted into the two spaces the shader needs in one place
+    // T101: the fog, converted into the spaces the shader needs in one place
     // so the scales cannot drift from the vertex convert (which uses the same
     // two members, native_renderer_world.cpp:93-101). When the pass was uploaded
     // unfogged every value here is a no-op: enabled 0 keeps the shader branch
@@ -211,8 +534,8 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // A disabled pass therefore uploads (0,0,0,0)/(1,1,1,0) and not garbage.
     const float fogBoxToMapXZ = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
       ? 1.0f / worldHorizontalScale_ : 1.0f;
-    const float fogBoxToMapZ = (std::isfinite(worldSpanZ_) && worldSpanZ_ > 0.0f)
-      ? worldSpanZ_ / 0.8f : 1.0f;
+    const float fogBoxToMapZ = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
+      ? 1.0f / worldHorizontalScale_ : 1.0f;
     constants.fogParams = worldFog_.enabled
       ? XMFLOAT4(worldFog_.start, worldFog_.end, worldFog_.maxDensity, 1.0f)
       : XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -272,13 +595,15 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     worldShaderConstants_.fogColor[2] = constants.fogColor.z;
     worldShaderConstants_.fogBoxToMapXZ = constants.fogScale.x;
     worldShaderConstants_.fogBoxToMapZ = constants.fogScale.z;
-    // The sky box, first and with its own mvp: the same view and projection with
-    // the translation removed, so the box stays centred on the camera and a
-    // vertex's own direction is the direction the cube is sampled at. Drawn
-    // before the world because it is the farthest thing in the frame, and under
-    // the sky's rasterizer state because the box is seen from the inside.
+    // The sky box, with its own mvp: the same view and projection with the
+    // translation removed, so the box stays centred on the camera and a
+    // vertex's own direction is the direction the cube is sampled at. The
+    // constants are uploaded here; the DRAW is deferred to the end of the
+    // opaque world pass (drawWorldSkyBox above), under the sky's rasterizer
+    // state because the box is seen from the inside, so the world's depth
+    // already rejects the pixels it will paint (W-1 perf A/B).
     const bool hasSkyBox = worldSkyEnabled_ && worldSkyVertexBuffer_ && worldSkyVertexCount_ > 0
-      && worldSkyView_ && worldSkyConstants_ && worldSkyRasterizerState_;
+      && worldSkyView_ && worldSkyConstants_ && worldSkyRasterizerState_ && skyPixelShader_;
     if (hasSkyBox) {
       struct SkyConstantsData {
         XMFLOAT4X4 mvp;
@@ -303,6 +628,38 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       XMMATRIX skyView = view;
       skyView.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
       XMStoreFloat4x4(&skyConstants.mvp, skyView * projection);
+      // Q6 (external evidence, engine gl_rsurf.cpp Shader_WorldEnd ->
+      // gl_warp.cpp R_DrawSkyBox): the engine draws the sky AFTER the opaque
+      // world, as up to six quads anchored at the far plane, so the pass is a
+      // background and not a small box the map happens to be drawn over. This
+      // box becomes that far plane here: XMFLOAT4X4 is row-major and the shader
+      // multiplies a row vector, so output component j is sum_i p_i * m[i][j] --
+      // column 3 is the w result and copying it into column 2 makes clip.z ==
+      // clip.w for every vertex, i.e. z_ndc = 1 for the whole box at any
+      // half-extent. The depth test (LESS_EQUAL, writes off) then reads a world
+      // pixel -- always nearer than the far plane -- as a reject, and a pixel no
+      // world draw touched as 1.0 against the cleared 1.0, which passes on
+      // "equal". The colour is what the box produced before; what changes is
+      // that the depth test now means what the pass order says it means.
+      // The pin is a hair INSIDE the far plane, not on it. The exact pin is
+      // measurable too: geometry whose clip.z is exactly clip.w lies on the
+      // clip plane, and there the boundary is decided by float rounding. The
+      // two variants move the same number of pixels (4 of ~861k, 1 LSB each,
+      // across the three pinned poses) but not the same ones: the exact pin
+      // puts all 4 at pr600 and none at up0, this inset spreads them 2 + 2.
+      // What the inset buys is therefore not a smaller count but not sitting
+      // on the clip plane; what it must not do is get wider -- see below.
+      // A wider inset fails in the other direction: at 1e-3 the box is deep
+      // enough inside the depth range that distant world surfaces stop
+      // rejecting it, and 681 px of world were painted over by sky in the up0
+      // pose. At 1e-6 the three pinned poses differ from the green frames by
+      // 4 px total (2 at up0, 2 at pr600, 0 at up1800), all 1 LSB in one
+      // channel, and all of them pixels no world draw touches (checked with
+      // --capture-pass-depth: d24 = 16777215 at every one). See
+      // docs/WORLD-HOLES-2026-11-17.md for the attribution table.
+      const float farPlanePin = 1.0f - 1.0e-6f;
+      for (int row = 0; row < 4; ++row)
+        skyConstants.mvp.m[row][2] = skyConstants.mvp.m[row][3] * farPlanePin;
       // Mode 3 is the sky branch in the pixel shader, and it is the only field
       // the branch reads: the box is lit by nothing and carries no lightmap uv.
       skyConstants.envFeatures = XMFLOAT4(3.0f, 0.0f, 0.0f, 0.0f);
@@ -312,36 +669,16 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       skyConstants.fogColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
       skyConstants.fogScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
       context_->UpdateSubresource(worldSkyConstants_.Get(), 0, nullptr, &skyConstants, 0, 0);
-      const UINT skyStride = sizeof(WorldVertex), skyOffset = 0;
-      auto* skyBuffer = worldSkyVertexBuffer_.Get();
-      auto* skyCube = worldSkyView_.Get();
-      auto* skyConstantsBuffer = worldSkyConstants_.Get();
-      context_->RSSetState(worldSkyRasterizerState_.Get());
-      context_->OMSetDepthStencilState(worldSkyDepthStencilState_.Get(), 0);
-      context_->IASetInputLayout(worldInputLayout_.Get());
-      context_->IASetVertexBuffers(0, 1, &skyBuffer, &skyStride, &skyOffset);
-      context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
-      context_->VSSetConstantBuffers(0, 1, &skyConstantsBuffer);
-      context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
-      context_->PSSetConstantBuffers(0, 1, &skyConstantsBuffer);
-      context_->PSSetShaderResources(5, 1, &skyCube);
-      context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
-      context_->Draw(worldSkyVertexCount_, 0);
-      worldSkyDrewThisFrame_ = true;
-      // The world pass below must not inherit the sky's cube or its cull state.
-      // T10: "the world's cull state" is the one the caller configured -- the
-      // no-cull diagnostic must survive the sky's restore, or the capture's
-      // world triangles would rasterise culled while the reading says they did
-      // not.
-      context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
-                                              : worldNoCullRasterizerState_.Get());
-      context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
-      ID3D11ShaderResourceView* noSky = nullptr;
-      context_->PSSetShaderResources(5, 1, &noSky);
+      // W-1 perf A/B: the constants are uploaded, but the draw waits for the
+      // opaque batches -- see the flush points and drawWorldSkyBox above.
+      skyDrawPending = true;
     }
   }
-  // The sky box is drawn inside the constants block above, before the world:
-  // it is the farthest thing in the frame, so it is the first thing drawn.
+  // The sky's draw is deferred: it runs at the end of the opaque world pass
+  // (drawWorldSkyBox above), under its own rasterizer state and with depth
+  // writes off, and under the discard-free sky shader, so every pixel the world
+  // covers is rejected by the early depth test rather than shaded and then
+  // covered.
   auto* lightView = worldLightmapTexture_.view();
   context_->PSSetShaderResources(3, 1, &lightView);
   const bool hasWorldGeometry = worldVertexBuffer_ && worldVertexCount_ > 0;
@@ -374,7 +711,16 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     // restored immediately after it -- otherwise a flat capture would also
     // flatten the water and the markers and the diagnosis would be about the
     // wrong pass.
-    if (worldDebugView_ != 0 && frameConstantsValid) {
+    // N06 probe hook: the command line's debug view is a giant if/else chain in
+    // main.cpp that MSVC refuses to grow (C1061 block nesting too deep), so the
+    // two probe views are selected by environment instead. It is a diagnostic,
+    // read once, and it only ever overrides a view the caller already asked for.
+    static const int probeViewEnv = [] {
+      const char* raw = std::getenv("TF2_NATIVE_WORLD_VIEW");
+      return raw != nullptr ? std::atoi(raw) : 0;
+    }();
+    const int debugViewNow = probeViewEnv != 0 ? probeViewEnv : worldDebugView_;
+    if (debugViewNow != 0 && frameConstantsValid) {
       WorldConstantsData debugConstants = frameConstants;
       // 1/2 are the flat/depth views and ride envFeatures.x (0 is the product
       // path); the albedo view rides envFeatures.y because x > 3.5 is already
@@ -382,19 +728,40 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // there first -- measured: the first albedo capture was a depth frame.
       // T26 adds mode 4 = face id, which deliberately rides that same block at
       // 6.0 and is therefore a third member of it rather than a new sweep.
-      debugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
-        : worldDebugView_ == 3 ? 0.0f
-        : worldDebugView_ == 4 ? 6.0f
-        : worldDebugView_ == 5 ? 1.0f
-        : worldDebugView_ == 6 ? 8.0f
-        : worldDebugView_ == 7 ? 9.0f
+      debugConstants.envFeatures.x = debugViewNow == 2 ? 5.0f
+        : debugViewNow == 3 ? 0.0f
+        : debugViewNow == 4 ? 6.0f
+        : debugViewNow == 5 ? 1.0f
+        : debugViewNow == 6 ? 8.0f
+        : debugViewNow == 7 ? 9.0f
+        // N05 step 2: mode 10 is the magenta isolation view -- one flat opaque
+        // colour, so "did this triangle paint this pixel" is a colour equality
+        // rather than a difference from a background that other passes also fill.
+        : debugViewNow == 10 ? 12.0f
+        // N06 probe views: 11 rides 16.0 and 12 rides 17.0, both above the
+        // magenta arm, and both are read in the shared pixel shader where the
+        // albedo terms exist. They are diagnostics, not product modes.
+        : debugViewNow == 11 ? 1.9f
+        : debugViewNow == 12 ? 2.4f
+        : debugViewNow == 13 ? 1.7f
+        // N06 probe 4/5: 14 returns the composed colour the product path is
+        // about to write (albedo * lighting, before fog), 15 returns the terms
+        // that make it (diffuse, |normal|, lighting). Both ride values no other
+        // arm claims (1.5-1.65, below the 1.65 lightmap probe).
+        : debugViewNow == 14 ? 1.62f
+        : debugViewNow == 15 ? 1.52f
+        // N06 probe 6/7: the albedo's terms at one pixel (16) and the sample's
+        // alpha next to the blend weight and the vertex colour (17).
+        : debugViewNow == 16 ? 1.59f
+        : debugViewNow == 17 ? 1.57f
+        : debugViewNow == 18 ? 1.55f
         // Coverage mode (8) knowingly falls through to 4.0 so the world
         // never wears the sentinel; only the entity pass sits above it.
         // The id view (9) falls through for the same reason: the world is
         // background there, and a world pixel in an id colour would join a
         // per-entity mask it does not belong to.
         : 4.0f;
-      debugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
+      debugConstants.envFeatures.y = debugViewNow == 3 ? 1.0f : 0.0f;
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &debugConstants, 0, 0);
     }
     // ---- T19: one draw per batch, each with its own atlas -----------------
@@ -405,9 +772,12 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     worldBatchDrawCalls_ = 0;
     worldBatchTexturedDrawCalls_ = 0;
     const bool batchesIndexed = worldIndexBuffer_ && worldIndexCount_ > 0 && !worldDrawBatches_.empty();
+    worldBatchesIndexedAtDraw_ = batchesIndexed ? 1 : 0;
+    worldIndexCountAtDraw_ = worldIndexCount_;
     if (batchesIndexed) {
       context_->IASetIndexBuffer(worldIndexBuffer_.Get(), DXGI_FORMAT_R32_UINT, 0);
       bool blendedStateSet = false;
+      int worldBatchOrdinal = 0;
       for (const auto& batch : worldDrawBatches_) {
         if (batch.indexCount == 0) continue;
         // T96: the blended sub-batch is the only one that changes device state.
@@ -417,8 +787,16 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         // clears blending so a state left by an earlier pass cannot composite
         // the map.
         if (batch.alphaMode == 1) {
+          // W-1 perf A/B: every opaque batch has written depth and the blended
+          // ones are about to composite over it -- the sky belongs between
+          // them, or a translucent surface would be over-painted by it.
+          if (skyDrawPending) {
+            drawWorldSkyBox();
+            skyDrawPending = false;
+          }
           context_->OMSetBlendState(worldAlphaBlendState_.Get(), nullptr, 0xffffffffu);
           context_->OMSetDepthStencilState(worldBlendedDepthStencilState_.Get(), 0);
+          noteDepthState("world-blended:write-off");
           blendedStateSet = true;
         } else {
           context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
@@ -444,15 +822,114 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         // The cross-pass question, measured where it can go wrong: a world
         // draw that happens while a weapon's albedo is the bound t0.
         if (isWeaponMaterialView(lastSlot0View_)) ++worldDrawsWithWeaponTexture_;
+        // N05 step 3: the clip capture, bound for exactly this draw.
+        //
+        // The vertex shader is not touched: this geometry shader declares that
+        // shader's own output struct as its input signature, copies every field
+        // through, and streams position out to a buffer. The matrices, the
+        // viewport and the constant block are the ones this frame already bound,
+        // so a value read back is this draw's vertex stage and not a second
+        // transform computed beside it.
+        //
+        // Bounded to the isolated draw on purpose. Under --world-triangle the
+        // index buffer holds three indices, so exactly three vertices arrive and
+        // the target (three clip quads) cannot overrun. On a batched draw with
+        // more indices the stream output would silently stop at capacity, which
+        // is a truncated sample being read as a whole one -- so the capture is
+        // refused rather than truncated, and says so.
+        bool clipCaptureBound = false;
+        if (worldClipCaptureRequested_ && worldClipCaptureGeometryShader_ && worldClipCaptureBuffer_
+            && worldIsolatedTriangle_ >= 0 && batch.indexCount == 3u) {
+          worldClipCaptureAttempted_ = true;
+          context_->GSSetShader(worldClipCaptureGeometryShader_.Get(), nullptr, 0);
+          ID3D11Buffer* clipTargets[1] = { worldClipCaptureBuffer_.Get() };
+          const UINT clipOffsets[1] = { 0u };
+          context_->SOSetTargets(1, clipTargets, clipOffsets);
+          clipCaptureBound = true;
+        } else if (worldClipCaptureRequested_ && worldIsolatedTriangle_ < 0) {
+          worldClipCaptureAttempted_ = true;
+          worldClipCaptureFailure_ = "the clip capture needs --world-triangle: a batched draw "
+            "would fill the three-vertex target and read back as a whole sample";
+        }
         context_->DrawIndexed(batch.indexCount, batch.firstIndex, 0);
+        // R1: this batch's OWN depth, beside the state it was drawn with. The alpha
+        // mode is the batch's, read here rather than assumed, so "the blended batch
+        // wrote nothing" is a reading and not a claim.
+        if (!passDepthPrefix_.empty() && !capturePath_.empty()) {
+          char passName[48];
+          std::snprintf(passName, sizeof(passName), "20-world-batch%02d-alpha%d",
+            worldBatchOrdinal, batch.alphaMode);
+          capturePassDepth(passName);
+        }
+        ++worldBatchOrdinal;
+        if (clipCaptureBound) {
+          // Unbind before anything else can draw: the water, entity and viewmodel
+          // passes follow this one and none of them has a geometry shader, so a
+          // stream output target left bound would make every later draw in the
+          // frame write into it (and, at three vertices, refuse the rest).
+          ID3D11Buffer* noTargets[1] = { nullptr };
+          context_->SOSetTargets(1, noTargets, nullptr);
+          context_->GSSetShader(nullptr, nullptr, 0);
+          // The read-back. CopyResource into the staging twin and map it once;
+          // this runs only on a capture frame, and only around the isolated
+          // draw, so a normal frame pays nothing for the channel existing.
+          context_->CopyResource(worldClipCaptureReadback_.Get(), worldClipCaptureBuffer_.Get());
+          D3D11_MAPPED_SUBRESOURCE clipMapped{};
+          if (SUCCEEDED(context_->Map(worldClipCaptureReadback_.Get(), 0, D3D11_MAP_READ, 0, &clipMapped))) {
+            const auto* clipQuads = static_cast<const float*>(clipMapped.pData);
+            for (int v = 0; v < 12; ++v) worldClipCaptureVertex_[v] = clipQuads[v];
+            context_->Unmap(worldClipCaptureReadback_.Get(), 0);
+            // The index values and the viewport the draw used. Read off the
+            // same draw rather than recomputed: an index buffer that disagreed
+            // with the mapping the triangle table assumes is exactly the kind
+            // of defect that would otherwise be attributed to the vertices.
+            const std::uint32_t clipBase = worldIsolatedTriangle_ >= 0
+              ? static_cast<std::uint32_t>(worldIsolatedTriangle_ * 3) : 0u;
+            for (int j = 0; j < 3; ++j) worldClipCaptureIndex_[j] = clipBase + static_cast<std::uint32_t>(j);
+            worldClipCaptureViewport_[0] = 0.0f;
+            worldClipCaptureViewport_[1] = 0.0f;
+            worldClipCaptureViewport_[2] = static_cast<float>(width_);
+            worldClipCaptureViewport_[3] = static_cast<float>(height_);
+            // A hash of the 64 bytes the vertex stage actually reads (the mvp)
+            // plus the viewport, not of the whole 192-byte block: the other
+            // blocks feed the pixel stage, and folding them in would let a
+            // lighting edit look like a vertex-stage difference. FNV-1a, on the
+            // frame's own constants -- the debug-view override that may have
+            // re-uploaded them changes envFeatures only, which the VS never reads.
+            const auto* clipMvpBytes = reinterpret_cast<const unsigned char*>(&frameConstants.mvp);
+            unsigned int clipHash = 2166136261u;
+            for (std::size_t b = 0; b < sizeof(frameConstants.mvp); ++b) {
+              clipHash ^= clipMvpBytes[b];
+              clipHash *= 16777619u;
+            }
+            for (int j = 0; j < 4; ++j) {
+              const float extent = worldClipCaptureViewport_[j];
+              const auto* extentBytes = reinterpret_cast<const unsigned char*>(&extent);
+              for (std::size_t b = 0; b < sizeof(float); ++b) {
+                clipHash ^= extentBytes[b];
+                clipHash *= 16777619u;
+              }
+            }
+            worldClipCaptureConstantsHash_ = clipHash;
+            worldClipCaptureValid_ = true;
+            worldClipCaptureFailure_ = "";
+          } else {
+            worldClipCaptureFailure_ = "Map refused the clip read-back buffer";
+          }
+        }
         ++worldBatchDrawCalls_;
         if (albedoView) ++worldBatchTexturedDrawCalls_;
+      }
+      if (skyDrawPending) {
+        drawWorldSkyBox();
+        skyDrawPending = false;
       }
       // Put the state back before the water and entity passes: an
       // OMSetBlendState is device state, not a per-draw argument.
       context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
       if (blendedStateSet) context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
       worldVisDrewIndexed_ = !worldDiagnosticIsolation_ && worldVisClipApplied_;
+    capturePassDepth("30-world-done");
       ID3D11Buffer* noIndex = nullptr;
       context_->IASetIndexBuffer(noIndex, DXGI_FORMAT_R32_UINT, 0);
     } else {
@@ -465,11 +942,22 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       if (isWeaponMaterialView(lastSlot0View_)) ++worldDrawsWithWeaponTexture_;
       context_->Draw(worldVertexCount_, 0);
       ++worldBatchDrawCalls_;
+      if (skyDrawPending) {
+        drawWorldSkyBox();
+        skyDrawPending = false;
+      }
+    capturePassDepth("30-world-done");
     }
     if (worldDebugView_ != 0 && frameConstantsValid) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
   } else if (!worldDiagnosticIsolation_) {
+    // W-1 perf A/B: this quad is painted OVER the sky, so the sky still has to
+    // run first here -- exactly the order the whole pass used to have.
+    if (skyDrawPending) {
+      drawWorldSkyBox();
+      skyDrawPending = false;
+    }
     // T12: this placeholder is a full-screen textured quad, so a `none` frame
     // drawn through it is a picture of the map's display texture rather than
     // the background. The isolation switch skips it; the clear colour then is
@@ -481,6 +969,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     context_->PSSetShaderResources(0, 1, &view);
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     context_->Draw(6, 0);
+  }
+  // W-1 perf A/B: a frame that reached here without any world draw (no world
+  // vertex buffer at all) still owes its sky -- the old code drew it
+  // unconditionally inside the constants block.
+  if (skyDrawPending) {
+    drawWorldSkyBox();
+    skyDrawPending = false;
   }
   // The world pass is ordinal 1. The ViewModel pass takes the next ordinal after
   // the passes below, so "the weapon draws after the world" is a number the
@@ -587,6 +1082,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
     }
     context_->Draw(worldWaterVertexCount_, 0);
     worldWaterDrewThisFrame_ = true;
+  capturePassDepth("40-water");
     // The passes below must not inherit the water's bias or its texture. Same
     // T10 rule as the sky's restore: the diagnostic cull state survives.
     context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
@@ -709,6 +1205,10 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       }
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &entityConstants, 0, 0);
     }
+    // R1b: the depth the entity pass starts from, so the first drawn range is
+    // measured against the world pass rather than against nothing.
+    captureRangeDepth("entity-start", -1, -1, -1);
+    int entityRangeOrdinal = 0;
     for (int blended = 0; blended < 2; ++blended) {
     for (const auto& range : entityModelDrawRanges_) {
       if (range.translucent != (blended != 0)) continue;
@@ -717,6 +1217,13 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // when that material is missing paints characters with unrelated map
       // tiles and makes a resource failure look like a valid draw.
       if (!range.textureView) continue;
+      // R1b negative control: drop one drawn range on purpose, only while the
+      // range probe is armed, to show the footprint follows the DRAW and not the
+      // tick. It changes the picture by design; it is a control, never a mode.
+      if (!rangeDepthPrefix_.empty() && entityRangeOrdinal == rangeDepthSkipIndex_) {
+        ++entityRangeOrdinal;
+        continue;
+      }
       context_->RSSetState(range.noCull ? worldNoCullRasterizerState_.Get() : rasterizerState_.Get());
       ID3D11BlendState* materialBlend = range.translucent ? worldAlphaBlendState_.Get() : nullptr;
       if ((range.materialFlags & 64u) != 0u) materialBlend = mapAdditiveBlendState_.Get();
@@ -724,6 +1231,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         ? mapModulate2xBlendState_.Get() : mapModulateBlendState_.Get();
       context_->OMSetBlendState(materialBlend, nullptr, 0xffffffffu);
       context_->OMSetDepthStencilState(range.translucent ? worldBlendedDepthStencilState_.Get() : depthStencilState_.Get(), 0);
+      noteDepthState(range.translucent ? "entity-blended:write-off" : "entity:write-all");
       auto* rangeView = range.textureView;
       context_->PSSetShaderResources(0, 1, &rangeView);
       auto* secondView = range.secondTextureView;
@@ -747,11 +1255,21 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         range.vertexStart * static_cast<UINT>(sizeof(EntityModelGpuVertex)), 0u };
       context_->IASetVertexBuffers(0, 2, buffers, strides, rangeOffsets);
       context_->DrawInstanced(range.vertexCount, range.instanceCount, 0, range.instanceStart);
+      // R1b: this range's own depth, read after it drew and named by the same
+      // ordinal the skip control counts, so a control run can name the range it
+      // removed.
+      captureRangeDepth("draw", entityRangeOrdinal, blended,
+        static_cast<int>(range.materialSlot));
+      ++entityRangeOrdinal;
     }
     }
     context_->RSSetState(rasterizerState_.Get());
     context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
     context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+    noteDepthState("entity-restore:write-all");
+    // R1: whatever the entity passes left. The occluder class M2b could only name
+    // as {static prop, map model} shows up here as depth it actually wrote.
+    capturePassDepth("50-entities");
     if (entityConstantsDiffer) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
@@ -817,6 +1335,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
         ID3D11DepthStencilState* boundDepthState = list.depth == OverlayDepthMode::XRay
           ? overlayXRayDepthState_.Get() : overlayDepthTestedState_.Get();
         context_->OMSetDepthStencilState(boundDepthState, 0);
+        noteDepthState("overlay:own");
         overlayPassReading_.stateBoundDepthTest =
           (boundDepthState == overlayXRayDepthState_.Get())
           ? (overlayXRayDepthTestEnabled_ ? 1 : 0)
@@ -902,7 +1421,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
               // map, so every item read x0==x1 and the region assertions could not
               // be evaluated at all -- a correct silhouette inside a one-pixel box.
               const float legacyHalfX = 20.0f * worldHorizontalScale_;
-              const float legacyHalfZ = 36.0f * (0.8f / worldSpanZ_);
+              const float legacyHalfZ = 36.0f * worldHorizontalScale_;
               const DirectX::XMVECTOR legacyCenter = DirectX::XMVectorSet(instance.origin[0], instance.origin[1], instance.origin[2], 1.0f);
               float minX = 1.0f, minY = 1.0f, maxX = -1.0f, maxY = -1.0f;
               float nearest = 1.0f;
@@ -1073,6 +1592,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
       // rather than careful: both states the world pass uses are put back here,
       // whatever the overlay did.
       context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+      noteDepthState("overlay-restore:write-all");
       context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
                                               : worldNoCullRasterizerState_.Get());
     }
@@ -1158,6 +1678,7 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // contract list (the standalone --model diagnostic above) take no ordinal,
   // or the numbers would drift with a flag nobody set.
   drawOverlayPass();
+    capturePassDepth("60-overlay");
   // T21: the depth the frame has after the world, water and entity passes and
   // BEFORE the ViewModel pass clears it (the weapon's own pass clears depth so
   // the weapon draws over the map). Read here because this is the last moment
@@ -1165,12 +1686,19 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // `drawViewModel()` every world pixel reads 1.0 -- measured, the first
   // version of this readback was taken after the clear and answered 00ffffff
   // at every point.
-  if (!capturePath_.empty()) captureDepthBuffer(false);
+  capturePassDepth("70-hud-pre");
+  if (!capturePath_.empty() && paneIndex + 1u == paneCount) captureDepthBuffer(false);
   // First person, after the world and entity passes and before the capture, so
   // the frame written to disk already contains the weapon. The pass restores the
   // world depth state it overrides, so a later HUD pass (T3) is unaffected.
-  drawViewModel();
+  // U4 step 2b: the ViewModel pass builds its projection from the window aspect
+  // and clears the whole depth surface, so a split frame defers it -- the weapon
+  // overlay is not part of the two-pane skeleton, and drawing it twice would be
+  // the wrong fix. The single-pane path is unchanged.
+  if (paneCount == 1u) drawViewModel();
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+  noteDepthState("post-viewmodel:write-all");
+  capturePassDepth("80-post-viewmodel");
   context_->RSSetState(rasterizerState_.Get());
   // T51: the custom HUD, after everything that draws the world and the weapon
   // and before the frame is captured. It is the LAST pass on purpose: a HUD over
@@ -1178,25 +1706,54 @@ bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   // scissored rectangles cannot change a world pixel by construction -- which is
   // the assertion hud-check.sh makes by comparing two captures outside those
   // rectangles.
-  if (hudEnabled_) drawHudPass();
+  // U4 step 2b: a split frame draws the HUD once, over the whole window. The HUD
+  // speaks in back-buffer coordinates and scissors itself to client-sized
+  // rectangles, so the last pane restores the full-client viewport and runs it;
+  // in a single-pane frame the viewport above already is that viewport.
+  if (hudEnabled_ && paneIndex + 1u == paneCount) {
+    if (paneCount > 1u) {
+      D3D11_VIEWPORT fullViewport{};
+      fullViewport.Width = static_cast<float>(width_);
+      fullViewport.Height = static_cast<float>(height_);
+      fullViewport.MinDepth = 0.0f;
+      fullViewport.MaxDepth = 1.0f;
+      context_->RSSetViewports(1, &fullViewport);
+    }
+    drawHudPass();
+  }
+  // U4 step 1: the HUD half of the pane contract. hudPassOrdinal_ is non-zero
+  // only when the pass actually ran (drawHudPass returns early on missing
+  // resources), and hudScissorApplied_ is written by the draw itself -- the two
+  // facts the scissor rule needs, taken after the pass rather than guessed.
+  paneBoundary_.hudPasses = hudPassOrdinal_ != 0 ? 1u : 0u;
+  paneBoundary_.hudScissorApplied = hudScissorApplied_;
   // Capture before Present: once Present has run the back buffer contents are
   // no longer defined, so this is the only point at which "the frame we just
   // composed" is still readable.
-  if (!capturePath_.empty()) {
-    const std::wstring path = capturePath_;
-    capturePath_.clear();
-    captureSucceeded_ = writeBackBufferToFile(path);
+  // U4 step 2b: the frame is written and presented once, by the pane that
+  // finished it. Capturing from pane 0 would write a half-composed frame.
+  if (paneIndex + 1u == paneCount) {
+    if (!capturePath_.empty()) {
+      const std::wstring path = capturePath_;
+      capturePath_.clear();
+      passDepthPrefix_.clear();
+      rangeDepthPrefix_.clear();
+      rangeDepthPrev_.clear();
+      rangeDepthSkipIndex_ = -1;
+      captureSucceeded_ = writeBackBufferToFile(path);
+    }
+    // The depth that belongs to the frame just written. Read from the same
+    // capture (frame loop, before the ViewModel clear), so picture and depth
+    // describe one frame -- a depth image of a different tick would compare two
+    // cameras.
+    if (!captureDepthPath_.empty()) {
+      const std::wstring depthPath = captureDepthPath_;
+      captureDepthPath_.clear();
+      depthCaptureSucceeded_ = writeWorldDepthToPgm(depthPath);
+    }
+    const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
+    if (FAILED(result)) { lastError_ = result; return false; }
   }
-  // The depth that belongs to the frame just written. Read from the same capture
-  // (frame loop, before the ViewModel clear), so picture and depth describe one
-  // frame -- a depth image of a different tick would compare two cameras.
-  if (!captureDepthPath_.empty()) {
-    const std::wstring depthPath = captureDepthPath_;
-    captureDepthPath_.clear();
-    depthCaptureSucceeded_ = writeWorldDepthToPgm(depthPath);
-  }
-  const HRESULT result = swapChain_->Present(settings_.vsync ? 1 : 0, 0);
-  if (FAILED(result)) { lastError_ = result; return false; }
   return true;
 }
 
@@ -1249,6 +1806,7 @@ void Renderer::drawHudPass() {
     hudTextQuads_ = 0;
     hudGlyphCount_ = 0;
     hudUnmappedGlyphs_ = 0;
+    hudImageQuads_ = 0;
     hudRectVertexCount_ = 0;
   };
   // Six vertices per quad, 11 floats each: pos2, colour4, local2, uv2, kind1.
@@ -1291,6 +1849,11 @@ void Renderer::drawHudPass() {
     const float width = primitive.w;
     const float height = primitive.h;
     if (!(width > 0.0f) || !(height > 0.0f)) continue;
+    // T68: an image primitive with nothing resident would sample an unbound t1.
+    // Skipping it is the same outcome as drawing nothing (an unbound fetch reads
+    // zero, which blends as transparent), but it also keeps the counter honest:
+    // hudImageQuads() answers "quads that read real pixels".
+    if (primitive.kind == HudPrimitiveKind::Image && !hudImageView_) continue;
     if (primitive.kind == HudPrimitiveKind::Text) {
       const std::vector<char32_t> codepoints = hudUtf8Decode(primitive.text);
       if (codepoints.empty()) continue;
@@ -1353,12 +1916,23 @@ void Renderer::drawHudPass() {
       (left - primitive.x) / width, (top - primitive.y) / height,
       (right - primitive.x) / width, (bottom - primitive.y) / height,
     };
-    const float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+    // T68: an Image primitive carries its own crop in uv, so the pass keeps one
+    // vertex format and one draw call; only the sampled slot and the shader path
+    // differ.
+    float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+    if (primitive.kind == HudPrimitiveKind::Image) {
+      uv[0] = primitive.uv[0];
+      uv[1] = primitive.uv[1];
+      uv[2] = primitive.uv[2];
+      uv[3] = primitive.uv[3];
+    }
     float kind = 0.0f;
     if (primitive.kind == HudPrimitiveKind::Circle) kind = 3.0f;
+    else if (primitive.kind == HudPrimitiveKind::Image) kind = 4.0f;
     else if (primitive.filled) kind = 1.0f;
     pushQuad(left, top, right, bottom, primitive.colour, locals, uv, kind);
     if (primitive.kind == HudPrimitiveKind::Rect) ++hudDrawnRects_;
+    else if (primitive.kind == HudPrimitiveKind::Image) ++hudImageQuads_;
     ++hudDrawnPrimitives_;
     regionLeft = (std::min)(regionLeft, static_cast<int>(left));
     regionTop = (std::min)(regionTop, static_cast<int>(top));
@@ -1432,6 +2006,7 @@ void Renderer::drawHudPass() {
     1.0f / static_cast<float>(width_), 1.0f / static_cast<float>(height_) };
   context_->UpdateSubresource(hudConstants_.Get(), 0, nullptr, screen, 0, 0);
   context_->OMSetDepthStencilState(hudDepthStencilState_.Get(), 0);
+  noteDepthState("hud:own");
   context_->RSSetState(hudRasterizerState_.Get());
   const float blendFactor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   context_->OMSetBlendState(hudBlendState_.Get(), blendFactor, 0xFFFFFFFFu);
@@ -1444,14 +2019,22 @@ void Renderer::drawHudPass() {
   context_->PSSetShader(hudPixelShader_.Get(), nullptr, 0);
   auto* constants = hudConstants_.Get();
   context_->VSSetConstantBuffers(0, 1, &constants);
-  // The font atlas is the only texture this pass may sample. Binding it here and
-  // clearing it after the draw keeps the "a HUD frame differs from a HUD-less
-  // frame only in the pixels the pass drew" claim true for the resource slots as
-  // well as for the pixels.
+  // The font atlas and -- only when the list actually contained an image quad --
+  // the resident basemap are the only textures this pass may sample. Binding them
+  // here and clearing both after the draw keeps the "a HUD frame differs from a
+  // HUD-less frame only in the pixels the pass drew" claim true for the resource
+  // slots as well as for the pixels: a slot this pass never used is never left
+  // holding a view a later pass could sample by accident.
   auto* fontView = hudFontView_.Get();
   auto* fontSampler = hudSampler_.Get();
   context_->PSSetShaderResources(0, 1, &fontView);
   context_->PSSetSamplers(0, 1, &fontSampler);
+  if (hudImageQuads_ > 0 && hudImageView_ && hudImageSampler_) {
+    auto* imageView = hudImageView_.Get();
+    auto* imageSampler = hudImageSampler_.Get();
+    context_->PSSetShaderResources(1, 1, &imageView);
+    context_->PSSetSamplers(1, 1, &imageSampler);
+  }
   context_->Draw(hudRectVertexCount_, 0);
   hudPassOrdinal_ = ++framePassOrdinal_;
   // Restore the frame's own states so a HUD enabled frame and a HUD disabled
@@ -1467,10 +2050,10 @@ void Renderer::drawHudPass() {
   context_->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFFu);
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(rasterizerState_.Get());
-  ID3D11ShaderResourceView* noTexture = nullptr;
-  context_->PSSetShaderResources(0, 1, &noTexture);
-  ID3D11SamplerState* noSampler = nullptr;
-  context_->PSSetSamplers(0, 1, &noSampler);
+  ID3D11ShaderResourceView* noTexture[2] = {nullptr, nullptr};
+  context_->PSSetShaderResources(0, 2, noTexture);
+  ID3D11SamplerState* noSampler[2] = {nullptr, nullptr};
+  context_->PSSetSamplers(0, 2, noSampler);
 }
 
 } // namespace tf2::native

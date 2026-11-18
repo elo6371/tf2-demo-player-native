@@ -17,16 +17,10 @@
 # animWorld * poseToBone and identity at bind pose) against the game's own
 # files, before the product wires any of it up.
 add_executable(skeleton_skin_probe
-  tools/skeleton_skin_probe.cpp
-  src/animation_decoder.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  src/item_schema.cpp
-  src/proto_wire.cpp
-  ${TF2_DEMO_HEADER_SOURCES})
+  tools/skeleton_skin_probe.cpp)
 target_include_directories(skeleton_skin_probe PRIVATE include third_party/lzma)
 target_compile_definitions(skeleton_skin_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(skeleton_skin_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(skeleton_skin_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(skeleton_skin_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(skeleton_skin_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
@@ -35,15 +29,9 @@ set_target_properties(skeleton_skin_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # demo reader as well as the animation decoder, because the sequence value comes
 # from the wire, not from the model file.
 add_executable(weapon_animation_probe
-  tools/weapon_animation_probe.cpp
-  src/animation_decoder.cpp
-  src/model_loader.cpp
-  src/asset_root.cpp
-  src/item_schema.cpp
-  src/proto_wire.cpp
-  ${TF2_DEMO_HEADER_SOURCES})
+  tools/weapon_animation_probe.cpp)
 target_include_directories(weapon_animation_probe PRIVATE include third_party/lzma)
 target_compile_definitions(weapon_animation_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(weapon_animation_probe PRIVATE ${TF2_DEMO_HEADER_LIBS})
+target_link_libraries(weapon_animation_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(weapon_animation_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(weapon_animation_probe PROPERTIES WIN32_EXECUTABLE OFF)

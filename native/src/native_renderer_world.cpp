@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -97,17 +98,15 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   std::size_t lightmappedVertices = 0;
   std::size_t displacedTriangles = 0;
   std::size_t waterTriangles = 0;
-  // U-A1 (2026-11-09): these vertices are NOT map units. X/Y are multiplied by
-  // horizontalScale (1 box unit = 1/horizontalScale map units) and Z by 0.8/spanZ
-  // (1 box unit = spanZ/0.8 map units), so the box is anisotropic: only where
-  // horizontalScale == 0.8/spanZ is a box-space distance a map-space distance.
+  // These vertices share one scale on every axis so the camera sees the map's
+  // metric proportions instead of stretching elevation to fill a fixed box.
   // The shaders inherit this -- native_renderer_shaders.cpp:36 sets
   // worldPosition = input.position and the camera is written in the same box
-  // (native_renderer_frame.cpp:98-105) -- so a fog range quoted in map units has
-  // to be converted per axis, never by a single scalar. The atlas overload below
+  // (native_renderer_frame.cpp:98-105) -- so fog ranges convert with the same
+  // inverse scale on every axis. The atlas overload below
   // (~:590) normalizes identically.
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
-    return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 1.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
+    return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) * horizontalScale + 0.1f, 0.62f, 0.65f, 0.68f, 1.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
   for (const auto& triangle : source) {
     const std::uint32_t hash = static_cast<std::uint32_t>(std::hash<std::string>{}(triangle.material));
@@ -170,6 +169,17 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   }
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
+  // N05: keep what the shader will receive. All three vertices of a triangle are
+  // built with the same r,g,b,a, so the first one is the whole answer.
+  worldTriangleColour_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f});
+  worldTrianglePosition_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+  for (std::size_t at = 0; at + 2 < vertices.size(); at += 3u) {
+    const WorldVertex& v = vertices[at];
+    worldTriangleColour_[at / 3u] = {v.r, v.g, v.b, v.a};
+    const WorldVertex& vb = vertices[at + 1];
+    const WorldVertex& vc = vertices[at + 2];
+    worldTrianglePosition_[at / 3u] = {v.x, v.y, v.z, vb.x, vb.y, vb.z, vc.x, vc.y, vc.z};
+  }
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   {
     float cx0 = 1e30f, cy0 = 1e30f, cz0 = 1e30f, cx1 = -1e30f, cy1 = -1e30f, cz1 = -1e30f;
@@ -232,6 +242,9 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   for (const auto& source : textures) {
     WorldTileSource request;
     request.material = source.material;
+    // I-23: carried into the plan so the rescue pass can name the materials whose
+    // alpha path has no tile, rather than guessing from the VMT a second time.
+    request.translucent = source.translucent;
     request.width = source.width;
     request.height = source.height;
     request.sourceWidth = source.sourceWidth > 0 ? source.sourceWidth : source.width;
@@ -254,13 +267,27 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       ? source.bump2Rgba.size() : 0;
     requests.push_back(std::move(request));
   }
-  const WorldAtlasPlan plan = planWorldTiles(requests);
+  WorldAtlasPlan plan = planWorldTiles(requests);
+  // I-23: the budget refusal is charged per batch and ends the plan, so a
+  // translucent material in a refused batch never gets a tile and therefore never
+  // reaches the tiled alpha branch. Rescue exactly those materials into a batch
+  // priced against the budget that is left; the planner itself is unchanged.
+  if (worldAtlasTranslucentRescue_) worldTileRescueTranslucent(plan, requests);
   worldAtlasPlanReason_ = plan.reason;
   worldTilesTiled_ = plan.accepted;
   worldTilesRefused_ = plan.refused;
   worldTilesRefusedMalformed_ = plan.refusedMalformed;
   worldTilesRefusedDuplicate_ = plan.refusedDuplicate;
   worldTilesRefusedBudget_ = plan.refusedBudget;
+  // I-23: the count is taken from the post-rescue slots: a rescued material is
+  // tiled, so it is not counted -- but the same loop reports every translucent
+  // material still without a tile. That is the number the negative frame pins.
+  worldTilesRefusedTranslucent_ = 0;
+  for (std::size_t index = 0; index < textures.size(); ++index) {
+    if (textures[index].translucent && plan.slots[index].batch < 0) {
+      ++worldTilesRefusedTranslucent_;
+    }
+  }
   worldAtlasBatches_ = plan.batches.size();
   worldAtlasLayerBytes_ = plan.albedoBytes + plan.blendBytes + plan.modulateBytes
     + plan.bumpBytes + plan.bump2Bytes;
@@ -453,6 +480,66 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldBumpFeature_.materials = bumpMaterials.size();
   worldBump2Feature_.materials = bump2Materials.size();
   worldDetailFeature_.materials = detailBlitMaterials.size();
+  // Diagnostic: `TF2_NATIVE_DUMP_ATLAS=<dir>` writes each batch's CPU-side
+  // layers as PPM plus a text map of where every tile landed. A layer whose
+  // pixels disagree with what the frame shows can then be looked at directly
+  // instead of inferred from the picture it produces; the file names carry the
+  // batch and the map carries the tile rectangle, so a noisy region of a frame
+  // can be traced back to the exact texels that fed it.
+  if (const char* dumpDirectory = std::getenv("TF2_NATIVE_DUMP_ATLAS")) {
+    // `alpha` writes the alpha channel as a grey image: the cutout a
+    // `$alphatest` material's discard is decided by is the one channel a PPM of
+    // the colour cannot show, and a fence whose alpha is wrong looks like a
+    // correct texture in every colour dump.
+    const auto writePpm = [](const std::string& path, const std::vector<std::uint8_t>& pixels,
+                             std::uint32_t width, std::uint32_t height, bool alpha = false) {
+      std::FILE* file = std::fopen(path.c_str(), "wb");
+      if (file == nullptr) return;
+      std::fprintf(file, "P6\n%u %u\n255\n", width, height);
+      for (std::size_t at = 0; at + 3 < pixels.size(); at += 4u) {
+        if (alpha) {
+          const std::uint8_t grey = pixels[at + 3];
+          const std::uint8_t triple[3] = {grey, grey, grey};
+          std::fwrite(triple, 1, 3, file);
+        } else {
+          std::fwrite(&pixels[at], 1, 3, file);
+        }
+      }
+      std::fclose(file);
+    };
+    std::string map;
+    map += "TF2 native world atlas dump\n";
+    for (std::size_t batch = 0; batch < plan.batches.size(); ++batch) {
+      const auto& layout = plan.batches[batch];
+      char name[64];
+      std::snprintf(name, sizeof(name), "\\batch%zu", batch);
+      const std::string prefix = std::string(dumpDirectory) + name;
+      writePpm(prefix + "-albedo.ppm", atlasPixels[batch], layout.width, layout.height);
+      writePpm(prefix + "-albedo-alpha.ppm", atlasPixels[batch], layout.width, layout.height, true);
+      if (!blendPixels[batch].empty()) writePpm(prefix + "-blend.ppm", blendPixels[batch], layout.width, layout.height);
+      if (!modulatePixels[batch].empty()) writePpm(prefix + "-modulate.ppm", modulatePixels[batch], layout.width, layout.height);
+      if (!bumpPixels[batch].empty()) writePpm(prefix + "-bump.ppm", bumpPixels[batch], layout.width, layout.height);
+      if (!bump2Pixels[batch].empty()) writePpm(prefix + "-bump2.ppm", bump2Pixels[batch], layout.width, layout.height);
+      char line[256];
+      std::snprintf(line, sizeof(line), "batch %zu %ux%u tiles=%d\n", batch, layout.width, layout.height, layout.tiles);
+      map += line;
+    }
+    for (std::size_t index = 0; index < plan.slots.size(); ++index) {
+      const auto& slot = plan.slots[index];
+      if (slot.batch < 0) continue;
+      char line[512];
+      std::snprintf(line, sizeof(line), "tile %d batch %d x=%u y=%u w=%u h=%u src=%ux%u blend=%d modulate=%d material=%s\n",
+        slot.tile, slot.batch, slot.x, slot.y, slot.width, slot.height,
+        slot.sourceWidth, slot.sourceHeight, slot.blend ? 1 : 0, slot.modulate ? 1 : 0,
+        index < textures.size() ? textures[index].material.c_str() : "?");
+      map += line;
+    }
+    const std::string mapPath = std::string(dumpDirectory) + "\\atlas-map.txt";
+    if (std::FILE* file = std::fopen(mapPath.c_str(), "wb")) {
+      std::fwrite(map.data(), 1, map.size(), file);
+      std::fclose(file);
+    }
+  }
   // T12's 67.6 MiB note still applies per batch: a batch of 64 tiles is over the
   // 64 MiB guard the ordinary textures use, and that guard exists to catch a
   // runaway allocation rather than to refuse the size this pass is built around.
@@ -480,7 +567,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     const std::uint64_t atlasBudget = std::max<std::uint64_t>(64ull * 1024ull * 1024ull,
       layout.albedoBytes);
     Texture2D albedo;
-    if (!albedo.create(device_.Get(), atlasPixels[batch], layout.width, layout.height,
+    if (!albedo.createMipped(device_.Get(), context_.Get(), atlasPixels[batch], layout.width, layout.height,
                        &atlasError, atlasBudget)) {
       worldAtlasReason_ = atlasError.empty() ? "the world atlas texture was refused" : atlasError;
       lastError_ = E_FAIL;
@@ -489,7 +576,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     worldAtlasTextures_.push_back(std::move(albedo));
     if (!blendPixels[batch].empty()) {
       Texture2D blend;
-      if (!blend.create(device_.Get(), blendPixels[batch], layout.width, layout.height,
+      if (!blend.createMipped(device_.Get(), context_.Get(), blendPixels[batch], layout.width, layout.height,
                         &atlasError, atlasBudget)) {
         worldAtlasReason_ = atlasError.empty() ? "the blend atlas texture was refused" : atlasError;
         lastError_ = E_FAIL;
@@ -502,7 +589,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     }
     if (!modulatePixels[batch].empty()) {
       Texture2D modulate;
-      if (!modulate.create(device_.Get(), modulatePixels[batch], layout.width, layout.height,
+      if (!modulate.createMipped(device_.Get(), context_.Get(), modulatePixels[batch], layout.width, layout.height,
                            &atlasError, atlasBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the blend modulate atlas texture was refused" : atlasError;
@@ -521,7 +608,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       layout.featureBytes);
     if (!bumpPixels[batch].empty()) {
       Texture2D bump;
-      if (!bump.create(device_.Get(), bumpPixels[batch], layout.featureWidth,
+      if (!bump.createMipped(device_.Get(), context_.Get(), bumpPixels[batch], layout.featureWidth,
                        layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the bump atlas texture was refused" : atlasError;
@@ -534,7 +621,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     }
     if (!bump2Pixels[batch].empty()) {
       Texture2D bump2;
-      if (!bump2.create(device_.Get(), bump2Pixels[batch], layout.featureWidth,
+      if (!bump2.createMipped(device_.Get(), context_.Get(), bump2Pixels[batch], layout.featureWidth,
                         layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the bump2 atlas texture was refused" : atlasError;
@@ -548,7 +635,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // The detail layer, same rectangle rule and same budget as the normals.
     if (!detailPixels[batch].empty()) {
       Texture2D detail;
-      if (!detail.create(device_.Get(), detailPixels[batch], layout.featureWidth,
+      if (!detail.createMipped(device_.Get(), context_.Get(), detailPixels[batch], layout.featureWidth,
                          layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the detail atlas texture was refused" : atlasError;
@@ -601,7 +688,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   std::size_t displacedTriangles = 0;
   std::size_t waterTriangles = 0;
   const auto convert = [&](const BspVertex& point, const BspVertex& normal) {
-    return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) / spanZ * 0.8f + 0.1f, 0.62f, 0.65f, 0.68f, 0.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
+    return WorldVertex{(point.x - centerX) * horizontalScale, (point.y - centerY) * horizontalScale, (point.z - minZ) * horizontalScale + 0.1f, 0.62f, 0.65f, 0.68f, 0.0f, 0.0f, 0.0f, normal.x, normal.y, normal.z};
   };
   // T19: material -> its slot in the plan. A material the plan refused is
   // absent here, and the vertex loop's else branch is then the flat fallback the
@@ -634,6 +721,23 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // position and scale it has in the full frame -- a mask taken from a
     // re-centred world would not overlay the picture it is meant to bound.
     if (worldTerrainOnly_ && terrainMaterials.count(triangle.material) == 0) continue;
+    // N06 diagnostic: drop every triangle of one material by substring, so the
+    // geometry a cutout material hides can be seen and traced directly. The
+    // command line cannot take another switch (MSVC C1061 on main.cpp's chain),
+    // so it is an environment knob; empty is off and the upload is unchanged.
+    static const std::string hiddenMaterial = [] {
+      const char* raw = std::getenv("TF2_NATIVE_HIDE_MATERIAL");
+      return std::string(raw != nullptr ? raw : "");
+    }();
+    if (!hiddenMaterial.empty() && triangle.material.find(hiddenMaterial) != std::string::npos) continue;
+    // N06 diagnostic, the inverse of the knob above: keep only the triangles of
+    // one material so its raster can be looked at on its own, with nothing
+    // behind it. Empty is off.
+    static const std::string onlyMaterial = [] {
+      const char* raw = std::getenv("TF2_NATIVE_ONLY_MATERIAL");
+      return std::string(raw != nullptr ? raw : "");
+    }();
+    if (!onlyMaterial.empty() && triangle.material.find(onlyMaterial) == std::string::npos) continue;
     const auto ab = BspVertex{triangle.b.x - triangle.a.x, triangle.b.y - triangle.a.y, triangle.b.z - triangle.a.z};
     const auto ac = BspVertex{triangle.c.x - triangle.a.x, triangle.c.y - triangle.a.y, triangle.c.z - triangle.a.z};
     const float nx = ab.y * ac.z - ab.z * ac.y, ny = ab.z * ac.x - ab.x * ac.z, nz = ab.x * ac.y - ab.y * ac.x;
@@ -750,9 +854,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         // T96: the alpha keys, same per-vertex channel as the feature bits
         // above. Bit 8 = `$translucent`, bit 16 = `$alphatest`, set from the
         // VMT's own keys rather than from a global switch: the keys are per
-        // material and the shader is told per vertex. A translucent material
-        // whose blend state is missing keeps its bit and reads mode=refused on
-        // the consumption line, rather than silently drawing opaque.
+        // material and the shader is told per vertex. This branch is reached only
+        // for a material the plan gave a tile: a refused translucent material is
+        // drawn by the untiled flat branch below with alpha=0 (opaque), and its
+        // consumption row says mode=refused. That is why the I-23 rescue batch
+        // exists -- a material refused by budget cannot be fixed by the shader,
+        // because no texture rectangle holds its pixels. With
+        // `--world-atlas-no-translucent-rescue` they stay refused and
+        // `translucentRefused` counts exactly them.
         const bool alphaBlended = material.translucent;
         const bool alphaCutout = material.alphaTest;
         if (alphaBlended) mask |= 8;
@@ -922,6 +1031,18 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   }
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
+  // N05: same table as the first upload path -- this one runs on the pvs-clipped
+  // re-upload, which is the path a real capture takes, so leaving it out made the
+  // face-trace report vertexColourKnown=0 on every point.
+  worldTriangleColour_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f});
+  worldTrianglePosition_.assign(vertices.size() / 3u, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+  for (std::size_t at = 0; at + 2 < vertices.size(); at += 3u) {
+    const WorldVertex& v = vertices[at];
+    worldTriangleColour_[at / 3u] = {v.r, v.g, v.b, v.a};
+    const WorldVertex& vb = vertices[at + 1];
+    const WorldVertex& vc = vertices[at + 2];
+    worldTrianglePosition_[at / 3u] = {v.x, v.y, v.z, vb.x, vb.y, vb.z, vc.x, vc.y, vc.z};
+  }
   worldLightmappedVertexCount_ = static_cast<UINT>(lightmappedVertices);
   // ---- T19: the index buffer, grouped by batch -----------------------------
   if (worldTerrainOnly_)
@@ -949,6 +1070,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // (mode 1). The texture is the same atlas; only the device state differs.
     std::vector<std::vector<std::uint32_t>> perBatch(plan.batches.size() * 2u);
     for (std::size_t triangle = 0; triangle < worldTriangleBatch_.size(); ++triangle) {
+      // N05 step 2: one triangle, nothing else. This is the default index path --
+      // the filter in setWorldVisDrawList only covers the pvs-clipped one, and
+      // without this the "isolated" frame still drew 1027 distinct faces.
+      if (worldIsolatedTriangle_ >= 0 && triangle != static_cast<std::size_t>(worldIsolatedTriangle_)) continue;
       const int batch = worldTriangleBatch_[triangle];
       if (batch < 0) continue;
       auto& target = perBatch[static_cast<std::size_t>(batch)];
@@ -1198,6 +1323,7 @@ bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
   std::vector<std::vector<std::uint32_t>> perBatch(entryCount);
   for (const std::uint32_t index : drawList.indices) {
     const std::size_t triangle = static_cast<std::size_t>(index) / 3u;
+    if (worldIsolatedTriangle_ >= 0 && triangle != static_cast<std::size_t>(worldIsolatedTriangle_)) continue;
     const int sub = triangle < worldTriangleBatch_.size()
       ? worldTriangleBatch_[triangle] : (worldDrawBatches_.empty() ? -1 : 0);
     if (sub < 0) continue;
@@ -1212,6 +1338,14 @@ bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
     worldDrawBatches_[batch].firstIndex = static_cast<UINT>(regrouped.size());
     worldDrawBatches_[batch].indexCount = static_cast<UINT>(perBatch[batch].size());
     regrouped.insert(regrouped.end(), perBatch[batch].begin(), perBatch[batch].end());
+  }
+  // N05: mark what the index buffer references. Everything before this point is
+  // a claim about the vertex buffer; this is the only place that knows what the
+  // draw will actually call.
+  worldTriangleDrawn_.assign(worldTriangleBatch_.size(), 0);
+  for (const std::uint32_t index : regrouped) {
+    const std::size_t triangle = static_cast<std::size_t>(index) / 3u;
+    if (triangle < worldTriangleDrawn_.size()) worldTriangleDrawn_[triangle] = 1;
   }
   const UINT needed = static_cast<UINT>(regrouped.size());
   if (needed == 0) {
@@ -1249,6 +1383,46 @@ bool Renderer::setWorldVisDrawList(const WorldVisDrawList& drawList) {
   worldIndexCount_ = needed;
   worldVisClipApplied_ = true;
   worldVisDrawnTriangles_ = drawList.outputTriangles;
+  return true;
+}
+
+// N05: the colour the vertex buffer carries for one triangle, for the face-trace.
+// Out-of-range is false rather than a zero, so "no such triangle" cannot read as
+// "the vertex colour is black".
+bool Renderer::worldTriangleColourAt(std::size_t triangle, float out[4]) const {
+  if (triangle >= worldTriangleColour_.size()) return false;
+  const auto& c = worldTriangleColour_[triangle];
+  out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; out[3] = c[3];
+  return true;
+}
+
+int Renderer::worldTriangleDrawnAt(std::size_t triangle) const {
+  if (triangle >= worldTriangleDrawn_.size()) return -1;
+  return worldTriangleDrawn_[triangle] ? 1 : 0;
+}
+
+bool Renderer::worldTrianglePositionAt(std::size_t triangle, float out[9]) const {
+  if (triangle >= worldTrianglePosition_.size()) return false;
+  const auto& p = worldTrianglePosition_[triangle];
+  for (int i = 0; i < 9; ++i) out[i] = p[i];
+  return true;
+}
+
+// N05 step 3: the clip-space quads the vertex stage actually produced on the
+// last captured frame. False when no capture has run, so a caller cannot read
+// an unwritten buffer as "all four vertices landed at the origin".
+bool Renderer::worldClipCaptureSample(float out[12]) const {
+  if (!worldClipCaptureValid_) return false;
+  for (int i = 0; i < 12; ++i) out[i] = worldClipCaptureVertex_[i];
+  return true;
+}
+
+bool Renderer::worldClipCaptureDrawState(unsigned int outIndices[3], float outViewport[4],
+                                         unsigned int& outConstantsHash) const {
+  if (!worldClipCaptureValid_) return false;
+  for (int i = 0; i < 3; ++i) outIndices[i] = worldClipCaptureIndex_[i];
+  for (int i = 0; i < 4; ++i) outViewport[i] = worldClipCaptureViewport_[i];
+  outConstantsHash = worldClipCaptureConstantsHash_;
   return true;
 }
 

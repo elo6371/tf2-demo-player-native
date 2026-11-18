@@ -14,6 +14,7 @@
 #include <objbase.h>
 #include <shlobj.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -24,10 +25,61 @@
 
 #include "hud_import.h"
 #include "hud_state.h"
+#include "hud_panel.h"
 #include "keybinds.h"
+#include "minimap.h"
+#include "minimap_linework.h"
+#include "map_overview.h"
 #include "main_internal.h"
 #include "native_renderer.h"
 #include "native_ui.h"
+
+// ---------------------------------------------------------------------------
+// E9 (2026-11-13): the minimap panel's inputs.
+//
+// main.cpp hands the panel the camera pose it is about to draw, as a value. Nothing
+// here points back into the frame loop, so the panel cannot outlive the tick that
+// produced it. Two accessors keep the storage private: a translation unit that never
+// pushed a frame (a run without --hud-minimap) is indistinguishable from one that
+// never linked the panel at all.
+// ---------------------------------------------------------------------------
+namespace tf2::native {
+
+namespace {
+MinimapHudFrame g_minimapHudFrame;
+bool g_minimapHudFramePushed = false;
+}  // namespace
+
+void minimapHudSetFrame(const MinimapHudFrame& frame) {
+  g_minimapHudFrame = frame;
+  g_minimapHudFramePushed = true;
+}
+
+bool minimapHudFramePushed() { return g_minimapHudFramePushed; }
+
+const MinimapHudFrame& minimapHudFrameRef() { return g_minimapHudFrame; }
+
+// N14/U3a: the basemap geometry, pushed once per run and never mutated after. The
+// counter rather than a bool, because the same process can load a second demo --
+// the geometry then changes even though "something was pushed" stays true, and a
+// cached rectangle list keyed on a bool would keep drawing the first map's floors.
+namespace {
+std::vector<MinimapFloorTriangle> g_minimapFloorGeometry;
+std::size_t g_minimapFloorGeometryRevision = 0;
+}  // namespace
+
+void minimapHudSetFloorGeometry(std::vector<MinimapFloorTriangle> triangles) {
+  g_minimapFloorGeometry = std::move(triangles);
+  ++g_minimapFloorGeometryRevision;
+}
+
+std::size_t minimapHudFloorGeometryRevision() { return g_minimapFloorGeometryRevision; }
+
+const std::vector<MinimapFloorTriangle>& minimapHudFloorGeometryRef() {
+  return g_minimapFloorGeometry;
+}
+
+}  // namespace tf2::native
 
 namespace tf2::native::main_internal {
 
@@ -44,6 +96,28 @@ bool g_hudLiveActive = false;
 // copy the text would be deleted on exactly the frame a gate captures, so the
 // layout pass merges this list back in instead of overwriting it.
 std::vector<tf2::native::Renderer::HudPrimitive> g_hudLivePrimitives;
+// The panel shapes (minimap / map-overview) are stored apart from the text: on a
+// window resize only the text has to be re-centred, and the panel is recomposed
+// by the next hudApplyLive with the new client size.
+std::vector<tf2::native::Renderer::HudPrimitive> g_hudLiveExtraPrimitives;
+// The three readout lines, kept so a resize can rebuild their primitives without
+// waiting for the next reading (a captured frame can arrive first).
+std::string g_hudLiveLastLines[3];
+// Where the heading goes, in client pixels. Lines 1-2 (time, score) are centred
+// on the client; line 3 (name/HP) stays at the left margin because it is the
+// watched player's reading, not the score, and the user asked only for the time
+// and score to sit at the top centre. Published so the gate can assert it.
+struct HudLiveLayout {
+  int lineX[3] = {0, 0, 0};
+  int lineW[3] = {0, 0, 0};
+  int headerX = 0;
+  int headerW = 0;
+  int nameX = 0;
+  int nameW = 0;
+  int regionX = 0;
+  int regionW = 0;
+};
+HudLiveLayout hudLiveLayoutFor(HWND window, const std::string lines[3]);
 
 }  // namespace
 
@@ -308,7 +382,28 @@ void hudApplyRects(HWND window) {
       primitive.filled = false;
       merged.push_back(primitive);
     }
-    merged.insert(merged.end(), g_hudLivePrimitives.begin(), g_hudLivePrimitives.end());
+    // Rebuild the three text lines for the CURRENT client width before appending
+    // the panel shapes. setHudPrimitives replaces the list, so without this a
+    // resize would leave the centred header at its old x until the next reading.
+    const HudLiveLayout layout = hudLiveLayoutFor(window, g_hudLiveLastLines);
+    for (int lineIndex = 0; lineIndex < 3; ++lineIndex) {
+      if (g_hudLiveLastLines[lineIndex].empty()) continue;
+      tf2::native::Renderer::HudPrimitive primitive;
+      primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
+      primitive.x = static_cast<float>(layout.lineX[lineIndex]);
+      primitive.y = 24.0f + 22.0f * static_cast<float>(lineIndex);
+      primitive.w = static_cast<float>(layout.lineW[lineIndex]);
+      primitive.h = 16.0f;
+      primitive.scale = 2.0f;
+      primitive.colour[0] = 1.0f;
+      primitive.colour[1] = 1.0f;
+      primitive.colour[2] = 1.0f;
+      primitive.colour[3] = 1.0f;
+      primitive.text = g_hudLiveLastLines[lineIndex];
+      merged.push_back(primitive);
+    }
+    merged.insert(merged.end(), g_hudLiveExtraPrimitives.begin(),
+      g_hudLiveExtraPrimitives.end());
     g_renderer->setHudPrimitives(merged);
   } else {
     g_renderer->setHudRects(rects);
@@ -446,6 +541,41 @@ constexpr float kHudLiveLineHeight = 22.0f;
 constexpr float kHudLiveScale = 2.0f;
 constexpr float kHudLiveCell = 8.0f * kHudLiveScale;
 
+// Lines 1-2 (time, score) are centred on the client; line 3 (name/HP) stays at
+// kHudLiveX. The centring is clamped to the left margin so a window narrower than
+// the text keeps the line readable instead of running off the edge. Integer
+// arithmetic: the gate checks |x - (cw - chars*16)/2| <= tolerance, so truncating
+// a half pixel is inside tolerance and avoids a float-vs-int mismatch.
+HudLiveLayout hudLiveLayoutFor(HWND window, const std::string lines[3]) {
+  HudLiveLayout layout;
+  int clientW = 0;
+  if (window) {
+    RECT client{};
+    if (GetClientRect(window, &client)) {
+      clientW = static_cast<int>(client.right - client.left);
+    }
+  }
+  for (int index = 0; index < 3; ++index) {
+    layout.lineW[index] = static_cast<int>(lines[index].size()) * static_cast<int>(kHudLiveCell);
+    layout.lineX[index] = static_cast<int>(kHudLiveX);
+    if (index < 2 && clientW > 0) {
+      int x = (clientW - layout.lineW[index]) / 2;
+      if (x < static_cast<int>(kHudLiveX)) x = static_cast<int>(kHudLiveX);
+      layout.lineX[index] = x;
+    }
+  }
+  layout.headerX = std::min(layout.lineX[0], layout.lineX[1]);
+  const int headerRight = std::max(layout.lineX[0] + layout.lineW[0],
+    layout.lineX[1] + layout.lineW[1]);
+  layout.headerW = headerRight - layout.headerX;
+  layout.nameX = layout.lineX[2];
+  layout.nameW = layout.lineW[2];
+  layout.regionX = std::min(layout.headerX, layout.nameX);
+  const int regionRight = std::max(headerRight, layout.nameX + layout.nameW);
+  layout.regionW = regionRight - layout.regionX;
+  return layout;
+}
+
 // g_hudLiveActive is defined near the top of the file (hudApplyRects reads it).
 // g_hudLiveOffReported covers both ways of being off (a switch or an evidence run):
 // one process has one of them, and each is published exactly once.
@@ -481,7 +611,6 @@ std::size_t g_hudLiveCalls = 0;
 std::size_t g_hudLivePublished = 0;
 bool g_hudLiveSummaryRegistered = false;
 std::string g_hudLiveLastSource;
-std::string g_hudLiveLastLines[3];
 
 void hudLiveSummaryAtExit();
 
@@ -787,7 +916,426 @@ HudLiveText hudLiveCompose(const tf2::native::main_internal::PlaybackState& play
   return text;
 }
 
+// ---------------------------------------------------------------------------
+// E9 (2026-11-13): the minimap panel -- what it draws, and why it draws it there.
+//
+// WHAT A PANEL IS. One measured world rectangle (the map's own bounds) projected
+// equal-aspect into a 160-pixel square, plus the control points measured on that
+// map, the viewer's position, and a three-dot arrow along the camera yaw. No bitmap
+// is involved: none of the seven supported maps ships a radar overview (T135
+// MINIMAP-DATA-REPORT.md section 4 looked in the pakfile, the VPKs and the loose
+// files), so a map here is geometry and points, not an image.
+//
+// WHY THE TABLE IS COMPILED IN. Bounds and control points are the map's design, not
+// a row the BSP exposes -- BspMap carries no entity list -- so at load time there is
+// nothing to read a control point's origin from. minimapFindMapRow() is the lookup;
+// a map that is not in the table draws NOTHING and publishes the reason, because an
+// unknown map rendered as an empty panel is a canvas nobody can tell from a map with
+// no objectives (the T65 failure).
+//
+// WHY THESE COLOURS ARE OPAQUE. The gate compares a --hud-minimap frame against a
+// frame without the switch, then reads the rings' own colours back out of the
+// bitmap; a blend of two primitives would make both readings ambiguous.
+// ---------------------------------------------------------------------------
+namespace {
+
+constexpr float kMinimapRadius = 4.0f;       // control-point ring, in pixels
+constexpr float kMinimapViewerHalf = 1.5f;   // the viewer dot is 3x3 pixels
+constexpr float kMinimapArrowStart = 4.0f;   // first arrow dot, from the centre
+constexpr float kMinimapArrowStep = 1.0f;
+constexpr int kMinimapArrowDots = 3;
+constexpr float kMinimapArrowHalf = 1.0f;    // each arrow dot is 2x2 pixels
+constexpr float kMinimapBorderWidth = 2.0f;
+constexpr float kMinimapBackgroundColour[4] = {0.05f, 0.06f, 0.08f, 1.0f};
+constexpr float kMinimapBorderColour[4] = {0.62f, 0.64f, 0.66f, 1.0f};
+constexpr float kMinimapRedColour[4] = {0.90f, 0.20f, 0.18f, 1.0f};
+constexpr float kMinimapBluColour[4] = {0.20f, 0.42f, 0.95f, 1.0f};
+constexpr float kMinimapNeutralColour[4] = {0.92f, 0.90f, 0.85f, 1.0f};
+constexpr float kMinimapViewerColour[4] = {0.10f, 1.00f, 0.30f, 1.0f};
+// The basemap is a line, not a surface: it sits between the background and the
+// border in brightness so the objective rings still win the contrast, and it is
+// NOT team-coloured. A filled silhouette was the alternative and it was rejected
+// in N14 7.2 -- on a multi-storey map a fill reads as one floor.
+constexpr float kMinimapFloorColour[4] = {0.30f, 0.34f, 0.38f, 1.0f};
+// A merged rectangle costs one primitive. The list is bounded rather than trusted:
+// N14 7.2 measured 235-570 rectangles across the seven tabulated maps, so a list
+// that blows past this bound is a build bug and not a map, and it is reported
+// instead of uploaded.
+constexpr std::size_t kMinimapLineworkMaxRects = 4000;
+
+void minimapPushRect(std::vector<tf2::native::Renderer::HudPrimitive>& into, float x,
+    float y, float w, float h, const float colour[4]) {
+  tf2::native::Renderer::HudPrimitive primitive;
+  primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Rect;
+  primitive.x = x;
+  primitive.y = y;
+  primitive.w = w;
+  primitive.h = h;
+  primitive.filled = true;
+  for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = colour[channel];
+  into.push_back(primitive);
+}
+
+// A circle primitive is its BOUNDING BOX: the HUD shader discards outside half the
+// box (native_renderer_shaders.cpp, kind 3), so w == h == 2r, the centre is the box
+// centre, and the rim is hard -- there is no antialiasing to average the colour the
+// gate samples.
+void minimapPushCircle(std::vector<tf2::native::Renderer::HudPrimitive>& into, float x,
+    float y, float diameter, const float colour[4]) {
+  tf2::native::Renderer::HudPrimitive primitive;
+  primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Circle;
+  primitive.x = x;
+  primitive.y = y;
+  primitive.w = diameter;
+  primitive.h = diameter;
+  for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = colour[channel];
+  into.push_back(primitive);
+}
+
+const float* minimapTeamColour(int team) {
+  if (team == 2) return kMinimapRedColour;
+  if (team == 3) return kMinimapBluColour;
+  return kMinimapNeutralColour;
+}
+
+// Whether a point's ring fits inside the panel with its radius to spare. The HUD
+// pass scissors to the union of the primitives it was handed, not to this panel, so a
+// shape that hung over the edge would paint on top of the world outside the panel --
+// and the gate's "nothing outside the panel changed" half would then be red for a
+// reason that had nothing to do with projection.
+bool minimapPointFits(const tf2::native::MinimapPoint& pixel,
+    const tf2::native::HudPanelRect& panel, float halfExtent) {
+  // E10/U3b (2026-11-16): the spare is measured on the panel's own width and its
+  // own height. One number for both axes is only right while the panel is square;
+  // a narrow client clamps the width and keeps the height, and this cull then
+  // dropped markers that were still inside the panel.
+  return pixel.inside
+    && tf2::native::hudPanelPointInside(panel, pixel.px, pixel.py, halfExtent);
+}
+
+struct HudMinimapDraw {
+  bool active = false;      // a frame was pushed: the switch is on for this run
+  bool ready = false;       // a tabulated map, this frame's pose, and a placed panel
+  const char* reason = "no-frame";
+  const tf2::native::MinimapMapRow* row = nullptr;
+  tf2::native::MinimapBounds bounds;
+  tf2::native::MinimapProjection projection;
+  tf2::native::HudPanelRect rect;
+  float angle = 0.0f;
+  float viewerPx = 0.0f;
+  float viewerPy = 0.0f;
+  bool viewerInside = false;
+  int arrowDots = 0;
+  std::size_t pointsDrawn = 0;
+  // N14/U3a: the basemap. The rectangle list is the built result for this panel
+  // size and this geometry revision; the counters beside it describe what it was
+  // built from, because "no basemap" and "a basemap with nothing in it" are
+  // different readings and the trace has to be able to say which one happened.
+  bool lineworkReady = false;
+  const char* lineworkReason = "no-geometry";
+  std::size_t floorTriangles = 0;   // triangles handed over by main.cpp
+  std::size_t floorFaces = 0;       // distinct surfaces among them
+  std::size_t floorKept = 0;        // triangles whose face cleared the thresholds
+  std::size_t floorFacesKept = 0;   // distinct faces that cleared them
+  std::size_t floorBands = 0;
+  std::size_t lineworkRuns = 0;
+  std::size_t lineworkRects = 0;
+  // The number of those rectangles this publish actually PUSHED into primitives.
+  // lineworkRects is what the builder built; this is what the panel handed over.
+  // They differ when the budget refused the plan (reason=rect-budget), and the trace
+  // has to be able to say which of the two happened.
+  std::size_t floorRectsPushed = 0;
+  std::string signature;
+  std::vector<tf2::native::Renderer::HudPrimitive> primitives;
+};
+
+// The panel rectangle comes from the same rule the hud_panel self-test pins --
+// top-right, 160x160, 4 pixels inside the 8-pixel inset -- and is not arithmetic
+// repeated here: the gate recomputes the expected rectangle from the client size on
+// its own and compares it with the published one, so a drifted panel is caught by two
+// independent computations instead of being agreed with by one.
+tf2::native::HudPanelRect hudMinimapPanelRect(HWND window) {
+  RECT client{};
+  if (!window || !GetClientRect(window, &client)) {
+    client.right = 1280;
+    client.bottom = 720;
+  }
+  std::vector<tf2::native::HudPanelSpec> specs;
+  specs.push_back(tf2::native::hudMinimapPanelSpec());
+  const tf2::native::HudPanelLayout layout = tf2::native::hudLayoutPanels(specs,
+    static_cast<int>(client.right), static_cast<int>(client.bottom),
+    tf2::native::kHudPanelSafeInset);
+  if (layout.panels.empty()) return tf2::native::HudPanelRect{};
+  return layout.panels.front();
+}
+
+// N14/U3a: the basemap, built once per (geometry revision, panel size).
+//
+// The build is a scanline fill of every floor triangle plus one pass per storey
+// band, and none of its inputs change between frames, so paying it per frame would
+// be paying it sixty times a second for the same picture. The cache key is the
+// geometry REVISION and not a bool: a process that loads a second demo pushes a
+// second geometry, and a bool would keep drawing the first map's floors on the
+// second map.
+namespace {
+struct MinimapLineworkCache {
+  std::size_t revision = 0;
+  int width = 0;
+  int height = 0;
+  bool built = false;
+  tf2::native::MinimapLinework linework;
+};
+MinimapLineworkCache g_minimapLineworkCache;
 }  // namespace
+
+const tf2::native::MinimapLinework& hudMinimapLineworkFor(
+    const tf2::native::MinimapProjection& projection, int width, int height) {
+  const std::size_t revision = tf2::native::minimapHudFloorGeometryRevision();
+  MinimapLineworkCache& cache = g_minimapLineworkCache;
+  if (cache.built && cache.revision == revision && cache.width == width
+      && cache.height == height) {
+    return cache.linework;
+  }
+  cache.linework = tf2::native::minimapBuildLinework(
+    tf2::native::minimapHudFloorGeometryRef(), projection, width, height);
+  cache.revision = revision;
+  cache.width = width;
+  cache.height = height;
+  cache.built = true;
+  return cache.linework;
+}
+
+HudMinimapDraw hudMinimapCompose(HWND window) {
+  HudMinimapDraw draw;
+  if (!tf2::native::minimapHudFramePushed()) return draw;
+  draw.active = true;
+  const tf2::native::MinimapHudFrame& frame = tf2::native::minimapHudFrameRef();
+
+  // The signature is what the change key publishes on: the map, the panel, and the
+  // camera's projection of the viewer. The tick is deliberately NOT in it -- two
+  // ticks with the same camera draw the same picture, and republishing them would be
+  // an upload nobody can see (the readout it rides on exists to say "the reading
+  // changed").
+  draw.signature = "minimap|";
+  draw.signature += frame.mapName;
+  draw.signature += '|';
+  draw.signature += frame.valid ? "camera" : "held";
+
+  draw.row = tf2::native::minimapFindMapRow(frame.mapName);
+  if (draw.row == nullptr) {
+    draw.reason = "bounds-not-tabulated";
+    return draw;
+  }
+  if (!frame.valid) {
+    // Without this frame's pose the rings would be a real map drawn at the last
+    // camera's place, and the panel would be lying by one frame. Not drawing is the
+    // honest answer, and the reading says which case this is.
+    draw.reason = "no-camera-pose";
+    return draw;
+  }
+  draw.rect = hudMinimapPanelRect(window);
+  if (!draw.rect.placed) {
+    draw.reason = "panel-not-placed";
+    return draw;
+  }
+  draw.bounds = tf2::native::minimapBoundsForRow(*draw.row, draw.rect.w, draw.rect.h);
+  draw.projection = tf2::native::minimapPanelProjection(draw.bounds);
+  if (!draw.projection.valid) {
+    draw.reason = "no-projection";
+    return draw;
+  }
+  draw.ready = true;
+  draw.reason = "ok";
+
+  // Everything below is panel-LOCAL pixels; the panel's origin is added once, when a
+  // primitive is handed to the renderer.
+  const tf2::native::MinimapPoint viewer = tf2::native::minimapPanelPoint(draw.bounds,
+    draw.projection, frame.eyeX, frame.eyeY);
+  draw.viewerPx = viewer.px;
+  draw.viewerPy = viewer.py;
+  draw.viewerInside = minimapPointFits(viewer, draw.rect, kMinimapViewerHalf);
+  draw.angle = tf2::native::minimapScreenAngleDegrees(frame.yawDegrees);
+
+  {
+    char numbers[192];
+    std::snprintf(numbers, sizeof(numbers), "|%d,%d,%d|%.2f,%.2f|%d|%.2f|%.2f",
+      draw.rect.x, draw.rect.y, draw.rect.w, static_cast<double>(draw.viewerPx),
+      static_cast<double>(draw.viewerPy), draw.viewerInside ? 1 : 0,
+      static_cast<double>(frame.yawDegrees), static_cast<double>(draw.angle));
+    draw.signature += numbers;
+  }
+
+  // N14/U3a: the basemap. Admission is deliberately NOT "does geometry exist" --
+  // it is the same tabulated-map lookup that got us this far, plus a pushed
+  // geometry, because an untabulated map must stay byte-identical to a frame drawn
+  // without the switch (gate A11) and drawing floors under a panel whose bounds
+  // nobody measured would put a real map in a wrong rectangle.
+  draw.floorTriangles = tf2::native::minimapHudFloorGeometryRef().size();
+  if (tf2::native::minimapHudFloorGeometryRevision() == 0) {
+    draw.lineworkReason = "no-geometry";
+  } else {
+    const tf2::native::MinimapLinework& linework =
+      hudMinimapLineworkFor(draw.projection, draw.rect.w, draw.rect.h);
+    draw.lineworkReady = linework.valid;
+    draw.lineworkReason = linework.valid ? "ok" : "not-built";
+    draw.floorKept = linework.kept;
+    draw.floorFaces = linework.faces;
+    draw.floorFacesKept = linework.facesKept;
+    draw.floorBands = linework.bands;
+    draw.lineworkRuns = linework.runs;
+    draw.lineworkRects = linework.rects.size();
+    if (linework.rects.size() > kMinimapLineworkMaxRects) {
+      // Reported, not drawn: a rectangle list this long means the build went
+      // wrong, and uploading it would cost every later frame for a picture that
+      // cannot be read anyway.
+      draw.lineworkReady = false;
+      draw.lineworkReason = "rect-budget";
+    }
+  }
+
+  const float originX = static_cast<float>(draw.rect.x);
+  const float originY = static_cast<float>(draw.rect.y);
+  // E10/U3b (2026-11-16): the frame's four edges come from the panel's own width
+  // and height. The product used to take rect.w for both, which is only right
+  // while the panel is square: on a narrow client the bottom edge and both side
+  // edges sat at the width's distance, with the floor plan below them.
+  const tf2::native::HudPanelFrame panelFrame =
+    tf2::native::hudPanelFrame(draw.rect, kMinimapBorderWidth);
+  minimapPushRect(draw.primitives, panelFrame.background.x, panelFrame.background.y,
+    panelFrame.background.w, panelFrame.background.h, kMinimapBackgroundColour);
+  minimapPushRect(draw.primitives, panelFrame.top.x, panelFrame.top.y,
+    panelFrame.top.w, panelFrame.top.h, kMinimapBorderColour);
+  minimapPushRect(draw.primitives, panelFrame.bottom.x, panelFrame.bottom.y,
+    panelFrame.bottom.w, panelFrame.bottom.h, kMinimapBorderColour);
+  minimapPushRect(draw.primitives, panelFrame.left.x, panelFrame.left.y,
+    panelFrame.left.w, panelFrame.left.h, kMinimapBorderColour);
+  minimapPushRect(draw.primitives, panelFrame.right.x, panelFrame.right.y,
+    panelFrame.right.w, panelFrame.right.h, kMinimapBorderColour);
+  // The floor plan sits between the frame and the markers: under the rings, so a
+  // ring on a wall is still a ring, and over the background, so the outline is
+  // read against the dark panel and not against the world.
+  if (draw.lineworkReady) {
+    const tf2::native::MinimapLinework& linework = hudMinimapLineworkFor(draw.projection,
+      draw.rect.w, draw.rect.h);
+    for (const tf2::native::MinimapLineRect& box : linework.rects) {
+      minimapPushRect(draw.primitives, originX + static_cast<float>(box.x0),
+        originY + static_cast<float>(box.y0),
+        static_cast<float>(box.x1 - box.x0), static_cast<float>(box.y1 - box.y0),
+        kMinimapFloorColour);
+      ++draw.floorRectsPushed;
+    }
+  }
+  for (std::size_t index = 0; index < draw.row->pointCount; ++index) {
+    const tf2::native::MinimapControlPointRow& point = draw.row->points[index];
+    const tf2::native::MinimapPoint pixel = tf2::native::minimapPanelPoint(draw.bounds,
+      draw.projection, point.x, point.y);
+    if (!minimapPointFits(pixel, draw.rect, kMinimapRadius)) continue;
+    ++draw.pointsDrawn;
+    minimapPushCircle(draw.primitives, originX + pixel.px - kMinimapRadius,
+      originY + pixel.py - kMinimapRadius, kMinimapRadius * 2.0f,
+      minimapTeamColour(point.team));
+  }
+  // The rings first, the viewer last: the dot a reader looks for must never be buried
+  // under an objective it happens to stand on.
+  if (draw.viewerInside) {
+    minimapPushRect(draw.primitives, originX + draw.viewerPx - kMinimapViewerHalf,
+      originY + draw.viewerPy - kMinimapViewerHalf, kMinimapViewerHalf * 2.0f,
+      kMinimapViewerHalf * 2.0f, kMinimapViewerColour);
+    // World yaw is counter-clockwise from +x with +y north; the panel is +x right and
+    // +y DOWN. The heading of a yaw in panel space is therefore (cos, -sin) -- the
+    // minus IS the flip, and it is the one sign a wrong implementation gets wrong.
+    const double radians =
+      static_cast<double>(frame.yawDegrees) * 3.14159265358979323846 / 180.0;
+    const float forwardX = static_cast<float>(std::cos(radians));
+    const float forwardY = -static_cast<float>(std::sin(radians));
+    for (int dot = 0; dot < kMinimapArrowDots; ++dot) {
+      const float distance = kMinimapArrowStart + kMinimapArrowStep * static_cast<float>(dot);
+      const float px = draw.viewerPx + distance * forwardX;
+      const float py = draw.viewerPy + distance * forwardY;
+      if (!tf2::native::hudPanelPointInside(draw.rect, px, py, kMinimapArrowHalf)) {
+        continue;
+      }
+      ++draw.arrowDots;
+      minimapPushRect(draw.primitives, originX + px - kMinimapArrowHalf,
+        originY + py - kMinimapArrowHalf, kMinimapArrowHalf * 2.0f,
+        kMinimapArrowHalf * 2.0f, kMinimapViewerColour);
+    }
+  }
+  return draw;
+}
+
+// The panel's readings: one line per publish plus one line per control point. A gate
+// reads a pixel and this number together, so the ring it samples is the ring the
+// product says it drew; a human reads where a ring went without a debugger.
+//
+// Two primitive counts, not one. `shapes` is every primitive the panel handed over,
+// which since N14/U3a includes the basemap's rectangles (1230 of the 1243 on
+// pl_upward_f12); `markers` is that same list minus the pushed basemap rectangles,
+// i.e. the frame + rings + viewer + heading dots, which is the number a reader means
+// by "thirteen shapes". The gate asserts `markers` plus the composition
+// shapes == markers + floorRects plus floorRects == rects, so the basemap's size is
+// never pinned as a constant and a plan that stops being pushed is still caught.
+void hudMinimapTrace(const HudMinimapDraw& draw) {
+  if (!draw.active) return;
+  const tf2::native::MinimapHudFrame& frame = tf2::native::minimapHudFrameRef();
+  traceFmt("minimap: hud state=%s map=%s reason=%s panel=%d,%d,%d,%d"
+    " scale=%.6f offsetX=%.6f offsetY=%.6f angle=%.2f yaw=%.2f eye=%.1f,%.1f"
+    " viewerPx=%.2f viewerPy=%.2f viewerInside=%d arrowDots=%d cps=%zu drawn=%zu"
+    " shapes=%zu markers=%zu floorRects=%zu lw=%s floor=%zu faces=%zu kept=%zu"
+    " fkept=%zu bands=%zu runs=%zu rects=%zu tick=%d",
+    draw.ready ? "ready" : "unavailable", frame.mapName.c_str(), draw.reason,
+    draw.rect.x, draw.rect.y, draw.rect.w, draw.rect.h,
+    static_cast<double>(draw.projection.scale),
+    static_cast<double>(draw.projection.offsetX),
+    static_cast<double>(draw.projection.offsetY),
+    static_cast<double>(draw.angle), static_cast<double>(frame.yawDegrees),
+    static_cast<double>(frame.eyeX), static_cast<double>(frame.eyeY),
+    static_cast<double>(draw.viewerPx), static_cast<double>(draw.viewerPy),
+    draw.viewerInside ? 1 : 0, draw.arrowDots,
+    draw.row ? draw.row->pointCount : static_cast<std::size_t>(0), draw.pointsDrawn,
+    draw.primitives.size(), draw.primitives.size() - draw.floorRectsPushed,
+    draw.floorRectsPushed, draw.lineworkReason, draw.floorTriangles, draw.floorFaces,
+    draw.floorKept, draw.floorFacesKept, draw.floorBands, draw.lineworkRuns,
+    draw.lineworkRects, frame.tick);
+  if (!draw.ready) return;
+  for (std::size_t index = 0; index < draw.row->pointCount; ++index) {
+    const tf2::native::MinimapControlPointRow& point = draw.row->points[index];
+    const tf2::native::MinimapPoint pixel = tf2::native::minimapPanelPoint(draw.bounds,
+      draw.projection, point.x, point.y);
+    traceFmt("minimap: cp name=%s index=%d team=%d world=%.1f,%.1f px=%.2f,py=%.2f"
+      " inside=%d drawn=%d",
+      point.name, point.index, point.team, static_cast<double>(point.x),
+      static_cast<double>(point.y), static_cast<double>(pixel.px),
+      static_cast<double>(pixel.py), pixel.inside ? 1 : 0,
+      minimapPointFits(pixel, draw.rect, kMinimapRadius) ? 1 : 0);
+  }
+}
+
+}  // namespace
+
+}  // namespace
+
+// N13 step 1 (2026-11-15): the follow trace line names the player it pinned.
+//
+// The name is already resolved for the HUD readout by hudLiveResolveName, above,
+// and the pinned player is by definition the player the readout is watching once
+// the pin agrees with the relay -- so this reuses that resolution instead of
+// building a second one against the same user-info table. Nothing here is a new
+// lookup and hudLiveResolveName is neither moved nor changed; HudLiveName lives
+// in the anonymous namespace closed just above, which is still visible here.
+FollowNameInfo hudFollowResolveName(const DemoNetworkSummary& summary,
+    std::int32_t entityIndex, std::int32_t playbackTick) {
+  FollowNameInfo out;
+  const HudLiveName name = hudLiveResolveName(summary, entityIndex, playbackTick);
+  out.known = name.known;
+  out.display = name.display;
+  // The only source this resolution has today is the user-info table, so a
+  // resolved name is "userinfo" and anything else says so instead of implying a
+  // source that does not exist.
+  out.source = name.known ? "userinfo" : "none";
+  out.reason = name.reason != nullptr ? name.reason : "no-userinfo-slot";
+  return out;
+}
 
 // T97, lead ruling 2026-11-09: a readout that is on by default must not deform the
 // frames this tree treats as evidence. Every pixel gate here launches the product
@@ -807,12 +1355,14 @@ HudLiveText hudLiveCompose(const tf2::native::main_internal::PlaybackState& play
 //
 // --hud-text-test outranks all three: the T67 probe owns the primitive list.
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
+    const std::string& mapName,
     const tf2::native::main_internal::PlaybackState& playback,
     const tf2::native::PlaybackHudState& target,
     const std::vector<tf2::native::EntityState>& states,
     const tf2::native::DemoNetworkSummary& summary,
     std::int32_t relayEntity, bool relayValid) {
-  (void)window;
+  // window is used below: the minimap panel asks it for the client rectangle it
+  // lays itself out in (E9). It was unused before the panel existed.
   if (!g_renderer) return;
   // While the T67 probe runs it owns the primitive list. Two writers would make
   // the probe's pixel assertions depend on whether this build also has a readout.
@@ -823,7 +1373,12 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // something": a capture run has exactly one sampled frame, so a readout that was
   // painted on frame N-1 and cleared on frame N would still leave nothing on the
   // frame under comparison -- but only by accident. Here it is never painted.
-  const bool suppressed = hudOff || (!hudLive && evidenceRun);
+  // An explicit --overview-open is a request for pixels on the same footing as
+  // --hud-live: the map panel is the thing such a run exists to photograph, so
+  // suppressing it would leave an evidence run with a blank screen. Every other
+  // evidence run keeps the mode rule above. The readout rides along on these
+  // runs, which is why only the overview gate passes the flag.
+  const bool suppressed = hudOff || (evidenceRun && !hudLive && !tf2::native::mapOverviewOpen());
   if (suppressed) {
     if (!g_hudLiveOffReported) {
       g_hudLiveOffReported = true;
@@ -899,6 +1454,33 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   }
   if (!name.known) ++g_hudLiveNameMissing;  // every frame that asks for a name and cannot have one
   const HudLiveText text = hudLiveCompose(playback, target, reading, name);
+  // The three lines and where they go: lines 1-2 centred on the client, line 3 at
+  // the left margin. Computed before the panel composes because the panel's
+  // overlap rule needs the readout's rectangle as an input.
+  const std::string lines[3] = { text.time, text.score, text.target };
+  const HudLiveLayout layout = hudLiveLayoutFor(window, lines);
+  // E9: the panel is composed from the same frame as the text, after the
+  // suppression branch above -- a suppressed run never publishes a minimap
+  // reading that a gate could mistake for pixels the frame does not have.
+  // E11: the 250px map-overview panel supersedes the 160px panel while it is open,
+  // so only one of the two ever contributes shapes. Composing the old panel and
+  // then dropping its shapes would still cost the linework build every frame.
+  const bool overviewOpen = tf2::native::mapOverviewOpen();
+  HudMinimapDraw minimap;
+  if (!overviewOpen) minimap = hudMinimapCompose(window);
+  tf2::native::OverviewDraw overview;
+  if (overviewOpen) {
+    tf2::native::OverviewInput overviewInput = tf2::native::mapOverviewBuildInput(
+      states, summary, mapName, 0, 0, playback.tick, playback.tickRate);
+    // The readout block, so the panel can drop itself rather than overlap it.
+    overviewInput.readoutX = layout.regionX;
+    overviewInput.readoutY = static_cast<int>(kHudLiveY);
+    overviewInput.readoutW = layout.regionW;
+    overviewInput.readoutH = static_cast<int>(kHudLiveLineHeight * 2.0f + kHudLiveCell);
+    // g_renderer is the device the basemap texture uploads into; the compose
+    // call is the only place that knows both the panel and the GPU.
+    overview = tf2::native::mapOverviewCompose(window, overviewInput, g_renderer);
+  }
   std::string key = text.time;
   key += '\n';
   key += text.score;
@@ -906,6 +1488,18 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   key += text.target;
   key += '\n';
   key += text.source;
+  // E9: the panel joins the key only when the switch asked for it. With the switch
+  // off the signature is empty and the key is byte-for-byte the one this readout
+  // has always built; with it on, a camera move that changes no text still
+  // republishes -- which is the whole point of a map beside a readout.
+  if (!minimap.signature.empty()) {
+    key += '\n';
+    key += minimap.signature;
+  }
+  if (!overview.signature.empty()) {
+    key += '\n';
+    key += overview.signature;
+  }
   if (key == g_hudLiveLastKey) {
     ++g_hudLiveSkips;
     return;
@@ -918,19 +1512,18 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   g_hudLiveLastLines[1] = text.score;
   g_hudLiveLastLines[2] = text.target;
 
-  const std::string lines[3] = { text.time, text.score, text.target };
   std::vector<tf2::native::Renderer::HudPrimitive> primitives;
   std::size_t glyphs = 0;
   float widest = 0.0f;
   for (std::size_t index = 0; index < 3; ++index) {
     tf2::native::Renderer::HudPrimitive primitive;
     primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
-    primitive.x = kHudLiveX;
+    primitive.x = static_cast<float>(layout.lineX[index]);
     primitive.y = kHudLiveY + kHudLiveLineHeight * static_cast<float>(index);
     // Only printable ASCII is composed, so bytes == codepoints here. The renderer
     // still walks the UTF-8 properly; this arithmetic is for the region and the
     // expected glyph count the trace publishes.
-    primitive.w = static_cast<float>(lines[index].size()) * kHudLiveCell;
+    primitive.w = static_cast<float>(layout.lineW[index]);
     primitive.h = kHudLiveCell;
     primitive.scale = kHudLiveScale;
     primitive.colour[0] = 1.0f;
@@ -942,6 +1535,18 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     if (primitive.w > widest) widest = primitive.w;
     primitives.push_back(primitive);
   }
+  // E9: the panel's shapes ride in the same list, after the text. hudApplyRects
+  // rebuilds this list on every resize from g_hudLivePrimitives, so a window
+  // resize keeps the panel without either module knowing about the other.
+  // Panels are stored apart from the text: a resize rebuilds the text primitives
+  // (their x depends on the client width) and appends the panel shapes unchanged.
+  g_hudLiveExtraPrimitives.clear();
+  g_hudLiveExtraPrimitives.insert(g_hudLiveExtraPrimitives.end(),
+    minimap.primitives.begin(), minimap.primitives.end());
+  g_hudLiveExtraPrimitives.insert(g_hudLiveExtraPrimitives.end(),
+    overview.primitives.begin(), overview.primitives.end());
+  primitives.insert(primitives.end(), g_hudLiveExtraPrimitives.begin(),
+    g_hudLiveExtraPrimitives.end());
   g_hudLivePrimitives = primitives;
   g_renderer->setHudPrimitives(primitives);
   g_hudLiveActive = true;
@@ -951,9 +1556,12 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // taught the same fact (it ORs g_hudLiveActive in), so a resize mid-run cannot
   // switch the readout off.
   g_renderer->setHudEnabled(true);
-  const int regionX = static_cast<int>(kHudLiveX);
+  // Region: the union of the two published blocks (centred header + left-hand
+  // name line), still 60px tall from y=24. It grows and shifts with the window
+  // now, which is the honest reading of a centred heading.
+  const int regionX = layout.regionX;
   const int regionY = static_cast<int>(kHudLiveY);
-  const int regionW = static_cast<int>(widest);
+  const int regionW = layout.regionW;
   const int regionH = static_cast<int>(kHudLiveLineHeight * 2.0f + kHudLiveCell);
   // reason= says why this line exists (the reading changed); nameReason= says why
   // the name field is a question mark. Two different questions, so two fields --
@@ -964,12 +1572,18 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // checkable from outside: the gate compares the sample clock (nameTick) with the
   // entry clock (nameBaseTick + tick) and looks the same slot up in
   // demo_open_probe.
+  // E9: the panel's own readings go out before the readout summary, so the summary
+  // stays the last line of a publish and a reader who greps for it is not skipped
+  // over the panel.
+  hudMinimapTrace(minimap);
+  if (overview.open) tf2::native::mapOverviewTrace(overview);
   traceFmt("hud: live tick=%d enabled=1 mode=%s source=%s"
     " text1=\"%s\" text2=\"%s\" text3=\"%s\""
     " glyphs=%zu region=%d,%d,%d,%d updates=%zu skips=%zu name=%s"
     " reason=text-changed nameReason=%s nameMissing=%zu"
     " nameTick=%d nameBaseTick=%d nameEntity=%d nameSlot=%d nameRawHex=%s"
-    " targetAbsent=%zu scoreMissing=%zu timerFallback=%zu red=%d blu=%d paused=%d",
+    " targetAbsent=%zu scoreMissing=%zu timerFallback=%zu red=%d blu=%d paused=%d"
+    " lineX=%d,%d,%d lineW=%d,%d,%d header=%d,%d,%d,%d nameBlock=%d,%d,%d,%d",
     playback.tick, hudLive ? "forced" : "interactive", text.source.c_str(),
     text.time.c_str(), text.score.c_str(),
     text.target.c_str(), glyphs, regionX, regionY, regionW, regionH,
@@ -979,7 +1593,16 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     name.rawHex.c_str(),
     g_hudLiveTargetAbsent, g_hudLiveScoreMissing, g_hudLiveTimerFallback,
     reading.redKnown ? reading.red : -1, reading.bluKnown ? reading.blu : -1,
-    playback.paused ? 1 : 0);
+    playback.paused ? 1 : 0,
+    layout.lineX[0], layout.lineX[1], layout.lineX[2],
+    layout.lineW[0], layout.lineW[1], layout.lineW[2],
+    // header= is the two centred score lines only: 22px line pitch + one 16px
+    // cell = 38px tall, so it stops at y=62 and can never touch the name line at
+    // y=68. region= stays 60 tall because it is the union of header AND name.
+    layout.headerX, static_cast<int>(kHudLiveY), layout.headerW,
+    static_cast<int>(kHudLiveLineHeight + kHudLiveCell),
+    layout.nameX, static_cast<int>(kHudLiveY + kHudLiveLineHeight * 2.0f), layout.nameW,
+    static_cast<int>(kHudLiveCell));
 }
 
 }  // namespace tf2::native::main_internal

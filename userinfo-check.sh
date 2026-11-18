@@ -26,11 +26,57 @@ cd "$(dirname "$0")"
 
 PY=C:/Users/Administrator/.workbuddy-ai/binaries/python/versions/3.13.12/python.exe
 PROBE=native/build-nmake/demo_open_probe.exe
-OUT=evidence/t100-userinfo/runs
+# The output directory is overridable so a gate run can land outside the repository
+# (lead ruling 2026-11-16). The default is unchanged: every existing reading still
+# writes where it used to. Only the destination moved; no assertion, corpus or
+# threshold in this script changed.
+OUT="${TF2_USERINFO_OUT:-evidence/t100-userinfo/runs}"
 FIX=evidence/t100-userinfo/fixtures
 GOLD=evidence/t100-userinfo/golden
-DEMO_DIR="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos"
+# The three corpus demos are resolved per name (demo_path below): an env override
+# wins, then the Steam install, then the recorded archive copy. The original
+# review1.dem was not found anywhere on this host (Steam tf/demos,
+# D:/TF2_Demo_Player, E:/demo测试), so that corpus entry was re-sourced on
+# 2026-11-16 from a user-supplied SourceTV recording of the same map; the golden
+# snapshot was re-recorded from it and no assertion was touched. Every run prints
+# a DEMO= identity line (path, source, sha256) before the first assertion, so a
+# substituted or archived input can never be silent.
+DEMO_DIR="${TF2_USERINFO_DEMO_DIR:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos}"
 DEMOS="review1 prodcutscout 73"
+demo_env_var() {
+  printf 'TF2_USERINFO_DEMO_%s' "$(printf '%s' "$1" | tr 'a-z' 'A-Z')"
+}
+# Recorded archive copies, consulted only when the Steam install lacks the file.
+demo_archive() {
+  case "$1" in
+    review1) printf '%s' 'E:/demo测试/koth_ashville_final1/STV/597450fbb345099739e824bfc762773f_match-20261115-1910-koth_ashville_final1.dem' ;;
+    prodcutscout) printf '%s' 'E:/demo测试/koth_product_final/STV/prodcutscout.dem' ;;
+    73) printf '%s' 'D:/TF2_Demo_Player/work/protocol-rescue-20261005/73.dem' ;;
+    *) printf '%s' '' ;;
+  esac
+}
+# demo_path <name> -- the file this gate reads, or empty when nothing resolves.
+demo_path() {
+  local name="$1" var override archive
+  var=$(demo_env_var "$name")
+  override="${!var:-}"
+  if [ -n "$override" ]; then printf '%s' "$override"; return 0; fi
+  if [ -f "$DEMO_DIR/$name.dem" ]; then printf '%s' "$DEMO_DIR/$name.dem"; return 0; fi
+  archive=$(demo_archive "$name")
+  if [ -n "$archive" ] && [ -f "$archive" ]; then printf '%s' "$archive"; return 0; fi
+  printf '%s' ''
+}
+# Which of the three rules supplied the path -- printed, never inferred silently.
+demo_source() {
+  local name="$1" var override path
+  var=$(demo_env_var "$name")
+  override="${!var:-}"
+  path=$(demo_path "$name")
+  if [ -z "$path" ]; then printf '%s' 'unresolved'; return 0; fi
+  if [ -n "$override" ]; then printf '%s' 'env'; return 0; fi
+  if [ "$path" = "$DEMO_DIR/$name.dem" ]; then printf '%s' 'steam'; return 0; fi
+  printf '%s' 'archive'
+}
 # The last tick is far beyond any demo's end: every slot that ever had a name must
 # resolve there. 60000 is after signon in this corpus, 2000 is before it.
 AT_FORWARD="0,2000,60000,600000,99999999"
@@ -120,8 +166,12 @@ if [ ! -x "$PROBE" ]; then
   exit 1
 fi
 mkdir -p "$OUT"
-for input in "$DEMO_DIR/review1.dem" "$DEMO_DIR/prodcutscout.dem" "$DEMO_DIR/73.dem"; do
-  [ -f "$input" ] || { echo "FATAL: missing input $input" >&2; exit 1; }
+for demo in $DEMOS; do
+  input=$(demo_path "$demo")
+  [ -n "$input" ] || {
+    echo "FATAL: missing input for '$demo' -- tried $DEMO_DIR/$demo.dem, the recorded archive copy and \$$(demo_env_var "$demo")" >&2
+    exit 1
+  }
 done
 [ -f evidence/t100-userinfo/gen_fixtures.py ] || { echo "FATAL: missing gen_fixtures.py" >&2; exit 1; }
 
@@ -135,6 +185,12 @@ fi
 printf 'PROBE=%s sha256=%s\n' "$PROBE" "$(sha256sum "$PROBE" | cut -d' ' -f1)"
 printf 'GATE=%s sha256=%s\n' "$0" "$(sha256sum "$0" | cut -d' ' -f1)"
 printf 'HEAD=%s branch=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse --abbrev-ref HEAD)"
+# Input identity before any assertion: the golden snapshot is bound to these bytes,
+# so which file answered must be on the record for every run.
+for demo in $DEMOS; do
+  demo_path_demo=$(demo_path "$demo")
+  printf 'DEMO=%s path=%s source=%s sha256=%s\n' "$demo" "$demo_path_demo" "$(demo_source "$demo")" "$(sha256sum "$demo_path_demo" | cut -d' ' -f1)"
+done
 
 # The row counter is how this gate reads "how many rows came back", and both of
 # its callers pass patterns that already carry their own anchor. This is the
@@ -176,7 +232,9 @@ assert_eq "fixtures: good entry text matches its slot" "$(file_field "$OUT/fixtu
 has_file_field "fixtures: good printed layout mask" "$OUT/fixture-good.txt" userinfo_layout_mask
 assert_eq "fixtures: good layout_mask" "$(file_field "$OUT/fixture-good.txt" userinfo_layout_mask)" "1"
 assert_eq "fixtures: good row count" "$(count_rows '^[0-9]' "$OUT/fixture-good.txt")" "2"
-cut -f1-6 "$OUT/fixture-good.txt" | grep '^[0-9]' > "$OUT/fixture-good-rows.txt" || true
+# The probe's row lines end CRLF on this host (D93 class), so the rows are
+# normalised to LF before any comparison; the values themselves are untouched.
+cut -f1-6 "$OUT/fixture-good.txt" | grep '^[0-9]' | tr -d '\r' > "$OUT/fixture-good-rows.txt" || true
 printf '0\t1\t7\tAlpha\t0\t0\n1\t2\t9\tBravo\t0\t1\n' > "$OUT/fixture-good-want.txt"
 assert_same_file "fixtures: good rows are the two players that were written" "$OUT/fixture-good-rows.txt" "$OUT/fixture-good-want.txt"
 
@@ -216,7 +274,9 @@ run_demo() {
   local demo="$1"
   local ats="$2"
   local tag="$3"
-  "$PROBE" --scan --userinfo --userinfo-at "$ats" "$DEMO_DIR/$demo.dem" > "$OUT/$demo-$tag.txt" 2>&1
+  local path
+  path=$(demo_path "$demo")
+  "$PROBE" --scan --userinfo --userinfo-at "$ats" "$path" > "$OUT/$demo-$tag.txt" 2>&1
   return $?
 }
 check_corpus() {
@@ -245,9 +305,19 @@ check_corpus() {
   # else does, so the two counters must agree exactly. A decoder that silently
   # substitutes something for the name (the slot's text, a placeholder) breaks
   # this without touching either count alone.
+  # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+  # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+  ui_missing=$(field "$line" userinfo_missing_userdata)
+  ui_unparsed=$(field "$line" userinfo_unparsed)
+  case "$ui_missing" in
+    ''|*[!0-9]*) bad "$demo: missing-userdata count is not a count ('$ui_missing')"; ui_missing=0 ;;
+  esac
+  case "$ui_unparsed" in
+    ''|*[!0-9]*) bad "$demo: unparsed count is not a count ('$ui_unparsed')"; ui_unparsed=0 ;;
+  esac
   assert_eq "$demo: empty names are exactly the slots without user data" \
     "$(field "$line" userinfo_empty_names)" \
-    "$(( $(field "$line" userinfo_missing_userdata) + $(field "$line" userinfo_unparsed) ))"
+    "$(( ui_missing + ui_unparsed ))"
   has_field "$demo: sample count reported" "$line" userinfo_samples
   assert_eq "$demo: one sample per named slot in this corpus" "$(field "$line" userinfo_samples)" "$(field "$line" userinfo_named)"
   has_field "$demo: text/slot mismatch count reported" "$line" userinfo_text_slot_mismatches
@@ -259,7 +329,9 @@ check_corpus() {
   has_field "$demo: layout mask reported" "$line" userinfo_layout_mask
   assert_ge "$demo: a layout matched" "$(field "$line" userinfo_layout_mask)" "1"
   # Rows: entry/entity/userId/name/firstTick/lastTick/updates/layoutId/tableText/guid
-  grep '^[0-9]' "$file" | cut -f1-9 | sort -t"$(printf '\t')" -k1,1n > "$OUT/$demo-$tag-rows.txt" || true
+  # CR normalised on the way in (D93): the probe writes CRLF rows on this host and a
+  # trailing CR would make every tab-field comparison and the golden diff fail on bytes.
+  tr -d '\r' < "$file" | grep '^[0-9]' | cut -f1-9 | sort -t"$(printf '\t')" -k1,1n > "$OUT/$demo-$tag-rows.txt" || true
   assert_ge "$demo: slot rows printed" "$(wc -l < "$OUT/$demo-$tag-rows.txt" | tr -d ' ')" "1"
   assert_eq "$demo: one row per decoded slot" "$(wc -l < "$OUT/$demo-$tag-rows.txt" | tr -d ' ')" "$(field "$line" userinfo_slots)"
   local row_entity_bad

@@ -46,7 +46,17 @@
 #   The other four targets keep the manifest rule: they carry no sidecar and
 #   their input set does not include the generated stamp.
 #
-#   THE FOUR STATES (each has one named verdict field)
+#   D-93 (2026-11-16): WHICH INPUTS ARE HASHED
+#   "Allowed to depend on" is not "actually read". The manifest rule now hashes
+#   each target's ACTUAL compiler dependency set (see project_deps/dep_sha below)
+#   instead of the directory superset, and records the definition that produced
+#   it (deps_sha256 + deps_method) so two definitions are never compared. A
+#   manifest written before this rule has no dependency baseline: the first run is
+#   named deps-rule-first-run, records one, and every later run is strict. This is
+#   a criterion fix, not a relaxation: a changed dependency still requires the
+#   binary to change, and the superset still guards mutations during the run.
+#
+#   THE FIVE STATES (each has one named verdict field)
 #     1. clean checkout, sources newer than the exe, content unchanged
 #        -> basis=content-identical  PASS  (mtime_newer>0 is expected)
 #     2. source content changed (mtime newer or not)
@@ -56,6 +66,8 @@
 #           (the build system is lying: this is the case that matters)
 #     4. nothing changed
 #        -> basis=content-identical  PASS  (no-op, no churn)
+#     5. no dependency baseline yet (manifest from before the per-target rule)
+#        -> basis=deps-rule-first-run  PASS  (baseline recorded, next run strict)
 #   mtime alone never decides. The second build is still required: it is what
 #   turns "the build system says it is done" into "a second run agrees".
 #
@@ -71,7 +83,7 @@
 #      before and after both passes, and the manifest is written);
 #   3. a second build changes nothing -- the tree has no declared work left.
 #
-# VERDICT: REBUILD=PASS targets=5 rebuilt=N fresh=5 noop=5 basis=<identity-agrees|content-identical|rebuilt|settled-first-run|relinked-unchanged-inputs> mtime_newer=X exe_sha256=<sha>
+# VERDICT: REBUILD=PASS targets=5 rebuilt=N fresh=5 noop=5 basis=<identity-agrees|content-identical|rebuilt|deps-rule-first-run|settled-first-run|relinked-unchanged-inputs> mtime_newer=X exe_sha256=<sha>
 #   rebuilt counts binaries whose sha changed across the two passes; rebuilt=0 is
 #   a pass, the claim is agreement, not churn.
 # Exit: 0 pass, 1 fail, 2 refused (no build tree / no such target / usage).
@@ -128,8 +140,18 @@ sources_of() {
 
 list_inputs() { # list_inputs <target> -- every existing input file, one per line
   local t="$1" p tracked=""
+  local -a sources=()
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 && tracked=1
-  while IFS= read -r p; do
+  # D-93b: the sources are collected into an array before the loop. Under MSYS
+  # bash a `while read` loop fed by a here-string loses the remaining lines as
+  # soon as its body runs a pipeline headed by a native Windows binary
+  # (git.exe): the here-string stdin reaches EOF after the first iteration, so
+  # this function silently listed only native/src and inputs_sha256 never
+  # covered native/include, native/third_party, native/cmake or
+  # native/CMakeLists.txt. mapfile + for never reads stdin, so all sources
+  # are enumerated.
+  mapfile -t sources < <(sources_of "$t")
+  for p in "${sources[@]}"; do
     [ -z "$p" ] && continue
     if [ -d "$p" ]; then
       if [ -n "$tracked" ]; then git ls-files -z -- "$p" | tr '\0' '\n'
@@ -139,7 +161,64 @@ list_inputs() { # list_inputs <target> -- every existing input file, one per lin
         git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 && printf '%s\n' "$p"
       else printf '%s\n' "$p"; fi
     fi
-  done <<< "$(sources_of "$t")"
+  done
+}
+
+# --- per-target ACTUAL dependency set (D-93, 2026-11-16) ----------------------
+# The allowed-input superset above answers "what may this binary depend on"; the
+# manifest rule needs "what did it actually read". The build writes that answer
+# itself: CMake's NMake generator records the compiler's dependency scan for each
+# target in CMakeFiles/<target>.dir/compiler_depend.internal. Files outside the
+# repository (MSVC / Windows SDK headers) are not part of the tree and are not
+# hashed; the object line and the header lines are skipped.
+#
+# Why this exists: the 2026-11-16 merge moved native/src/native_renderer_frame.cpp.
+# The four probes are allowed to depend on native/src, but none of them includes
+# that file, so their unchanged binaries were correct and the superset rule
+# failed them anyway. A dependency definition belongs with the build, not with a
+# directory listing.
+dep_file_of() { printf '%s/CMakeFiles/%s.dir/compiler_depend.internal\n' "$BUILD" "$1"; }
+
+project_deps() { # project_deps <target> -- repo-relative compiler dependencies
+  local t="$1" f roots
+  f=$(dep_file_of "$t")
+  [ -f "$f" ] || return 0
+  # Root spellings differ between git (D:/...) and msys (which may hand back
+  # /d/...); match against every spelling, longest first so a nested root wins.
+  roots=$( { git rev-parse --show-toplevel 2>/dev/null; cygpath -m "$(pwd)" 2>/dev/null; pwd; } |
+    sed 's#\\#/#g; s#/*$##' | awk '{ print length($0), $0 }' | LC_ALL=C sort -rn |
+    cut -d' ' -f2- )
+  awk -v roots="$roots" '
+    BEGIN { n = split(roots, R, "\n") }
+    {
+      line = $0
+      sub(/^[ \t]+/, "", line)
+      if (line == "" || substr(line, 1, 1) == "#") next
+      if (line ~ /\.obj$/) next
+      p = line
+      gsub(/\\/, "/", p)
+      for (i = 1; i <= n; i++) {
+        r = R[i]
+        if (r == "") continue
+        if (tolower(substr(p, 1, length(r) + 1)) == tolower(r "/")) {
+          print substr(p, length(r) + 2)
+          next
+        }
+      }
+    }' "$f" | LC_ALL=C sort -u
+}
+
+dep_sha() { # dep_sha <target> -- content hash of the target's ACTUAL dependencies
+  project_deps "$1" | xargs -d '\n' -r sha256sum 2>/dev/null \
+    | LC_ALL=C sort | sha256sum | cut -d' ' -f1
+}
+
+dep_method_of() { # dep_method_of <target> -- names the definition used for dep_sha
+  if [ -s "$(dep_file_of "$1")" ] && [ -n "$(project_deps "$1")" ]; then
+    printf 'cmake-compiler-depend\n'
+  else
+    printf 'superset-fallback\n'
+  fi
 }
 
 # Content identity of a target's inputs. The "sha256  path" lines are sorted as
@@ -180,10 +259,10 @@ manifest_get() { # manifest_get <target> <field>
   sed -n "s/^$2=//p" "$f" | head -1
 }
 
-manifest_put() { # manifest_put <target> <inputs_sha> <binary_sha>
+manifest_put() { # manifest_put <target> <inputs_sha> <binary_sha> <deps_sha> <deps_method>
   mkdir -p "$MANIFEST_DIR"
-  printf 'target=%s\ninputs_sha256=%s\nbinary_sha256=%s\nwritten_by=release-rebuild.sh\n' \
-    "$1" "$2" "$3" > "$MANIFEST_DIR/$1.env"
+  printf 'target=%s\ninputs_sha256=%s\nbinary_sha256=%s\ndeps_sha256=%s\ndeps_method=%s\nwritten_by=release-rebuild.sh\n' \
+    "$1" "$2" "$3" "$4" "$5" > "$MANIFEST_DIR/$1.env"
 }
 
 declare -A BIN_BEFORE IN_BEFORE
@@ -241,6 +320,11 @@ for t in "${TARGETS[@]}"; do
   [ "$bin_now" != "${BIN_MID[$t]}" ] && noop_changed=$((noop_changed + 1))
   [ "$bin_now" != "${BIN_BEFORE[$t]}" ] && rebuilt=$((rebuilt + 1))
 
+  # The dependency baseline the manifest rule compares against (D-93).
+  dep_now=$(dep_sha "$t")
+  dep_method_now=$(dep_method_of "$t")
+
+  t_fail=0
   if [ "$t" = "$PRIMARY" ]; then
     # D-54: the product proves freshness by identity, not by churn. The build
     # recorded the sourceContent it compiled; the gate recomputes that content
@@ -257,39 +341,59 @@ for t in "${TARGETS[@]}"; do
     if [ -z "$recorded" ] || [ -z "$bound" ]; then
       echo "REBUILD-FRESH=FAIL reason=identity-sidecar-missing target=$t file=$sc (the build did not record what it compiled)"
       stale=1
+      t_fail=1
     elif [ -z "$live" ] || [ "$live" = "unknown" ]; then
       echo "REBUILD-FRESH=FAIL reason=identity-unavailable target=$t (build-identity-content.sh could not hash the tree)"
       stale=1
+      t_fail=1
     elif [ "$live_method" != "$rec_method" ]; then
       echo "REBUILD-FRESH=FAIL reason=identity-method-mismatch target=$t recorded=$rec_method live=$live_method (two hash methods are not comparable)"
       stale=1
+      t_fail=1
     elif [ "$recorded" != "$live" ]; then
       echo "REBUILD-FRESH=FAIL reason=identity-disagrees target=$t sidecar=${recorded:0:12} live=${live:0:12} (the binary was built from content this tree no longer has)"
       stale=1
+      t_fail=1
     elif [ "$bound" != "$bin_now" ]; then
       echo "REBUILD-FRESH=FAIL reason=sidecar-not-bound-to-binary target=$t sidecar_exe_sha256=${bound:0:12} exe=$bin_now (the sidecar describes some other binary)"
       stale=1
+      t_fail=1
     else
       [ "$basis" = "content-identical" ] && basis="identity-agrees"
       echo "rebuild: target=$t state=identity-agrees exe=$e sha256=$bin_now sourceContent=${recorded:0:12} method=$rec_method mtime_newer=$newer"
     fi
-  elif want=$(manifest_get "$t" inputs_sha256) && want_bin=$(manifest_get "$t" binary_sha256); then
-    if [ "$want" != "$in_now" ]; then
-      # Inputs changed since the last recorded pass. The binary must have changed
-      # with them; if two build passes left it identical, nothing rebuilt it.
+  elif want_bin=$(manifest_get "$t" binary_sha256); then
+    want_deps=$(manifest_get "$t" deps_sha256)
+    want_method=$(manifest_get "$t" deps_method)
+    if [ -z "$want_deps" ] || [ -z "$want_method" ]; then
+      # Manifest written before the per-target dependency rule. There is no
+      # dependency baseline to compare against, and comparing the old superset
+      # hash with the new per-target hash would be a category error. The only
+      # claim available is "settled": both passes agree and the second did no
+      # work. Record the baseline; every later run is strict.
+      [ "$basis" = "content-identical" ] && basis="deps-rule-first-run"
+      echo "rebuild: target=$t state=deps-rule-first-run exe=$e sha256=$bin_now (no dependency baseline yet; recorded method=$dep_method_now)"
+    elif [ "$want_method" != "$dep_method_now" ]; then
+      echo "REBUILD-FRESH=FAIL reason=deps-method-changed target=$t recorded=$want_method now=$dep_method_now (two dependency definitions are not comparable)"
+      stale=1
+      t_fail=1
+    elif [ "$want_deps" != "$dep_now" ]; then
+      # The files this target actually reads changed since the last recorded
+      # pass. The binary must have changed with them; if two build passes left it
+      # identical, nothing rebuilt it.
       if [ "$bin_now" = "$want_bin" ]; then
-        echo "REBUILD-FRESH=FAIL exe=$e is older than its inputs and two build passes did not rebuild it:"
-        while IFS= read -r f; do [ -n "$f" ] && [ "$f" -nt "$e" ] && printf '  %s\n' "$f"; done < <(list_inputs "$t") | head -10
-        echo "REBUILD-FRESH=FAIL reason=inputs-changed-binary-not-rebuilt target=$t inputs_sha256_was=${want:0:12} now=${in_now:0:12} binary_sha256=${bin_now:0:12}"
+        echo "REBUILD-FRESH=FAIL exe=$e did not change although its actual dependencies did (dependency scan: $(dep_file_of "$t"))"
+        echo "REBUILD-FRESH=FAIL reason=inputs-changed-binary-not-rebuilt target=$t deps_sha256_was=${want_deps:0:12} now=${dep_now:0:12} binary_sha256=${bin_now:0:12} deps_method=$dep_method_now"
         stale=1
+        t_fail=1
       else
         [ "$basis" = "content-identical" ] && basis="rebuilt"
-        echo "rebuild: target=$t state=rebuilt exe=$e sha256=$bin_now (inputs ${want:0:12}->${in_now:0:12}) mtime_newer=$newer"
+        echo "rebuild: target=$t state=rebuilt exe=$e sha256=$bin_now (deps ${want_deps:0:12}->${dep_now:0:12}) mtime_newer=$newer"
       fi
     elif [ "$bin_now" != "$want_bin" ]; then
-      # Same inputs, different binary: the relink was caused by a touch or by
-      # non-determinism. Agreement still holds after the rebuild, so this is a
-      # note, not a failure -- the manifest is refreshed below.
+      # Same dependency content, different binary: the relink was caused by a
+      # touch or by non-determinism. Agreement still holds after the rebuild, so
+      # this is a note, not a failure -- the manifest is refreshed below.
       [ "$basis" = "content-identical" ] && basis="relinked-unchanged-inputs"
       echo "rebuild: target=$t state=relinked-unchanged-inputs exe=$e sha256=$bin_now (was ${want_bin:0:12}) mtime_newer=$newer"
     else
@@ -302,7 +406,11 @@ for t in "${TARGETS[@]}"; do
     basis="settled-first-run"
     echo "rebuild: target=$t state=settled-first-run exe=$e sha256=$bin_now mtime_newer=$newer"
   fi
-  manifest_put "$t" "$in_now" "$bin_now"
+  # A failed target must not overwrite the baseline it just disproved: the next
+  # run compares against the last PASS, never against a poisoned manifest.
+  if [ "$t_fail" -eq 0 ]; then
+    manifest_put "$t" "$in_now" "$bin_now" "$dep_now" "$dep_method_now"
+  fi
 done
 
 if [ "$stale" -ne 0 ]; then
@@ -316,5 +424,15 @@ if [ "$noop_changed" -ne 0 ]; then
 fi
 
 total_newer=0
-for t in "${TARGETS[@]}"; do total_newer=$((total_newer + $(mtime_newer "$(exe_of "$t")" "$t"))); done
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+# mtime_newer() always prints a count, and this reading is a DIAGNOSTIC that never
+# fails the gate on its own, so a bad reading is coerced without a FAIL.
+for t in "${TARGETS[@]}"; do
+  _newer_count=$(mtime_newer "$(exe_of "$t")" "$t")
+  case "$_newer_count" in
+    ''|*[!0-9]*) _newer_count=0 ;;
+  esac
+  total_newer=$((total_newer + _newer_count))
+done
 echo "REBUILD=PASS targets=$N rebuilt=$rebuilt fresh=$N noop=$N basis=$basis mtime_newer=$total_newer exe_sha256=$(sha_of "$(exe_of "$PRIMARY")")"

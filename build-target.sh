@@ -58,7 +58,14 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-source ./env-msvc.sh
+# E3b: a toolchain that cannot be established must stop the build HERE, by name.
+# Before this guard the source returned 1 into a `set -u` script that carried on
+# with no cl.exe on PATH, and the failure surfaced later as a confusing compile
+# or configure error. env-msvc.sh prints the named reason (tools/tf2-toolchain.sh).
+source ./env-msvc.sh || {
+  echo "build-target.sh: FAILED to establish the MSVC/SDK environment; no target was built" >&2
+  exit 1
+}
 
 BUILD="${TF2_BUILD_DIR:-native/build-nmake}"
 # The build log is deliberately a fixed, repo-local path rather than mktemp:

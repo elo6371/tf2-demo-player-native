@@ -306,7 +306,11 @@ bool SpectateDirector::hidesModel(std::int32_t entityIndex) const {
 
 double SpectateDirector::transitionProgress() const {
   if (!transitionActive_) return 0.0;
-  if (kHandoverSeconds <= 0.0) return 1.0;
+  // kHandoverSeconds is a compile-time constant, so this cannot be a runtime
+  // branch: C4127 was telling the truth when it called the condition constant.
+  // The invariant still matters (it guards the division below), so it is checked
+  // where it belongs -- at compile time.
+  static_assert(kHandoverSeconds > 0.0, "a zero-length handover would divide by zero");
   double t = (now_ - transitionStart_) / kHandoverSeconds;
   if (!(t > 0.0)) return 0.0;
   if (t > 1.0) return 1.0;

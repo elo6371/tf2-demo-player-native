@@ -285,11 +285,15 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
     std::vector<AnimationSequence> merged = model.sequences;
     for (auto& sequence : merged) {
       sequence.animDesc = -1;
+      sequence.blendCount = 0;
       for (const auto& candidateSequence : bestCompanionModel.sequences) {
         if (candidateSequence.label != sequence.label) continue;
         if (candidateSequence.animDesc >= 0
             && static_cast<std::size_t>(candidateSequence.animDesc) < bestCompanionModel.animations.size()) {
           sequence.animDesc = candidateSequence.animDesc;
+          // The base model can carry a zero-blend sequence stub. Report the
+          // blend count of the animation source whose descriptor we sample.
+          sequence.blendCount = candidateSequence.blendCount;
         }
         break;
       }
@@ -502,15 +506,14 @@ AnimationSampleResult buildAnimationSkinMatrices(
     return refuse(AnimationInputStatus::SampleFailed, composeReason);
   }
 
-  // skin[i] = animatedWorld[i] * poseToBone[i]. A render bone with no animation
-  // channel keeps its bind transform, which for the skinning path is the
-  // identity matrix -- i.e. "do not move this vertex", not "move it somewhere
-  // the animation never asked for".
+  // skin[i] = currentBoneModel[i] * poseToBone[i]. Bones without animation
+  // channels keep their bind-relative local transform under the animated parent.
   static const std::array<float, 16> identity = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
   static const std::array<float, 12> identity12 = {1,0,0, 0, 0,1,0, 0, 0,0,1, 0};
   result.skinMatrices.assign(binding->poseToBone.size(), identity);
   result.boneModelMatrices.assign(binding->poseToBone.size(), identity12);
   std::size_t written = 0;
+  std::size_t acceptedChannels = 0;
   for (std::size_t i = 0; i < binding->poseToBone.size(); ++i) {
     const std::array<float, 12>* animated = nullptr;
     for (std::size_t a = 0; a < binding->animToModel.size(); ++a) {
@@ -562,7 +565,17 @@ AnimationSampleResult buildAnimationSkinMatrices(
         inverseBind(binding->poseToBone[i], childBind);
         result.boneModelMatrices[i] = childBind;
       }
-      continue;  // helper bone: keep the identity in skinMatrices
+      if (binding->poseToBoneValid[i]) {
+        const auto skin = concatTransforms(result.boneModelMatrices[i], binding->poseToBone[i]);
+        for (int k = 0; k < 12; ++k) {
+          if (!std::isfinite(skin[k])) {
+            return refuse(AnimationInputStatus::SampleFailed, "helper skin matrix is not finite");
+          }
+        }
+        result.skinMatrices[i] = toColumnMajor(skin);
+        ++written;
+      }
+      continue;
     }
     // Published even when the inverse bind is unusable: an attachment only needs
     // the bone's frame, not the skinned-vertex matrix derived from it.
@@ -576,8 +589,9 @@ AnimationSampleResult buildAnimationSkinMatrices(
     }
     result.skinMatrices[i] = toColumnMajor(skin);
     ++written;
+    ++acceptedChannels;
   }
-  if (written == 0) {
+  if (acceptedChannels == 0) {
     return refuse(AnimationInputStatus::BoneMismatch, "no render bone accepted an animation channel");
   }
   result.skinBones = written;

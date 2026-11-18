@@ -94,6 +94,23 @@ tf2::native::WavPcmData tinyWav() {
   return wav;
 }
 
+tf2::native::WavPcmData toneWav() {
+  // AUD-03: a non-silent fixture on purpose. tinyWav() is four 128s, which is
+  // 8-bit unsigned silence, so a peak ratio measured on it would read 0 == 0 at
+  // every gain -- a test that cannot fail. 8-bit unsigned PCM puts silence at
+  // 128, and this square wave swings +64/-64 around it.
+  tf2::native::WavPcmData wav;
+  wav.valid = true;
+  wav.encoding = tf2::native::WavEncoding::Pcm;
+  wav.channels = 1;
+  wav.sampleRate = 11025;
+  wav.bitsPerSample = 8;
+  wav.blockAlign = 1;
+  wav.byteRate = 11025;
+  wav.pcm = {128, 192, 64, 192};
+  return wav;
+}
+
 tf2::native::ScheduledSound soundAt(std::int32_t tick, const char* name, float delay) {
   tf2::native::ScheduledSound sound;
   sound.tick = tick;
@@ -173,6 +190,10 @@ struct FakeWinMm {
 
 FakeWinMm g_fake;
 std::size_t g_fakeOpenTotal = 0;
+// AUD-03: the bytes the player last handed the device. Without them a gain test
+// can only read the float it passed in, which says what the caller meant rather
+// than what came out.
+std::vector<std::uint8_t> g_lastWritePcm;
 
 MMRESULT WINAPI fakeWaveOutOpen(LPHWAVEOUT out, UINT, LPCWAVEFORMATEX, DWORD_PTR, DWORD_PTR, DWORD) {
   g_fake.calls.push_back("open");
@@ -197,10 +218,17 @@ MMRESULT WINAPI fakeWaveOutPrepareHeader(HWAVEOUT, LPWAVEHDR header, UINT) {
   return result;
 }
 
-MMRESULT WINAPI fakeWaveOutWrite(HWAVEOUT, LPWAVEHDR, UINT) {
+MMRESULT WINAPI fakeWaveOutWrite(HWAVEOUT, LPWAVEHDR header, UINT) {
   g_fake.calls.push_back("write");
   const MMRESULT result = g_fake.write.take();
-  if (result == MMSYSERR_NOERROR) ++g_fake.writes;
+  if (result == MMSYSERR_NOERROR) {
+    ++g_fake.writes;
+    g_lastWritePcm.clear();
+    if (header != nullptr && header->lpData != nullptr) {
+      const auto* bytes = reinterpret_cast<const std::uint8_t*>(header->lpData);
+      g_lastWritePcm.assign(bytes, bytes + header->dwBufferLength);
+    }
+  }
   return result;
 }
 
@@ -456,10 +484,134 @@ int runPlayerFaultSelfTest() {
   return pass ? 0 : 1;
 }
 
+// AUD-03: the master gain has to reach the bytes. This walks one player through
+// 1.0, 0.5 and 0.0 while the fake backend records what the device was handed,
+// and asserts the peak amplitude of the written PCM -- not the float argument,
+// which says only what the caller meant. The first check is the fixture's own:
+// tinyWav() is all 128s, so a ratio measured on it would read 0 == 0.
+int runPlayerMasterGainSelfTest() {
+  using namespace tf2::native;
+  FaultChecks checks;
+  const WinMmBackend backend = fakeBackend();
+  installWinMmBackend(&backend);
+  struct RestoreProductionBackend {
+    ~RestoreProductionBackend() { installWinMmBackend(nullptr); }
+  } restore;
+
+  const auto peakOf = [](const std::vector<std::uint8_t>& pcm) {
+    int peak = 0;
+    for (const std::uint8_t sample : pcm) {
+      const int amplitude = std::abs(static_cast<int>(sample) - 128);
+      if (amplitude > peak) peak = amplitude;
+    }
+    return peak;
+  };
+
+  g_fake.clear();
+  AudioPlayer player;
+  player.setDeviceId(0);
+  const WavPcmData tone = toneWav();
+
+  const bool playedFull = player.play(tone, 1.0f, 0.0f);
+  const int peakFull = peakOf(g_lastWritePcm);
+  const std::size_t bytesFull = g_lastWritePcm.size();
+  player.stop();
+
+  const bool playedHalf = player.play(tone, 0.5f, 0.0f);
+  const int peakHalf = peakOf(g_lastWritePcm);
+  player.stop();
+
+  const bool playedZero = player.play(tone, 0.0f, 0.0f);
+  const int peakZero = peakOf(g_lastWritePcm);
+  player.stop();
+
+  // The non-tone control. tinyWav() is all 128s -- 8-bit silence -- so this
+  // measurement has to come back 0. Without it, a peak reader that always
+  // returned 0 would let the 0.5 and 0.0 cases above pass by accident, and a
+  // fixture that is silence could pass the whole block.
+  const WavPcmData silent = tinyWav();
+  const bool playedSilent = player.play(silent, 1.0f, 0.0f);
+  const int peakSilent = peakOf(g_lastWritePcm);
+  player.stop();
+
+  checks.check(playedFull && playedHalf && playedZero, "master-gain.plays-accepted");
+  checks.check(peakFull == 64, "master-gain.fixture-is-not-silent");
+  checks.check(bytesFull == tone.pcm.size() * 2u, "master-gain.mono-is-mixed-to-stereo");
+  checks.check(peakHalf == peakFull / 2, "master-gain.half-halves-the-peak");
+  checks.check(peakZero == 0, "master-gain.zero-is-silence");
+  checks.check(playedSilent, "master-gain.silent-fixture-played");
+  checks.check(peakSilent == 0, "master-gain.silent-fixture-measures-zero");
+  checks.check(peakFull != peakSilent, "master-gain.discriminates-tone-from-silence");
+
+  // The scheduler's own multiply, read where the product reads it: the sink is
+  // handed event volume * spatial gain * master gain.
+  AudioEventScheduler scheduler;
+  scheduler.setDeviceId(0);
+  scheduler.setResolver([&](const std::string&, WavPcmData& out) { out = tone; return true; });
+  float sinkVolume = -1.0f;
+  scheduler.setPlaybackSink([&](const WavPcmData&, float volume, float) {
+    sinkVolume = volume;
+    return true;
+  });
+  SoundEventTimeline timeline;
+  // soundAt's third argument is a DELAY in seconds, not a volume: the first
+  // version of this block passed 0.5f there, the event kept volume 1.0, and the
+  // sink read 0.5 under a 0.5 master -- the product was right and the
+  // expectation was wrong. The volume is set explicitly now, and the master-1.0
+  // reading is the control that proves the half case is a real multiply.
+  ScheduledSound fixture = soundAt(0, "weapons/rocket_shoot.wav", 0.0f);
+  fixture.volume = 0.5f;
+  scheduleGameplaySound(timeline, fixture, 10.0);
+  timeline.sortByTick();
+  // One fresh scheduler per master setting: reset(t) on an already-consumed
+  // scheduler is EXCLUSIVE of t (AudioEventScheduler::reset), so replaying tick
+  // 0 on the same instance reads nothing and the half case would silently
+  // re-measure the master-1.0 number.
+  float sinkAtMasterOne = -1.0f;
+  const auto mixThroughSink = [&](float master, float& volume) {
+    AudioEventScheduler probeScheduler;
+    probeScheduler.setDeviceId(0);
+    probeScheduler.setResolver([&](const std::string&, WavPcmData& out) { out = tone; return true; });
+    probeScheduler.setPlaybackSink([&](const WavPcmData&, float v, float) { volume = v; return true; });
+    probeScheduler.setMasterVolume(master);
+    probeScheduler.reset(0);
+    return static_cast<int>(probeScheduler.advance(timeline, 15).eventsPlayed);
+  };
+  checks.check(scheduler.masterVolume() == 1.0f, "master-gain.defaults-to-one");
+  const int playedAtMasterOne = mixThroughSink(1.0f, sinkAtMasterOne);
+  const int playedAtHalf = mixThroughSink(0.5f, sinkVolume);
+  scheduler.setMasterVolume(0.5f);
+  checks.check(scheduler.masterVolume() == 0.5f, "master-gain.reads-back");
+  // 0.5 (fixture volume) * 1.0 (no listener set => gain 1) * master.
+  checks.check(playedAtMasterOne == 1 && playedAtHalf == 1, "master-gain.event-played");
+  checks.check(sinkAtMasterOne > 0.49f && sinkAtMasterOne < 0.51f, "master-gain.reaches-the-mix-at-one");
+  checks.check(sinkVolume > 0.24f && sinkVolume < 0.26f, "master-gain.reaches-the-mix");
+  scheduler.setMasterVolume(2.0f);
+
+  checks.check(scheduler.masterVolume() == 1.0f, "master-gain.clamps-high");
+  scheduler.setMasterVolume(-1.0f);
+  checks.check(scheduler.masterVolume() == 0.0f, "master-gain.clamps-low");
+
+  const bool pass = checks.failed.empty();
+  std::cout << "{\"playerMasterGainSelfTest\":" << (pass ? "true" : "false")
+            << ",\"failedChecks\":" << checks.failed.size()
+            << ",\"failed\":\"" << checks.list() << "\""
+            << ",\"peakFull\":" << peakFull
+            << ",\"peakHalf\":" << peakHalf
+            << ",\"peakZero\":" << peakZero
+            << ",\"peakSilent\":" << peakSilent
+            << ",\"bytesFull\":" << bytesFull
+            << ",\"sinkVolumeAtMasterOne\":" << sinkAtMasterOne
+            << ",\"sinkVolume\":" << sinkVolume
+            << "}\n";
+  return pass ? 0 : 1;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
   if (argc > 1 && std::string(argv[1]) == "--player-fault-selftest") return runPlayerFaultSelfTest();
+  if (argc > 1 && std::string(argv[1]) == "--player-master-gain-selftest") return runPlayerMasterGainSelfTest();
   using namespace tf2::native;
   const double tickRate = 10.0;
   const bool delayMath = applySoundDelayTicks(10, 0.5f, tickRate) == 15

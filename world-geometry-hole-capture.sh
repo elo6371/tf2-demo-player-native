@@ -93,7 +93,7 @@ cd "$(dirname "$0")"
 # these seams.
 PRODUCT=${CAPTURE_PRODUCT:-native/build-nmake/tf2_demo_native.exe}
 TF=${CAPTURE_TF_ROOT:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf}
-DEMO=${CAPTURE_DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}
+DEMO=${CAPTURE_DEMO:-${DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}}  # inherit the gate's WORLD_CHECK_DEMO copy
 MAP=${CAPTURE_MAP:-maps/pl_odyssey.bsp}
 TICK=${CAPTURE_TICK:-2000}
 # The material/model side of the asset identity. The game's materials and models
@@ -615,7 +615,7 @@ compute_inputs
 # own run_capture_trace frames and this matrix share one configuration.
 CAP_ISO_DIR="${CAPTURE_ISO_DIR:-.scratch/capture-iso}"
 case "$CAP_ISO_DIR" in
-  /*) : ;;
+  /*|[A-Za-z]:*) : ;;  # mktemp returns C:/... when TMPDIR is a Windows path
   *)  CAP_ISO_DIR="$PWD/$CAP_ISO_DIR" ;;
 esac
 CAP_ISO_SETTINGS="$CAP_ISO_DIR/settings.ini"

@@ -47,14 +47,25 @@
 # Exit: 0 every reading present AND every invariant asserted (prints
 #       MAP-MATERIAL-MATRIX=PASS); 1 a reading is missing, a run failed, or an
 #       invariant does not hold; 2 usage or environment error. A map whose BSP is
-#       absent is recorded as UNSUPPORTED and is counted, not failed.
+#       absent is recorded as UNSUPPORTED and is counted, not failed. A map whose
+#       pinned recording is gone is recorded as BLOCKED-INPUT (see the corpus
+#       registry below) and is counted, not failed -- unless no registry entry
+#       names it, which is a failure.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 2
 ROOT=$PWD
 
-PROBE=$ROOT/native/build-nmake/material_coverage_probe.exe
+# The two probes below are launched by bash -c with no `timeout` in front, and
+# MSYS mangles a space-bearing argument when the program path itself is POSIX:
+# ".../Team Fortress 2/tf" reached material_coverage_probe as two tokens and it
+# printed its usage text and exited 2 (measured 2026-11-16, see
+# docs/T62-MAP-MATRIX-CORPUS-REGISTRY-2026-11-16.md section 7). Windows-form
+# paths skip that conversion. The product keeps the POSIX form because
+# `timeout` already routes it through a converter that does not mangle; its
+# trace reads tf_root=D:\...\Team Fortress 2\tf valid=1 either way.
+PROBE=$(cygpath -m "$ROOT/native/build-nmake/material_coverage_probe.exe")
 PRODUCT=$ROOT/native/build-nmake/tf2_demo_native.exe
-DEMO_PROBE=$ROOT/native/build-nmake/demo_open_probe.exe
+DEMO_PROBE=$(cygpath -m "$ROOT/native/build-nmake/demo_open_probe.exe")
 TF=${TF_ROOT:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf}
 AUDIO_DEVICE=${AUDIO_DEVICE:-6}
 LOCK=${HOSTLOCK:-/d/TF2_Native_Worktrees/_shared/hostlock.sh}
@@ -116,12 +127,45 @@ map_bsp() {
     *) echo "" ;;
   esac
 }
+# --- corpus registry (2026-11-16) -------------------------------------------
+# The corpora are recordings that live on this host, not files this repo owns, so
+# a pin can rot. Three pins below rotted: cp_sunshine, pl_odyssey and
+# koth_bagel_rc12 all pointed at POV autorecords in $TF/demos that are no longer
+# there (tf/demos now holds 2063 files, oldest 2026-08-02). The identity of each
+# pin is still on disk in evidence/header-scan/header-scan.csv and
+# evidence/t56-map-audit/demo_headers_tfdemos.jsonl, which is where the sizes and
+# tick counts in the notes come from.
+#
+# REPLACED / REPLACED_SHA / REPLACED_NOTE: a map whose pinned recording is gone
+# but for which a same-map recording exists. The replacement is used instead and
+# its sha256 is pinned here, so swapping, editing or renaming it turns the gate
+# red instead of silently measuring a different file. The replacement's own
+# header must still name the map (the map= and server_map= assertions below are
+# unchanged by the override).
+declare -A REPLACED=(
+  ["cp_sunshine"]="E:/demo测试/cp_sunshine/POV/autorecord_2026-05-17_16-32-36.dem"
+)
+declare -A REPLACED_SHA=(
+  ["cp_sunshine"]="acc134094ef2ab1d69b8fdf606346a331ae8dc630d4ba634c682e2b448562b3a"
+)
+declare -A REPLACED_NOTE=(
+  ["cp_sunshine"]="registered same-map replacement (2026-11-16): the pinned POV autorecord_2026-05-14_23-09-16.dem (51337166 B, 144583 ticks, header-scan.csv:14) is gone from tf/demos; this POV recording decodes to 219069 packets / 75905225 B, header map=cp_sunshine"
+)
+# BLOCKED_INPUT: a map whose pinned recording is gone and for which no recording
+# of that map exists anywhere on this host. Its row is kept and says so; the map
+# is not deleted from the matrix and no material assertion is relaxed. Its BSP is
+# present, so the geometry gate (map-geometry-lighting.sh) still runs on it.
+declare -A BLOCKED_INPUT=(
+  ["pl_odyssey"]="pinned POV autorecord_2026-05-26_23-14-06.dem (27718172 B, 55294 ticks, header-scan.csv:131) is gone from tf/demos; a census of every recording on this host found none for pl_odyssey; BSP present"
+  ["koth_bagel_rc12"]="pinned POV autorecord_2026-05-14_21-28-01.dem (51759919 B, 153502 ticks, header-scan.csv:10) is gone from tf/demos; a census of every recording on this host found none for koth_bagel_rc12; BSP present"
+)
 # Demo per map: its header names the same map and it has more than 2000 ticks
 # (each was checked with demo_open_probe --scan). The two SourceTV recordings
 # live in D:/TF2_Demo_Player/testdata/demos and carry no POV camera samples,
 # which is why those two maps resolve their camera with a throwaway orient run
 # instead of from the demo's own camera track.
 map_demo() {
+  if [ -n "${REPLACED[$1]:-}" ]; then echo "${REPLACED[$1]}"; return 0; fi
   case "$1" in
     cp_snakewater_final1) echo "D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem" ;;
     koth_bagel_rc11) echo "D:/TF2_Demo_Player/testdata/demos/dfbce608c80a4d72a390c70c597f0377_match-20261101-1959-koth_bagel_rc11.dem" ;;
@@ -132,6 +176,7 @@ map_demo() {
   esac
 }
 map_demo_source() {
+  if [ -n "${REPLACED[$1]:-}" ]; then echo "POV autorecord, registered replacement (REPLACED_NOTE)"; return 0; fi
   case "$1" in
     koth_bagel_rc11|cp_snakewater_final1) echo "SourceTV recording, D:/TF2_Demo_Player/testdata/demos, no POV camera samples" ;;
     *) echo "POV autorecord, $TF/demos" ;;
@@ -149,6 +194,15 @@ pick_python() {
 }
 
 mkdir -p "$OUT" "$SCRATCH" || exit 2
+# The registry is reported at start-up, never applied silently: an override or a
+# blocked input a reader cannot see is indistinguishable from a pass.
+for _m in $(printf '%s\n' "${!REPLACED[@]}" | LC_ALL=C sort); do
+  printf 'input override %s -> %s\n' "$_m" "${REPLACED[$_m]}"
+  printf '                %s\n' "${REPLACED_NOTE[$_m]:-}"
+done
+for _m in $(printf '%s\n' "${!BLOCKED_INPUT[@]}" | LC_ALL=C sort); do
+  printf 'input blocked %s: %s\n' "$_m" "${BLOCKED_INPUT[$_m]}"
+done
 # --only re-runs part of the matrix (used to redo one map after a fix). The rows
 # already on disk for the maps this invocation does not touch are merged back,
 # so readings.tsv always describes the whole matrix, not just the last run.
@@ -373,6 +427,9 @@ print("sha256_a=" + hashlib.sha256(da).hexdigest())
 print("sha256_b=" + hashlib.sha256(db).hexdigest())
 print("identical_files=%d" % (1 if da == db else 0))
 PYEOF
+  # Python's stdout is text mode on Windows, so it writes CRLF; the committed
+  # evidence is LF (tools/audit-tree.sh enforces it), so strip here.
+  sed -i 's/\r$//' "$4" 2>/dev/null || true
 }
 
 ran=0
@@ -401,12 +458,40 @@ for MAP in "${MAPS[@]}"; do
     continue
   fi
 
+  # A missing recording is not a missing BSP: it is a corpus problem the registry
+  # has to name, and it must not become an unexplained failed run.
+  if [ ! -f "$DEMO" ]; then
+    if [ -n "${BLOCKED_INPUT[$MAP]:-}" ]; then
+      printf 'map=%s status=BLOCKED-INPUT reason=demo-not-found demo=%s\n' "$MAP" "$DEMO" > "$DIR/status.txt"
+      printf 'note=%s\n' "${BLOCKED_INPUT[$MAP]}" >> "$DIR/status.txt"
+      B=("$MAP" - BLOCKED-INPUT "$BSP" "$BSP_BYTES" "$DEMO" NA NA)
+      for _ in $(seq 1 39); do B+=(NA); done
+      B+=("input-blocked: ${BLOCKED_INPUT[$MAP]}")
+      row "${B[@]}"
+      echo "input blocked $MAP: $DEMO"
+      continue
+    fi
+    failure "$MAP: demo not found at $DEMO (no registry entry: add REPLACED or BLOCKED_INPUT)"
+    echo "SKIP $MAP: demo not found at $DEMO"
+    continue
+  fi
+  # A replacement is the same input only if it is the pinned bytes.
+  if [ -n "${REPLACED[$MAP]:-}" ]; then
+    R_SHA=$(sha256sum "$DEMO" 2>/dev/null | cut -d' ' -f1)
+    if [ "${R_SHA:-}" = "${REPLACED_SHA[$MAP]:-}" ]; then
+      echo "input identity $MAP: sha256=$R_SHA OK (registered replacement)"
+    else
+      failure "$MAP: replacement sha256=${R_SHA:-unreadable} want=${REPLACED_SHA[$MAP]:-unregistered} ($DEMO)"
+    fi
+  fi
+
   echo "== $MAP =="
   # ---- 1. probe: plan tally (aggregate only, no per-material table) --------
   P_OUT=$DIR/probe-plan.txt
   P_CMD=$(printf '%q ' "$PROBE" --map "$(cygpath -m "$BSP")" --tf-root "$TF")
   locked "$P_CMD" > "$P_OUT" 2>&1
   P_RC=$?
+  sed -i 's/\r$//' "$P_OUT" 2>/dev/null || true
   [ "$P_RC" -ne 0 ] && failure "$MAP probe rc=$P_RC (see probe-plan.txt)"
   P_DISTINCT=$(kv "$P_OUT" map.distinctMaterials)
   P_TILED=$(kv "$P_OUT" plan.tiled)
@@ -431,6 +516,7 @@ for MAP in "${MAPS[@]}"; do
   C_PROBE=$DIR/camera-probe.txt
   CP_CMD=$(printf '%q ' "$DEMO_PROBE" --scan --camera-tick 2000 "$DEMO")
   locked "$CP_CMD" > "$C_PROBE" 2>&1
+  sed -i 's/\r$//' "$C_PROBE" 2>/dev/null || true
   # The demo must be a recording of the map this row claims: a shared or renamed
   # recording would otherwise let a row say "cp_sunshine" while the frames came
   # from somewhere else. demo_open_probe reads both the header map and the server
@@ -447,7 +533,25 @@ for MAP in "${MAPS[@]}"; do
   ORIGIN=$(grep -ao 'camera_origin=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_origin=//')
   C_PITCH=$(grep -ao 'camera_pitch=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_pitch=//')
   C_YAW=$(grep -ao 'camera_yaw=[^ ]*' "$C_PROBE" 2>/dev/null | head -1 | sed 's/^camera_yaw=//')
-  if [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ]; then
+  # A POV sample with x=y=0 is not a usable pose: it pins the camera to the map's
+  # vertical axis, inside geometry, where every tick draws the same static
+  # interior (2026-11-16 cp_sunshine: camera_origin=0,0,-427 produced
+  # byte-identical tick 0 / tick 2000 frames; its registered replacement
+  # recording draws from 0,0,-359 and reproduces the same thing). Such a
+  # recording has no viewpoint, so it is recorded as BLOCKED-CAMERA with its
+  # probe readings rather than as two identical captures.
+  DEGENERATE_POSE=0
+  # 0,0,0 is "no sample" (SourceTV demos) and stays on the orient path; only a
+  # sample that names a real z but pins x=y is degenerate.
+  if [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ] && [ "$ORIGIN" != "0.0,0.0,0.0" ]; then
+    case "$ORIGIN" in 0,0,*|0.0,0.0,*) DEGENERATE_POSE=1 ;; esac
+  fi
+  CAMERA_BLOCKED=0
+  if [ "$DEGENERATE_POSE" -eq 1 ]; then
+    C_SRC=degenerate-demo-pose
+    C_EYE=$(printf '%s' "$ORIGIN" | tr ',' ' ')
+    CAMERA_BLOCKED=1
+  elif [ -n "$ORIGIN" ] && [ "$ORIGIN" != "0,0,0" ]; then
     C_SRC=demo-camera-tick2000
     C_EYE=$(printf '%s' "$ORIGIN" | tr ',' ' ')
   else
@@ -470,6 +574,12 @@ for MAP in "${MAPS[@]}"; do
       failure "$MAP camera unresolved (orient rc=${O_RC:-?}, no scene: camera pose)"
     fi
   fi
+  # The orient run reads the pose the product itself draws with; if even that
+  # pose sits on the vertical axis, the recording has no usable viewpoint.
+  if [ "$C_SRC" = "product-orient-run-tick2000" ]; then
+    CAMERA_BLOCKED=$(printf '%s' "$C_EYE" | awk '{print ($1+0==0 && $2+0==0) ? 1 : 0}')
+    [ "$CAMERA_BLOCKED" -eq 1 ] && C_SRC=degenerate-demo-pose
+  fi
   {
     printf 'map=%s\n' "$MAP"
     printf 'source=%s\n' "$C_SRC"
@@ -479,7 +589,7 @@ for MAP in "${MAPS[@]}"; do
   } > "$DIR/camera.txt"
   [ -n "$C_EYE" ] && [ "$C_EYE" != "NA" ] && printf 'debug_camera_args=--debug-camera %s %s %s\n' "$C_EYE" "$C_PITCH" "$C_YAW" >> "$DIR/camera.txt"
   [ -n "${O_LINE:-}" ] && printf 'orient_scene_camera_line=%s\n' "$O_LINE" >> "$DIR/camera.txt"
-  POSE_LINE=$(grep -a 'camera_origin=' "$C_PROBE" 2>/dev/null | tail -1)
+  POSE_LINE=$(grep -a 'camera_origin=' "$C_PROBE" 2>/dev/null | tail -1 | tr -d '\r')
   [ -n "$POSE_LINE" ] && printf 'demo_probe_camera_line=%s\n' "$POSE_LINE" >> "$DIR/camera.txt"
 
   # ---- 3. two captures, same demo, same fixed camera -----------------------
@@ -491,6 +601,16 @@ for MAP in "${MAPS[@]}"; do
     METRICS=$SCRATCH/$MAP.tick$TICK.csv
     LOG=$DIR/run-tick$TICK.log
     : > "$TRACE"
+    if [ "$CAMERA_BLOCKED" -eq 1 ]; then
+      # No capture ran, so nothing from an earlier run may survive in the
+      # evidence files this row is read out of.
+      TICK_STATUS=BLOCKED-CAMERA
+      : > "$SCRATCH/$MAP.tick$TICK.bmp"
+      : > "$DIR/trace-tick$TICK.txt"
+      : > "$DIR/tile-tick$TICK.raw"
+      : > "$DIR/tile-tick$TICK.tsv"
+      continue
+    fi
     if [ "$C_EYE" = "NA" ]; then
       failure "$MAP tick $TICK not run: no fixed camera"
       TICK_STATUS=camera-unresolved
@@ -515,7 +635,9 @@ for MAP in "${MAPS[@]}"; do
   BMP_2000=$SCRATCH/$MAP.tick2000.bmp
   DIFF=$DIR/diff.txt
   D_PIX=NA; D_PCT=NA; D_MAX=NA; D_SHA0=NA; D_SHA2000=NA; D_IDENT=NA
-  if [ -s "$BMP_0" ] && [ -s "$BMP_2000" ]; then
+  if [ "$CAMERA_BLOCKED" -eq 1 ]; then
+    : > "$DIFF"
+  elif [ -s "$BMP_0" ] && [ -s "$BMP_2000" ]; then
     if diff_frames "$BMP_0" "$BMP_2000" "$CHANNEL_DELTA" "$DIFF"; then
       D_PIX=$(sed -n 's/^pixels_channel_gt8=//p' "$DIFF")
       D_PCT=$(sed -n 's/^percent_channel_gt8=//p' "$DIFF")
@@ -541,8 +663,10 @@ for MAP in "${MAPS[@]}"; do
     ARMED=$(readings_only "$TF_FILE" 'capture: armed ' | tail -1)
     TRACE_BYTES=$(sed -n 's/^# map=[^ ]* tick=[^ ]* trace=.* bytes=\([0-9]*\) lines=.*/\1/p' "$TF_FILE" | head -1)
     TILE_ROWS=$(grep -ac 'material=' "$DIR/tile-tick$TICK.raw" 2>/dev/null || true)
-    assert_tick "$MAP" "$TICK" "$FETCH" "$PLAN" "$ATLAS" "$ARMED" "$TILE_ROWS"
-    assert_tile_table "$MAP" "$TICK" "$DIR/tile-tick$TICK.raw" "$PLAN"
+    if [ "$CAMERA_BLOCKED" -eq 0 ]; then
+      assert_tick "$MAP" "$TICK" "$FETCH" "$PLAN" "$ATLAS" "$ARMED" "$TILE_ROWS"
+      assert_tile_table "$MAP" "$TICK" "$DIR/tile-tick$TICK.raw" "$PLAN"
+    fi
 
     if [ "$TICK" = "0" ]; then
       PRC=$RC_0
@@ -602,6 +726,7 @@ awk -F'\t' '
   {
     m=$1; t=$2; st=$3
     if (st=="UNSUPPORTED") { unsup++; seen[$1]=1; next }
+    if (st=="BLOCKED-INPUT" || st=="BLOCKED-CAMERA") { blocked++; seen[$1]=1; next }
     rows++; seen[$1]=1
     bad=""
     if (st!="ok") bad=bad " status=" st
@@ -622,7 +747,7 @@ awk -F'\t' '
   }
   END {
     n=0; for (k in seen) n++
-    printf "MATRIX maps=%d rows=%d unsupported=%d failed=%d\n", n, rows, unsup, fails
+    printf "MATRIX maps=%d rows=%d unsupported=%d blocked=%d failed=%d\n", n, rows, unsup, blocked, fails
   }' "$OUT/readings.tsv" > "$MATRIX_OUT"
 MATRIX_LINE=$(tail -1 "$MATRIX_OUT")
 MATRIX_FAILED=$(printf '%s' "$MATRIX_LINE" | sed -n 's/.*failed=\([0-9]*\).*/\1/p')

@@ -27,6 +27,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -37,6 +38,24 @@ using tf2::native::AssetRoot;
 using tf2::native::BspMap;
 using tf2::native::BspTriangle;
 using tf2::native::BspVertex;
+
+namespace {
+
+// argv arrives in the process ANSI code page (GBK on this host), not UTF-8.
+// std::filesystem::u8path() throws on those bytes -- measured 2026-11-14: a
+// Chinese or space-containing path aborted world_feature_probe with 0xC0000409
+// -- so decode defensively: UTF-8 when it parses, the native narrow conversion
+// (which is the ANSI code page) otherwise.
+std::filesystem::path pathFromArgv(const char* text) {
+  if (text == nullptr || *text == '\0') return {};
+  try {
+    return std::filesystem::u8path(text);
+  } catch (...) {
+  }
+  return std::filesystem::path(text);
+}
+
+} // namespace
 
 std::vector<std::uint8_t> readFile(const std::filesystem::path& path) {
   std::vector<std::uint8_t> bytes;
@@ -54,6 +73,14 @@ std::vector<std::uint8_t> readFile(const std::filesystem::path& path) {
 }
 
 std::vector<std::uint8_t> readAsset(const AssetRoot& root, const std::string& path) {
+  // N02: the same file spelled two ways must answer the same. An absolute path
+  // is read as given (that is what world_feature_probe already does, and what a
+  // caller who names a loose BSP outside the TF root expects); a relative one
+  // keeps the archive-then-root contract below.
+  const auto direct = pathFromArgv(path.c_str());
+  if (direct.is_absolute()) {
+    if (auto bytes = readFile(direct); !bytes.empty()) return bytes;
+  }
   const auto& archives = root.archives();
   std::vector<std::filesystem::path> holders;
   archives.collectContaining(path, holders);
@@ -139,6 +166,12 @@ int main(int argc, char** argv) {
   // face-id frame answers it with a number; this turns that number back into a
   // material, a class, a plane and an extent without dumping 18,000 rows.
   std::vector<int> faceInfoIds;
+  // W-1 diagnostic: with --face-triangles the named faces are dumped triangle by
+  // triangle, each with the cross normal its EMITTED order produces and the sign
+  // of dot(normal, eye - centroid). The face id says which surface a pixel
+  // belongs to; only this says whether the cull-back pass has any right to drop
+  // that triangle.
+  bool dumpFaceTriangles = false;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--tf-root") == 0 && i + 1 < argc) tfRoot = argv[++i];
     else if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc) mapPath = argv[++i];
@@ -155,6 +188,7 @@ int main(int argc, char** argv) {
         at = comma + 1;
       }
     }
+    else if (std::strcmp(argv[i], "--face-triangles") == 0) dumpFaceTriangles = true;
     else if (std::strcmp(argv[i], "--dump-lightmap") == 0 && i + 1 < argc) dumpLightmapPath = argv[++i];
     else if (std::strcmp(argv[i], "--triangle-limit") == 0 && i + 1 < argc) triangleLimit = static_cast<std::size_t>(std::stoull(argv[++i]));
     else if (std::strcmp(argv[i], "--ray-down") == 0 && i + 1 < argc) {
@@ -351,6 +385,30 @@ int main(int argc, char** argv) {
                   entry.planeIndex, entry.planeSide, entry.cluster,
                   entry.sumX / vertices, entry.sumY / vertices, entry.sumZ / vertices,
                   entry.minX, entry.minY, entry.minZ, entry.maxX, entry.maxY, entry.maxZ);
+    }
+  }
+  // W-1 diagnostic: every emitted triangle of the named faces, with the facing
+  // number a cull-back pass is really acting on.
+  if (dumpFaceTriangles && haveEye && !faceInfoIds.empty()) {
+    for (std::size_t ti = 0; ti < map.triangles.size(); ++ti) {
+      const auto& t = map.triangles[ti];
+      if (t.faceIndex < 0) continue;
+      if (std::find(faceInfoIds.begin(), faceInfoIds.end(), t.faceIndex) == faceInfoIds.end()) continue;
+      const float ux = t.b.x - t.a.x, uy = t.b.y - t.a.y, uz = t.b.z - t.a.z;
+      const float vx = t.c.x - t.a.x, vy = t.c.y - t.a.y, vz = t.c.z - t.a.z;
+      float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+      if (len > 1e-9f) { nx /= len; ny /= len; nz /= len; }
+      const float cx = (t.a.x + t.b.x + t.c.x) / 3.0f;
+      const float cy = (t.a.y + t.b.y + t.c.y) / 3.0f;
+      const float cz = (t.a.z + t.b.z + t.c.z) / 3.0f;
+      const float ex = eyeX - cx, ey = eyeY - cy, ez = eyeZ - cz;
+      const float toEye = nx * ex + ny * ey + nz * ez;
+      const float distance = std::sqrt(ex * ex + ey * ey + ez * ez);
+      std::printf("geometry face-tri id=%zu face=%d disp=%d flip=%d toEye=%.3f dist=%.1f"
+                  " a=(%.2f,%.2f,%.2f) b=(%.2f,%.2f,%.2f) c=(%.2f,%.2f,%.2f) n=(%.4f,%.4f,%.4f)\n",
+                  ti, t.faceIndex, t.displacement ? 1 : 0, t.windingFlipped, toEye, distance,
+                  t.a.x, t.a.y, t.a.z, t.b.x, t.b.y, t.b.z, t.c.x, t.c.y, t.c.z, nx, ny, nz);
     }
   }
   // T17: do the lightmap uvs address the texels the packer actually wrote?

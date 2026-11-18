@@ -28,6 +28,11 @@
 // T53: ProjectileTrackPoint, a three-float POD in a header that includes nothing,
 // so the renderer can take observed positions without including the demo decoder.
 #include "projectile_track_point.h"
+// U4 step 1: the single-surface pane contract as a predicate, plus the readings
+// one draw records against it. Its own header so a probe can test the contract
+// without linking a renderer.
+#include "pane_boundary.h"
+#include "world_fov.h"
 
 namespace tf2::native {
 
@@ -69,6 +74,9 @@ struct RenderSettings {
   int modelLod = 4;
   float renderScale = 1.0f;
   float viewModelFov = 90.0f;
+  // Source camera FOV: horizontal degrees at a 4:3 reference aspect. Kept
+  // separate from the first-person weapon ViewModel projection.
+  float worldFov = 90.0f;
   bool vsync = false;
   // T52: the overlay slot's persisted state. Two keys only -- `outline` (the
   // on/off the F12 key also drives) and `outline_depth` (0 x-ray product, 1 the
@@ -488,7 +496,7 @@ struct WorldFogState {
 struct WorldFogUploadState {
   WorldFogState fog;
   float boxToMapXZ = 1.0f;     // 1 / worldHorizontalScale_
-  float boxToMapZ = 1.0f;      // worldSpanZ_ / 0.8
+  float boxToMapZ = 1.0f;      // 1 / worldHorizontalScale_
   std::size_t verticesFogged = 0;
 };
 
@@ -598,6 +606,14 @@ struct WorldMaterialSampleState {
   std::uint32_t worldSkySide = 0;
   bool worldSkyResampled = false;
   std::string worldSkyReason;
+  // W-1 perf: how the deferred sky draw was anchored and drawn, recorded by the
+  // draw itself like worldSkyDraws above. `worldSkyFarPlane` says the box was
+  // pinned to the far plane (clip.z == clip.w) and `worldSkyDedicatedShader`
+  // says the discard-free sky pixel shader was bound -- the two facts that make
+  // early depth rejection real. Reading them here means a gate can assert the
+  // mechanism from the trace instead of inferring it from the picture.
+  bool worldSkyFarPlane = false;
+  bool worldSkyDedicatedShader = false;
   // The clip, as a fact about the last draw rather than a setting. `hidden` is
   // how many of the uploaded triangles the pvs refused; `drawn` is how many the
   // draw call was actually given. The difference between the two and the total
@@ -632,6 +648,12 @@ struct WorldMaterialSampleState {
   std::size_t worldTilesRefusedMalformed = 0;
   std::size_t worldTilesRefusedDuplicate = 0;
   std::size_t worldTilesRefusedBudget = 0;
+  // I-23: refused materials whose VMT declares `$translucent`. A non-zero value
+  // means those materials are drawn by the untiled opaque fallback, because the
+  // alpha path needs a tile. After the rescue pass this is 0 on a map where every
+  // translucent material fit; with the rescue disabled it is the count that fell
+  // back, which is what makes the counter a reading rather than a decoration.
+  std::size_t worldTilesRefusedTranslucent = 0;
   std::size_t worldAtlasBatches = 0;
   std::size_t worldAtlasBlendBatches = 0;
   std::uint64_t worldAtlasLayerBytes = 0;
@@ -782,6 +804,12 @@ public:
   void setObserverOrbitDistanceWorld(float worldUnits);
   void setObserverDemoViewWorld(float x, float y, float z, float pitchDegrees, float yawDegrees);
   void clearObserverDemoView();
+  // N05: what COLOR0 carried for a triangle, i.e. what the pixel shader received.
+  // False for an out-of-range triangle so "no such triangle" and "black" cannot
+  // be read as the same answer.
+  bool worldTriangleColourAt(std::size_t triangle, float out[4]) const;
+  bool worldTrianglePositionAt(std::size_t triangle, float out[9]) const;
+  int worldTriangleDrawnAt(std::size_t triangle) const;  // 1 drawn, 0 not, -1 unknown
   bool observerFocusWorld(float& x, float& y, float& z) const;
   // T10 fix: the observer focus converted BACK to map coordinates. The pvs
   // clip asks the BSP which cluster a point sits in, and the BSP speaks map
@@ -1017,6 +1045,11 @@ public:
   std::size_t worldDrawsWithWeaponTexture() const { return worldDrawsWithWeaponTexture_; }
   std::size_t slot0BindCount() const { return slot0Binds_; }
   std::size_t worldBatchDrawCallCount() const { return worldBatchDrawCalls_; }
+  // N05: what the draw branch decided, recorded where it decides. The upload-time
+  // index count said 3 and the frame still drew the map, so the question is which
+  // branch ran -- and only the frame knows.
+  int worldBatchesIndexedAtDraw() const { return worldBatchesIndexedAtDraw_; }
+  unsigned int worldIndexCountAtDraw() const { return worldIndexCountAtDraw_; }
   std::size_t worldAtlasBatchCount() const { return worldAtlasBatches_; }
   std::size_t worldAtlasBlendBatchCount() const { return worldAtlasBlendBatches_; }
   bool saveCameraPreset(std::size_t slot);
@@ -1169,6 +1202,11 @@ public:
   // is an untiled material" becomes a pixel count on the capture instead of a
   // triangle count that cannot say where those triangles landed.
   void setWorldRefusedMask(bool enabled) { worldRefusedMask_ = enabled; }
+  // I-23: plan the translucent materials a full atlas refused into their own
+  // rescue batch. Enabled by default because the alternative is drawing an
+  // alpha-keyed surface opaque. `--world-atlas-no-translucent-rescue` turns it
+  // off for the frame that must show the fallback and count it.
+  void setWorldAtlasTranslucentRescue(bool enabled) { worldAtlasTranslucentRescue_ = enabled; }
   // T26: `--world-geometry sky` uploads the BSP's sky-brush polygons and
   // nothing else. It is not a picture of the game: it is the only honest answer
   // to "is this empty pixel sky by design or is it a hole", because it is the
@@ -1187,6 +1225,45 @@ public:
   // is what the `none` frame used to show instead of the background), and the
   // entity, marker and projectile passes. Measured, all three.
   void setWorldDiagnosticIsolation(bool isolated) { worldDiagnosticIsolation_ = isolated; }
+  // N05 step 2: draw exactly one triangle. The point oracle says triangle N covers
+  // a pixel the rasterizer leaves empty; the only way to tell "the rasterizer
+  // disagrees about where that triangle is" from "something else is covering the
+  // pixel" is to draw N and nothing else. -1 disables.
+  void setWorldIsolatedTriangle(int triangle) { worldIsolatedTriangle_ = triangle; }
+  int worldIsolatedTriangle() const { return worldIsolatedTriangle_; }
+  // N05 step 3: take the clip-space position out of the vertex stage of the draw
+  // that is actually happening, instead of predicting it. Off by default. When
+  // on, the world draw binds one passthrough geometry shader (which copies every
+  // field of the world VS output through, so the rasteriser sees the same
+  // triangle) and a three-vertex stream-output target around the isolated
+  // triangle's DrawIndexed, reads the three clip quads back, and unbinds both
+  // before the next pass runs -- the water and entity passes never see this.
+  void setWorldClipCaptureEnabled(bool enabled) { worldClipCaptureRequested_ = enabled; }
+  bool worldClipCaptureEnabled() const { return worldClipCaptureRequested_; }
+  // 1 = a sample was captured this frame, 0 = not attempted, -1 = attempted and
+  // refused. Three answers rather than a bool, because "no channel" and "the
+  // channel said nothing" are different facts, and a caller that could not tell
+  // them apart would read zeros as "the vertices landed on the origin".
+  int worldClipCaptureStatus() const {
+    return worldClipCaptureValid_ ? 1 : (worldClipCaptureAttempted_ ? -1 : 0);
+  }
+  const char* worldClipCaptureFailure() const { return worldClipCaptureFailure_.c_str(); }
+  // The three clip-space quads the vertex stage produced, x,y,z,w per vertex in
+  // vertex-buffer order. False when nothing was captured, so a failed channel
+  // cannot be mistaken for a successful capture at the origin.
+  bool worldClipCaptureSample(float out[12]) const;
+  // What the draw referenced and drew through: the three index values from the
+  // index buffer, the viewport in effect, and a hash of the 192-byte constant
+  // block that was bound. A clip value without these is a number with no frame
+  // attached to it -- the same rule the capture gate follows for its bitmaps.
+  bool worldClipCaptureDrawState(unsigned int outIndices[3], float outViewport[4],
+                                 unsigned int& outConstantsHash) const;
+  // N05: what the draw will actually see. The isolation flag reached the renderer
+  // but the frame still drew 1027 faces, so the next reading is whether the buffer
+  // was built with three indices and the draw ignores it, or never rebuilt at all.
+  unsigned int worldIndexCount() const { return worldIndexCount_; }
+  std::size_t worldDrawBatchCount() const { return worldDrawBatches_.size(); }
+  unsigned int worldFirstBatchIndices() const { return worldDrawBatches_.empty() ? 0u : worldDrawBatches_.front().indexCount; }
   // T17: the lightmap is the one shading term the product had no off switch for,
   // so "the world is dark" could not be attributed to it. `false` keeps the same
   // geometry, materials and uvs and replaces the sample with white, which turns
@@ -1219,7 +1296,7 @@ public:
   // for text, carries its own UTF-8 string: the pass expands one text primitive
   // into one quad per glyph against the embedded 8x8 font (hud_font.h). The
   // per-vertex kind keeps the whole HUD a single draw call.
-  enum class HudPrimitiveKind { Rect = 0, Text = 1, Circle = 2 };
+  enum class HudPrimitiveKind { Rect = 0, Text = 1, Circle = 2, Image = 3 };
   struct HudPrimitive {
     HudPrimitiveKind kind = HudPrimitiveKind::Rect;
     float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
@@ -1227,6 +1304,11 @@ public:
     bool filled = false; // Rect only: false keeps T51's bordered block
     std::string text;    // Text only: UTF-8
     float scale = 1.0f;  // Text only: pixels per font pixel
+    // Image only: the source rectangle inside the resident basemap texture, in
+    // normalized coordinates (left, top, right, bottom). One texture is resident
+    // at a time (setHudImageTexture), so the quad names its own crop and the pass
+    // keeps being one draw call.
+    float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
   };
   // Replaces the whole primitive list; an empty list disables the pass without
   // touching `enabled`, so "no HUD in this document" and "the user turned it
@@ -1249,6 +1331,28 @@ public:
   std::size_t hudGlyphCount() const { return hudGlyphCount_; }
   std::size_t hudUnmappedGlyphs() const { return hudUnmappedGlyphs_; }
   std::size_t hudPassOrdinal() const { return hudPassOrdinal_; }
+  // T68: the one sampled texture the HUD may read besides the font atlas. That
+  // is what lets the map overview draw the real top-down image instead of a
+  // mosaic of filled rectangles. Exactly one texture is resident: the tag says
+  // which pixels it holds, so a caller can tell whether what it uploaded is still
+  // the thing bound, and a rejected upload leaves the previous texture in place
+  // rather than a half-created one.
+  bool setHudImageTexture(UINT width, UINT height, const std::uint8_t* rgba,
+    const std::string& tag, std::string* error);
+  void clearHudImageTexture();
+  bool hudImageTextureReady() const { return hudImageView_ != nullptr; }
+  UINT hudImageTextureWidth() const { return hudImageWidth_; }
+  UINT hudImageTextureHeight() const { return hudImageHeight_; }
+  const std::string& hudImageTextureTag() const { return hudImageTag_; }
+  // What the basemap sampler actually is. The gate asserts "not nearest": the
+  // primitive path exists precisely so a downscaled map is filtered, so the
+  // filter is published rather than assumed ("linear-mip" / "none").
+  std::string hudImageSamplerMode() const;
+  UINT hudImageMipLevels() const { return hudImageMipLevels_; }
+  // The DXGI format name, or "none" when no image texture is resident.
+  std::string hudImageTextureFormat() const;
+  // Image quads the last draw emitted.
+  std::size_t hudImageQuads() const { return hudImageQuads_; }
   // Whether the pass scissored itself. Recorded from the draw rather than
   // asserted, because "the pass cannot paint outside its rects" is the claim the
   // world comparison rests on.
@@ -1256,6 +1360,43 @@ public:
   // The pixels the pass was allowed to touch on the last draw, in back-buffer
   // coordinates, unioned. Empty when nothing was drawn.
   HudPixelRectLast hudLastRegion() const { return hudLastRegion_; }
+  // U4 step 1: what the LAST draw bound and used, and whether those readings
+  // describe one surface (see pane_boundary.h). Filled inside draw(), so these
+  // answer about the frame that was drawn, not about the camera a caller
+  // requested -- main.cpp's `scene: camera` line reports the request.
+  PaneBoundaryReadings paneBoundary() const { return paneBoundary_; }
+  std::uint32_t paneBoundaryMismatches() const {
+    return tf2::native::paneBoundaryMismatches(paneBoundary_);
+  }
+  // U4 step 2b: one frame composed from two panes that share this surface
+  // through disjoint viewports -- the budget statement a second pane makes.
+  // Pane 0 is the camera draw() uses; pane 1 is the state setPaneCameraOrbit
+  // writes, and camera input never reaches it.
+  bool drawSplit(float clearRed, float clearGreen, float clearBlue);
+  // Pane 1's camera: orbit pose only. paneCameras_[0], by contrast, is refreshed
+  // from the orbit/observer members at the start of every frame, so the
+  // single-pane camera stays the one source of truth for pane 0.
+  void setPaneCameraOrbit(std::uint32_t pane, float yaw, float pitch, float distance);
+  // U4 step 3: pane 1's camera as the interaction layer writes it. The orbit
+  // pose above is how a script poses the pane; these are what a selected pane
+  // needs from a mode: a world-space focus to orbit around (third person), a
+  // world-space demo eye and angles (first person), and the release of that eye
+  // when the pane leaves first person. All of them are pane >= 1 only -- pane 0
+  // keeps taking its camera from orbitCamera/zoomCamera/setObserverFocusWorld, so
+  // the single-pane path remains one source of truth.
+  void setPaneCameraFocusWorld(std::uint32_t pane, float x, float y, float z);
+  void setPaneCameraDemoViewWorld(std::uint32_t pane, float x, float y, float z,
+      float pitchDegrees, float yawDegrees);
+  void clearPaneCameraDemoView(std::uint32_t pane);
+  void orbitPaneCamera(std::uint32_t pane, float deltaX, float deltaY);
+  void zoomPaneCamera(std::uint32_t pane, float delta);
+  // The frame that was drawn, for the budget trace: panes composed, whole-surface
+  // depth clears, and draw passes across all panes (the HUD pass included).
+  std::uint32_t paneCountLastFrame() const { return paneBoundary_.paneCount; }
+  std::uint32_t paneDepthClearsLastFrame() const { return paneDepthClears_; }
+  std::uint32_t panePassesLastFrame() const {
+    return static_cast<std::uint32_t>(framePassOrdinal_);
+  }
 
   // The judge's verdict, handed in rather than recomputed. `worldWaterState_`
   // was never set on the success path of uploadWorldWaterGeometry, so
@@ -1343,6 +1484,8 @@ public:
   ModelGpuStatus modelGpuStatus() const { return modelGpuStatus_; }
   void setViewModelFov(float fov) { settings_.viewModelFov = clampViewModelFov(fov); }
   float viewModelFov() const { return settings_.viewModelFov; }
+  void setWorldFov(float fov) { settings_.worldFov = clampViewModelFov(fov); }
+  float worldFov() const { return settings_.worldFov; }
 
   // ---- First-person ViewModel pass (T2) -----------------------------------
   // Its own vertex buffer, bone buffer, constant buffer, shader, projection and
@@ -1579,6 +1722,38 @@ public:
   bool lastDepthCaptureSucceeded() const { return depthCaptureSucceeded_; }
   unsigned long long lastDepthCaptureBytes() const { return depthCaptureBytes_; }
   const std::wstring& lastFrameCaptureError() const { return captureError_; }
+  // R1 (2026-11-16): the per-pass depth channel for the N05 draw-boundary
+  // question. --capture-depth reads ONE plane -- the depth the frame has after
+  // the overlay pass -- and cannot say which pass left it. This dumps the same
+  // D24S8 buffer at named points inside ONE frame, each beside the depth-stencil
+  // state that was bound at that moment, so "the boundary is this pass's write
+  // mask" becomes a reading instead of an inference. Inert unless a capture
+  // frame is armed AND a prefix was set: the default path pays one empty-string
+  // test per dump point and nothing else.
+  void setPassDepthPrefix(std::wstring prefix) { passDepthPrefix_ = std::move(prefix); }
+  int passDepthWritten() const { return passDepthWritten_; }
+  bool lastPassDepthSucceeded() const { return passDepthSucceeded_; }
+  // R1b (2026-11-16): the per-range depth channel inside 50-entities. R1 could
+  // say the entity pass writes the footprint but not which range draw does; this
+  // reads the same D24S8 buffer after every drawn range, inside a window because
+  // a full-plane readback per range would be 259 copies of 3.4 MB. Same rule as
+  // the pass family: inert unless a capture frame is armed AND a prefix is set.
+  void setRangeDepthPrefix(std::wstring prefix) { rangeDepthPrefix_ = std::move(prefix); }
+  void setRangeDepthWindow(unsigned x, unsigned y, unsigned width, unsigned height) {
+    rangeDepthWindow_[0] = x;
+    rangeDepthWindow_[1] = y;
+    rangeDepthWindow_[2] = width;
+    rangeDepthWindow_[3] = height;
+  }
+  // Negative control: the ordinal of one drawn range to omit. Honoured only while
+  // the probe is armed, so a product run cannot reach it by accident.
+  void setRangeDepthSkip(int index) { rangeDepthSkipIndex_ = index; }
+  int rangeDepthWritten() const { return rangeDepthWritten_; }
+  bool lastRangeDepthSucceeded() const { return rangeDepthSucceeded_; }
+  // Recorded at each depth-state bind site. A per-pass dump prints this label
+  // next to the plane, so the state a pass was drawn with is read where it was
+  // bound rather than claimed by a comment.
+  void noteDepthState(const char* label) { lastDepthStateLabel_ = label; }
 
 private:
   struct CameraPreset {
@@ -1595,6 +1770,13 @@ private:
   // the frame's own states back afterwards. Private because it must only ever be
   // reached from draw() at the one point where the world and ViewModel passes
   // have finished -- a HUD drawn mid-frame would be a HUD drawn under geometry.
+  // U4 step 2b: the draw body, once per pane. draw() calls it once with
+  // paneCount 1; drawSplit() once per pane. paneCount is a parameter rather than
+  // a member read so a call cannot see a count from a different frame.
+  bool drawPaneInternal(float clearRed, float clearGreen, float clearBlue,
+                        std::uint32_t paneIndex, std::uint32_t paneCount);
+  // Copy the orbit/observer members into paneCameras_[0] at frame start.
+  void syncPrimaryPaneCamera();
   void drawHudPass();
   void releaseTarget();
   bool createTarget(UINT width, UINT height);
@@ -1606,6 +1788,13 @@ private:
   bool writeBackBufferToFile(const std::wstring& path);
   // 16-bit P5 dump of capturedDepth_, the depth this frame's world pixels carry.
   bool writeWorldDepthToPgm(const std::wstring& path);
+  // R1: one P5 writer for both artefacts (the frame's world depth and each
+  // per-pass plane), so the two can be compared byte for byte.
+  bool writeDepthPlanePgm(const std::wstring& path, const std::vector<float>& plane,
+    int width, int height, unsigned long long* bytes);
+  void capturePassDepth(const char* name);
+  // R1b: per-range depth inside 50-entities; see the definition for the window.
+  void captureRangeDepth(const char* phase, int rangeIndex, int blended, int materialSlot);
   // T24: the three pass-level lighting controls as the draw will upload them.
   // One implementation each, read by both the constant buffer and the frame
   // sample, so "what the settings asked for" and "what the shader got" cannot
@@ -1638,10 +1827,45 @@ private:
   Microsoft::WRL::ComPtr<ID3D11VertexShader> modelVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> entityModelVertexShader_;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> worldPixelShader_;
+  // W-1 perf: the discard-free sky shader. Same colour as the world shader's
+  // sky branch, but early-depth-rejectable, which is what the deferred draw
+  // needs to stop shading the pixels the world already covers.
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> skyPixelShader_;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> modelPixelShader_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> worldInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> modelInputLayout_;
   Microsoft::WRL::ComPtr<ID3D11InputLayout> entityModelInputLayout_;
+  // N05 (2026-11-15): the per-triangle vertex colour the buffer was built with.
+  // Kept because the GPU buffer is D3D11_USAGE_DEFAULT and cannot be read back,
+  // and the black point at 849 needs exactly this number: the CPU trace computes
+  // albedo from the material chain, while the pixel shader multiplies by COLOR0.
+  std::vector<std::array<float, 4>> worldTriangleColour_;
+  // N05: the box-space positions the buffer holds for each triangle. The oracle
+  // projects displayMap's vertices; the id frame numbers the buffer's. If those
+  // two orders ever drift, every downstream comparison is between different
+  // triangles -- which is exactly what tri=19539 landing on "no face" looks like.
+  std::vector<std::array<float, 9>> worldTrianglePosition_;
+  // N05: which triangles the index buffer actually references. The vertex buffer
+  // holding a triangle is not the same claim as the draw calling it: the id frame
+  // showed no face at a pixel whose triangle IS in the vertex buffer at the right
+  // ordinal, so this flag is what separates "not drawn" from "drawn and hidden".
+  std::vector<char> worldTriangleDrawn_;
+  int worldIsolatedTriangle_ = -1;
+  // N05 step 3: the clip-capture channel. The shader is a passthrough geometry
+  // shader over the world VS (see native_renderer_shaders.cpp); the target is a
+  // three-vertex stream-output buffer with a staging twin to read it back. All
+  // of it is released in shutdown() with the world buffer it describes.
+  Microsoft::WRL::ComPtr<ID3D11GeometryShader> worldClipCaptureGeometryShader_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldClipCaptureBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldClipCaptureReadback_;
+  bool worldClipCaptureRequested_ = false;
+  bool worldClipCaptureValid_ = false;
+  bool worldClipCaptureAttempted_ = false;
+  std::string worldClipCaptureFailure_ = "no capture has run on this device";
+  float worldClipCaptureVertex_[12] = {};
+  unsigned int worldClipCaptureIndex_[3] = {};
+  float worldClipCaptureViewport_[4] = {};
+  unsigned int worldClipCaptureConstantsHash_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldVertexBuffer_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;
@@ -1845,6 +2069,9 @@ private:
     bool noCull = false;
     bool translucent = false;
     std::uint32_t materialFlags = 0;
+    // The material slot this run was built for, carried so the range probe can
+    // name the range in the same terms the entity trace uses.
+    std::uint32_t materialSlot = 0;
     ID3D11ShaderResourceView* secondTextureView = nullptr;
     VmtMaterialProxy proxy;
     float proxyScrollU = 0.0f;
@@ -2057,6 +2284,7 @@ private:
   std::size_t worldTilesRefusedMalformed_ = 0;
   std::size_t worldTilesRefusedDuplicate_ = 0;
   std::size_t worldTilesRefusedBudget_ = 0;
+  std::size_t worldTilesRefusedTranslucent_ = 0;
   std::size_t worldAtlasBatches_ = 0;
   std::size_t worldAtlasBlendBatches_ = 0;
   std::uint64_t worldAtlasLayerBytes_ = 0;
@@ -2071,6 +2299,8 @@ private:
   std::size_t weaponDrawsWithWorldAtlas_ = 0;
   std::size_t worldDrawsWithWeaponTexture_ = 0;
   std::size_t worldBatchDrawCalls_ = 0;
+  int worldBatchesIndexedAtDraw_ = -1;
+  unsigned int worldIndexCountAtDraw_ = 0;
   std::size_t worldBatchTexturedDrawCalls_ = 0;
   void bindSlot0(ID3D11ShaderResourceView* view, const char* pass);
   bool isWorldAtlasView(const ID3D11ShaderResourceView* view) const;
@@ -2147,6 +2377,8 @@ private:
   // reported draws=1 -- the reading described its own copy of the condition
   // rather than the pass. This field can only be true if the Draw call ran.
   bool worldSkyDrewThisFrame_ = false;
+  bool worldSkyFarPlane_ = false;
+  bool worldSkyDedicatedShader_ = false;
   WorldSkyState worldSkyState_ = WorldSkyState::Unavailable;
   std::string worldSkyReason_ = "no sky box was uploaded";
   // The pvs draw list: an index buffer over the world vertex buffer, rebuilt
@@ -2192,6 +2424,7 @@ private:
   bool worldBlendEnabled_ = true;
   bool worldTerrainOnly_ = false;
   bool worldRefusedMask_ = false;
+  bool worldAtlasTranslucentRescue_ = true;
   // T26: upload the sky-brush polygons instead of the world triangles, and/or
   // bake the face index into the vertex colour. Both are diagnostic-only and
   // both are read by `uploadWorldGeometry`, which is why they are set before the
@@ -2305,6 +2538,26 @@ private:
   bool depthCaptureSucceeded_ = false;
   unsigned long long depthCaptureBytes_ = 0;
   std::wstring captureError_;
+  // R1: per-pass depth channel. An empty prefix is the product default and every
+  // dump point returns on that test alone.
+  std::wstring passDepthPrefix_;
+  int passDepthIndex_ = 0;
+  int passDepthWritten_ = 0;
+  bool passDepthSucceeded_ = true;
+  std::wstring rangeDepthPrefix_;
+  // The window-scoped plane the previous drawn range left, so each range is
+  // credited with the pixels it changed. Empty on the first draw of a frame.
+  std::vector<float> rangeDepthPrev_;
+  // Reused whole-plane staging copy: the per-draw readback is a full CopyResource
+  // (see the note in the definition) and reallocating 3.4 MB per draw was both
+  // wasteful and the thing that hid the copy bug.
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> rangeDepthStaging_;
+  unsigned rangeDepthWindow_[4] = {0, 0, 0, 0};
+  int rangeDepthIndex_ = 0;
+  int rangeDepthWritten_ = 0;
+  bool rangeDepthSucceeded_ = true;
+  int rangeDepthSkipIndex_ = -1;
+  const char* lastDepthStateLabel_ = "none";
   // ---- T51: the HUD pass's own state --------------------------------------
   // Deliberately small and entirely separate from every other pass: a vertex
   // buffer of screen-space quads, the list it was built from, and the readings
@@ -2330,11 +2583,36 @@ private:
   std::size_t hudPassOrdinal_ = 0;
   bool hudScissorApplied_ = false;
   HudPixelRectLast hudLastRegion_{};
+  // U4 step 1: the pane contract readings for the last draw, and the draw
+  // counter that proves the reading was refreshed (a stale reading would make
+  // every rule look satisfied on a frame that never ran).
+  PaneBoundaryReadings paneBoundary_{};
+  std::uint32_t paneDrawOrdinal_ = 0;
+  // U4 step 2b: per-pane camera states and the pane being drawn. Only pane 0 is
+  // mirrored from the orbit/observer members (syncPrimaryPaneCamera); pane 1 is
+  // written by setPaneCameraOrbit alone. paneDepthClears_ counts whole-surface
+  // depth clears per frame so the budget trace can state one; framePassOrdinal_
+  // is reset once per frame (pane 0) and then grows across panes.
+  PaneCameraState paneCameras_[kPaneMaxPanes]{};
+  std::uint32_t paneIndexThisDraw_ = 0;
+  std::uint32_t paneCountThisDraw_ = 1;
+  std::uint32_t paneDepthClears_ = 0;
   // T67: the embedded font atlas and its point sampler. The table is compiled
   // into the binary, so these are created once and never updated.
   Microsoft::WRL::ComPtr<ID3D11Texture2D> hudFontTexture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> hudFontView_;
   Microsoft::WRL::ComPtr<ID3D11SamplerState> hudSampler_;
+  // T68: the resident basemap image (kind 4 quads read it from t1/s1) and its
+  // linear sampler. The texture is created/updated only when the tag changes, so
+  // a static HUD uploads once.
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> hudImageTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> hudImageView_;
+  Microsoft::WRL::ComPtr<ID3D11SamplerState> hudImageSampler_;
+  UINT hudImageWidth_ = 0;
+  UINT hudImageHeight_ = 0;
+  UINT hudImageMipLevels_ = 0;
+  std::string hudImageTag_;
+  std::size_t hudImageQuads_ = 0;
 };
 
 } // namespace tf2::native

@@ -32,26 +32,24 @@
 # Audio only advances while playback is running, and a running playback reaches
 # a tick after a wall-clock interval that differs between two runs. So:
 #
-#   pinned  both runs are `--start-paused`, which pins the tick by
-#           construction, and the pair can be held to equality: the same tick,
-#           the same frame, the same metrics row, the same trace, drawn=1.
-#           A paused scheduler does not advance, so this pair says nothing about
-#           audio -- its audio readings are 0 on both sides and are not treated
-#           as evidence about the switch.
-#   live    both runs play for real to a capture tick of 600. This is where the
-#           scheduler advances and the device is really asked for, so it is
-#           where the audio contract is asserted, including the identities that
-#           tie the two sides together: the quiet run must have *seen* exactly
-#           what the normal run saw, must have played nothing, and must have
-#           skipped exactly the events the normal run played. `drawn` and the
-#           tick at which the capture fires are clock readings here; they are
-#           reported and bounded, not compared.
+#   pinned  both runs are `--start-paused` and `--audio-disabled`, which pins
+#           the tick by construction, and the pair can be held to equality: the
+#           same tick, the same frame, the same metrics row, the same trace,
+#           drawn=1. A paused scheduler does not advance, so this pair says
+#           nothing about audio playback.
+#   live    the default live half is one quiet run that plays for real to a
+#           capture tick of 600 with `--audio-disabled`. It proves playback
+#           advances headlessly and opens no device. The full normal/quiet live
+#           pair -- where the device is really asked for, so the audio contract
+#           is asserted with a control side that played something -- is opt-in
+#           with `--device`, because that side is audible (I-29).
 #
 # No demo means no audio events, and no audio events means the quiet run's
 # `audio_device_opened=0` would be true for a reason that has nothing to do with
-# the switch. The live pair therefore asserts the control side too: on this pair
-# the normal run has to have opened the device and played something, or the
-# quiet readings above are vacuous.
+# the switch. The headless live half therefore asserts events_seen >= 1 and
+# events_skipped_disabled >= 1 on the same run. When `--device` is given, the
+# live pair asserts the control side too: the normal run has to have opened the
+# device and played something, or the quiet readings are vacuous.
 #
 # WHERE THE ARTIFACTS GO
 # ----------------------
@@ -60,16 +58,25 @@
 # bitmaps and four traces untracked in a tree whose `git status` is part of the
 # handoff would be noise. Set QUIET_CAPTURE_OUT to write them somewhere else.
 #
-# Usage: bash quiet-capture-check.sh [--mutation]
-#   --mutation first runs the control pairs above, then rebuilds the product
-#   with one defect reintroduced at a time and requires this file's own readings
-#   to go red, then restores the source byte-for-byte and rebuilds. Four cases:
-#   the window flag ignored, the audio flag ignored, the quiet run's capture
-#   never handed back, and the device-free sink answering `played` instead of
-#   `skipped`. See the section header below for why the restore is a copy from
-#   a scratch backup rather than `git checkout`.
+# Usage: bash quiet-capture-check.sh [--device|--pinned-only] [--mutation]
+#   The default is headless-safe: the pinned pair (both sides `--audio-disabled`)
+#   plus one live quiet run, and no audio device is ever opened. That is the
+#   I-29 repair; the old default ran the live "normal" side without
+#   `--audio-disabled` and therefore opened device 6.
+#   --device   also runs the live normal/quiet pair (AUDIBLE on device 6). This
+#              is the opt-in control that proves the device path still works.
+#   --pinned-only  runs only the pinned pair (no live playback at all).
+#   --mutation rebuilds the product with one defect at a time and requires this
+#              file's own readings to go red. It needs --device because two of
+#              its four cases mutate the device path; without --device it
+#              refuses rather than silently measuring a different claim.
+#   Four cases: the window flag ignored, the audio flag ignored, the quiet run's
+#   capture never handed back, and the device-free sink answering `played`
+#   instead of `skipped`. See the section header below for why the restore is a
+#   copy from a scratch backup rather than `git checkout`.
 # Exit: 0 = every assertion held (or, with --mutation, every mutation went red
-#   and every control reading held); 1 = something did not.
+#   and every control reading held); 1 = something did not. A missing --device
+#   under --mutation is a refusal (2), not a pass.
 
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -82,7 +89,20 @@ OUT="${QUIET_CAPTURE_OUT:-.scratch/quiet-capture}"
 mkdir -p "$OUT"
 
 MUTATION=0
-[ "${1:-}" = "--mutation" ] && MUTATION=1
+DEVICE=0
+PINNED_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --mutation) MUTATION=1 ;;
+    --device) DEVICE=1 ;;
+    --pinned-only) PINNED_ONLY=1 ;;
+    *) echo "FATAL: unknown argument: $arg" >&2; exit 2 ;;
+  esac
+done
+if [ "$MUTATION" -eq 1 ] && [ "$DEVICE" -eq 0 ]; then
+  echo "FATAL: --mutation requires --device: two cases mutate the device path, and a mutation run without it would measure a different claim" >&2
+  exit 2
+fi
 
 # Missing input is a failure, not a skip: a quiet-capture gate that quietly
 # SKIPs when the binary or the demo is absent would report success for a run
@@ -105,7 +125,7 @@ done
 PINNED_TICK=0
 LIVE_TICK=600
 PINNED_CHECKS=39
-LIVE_CHECKS=45
+LIVE_CHECKS=47
 
 # How long a run gets before its capture is declared missing. The load phase
 # (VPK index, demo scan, 52 model uploads) measured ~28 s on this machine, the
@@ -158,6 +178,24 @@ pvalue() { # pvalue <probe-output> <field>
   grep -oE "$2=[^ ]*" "$1" 2>/dev/null | head -1 | cut -d= -f2
 }
 
+# Reads one field out of a product trace line. The product writes one summary
+# line per run, so the caller passes the line it selected, not the whole file.
+tfield() { # tfield <line> <field>
+  printf '%s' "$1" | grep -oE "$2=[^ ]*" | head -1 | cut -d= -f2
+}
+
+# I-28: "$PWD/$path" is only right for a relative path. A caller that redirects
+# QUIET_CAPTURE_OUT to an absolute directory got "$PWD//d/_shared/..." and the
+# trace never opened, which reads as "the product wrote no trace" instead of
+# "the gate built a shadow path". Absolute paths pass through; a relative path
+# is anchored at the repository root.
+abs_win_path() {
+  case "$1" in
+    /*|[A-Za-z]:*) cygpath -m "$1" ;;
+    *)            cygpath -m "$PWD/$1" ;;
+  esac
+}
+
 # Runs the program once. Kept in one place so both pairs, every mutation and the
 # trace path all agree on how a run is launched.
 run_one() { # run_one <output-prefix> [args...]
@@ -166,12 +204,14 @@ run_one() { # run_one <output-prefix> [args...]
   # TF2_NATIVE_TRACE is read with GetEnvironmentVariableW and opened by the
   # program, so it needs the Windows form of the path; cygpath -m gives it
   # without the doubled backslashes the MSYS layer rewrites.
-  local trace
-  trace="$(cygpath -m "$PWD/$prefix.trace")"
+  local trace bmp csv
+  trace="$(abs_win_path "$prefix.trace")"
+  bmp="$(abs_win_path "$prefix.bmp")"
+  csv="$(abs_win_path "$prefix.csv")"
   TF2_NATIVE_TRACE="$trace" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
     --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" "$@" \
-    --capture-frame "$prefix.bmp" --metrics-file "$prefix.csv" > "$prefix.log" 2>&1
+    --capture-frame "$bmp" --metrics-file "$csv" > "$prefix.log" 2>&1
   echo "$?"
 }
 
@@ -203,9 +243,9 @@ run_pinned_pair() { # run_pinned_pair <prefix-base>
   report_run "pinned normal" "$pn" "$pn_rc"
   report_run "pinned quiet " "$pq" "$pq_rc"
   "$PROBE" --mode pinned --capture-tick "$PINNED_TICK" \
-    --normal-trace "$pn.trace" --quiet-trace "$pq.trace" \
-    --normal-metrics "$pn.csv" --quiet-metrics "$pq.csv" \
-    --normal-bmp "$pn.bmp" --quiet-bmp "$pq.bmp" > "$OUT/$base-probe.txt" 2>&1
+    --normal-trace "$(abs_win_path "$pn.trace")" --quiet-trace "$(abs_win_path "$pq.trace")" \
+    --normal-metrics "$(abs_win_path "$pn.csv")" --quiet-metrics "$(abs_win_path "$pq.csv")" \
+    --normal-bmp "$(abs_win_path "$pn.bmp")" --quiet-bmp "$(abs_win_path "$pq.bmp")" > "$OUT/$base-probe.txt" 2>&1
   local rc=$?
   echo "$rc" > "$OUT/$base-probe.rc"
   cat "$OUT/$base-probe.txt"
@@ -234,6 +274,10 @@ apply_pinned_assertions() { # apply_pinned_assertions <probe-out> <probe-rc> <no
   # has nothing to do with the switch.
   assert_eq "normal window_created" "$(pvalue "$f" normal.window_created)" "1"
   assert_eq "normal window_visible" "$(pvalue "$f" normal.window_visible)" "1"
+  # I-29: the paused control side must not open a device either. It is the only
+  # non-`--audio-disabled` process in the default run, and "paused" is what makes
+  # that safe; this reading is what proves it on the actual run.
+  assert_eq "normal audio_device_opened" "$(pvalue "$f" normal.audio_device_opened)" "0"
   assert_eq "normal drawn" "$(pvalue "$f" normal.drawn)" "1"
   assert_eq "normal capture_written" "$(pvalue "$f" normal.capture_written)" "1"
   assert_eq "normal exit" "$(pvalue "$f" normal.exit)" "0"
@@ -263,9 +307,9 @@ run_live_pair() { # run_live_pair <prefix-base>
   report_run "live normal" "$ln" "$ln_rc"
   report_run "live quiet " "$lq" "$lq_rc"
   "$PROBE" --mode live --capture-tick "$LIVE_TICK" \
-    --normal-trace "$ln.trace" --quiet-trace "$lq.trace" \
-    --normal-metrics "$ln.csv" --quiet-metrics "$lq.csv" \
-    --normal-bmp "$ln.bmp" --quiet-bmp "$lq.bmp" > "$OUT/$base-probe.txt" 2>&1
+    --normal-trace "$(abs_win_path "$ln.trace")" --quiet-trace "$(abs_win_path "$lq.trace")" \
+    --normal-metrics "$(abs_win_path "$ln.csv")" --quiet-metrics "$(abs_win_path "$lq.csv")" \
+    --normal-bmp "$(abs_win_path "$ln.bmp")" --quiet-bmp "$(abs_win_path "$lq.bmp")" > "$OUT/$base-probe.txt" 2>&1
   local rc=$?
   echo "$rc" > "$OUT/$base-probe.rc"
   cat "$OUT/$base-probe.txt"
@@ -301,18 +345,27 @@ apply_live_assertions() { # apply_live_assertions <probe-out> <probe-rc> <normal
   # The accounting, tied across the two sides. Same timeline in, same seen,
   # same missing; the only difference is the last step, and `skipped` is the
   # answer that names it. Each side also closes on its own.
-  local n_seen q_seen n_played q_played n_skipped q_skipped n_missing q_missing
+  local n_seen q_seen n_played q_played n_skipped q_skipped n_skipped_disabled q_skipped_disabled
+  local n_missing q_missing
   n_seen=$(pvalue "$f" normal.events_seen); q_seen=$(pvalue "$f" quiet.events_seen)
   n_played=$(pvalue "$f" normal.events_played); q_played=$(pvalue "$f" quiet.events_played)
   n_skipped=$(pvalue "$f" normal.events_skipped); q_skipped=$(pvalue "$f" quiet.events_skipped)
+  n_skipped_disabled=$(pvalue "$f" normal.events_skipped_disabled)
+  q_skipped_disabled=$(pvalue "$f" quiet.events_skipped_disabled)
   n_missing=$(pvalue "$f" normal.events_missing); q_missing=$(pvalue "$f" quiet.events_missing)
   assert_eq "events_seen normal == quiet" "$q_seen" "$n_seen"
   assert_eq "events_missing normal == quiet" "$q_missing" "$n_missing"
-  assert_eq "quiet events_skipped == normal events_played" "$q_skipped" "$n_played"
-  assert_eq "quiet accounting closes (seen = played+skipped+missing)" \
-    "$q_seen" "$(( ${q_played:-0} + ${q_skipped:-0} + ${q_missing:-0} ))"
-  assert_eq "normal accounting closes (seen = played+skipped+missing)" \
-    "$n_seen" "$(( ${n_played:-0} + ${n_skipped:-0} + ${n_missing:-0} ))"
+  assert_eq "quiet events_skipped+skipped_disabled == normal events_played" \
+    "$(( ${q_skipped:-0} + ${q_skipped_disabled:-0} ))" "$n_played"
+  # AUD-10: the disabled class is a reading of its own, and on this pair it is
+  # the side that carries the skip. Without these two the folded counter could
+  # come back and nothing here would notice.
+  assert_ge "quiet events_skipped_disabled" "$q_skipped_disabled" 1
+  assert_eq "normal events_skipped_disabled" "$n_skipped_disabled" "0"
+  assert_eq "quiet accounting closes (seen = played+skipped+skippedDisabled+missing)" \
+    "$q_seen" "$(( ${q_played:-0} + ${q_skipped:-0} + ${q_skipped_disabled:-0} + ${q_missing:-0} ))"
+  assert_eq "normal accounting closes (seen = played+skipped+skippedDisabled+missing)" \
+    "$n_seen" "$(( ${n_played:-0} + ${n_skipped:-0} + ${n_skipped_disabled:-0} + ${n_missing:-0} ))"
 
   # The picture, and the fact that both runs really got to the requested tick.
   assert_eq "$tag bmp_identical" "$(pvalue "$f" bmp_identical)" "1"
@@ -329,18 +382,63 @@ apply_live_assertions() { # apply_live_assertions <probe-out> <probe-rc> <normal
   assert_eq "$tag probe status" "$(pvalue "$f" status)" "pass"
 }
 
-echo "=== 1/2 pinned pair: same demo, same tick (paused), same frame ==="
+# The headless live run is the default half of the I-29 repair. It advances the
+# scheduler for real (so `events_seen` and `events_skipped_disabled` are live)
+# but never asks for a device. It has no normal/quiet pair: with both sides
+# disabled there is no device contract to compare, and saying there is would be
+# the exact false claim this gate exists to prevent.
+run_headless_live() {
+  local prefix="$OUT/headless-live" rc mode summary timeline
+  rc=$(run_one "$prefix" --hidden-window --audio-disabled \
+    --capture-tick "$LIVE_TICK" --demo "$BAGEL")
+  report_run "headless live" "$prefix" "$rc"
+  assert_eq "headless live run rc" "$rc" "0"
+  assert_ge "headless live bmp bytes" "$(stat -c%s "$prefix.bmp" 2>/dev/null || echo 0)" 1
+  if [ ! -s "$prefix.trace" ]; then
+    assert_eq "headless live trace present" "0" "1"
+    return
+  fi
+  mode=$(grep -a 'mode: summary' "$prefix.trace" | tail -1)
+  summary=$(grep -a 'audio: summary' "$prefix.trace" | tail -1)
+  timeline=$(grep -a 'audio: timeline' "$prefix.trace" | tail -1)
+  assert_eq "headless live window_visible" "$(tfield "$mode" window_visible)" "0"
+  assert_eq "headless live audio_mode" "$(tfield "$mode" audio_mode)" "disabled"
+  assert_eq "headless live device_opened" "$(tfield "$mode" audio_device_opened)" "0"
+  assert_eq "headless live open_attempts" "$(tfield "$mode" audio_device_open_attempts)" "0"
+  assert_eq "headless live opens_ok" "$(tfield "$mode" audio_device_opens_ok)" "0"
+  assert_eq "headless live events_played" "$(tfield "$mode" events_played)" "0"
+  assert_ge "headless live events_seen" "$(tfield "$mode" events_seen)" 1
+  assert_ge "headless live skipped_disabled" "$(tfield "$mode" events_skipped_disabled)" 1
+  assert_ge "headless live soundEventsRead" "$(tfield "$summary" soundEventsRead)" 1
+  assert_ge "headless live timeline read" "$(tfield "$timeline" read)" 1
+}
+
+echo "=== 1/3 pinned pair: same demo, same tick (paused), same frame ==="
 run_pinned_pair control-pinned
 
 echo
-echo "=== 2/2 live pair: the scheduler advances and the device is asked for ==="
-run_live_pair control-live
+if [ "$PINNED_ONLY" -eq 1 ]; then
+  echo "=== 2/3 live playback (skipped: --pinned-only) ==="
+  echo "LIVE-DEVICE=SKIPPED reason=pinned-only"
+elif [ "$DEVICE" -eq 1 ]; then
+  echo "=== 2/3 live pair: the scheduler advances and device 6 is asked for (AUDIBLE) ==="
+  run_live_pair control-live
+else
+  echo "=== 2/3 headless live run: playback advances, no device is opened ==="
+  run_headless_live
+fi
 
 control_fail=$fail
 if [ "$MUTATION" -eq 0 ]; then
   echo
   if [ "$fail" -eq 0 ]; then
-    echo "QUIET-CAPTURE=PASS"
+    if [ "$PINNED_ONLY" -eq 1 ]; then
+      echo "QUIET-CAPTURE=PASS (pinned-only; live-device=SKIPPED)"
+    elif [ "$DEVICE" -eq 1 ]; then
+      echo "QUIET-CAPTURE=PASS (pinned + live device-6 pair)"
+    else
+      echo "QUIET-CAPTURE=PASS (pinned + headless live; device-pair=SKIPPED)"
+    fi
   else
     echo "QUIET-CAPTURE=FAIL"
   fi
@@ -475,7 +573,10 @@ apply_expectations() { # apply_expectations <name> <control-probe> <mutated-prob
       # device counter must not move -- the defect is in the accounting, and the
       # accounting is what has to catch it.
       expect_moved "$1" quiet.events_played "$2" "$3"
-      expect_moved "$1" quiet.events_skipped "$2" "$3"
+      # AUD-10: with the classes separated, the sink that answers "played"
+      # empties events_skipped_disabled and fills events_played; the voice
+      # class never moves, so that is not the reading this mutation hits.
+      expect_moved "$1" quiet.events_skipped_disabled "$2" "$3"
       expect_held  "$1" quiet.audio_device_opened "$2" "$3"
       expect_held  "$1" quiet.window_visible "$2" "$3"
       expect_held  "$1" quiet.capture_written "$2" "$3"

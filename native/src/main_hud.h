@@ -83,6 +83,9 @@ void hudApplyRects(HWND window);
 // the two documented switches. Passed in rather than read from the command line a
 // second time: a substring search for "--hud-off" also matches a path operand that
 // happens to contain it, and an unregistered flag is invisible to --strict-args.
+// mapName: the demo's own map (DemoHeader::mapName), which is what selects the
+// overview panel's base image and bounds row -- the panel and the demo cannot
+// disagree about which map is being watched.
 // relayEntity: the entity the spectate relay is watching this frame
 // (SpectateDirector::targetIndex(), -1 when it has no answer), and relayValid
 // (focusValid()). T126: the readout's name is the watched player's, and these
@@ -90,6 +93,7 @@ void hudApplyRects(HWND window);
 // pair is passed even when invalid so the fallback to the demo's view entity is
 // a reading the trace can publish, not a rescue a reader has to infer.
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
+  const std::string& mapName,
   const tf2::native::main_internal::PlaybackState& playback,
   const tf2::native::PlaybackHudState& target,
   const std::vector<tf2::native::EntityState>& states,
@@ -99,5 +103,25 @@ void hudUpdateStatus(HWND window);
 void hudImportInteractive(HWND window);
 void hudTogglePreview(HWND window);
 void hudResetToDefault(HWND window);
+
+// N13 step 1 (2026-11-15): the follow trace line's name fields.
+//
+// The player a follow command pinned is normally also the player the HUD readout
+// is watching, and that readout's name is ALREADY resolved by hudLiveResolveName
+// (main_hud.cpp). This is a thin accessor over that same function -- not a second
+// resolver -- so the readout and the follow line can never disagree about what
+// entity 5 is called. The reason token is passed through verbatim, which is what
+// lets a gate grep the readout's own vocabulary out of the follow line.
+struct FollowNameInfo {
+  bool known = false;
+  std::string display;
+  // "userinfo" when the name came out of the demo's user-info table, "none" when
+  // it did not. Printed so nameKnown=1 with an empty name can never be read as a
+  // resolved name.
+  std::string source;
+  std::string reason;
+};
+FollowNameInfo hudFollowResolveName(const tf2::native::DemoNetworkSummary& summary,
+  std::int32_t entityIndex, std::int32_t playbackTick);
 
 }  // namespace tf2::native::main_internal

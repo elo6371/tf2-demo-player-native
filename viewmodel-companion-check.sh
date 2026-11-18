@@ -18,13 +18,18 @@
 #              (an OK line count and a total), because a battery that silently
 #              stopped running would otherwise look like a battery that passed.
 #   Section 2  the proof on the entity's own model, on the pinned recording, at
-#              three ticks DERIVED from a history run rather than hardcoded. The
-#              three ticks carry three different sequences, so "the reading moves
-#              across ticks" is a fact about this run and not about the tick
-#              numbers chosen. Three witness frames, pairwise byte-different.
+#              three EXPLICIT ticks inside the window the history run covers. This
+#              recording holds one sequence for its whole window, so the ticks
+#              cannot be told apart by the sequence they carry: they are told apart
+#              by being three different, increasing points of the window, and each
+#              witness is checked to have been asked for its own tick and to have
+#              reached it. Three witness frames, pairwise byte-different. Whether
+#              the reader FOLLOWS a sequence change is not askable here; that claim
+#              is covered on the matcha recording, see
+#              viewmodel-animation-check.sh:574-577.
 #   Section 3  the accepted pose, CONSTRUCTED because this recording cannot reach
-#              it: the entity carries sequences 1, 29 and 30, and the model it
-#              names can pose sequence 0 and nothing else. The sequence to use is
+#              it: the recording carries one sequence (28), and the model the entity
+#              names can pose sequence 1 and nothing else. The sequence to use is
 #              read out of the model itself and named on the command line, where
 #              every reading line reports it as `sequenceOverride=`. This is the
 #              only positively correct picture in the round and it is the reason
@@ -103,6 +108,15 @@ VM_MODEL=${VM_MODEL%$'\r'}
 ENTITY_MODEL=${ENTITY_MODEL%$'\r'}
 
 TRACE_DIR="${VIEWMODEL_COMPANION_TRACE_DIR:-evidence/fast/viewmodel-companion}"
+# The product opens TF2_NATIVE_TRACE with _wfopen_s on the literal environment
+# value (native/src/main_trace.cpp:79-86): an MSYS /d/... path is read by Win32 as
+# "\d\..." relative to the current drive and the open silently fails, so the trace
+# would never appear while the capture still lands. Hand it a Windows path.
+case "$TRACE_DIR" in
+  [A-Za-z]:[\\/]*) TRACE_PRODUCT_DIR="$TRACE_DIR" ;;
+  /*) TRACE_PRODUCT_DIR=$(cygpath -m "$TRACE_DIR") ;;
+  *) TRACE_PRODUCT_DIR="$ROOT/$TRACE_DIR" ;;
+esac
 mkdir -p "$TRACE_DIR"
 mkdir -p .scratch
 LOCK_DIR=.scratch/viewmodel-companion.lock
@@ -209,6 +223,47 @@ byte_diff() {
   if [ ! -s "$1" ] || [ ! -s "$2" ]; then echo -1; return; fi
   cmp -l "$1" "$2" 2>/dev/null | wc -l | tr -d ' '
 }
+# trace_distinct_sequences <trace> -> how many distinct sequence= values the
+# vmAnim entity lines carry. Counted from the trace itself so a copy of a trace can
+# be forged in a control and has to move the number.
+trace_distinct_sequences() {
+  awk '/scene: vmAnim entity/ {
+         for (i = 1; i <= NF; ++i) if ($i ~ /^sequence=/) seen[substr($i, 10)] = 1
+       }
+       END { print length(seen) }' "$1"
+}
+# trace_sequence_range <trace> -> "min..max" of the same values, "" if there is none.
+trace_sequence_range() {
+  awk '/scene: vmAnim entity/ {
+         for (i = 1; i <= NF; ++i) if ($i ~ /^sequence=/) {
+           v = substr($i, 10) + 0
+           if (n == 0 || v < lo) lo = v
+           if (n == 0 || v > hi) hi = v
+           n++
+         }
+       }
+       END { if (n == 0) print ""; else print lo ".." hi }' "$1"
+}
+# trace_first_tick / trace_last_tick <trace> -> the window the run covers, read off
+# the scene: begin lines rather than assumed from --capture-tick.
+trace_first_tick() {
+  awk '/scene: begin/ { for (i = 1; i <= NF; ++i) if ($i ~ /^tick=/) { v = $i; sub("tick=", "", v); print v; exit } }' "$1"
+}
+trace_last_tick() {
+  awk '/scene: begin/ { for (i = 1; i <= NF; ++i) if ($i ~ /^tick=/) { v = $i; sub("tick=", "", v); last = v } }
+       END { print last }' "$1"
+}
+# witness_ticks_ok <start> <end> <t0> <t1> <t2> -> ok | not-numeric |
+# outside-window | not-increasing. The three witness ticks are explicit, so the
+# only thing that keeps them honest is that the selector can refuse: a tick
+# outside the window and a repeated tick are the two mistakes it exists to catch
+# (both are exercised as controls where the history window is known).
+witness_ticks_ok() {
+  case "$1$2$3$4$5" in ''|*[!0-9]*) echo "not-numeric"; return ;; esac
+  if [ "$3" -lt "$1" ] || [ "$5" -gt "$2" ]; then echo "outside-window"; return; fi
+  if [ "$3" -ge "$4" ] || [ "$4" -ge "$5" ]; then echo "not-increasing"; return; fi
+  echo ok
+}
 
 # ---------------------------------------------------------------------------
 # Pinned inputs
@@ -227,6 +282,9 @@ while read -r size sha256 root name; do
   case "$root" in
     steam)    path="$TF/demos/$name" ;;
     testdata) path="$TESTDATA_ROOT/$name" ;;
+    # N01 plan A: the archive root names the directory, not a tree, because the
+    # replacement POV lives under a per-map folder there.
+    archive-pov) path="E:/demo测试/pl_upward_f12/POV/$name" ;;
     *) echo "  FAIL unknown root '$root' for $name"; fail=1; continue ;;
   esac
   if [ ! -f "$path" ]; then
@@ -243,7 +301,7 @@ while read -r size sha256 root name; do
   echo "  OK   $name pinned ($size bytes, ${sha256:0:16}...)"
   PINNED=$((PINNED + 1))
   case "$name" in
-    autorecord_2026-07-02_13-26-46.dem) DEMO_POV="$path" ;;
+    autorecord_2026-08-08_21-43-59.dem) DEMO_POV="$path" ;;
   esac
 done < "$INPUTS"
 assert_ge "pinned recordings verified" "$PINNED" 1
@@ -448,7 +506,15 @@ retry_selftest() {
   # about the filesystem and not about the log being overwritten.
   stub_deny() { # stub_deny <counter> <denials>
     local counter="$1" denials="$2"
-    local n; n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$counter"
+    # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+    # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+    # The counter file can also hold something that is not a count, so it is guarded.
+    local n raw
+    raw=$(cat "$counter" 2>/dev/null || echo 0)
+    case "$raw" in
+      ''|*[!0-9]*) raw=0 ;;
+    esac
+    n=$(( raw + 1 )); echo "$n" > "$counter"
     if [ "$n" -le "$denials" ]; then
       printf "timeout: failed to run command 'tf2_demo_native.exe': Permission denied\n"
       return 126
@@ -545,7 +611,7 @@ run_product() { # run_product <name> <demo> <tick> [extra...]
   rm -f "$bmp" "$TRACE_DIR/$name.csv"
   LAUNCH_DIR="$TRACE_DIR"
   attempt_launch "$name" \
-    env TF2_NATIVE_TRACE="$ROOT/$TRACE_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
+    env TF2_NATIVE_TRACE="$TRACE_PRODUCT_DIR/$name.trace" timeout "$RUN_TIMEOUT" "$EXE" \
       --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --demo "$demo" \
       --settings-file "$TRACE_DIR/$name-settings.ini" \
       --capture-frame "$bmp" --capture-tick "$tick" \
@@ -564,39 +630,102 @@ load_run() {
     | tr -d '\r' | tail -1 | sed 's/^[0-9]\{1,\}\(\.[0-9]*\)\? //')
   LAST_SUMMARY=$(grep -a "scene: vmAnim summary" "$TRACE_DIR/$name.trace" 2>/dev/null \
     | tr -d '\r' | tail -1 | sed 's/^[0-9]\{1,\}\(\.[0-9]*\)\? //')
+  # capture: armed is the product's own record of which tick it was asked for and
+  # which frame it captured: the witnesses are checked against it below.
+  LAST_ARMED=$(grep -a "capture: armed" "$TRACE_DIR/$name.trace" 2>/dev/null \
+    | tr -d '\r' | tail -1 | sed 's/^[0-9]\{1,\}\(\.[0-9]*\)\? //')
 }
 
-# The history run, which is what makes the three witness ticks derived rather
-# than chosen: it records the sequence history, and the first scene update of
-# each distinct sequence is where a witness is worth taking. A hardcoded tick
-# would be a reading about this recording's content with nothing saying how it
-# was found; deriving it means a recording change reddens the derivation instead
-# of silently comparing three frames that show the same pose.
+# --- what this recording is, and what a history run can say about it ----------
+# The recording this gate reads is the one PINNED in $INPUTS by size and sha256
+# and verified in 0/6 above; this comment deliberately does NOT copy the sha -- a
+# second copy would be a second statement of the same fact, free to rot. Today it
+# resolves to autorecord_2026-08-08_21-43-59.dem, and its characterisation is:
+#   - ONE sequence for the whole window: distinct=1, range 28..28, changes=0;
+#   - the entity's recording-local index is 998 -- an index inside this
+#     recording's entity table, NOT an index into the model's sequence table (the
+#     model's own table is pinned in section 3); the model it names is
+#     c_sniper_arms.mdl;
+#   - the model can pose sequence 1 (section 3 reads that from the model itself).
+# The pin this gate carried before (2026-10-12, 9cfc9139) said distinct=3,
+# range=1..30 and modelIndex=1032: those were read off
+# autorecord_2026-07-02_13-26-46.dem (21,856,667 B, sha c8a58501...), which is no
+# longer on disk (docs/GATE-UNBLOCK-2026-11-15.md:9). They are re-pinned here
+# because the RECORDING changed, not because the product moved: the proof itself
+# (entity model == drawn model, counted over every observation) is asserted below
+# and is green under both recordings.
+#
+# A single sequence means "does the reader FOLLOW a sequence change?" cannot be
+# asked on this recording. That claim is covered in viewmodel-animation-check.sh
+# :574-577 (pov ViewModel sequence changes >= 2 / pov distinct sequences >= 2, on
+# the matcha recording: 627 changes over 41 sequences). The two files name each
+# other so neither side can be dropped as "the other one tests it".
 run_product history "$DEMO_POV" 2000
 assert_eq "history rc" "$LAST_RC" "0"
 assert_ge "history observations" "$(field "$LAST_SUMMARY" observations)" 1000
-assert_eq "history distinct sequences" \
-  "$(awk '/scene: vmAnim entity/ { for (i = 1; i <= NF; ++i) if ($i ~ /^sequence=/) seen[substr($i, 10)] = 1 }
-          END { print length(seen) }' "$TRACE_DIR/history.trace")" "3"
-assert_eq "history sequence range" "$(field "$LAST_SUMMARY" range)" "1..30"
-TICKS=$(awk '/scene: begin/ { t = $4; sub("tick=", "", t) }
-             /scene: vmAnim entity/ { seq = "-"
-               for (i = 1; i <= NF; ++i) if ($i ~ /^sequence=/) seq = substr($i, 10)
-               if (!(seq in seen)) { seen[seq] = 1; print t } }' "$TRACE_DIR/history.trace" | head -3)
-TICK_COUNT=$(printf '%s\n' "$TICKS" | grep -c . || true)
-assert_eq "witness ticks derived" "$TICK_COUNT" "3"
-T0=$(printf '%s\n' "$TICKS" | sed -n 1p)
-T1=$(printf '%s\n' "$TICKS" | sed -n 2p)
-T2=$(printf '%s\n' "$TICKS" | sed -n 3p)
-echo "  ..   derived witness ticks: $T0 $T1 $T2"
+HIST_DISTINCT=$(trace_distinct_sequences "$TRACE_DIR/history.trace")
+HIST_RANGE=$(trace_sequence_range "$TRACE_DIR/history.trace")
+assert_eq "history distinct sequences" "$HIST_DISTINCT" "1"
+assert_eq "history sequence range" "$HIST_RANGE" "28..28"
+# Negative control for both pins: a forged second sequence in a COPY of the trace
+# must move both readings, or the pins above could never fail. Offscreen, the
+# product is untouched.
+CONTROL_DIR=.scratch/viewmodel-companion-controls
+mkdir -p "$CONTROL_DIR"
+awk 'BEGIN { done = 0 }
+     /scene: vmAnim entity/ && !done {
+       for (i = 1; i <= NF; ++i) if ($i == "sequence=28") { $i = "sequence=29"; done = 1; break }
+     }
+     { print }' "$TRACE_DIR/history.trace" > "$CONTROL_DIR/history-second-sequence.trace"
+assert_eq "control: a forged second sequence is counted" \
+  "$(trace_distinct_sequences "$CONTROL_DIR/history-second-sequence.trace")" "2"
+assert_eq "control: the forged trace's range moves to 28..29" \
+  "$(trace_sequence_range "$CONTROL_DIR/history-second-sequence.trace")" "28..29"
+
+# The three witness ticks are EXPLICIT points inside the window the history run
+# covers, not positions derived from sequence changes -- there are no changes on
+# this recording to derive them from. What is asserted is the mechanism: the ticks
+# lie inside the window, are distinct and increasing, and each witness run is
+# asked for its own tick and actually reaches it (checked per witness below).
+WSTART=$(trace_first_tick "$TRACE_DIR/history.trace")
+WEND=$(trace_last_tick "$TRACE_DIR/history.trace")
+case "$WSTART$WEND" in
+  ''|*[!0-9]*) assert_eq "the history window ticks are numeric" "$WSTART..$WEND" "numeric"
+               WSTART=${WSTART:-0}; WEND=${WEND:-0} ;;
+esac
+assert_gt "the history window spans more than three ticks" "$(( WEND - WSTART ))" 3
+T0=$WSTART
+T1=$(( WSTART + (WEND - WSTART) / 3 ))
+T2=$(( WSTART + (2 * (WEND - WSTART)) / 3 ))
+assert_eq "the three witness ticks are distinct and inside the window" \
+  "$(witness_ticks_ok "$WSTART" "$WEND" "$T0" "$T1" "$T2")" "ok"
+# Controls: the same selector must refuse the two mistakes the mechanism exists to
+# catch -- a tick outside the window and a repeated tick.
+assert_eq "control: the tick selection rejects a tick outside the window" \
+  "$(witness_ticks_ok "$WSTART" "$WEND" "$T0" "$T1" "$(( WEND + 1 ))")" "outside-window"
+assert_eq "control: the tick selection rejects a repeated tick" \
+  "$(witness_ticks_ok "$WSTART" "$WEND" "$T0" "$T0" "$T2")" "not-increasing"
+echo "  ..   witness ticks (explicit, inside $WSTART..$WEND): $T0 $T1 $T2"
 
 run_product witness-a "$DEMO_POV" "$T0"
 assert_eq "witness-a rc" "$LAST_RC" "0"
+# The tick mechanism, per witness: the run was asked for T0 and reached it. The
+# request is read off the product's own capture: armed line rather than echoed from
+# this script, so a launch that ignored --capture-tick would redden here.
+WITNESS_A_TICK=$(field "$LAST_ARMED" requested)
+assert_eq "witness-a was asked for its own tick" "$WITNESS_A_TICK" "$T0"
+assert_ge "witness-a reached the tick it was asked for" "$(field "$LAST_ARMED" frame_tick)" "$T0"
 # The proof itself, on the pass's own line: the model whose mesh is in the vertex
 # buffer is the model the entity's m_nModelIndex names.
 assert_eq "witness-a drawn model" "$(field "$LAST_ORDER" drawnModel)" "$ENTITY_MODEL"
 assert_eq "witness-a entity model matches the drawn model" \
   "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "1"
+# 998 is this RECORDING's local entity index -- the entity table slot the demo puts
+# this entity in -- not an index into c_sniper_arms.mdl's sequence table (that table
+# is pinned in section 3). The assertion above says the pass drew the model this
+# index names; this one says the index is the recording's. It was 1032 on the lost
+# 07-02 recording (see the block above the history run).
+assert_eq "witness-a model index is the recording's own entity" "$(field "$LAST_VMANIM" modelIndex)" "998"
 assert_eq "witness-a sequence inside the entity's own table" "$(field "$LAST_ORDER" sequenceInRange)" "1"
 assert_eq "witness-a model mismatches" "$(field "$LAST_ORDER" modelMismatch)" "0"
 assert_eq "witness-a bone mismatches" "$(field "$LAST_ORDER" boneMismatch)" "0"
@@ -609,18 +738,20 @@ assert_eq "witness-a the pass drew" "$(field "$LAST_ORDER" drawCalls)" "1"
 assert_eq "witness-a vertices" "$(field "$LAST_ORDER" vertices)" "9996"
 assert_eq "witness-a ranges" "$(field "$LAST_ORDER" ranges)" "2"
 assert_eq "witness-a distinct material slots bound" "$(field "$LAST_ORDER" boundSlots)" "2"
-# The three witnesses used to be pinned to the literals 29 / 1 / 30 as well.
-# Those were snapshots of a DERIVED tick: the witness ticks come from the run's
-# own sequence-change timings, and they moved with T60's name binding (0 / 507 /
-# 1731 on 2026-10-29 versus 0 / 814 / 1698 on 2026-10-22), so the sequence sitting
-# at each tick is a property of the derivation, not of the proof. What the proof
-# needs is that the pass reports the entity's OWN index (no override, no remap)
-# and that the three captures are three different points of the demo's cycle.
+# The witnesses are not pinned to the sequence values they sample: this recording
+# holds ONE sequence for its whole window (pinned above), so a sequence number
+# cannot tell two witnesses apart -- it would be the same number at all three ticks,
+# and "the two witnesses sample different sequences" is unaskable here. What the
+# proof needs is that the pass reports the entity's OWN index (no override, no
+# remap), that each run is asked for its own tick and reaches it, and that the three
+# captures are three different points of the demo's cycle (asserted on the frames at
+# the end of this section).
 WITNESS_A_SEQ=$(field "$LAST_VMANIM" sequence)
 assert_eq "witness-a sequence is the entity's own index" \
   "$WITNESS_A_SEQ" "$(field "$LAST_VMANIM" entitySequence)"
 assert_eq "witness-a owner is the view entity" "$(field "$LAST_VMANIM" owner)" "$(field "$LAST_VMANIM" viewEntity)"
-assert_eq "witness-a model index is the entity's own" "$(field "$LAST_VMANIM" modelIndex)" "1032"
+# (the recording-local model index assertion sits next to entityModelMatchesDrawn
+# above, where the two claims can be read together)
 assert_contains "witness-a names the entity's own model" "$LAST_VMANIM" "$(basename "$ENTITY_MODEL")"
 # Counted over every scene update of the run, not read off the last one: the pass
 # took the proof on every frame it drew, so a proof that held once and failed
@@ -634,7 +765,15 @@ assert_eq "witness-a sequences in range, counted" \
 run_product witness-b "$DEMO_POV" "$T1"
 assert_eq "witness-b rc" "$LAST_RC" "0"
 WITNESS_B_SEQ=$(field "$LAST_VMANIM" sequence)
-assert_ne "the first two witnesses sample different sequences" "$WITNESS_B_SEQ" "$WITNESS_A_SEQ"
+# The distinguishing fact is the tick, not the sequence (one sequence on this
+# recording). The pair is told apart by the request each run carries and by how far
+# it actually played; both are readings off this run, not constants.
+WITNESS_B_TICK=$(field "$LAST_ARMED" requested)
+assert_ne "the first two witnesses were asked for different ticks" "$WITNESS_B_TICK" "$WITNESS_A_TICK"
+assert_eq "witness-b was asked for its own tick" "$WITNESS_B_TICK" "$T1"
+assert_ge "witness-b reached the tick it was asked for" "$(field "$LAST_ARMED" frame_tick)" "$T1"
+assert_gt "witness-b played further into the window than witness-a" \
+  "$(trace_last_tick "$TRACE_DIR/witness-b.trace")" "$(trace_last_tick "$TRACE_DIR/witness-a.trace")"
 assert_eq "witness-b entity model matches the drawn model" \
   "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "1"
 assert_eq "witness-b model mismatches, counted" "$(field "$LAST_SUMMARY" modelMismatch)" "0"
@@ -642,22 +781,32 @@ assert_eq "witness-b sequences in range, counted" \
   "$(field "$LAST_SUMMARY" sequenceInRange)" "$(field "$LAST_SUMMARY" observations)"
 assert_gt "witness-b observations exceed witness-a's" \
   "$(field "$LAST_SUMMARY" observations)" "$(field "$(grep -a 'scene: vmAnim summary' "$TRACE_DIR/witness-a.trace" | tr -d '\r' | tail -1 | sed 's/^[0-9]\{1,\}\(\.[0-9]*\)\? //')" observations)"
-assert_ge "witness-b sequence changes" "$(field "$LAST_SUMMARY" changes)" 1
+# No "witness-b sequence changes" assertion any more: this recording holds one
+# sequence by construction (pinned above), so changes=0 is the characterisation, not
+# a defect. The claim that the reader FOLLOWS a change moved to
+# viewmodel-animation-check.sh:574-577, which runs it on the matcha recording where
+# the cursor actually moves (627 changes over 41 sequences).
 
 run_product witness-c "$DEMO_POV" "$T2" --viewmodel-apply-animation
 assert_eq "witness-c rc" "$LAST_RC" "0"
 WITNESS_C_SEQ=$(field "$LAST_VMANIM" sequence)
-assert_ne "the last two witnesses sample different sequences" "$WITNESS_C_SEQ" "$WITNESS_B_SEQ"
+WITNESS_C_TICK=$(field "$LAST_ARMED" requested)
+assert_ne "the last two witnesses were asked for different ticks" "$WITNESS_C_TICK" "$WITNESS_B_TICK"
+assert_eq "witness-c was asked for its own tick" "$WITNESS_C_TICK" "$T2"
+assert_ge "witness-c reached the tick it was asked for" "$(field "$LAST_ARMED" frame_tick)" "$T2"
+assert_gt "witness-c played further into the window than witness-b" \
+  "$(trace_last_tick "$TRACE_DIR/witness-c.trace")" "$(trace_last_tick "$TRACE_DIR/witness-b.trace")"
 assert_eq "witness-c entity model matches the drawn model" \
   "$(field "$LAST_ORDER" entityModelMatchesDrawn)" "1"
 assert_eq "witness-c model mismatches, counted" "$(field "$LAST_SUMMARY" modelMismatch)" "0"
-assert_ge "witness-c sequence changes" "$(field "$LAST_SUMMARY" changes)" 2
-# The three sequences this recording carries, and the fact that none of them is
-# the one the model can pose (section 4). Kept as a reading of THIS run so the
-# "not this recording" statement in section 4 cannot drift away from it.
+# The range is a characterisation of the recording, re-pinned with the block above:
+# this recording carries one sequence (28), and section 3 constructs the pose the
+# model can actually reach (1) because the recording never carries it. Kept as a
+# reading of THIS run so the "not this recording" statement in section 3 cannot
+# drift away from it.
 WITNESS_RANGE=$(field "$LAST_SUMMARY" range)
 WITNESS_NATURAL_OK=$(field "$LAST_SUMMARY" ok)
-assert_eq "witness-c sequence range over the run" "$WITNESS_RANGE" "1..30"
+assert_eq "witness-c sequence range over the run" "$WITNESS_RANGE" "28..28"
 # T6 moved this pair. With the declared animations companion adopted, every
 # natural observation binds BY NAME and is accepted; the pre-T6 readings (0
 # accepted, every one refused for the same reason) are what the adoption removed,
@@ -682,8 +831,9 @@ echo "  ..   witness frames differ by $AB / $BC / $AC byte positions"
 # ---------------------------------------------------------------------------
 echo
 echo "=== 3/6 the accepted pose, on the entity's own model ==="
-# The recording carries sequences 1, 29 and 30, and the model the entity names
-# can pose sequence 0 and nothing else -- so the acceptance branch is unreachable
+# This recording carries ONE sequence (28) for its whole window, and the model the
+# entity names can pose sequence 1 and nothing else -- so the acceptance branch is
+# unreachable
 # on this recording and NO amount of waiting for a tick would produce it. Leaving
 # it unobserved would leave the only positively-correct picture in this round
 # unobserved; claiming "accepted" without constructing the input would be worse.
@@ -710,7 +860,13 @@ POSE_SEQUENCE=$(field "$MODELSEQ_LINE" firstAnimated)
 # than the one named here the assertion says so before the pose run reads `ok`
 # for a reason nobody chose.
 assert_eq "the first sequence the entity's own model can pose, by name" "$POSE_SEQUENCE" "1"
-assert_eq "and the natural run carries it" "${WITNESS_RANGE%%..*}" "$POSE_SEQUENCE"
+# Split (2026-11-16): the model's own table says 1; the recording carries 28. They
+# are readings of two different objects, so they get two assertions instead of one
+# comparison that would quietly assume the recording walks over the model's first
+# posable sequence.
+RECORDING_SEQUENCE=${HIST_RANGE%%..*}
+assert_eq "the recording's carried sequence" "$RECORDING_SEQUENCE" "28"
+assert_eq "and the natural run carries the recording's sequence" "${WITNESS_RANGE%%..*}" "$RECORDING_SEQUENCE"
 
 run_product pose-accepted "$DEMO_POV" "$T0" --viewmodel-sequence "$POSE_SEQUENCE"
 assert_eq "pose-accepted rc" "$LAST_RC" "0"
@@ -742,8 +898,10 @@ assert_gt "pose-applied every observation was accepted" "$(field "$LAST_SUMMARY"
 assert_eq "pose-applied refused nothing" "$(field "$LAST_SUMMARY" missing)" "0"
 # The one-frame reference pose renders identical to the bind pose -- measured,
 # and a reading about that pose rather than about the flag -- so movement is
-# measured on the real motion pair instead: the natural run above (sequence 30,
-# unapplied) against the same sequence applied.
+# measured on the real motion pair instead: the model's own 61-frame sequence 30,
+# forced as an override, against the same sequence applied. (The recording itself
+# carries sequence 28 and stays unapplied at :886 below, so the override is named on
+# the command line and reported as one.)
 POSE_DIFF=$(byte_diff "$TRACE_DIR/pose-accepted.bmp" "$TRACE_DIR/pose-applied.bmp")
 echo "  ..   pose-accepted vs pose-applied: $POSE_DIFF byte positions differ (the reference pose equals the bind pose)"
 run_product pose-motion "$DEMO_POV" 2000 --viewmodel-sequence 30 --viewmodel-apply-animation

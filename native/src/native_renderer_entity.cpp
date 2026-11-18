@@ -131,7 +131,7 @@ void Renderer::setEntityMarkers(const std::vector<EntityMarker>& markers) {
   const auto normalize = [this](float x, float y, float z) {
     return DirectX::XMFLOAT3((x - worldCenterX_) * worldHorizontalScale_,
       (y - worldCenterY_) * worldHorizontalScale_,
-      (z - worldMinZ_) / worldSpanZ_ * 0.8f + 0.1f);
+      (z - worldMinZ_) * worldHorizontalScale_ + 0.1f);
   };
   for (std::size_t i = 0; i < markers.size() && i < maxMarkers; ++i) {
     const auto& marker = markers[i];
@@ -423,7 +423,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   world.centerY = worldCenterY_;
   world.minZ = worldMinZ_;
   world.horizontalScale = worldHorizontalScale_;
-  world.zScale = 0.8f / worldSpanZ_;
+  world.zScale = worldHorizontalScale_;
   constexpr std::size_t maxInstances = entityModelInstanceCapacityLimit;
   // A bucket is one (model, skin family) pair: the same model worn by a red and a
   // blue player shares the vertex buffer but not the paint, so it needs one range
@@ -583,6 +583,7 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       const auto materialFlags = flags == bucket.mesh->materialFlags.end() ? 0u : flags->second;
       range.noCull = (materialFlags & 256u) != 0u;
       range.materialFlags = materialFlags;
+      range.materialSlot = run.materialSlot;
       range.translucent = (materialFlags & (8u | 64u | 1024u)) != 0u;
       const auto second = bucket.mesh->secondTextures.find(
         EntityModelMesh::textureKey(run.materialSlot, bucket.skinFamily));

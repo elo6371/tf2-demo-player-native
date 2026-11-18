@@ -18,9 +18,8 @@
 # hash binding, migration) and the real bookmark collection (eventKey, sort,
 # jump) in a scratch directory, so a green run is a statement about the bytes
 # that will be written on a user's disk.
-add_executable(review_workspace_probe tools/review_workspace_probe.cpp
-  src/review_workspace.cpp src/review_bookmarks.cpp src/install_manifest.cpp)
+add_executable(review_workspace_probe tools/review_workspace_probe.cpp)
 target_include_directories(review_workspace_probe PRIVATE include)
 target_compile_definitions(review_workspace_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
-target_link_libraries(review_workspace_probe PRIVATE bcrypt)
+target_link_libraries(review_workspace_probe PRIVATE tf2_core bcrypt)
 set_target_properties(review_workspace_probe PROPERTIES WIN32_EXECUTABLE OFF)

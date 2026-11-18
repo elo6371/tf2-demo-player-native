@@ -150,11 +150,11 @@ ADVANCE_SPEED=8
 # tree). The assertion below is the proof: if that line is missing the gate goes red
 # rather than explaining the absence away.
 AUDIO_DEVICE=6
-# The published region is derived from the longest line: x=24 y=24, cell 16px,
-# line height 22. The gate recomputes it from the published text rather than
-# trusting the number the product printed.
-REGION_X=24
-REGION_Y=24
+# 2026-11-17: the clock and score lines are CENTRED on the client and the NAME/HP
+# line stays at the left margin, so there is no longer one shared origin to pin.
+# The gate reads the per-line origins out of the publish line (lineX/lineW/header/
+# nameBlock) and recomputes every width from the published text: 16px per cell,
+# 22px line pitch. The removed pins were REGION_X=24 REGION_Y=24.
 CELL=16
 LINE=22
 
@@ -406,6 +406,19 @@ live_text() { # live_text <trace> <n>: the quoted text of line n on the last pub
 live_region() {
   live_publish "$1" | tail -1 | grep -oE 'region=[-0-9]+,[-0-9]+,[0-9]+,[0-9]+' | tail -1 | sed 's/region=//'
 }
+live_csv() { # live_csv <trace> <name>: the comma list on the LAST publish line
+  # live_field() stops at a comma (its pattern is [A-Za-z0-9._-]+), so the geometry
+  # fields -- lineX=560,536,24 and friends -- need their own reader.
+  live_publish "$1" | tail -1 | grep -oE " $2=[-0-9,]+" | head -1 | cut -d= -f2
+}
+csv_n() { # csv_n <list> <n>: field n of a comma list
+  printf '%s' "$1" | cut -d, -f"$2"
+}
+pixels_apart() { # pixels_apart <a> <b>: |a-b| for two integer readings
+  local d=$(( $1 - $2 ))
+  if [ "$d" -lt 0 ]; then d=$(( -d )); fi
+  printf '%s' "$d"
+}
 live_count() {
   live_publish "$1" | wc -l | tr -d ' '
 }
@@ -490,19 +503,26 @@ clock_seconds() { # clock_seconds "TIME M:SS..." -> seconds, empty when not a cl
     | awk -F: '{ if (NF==2) print $1*60+$2 }'
 }
 
-# verify_live_pixels <off.bmp> <on.bmp> <font.cpp> <x> <y> <text1> <text2> <text3>
+# verify_live_pixels <off.bmp> <on.bmp> <font.cpp> \
+#   <x1> <y1> <x2> <y2> <x3> <y3> <text1> <text2> <text3>
+#
+# OLD SIGNATURE (until 2026-11-17): <x> <y> <text1> <text2> <text3> -- one origin
+# for all three lines, because all three were left-pinned at x=24. The clock and
+# score lines are now centred, so every line carries its own origin.
 #
 # Exits 0 only when the drawn text is exactly the font table's pixels at the
-# published origin: lit pixels white, unlit pixels equal to the HUD-off frame,
-# nothing outside the region changed. It reads kFont8x8 out of hud_font.cpp so the
-# check is against the same bytes the binary compiled.
+# published origins: lit pixels white, unlit pixels equal to the HUD-off frame,
+# nothing changed outside the three line rectangles. It reads kFont8x8 out of
+# hud_font.cpp so the check is against the same bytes the binary compiled.
 verify_live_pixels() {
   "$PY" - "$@" <<'PYEOF'
 import struct, sys, re
 
 off_path, on_path, font_path = sys.argv[1], sys.argv[2], sys.argv[3]
-ox, oy = int(sys.argv[4]), int(sys.argv[5])
-lines = sys.argv[6:9]
+origins = [(int(sys.argv[4]), int(sys.argv[5])),
+           (int(sys.argv[6]), int(sys.argv[7])),
+           (int(sys.argv[8]), int(sys.argv[9]))]
+lines = sys.argv[10:13]
 CELL, LH, SCALE = 16, 22, 2
 
 def read_bmp(path):
@@ -539,10 +559,20 @@ if len(values) != 95 * 8:
     raise SystemExit('font table has %d rows, expected 760' % len(values))
 glyphs = [values[i * 8:(i + 1) * 8] for i in range(95)]
 
-rx, ry = ox, oy
-rw = max(len(l) for l in lines) * CELL if lines else 0
-rh = (len(lines) - 1) * LH + 8 * SCALE
+rects = [(ox, oy, len(line) * CELL, 8 * SCALE)
+         for (ox, oy), line in zip(origins, lines)]
+rx = min(r[0] for r in rects)
+ry = min(r[1] for r in rects)
+rw = max(r[0] + r[2] for r in rects) - rx
+rh = max(r[1] + r[3] for r in rects) - ry
+def in_any(x, y):
+    for ex, ey, ew, eh in rects:
+        if ex <= x < ex + ew and ey <= y < ey + eh:
+            return True
+    return False
 print('frame=%dx%d' % (w, h))
+for (ox, oy), line in zip(origins, lines):
+    print('line=%d,%d,%d,%d' % (ox, oy, len(line) * CELL, 8 * SCALE))
 print('region=%d,%d,%d,%d' % (rx, ry, rw, rh))
 
 outside = inside = 0
@@ -551,7 +581,7 @@ for y in range(h):
     a, b = on[y], off[y]
     for x in range(w):
         if a[x * 3:x * 3 + 3] != b[x * 3:x * 3 + 3]:
-            if rx <= x < rx + rw and ry <= y < ry + rh:
+            if in_any(x, y):
                 inside += 1
             else:
                 outside += 1
@@ -566,14 +596,14 @@ print('diffBBox=%d,%d,%d,%d' % (minx, miny, maxx, maxy))
 bad = 0
 cells = 0
 for li, line in enumerate(lines):
-    gy = ry + li * LH
+    lx, gy = origins[li]
     for ci, ch in enumerate(line):
         code = ord(ch)
         if code < 0x20 or code > 0x7e:
             bad += 1
             continue
         rows8 = glyphs[code - 0x20]
-        gx = rx + ci * CELL
+        gx = lx + ci * CELL
         cells += 1
         for r in range(8):
             for c in range(8):
@@ -599,6 +629,10 @@ PYEOF
 # Readings that later sections publish; declared empty so --sections=1,2 stays
 # valid under `set -u` and the evidence file prints <none> instead of crashing.
 A_T1=""; A_SRC=""; A_UPDATES=""; A_SKIPS=""; A_LINES=""
+# Section 1 publishes the live geometry (lineX/lineW/header/nameBlock); the
+# defaults keep a standalone --sections=6 run from tripping over unset names.
+L_X1=""; L_X2=""; L_X3=""; L_Y1=""; L_Y2=""; L_Y3=""
+L_W1=0; L_W2=0; L_W3=0; L_REGION=""
 R_T1=""; R_T3=""; R_REGION=""; LIVE2_T1=""
 L_MODE=""; SUP_ENABLED=""; SUP_REASON=""; SUP_LINE=""; SUP_FRAME=""
 # Section 8's readings. Empty so --sections=1,2 stays valid under set -u and the
@@ -699,12 +733,63 @@ fi
 
 assert_eq "the clock names its source" "$([ -n "$L_SRC" ] && echo yes)" "yes"
 # glyphs is a reading, so it must agree with the text it claims to publish.
-EXPECT_GLYPHS=$(( $(slen "$L_T1") + $(slen "$L_T2") + $(slen "$L_T3") ))
+# Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+# command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+# slen() only ever prints digits, so the split needs no non-integer guard.
+L_T1_GLYPHS=$(slen "$L_T1")
+L_T2_GLYPHS=$(slen "$L_T2")
+L_T3_GLYPHS=$(slen "$L_T3")
+EXPECT_GLYPHS=$(( L_T1_GLYPHS + L_T2_GLYPHS + L_T3_GLYPHS ))
 assert_eq "the published glyph count matches the published text" "$L_GLYPHS" "$EXPECT_GLYPHS"
-EXPECT_W=$(slen "$L_T1")
-[ "$(slen "$L_T2")" -gt "$EXPECT_W" ] && EXPECT_W=$(slen "$L_T2")
-[ "$(slen "$L_T3")" -gt "$EXPECT_W" ] && EXPECT_W=$(slen "$L_T3")
-assert_eq "the published region is the panel anchored at 24,24" "$L_REGION" "24,24,$((EXPECT_W * CELL)),60"
+# ---- layout: centred clock/score, left-margin name line --------------------
+# OLD PIN (until 2026-11-17): every line was left-pinned at x=24, so the region
+# was asserted as the literal "24,24,<widest*16>,60". The user asked for the
+# clock and the score to sit at the top centre, so the pins now state that:
+# lines 1-2 are centred within 2px of (clientW - chars*16)/2, line 3 keeps x=24
+# and y=68, and region= is the union of the two published blocks. The client
+# width is read from the product's own capture line, never from --window-size.
+L_CAP=$(capture_size "$SCRATCH/live.trace")
+L_CW=${L_CAP%x*}
+L_GEOM_X=$(live_csv "$SCRATCH/live.trace" lineX)
+L_GEOM_W=$(live_csv "$SCRATCH/live.trace" lineW)
+L_HEADER=$(live_csv "$SCRATCH/live.trace" header)
+L_NAMEBLOCK=$(live_csv "$SCRATCH/live.trace" nameBlock)
+L_X1=$(csv_n "$L_GEOM_X" 1); L_X2=$(csv_n "$L_GEOM_X" 2); L_X3=$(csv_n "$L_GEOM_X" 3)
+L_W1=$(csv_n "$L_GEOM_W" 1); L_W2=$(csv_n "$L_GEOM_W" 2); L_W3=$(csv_n "$L_GEOM_W" 3)
+L_Y1=$(csv_n "$L_HEADER" 2); L_Y3=$(csv_n "$L_NAMEBLOCK" 2)
+L_Y2=$(( L_Y1 + LINE ))
+echo "  geometry: client=$(val "$L_CAP") lineX=$(val "$L_GEOM_X") lineW=$(val "$L_GEOM_W") header=$(val "$L_HEADER") nameBlock=$(val "$L_NAMEBLOCK")"
+# awk, not `tr ... | wc -l`: the value has no trailing newline, so wc -l counts
+# two separators as two lines (2026-11-17 run read 2 for a three-field list).
+assert_eq "the publish line carries one x per readout line" "$(printf '%s' "$L_GEOM_X" | awk -F, '{print NF}')" "3"
+# Widths are a function of the text: 16px per cell, no kerning, no scaling.
+L_W1_G=$(slen "$L_T1"); L_W2_G=$(slen "$L_T2"); L_W3_G=$(slen "$L_T3")
+L_W1_E=$(( L_W1_G * CELL )); L_W2_E=$(( L_W2_G * CELL )); L_W3_E=$(( L_W3_G * CELL ))
+assert_eq "line 1 width matches its text at 16px per cell" "$L_W1" "$L_W1_E"
+assert_eq "line 2 width matches its text at 16px per cell" "$L_W2" "$L_W2_E"
+assert_eq "line 3 width matches its text at 16px per cell" "$L_W3" "$L_W3_E"
+L_CX1=$(( (L_CW - L_W1_E) / 2 )); L_CX2=$(( (L_CW - L_W2_E) / 2 ))
+assert_le "the clock line is centred on the client" "$(pixels_apart "$L_X1" "$L_CX1")" 2
+assert_le "the score line is centred on the client" "$(pixels_apart "$L_X2" "$L_CX2")" 2
+# The NAME/HP line is the watched player's reading, not the score: it keeps the
+# left margin and its own row below the two headers (and the doc says why).
+assert_eq "the name line keeps the left margin" "$L_X3" "24"
+assert_eq "the name line sits on the third row" "$L_Y3" "$(( L_Y1 + 2 * LINE ))"
+# Header block = the two score lines only: one line pitch + one 16px cell = 38,
+# so it ends at y=62 and can never touch the name row at y=68.
+L_HDR_H=$(( LINE + CELL ))
+assert_eq "the header block starts at the top margin" "$L_Y1" "24"
+assert_eq "the header block is exactly two rows tall" "$(csv_n "$L_HEADER" 4)" "$L_HDR_H"
+assert_le "the header block clears the name row" "$(( L_Y1 + L_HDR_H ))" "$L_Y3"
+# Region = union of the two blocks; it moves with the window now, so the pin is
+# the recomputed union rather than a literal.
+L_HDR_X=$(csv_n "$L_HEADER" 1); L_HDR_W=$(csv_n "$L_HEADER" 3)
+L_HDR_RIGHT=$(( L_HDR_X + L_HDR_W ))
+L_NAME_RIGHT=$(( L_X3 + L_W3_E ))
+L_REGION_RIGHT=$(( L_HDR_RIGHT > L_NAME_RIGHT ? L_HDR_RIGHT : L_NAME_RIGHT ))
+L_REGION_X=$(( L_HDR_X < L_X3 ? L_HDR_X : L_X3 ))
+assert_eq "the published region is the union of the header and the name line" "$L_REGION" "$L_REGION_X,$L_Y1,$(( L_REGION_RIGHT - L_REGION_X )),60"
+assert_eq "the region covers all three rows" "$(csv_n "$L_REGION" 4)" "60"
 
 # ---------------------------------------------------------------------------
 echo "=== 2 the product draws exactly the text it published ==="
@@ -734,7 +819,7 @@ assert_eq "every published codepoint has a glyph" "$T_UNMAPPED" "0"
 # ---------------------------------------------------------------------------
 echo "=== 3 the captured pixels are the published text and nothing else ==="
 VERIFY_OUT=$(verify_live_pixels "$SCRATCH/off.bmp" "$SCRATCH/live.bmp" "$FONT" \
-  "$REGION_X" "$REGION_Y" "$L_T1" "$L_T2" "$L_T3" 2>&1)
+  "$L_X1" "$L_Y1" "$L_X2" "$L_Y2" "$L_X3" "$L_Y3" "$L_T1" "$L_T2" "$L_T3" 2>&1)
 VERIFY_RC=$?
 echo "$VERIFY_OUT" | sed 's/^/  | /'
 V_OUTSIDE=$(echo "$VERIFY_OUT" | grep -oE 'outsideDiff=[0-9]+' | cut -d= -f2)
@@ -753,7 +838,7 @@ assert_eq "the pixel verifier's verdict" "$V_OK" "1"
 # (a) The same expectation against a frame with no text: the inside-diff must be 0
 #     and the verdict red, because "the text paints pixels" is a claim about pixels.
 NEG1_OUT=$(verify_live_pixels "$SCRATCH/off.bmp" "$SCRATCH/off.bmp" "$FONT" \
-  "$REGION_X" "$REGION_Y" "$L_T1" "$L_T2" "$L_T3" 2>&1)
+  "$L_X1" "$L_Y1" "$L_X2" "$L_Y2" "$L_X3" "$L_Y3" "$L_T1" "$L_T2" "$L_T3" 2>&1)
 NEG1_RC=$?
 NEG1_INSIDE=$(echo "$NEG1_OUT" | grep -oE 'insideDiff=[0-9]+' | cut -d= -f2)
 NEG1_OK=$(echo "$NEG1_OUT" | grep -oE 'verifyOk=[0-9]+' | cut -d= -f2)
@@ -763,8 +848,18 @@ assert_eq "the verifier still counts zero text pixels on that frame" "$NEG1_INSI
 
 # (b) The real frame against a deliberately wrong expectation: every lit pixel the
 #     wrong text claims must be a mismatch, so glyphBad is non-zero and red.
+# The bogus clock must be the SAME WIDTH as the real one, so the refusal can only
+# come from glyph pixels inside the published rect, not from a narrower rect. The
+# width is a function of the published text (this run pauses at "TIME 10:00
+# PAUSED", 17 cells), so it is derived by swapping the last character instead of
+# being hard-coded: a fixed 9-cell literal left the real clock's tail outside the
+# rect and turned this control into a region test (outsideDiff=824, 2026-11-17).
+NEG2_T1="${L_T1%?}X"
+[ "$NEG2_T1" = "$L_T1" ] && NEG2_T1="X${L_T1#?}"
+assert_eq "the negative control's clock keeps the real line's width" "$(slen "$NEG2_T1")" "$(slen "$L_T1")"
+assert_ne "the negative control's clock really differs" "$NEG2_T1" "$L_T1"
 NEG2_OUT=$(verify_live_pixels "$SCRATCH/off.bmp" "$SCRATCH/live.bmp" "$FONT" \
-  "$REGION_X" "$REGION_Y" "TIME 99:99" "$L_T2" "$L_T3" 2>&1)
+  "$L_X1" "$L_Y1" "$L_X2" "$L_Y2" "$L_X3" "$L_Y3" "$NEG2_T1" "$L_T2" "$L_T3" 2>&1)
 NEG2_RC=$?
 NEG2_BAD=$(echo "$NEG2_OUT" | grep -oE 'glyphBad=[0-9]+' | cut -d= -f2)
 NEG2_OUTSIDE=$(echo "$NEG2_OUT" | grep -oE 'outsideDiff=[0-9]+' | cut -d= -f2)
@@ -874,15 +969,45 @@ assert_eq "resized run exit code" "$RC_resized" "0"
 R_T1=$(live_text "$SCRATCH/resized.trace" 1)
 R_T3=$(live_text "$SCRATCH/resized.trace" 3)
 R_REGION=$(live_region "$SCRATCH/resized.trace")
-# F1 (audit 2026-11-09): "the region did not move" is only evidence if the window
-# actually moved. Two runs that both came out 784x561 would pass the anchored-region
-# assertion while proving nothing, so the capture size is read back from the product
-# and required to differ before the invariance is claimed.
+# F1 (audit 2026-11-09): a move-tracking assertion is only evidence if the window
+# actually moved. Two runs that both came out 784x561 would pass it while proving
+# nothing, so the capture size is read back from the product and required to
+# differ before the tracking is claimed.
 CAP_SIZE_A=$(capture_size "$SCRATCH/live.trace")
 CAP_SIZE_B=$(capture_size "$SCRATCH/resized.trace")
 echo "  capture size: default=$(val "$CAP_SIZE_A") resized=$(val "$CAP_SIZE_B")"
 assert_ne "the resized run captured at a different window size" "$CAP_SIZE_B" "$CAP_SIZE_A"
-assert_eq "the region does not move when the window is resized" "$R_REGION" "$L_REGION"
+# A standalone --sections=6 run has no section 1 to hand it the baseline geometry;
+# read it off the default-size frame instead of comparing empty strings.
+if [ -z "${L_X1:-}" ]; then
+  L_X1=$(csv_n "$(live_csv "$SCRATCH/live.trace" lineX)" 1)
+  L_Y1=$(csv_n "$(live_csv "$SCRATCH/live.trace" header)" 2)
+  L_REGION=$(live_region "$SCRATCH/live.trace")
+fi
+if [ -z "${L_X1:-}" ]; then
+  # Nothing to compare against: counted and printed, never a silent pass.
+  echo "  SKIP the resize tracking: no default-size baseline (live.trace has no lineX)"
+  SKIPPED_GEOMETRY=$(( ${SKIPPED_GEOMETRY:-0} + 1 ))
+else
+  # OLD PIN (until 2026-11-17): "the region does not move when the window is
+  # resized" compared R_REGION with L_REGION. That held while every readout line
+  # was left-pinned at x=24; it is false ON PURPOSE now that the clock and the
+  # score are centred. The honest inverse: the header moves by half the client-
+  # width delta (integer division, 2px tolerance) and not vertically, while the
+  # name line does not move at all. Re-pinning the old assertion turns this red,
+  # which is the point of the pin.
+  R_CAP_X=${CAP_SIZE_B%x*}; L_CAP_X=${CAP_SIZE_A%x*}
+  R_X1=$(csv_n "$(live_csv "$SCRATCH/resized.trace" lineX)" 1)
+  R_X3=$(csv_n "$(live_csv "$SCRATCH/resized.trace" lineX)" 3)
+  R_Y1=$(csv_n "$(live_csv "$SCRATCH/resized.trace" header)" 2)
+  R_DELTA=$(( R_X1 - L_X1 ))
+  R_HALF=$(( (R_CAP_X - L_CAP_X) / 2 ))
+  echo "  resize: client=$(val "$CAP_SIZE_A")->$(val "$CAP_SIZE_B") x1=$(val "$L_X1")->$(val "$R_X1") delta=$(( R_DELTA )) half=$(( R_HALF ))"
+  assert_le "the centred header tracks half the window-width delta" "$(pixels_apart "$R_DELTA" "$R_HALF")" 2
+  assert_eq "the name line keeps its left margin when the window is resized" "$R_X3" "24"
+  assert_eq "the readout does not move vertically when the window is resized" "$R_Y1" "$L_Y1"
+  assert_ne "the published region moves when the window is resized" "$R_REGION" "$L_REGION"
+fi
 assert_eq "the clock text does not change with the window size" "$R_T1" "$L_T1"
 assert_eq "the target text does not change with the window size" "$R_T3" "$L_T3"
 fi

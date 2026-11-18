@@ -228,16 +228,36 @@ bool Renderer::createPipeline() {
   //     `texturesUploaded` and `fallbackSlots` rather than by a brightness.
   Microsoft::WRL::ComPtr<ID3DBlob> worldVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> worldPixelBytecode;
+  Microsoft::WRL::ComPtr<ID3DBlob> skyPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> modelVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> modelPixelBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> entityModelVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> viewModelVertexBytecode;
   Microsoft::WRL::ComPtr<ID3DBlob> viewModelPixelBytecode;
+  // N05 step 3: the clip-capture geometry shader. Its bytecode is declared here
+  // with the others because the create block below builds the shader object from
+  // it, and compiled with the world pair because a bad edit to it should fail at
+  // startup with a stage name rather than on the one frame a capture was asked
+  // for. Nothing binds it unless --world-clip-capture was passed.
+  Microsoft::WRL::ComPtr<ID3DBlob> worldClipCaptureBytecode;
   HRESULT worldShaderResult = S_OK;
   initStage_ = "compileShaders.world";
+  // W-1 perf: the sky's shader is compiled here with the world pair, so a bad
+  // edit to it fails at startup with this stage name instead of on the frame a
+  // sky happens to be drawn.
   const bool worldShadersCompiled = compileShader(worldVertexSource, "main", "vs_5_0", worldVertexBytecode, &worldShaderResult)
-      && compileShader(worldPixelSource, "main", "ps_5_0", worldPixelBytecode, &worldShaderResult);
+      && compileShader(worldPixelSource, "main", "ps_5_0", worldPixelBytecode, &worldShaderResult)
+      && compileShader(skyPixelSource, "main", "ps_5_0", skyPixelBytecode, &worldShaderResult);
   if (!worldShadersCompiled) { lastError_ = worldShaderResult; return false; }
+  initStage_ = "compileShaders.worldClipCapture";
+  {
+    HRESULT clipCaptureResult = S_OK;
+    if (!compileShader(worldClipCaptureGeometrySource, "main", "gs_5_0",
+        worldClipCaptureBytecode, &clipCaptureResult)) {
+      lastError_ = clipCaptureResult;
+      return false;
+    }
+  }
   HRESULT modelShaderResult = S_OK;
   if (!compileShader(modelVertexSource, "main", "vs_5_0", modelVertexBytecode, &modelShaderResult)) {
     lastError_ = modelShaderResult;
@@ -348,8 +368,54 @@ bool Renderer::createPipeline() {
       nullptr, pixelShader_.GetAddressOf()))) return false;
   {
     const bool shadersCreated = SUCCEEDED(device_->CreateVertexShader(worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), nullptr, worldVertexShader_.GetAddressOf()))
-      && SUCCEEDED(device_->CreatePixelShader(worldPixelBytecode->GetBufferPointer(), worldPixelBytecode->GetBufferSize(), nullptr, worldPixelShader_.GetAddressOf()));
+      && SUCCEEDED(device_->CreatePixelShader(worldPixelBytecode->GetBufferPointer(), worldPixelBytecode->GetBufferSize(), nullptr, worldPixelShader_.GetAddressOf()))
+      && SUCCEEDED(device_->CreatePixelShader(skyPixelBytecode->GetBufferPointer(), skyPixelBytecode->GetBufferSize(), nullptr, skyPixelShader_.GetAddressOf()));
     if (!shadersCreated) { lastError_ = E_FAIL; return false; }
+    // N05 step 3: the stream output object. pSignature is NULL because the GS's
+    // input signature is already in its own bytecode; the stream output
+    // declaration narrows what is written to position (clip xyzw) alone, and
+    // RasterizedStream=0 keeps the same triangle going on to the rasteriser --
+    // a declaration with D3D11_SO_NO_RASTERIZED_STREAM would capture the vertices
+    // and draw nothing, which is a frame that cannot be compared to the CPU.
+    initStage_ = "createShaders.worldClipCapture";
+    {
+      const D3D11_SO_DECLARATION_ENTRY clipEntry = {
+        0, "SV_POSITION", 0, 0, 4, 0
+      };
+      const UINT clipStride = sizeof(float) * 4u;
+      const bool clipCreated = SUCCEEDED(device_->CreateGeometryShaderWithStreamOutput(
+        worldClipCaptureBytecode->GetBufferPointer(), worldClipCaptureBytecode->GetBufferSize(),
+        &clipEntry, 1, &clipStride, 1, 0, nullptr,
+        worldClipCaptureGeometryShader_.GetAddressOf()));
+      if (!clipCreated) {
+        worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset();
+        lastError_ = E_FAIL;
+        return false;
+      }
+      // The capture target and its read-back twin. Both are sized for one
+      // triangle because the draw they hook is --world-triangle, whose index
+      // buffer holds exactly three indices (native_renderer_world.cpp:1000).
+      D3D11_BUFFER_DESC clipTarget{};
+      clipTarget.ByteWidth = static_cast<UINT>(clipStride * 3u);
+      clipTarget.Usage = D3D11_USAGE_DEFAULT;
+      clipTarget.BindFlags = D3D11_BIND_STREAM_OUTPUT;
+      if (FAILED(device_->CreateBuffer(&clipTarget, nullptr, worldClipCaptureBuffer_.GetAddressOf()))) {
+        worldClipCaptureGeometryShader_.Reset();
+        lastError_ = E_FAIL;
+        return false;
+      }
+      D3D11_BUFFER_DESC clipReadback{};
+      clipReadback.ByteWidth = clipTarget.ByteWidth;
+      clipReadback.Usage = D3D11_USAGE_STAGING;
+      clipReadback.BindFlags = 0;
+      clipReadback.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+      if (FAILED(device_->CreateBuffer(&clipReadback, nullptr, worldClipCaptureReadback_.GetAddressOf()))) {
+        worldClipCaptureGeometryShader_.Reset();
+        worldClipCaptureBuffer_.Reset();
+        lastError_ = E_FAIL;
+        return false;
+      }
+    }
     const D3D11_INPUT_ELEMENT_DESC worldElements[] = {
       {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -371,7 +437,10 @@ bool Renderer::createPipeline() {
     initStage_ = "layout.world";
     const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 9, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
     if (!layoutCreated) {
-      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
+      worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset(); worldInputLayout_.Reset();
+      worldClipCaptureGeometryShader_.Reset();
+      worldClipCaptureBuffer_.Reset();
+      worldClipCaptureReadback_.Reset();
       lastError_ = E_FAIL;
       return false;
     }
@@ -389,7 +458,7 @@ bool Renderer::createPipeline() {
     const bool modelLayoutCreated = modelShaderCreated && SUCCEEDED(device_->CreateInputLayout(modelElements, 6,
       modelVertexBytecode->GetBufferPointer(), modelVertexBytecode->GetBufferSize(), modelInputLayout_.GetAddressOf()));
     if (!modelLayoutCreated) {
-      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset(); modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
+      worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset(); worldInputLayout_.Reset(); modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
       lastError_ = E_FAIL;
       return false;
     }
@@ -428,7 +497,7 @@ bool Renderer::createPipeline() {
       entityElements, entityElementCount, entityModelVertexBytecode->GetBufferPointer(),
       entityModelVertexBytecode->GetBufferSize(), entityModelInputLayout_.GetAddressOf()));
     if (!entityLayoutCreated) {
-      worldVertexShader_.Reset(); worldPixelShader_.Reset(); worldInputLayout_.Reset();
+      worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset(); worldInputLayout_.Reset();
       modelVertexShader_.Reset(); modelPixelShader_.Reset(); modelInputLayout_.Reset();
       entityModelVertexShader_.Reset(); entityModelInputLayout_.Reset();
       lastError_ = E_FAIL;
@@ -492,7 +561,8 @@ bool Renderer::createPipeline() {
     D3D11_RASTERIZER_DESC viewModelRasterDescription{};
     viewModelRasterDescription.FillMode = D3D11_FILL_SOLID;
     viewModelRasterDescription.CullMode = D3D11_CULL_NONE;
-    viewModelRasterDescription.FrontCounterClockwise = FALSE;
+    viewModelRasterDescription.FrontCounterClockwise =
+      horizontalFlipCorrectionEnabled() ? TRUE : FALSE;
     viewModelRasterDescription.DepthClipEnable = TRUE;
     initStage_ = "createRasterState.viewModel";
     if (FAILED(device_->CreateRasterizerState(&viewModelRasterDescription,
@@ -676,7 +746,12 @@ bool Renderer::createPipeline() {
   D3D11_RASTERIZER_DESC rasterDescription{};
   rasterDescription.FillMode = D3D11_FILL_SOLID;
   rasterDescription.CullMode = D3D11_CULL_BACK;
-  rasterDescription.FrontCounterClockwise = FALSE;
+  // The world's stored winding is front-facing in a left-handed, unmirrored
+  // pipeline; the horizontal flip (renderer_internal.h) reverses screen winding,
+  // so the front-face rule reverses with it. sky/noCull/water are clones of this
+  // description and inherit the flip, which is what keeps the water pass from
+  // changing classification relative to the world pass.
+  rasterDescription.FrontCounterClockwise = horizontalFlipCorrectionEnabled() ? TRUE : FALSE;
   rasterDescription.DepthClipEnable = TRUE;
   if (FAILED(device_->CreateRasterizerState(&rasterDescription, rasterizerState_.GetAddressOf()))) return false;
   // The sky box is drawn from the inside, so the world's back-face culling
@@ -842,8 +917,8 @@ WorldFogUploadState Renderer::worldFogState() const {
   if (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f) {
     state.boxToMapXZ = 1.0f / worldHorizontalScale_;
   }
-  if (std::isfinite(worldSpanZ_) && worldSpanZ_ > 0.0f) {
-    state.boxToMapZ = worldSpanZ_ / 0.8f;
+  if (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f) {
+    state.boxToMapZ = 1.0f / worldHorizontalScale_;
   }
   state.verticesFogged = worldFogVertices_;
   return state;
@@ -859,6 +934,113 @@ bool Renderer::uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, 
   return true;
 }
 
+// T68: the HUD's one sampled image (the basemap). Created once and then *updated
+// in place* when the size matches: recreating the texture on every upload churned
+// device objects, and the failure path is the reason everything is created before
+// anything is replaced -- a rejected upload must leave the previous texture, the
+// previous tag and the bound SRV exactly as they were.
+bool Renderer::setHudImageTexture(UINT width, UINT height, const std::uint8_t* rgba,
+    const std::string& tag, std::string* error) {
+  if (!device_) { if (error) *error = "no-device"; return false; }
+  if (!rgba || width == 0 || height == 0) { if (error) *error = "empty"; return false; }
+  if (width > 16384 || height > 16384) { if (error) *error = "too-large"; return false; }
+  if (hudImageTexture_ && hudImageWidth_ == width && hudImageHeight_ == height) {
+    // Stride width*4 with no padding: the source is the decoder's straight RGBA
+    // run, and a padded stride would shear the image by one texel per row.
+    context_->UpdateSubresource(hudImageTexture_.Get(), 0, nullptr, rgba, width * 4, 0);
+    // The texture carries a generated mip chain (see the create path), so the
+    // new base level must rebuild it or the 250 px panel would sample a stale
+    // high-mip average from the previous image.
+    if (hudImageView_) context_->GenerateMips(hudImageView_.Get());
+    hudImageTag_ = tag;
+    if (error) *error = "ok";
+    return true;
+  }
+  D3D11_TEXTURE2D_DESC description{};
+  description.Width = width;
+  description.Height = height;
+  // MipLevels = 0 + GENERATE_MIPS: the basemap is up to 2099 px and lands in a
+  // 250 px panel, so MIN_MAG_MIP_LINEAR needs real mips to avoid the moire a
+  // point/min-mag-only sample produces. This is the "not a nearest-neighbour
+  // mosaic" part of the contract; hudImageSamplerMode() publishes it.
+  description.MipLevels = 0;
+  description.ArraySize = 1;
+  description.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  description.SampleDesc.Count = 1;
+  description.Usage = D3D11_USAGE_DEFAULT;
+  description.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+  description.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+  if (FAILED(device_->CreateTexture2D(&description, nullptr, texture.GetAddressOf()))) {
+    if (error) *error = "create-texture";
+    return false;
+  }
+  // A mip-mapped texture cannot take its base level through the creation call
+  // when the desc says 'all mips' on this feature level, so upload level 0 and
+  // let the runtime derive the rest.
+  context_->UpdateSubresource(texture.Get(), 0, nullptr, rgba, width * 4, 0);
+  UINT mipLevels = 1;
+  for (UINT size = width > height ? width : height; size > 1; size >>= 1) ++mipLevels;
+  D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
+  viewDescription.Format = description.Format;
+  viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+  viewDescription.Texture2D.MipLevels = static_cast<UINT>(-1);
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
+  if (FAILED(device_->CreateShaderResourceView(texture.Get(), &viewDescription, view.GetAddressOf()))) {
+    if (error) *error = "create-view";
+    return false;
+  }
+  if (!hudImageSampler_) {
+    // Linear: the basemap is rendered larger than the panel it lands in, and a
+    // point-sampled 1835x1103 map squeezed into 250 px aliases into noise. Clamp:
+    // the quad's uvs are a crop, so wrap addressing would drag the opposite edge
+    // into the visible edge.
+    D3D11_SAMPLER_DESC samplerDescription{};
+    samplerDescription.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    samplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
+    if (FAILED(device_->CreateSamplerState(&samplerDescription, hudImageSampler_.GetAddressOf()))) {
+      if (error) *error = "create-sampler";
+      return false;
+    }
+  }
+  context_->GenerateMips(view.Get());
+  hudImageTexture_ = texture;
+  hudImageView_ = view;
+  hudImageWidth_ = width;
+  hudImageHeight_ = height;
+  hudImageMipLevels_ = mipLevels;
+  hudImageTag_ = tag;
+  if (error) *error = "ok";
+  return true;
+}
+
+void Renderer::clearHudImageTexture() {
+  // Unbind before releasing: the pass leaves the view in slot 1, and binding a
+  // released view is an immediate-context error the next draw would inherit.
+  if (context_) {
+    ID3D11ShaderResourceView* none = nullptr;
+    context_->PSSetShaderResources(1, 1, &none);
+  }
+  hudImageView_.Reset();
+  hudImageTexture_.Reset();
+  hudImageWidth_ = 0;
+  hudImageHeight_ = 0;
+  hudImageMipLevels_ = 0;
+  hudImageTag_.clear();
+}
+
+std::string Renderer::hudImageTextureFormat() const {
+  return hudImageView_ ? "DXGI_FORMAT_R8G8B8A8_UNORM" : "none";
+}
+
+std::string Renderer::hudImageSamplerMode() const {
+  if (!hudImageSampler_) return "none";
+  return "linear-mip";
+}
 
 void Renderer::resize(UINT width, UINT height) {
   if (!swapChain_ || width == 0 || height == 0 || (width == width_ && height == height_)) return;
@@ -954,6 +1136,20 @@ void Renderer::shutdown() {
   worldDisplacedTriangleCount_ = 0;
   worldWaterTriangleCount_ = 0;
   worldVertexBuffer_.Reset();
+  // N05 step 3: the clip-capture channel. The cached reading describes a device
+  // that no longer exists, so it goes with the resources -- a stale clip quad
+  // surviving a device reset would be read as "this frame's vertex stage". The
+  // request flag is a caller setting like worldIsolatedTriangle_ and survives.
+  worldClipCaptureGeometryShader_.Reset();
+  worldClipCaptureBuffer_.Reset();
+  worldClipCaptureReadback_.Reset();
+  worldClipCaptureValid_ = false;
+  worldClipCaptureAttempted_ = false;
+  worldClipCaptureFailure_ = "no capture has run on this device";
+  for (int i = 0; i < 12; ++i) worldClipCaptureVertex_[i] = 0.0f;
+  for (int i = 0; i < 3; ++i) worldClipCaptureIndex_[i] = 0u;
+  worldClipCaptureViewport_[0] = 0.0f; worldClipCaptureViewport_[1] = 0.0f;
+  worldClipCaptureViewport_[2] = 0.0f; worldClipCaptureViewport_[3] = 0.0f;
   projectileVertexBuffer_.Reset();
   projectileVertexCapacity_ = 0;
   projectileVertexCount_ = 0;
@@ -1023,6 +1219,7 @@ void Renderer::shutdown() {
   modelInputLayout_.Reset();
   entityModelInputLayout_.Reset();
   worldPixelShader_.Reset();
+  skyPixelShader_.Reset();
   worldVertexShader_.Reset();
   modelVertexShader_.Reset();
   entityModelVertexShader_.Reset();

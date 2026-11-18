@@ -239,7 +239,14 @@ while read -r line; do
   # The count that separates "one texture for the whole model" (the T57 defect:
   # slot 0 painted everywhere) from a per-run bind: one texture per material slot.
   assert_eq "B $c distinctPaintedStems" "$(field "$line" distinctPaintedStems)" "$slots"
-  PAINTED_SUM=$(( PAINTED_SUM + $(field "$line" paintedSlots) ))
+  # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+  # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+  # field() returns the empty string for an absent key, so it is guarded.
+  line_painted=$(field "$line" paintedSlots)
+  case "$line_painted" in
+    ''|*[!0-9]*) echo "  FAIL B $c paintedSlots is not a count: '$line_painted'"; fail=1; line_painted=0 ;;
+  esac
+  PAINTED_SUM=$(( PAINTED_SUM + line_painted ))
 done < <(grep '^player-model class=' "$AUDIT")
 assert_eq "B summary productPaintedSlots" "$(field "$SUMMARY" productPaintedSlots)" "$PAINTED_SUM"
 assert_ge "B summary productPaintedSlots" "$(field "$SUMMARY" productPaintedSlots)" 18

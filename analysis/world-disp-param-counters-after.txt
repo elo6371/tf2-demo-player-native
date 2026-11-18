@@ -1,0 +1,16 @@
+counters probe=native/build-nmake/world_geometry_probe.exe
+map                    triangles   faces displaced dispFaces  dispTri  emitted   flipped  misfaced  dispMisf    agree
+pl_upward_f12              66707   15155     18528       567    18528      567      2467     15038         0     5098
+cp_process_f12             71999   12935     35648       934    35648      934     14180     11030         0     4483
+cp_sunshine                82859   20449     24000       642    24000      642      2944     17785         0     6662
+cp_sultry_b8a              68966   21289     11136       342    11136      342      3104     21834         0     8407
+cp_gullywash_f9           107623   17683     58368       615    58368      615     11736     16823         0     6351
+cp_reckoner               121780   32695     24832       509    24832      509      3204     35020         0    13081
+koth_bagel_rc11            98039   18231     46336      1427    46336     1427     10208     16801         0     6479
+koth_ashville_final1       23276    6457      6400        74     6400       74       194      6313         0     2484
+koth_product_final         55998   11175     21856       557    21856      557      3060     10286         0     3691
+TOTAL                     697247       -    247104      5667   247104        -     51097    150930         0    56736
+triangles/displaced/dispFaces/dispTri hold on every map whose per-cell validity gate does not
+flip with the parametrisation (7 of 9); koth_bagel_rc11 and koth_product_final gain the 13 patches
+that the transposed field had rejected into a flat fallback quad.
+flipped is the T11 reorient patch firing count, expected to move because the lattice moved.

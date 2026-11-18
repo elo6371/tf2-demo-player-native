@@ -873,11 +873,11 @@ player_checks() { # player_checks <label> <trace-file> <census-json-file>
   timeline_line=$(grep -a 'audio: timeline' "$trace" | tail -1)
   mode_line=$(grep -a 'mode: summary' "$trace" | tail -1)
 
-  local c_read c_sched c_origin c_pkt
+  local c_read c_sched c_origin c_signon
   c_read=$(grep -o '"soundEvents":[0-9]*' "$census" | cut -d: -f2)
   c_sched=$(grep -o '"timelineSize":[0-9]*' "$census" | cut -d: -f2)
   c_origin=$(grep -o '"packetOrigin":-\?[0-9]*' "$census" | cut -d: -f2)
-  c_pkt=$(grep -o '"firstPacketTick":-\?[0-9]*' "$census" | cut -d: -f2)
+  c_signon=$(grep -o '"firstPacketTick":-\?[0-9]*' "$census" | cut -d: -f2)
 
   local p_read p_sched p_origin p_pkt
   p_read=$(printf '%s' "$timeline_line" | grep -o 'read=[0-9]*' | cut -d= -f2)
@@ -892,12 +892,19 @@ player_checks() { # player_checks <label> <trace-file> <census-json-file>
   else
     bad=$((bad + 1)); printf '  FAIL %s (read=%s scheduled=%s, census says %s/%s)\n' "$label" "$p_read" "$p_sched" "$c_read" "$c_sched"
   fi
-  # Both origins, because a demo carries two tick spaces and using one variable
-  # for both emptied the scene once already.
-  if [ -n "$c_origin" ] && [ "$c_origin" = "$p_origin" ] && [ "$c_pkt" = "$p_pkt" ]; then
-    ok=$((ok + 1)); printf '  OK   %s (firstPacketTick=%s soundOriginTick=%s match the census)\n' "$label" "$p_pkt" "$p_origin"
+  # I-31: this assertion used to compare the product's firstPacketTick (the
+  # DATA-PACKET ENTRY origin, main.cpp: dataEntryTick) against the census's
+  # firstPacketTick, which is the SIGNON entry tick (29368 here). Those are two
+  # different tick spaces; commit 5ee9642 (2026-10-24) deliberately changed the
+  # product to the data-entry origin, and every preserved exe from the 11-12
+  # build through v9 then read 0 while the signon field still reads 29368.
+  # Comparing them was the defect, not a product regression. The like-for-like
+  # field is the census's packetOrigin (first command-2 entry tick); both the
+  # scene origin and the sound origin must equal it.
+  if [ -n "$c_origin" ] && [ "$c_origin" = "$p_pkt" ] && [ "$c_origin" = "$p_origin" ]; then
+    ok=$((ok + 1)); printf '  OK   %s (firstPacketTick=%s soundOriginTick=%s match the census data-entry origin (signon=%s))\n' "$label" "$p_pkt" "$p_origin" "$c_signon"
   else
-    bad=$((bad + 1)); printf '  FAIL %s (origins: packet=%s/%s sound=%s/%s)\n' "$label" "$p_pkt" "$c_pkt" "$p_origin" "$c_origin"
+    bad=$((bad + 1)); printf '  FAIL %s (origins: packet=%s sound=%s; census data-entry=%s signon=%s)\n' "$label" "$p_pkt" "$p_origin" "$c_origin" "$c_signon"
   fi
   # Silent mode must not count a play, and must not have asked for a device.
   if printf '%s' "$summary" | grep -qF 'soundEventsPlayed=0' \
@@ -930,19 +937,24 @@ player_checks() { # player_checks <label> <trace-file> <census-json-file>
   # every event it saw was played, skipped or missing, exactly once -- which
   # holds no matter how the frame clock ran. `duplicateTicks` stays printed for
   # the record.
-  local seen2 played2 skipped2 missing2 dt
+  # AUD-10: the disabled class is printed apart from the voice class. The old
+  # field folded both into events_skipped, which made a --audio-disabled run
+  # (played 0, skipped = everything) read exactly like a run that lost its sound.
+  local seen2 played2 skipped2 skipped_disabled2 missing2 dt
   seen2=$(printf '%s' "$mode_line" | grep -o 'events_seen=[0-9]*' | cut -d= -f2)
   played2=$(printf '%s' "$mode_line" | grep -o 'events_played=[0-9]*' | cut -d= -f2)
   skipped2=$(printf '%s' "$mode_line" | grep -o 'events_skipped=[0-9]*' | cut -d= -f2)
+  skipped_disabled2=$(printf '%s' "$mode_line" | grep -o 'events_skipped_disabled=[0-9]*' | cut -d= -f2)
   missing2=$(printf '%s' "$mode_line" | grep -o 'events_missing=[0-9]*' | cut -d= -f2)
   dt=$(printf '%s' "$summary" | grep -o 'duplicateTicks=[0-9]*' | cut -d= -f2)
-  if [ -n "$seen2" ] && [ -n "$played2" ] && [ -n "$skipped2" ] && [ -n "$missing2" ] \
-     && [ "$seen2" -eq $((played2 + skipped2 + missing2)) ]; then
-    ok=$((ok + 1)); printf '  OK   %s (events_seen=%s = played %s + skipped %s + missing %s; duplicateTicks=%s)\n' \
-      "$label" "$seen2" "$played2" "$skipped2" "$missing2" "${dt:-<unparsed>}"
+  if [ -n "$seen2" ] && [ -n "$played2" ] && [ -n "$skipped2" ] \
+     && [ -n "$skipped_disabled2" ] && [ -n "$missing2" ] \
+     && [ "$seen2" -eq $((played2 + skipped2 + skipped_disabled2 + missing2)) ]; then
+    ok=$((ok + 1)); printf '  OK   %s (events_seen=%s = played %s + skippedVoice %s + skippedDisabled %s + missing %s; duplicateTicks=%s)\n' \
+      "$label" "$seen2" "$played2" "$skipped2" "$skipped_disabled2" "$missing2" "${dt:-<unparsed>}"
   else
-    bad=$((bad + 1)); printf '  FAIL %s (accounting: seen=%s played=%s skipped=%s missing=%s)\n' \
-      "$label" "${seen2:-<unparsed>}" "${played2:-<unparsed>}" "${skipped2:-<unparsed>}" "${missing2:-<unparsed>}"
+    bad=$((bad + 1)); printf '  FAIL %s (accounting: seen=%s played=%s skippedVoice=%s skippedDisabled=%s missing=%s)\n' \
+      "$label" "${seen2:-<unparsed>}" "${played2:-<unparsed>}" "${skipped2:-<unparsed>}" "${skipped_disabled2:-<unparsed>}" "${missing2:-<unparsed>}"
   fi
   # A forward run must not report a backwards recovery.
   if printf '%s' "$summary" | grep -qF 'reverseRecoveries=0'; then
@@ -1208,8 +1220,11 @@ if [ "$MUTATION" -eq 1 ]; then
     mutate_checks player-attempts "$OUT/player-trace.txt" 's/audio_device_open_attempts=0/audio_device_open_attempts=1/' player
     # The voice counter must be live: zeroing it has to fail.
     mutate_checks player-voice   "$OUT/player-trace.txt" 's/soundEventsSkippedVoice=[0-9]*/soundEventsSkippedVoice=0/' player
-    # The origin must be the packet origin, not the signon tick.
+    # The origin must be the packet origin, not the signon tick. Two mutations:
+    # one for each product field that now has to equal the census data-entry
+    # origin, so a reader can see both halves discriminate.
     mutate_checks player-origin  "$OUT/player-trace.txt" 's/soundOriginTick=0/soundOriginTick=29368/' player
+    mutate_checks player-packet-origin "$OUT/player-trace.txt" 's/firstPacketTick=0/firstPacketTick=29368/' player
     mutate_checks player-read    "$OUT/player-trace.txt" 's/read=5563/read=5564/' player
     # The accounting identity must be live: one more seen than accounted for has
     # to fail. The value is read from the capture so a moved window cannot turn

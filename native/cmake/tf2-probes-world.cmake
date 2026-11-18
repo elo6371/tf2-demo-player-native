@@ -18,8 +18,10 @@
 # native_renderer.cpp for the same reason viewmodel_material.cpp is shared: a
 # gate that asserts the two agree is only non-circular if there is one
 # implementation to agree with.
-add_executable(world_material_probe tools/world_material_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
-add_executable(world_geometry_probe tools/world_geometry_probe.cpp src/bsp_map.cpp src/asset_root.cpp src/vpk_archive.cpp third_party/lzma/LzmaDec.c)
+add_executable(world_material_probe tools/world_material_probe.cpp )
+target_link_libraries(world_material_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
+add_executable(world_geometry_probe tools/world_geometry_probe.cpp )
+target_link_libraries(world_geometry_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(world_geometry_probe PRIVATE include third_party/lzma)
 set_target_properties(world_geometry_probe PROPERTIES WIN32_EXECUTABLE OFF)
 target_include_directories(world_material_probe PRIVATE include third_party/lzma)
@@ -32,33 +34,28 @@ set_target_properties(world_material_probe PROPERTIES WIN32_EXECUTABLE OFF)
 # world_material_features -- the two modules the product uses -- over a synthetic
 # material set and over a real map, so the gate can assert the plan and the
 # feature classification without a GPU.
-add_executable(material_coverage_probe tools/material_coverage_probe.cpp
-  src/world_tile_atlas.cpp src/world_material_features.cpp src/vmt_material.cpp
-  src/vpk_archive.cpp src/bsp_map.cpp src/vtf_texture.cpp src/world_material.cpp
-  third_party/lzma/LzmaDec.c)
+add_executable(material_coverage_probe tools/material_coverage_probe.cpp)
+target_link_libraries(material_coverage_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(material_coverage_probe PRIVATE include third_party/lzma)
 set_target_properties(material_coverage_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # T24: the six lighting/shader controls. The probe links the same ledger the
 # product's trace reads, so its rows and the product's rows cannot disagree
 # about what "declared", "requested" and "effective" mean.
-add_executable(lighting_semantics_probe tools/lighting_semantics_probe.cpp
-  src/world_lighting.cpp src/world_material_features.cpp src/vmt_material.cpp
-  src/vpk_archive.cpp src/bsp_map.cpp src/vtf_texture.cpp src/world_material.cpp
-  third_party/lzma/LzmaDec.c)
+add_executable(lighting_semantics_probe tools/lighting_semantics_probe.cpp)
+target_link_libraries(lighting_semantics_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(lighting_semantics_probe PRIVATE include third_party/lzma)
 set_target_properties(lighting_semantics_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
 # T27: the per-material feature path (normal layers, detail layer). Links
 # world_tile_atlas.cpp for `worldFeatureTileRect`, so the probe and the renderer
 # scale a tile rectangle with one function.
-add_executable(world_feature_probe tools/world_feature_probe.cpp
-  src/world_lighting.cpp src/world_material_features.cpp src/world_tile_atlas.cpp
-  src/vmt_material.cpp src/vpk_archive.cpp src/bsp_map.cpp src/vtf_texture.cpp
-  src/world_material.cpp third_party/lzma/LzmaDec.c)
+add_executable(world_feature_probe tools/world_feature_probe.cpp)
+target_link_libraries(world_feature_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(world_feature_probe PRIVATE include third_party/lzma)
 set_target_properties(world_feature_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(terrain_blend_probe tools/terrain_blend_probe.cpp src/bsp_map.cpp src/world_material.cpp src/vmt_material.cpp src/vpk_archive.cpp src/vtf_texture.cpp third_party/lzma/LzmaDec.c)
+add_executable(terrain_blend_probe tools/terrain_blend_probe.cpp )
+target_link_libraries(terrain_blend_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(terrain_blend_probe PRIVATE include third_party/lzma)
 set_target_properties(terrain_blend_probe PROPERTIES WIN32_EXECUTABLE OFF)

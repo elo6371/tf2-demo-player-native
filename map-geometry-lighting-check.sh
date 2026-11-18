@@ -197,11 +197,13 @@ OUT=${MAP_AXIS_OUT:-evidence/t62-map-axes}
 # recentDemo0..7 MRU at 137-139), so a gate that lets it write the operator's
 # real profile makes the next run start from different input -- and a run that
 # edited tracked files elsewhere is a repository contamination. Both paths point
-# at copies under the matrix directory.
-RUN_INPUTS=$MATRIX/inputs
+# at copies under the gate's own gitignored scratch: a run must not leave
+# untracked files under evidence/ (tools/audit-tree.sh calls the tree dirty, and
+# lockrun.sh then makes every gate exit 97).
+SCRATCH=.scratch/t62-map-axes
+RUN_INPUTS=$SCRATCH/inputs
 SETTINGS_FILE=$RUN_INPUTS/settings.ini
 UI_FILE=$RUN_INPUTS/ui.ini
-SCRATCH=.scratch/t62-map-axes
 MAPS=(cp_snakewater_final1 pl_odyssey cp_sunshine koth_bagel_rc12 koth_bagel_rc11)
 FRAMES=(textured none sky-faces flat-base flat-novis flat-nocull flat-novis-nocull ids ids-nocull lmoff)
 # p1 keeps the paths the earlier runs used (evidence/<map>/...); p2 gets its own
@@ -304,6 +306,8 @@ assert_eq() { # assert_eq <label> <got> <want>
     failure "$1 = ${2:-NA}, expected $3"
   fi
 }
+
+frames_same() { cmp -s "$1" "$2"; }
 
 assert_positive() { # assert_positive <label> <value>
   case ${2:-} in
@@ -566,6 +570,38 @@ for MAP in "${MAPS[@]}"; do
     echo "frame_flat=copy of flat-base.bmp"
   } > "$DIR/captures.txt"
 
+  # B2 (2026-11-16): the vis-off captures are equalities, not picture pins.
+  # `--world-flat --no-world-vis-clip` must draw exactly what `--world-flat`
+  # draws -- the vis clip is what the pair differs by, so with the clip off there
+  # is nothing left for it to refuse and the picture cannot change. Same for
+  # `--no-world-cull` added to both. A pixel pin would move on any intended
+  # picture change; these hold across a re-pin and break only if the flag
+  # plumbing stops doing what its name says. Each equality carries its own
+  # control on a tampered copy in the scratch, because an equality that cannot
+  # fail is not a check (and the product is never rebuilt to test it).
+  for pair in flat-novis:flat-base flat-novis-nocull:flat-nocull; do
+    off=${pair%%:*}; on=${pair##*:}
+    if frames_same "$CAP/$off.bmp" "$CAP/$on.bmp"; then
+      echo "  OK $off is byte-identical to $on"
+    else
+      failure "$MAP/$POSE: $off is not byte-identical to $on ($(cmp -l "$CAP/$off.bmp" "$CAP/$on.bmp" 2>/dev/null | wc -l) byte positions differ)"
+    fi
+    "$PYTHON" - "$CAP/$on.bmp" "$CAP/$off.control.bmp" <<'PY'
+import sys
+data = bytearray(open(sys.argv[1], 'rb').read())
+if len(data) < 128:
+    sys.exit(3)
+data[-1] ^= 0x01
+open(sys.argv[2], 'wb').write(data)
+PY
+    if frames_same "$CAP/$off.control.bmp" "$CAP/$on.bmp"; then
+      failure "$MAP/$POSE: the $off equality has no control: a one-byte change went unnoticed"
+    else
+      echo "  OK the $off equality notices a one-byte change (control)"
+    fi
+    rm -f "$CAP/$off.control.bmp"
+  done
+
   # P1-2b: the frame pins. These hashes say what the picture is at this pose and
   # tick, so a diff means the product draws something else now -- a fact about the
   # product, not a broken check. The pin lives in the matrix, not in .scratch,
@@ -722,7 +758,13 @@ for MAP in "${MAPS[@]}"; do
   assert_eq "drawn pixels whose albedo is dark but the frame is not (G7)" "$(field "$llight" albedo_not_lit)" 0
   # Whether a pose has any dark albedo pixel at all feeds the per-map coverage
   # bound; the attribution above is what this pose itself has to get right.
-  cov_dark=$(( cov_dark + $(field "$llight" albedo_dark || echo 0) ))
+  # Split on purpose: this host's bash (5.3.20 msys) leaves $(( )) unexpanded when a
+  # command substitution with a quoted word is nested in it (tools/check-nested-arith.sh).
+  pose_dark=$(field "$llight" albedo_dark || echo 0)
+  case "$pose_dark" in
+    ''|*[!0-9]*) failure "$MAP: albedo_dark reading is not a count: '$pose_dark'"; pose_dark=0 ;;
+  esac
+  cov_dark=$(( cov_dark + pose_dark ))
   echo "  reading: this pose has $(field "$llight" albedo_dark || echo NA) dark-albedo pixels (coverage is counted per map)"
 
   # G8: the point oracle explains what the two classes ARE, rather than only that
