@@ -944,6 +944,11 @@ public:
   std::size_t entityModelVertexCount() const { return entityModelVertexCount_; }
   std::size_t entityModelTexturedRangeCount() const { return entityModelTexturedRangeCount_; }
   std::size_t entityModelTexturedInstanceCount() const { return entityModelTexturedInstanceCount_; }
+  // N17 item 4: a range with no textureView is skipped by the entity pass. Naming
+  // the count and the first example turns "ranges - texturedRanges" from a
+  // subtraction a reader has to trust into a stated fact with an owner.
+  std::size_t entityModelUntexturedRangeCount() const { return entityModelUntexturedRangeCount_; }
+  const std::string& entityModelFirstUntexturedRange() const { return entityModelFirstUntexturedRange_; }
   std::size_t entityModelDrawRangeCount() const { return entityModelDrawRanges_.size(); }
   // Vertices dropped on upload because a cap was applied. Must stay 0: T57
   // measured this path cutting every player model at 12000 vertices. The counter
@@ -2077,6 +2082,11 @@ private:
     float proxyScrollU = 0.0f;
     float proxyScrollV = 0.0f;
     float proxyColor = 1.0f;
+    // N17: which mesh (and which bodygroup selection of it) this range came
+    // from. A range probe names a range by ordinal; without this the number
+    // cannot be tied back to a model part. Empty key = not filled by the builder.
+    std::string cacheKey;
+    std::uint32_t body = 0;
   };
   // T85 P0: layer B's compile-time bound, named. 96 is kept: the defect was not
   // that the number was too small, it was that a bounded table refused instead
@@ -2122,6 +2132,8 @@ private:
   std::size_t entityModelInstanceSlotCount_ = 0;
   std::size_t entityModelSkinnedInstanceCount_ = 0;
   std::size_t entityModelTexturedRangeCount_ = 0;
+  std::size_t entityModelUntexturedRangeCount_ = 0;
+  std::string entityModelFirstUntexturedRange_;
   std::size_t entityModelMeshTruncatedCount_ = 0;
   std::size_t entityModelTextureCount_ = 0;
   std::size_t entityModelTexturedInstanceCount_ = 0;

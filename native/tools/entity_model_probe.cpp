@@ -2372,6 +2372,15 @@ int main(int argc, char** argv) {
           }
         }
       }
+      // N17 item 3: the bodygroup table itself. A selector value only means
+      // something relative to (base, modelCount) of the bodypart it addresses, and a
+      // dump that prints the value without the table leaves a reader unable to say
+      // which model a forced body selects.
+      for (std::size_t bp = 0; bp < slotMetadata.bodyParts.size(); ++bp) {
+        const auto& part = slotMetadata.bodyParts[bp];
+        std::fprintf(stdout, "model-slot-bodypart index=%zu name=%s base=%d modelCount=%d\n",
+                     bp, part.name.c_str(), part.base, part.modelCount);
+      }
       for (const auto& descriptor : slotMetadata.indices) {
         if (descriptor.lod != 0) continue;
         const std::int32_t material = materialTable.available
