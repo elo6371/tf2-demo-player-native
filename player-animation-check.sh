@@ -428,7 +428,10 @@ if [ "$DEMO_RC" = "0" ]; then
     END { printf "lines=%d bad_move=%d bad_idle=%d bad_parse=%d\n", lines + 0, bad_move + 0, bad_idle + 0, bad_parse + 0 }')
   echo "  $tick_stats"
   assert_ge "E demo printed tick lines (the rule below needs at least one)" "$(field "$tick_stats" lines)" 1
-  assert_eq "E demo printed tick lines whose advanced= field parsed" "$(field "$tick_stats" bad_parse)" "0"
+  # The label names what the number IS: bad_parse counts lines it could not read.
+  # ("lines whose advanced= field parsed" read as a count that must be >= 1, which
+  # is the opposite of the assertion; audit 2026-11-18.)
+  assert_eq "E demo tick lines whose advanced= field could not be parsed (bad_parse, must be 0)" "$(field "$tick_stats" bad_parse)" "0"
   assert_eq "E demo printed moving ticks that did not advance" "$(field "$tick_stats" bad_move)" "0"
   assert_eq "E demo printed idle ticks that advanced" "$(field "$tick_stats" bad_idle)" "0"
 fi
