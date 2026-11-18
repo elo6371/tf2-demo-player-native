@@ -5,20 +5,20 @@
 用途：交给下一位执行者的中文工作入口；配套详细交接为 `PROJECT-HANDOFF-2026-11-14.md`。
 本文件中的安排是建议执行顺序，不代表已启动任务或已向其他聊天派发任务。
 
-## 当前执行快照（2026-11-17，优先于下文旧快照）
+## 当前执行快照（2026-11-18，优先于下文旧快照）
 
-当前集成树 `work/integrate` 基线 `2305215`，父提交为功能合并tip `d5037e58`；报告绑定exe SHA-256 `9d8333d8…bf7e86`，来自集成报告，本轮已重建窄目标但没有重跑完整视觉门禁。依据 `docs/WORLD-VISUAL-REPORT-2026-11-17-ZH.md`、`docs/WORLD-VISUAL-INTEGRATION-2026-11-17.md` 与本轮N17相机调查；下面2026-11-15 candidate/e5记录均为历史，不覆盖本快照。
+当前集成树 `work/integrate` 基线 `f25e954f`（产品 `5a599d1e`：世界 FOV 拆分、动画 helper skin 矩阵、idle token 选择、实体账本字段），上一基线 `2305215`、功能合并 tip `d5037e58`。本轮重建 exe SHA-256 `f341ab1e…0d15`（3,185,664 B，exe_count=54），并在该 exe 上复跑 camera_probe / camera-ui / pose-families 三门（全部 PASS，读数见各行），但未重跑完整视觉门禁与 verify-all。依据 `docs/WORLD-VISUAL-REPORT-2026-11-17-ZH.md`、`docs/WORLD-VISUAL-INTEGRATION-2026-11-17.md` 与本轮N17相机调查；下面2026-11-15 candidate/e5记录均为历史，不覆盖本快照。
 
 已接受的局部修复：天空默认开启并改在opaque world后绘制（天空门17/17）；位移网格转置修复，位移边界吻合7,502/7,855（engine oracle 7,535），之前被回退平面的13个patch恢复；实体网格二次染色修复（379,038 px mask及mutation）；未知开关exit 13及`--window-size`；地图总览/HUD 213 checks。报告称四姿态帧与位移分支逐字一致，但不能据此推导人物模型外观通过。
 
-未闭环：pr600仍报告94 px真几何被背面绕序测试剔除；14个退化位移patch仍平面回退；Odyssey几何洞门因无其专用demo pin未过，Odyssey不属于首发七图；world-material在candidate/e5基线上同样红；camera-ui/hud-live/fullscreen-quiet未在此exe重跑，verify-all未端到端跑。图 `analysis/integrated-up0.png` 的Scout外形明显可疑；N17报告测得屏外像素为0，已排除“被画面裁切”，但mesh/LOD、UV/材质、骨骼/权重、动画或投影仍未定因。本轮已修复世界相机错误复用ViewModel FOV，并通过camera probe、定向构建及同demo/tick隔离抓帧；Scout本体仍需同帧对照与逐层诊断。
+未闭环：pr600仍报告94 px真几何被背面绕序测试剔除；14个退化位移patch仍平面回退；Odyssey几何洞门因无其专用demo pin未过，Odyssey不属于首发七图；world-material在candidate/e5基线上同样红；hud-live/fullscreen-quiet未在此exe重跑，verify-all未端到端跑（camera-ui已在f341ab1e上复跑PASS）。图 `analysis/integrated-up0.png` 的Scout外形明显可疑；N17报告测得屏外像素为0，已排除“被画面裁切”，但mesh/LOD、UV/材质、骨骼/权重、动画或投影仍未定因。本轮已提交世界相机错误复用ViewModel FOV的修复（5a599d1e），并以camera probe、定向构建及同demo/tick隔离抓帧验证；Scout本体仍需同帧对照与逐层诊断。
 
 | 工作 | 当前判定 | 证据边界与下一步 |
 |---|---|---|
-| 集成世界修复 | **报告级局部验收** | 集成报告绑定exe `9d8333d8…bf7e86`；本轮基线HEAD `2305215`、父`d5037e58`。world FOV修复改动仍在工作树，尚未集成；完整门禁未重跑 |
-| Scout / N17-N18 | **FOV混用已修并窄验证；Scout本体仍OPEN** | 世界相机原先误用ViewModel垂直FOV；已拆Source水平worldFov与ViewModel FOV，90°@4:3转换为73.74°垂直并按pane aspect投影。现有model-data、pose、body tint或entity tint门仍不证明玩家完整模型匹配游戏；继续同demo/tick/entity对照和模型分层诊断 |
-| 世界残项 | **独立OPEN** | pr600绕序剔除、14个退化位移面、world-material红分别建卡；不可通过关闭cull或重钉错误pin隐藏 |
-| 架构/验证 | **并行继续** | 审计模型probe与gate覆盖属于N25质量/效率任务；构建/主循环按既有路线推进，不因视觉诊断暂停 |
+| 集成世界修复 | **报告级局部验收** | 集成报告绑定exe `9d8333d8…bf7e86`；本轮基线HEAD `f25e954f`/产品`5a599d1e`，父`d5037e58`。world FOV修复已提交并集成；camera_probe/camera-ui/pose-families 在 exe `f341ab1e…0d15` 上 PASS；完整视觉门禁与 verify-all 未重跑 |
+| Scout / N17-N18 | **FOV混用已修并窄验证；Scout本体仍OPEN** | 世界相机原先误用ViewModel垂直FOV；已拆Source水平worldFov与ViewModel FOV，90°@4:3转换为73.74°垂直并按pane aspect投影。idle 契约（旧 idleRate=0 冻结 cycle）已确认与 TF2 不符，修复在 work/n17-anim 进行中（task-7）；现有model-data、pose、body tint或entity tint门仍不证明玩家完整模型匹配游戏；继续同demo/tick/entity对照和模型分层诊断 |
+| 世界残项 | **独立OPEN** | pr600绕序剔除与14个退化位移面在 work/world-cull 处理（task-9）；world-material红另行建卡；不可通过关闭cull或重钉错误pin隐藏 |
+| 架构/验证 | **并行继续** | 审计模型probe与gate覆盖属于N25质量/效率任务，五个已修门禁取真实verdict+具名负控在 work/qa-gates（task-10）；构建/主循环按既有路线推进，不因视觉诊断暂停 |
 
 相关源码和数据站点按任务域列于 [`TF2-SOURCE-REFERENCE-INDEX.md`](TF2-SOURCE-REFERENCE-INDEX.md)。后续代码/资产任务要记录参考仓库commit、文件/符号和适用边界；N17优先查OthmanAba TF2源码，Valve Source SDK用于共享引擎机制，最终以当前安装资产、demo独立oracle和产品读数裁决。
 
