@@ -3638,6 +3638,13 @@ bool outlineVertexExtent = false;
   bool worldLightsGiven = false;
   bool worldLightsRequested = false;
   bool worldLightsArgumentRejected = false;
+  // T105: the 3D skybox switch. Same three-variable shape as the N21 lights
+  // switches above: given records that the flag was on the command line,
+  // requested is the value it carried, rejected means the value was not on|off
+  // and the run must refuse rather than fall back to either side.
+  bool worldSky3dGiven = false;
+  bool worldSky3dRequested = false;
+  bool worldSky3dArgumentRejected = false;
   // Diagnostic: treat the world material as if it declared an env map, so the
   // six-face sampling branch can be run on content that does not ask for it.
   // No installed map's first material declares $envmap -- measured across all
@@ -4134,6 +4141,30 @@ bool outlineVertexExtent = false;
           }
         } else {
           worldLightsArgumentRejected = true;
+        }
+        continue;
+      }
+
+      // T105: --world-sky-3d on|off. A ladder arm for the reason the block above
+      // states (C1061). Off is the default because every pinned capture was
+      // taken without the pass: the switch that adds a draw must not be able to
+      // change a frame that did not ask for it.
+      if (wcscmp(arguments[i], L"--world-sky-3d") == 0) {
+        if (i + 1 < argumentCount) {
+          const wchar_t* value = arguments[i + 1];
+          if (wcscmp(value, L"on") == 0) {
+            worldSky3dRequested = true;
+            worldSky3dGiven = true;
+            ++i;
+          } else if (wcscmp(value, L"off") == 0) {
+            worldSky3dRequested = false;
+            worldSky3dGiven = true;
+            ++i;
+          } else {
+            worldSky3dArgumentRejected = true;
+          }
+        } else {
+          worldSky3dArgumentRejected = true;
         }
         continue;
       }
@@ -5096,6 +5127,7 @@ bool outlineVertexExtent = false;
   // seven fields, the switch removes this one.
   if (worldDynamicLightGiven) persistent.render.dynamicLighting = worldDynamicLightRequested;
   if (worldLightsGiven) persistent.render.worldLights = worldLightsRequested;
+  if (worldSky3dGiven) persistent.render.worldSky3d = worldSky3dRequested;
   if (worldSpecularGiven) persistent.render.specular = worldSpecularRequested;
   if (worldBumpGiven) persistent.render.bumpMapping = worldBumpRequested;
   if (worldMaterialBumpGiven) persistent.render.materialBump = worldMaterialBumpRequested;
@@ -5130,6 +5162,13 @@ bool outlineVertexExtent = false;
     // N21: same rule. --world-lights takes on|off and nothing else; falling back
     // to either side would make the A/B meaningless.
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-lights; it takes on or off and nothing else.\n");
+    return 13;
+  }
+  if (worldSky3dArgumentRejected) {
+    // T105: same rule, and it matters more here: this switch decides whether a
+    // second draw happens at all, so an unreadable value must not leave the
+    // pass quietly on or quietly off.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-sky-3d; it takes on or off and nothing else.\n");
     return 13;
   }
   if (invalidViewModelEffectArgument) {
@@ -9357,6 +9396,26 @@ bool outlineVertexExtent = false;
         lights.sunIntensity, lights.ambientIntensity,
         lights.lights.size() - spotCount, spotCount, displayMap.lightsRejected);
     }
+    // T105: the 3D skybox. Resolved here, before the upload, because the upload
+    // is what decides which triangles are the sky's: the cluster is looked up
+    // ONCE from the map's sky_camera origin (map units, the only space clusterAt
+    // understands) and then travels with the vertex upload, so the pass and the
+    // buffer cannot disagree about which triangles they mean.
+    {
+      tf2::native::WorldSky3dState sky3d;
+      // Restricted to the whole map: under --world-geometry terrain|sky|none the
+      // upload is a mask, not the map, and a skybox cut from a mask would be a
+      // picture of a filter. Those frames stay on the 2D box.
+      sky3d.enabled = persistent.render.worldSky3d && worldGeometry == WorldGeometryFilter::All;
+      sky3d.present = displayMap.skyCamera.present;
+      sky3d.scale = displayMap.skyCamera.scale > 0.0f ? displayMap.skyCamera.scale : 16.0f;
+      for (int axis = 0; axis < 3; ++axis) sky3d.origin[axis] = displayMap.skyCamera.origin[axis];
+      sky3d.cluster = sky3d.present
+        ? tf2::native::BspParser::clusterAt(displayMap, displayMap.skyCamera.origin[0],
+            displayMap.skyCamera.origin[1], displayMap.skyCamera.origin[2])
+        : -1;
+      renderer.setWorldSky3d(sky3d);
+    }
     if (worldGeometry == WorldGeometryFilter::None) {
       // Nothing is uploaded, so no world vertex buffer exists and the world
       // draw's own guard skips it. That frame is the background measurement the
@@ -9388,6 +9447,18 @@ bool outlineVertexExtent = false;
         : worldGeometry == WorldGeometryFilter::Sky ? "sky"
         : worldGeometry == WorldGeometryFilter::None ? "none" : "all",
       (worldBlendGiven ? worldBlendRequested : true) ? "on" : "off");
+    // T105: the skybox reading, after the upload so vertices/triangles are what
+    // the buffer actually carries. enabled is the request as the pass saw it
+    // (already ANDed with the geometry filter); present and cluster come from
+    // the map's own sky_camera, and source=bsp says where they came from.
+    {
+      const auto sky3dState = renderer.worldSky3dState();
+      traceFmt("sky3d: enabled=%d present=%d scale=%.1f cluster=%d vertices=%zu triangles=%zu "
+        "batches=%zu source=bsp",
+        sky3dState.enabled ? 1 : 0, sky3dState.present ? 1 : 0,
+        static_cast<double>(sky3dState.scale), sky3dState.cluster,
+        sky3dState.vertexCount, sky3dState.triangleCount, sky3dState.batches);
+    }
     // T101: the fog reading, after the upload so verticesFogged is the number the
     // buffer actually carries. featureMaskFogBit=32 is printed as a constant on
     // purpose: the disabled pass must read verticesFogged=0 AND no vertex may

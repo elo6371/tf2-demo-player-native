@@ -81,6 +81,11 @@ struct RenderSettings {
   // existing fields keep their meaning and the settings file keeps loading.
   bool waterSurface = false;
   bool skybox = false;
+  // T105: the map's 3D skybox -- the brushes compiled around `sky_camera`,
+  // drawn a second time from a camera moved into that region at 1/scale. Off by
+  // default: an off run must be the frame the pinned captures were taken from,
+  // so the pass adds no draw and no state change to the world path.
+  bool worldSky3d = false;
   int modelLod = 4;
   float renderScale = 1.0f;
   float viewModelFov = 90.0f;
@@ -541,6 +546,44 @@ struct WorldFogUploadState {
   float boxToMapXZ = 1.0f;     // 1 / worldHorizontalScale_
   float boxToMapZ = 1.0f;      // 1 / worldHorizontalScale_
   std::size_t verticesFogged = 0;
+};
+
+// T105: the map's 3D skybox. `origin` and `scale` are `sky_camera`'s, in MAP
+// units like WorldFogState's distances; `cluster` is the BSP cluster that origin
+// stands in, i.e. the cluster the brushes around it were compiled into -- the
+// one decision this pass makes about which geometry is sky, and it is made once
+// at load rather than per frame.
+struct WorldSky3dState {
+  bool enabled = false;
+  bool present = false;                    // the map has a sky_camera at all
+  float origin[3] = {0.0f, 0.0f, 0.0f};    // map space
+  float scale = 16.0f;                     // sky_camera's scale: 1/scale of world size
+  int cluster = -1;
+};
+
+// T105: one draw of the sky geometry. A world batch binds one atlas and one set
+// of feature views, so the sky's triangles are grouped exactly as the world's
+// are (batch * 2 + alphaMode) and each group is drawn with its own views; the
+// common case is a single group.
+struct WorldSky3dRange {
+  int subBatch = -1;            // index into worldDrawBatches_
+  unsigned int firstIndex = 0;
+  unsigned int indexCount = 0;
+};
+
+// T105: what the sky-3d pass has for this run and what it drew. The counts are
+// the second upload's; `drawnTriangles` is written by the draw itself, so a
+// frame the pass skipped reads as 0 rather than as the previous frame's count.
+struct WorldSky3dUploadState {
+  bool enabled = false;
+  bool present = false;
+  float scale = 16.0f;
+  int cluster = -1;
+  std::size_t vertexCount = 0;
+  std::size_t triangleCount = 0;
+  std::size_t batches = 0;
+  int drawnTriangles = 0;
+  bool drewThisFrame = false;
 };
 
 struct WorldShaderConstants {
@@ -1182,6 +1225,12 @@ public:
   // How many of them reached the constant buffer in the last pane that filled
   // it -- the post-cap number, so a trace cannot claim more than the shader read.
   std::size_t worldLightsUploaded() const { return worldLightsUploaded_; }
+  // T105: the map's 3D skybox. Called BEFORE uploadWorldGeometry: the cluster
+  // decides which triangles are copied into the second buffer there, so setting
+  // it afterwards would leave the pass with nothing to draw.
+  void setWorldSky3d(const WorldSky3dState& sky) { worldSky3d_ = sky; }
+  // What was uploaded, and what the last frame drew.
+  WorldSky3dUploadState worldSky3dState() const;
   // What the last upload actually drew: the state, the two scales the shader
   // multiplies by, and how many vertices carry the fog bit (0 when disabled).
   WorldFogUploadState worldFogState() const;
@@ -2466,6 +2515,25 @@ private:
   bool worldSkyDrewThisFrame_ = false;
   bool worldSkyFarPlane_ = false;
   bool worldSkyDedicatedShader_ = false;
+  // ---- T105: the 3D skybox ------------------------------------------------
+  // The sky geometry's own copy of the world's vertices and indices, so the
+  // world's two buffers stay exactly what they were with the pass off. The
+  // vertex buffer is filled from the same finished WorldVertex the world loop
+  // pushed -- atlas uv rewritten, lightmap uv set, box conversion applied -- so
+  // the two cannot drift apart.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldSky3dVertexBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldSky3dIndexBuffer_;
+  // 1280 bytes, the world's own layout: the sky is drawn by the world's vertex
+  // and pixel shaders, so it reads the same struct and only the numbers differ.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> worldSky3dConstants_;
+  UINT worldSky3dVertexCount_ = 0;
+  std::size_t worldSky3dTriangleCount_ = 0;
+  std::vector<WorldSky3dRange> worldSky3dBatches_;
+  WorldSky3dState worldSky3d_{};
+  // Written by the draw, like worldSkyDrewThisFrame_: a frame the pass skipped
+  // must read as 0 drawn, never as the previous frame's count.
+  int worldSky3dDrawnTriangles_ = 0;
+  bool worldSky3dDrewThisFrame_ = false;
   WorldSkyState worldSkyState_ = WorldSkyState::Unavailable;
   std::string worldSkyReason_ = "no sky box was uploaded";
   // The pvs draw list: an index buffer over the world vertex buffer, rebuilt

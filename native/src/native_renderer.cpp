@@ -816,6 +816,11 @@ bool Renderer::createPipeline() {
   // the same frame, and two UpdateSubresource calls into one buffer would make
   // whichever ran second the truth for both passes.
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldSkyConstants_.GetAddressOf()))) return false;
+  // T105: the 3D skybox draws through the world's own shaders, so it needs a
+  // block in the world's own layout -- only the numbers differ (a camera moved
+  // into the skybox, no sun, no fog). Same reason as the line above for it being
+  // a third copy: the world, the box and the skybox are all in one frame.
+  if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldSky3dConstants_.GetAddressOf()))) return false;
   // ---- T51: the HUD pass's constants, states and vertex buffer -----------
   //
   // Depth test and depth write are both OFF, and the rasteriser culls nothing:
@@ -924,6 +929,23 @@ WorldFogUploadState Renderer::worldFogState() const {
     state.boxToMapZ = 1.0f / worldHorizontalScale_;
   }
   state.verticesFogged = worldFogVertices_;
+  return state;
+}
+
+// T105: what the 3D skybox pass has to work with. Reported rather than guessed,
+// for the same reason as the fog above: the trace has to describe the buffer
+// that was actually built, not the entity it was built from.
+WorldSky3dUploadState Renderer::worldSky3dState() const {
+  WorldSky3dUploadState state;
+  state.enabled = worldSky3d_.enabled;
+  state.present = worldSky3d_.present;
+  state.scale = worldSky3d_.scale;
+  state.cluster = worldSky3d_.cluster;
+  state.vertexCount = static_cast<std::size_t>(worldSky3dVertexCount_);
+  state.triangleCount = worldSky3dTriangleCount_;
+  state.batches = worldSky3dBatches_.size();
+  state.drawnTriangles = worldSky3dDrawnTriangles_;
+  state.drewThisFrame = worldSky3dDrewThisFrame_;
   return state;
 }
 
@@ -1097,6 +1119,17 @@ void Renderer::shutdown() {
   worldSkyState_ = WorldSkyState::Unavailable;
   worldSkyReason_ = "no sky box was uploaded";
   worldSkyDrewThisFrame_ = false;
+  // T105: the 3D skybox's buffers go with the box's. worldSky3d_ itself is left
+  // alone: it is what the caller asked for, not what was uploaded, and the map
+  // load that follows re-reports it before the world is uploaded again.
+  worldSky3dVertexBuffer_.Reset();
+  worldSky3dIndexBuffer_.Reset();
+  worldSky3dConstants_.Reset();
+  worldSky3dVertexCount_ = 0;
+  worldSky3dTriangleCount_ = 0;
+  worldSky3dBatches_.clear();
+  worldSky3dDrawnTriangles_ = 0;
+  worldSky3dDrewThisFrame_ = false;
   // ---- T2 (2026-10-14): the water surface --------------------------------
   // Reset with the rest of the world's GPU state so a new map starts from
   // "no water was uploaded" rather than from the previous map's surface.

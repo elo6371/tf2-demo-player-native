@@ -285,6 +285,9 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     worldSkyDrewThisFrame_ = false;
     worldSkyFarPlane_ = false;
     worldSkyDedicatedShader_ = false;
+    // T105: the sky-3d draw count is per frame too, for the same reason.
+    worldSky3dDrewThisFrame_ = false;
+    worldSky3dDrawnTriangles_ = 0;
     worldVisDrewIndexed_ = false;
     // N05 step 3: the clip capture describes one draw, so it is cleared once per
     // frame for the same reason the two readings above are: a frame where the
@@ -422,6 +425,102 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // frame expects the map shader bound, so it goes back here and not at the
     // next bind site.
     context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+  };
+  // ---- T105: the map's 3D skybox -----------------------------------------
+  // Drawn straight after the box, in the same deferred flush: the sky is behind
+  // everything, so it has to be in the colour buffer before the blended world
+  // geometry is composited over it -- a sky drawn after the alpha batches would
+  // paint over glass the world had already blended.
+  bool sky3dDrawPending = false;
+  auto drawWorldSkyGeometry3d = [this]() {
+    int drawnTriangles = 0;
+    if (worldSky3dVertexBuffer_ && worldSky3dIndexBuffer_ && worldSky3dConstants_
+        && worldSky3dVertexCount_ > 0 && !worldSky3dBatches_.empty()
+        && worldVertexShader_ && worldPixelShader_ && worldInputLayout_
+        && worldSkyRasterizerState_ && worldSkyDepthStencilState_) {
+      const UINT skyStride = sizeof(WorldVertex), skyOffset = 0;
+      auto* skyBuffer = worldSky3dVertexBuffer_.Get();
+      auto* skyIndexBuffer = worldSky3dIndexBuffer_.Get();
+      auto* skyConstantsBuffer = worldSky3dConstants_.Get();
+      // The box's rasterizer and depth state: the sky brushes are authored to be
+      // seen from inside, and depth writes are off so the far-plane pin cannot
+      // occlude anything a later pass draws.
+      context_->RSSetState(worldSkyRasterizerState_.Get());
+      context_->OMSetDepthStencilState(worldSkyDepthStencilState_.Get(), 0);
+      noteDepthState("sky3d:write-off");
+      context_->IASetInputLayout(worldInputLayout_.Get());
+      context_->IASetVertexBuffers(0, 1, &skyBuffer, &skyStride, &skyOffset);
+      context_->IASetIndexBuffer(skyIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+      context_->VSSetShader(worldVertexShader_.Get(), nullptr, 0);
+      context_->VSSetConstantBuffers(0, 1, &skyConstantsBuffer);
+      // The world's pixel shader, not the box's: these are the map's own brushes
+      // and need the map's atlas, feature mask and uv handling. That shader can
+      // discard, so this pass gives up early-z -- it is rejected by the depth the
+      // world just wrote, which is the whole point of drawing it last.
+      context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+      context_->PSSetConstantBuffers(0, 1, &skyConstantsBuffer);
+      context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
+      context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+      // One draw per sub-batch, each with the atlas and feature views that batch
+      // was built with -- the world loop does the same and for the same reason:
+      // one draw binds one atlas, so a sky spanning batches would otherwise be
+      // sampled with the first batch's tile rectangles.
+      for (const auto& range : worldSky3dBatches_) {
+        if (range.indexCount == 0) continue;
+        if (range.subBatch < 0
+            || static_cast<std::size_t>(range.subBatch) >= worldDrawBatches_.size()) continue;
+        const auto& batch = worldDrawBatches_[static_cast<std::size_t>(range.subBatch)];
+        ID3D11ShaderResourceView* albedoView = batch.albedoView;
+        ID3D11ShaderResourceView* blendView = batch.blendView;
+        ID3D11ShaderResourceView* blendModulateView = batch.modulateView;
+        ID3D11ShaderResourceView* bumpAtlasView = batch.bumpView;
+        ID3D11ShaderResourceView* bump2AtlasView = batch.bump2View;
+        ID3D11ShaderResourceView* detailView = batch.detailView;
+        bindSlot0(albedoView, "world-sky3d");
+        context_->PSSetShaderResources(6, 1, &blendView);
+        context_->PSSetShaderResources(7, 1, &blendModulateView);
+        context_->PSSetShaderResources(8, 1, &bumpAtlasView);
+        context_->PSSetShaderResources(9, 1, &bump2AtlasView);
+        context_->PSSetShaderResources(10, 1, &detailView);
+        context_->DrawIndexed(range.indexCount, range.firstIndex, 0);
+        drawnTriangles += static_cast<int>(range.indexCount / 3u);
+      }
+      capturePassDepth("11-sky3d");
+    }
+    // Written by the draw, like worldSkyDrewThisFrame_: a frame the pass skipped
+    // reads as 0 rather than as the previous frame's count.
+    worldSky3dDrewThisFrame_ = drawnTriangles > 0;
+    worldSky3dDrawnTriangles_ = drawnTriangles;
+    // The next draw must not inherit the sky's index buffer or its states. Same
+    // restore as the box's, because this pass borrowed the same slots.
+    ID3D11Buffer* noIndex = nullptr;
+    context_->IASetIndexBuffer(noIndex, DXGI_FORMAT_R32_UINT, 0);
+    context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get()
+                                            : worldNoCullRasterizerState_.Get());
+    context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+    noteDepthState("world:write-all");
+    ID3D11ShaderResourceView* cubeView = worldCubemapView_.Get();
+    context_->PSSetShaderResources(5, 1, &cubeView);
+    auto* worldBuffer = worldVertexBuffer_.Get();
+    auto* worldConstantsBuffer = worldConstants_.Get();
+    const UINT worldStride = sizeof(WorldVertex), worldOffset = 0;
+    context_->IASetVertexBuffers(0, 1, &worldBuffer, &worldStride, &worldOffset);
+    context_->VSSetConstantBuffers(0, 1, &worldConstantsBuffer);
+    context_->PSSetConstantBuffers(0, 1, &worldConstantsBuffer);
+    context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
+  };
+  // The two sky passes are flushed together, in that order, wherever the frame
+  // used to flush the box alone. One helper keeps the ordering claim in one
+  // place: the box first, the geometry straight after it.
+  auto flushSkyPasses = [&]() {
+    if (skyDrawPending) {
+      drawWorldSkyBox();
+      skyDrawPending = false;
+    }
+    if (sky3dDrawPending) {
+      drawWorldSkyGeometry3d();
+      sky3dDrawPending = false;
+    }
   };
   if (worldConstants_) {
     using namespace DirectX;
@@ -831,6 +930,56 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       // opaque batches -- see the flush points and drawWorldSkyBox above.
       skyDrawPending = true;
     }
+    // ---- T105: the 3D skybox's constants ---------------------------------
+    // Its own 1280-byte block in the world's own layout, because the world's
+    // shaders read it: only the numbers differ. The camera is moved into the
+    // skybox the way the game does it -- eye_sky = skyOrigin + (eye - skyOrigin)
+    // / scale, i.e. the same rotation and projection from a point that is one
+    // scale closer to the sky camera -- and the geometry itself is drawn
+    // unscaled. Translating the mvp by (eye - eye_sky) is that camera move, and
+    // it keeps the parallax an eye that walks around the map must have. The z
+    // row is then pinned to the far plane exactly as the box's is.
+    const bool sky3dReady = worldSky3d_.enabled && worldSky3d_.present
+      && worldSky3dVertexBuffer_ && worldSky3dIndexBuffer_ && worldSky3dConstants_
+      && worldSky3dVertexCount_ > 0 && !worldSky3dBatches_.empty();
+    if (sky3dReady) {
+      const float sky3dScale = worldSky3d_.scale > 0.0f ? worldSky3d_.scale : 16.0f;
+      const float skyOriginBox[3] = {
+        (worldSky3d_.origin[0] - worldCenterX_) * worldHorizontalScale_,
+        (worldSky3d_.origin[1] - worldCenterY_) * worldHorizontalScale_,
+        (worldSky3d_.origin[2] - worldMinZ_) * worldHorizontalScale_ + 0.1f};
+      XMFLOAT3 eyeBox{};
+      XMStoreFloat3(&eyeBox, eye);
+      const float eyeSky[3] = {
+        skyOriginBox[0] + (eyeBox.x - skyOriginBox[0]) / sky3dScale,
+        skyOriginBox[1] + (eyeBox.y - skyOriginBox[1]) / sky3dScale,
+        skyOriginBox[2] + (eyeBox.z - skyOriginBox[2]) / sky3dScale};
+      WorldConstantsData sky3dConstants{};
+      XMMATRIX sky3dMvp = XMMatrixTranslation(eyeBox.x - eyeSky[0], eyeBox.y - eyeSky[1],
+        eyeBox.z - eyeSky[2]) * mvp;
+      XMStoreFloat4x4(&sky3dConstants.mvp, sky3dMvp);
+      const float sky3dFarPlanePin = 1.0f - 1.0e-6f;
+      for (int row = 0; row < 4; ++row)
+        sky3dConstants.mvp.m[row][2] = sky3dConstants.mvp.m[row][3] * sky3dFarPlanePin;
+      // The shaded values: no sun path and no diffuse term (w = 0 makes lighting
+      // exactly 1), no specular, no fog, no env, no self-illum, and a lightmap
+      // factor of 1 with the lightmap sample disabled but the uv left on the
+      // vertex -- these are the map's own brushes, so they carry the albedo and
+      // the uv the atlas was built for, and nothing else about the world's
+      // lighting is true inside the skybox.
+      sky3dConstants.lightDirectionAndMode = XMFLOAT4(0.35f, -0.45f, 0.82f, 0.0f);
+      sky3dConstants.cameraPositionAndSpecular = XMFLOAT4(eyeBox.x, eyeBox.y, eyeBox.z, 0.0f);
+      sky3dConstants.materialFeatures = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      sky3dConstants.lightmapFeatures = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
+      sky3dConstants.envFeatures = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      sky3dConstants.fogParams = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      sky3dConstants.fogColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+      sky3dConstants.fogScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
+      sky3dConstants.sunDirectionAndMode = XMFLOAT4(0.0f, 0.0f, 1.0f, 0.0f);
+      sky3dConstants.lightCountAndParams = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      context_->UpdateSubresource(worldSky3dConstants_.Get(), 0, nullptr, &sky3dConstants, 0, 0);
+      sky3dDrawPending = true;
+    }
   }
   // The sky's draw is deferred: it runs at the end of the opaque world pass
   // (drawWorldSkyBox above), under its own rasterizer state and with depth
@@ -948,10 +1097,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
           // W-1 perf A/B: every opaque batch has written depth and the blended
           // ones are about to composite over it -- the sky belongs between
           // them, or a translucent surface would be over-painted by it.
-          if (skyDrawPending) {
-            drawWorldSkyBox();
-            skyDrawPending = false;
-          }
+          flushSkyPasses();
           context_->OMSetBlendState(worldAlphaBlendState_.Get(), nullptr, 0xffffffffu);
           context_->OMSetDepthStencilState(worldBlendedDepthStencilState_.Get(), 0);
           noteDepthState("world-blended:write-off");
@@ -1078,10 +1224,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
         ++worldBatchDrawCalls_;
         if (albedoView) ++worldBatchTexturedDrawCalls_;
       }
-      if (skyDrawPending) {
-        drawWorldSkyBox();
-        skyDrawPending = false;
-      }
+      flushSkyPasses();
       // Put the state back before the water and entity passes: an
       // OMSetBlendState is device state, not a per-draw argument.
       context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
@@ -1100,10 +1243,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       if (isWeaponMaterialView(lastSlot0View_)) ++worldDrawsWithWeaponTexture_;
       context_->Draw(worldVertexCount_, 0);
       ++worldBatchDrawCalls_;
-      if (skyDrawPending) {
-        drawWorldSkyBox();
-        skyDrawPending = false;
-      }
+      flushSkyPasses();
     capturePassDepth("30-world-done");
     }
     if (worldDebugView_ != 0 && frameConstantsValid) {
@@ -1112,10 +1252,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   } else if (!worldDiagnosticIsolation_) {
     // W-1 perf A/B: this quad is painted OVER the sky, so the sky still has to
     // run first here -- exactly the order the whole pass used to have.
-    if (skyDrawPending) {
-      drawWorldSkyBox();
-      skyDrawPending = false;
-    }
+    flushSkyPasses();
     // T12: this placeholder is a full-screen textured quad, so a `none` frame
     // drawn through it is a picture of the map's display texture rather than
     // the background. The isolation switch skips it; the clear colour then is
@@ -1131,13 +1268,21 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   // W-1 perf A/B: a frame that reached here without any world draw (no world
   // vertex buffer at all) still owes its sky -- the old code drew it
   // unconditionally inside the constants block.
-  if (skyDrawPending) {
-    drawWorldSkyBox();
-    skyDrawPending = false;
-  }
+  flushSkyPasses();
   // The world pass is ordinal 1. The ViewModel pass takes the next ordinal after
   // the passes below, so "the weapon draws after the world" is a number the
   // runtime can print rather than a claim about the order of these statements.
+  // T105: what the sky passes drew for THIS frame. Printed here, after the
+  // draws, because the counts are written by the draws themselves -- the same
+  // rule the box's own readings follow.
+  if (!capturePath_.empty()) {
+    std::printf("capture: sky drew=%d farplane=%d dedicated=%d sky3d_enabled=%d"
+      " sky3d_present=%d sky3d_triangles=%d sky3d_drawn=%d cluster=%d\n",
+      worldSkyDrewThisFrame_ ? 1 : 0, worldSkyFarPlane_ ? 1 : 0,
+      worldSkyDedicatedShader_ ? 1 : 0, worldSky3d_.enabled ? 1 : 0,
+      worldSky3d_.present ? 1 : 0, static_cast<int>(worldSky3dTriangleCount_),
+      worldSky3dDrawnTriangles_, worldSky3d_.cluster);
+  }
   viewModelWorldPassOrdinal_ = ++framePassOrdinal_;
 
   // ---- T2 (2026-10-14): the water surface, as its own pass ----------------

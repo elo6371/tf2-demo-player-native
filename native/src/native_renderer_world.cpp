@@ -230,6 +230,14 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldBumpFeature_.enabled = worldMaterialBumpEnabled_;
   worldBump2Feature_.enabled = worldMaterialBumpEnabled_ && worldBump2Enabled_;
   worldDetailFeature_.enabled = worldDetailEnabled_;
+  // T105: the 3D skybox's second copy. Collected inside the upload loop below
+  // from the same finished WorldVertex the world buffer gets, and built into its
+  // own buffers after them -- so the world's two buffers are byte-identical
+  // whether the pass is on or off. The cluster is -1 when the pass is off or the
+  // map has no sky_camera, and then nothing is collected at all.
+  const int sky3dCluster = (worldSky3d_.enabled && worldSky3d_.present) ? worldSky3d_.cluster : -1;
+  std::vector<WorldVertex> sky3dVertices;
+  std::vector<int> sky3dBatchForTriangle;
   // ---- T19: the plan, not a capped walk -----------------------------------
   // Before this, `accepted.size() >= kMaxTiles` skipped the material with a
   // `continue` and no counter: measured on cp_snakewater_final1 from the
@@ -972,6 +980,17 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       writeWorldFaceId(c.r, c.g, c.b, c.a, triangle.faceIndex);
     }
     vertices.push_back(a); vertices.push_back(b); vertices.push_back(c);
+    // T105: the sky-3d copy, from the vertices that were just pushed rather than
+    // from a second derivation: the atlas uv rewrite, the lightmap uv, the fog
+    // bit and the box conversion are already in `a`, `b` and `c`. The sub-batch
+    // is the same key the index buffer uses, recorded so the draw can bind that
+    // batch's own atlas and feature views.
+    if (sky3dCluster >= 0 && triangle.cluster == sky3dCluster) {
+      sky3dVertices.push_back(a);
+      sky3dVertices.push_back(b);
+      sky3dVertices.push_back(c);
+      sky3dBatchForTriangle.push_back(static_cast<int>(worldTriangleBatch_[uploadedTriangle]));
+    }
     ++uploadedTriangle;
   }
   // T12: the weight distribution, summarised from the buckets the loop filled.
@@ -1031,6 +1050,67 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   }
   worldVertexBuffer_ = std::move(buffer);
   worldVertexCount_ = static_cast<UINT>(vertices.size());
+  // ---- T105: the sky-3d buffers -------------------------------------------
+  // Built after the world's own vertex buffer from the same values. Nothing here
+  // touches the two buffers above, which is what keeps an off run identical:
+  // with the pass off `sky3dVertices` is empty and this block does nothing.
+  if (!sky3dVertices.empty()) {
+    D3D11_BUFFER_DESC skyDescription{};
+    skyDescription.ByteWidth = static_cast<UINT>(sky3dVertices.size() * sizeof(WorldVertex));
+    skyDescription.Usage = D3D11_USAGE_DEFAULT;
+    skyDescription.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    D3D11_SUBRESOURCE_DATA skyInitial{}; skyInitial.pSysMem = sky3dVertices.data();
+    Microsoft::WRL::ComPtr<ID3D11Buffer> skyBuffer;
+    if (FAILED(device_->CreateBuffer(&skyDescription, &skyInitial, skyBuffer.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+    worldSky3dVertexBuffer_ = std::move(skyBuffer);
+    worldSky3dVertexCount_ = static_cast<UINT>(sky3dVertices.size());
+    worldSky3dTriangleCount_ = sky3dBatchForTriangle.size();
+    // Grouped by sub-batch: one draw can bind one atlas and one set of feature
+    // views, so a sky that spans batches is drawn once per batch rather than all
+    // of it with the first batch's textures.
+    worldSky3dBatches_.clear();
+    std::vector<unsigned int> filled;
+    for (const int subBatch : sky3dBatchForTriangle) {
+      std::size_t slot = 0;
+      while (slot < worldSky3dBatches_.size() && worldSky3dBatches_[slot].subBatch != subBatch) ++slot;
+      if (slot == worldSky3dBatches_.size()) {
+        worldSky3dBatches_.push_back(WorldSky3dRange{subBatch, 0u, 0u});
+        filled.push_back(0u);
+      }
+      worldSky3dBatches_[slot].indexCount += 3u;
+    }
+    unsigned int cursor = 0;
+    for (auto& range : worldSky3dBatches_) {
+      range.firstIndex = cursor;
+      cursor += range.indexCount;
+    }
+    std::vector<unsigned int> indices(cursor, 0u);
+    for (std::size_t at = 0; at < sky3dBatchForTriangle.size(); ++at) {
+      const int subBatch = sky3dBatchForTriangle[at];
+      std::size_t slot = 0;
+      while (worldSky3dBatches_[slot].subBatch != subBatch) ++slot;
+      const unsigned int target = worldSky3dBatches_[slot].firstIndex + filled[slot];
+      const unsigned int base = static_cast<unsigned int>(at * 3u);
+      indices[target] = base;
+      indices[target + 1u] = base + 1u;
+      indices[target + 2u] = base + 2u;
+      filled[slot] += 3u;
+    }
+    D3D11_BUFFER_DESC indexDescription{};
+    indexDescription.ByteWidth = static_cast<UINT>(indices.size() * sizeof(unsigned int));
+    indexDescription.Usage = D3D11_USAGE_DEFAULT;
+    indexDescription.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    D3D11_SUBRESOURCE_DATA indexInitial{}; indexInitial.pSysMem = indices.data();
+    Microsoft::WRL::ComPtr<ID3D11Buffer> skyIndexBuffer;
+    if (FAILED(device_->CreateBuffer(&indexDescription, &indexInitial, skyIndexBuffer.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+    worldSky3dIndexBuffer_ = std::move(skyIndexBuffer);
+  }
   // N05: same table as the first upload path -- this one runs on the pvs-clipped
   // re-upload, which is the path a real capture takes, so leaving it out made the
   // face-trace report vertexColourKnown=0 on every point.
