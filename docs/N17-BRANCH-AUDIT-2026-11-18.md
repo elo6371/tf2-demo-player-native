@@ -162,10 +162,37 @@ if (!sampled.bindPose && !sampled.skinMatrices.empty() && entityBindPoseMutation
 
 合并树（24d3b686）增量构建 rc=0，三道门禁复跑全绿（见 §0）：两支共存没有回归。
 
-## 6. 这次审验没做的事
+## 6. draw 的算术正控：在合并树上复跑，精确复现
 
-- `work/n17-draw` 的**算术正控**（p6 的 ranges/顶点逐一比对、engineer +9348）没有在
-  合并树上重跑；合并只改了 `main.cpp` 的相邻行，但严格说这个测还没在当前树落证据。
-- walk 档缺失（§3）没有修——要先确认素材里有没有可用动作，属另一张卡。
+§4 的像素正控之外，draw 分支还有一份**算术**正控（逐条 range 账本按职业聚合）。
+它在合并树（exe sha256 `f77e4294…53a557`）上重跑，两次抓帧 rc=0：
+
+| 职业 | 文档值（单实例） | 合并树实测 | 一致 |
+| --- | --- | --- | --- |
+| engineer | 4→4 / 22314→31662（**+9348**） | 4→4 / 22314→31662（+9348） | ✅ |
+| scout | 8→7 / 23442→21900（−1542） | 8→7 / 23442→21900（−1542） | ✅ |
+| pyro | −792 | 5→4 / 12603→11811（−792） | ✅ |
+| demo | −1488 | 5→4 / 25326→23838（−1488） | ✅ |
+| sniper | −690 | 7→6 / 19902→19212（−690） | ✅ |
+| heavy / medic | 0 | 6→6 / 21564→21564、5→5 / 24864→24864 | ✅ |
+| soldier | 文档漏列 | 6→5 / 24930→21834（−3096） | 文档待补 |
+| spy | 文档漏列 | 4→4 / 16080（0） | 文档待补 |
+
+- 全场景 **318 → 309** ranges（trace `scene: entityRanges` default `ranges=318`、
+  body2 `ranges=309`；账本 317→308，差的 1 条是 `ubersaw_xmas#slot=2` 无
+  textureView、dump 前被 `continue`，与 draw 文档 §4 的解释一致）。
+- **账本逐字节相同**：default.log 与 body2.log 的 sha256 等于 n17draw 原证据的
+  `p3/range.log` / `p6/body2list.log`——同一个 bodygroup 选择器在合并树上给出同一份账。
+- trace：body2 有且仅有 1 行 `gpu: entity bodyMutation forced=192 body=2`，default 0 行。
+- 差异：文档表是**单实例**值，engineer 场景有 #0/#1 两个实例、各 +9348（按职业汇总
+  +18696）；soldier 的 −3096 在 n17draw 原树上同样存在，是文档表漏列，不是合并引入。
+- 合并树的像素差是 530 px（原 488 px）：底图含世界手性/材质等其他改动、sha 不同，
+  两侧不要求相等。
+
+## 7. 这次审验没做的事
+
+- walk 档缺失（§3）没有修——九职业的 animation 表里只有 `PRIMARY_aimmatrix_walk` /
+  `ReloadAirwalk` 一类，没有 stand walk 循环，属素材能力，另开卡。
 - `--player-animation` 默认开启（§3 发现四）没动，需要先过默认路径验收。
+- draw 文档的算术正控表缺 soldier / spy 两行（上表已补齐），按需回填原文。
 - 大 trace 与抓帧仍留在 `.scratch/` 下，不签入；本文只留数字与复现命令。
