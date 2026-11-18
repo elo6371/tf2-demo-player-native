@@ -85,7 +85,7 @@
 | N19 未闭环 | 当前候选重跑网格/实例/纹理容量与key命名空间；OOM要具名失败/回退且资源清理，记录内存峰值与响应时间，不只读静态上限 |
 | N20 未实现 | 仅实现Pyro武器、Medic治疗束、流血；从demo事件/实体属性驱动，以tick确定进度，暂停/seek可重建；各给存在/不存在/结束帧和身份，不扩其它粒子 |
 | N21 部分 | payload上限导致的丢弃与真实解码失败分别记账，保留声明/保留/解码/匹配守恒；无设备/设备故障注入+恢复可自动验，真实听感留人工项，不把统计修复称恢复丢失音频 |
-| N22 部分 | 代码已公开不等于CI已跑；检测MSVC/SDK与路径，移硬编码；本地代表构建→Windows CI代表目标→干净机复现；缺工具具名失败，保存远端run URL/commit |
+| N22 部分 | 代码已公开不等于CI已跑；检测MSVC/SDK与路径，移硬编码；本地代表构建→Windows CI代表目标→干净机复现；缺工具具名失败，保存远端run URL/commit。**tier-1 workflow 已落地**（`.github/workflows/tier1.yml`，5 步：checkout/eol guard/toolchain/`verify-fast.sh --mutation`/artifact；触发面 `main`+`candidate/*`+PR+dispatch，**不含 `work/*`**，所以推这一提交不会自触发）；草案遗留的 43 vs 44 已核清（10+8+7+7+4+7=43，草案把 `E_MODEL_POSE` 的注释行当成条目，`verify-fast.sh:80` 的 pin 是对的）；**远端仍未跑**：`gh` 未登录、匿名 API 403 限流，读不到 run 结论，见 `docs/N22-CI-TIER1-LANDING-2026-11-18.md` |
 | N23 部分 | 先重新量当前/W4覆盖（旧6/54不是现值）；按目标清越界/生命周期/返回值警告，新增目标不得退化；D3D resize/device/WinMM失败注入；不全局禁警告换绿 |
 | N24 方案，待实施 | 先量当前main调用/状态所有权；按相机/pane边界选一个现有可独立职责做原行为搬迁，功能修复另提交；两demo×三tick的相机/关键trace/图像不变才接下一片，不新增泛用框架 |
 | N25 部分 | 列gate输入/输出/耗时/依赖；产品与gate脚本身份分开，capture key含exe/demo/map/资源/设置/tick/实际相机/viewport；先两个代表复用与失效负控，再推广；空判词/rc丢失/写脏必须红。**已授权的.gitattributes行尾治理已落地**（`07d8ca7d`：`native/{src,include,tools,cmake}`、根门禁脚本、`tools/` 钉 `text eol=lf`；502 个文件本来全 LF，fresh checkout 负控 1610/16313/106 CR → 0；见 `docs/LINE-ENDINGS-2026-11-18.md`），仍留：markdown 不动、`.ps1` 未裁、程序自写 CRLF 不管 |
