@@ -1,0 +1,15 @@
+# t105-anim-audit @ 979c6904 (pre-N18: the audit tree for the anim branch)
+147-  ..   capture sceneTicks: 10320 10320 10320 10320 10320 10320 10320  (measured points: 10252)
+148:  FAIL all 7 compared frames came from a measured capture point = 0, expected 7
+149-  BMP-DIFF differing=26135 total=2582352 percent=1.0121 max_delta=234 extent=1264x681x24 status=PASS
+--
+213-  OK   product vmident reason = drawn
+214:  BMP-DIFF differing=1 total=2582352 percent=0.0000 max_delta=1 extent=1264x681x24 status=FAIL reason=whole frame max_delta=1 exceeds 0
+215:  FAIL identity skinning does not deform the bind pose (rc=1)
+216-  vmshort rc=0 bmp=2582406
+--
+287-assertions_ok=152
+288:VIEWMODEL-CONTRACT=FAIL
+---- summary
+287:assertions_ok=152
+288:VIEWMODEL-CONTRACT=FAIL

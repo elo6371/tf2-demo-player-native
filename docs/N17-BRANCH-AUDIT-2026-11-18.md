@@ -196,3 +196,19 @@ if (!sampled.bindPose && !sampled.skinMatrices.empty() && entityBindPoseMutation
 - `--player-animation` 默认开启（§3 发现四）没动，需要先过默认路径验收。
 - draw 文档的算术正控表缺 soldier / spy 两行（上表已补齐），按需回填原文。
 - 大 trace 与抓帧仍留在 `.scratch/` 下，不签入；本文只留数字与复现命令。
+## 8. 门禁健康：`viewmodel-contract-check` 的两条既有失败（2026-11-18 补记）
+
+N18 的 split ViewModel 改动之后复跑 VM 契约门禁，`assertions_ok=152`、`VIEWMODEL-CONTRACT=FAIL`。
+为了不把既有失败记成新回归，把同一份门禁在 N18 之前的树 `t105-anim-audit` @ `979c6904` 上也跑了一遍：
+**同两条断言、同样的数字**。
+
+| 断言 | 979c6904（N18 前） | 5bac7eaa（N18 后） |
+| --- | --- | --- |
+| all 7 compared frames came from a measured capture point | 0 ≠ 7 | 0 ≠ 7 |
+| identity skinning does not deform the bind pose | 1 px / max_delta=1 | 1 px / max_delta=1 |
+| assertions_ok | 152 | 152 |
+
+读法：第一条是产品 trace 的 `capture tick` 全为 0（`sceneTicks` 是 10320、measured points 10252），
+即门禁拿不到它要的采样点；第二条是恒等蒙皮负控在 2582352 像素里有 1 个像素差 1 级。
+两条都与 N18 的投影 aspect / pane 归属无关，属于这条门禁自己欠的账，需要单独一张卡。
+摘录见 `evidence/n18-gate-health/`（含两棵树各自的复跑命令）。
