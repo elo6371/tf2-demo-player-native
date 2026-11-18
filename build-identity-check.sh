@@ -384,8 +384,12 @@ assert_sidecar_binding() { # <identity-file> <exe> <version-file> <label>
   local sidecar="$1" exe="$2" f="$3" label="$4"
   eq "$label: the sidecar exists beside $(basename "$exe")" \
     "$([ -f "$sidecar" ] && echo present || echo absent)" "present"
+  # The sidecar is written by file(WRITE) in script mode, which uses the platform
+  # line ending: on Windows every line ends with CRLF, so an anchored '...$' grep
+  # sees the CR and reports 0 readings for a sidecar that is well formed
+  # (measured 2026-11-18: four such assertions red on a clean tree).
   ge "$label: the sidecar carries an exeSha256= reading" \
-    "$(grep -cE '^exeSha256=[0-9a-f]{64}$' "$sidecar" 2>/dev/null || true)" 1
+    "$(tr -d '\r' < "$sidecar" 2>/dev/null | grep -cE '^exeSha256=[0-9a-f]{64}$' || true)" 1
   eq "$label: the sidecar names the executable that is on disk" \
     "$(sed -n 's/^exeSha256=//p' "$sidecar" | tr -d '\r')" "$(shasum "$exe")"
   eq "$label: the sidecar's sourceContent is the hash compiled into the executable" \
@@ -769,6 +773,14 @@ QUIT_SCRIPT="$SCRATCH/quit.camera"
 printf '%s\n' '# one command per line; "quit" is the script mode own exit.' 'quit' > "$QUIT_SCRIPT"
 UNKNOWN_FLAG="--definitely-not-a-flag"
 trace_text() { tr -d '\r' < "$1" 2>/dev/null; }
+# Windows path for TF2_NATIVE_TRACE. The product opens the value with
+# GetEnvironmentVariableW + _wfopen_s; MSYS converts command-line arguments, not
+# environment values, so a POSIX value ("/d/...") reaches the product as a
+# drive-less path, _wfopen_s fails silently, and every "wrote a trace file"
+# assertion below reads a file nobody wrote. Measured 2026-11-18 on a clean tree:
+# run rc 0, no trace, nine trace assertions red; with a Windows path the same run
+# writes "args: unrecognized=1 first=... all=...".
+trace_win() { cygpath -w "$1" 2>/dev/null || printf '%s' "$1"; }
 
 # (a) COUNTED, and still ignored by default. The command also carries a value
 # the product refuses (--playback-speed 0, main.cpp:3159-3165), so the default
@@ -778,7 +790,7 @@ trace_text() { tr -d '\r' < "$1" 2>/dev/null; }
 # here instead.
 ARGS_UNKNOWN_TRACE="$SCRATCH/args-unknown.trace"
 rm -f "$ARGS_UNKNOWN_TRACE" "$SCRATCH/args-unknown.log"
-TF2_NATIVE_TRACE="$ARGS_UNKNOWN_TRACE" "$EXE" "${SETTINGS_ARGS[@]}" \
+TF2_NATIVE_TRACE="$(trace_win "$ARGS_UNKNOWN_TRACE")" "$EXE" "${SETTINGS_ARGS[@]}" \
   --hidden-window --audio-disabled "$UNKNOWN_FLAG" --playback-speed 0 \
   > "$SCRATCH/args-unknown.log" 2>&1
 UNKNOWN_RC=$?
@@ -809,7 +821,7 @@ eq "arg surface: the default run prints nothing (an empty capture is the expecta
 # argument loop and before any device exists).
 ARGS_STRICT_TRACE="$SCRATCH/args-strict.trace"
 rm -f "$ARGS_STRICT_TRACE" "$SCRATCH/args-strict.log" "$SCRATCH/args-strict.err"
-TF2_NATIVE_TRACE="$ARGS_STRICT_TRACE" "$EXE" "${SETTINGS_ARGS[@]}" \
+TF2_NATIVE_TRACE="$(trace_win "$ARGS_STRICT_TRACE")" "$EXE" "${SETTINGS_ARGS[@]}" \
   --hidden-window --audio-disabled "$UNKNOWN_FLAG" --playback-speed 0 --strict-args \
   > "$SCRATCH/args-strict.log" 2> "$SCRATCH/args-strict.err"
 STRICT_RC=$?
@@ -831,7 +843,7 @@ hasnt "arg surface: the strict exit happens before startup resolves assets" \
 # instead of a hung gate.
 ARGS_CLEAN_TRACE="$SCRATCH/args-clean.trace"
 rm -f "$ARGS_CLEAN_TRACE" "$SCRATCH/args-clean.log"
-TF2_NATIVE_TRACE="$ARGS_CLEAN_TRACE" timeout 180 "$EXE" "${SETTINGS_ARGS[@]}" \
+TF2_NATIVE_TRACE="$(trace_win "$ARGS_CLEAN_TRACE")" timeout 180 "$EXE" "${SETTINGS_ARGS[@]}" \
   --hidden-window --audio-disabled --strict-args --camera-script "$QUIT_SCRIPT" \
   > "$SCRATCH/args-clean.log" 2>&1
 CLEAN_RC=$?
@@ -993,7 +1005,7 @@ ge "the restored build's buildUtc did not move backwards" "${RESTORED_EPOCH:-0}"
 # first for the same reason as always: "dirtyFiles == <n>" would otherwise pass
 # on a missing line, which is exactly the trap GATE-DESIGN-TRAPS.md:47-58 names.
 ge "the restored provenance carries a dirtyFiles reading at all" \
-  "$(grep -cE '^dirtyFiles=[0-9]+$' "$PROVENANCE" 2>/dev/null || true)" 1
+  "$(tr -d '\r' < "$PROVENANCE" 2>/dev/null | grep -cE '^dirtyFiles=[0-9]+$' || true)" 1
 eq "the restored provenance carries the pre-probe record count ($BASE_TOTAL)" \
   "$(sed -n 's/^dirtyFiles=//p' "$PROVENANCE" | tr -d '\r')" "$BASE_TOTAL"
 eq "the provenance is not left carrying the docs probe's record count" \
@@ -1040,7 +1052,7 @@ eq "identity: the recorded native/ hash is what git hashes now" \
 eq "identity: the version's sourceTree is the short form of that same HEAD" \
   "$(ver_field "$SCRATCH/restored.version" sourceTree)" "$HEAD_SHORT"
 eq "identity: the recorded content hash is a sha256, not a word" \
-  "$(grep -c '^sourceContent=[0-9a-f]\{64\}$' "$IDENTITY")" "1"
+  "$(tr -d '\r' < "$IDENTITY" | grep -c '^sourceContent=[0-9a-f]\{64\}$')" "1"
 eq "identity: the recorded sidecar hash is the sidecar on disk" \
   "$(sed -n 's/^identity_sidecar_sha256=//p' "$IDENTITY_RECORD")" "$(shasum "$IDENTITY")"
 eq "identity: the sidecar beside the executable binds it to this HEAD" \
@@ -1327,7 +1339,7 @@ if [ "$M3_SHA" = "$REFERENCE_SHA" ]; then
   exit 90
 fi
 rm -f "$SCRATCH/args-mut3.trace"
-TF2_NATIVE_TRACE="$SCRATCH/args-mut3.trace" "$EXE" "${SETTINGS_ARGS[@]}" \
+TF2_NATIVE_TRACE="$(trace_win "$SCRATCH/args-mut3.trace")" "$EXE" "${SETTINGS_ARGS[@]}" \
   --hidden-window --audio-disabled "$UNKNOWN_FLAG" --playback-speed 0 \
   > "$SCRATCH/args-mut3.log" 2>&1
 M3_RUN_RC=$?
@@ -1344,7 +1356,7 @@ restore_main_cpp "M3"
 build_targets mut3-restored
 eq "M3 restored build rc" "$?" "0"
 rm -f "$SCRATCH/args-restored.trace"
-TF2_NATIVE_TRACE="$SCRATCH/args-restored.trace" "$EXE" "${SETTINGS_ARGS[@]}" \
+TF2_NATIVE_TRACE="$(trace_win "$SCRATCH/args-restored.trace")" "$EXE" "${SETTINGS_ARGS[@]}" \
   --hidden-window --audio-disabled "$UNKNOWN_FLAG" --playback-speed 0 \
   > "$SCRATCH/args-restored.log" 2>&1
 M3R_RUN_RC=$?
