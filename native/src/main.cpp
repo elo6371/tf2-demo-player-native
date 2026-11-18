@@ -3633,6 +3633,11 @@ bool outlineVertexExtent = false;
   // C2: --world-fov's own refusal counter; see the check next to the other
   // world-argument refusals.
   bool worldFovArgumentRejected = false;
+  // N21: --world-lights on|off. Counted and refused like the FOV above: an A/B
+  // whose "off" silently became "on" would compare two copies of one frame.
+  bool worldLightsGiven = false;
+  bool worldLightsRequested = false;
+  bool worldLightsArgumentRejected = false;
   // Diagnostic: treat the world material as if it declared an env map, so the
   // six-face sampling branch can be run on content that does not ask for it.
   // No installed map's first material declares $envmap -- measured across all
@@ -4103,6 +4108,32 @@ bool outlineVertexExtent = false;
           }
         } else {
           worldFovArgumentRejected = true;
+        }
+        continue;
+      }
+
+      // N21: --world-lights on|off. A ladder arm rather than an else-if arm for
+      // the reason the FOV block above states: the else-if chain is already at
+      // the compiler's nesting limit (C1061). The tail of the run prints
+      // `lights: requested=... source=bsp`, and every capture states
+      // `capture: lights enabled=...`, so the two claims -- what was asked for
+      // and what the shader read -- travel with the frame.
+      if (wcscmp(arguments[i], L"--world-lights") == 0) {
+        if (i + 1 < argumentCount) {
+          const wchar_t* value = arguments[i + 1];
+          if (wcscmp(value, L"on") == 0) {
+            worldLightsRequested = true;
+            worldLightsGiven = true;
+            ++i;
+          } else if (wcscmp(value, L"off") == 0) {
+            worldLightsRequested = false;
+            worldLightsGiven = true;
+            ++i;
+          } else {
+            worldLightsArgumentRejected = true;
+          }
+        } else {
+          worldLightsArgumentRejected = true;
         }
         continue;
       }
@@ -5064,6 +5095,7 @@ bool outlineVertexExtent = false;
   // followed by `--world-bump off` is a valid A/B: the preset sets the other
   // seven fields, the switch removes this one.
   if (worldDynamicLightGiven) persistent.render.dynamicLighting = worldDynamicLightRequested;
+  if (worldLightsGiven) persistent.render.worldLights = worldLightsRequested;
   if (worldSpecularGiven) persistent.render.specular = worldSpecularRequested;
   if (worldBumpGiven) persistent.render.bumpMapping = worldBumpRequested;
   if (worldMaterialBumpGiven) persistent.render.materialBump = worldMaterialBumpRequested;
@@ -5092,6 +5124,12 @@ bool outlineVertexExtent = false;
     // C2: a refused world FOV must not fall back to the stored one, or a gate
     // that asked for 100 and silently got 90 would measure the wrong picture.
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-fov; it takes a number of degrees (clamped to 40..120).\n");
+    return 13;
+  }
+  if (worldLightsArgumentRejected) {
+    // N21: same rule. --world-lights takes on|off and nothing else; falling back
+    // to either side would make the A/B meaningless.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-lights; it takes on or off and nothing else.\n");
     return 13;
   }
   if (invalidViewModelEffectArgument) {
@@ -9255,6 +9293,69 @@ bool outlineVertexExtent = false;
           ? "the map also sets fogblend (bilateral fog), which is not implemented" : "";
       }
       renderer.setWorldFog(fog);
+    }
+    // ---- N21: the map's lights -------------------------------------------
+    // Built once from the entity lump: light_environment's sun and ambient term
+    // plus every light/light_spot. The renderer owns the normalisation and the
+    // per-pane cap (see WorldLightSet), so this block carries what the map said
+    // and nothing else. The set is uploaded even when the switch is off -- the
+    // switch is a field in it and both the setup trace and every capture print
+    // it -- because "the map's lights changed nothing" and "they were never on"
+    // must not read the same.
+    {
+      tf2::native::WorldLightSet lights;
+      lights.enabled = persistent.render.worldLights;
+      lights.lightsDeclared = displayMap.lightsDeclared;
+      lights.lightsRejected = displayMap.lightsRejected;
+      lights.sunPresent = displayMap.sun.present;
+      const auto clampf = [](float value, float low, float high) {
+        return value < low ? low : (value > high ? high : value);
+      };
+      if (displayMap.sun.present) {
+        for (int component = 0; component < 3; ++component) {
+          lights.sunDirection[component] = displayMap.sun.direction[component];
+          lights.sunColor[component] = displayMap.sun.color[component];
+          lights.ambientColor[component] = displayMap.sun.ambientColor[component];
+        }
+        // The two brightness numbers are the map's; the divisors are this
+        // renderer's, and the trace names the resulting values rather than the
+        // raw ones so a reader cannot mistake a normalised term for parsed data.
+        lights.sunIntensity = clampf(displayMap.sun.intensity / 1000.0f, 0.0f, 2.0f);
+        lights.ambientIntensity = clampf(displayMap.sun.ambientIntensity / 1000.0f, 0.0f, 2.0f);
+      }
+      lights.lights.reserve(displayMap.lights.size());
+      std::size_t spotCount = 0;
+      for (const auto& parsed : displayMap.lights) {
+        tf2::native::WorldLightSource light;
+        for (int component = 0; component < 3; ++component) {
+          light.position[component] = parsed.origin[component];
+          light.color[component] = parsed.color[component];
+          light.direction[component] = parsed.direction[component];
+        }
+        // Brightness -> intensity and radius. 300 is a mid-range TF2 light
+        // brightness, so a 300 lamp renders at full strength; the radius is the
+        // distance its falloff reaches zero at, clamped so a 30-brightness lamp
+        // is not a 20-unit puddle and a 1000 one is not the whole map. Both
+        // constants are this renderer's and are documented with WorldLightSource.
+        light.intensity = clampf(parsed.intensity / 300.0f, 0.0f, 2.0f);
+        light.radius = clampf(parsed.intensity * 1.5f, 48.0f, 1536.0f);
+        light.exponent = parsed.exponent > 1.0f ? parsed.exponent : 1.0f;
+        if (parsed.spot) {
+          const float outer = clampf(parsed.coneDeg, 0.5f, 179.0f);
+          const float inner = clampf(parsed.innerConeDeg, 0.0f, outer);
+          constexpr float kDegreesToRadians = 3.14159265358979323846f / 180.0f;
+          light.coneCosOuter = std::cos(outer * kDegreesToRadians);
+          light.coneCosInner = std::cos(inner * kDegreesToRadians);
+          ++spotCount;
+        }
+        lights.lights.push_back(light);
+      }
+      renderer.setWorldLights(lights);
+      traceFmt("lights: requested=%d read=%zu sun=%d sunIntensity=%.3f ambientIntensity=%.3f "
+        "point=%zu spot=%zu rejected=%zu source=bsp",
+        lights.enabled ? 1 : 0, lights.lights.size(), lights.sunPresent ? 1 : 0,
+        lights.sunIntensity, lights.ambientIntensity,
+        lights.lights.size() - spotCount, spotCount, displayMap.lightsRejected);
     }
     if (worldGeometry == WorldGeometryFilter::None) {
       // Nothing is uploaded, so no world vertex buffer exists and the world

@@ -798,7 +798,10 @@ bool Renderer::createPipeline() {
   // struct and this number together, in one commit, for the same reason: a
   // field added without the ByteWidth is a field the constant buffer never
   // carries, and a ByteWidth raised without a field is an over-read.
-  constantsDescription.ByteWidth = 192;
+  // N21 raised this from 192 to 1280 with the struct: four float4 light
+  // headers (64 bytes) plus four 16-float4 arrays (1024). The static_assert
+  // beside the struct is what holds the two numbers together.
+  constantsDescription.ByteWidth = 1280;
   constantsDescription.Usage = D3D11_USAGE_DEFAULT;
   constantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldConstants_.GetAddressOf()))) return false;

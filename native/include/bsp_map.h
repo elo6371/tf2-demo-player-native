@@ -129,6 +129,57 @@ struct BspFog {
   int entityIndex = -1;      // 0-based position in lump 0
 };
 
+// N21 (2026-11-18): one point light, as `light` and `light_spot` declare it.
+// Before this struct the entity parser kept classname/model/origin and dropped
+// every other key, so no light of any kind reached memory and the world's
+// shading was one direction and one strength invented in the renderer
+// (native_renderer_frame.cpp's 0.35, -0.45, 0.82). Values are in MAP units and
+// degrees. `_light`'s colour is normalised here; its 4th component -- the
+// map's brightness number -- is carried unscaled, because turning brightness
+// into a falloff distance is a renderer decision and this file records what
+// the map said.
+struct BspLight {
+  bool spot = false;                        // true: light_spot, false: light
+  float origin[3] = {0.0f, 0.0f, 0.0f};     // world space, map units
+  float direction[3] = {0.0f, 0.0f, -1.0f}; // spot only: the cone's axis
+  float color[3] = {1.0f, 1.0f, 1.0f};      // _light rgb / 255
+  float intensity = 200.0f;                 // _light's 4th component
+  float coneDeg = 45.0f;                    // _cone, outer half-angle
+  float innerConeDeg = 0.0f;                // _inner_cone
+  float exponent = 1.0f;                    // _exponent
+  int entityIndex = -1;                     // 0-based position in lump 0
+};
+
+// N21: `light_environment` -- the sun and the ambient term every map has. The
+// direction is stored as SURFACE -> LIGHT because that is the vector the
+// shading dot product needs. Source's `pitch` is positive when the light
+// points DOWN, so a sun at pitch -55 / yaw 325 puts (0.4698, -0.3290, 0.8192)
+// in the sky -- the same octant as the hard-coded guess this replaces, which
+// is the one check available without a reference frame.
+struct BspSun {
+  bool present = false;
+  float direction[3] = {0.0f, 0.0f, 1.0f};    // surface -> light, map space
+  float color[3] = {1.0f, 1.0f, 1.0f};        // _light rgb / 255
+  float intensity = 1000.0f;                  // _light's 4th component
+  float ambientColor[3] = {0.0f, 0.0f, 0.0f}; // _ambient rgb / 255
+  float ambientIntensity = 0.0f;              // _ambient's 4th component
+  float pitchDeg = 0.0f;
+  float yawDeg = 0.0f;
+  int entityIndex = -1;                       // 0-based position in lump 0
+};
+
+// N21: `sky_camera` -- the anchor of the 3D skybox. The geometry around it is
+// authored at 1/`scale` of world size (16 unless the map says otherwise) and
+// sits outside the map's own bounds: pl_upward_f12 puts it at 7168 -2048 0,
+// past world_maxs' 4096. Parsed so the geometry can be claimed later; whether
+// anything draws it yet is the renderer's switch, not this reading.
+struct BspSkyCamera {
+  bool present = false;
+  float origin[3] = {0.0f, 0.0f, 0.0f};
+  float scale = 16.0f;
+  int entityIndex = -1;
+};
+
 struct BspMap {
   int version = 0;
   int revision = 0;
@@ -274,6 +325,17 @@ struct BspMap {
   // regardless of the renderer's switch; whether it is drawn is a caller
   // decision, so the reading exists before the capability does.
   BspFog fog;
+  // N21: the lights the entity lump declares. Parsed regardless of the
+  // renderer's switch, like the fog above: the reading exists before anything
+  // draws it. `lightsDeclared` counts every light/light_spot block seen and
+  // `lightsRejected` the ones whose `_light` or `origin` did not parse, so
+  // "the map asks for 204 lights and 3 were refused" is a reading rather than
+  // a shortfall a reader has to infer.
+  BspSun sun;
+  std::vector<BspLight> lights;
+  std::size_t lightsDeclared = 0;
+  std::size_t lightsRejected = 0;
+  BspSkyCamera skyCamera;
   std::size_t skyFaces = 0;
   std::size_t displacementFaces = 0;
   std::size_t displacementTriangles = 0;

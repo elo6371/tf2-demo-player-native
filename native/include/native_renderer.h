@@ -51,6 +51,16 @@ struct RenderSettings {
   int antiAliasingQuality = 2;
   int anisotropicLevel = 1;
   bool dynamicLighting = false;
+  // N21 (2026-11-18): draw the map's own lights -- light_environment's sun and
+  // ambient term plus the nearest light/light_spot entities -- instead of the
+  // single invented direction the world pass used before. Default FALSE on
+  // purpose: every pinned capture in the tree was made with one light, and
+  // turning this on by default would change those frames and make the pinned
+  // numbers describe a different renderer. `--world-lights on` is the switch
+  // that asks for the map's lighting; without it the pass is byte-for-byte the
+  // old one, which is what the A/B in docs/N21-WORLD-LIGHTS-MEASURED-2026-11-18.md
+  // compares.
+  bool worldLights = false;
   bool shadows = false;
   bool bumpMapping = false;
   // T27: the per-material feature passes. Deliberately separate from
@@ -493,6 +503,39 @@ struct WorldFogState {
   std::string reason;
 };
 
+// N21: one light the world pass draws with, in MAP units (the same metric as
+// WorldFogState's start/end, so a distance in one is a distance in the other).
+// Fields the map supplied are the map's numbers; `radius` and `intensity` are
+// this renderer's normalisation of the map's `_light` brightness and are named
+// as renderer values rather than passed off as the map's. See bsp_map.h's
+// BspLight for the unnormalised reading.
+struct WorldLightSource {
+  float position[3] = {0.0f, 0.0f, 0.0f};   // map space
+  float radius = 0.0f;                      // map units; distance where the falloff reaches 0
+  float color[3] = {1.0f, 1.0f, 1.0f};      // _light rgb / 255
+  float intensity = 0.0f;                   // _light brightness / 300, clamped 0..2
+  float direction[3] = {0.0f, 0.0f, -1.0f}; // spot only: the cone's axis (forward)
+  float coneCosOuter = -1.0f;               // < 0 means omnidirectional
+  float coneCosInner = 1.0f;
+  float exponent = 1.0f;                    // _exponent, already max(.., 1)
+};
+
+struct WorldLightSet {
+  bool enabled = false;                       // the pass uploads the lamps at all
+  bool sunPresent = false;                    // light_environment was parsed
+  float sunDirection[3] = {0.0f, 0.0f, 1.0f}; // surface -> light, map space
+  float sunColor[3] = {1.0f, 1.0f, 1.0f};
+  float sunIntensity = 0.0f;                  // _light brightness / 1000, clamped 0..2
+  float ambientColor[3] = {0.0f, 0.0f, 0.0f};
+  float ambientIntensity = 0.0f;              // _ambient brightness / 1000, clamped 0..2
+  // Every light the map declared. The cap (16) is applied per pane at draw
+  // time, by distance from that pane's eye -- so a split screen lights each
+  // half with the lights near it rather than with pane 0's choice.
+  std::vector<WorldLightSource> lights;
+  std::size_t lightsDeclared = 0;
+  std::size_t lightsRejected = 0;
+};
+
 struct WorldFogUploadState {
   WorldFogState fog;
   float boxToMapXZ = 1.0f;     // 1 / worldHorizontalScale_
@@ -526,6 +569,12 @@ struct WorldShaderConstants {
   float fogColor[3] = {};
   float fogBoxToMapXZ = 1.0f;
   float fogBoxToMapZ = 1.0f;
+  // N21: the lights the last frame's constant buffer carried. `worldLightCount`
+  // is the post-cap count the shader loop read; the map's own totals are on
+  // BspMap (lightsDeclared/lightsRejected), so a trace can print both.
+  bool worldLightsEnabled = false;
+  float sunDirection[3] = {};
+  int worldLightCount = 0;
 };
 
 struct WorldMaterialSampleState {
@@ -1124,6 +1173,15 @@ public:
   // the ramp denominator, so the frame is fogged and the trace shows the values,
   // rather than the renderer deciding the map meant something else.
   void setWorldFog(const WorldFogState& fog) { worldFog_ = fog; }
+  // N21: the map's lights, in MAP units. Applied at DRAW time, not upload time:
+  // the constants are filled per pane and the sixteen uploaded are the ones
+  // nearest that pane's eye. `enabled == false` uploads the block the old pass
+  // used, and the shader's own switch (sunDirectionAndMode.w) is the same flag,
+  // so an off run cannot differ by a rounding step.
+  void setWorldLights(const WorldLightSet& lights) { worldLights_ = lights; }
+  // How many of them reached the constant buffer in the last pane that filled
+  // it -- the post-cap number, so a trace cannot claim more than the shader read.
+  std::size_t worldLightsUploaded() const { return worldLightsUploaded_; }
   // What the last upload actually drew: the state, the two scales the shader
   // multiplies by, and how many vertices carry the fog bit (0 when disabled).
   WorldFogUploadState worldFogState() const;
@@ -2516,6 +2574,10 @@ private:
   // buffer that was uploaded.
   WorldFogState worldFog_{};
   std::size_t worldFogVertices_ = 0;
+  // N21: the light set the world pass draws with (map units) and how many of
+  // its lights the last constants fill uploaded.
+  WorldLightSet worldLights_{};
+  std::size_t worldLightsUploaded_ = 0;
   RenderSettings settings_{};
   bool worldFovFromCli_ = false;
   float cameraYaw_ = 0.0f;

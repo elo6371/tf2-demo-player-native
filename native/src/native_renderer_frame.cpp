@@ -318,13 +318,32 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     DirectX::XMFLOAT4 fogParams;
     DirectX::XMFLOAT4 fogColor;
     DirectX::XMFLOAT4 fogScale;
+    // N21: the map's lights, appended AFTER every field above so the offsets
+    // the existing shader arithmetic uses do not move. `sunDirectionAndMode.w`
+    // is the switch: at 0 the pixel shader never reads past this vector, and
+    // everything below is uploaded as zeros, so a run without --world-lights
+    // cannot differ by an uninitialised term.
+    DirectX::XMFLOAT4 sunDirectionAndMode;      // xyz surface->light, w enabled
+    DirectX::XMFLOAT4 sunColorAndIntensity;     // rgb, w brightness/1000
+    DirectX::XMFLOAT4 ambientColorAndIntensity; // rgb, w brightness/1000
+    DirectX::XMFLOAT4 lightCountAndParams;      // x = lights uploaded this pane
+    // 16 is the per-pane cap the renderer applies (see the fill below): a TF2
+    // map declares ~200 lights and a fragment shader loop is the wrong place to
+    // find out which of them matter, so the nearest sixteen are chosen on the
+    // CPU and the shader loop has a fixed trip count it can unroll.
+    DirectX::XMFLOAT4 lightPositionRadius[16];    // xyz box position, w radius
+    DirectX::XMFLOAT4 lightColorIntensity[16];    // rgb colour*intensity, w cosOuter
+    DirectX::XMFLOAT4 lightDirectionAndCone[16];  // xyz spot axis, w cosInner
+    DirectX::XMFLOAT4 lightConeParams[16];        // x exponent, y isSpot
   };
   // T101: the constant buffer's ByteWidth (native_renderer.cpp) must equal this
   // size exactly -- UpdateSubresource copies ByteWidth bytes and says nothing
   // about the rest. It was 160 against this 144-byte struct, so every frame read
   // 16 bytes past the end. The comment that asked for the two to match was
   // already beside that number and did not hold; this assertion does.
-  static_assert(sizeof(WorldConstantsData) == 192,
+  // 192 before N21; the light block adds four float4 headers (64) and four
+  // 16-float4 arrays (1024), so 1280 = 192 + 64 + 1024.
+  static_assert(sizeof(WorldConstantsData) == 1280,
     "WorldConstantsData must be exactly the world constant buffer's ByteWidth");
   struct ModelMaterialProxyConstantsData {
     DirectX::XMFLOAT4 texture2Scroll;
@@ -569,6 +588,113 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       ? XMFLOAT4(worldFog_.color[0], worldFog_.color[1], worldFog_.color[2], 1.0f)
       : XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     constants.fogScale = XMFLOAT4(fogBoxToMapXZ, fogBoxToMapXZ, fogBoxToMapZ, 0.0f);
+    // ---- N21: the map's lights -------------------------------------------
+    // Filled HERE, per pane, because the selection is per pane: the cap is
+    // sixteen and the sixteen are the ones nearest THIS pane's eye, so the two
+    // halves of a split screen do not light each other's rooms.
+    //
+    // The conversion is the one uploadWorldGeometry applied
+    // (native_renderer_world.cpp:93-101): x/y scaled by worldHorizontalScale_
+    // about the map's centre, z by the same scale from worldMinZ_ + 0.1. It is
+    // a uniform scale with no rotation, so a direction survives it unchanged
+    // and a radius scales with it -- which is why only position and radius are
+    // converted below.
+    //
+    // Off (the default) uploads zeros for the whole block and leaves
+    // sunDirectionAndMode.w at 0: the pixel shader's switch is that w, so a
+    // map-light block that was never filled cannot change a pixel.
+    constants.sunDirectionAndMode = worldLights_.enabled
+      ? XMFLOAT4(worldLights_.sunDirection[0], worldLights_.sunDirection[1],
+        worldLights_.sunDirection[2], 1.0f)
+      : XMFLOAT4(0.0f, 0.0f, 1.0f, 0.0f);
+    constants.sunColorAndIntensity = XMFLOAT4(worldLights_.sunColor[0],
+      worldLights_.sunColor[1], worldLights_.sunColor[2], worldLights_.sunIntensity);
+    constants.ambientColorAndIntensity = XMFLOAT4(worldLights_.ambientColor[0],
+      worldLights_.ambientColor[1], worldLights_.ambientColor[2], worldLights_.ambientIntensity);
+    constants.lightCountAndParams = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+    for (std::size_t slot = 0; slot < 16u; ++slot) {
+      constants.lightPositionRadius[slot] = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      constants.lightColorIntensity[slot] = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      constants.lightDirectionAndCone[slot] = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      constants.lightConeParams[slot] = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+    std::size_t uploadedLights = 0;
+    if (worldLights_.enabled && !worldLights_.lights.empty()) {
+      const float lightScale = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
+        ? worldHorizontalScale_ : 1.0f;
+      const float eyeX = XMVectorGetX(eye);
+      const float eyeY = XMVectorGetY(eye);
+      const float eyeZ = XMVectorGetZ(eye);
+      struct LightCandidate {
+        float distanceSq = 0.0f;
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        std::size_t index = 0;
+      };
+      // A fixed-size max-heap: sixteen slots, no allocation in the frame, and
+      // the farthest kept light sits at the top, so a nearer one replaces it in
+      // one comparison. order_of_key style bookkeeping is not needed -- the
+      // shader's loop bound is lightCountAndParams.x and the order within the
+      // sixteen is irrelevant to the sum.
+      std::array<LightCandidate, 16> nearest{};
+      std::size_t nearestCount = 0;
+      const auto fartherFirst = [](const LightCandidate& a, const LightCandidate& b) {
+        return a.distanceSq < b.distanceSq;
+      };
+      for (std::size_t index = 0; index < worldLights_.lights.size(); ++index) {
+        const auto& light = worldLights_.lights[index];
+        LightCandidate candidate;
+        candidate.x = (light.position[0] - worldCenterX_) * lightScale;
+        candidate.y = (light.position[1] - worldCenterY_) * lightScale;
+        candidate.z = (light.position[2] - worldMinZ_) * lightScale + 0.1f;
+        const float dx = candidate.x - eyeX;
+        const float dy = candidate.y - eyeY;
+        const float dz = candidate.z - eyeZ;
+        candidate.distanceSq = dx * dx + dy * dy + dz * dz;
+        candidate.index = index;
+        if (nearestCount < nearest.size()) {
+          nearest[nearestCount++] = candidate;
+          std::push_heap(nearest.begin(), nearest.begin() + nearestCount, fartherFirst);
+        } else if (candidate.distanceSq < nearest.front().distanceSq) {
+          std::pop_heap(nearest.begin(), nearest.end(), fartherFirst);
+          nearest.back() = candidate;
+          std::push_heap(nearest.begin(), nearest.end(), fartherFirst);
+        }
+      }
+      for (std::size_t slot = 0; slot < nearestCount; ++slot) {
+        const auto& candidate = nearest[slot];
+        const auto& light = worldLights_.lights[candidate.index];
+        constants.lightPositionRadius[slot] = XMFLOAT4(candidate.x, candidate.y,
+          candidate.z, light.radius * lightScale);
+        // Colour premultiplied by intensity so the shader's loop is one
+        // multiply; w carries cosOuter, which the cone's smoothstep needs and
+        // which the colour slot is otherwise not using.
+        constants.lightColorIntensity[slot] = XMFLOAT4(
+          light.color[0] * light.intensity, light.color[1] * light.intensity,
+          light.color[2] * light.intensity, light.coneCosOuter);
+        constants.lightDirectionAndCone[slot] = XMFLOAT4(
+          light.direction[0], light.direction[1], light.direction[2], light.coneCosInner);
+        constants.lightConeParams[slot] = XMFLOAT4(light.exponent,
+          light.coneCosOuter >= 0.0f ? 1.0f : 0.0f, 0.0f, 0.0f);
+      }
+      uploadedLights = nearestCount;
+      constants.lightCountAndParams = XMFLOAT4(static_cast<float>(nearestCount),
+        0.0f, 0.0f, 0.0f);
+    }
+    worldLightsUploaded_ = uploadedLights;
+    // N21: state the lighting the frame actually uploaded. A run with the
+    // switch off prints the same line with enabled=0, so "the map's lights
+    // changed nothing" and "they were never on" are different readings instead
+    // of one silence. Printed after the fill, so `uploaded` is this pane's
+    // post-cap count and not the previous frame's.
+    if (!capturePath_.empty()) {
+      std::printf("capture: lights enabled=%d sun=%d uploaded=%zu declared=%zu rejected=%zu "
+        "sunIntensity=%.3f ambientIntensity=%.3f\n",
+        worldLights_.enabled ? 1 : 0, worldLights_.sunPresent ? 1 : 0, uploadedLights,
+        worldLights_.lightsDeclared, worldLights_.lightsRejected,
+        worldLights_.sunIntensity, worldLights_.ambientIntensity);
+    }
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
     frameConstantsValid = true;
     // T21: publish the same numbers for the face trace. Copied field by field
@@ -619,6 +745,12 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     worldShaderConstants_.fogColor[0] = constants.fogColor.x;
     worldShaderConstants_.fogColor[1] = constants.fogColor.y;
     worldShaderConstants_.fogColor[2] = constants.fogColor.z;
+    // N21: the light readings, copied from the same uploaded struct.
+    worldShaderConstants_.worldLightsEnabled = constants.sunDirectionAndMode.w > 0.5f;
+    worldShaderConstants_.sunDirection[0] = constants.sunDirectionAndMode.x;
+    worldShaderConstants_.sunDirection[1] = constants.sunDirectionAndMode.y;
+    worldShaderConstants_.sunDirection[2] = constants.sunDirectionAndMode.z;
+    worldShaderConstants_.worldLightCount = static_cast<int>(uploadedLights);
     worldShaderConstants_.fogBoxToMapXZ = constants.fogScale.x;
     worldShaderConstants_.fogBoxToMapZ = constants.fogScale.z;
     // The sky box, with its own mvp: the same view and projection with the

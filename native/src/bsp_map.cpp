@@ -435,6 +435,18 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     std::string fogMaxDensity;
     std::string fogColor;
     std::string fogBlend;
+    // N21: the light keys, carried raw for the same reason as the fog's -- the
+    // dispatch below is order-dependent, so a key written before `classname`
+    // must survive until the block closes. `_light` and `_ambient` hold
+    // "r g b brightness" exactly as written.
+    std::string lightColor;
+    std::string ambientColor;
+    std::string angles;
+    std::string pitch;
+    std::string cone;
+    std::string innerCone;
+    std::string exponent;
+    std::string scale;
   };
   std::vector<RawBrushEntity> brushEntities;
   {
@@ -472,6 +484,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         else if (key == "fogmaxdensity") current.fogMaxDensity = value;
         else if (key == "fogcolor") current.fogColor = value;
         else if (key == "fogblend") current.fogBlend = value;
+        else if (key == "_light") current.lightColor = value;
+        else if (key == "_ambient") current.ambientColor = value;
+        else if (key == "angles") current.angles = value;
+        else if (key == "pitch") current.pitch = value;
+        else if (key == "_cone") current.cone = value;
+        else if (key == "_inner_cone") current.innerCone = value;
+        else if (key == "_exponent") current.exponent = value;
+        else if (key == "scale") current.scale = value;
         else if (key == "origin") {
           // "x y z" in one quoted value. A key that does not parse is not an
           // origin: the model is then left in whatever space its vertices are
@@ -548,6 +568,154 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     fog.blend = entity.fogBlend == "1";
     map.fog = fog;
     break;
+  }
+  // ---- N21: the light entities ---------------------------------------------
+  // `light` and `light_spot` are point entities -- no `model` key -- so the
+  // brush walk above never saw them, and `light_environment` is where a map's
+  // sun and ambient term live. Before this block the entity parser kept
+  // classname/model/origin and dropped every other key: grepping native/ for
+  // light_environment/light_spot/light found nothing, and the world was shaded
+  // by one invented direction (native_renderer_frame.cpp's 0.35, -0.45, 0.82).
+  //
+  // Every rule here refuses rather than guesses:
+  //   * `_light` must parse as "r g b brightness" (three components are also
+  //     accepted; the brightness then keeps its default). A block whose
+  //     `_light` does not parse is counted in `lightsRejected` and does not
+  //     become a light -- the map is then lit without it, which is a dark spot
+  //     where the map asked for light rather than a wrong colour everywhere.
+  //   * `origin` is required for the same reason. A light with an invented
+  //     position would light a surface the map never lit.
+  //   * A `light_spot` with no parseable `angles`/`pitch` keeps the struct's
+  //     -Z axis -- the engine's default for an unrotated entity -- rather than
+  //     silently becoming a point light.
+  //   * `light_environment` is first-wins like `env_fog_controller`: the
+  //     engine wants one per map, and a second would be a map this parser has
+  //     not seen.
+  //   * `scale` on `sky_camera` defaults to 16 (the engine's default) and is
+  //     only taken when it parses positive; a sky camera with no origin is not
+  //     claimed.
+  {
+    const auto parseReals = [](const std::string& text, float* out, int count) {
+      if (text.empty()) return false;
+      const char* p = text.c_str();
+      for (int k = 0; k < count; ++k) {
+        char* end = nullptr;
+        out[k] = std::strtof(p, &end);
+        if (end == p || !std::isfinite(out[k])) return false;
+        p = end;
+      }
+      return true;
+    };
+    // Source's angle triple is (pitch, yaw, roll) in degrees; `pitch` alone is
+    // the key a point entity writes instead of the triple.
+    const auto readAngles = [&](const RawBrushEntity& entity, float* pitchDeg, float* yawDeg) {
+      float values[3] = {0.0f, 0.0f, 0.0f};
+      if (parseReals(entity.angles, values, 3)) {
+        *pitchDeg = values[0];
+        *yawDeg = values[1];
+        return true;
+      }
+      float single = 0.0f;
+      if (parseReals(entity.pitch, &single, 1)) {
+        *pitchDeg = single;
+        return true;
+      }
+      return false;
+    };
+    constexpr float kDegreesToRadians = 3.14159265358979323846f / 180.0f;
+    for (std::size_t index = 0; index < brushEntities.size(); ++index) {
+      const auto& entity = brushEntities[index];
+      if (entity.className == "sky_camera") {
+        if (map.skyCamera.present || !entity.hasOrigin) continue;
+        BspSkyCamera camera;
+        camera.present = true;
+        camera.entityIndex = static_cast<int>(index);
+        camera.origin[0] = entity.origin[0];
+        camera.origin[1] = entity.origin[1];
+        camera.origin[2] = entity.origin[2];
+        float scale = 0.0f;
+        if (parseReals(entity.scale, &scale, 1) && scale > 0.0f) camera.scale = scale;
+        map.skyCamera = camera;
+        continue;
+      }
+      if (entity.className == "light_environment") {
+        if (map.sun.present) continue;
+        float rgba[4] = {255.0f, 255.0f, 255.0f, 1000.0f};
+        if (!parseReals(entity.lightColor, rgba, 4)) {
+          ++map.lightsRejected;
+          continue;
+        }
+        BspSun sun;
+        sun.present = true;
+        sun.entityIndex = static_cast<int>(index);
+        for (int k = 0; k < 3; ++k) sun.color[k] = rgba[k] / 255.0f;
+        sun.intensity = rgba[3];
+        float ambient[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        if (parseReals(entity.ambientColor, ambient, 4)) {
+          for (int k = 0; k < 3; ++k) sun.ambientColor[k] = ambient[k] / 255.0f;
+          sun.ambientIntensity = ambient[3];
+        }
+        float pitchDeg = 0.0f;
+        float yawDeg = 0.0f;
+        readAngles(entity, &pitchDeg, &yawDeg);
+        sun.pitchDeg = pitchDeg;
+        sun.yawDeg = yawDeg;
+        // SURFACE -> LIGHT: Source's pitch is positive when the light points
+        // down, so the sun's elevation is -pitch. A map that wrote nothing gets
+        // elevation 0 (the horizon), which is the engine's own default.
+        const float elevation = -pitchDeg * kDegreesToRadians;
+        const float yaw = yawDeg * kDegreesToRadians;
+        sun.direction[0] = std::cos(elevation) * std::cos(yaw);
+        sun.direction[1] = std::cos(elevation) * std::sin(yaw);
+        sun.direction[2] = std::sin(elevation);
+        map.sun = sun;
+        continue;
+      }
+      const bool isPlainLight = entity.className == "light";
+      const bool isSpotLight = entity.className == "light_spot";
+      if (!isPlainLight && !isSpotLight) continue;
+      ++map.lightsDeclared;
+      float rgba[4] = {255.0f, 255.0f, 255.0f, 200.0f};
+      bool haveLight = parseReals(entity.lightColor, rgba, 4);
+      if (!haveLight) {
+        float rgb[3] = {0.0f, 0.0f, 0.0f};
+        if (parseReals(entity.lightColor, rgb, 3)) {
+          rgba[0] = rgb[0]; rgba[1] = rgb[1]; rgba[2] = rgb[2];
+          haveLight = true;
+        }
+      }
+      if (!haveLight || !entity.hasOrigin) {
+        ++map.lightsRejected;
+        continue;
+      }
+      BspLight light;
+      light.spot = isSpotLight;
+      light.entityIndex = static_cast<int>(index);
+      light.origin[0] = entity.origin[0];
+      light.origin[1] = entity.origin[1];
+      light.origin[2] = entity.origin[2];
+      for (int k = 0; k < 3; ++k) light.color[k] = rgba[k] / 255.0f;
+      light.intensity = rgba[3];
+      if (isSpotLight) {
+        float pitchDeg = 0.0f;
+        float yawDeg = 0.0f;
+        readAngles(entity, &pitchDeg, &yawDeg);
+        // The entity's forward: pitch positive = down.
+        const float pitch = pitchDeg * kDegreesToRadians;
+        const float yaw = yawDeg * kDegreesToRadians;
+        light.direction[0] = std::cos(pitch) * std::cos(yaw);
+        light.direction[1] = std::cos(pitch) * std::sin(yaw);
+        light.direction[2] = -std::sin(pitch);
+        float cone = 0.0f;
+        if (parseReals(entity.cone, &cone, 1) && cone > 0.0f && cone <= 180.0f) light.coneDeg = cone;
+        float innerCone = 0.0f;
+        if (parseReals(entity.innerCone, &innerCone, 1) && innerCone >= 0.0f
+            && innerCone < light.coneDeg) light.innerConeDeg = innerCone;
+        float exponent = 0.0f;
+        if (parseReals(entity.exponent, &exponent, 1) && exponent > 0.0f) light.exponent = exponent;
+      }
+      map.lights.push_back(light);
+    }
   }
   const std::size_t modelCount = models.size() / 48;
   std::vector<std::string> modelClassName(modelCount);

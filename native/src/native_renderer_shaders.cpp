@@ -36,6 +36,18 @@ cbuffer WorldConstants : register(b0) {
   float4 fogParams;
   float4 fogColor;
   float4 fogScale;
+  // N21: the map's lights, appended after every block above so no offset the
+  // shading arithmetic already uses moves. Same order as WorldConstantsData in
+  // native_renderer_frame.cpp; `sunDirectionAndMode.w` is the switch and the
+  // eight fields below it are only read when it is 1.
+  float4 sunDirectionAndMode;      // xyz surface -> light, w enabled
+  float4 sunColorAndIntensity;     // rgb, w brightness/1000
+  float4 ambientColorAndIntensity; // rgb, w brightness/1000
+  float4 lightCountAndParams;      // x = lights uploaded for this pane
+  float4 lightPositionRadius[16];   // xyz box position, w radius
+  float4 lightColorIntensity[16];   // rgb colour*intensity, w cosOuter
+  float4 lightDirectionAndCone[16]; // xyz spot axis, w cosInner
+  float4 lightConeParams[16];       // x exponent, y isSpot
 };
 struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
 struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
@@ -126,6 +138,18 @@ cbuffer WorldConstants : register(b0) {
   float4 fogParams;
   float4 fogColor;
   float4 fogScale;
+  // N21: the map's lights, appended after every block above so no offset the
+  // shading arithmetic already uses moves. Same order as WorldConstantsData in
+  // native_renderer_frame.cpp; `sunDirectionAndMode.w` is the switch and the
+  // eight fields below it are only read when it is 1.
+  float4 sunDirectionAndMode;      // xyz surface -> light, w enabled
+  float4 sunColorAndIntensity;     // rgb, w brightness/1000
+  float4 ambientColorAndIntensity; // rgb, w brightness/1000
+  float4 lightCountAndParams;      // x = lights uploaded for this pane
+  float4 lightPositionRadius[16];   // xyz box position, w radius
+  float4 lightColorIntensity[16];   // rgb colour*intensity, w cosOuter
+  float4 lightDirectionAndCone[16]; // xyz spot axis, w cosInner
+  float4 lightConeParams[16];       // x exponent, y isSpot
 };
 cbuffer ModelMaterialProxy : register(b1) {
   float4 texture2Scroll;
@@ -433,6 +457,12 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // created. The product path only sets bit 2 when bit 0 is set (see the vertex
   // upload), and the diagnostic rides `featureDiag`, which no shader arm
   // mistakes for a layer the material asked for.
+)HLSL"
+    // N21: the map-light path pushed this half past the same cap again (C2026
+    // was reported at the old end of the literal), so it is carried as a third
+    // adjacent literal. Same rule as the split above: the pieces are
+    // concatenated by the compiler and must stay separate.
+    R"HLSL(
   const bool hasLayer1 = (featureMask & 1u) != 0u;
   float3 nMaterial = tangentNormal(bumpAtlas.Sample(sampler0, uv).xyz, Ng, tangent);
   float3 bump = bumpTexture.Sample(sampler0, uv).xyz * 2.0 - 1.0;
@@ -477,15 +507,88 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   }
   float selfIllum = saturate(materialFeatures.w);
   albedo += albedo * materialFeatures.xyz * selfIllum;
+  // N21: the map's lights. Two exclusive paths, and the off path is the old
+  // arithmetic untouched: with sunDirectionAndMode.w at 0 the new branch never
+  // runs and the result is exactly lerp(1.0, 0.62 + 0.38 * N.L,
+  // lightDirectionAndMode.w), which is what every pinned capture was made with.
+  //
+  // With the map's lights on, the invented direction becomes the map's sun (the
+  // specular term below keeps using it as the key light) and the lighting is a
+  // three-term sum in the map's own units:
+  //   ambient = _ambient rgb * (_ambient brightness / 1000)
+  //   sun     = _light rgb * (_light brightness / 1000) * saturate(N.L)
+  //   lamp    = colour * intensity * (1 - d/r)^2 * saturate(N.L') * cone
+  // The lamp radius/intensity are the renderer's normalisation of Source's
+  // brightness number (see WorldLightSource); colour, position and cone are the
+  // map's. The per-pane cap of sixteen is what makes this loop fixed-size.
   float3 lightDirection = safeNormalize(lightDirectionAndMode.xyz);
+  float3 lightingRgb = float3(1.0, 1.0, 1.0);
+  float lighting = 1.0;
+  if (sunDirectionAndMode.w > 0.5) {
+    lightDirection = safeNormalize(sunDirectionAndMode.xyz);
+    // N21: a lightmapped face already carries the map's sun and its sky ambient --
+    // the VRAD bake IS those lights, sampled above and multiplied into the albedo
+    // at line 432. Adding sunColor + ambientColor again here counts the same light
+    // twice: measured on the first capture it took the sand from 210/255 to
+    // 118/255 and turned every BSP triangle of a curved dune into a visible facet,
+    // because the lightmap had been hiding the faceted geometric normal. Those
+    // faces therefore start at 1.0 and receive only the map's lamps, which is what
+    // a lightmap cannot contain. Geometry with no lightmap uv (entities) keeps the
+    // sun/ambient term.
+    const float lightmappedSurface = (lightmapFeatures.w > 0.5 && lightUv.x >= 0.0) ? 1.0 : 0.0;
+    const float3 skyTerm = ambientColorAndIntensity.rgb * ambientColorAndIntensity.w
+      + sunColorAndIntensity.rgb * sunColorAndIntensity.w * saturate(dot(n, lightDirection));
+    // Geometry with no lightmap uv (every entity draw writes lightUv = (-1,-1)) has
+    // no baked sun either, so the directional approximation is the only sun it can
+    // have and it keeps the old one: the first capture ran the map's sun on those
+    // too and turned the corridor's white wall lamps into grey blobs (a pixel at
+    // 263,415 went 194 -> 54), because a wall fixture's normal faces away from a sun
+    // that is 55 degrees up. So: lightmapped -> the bake alone, no lightmap -> the
+    // old term, and the map's lamps are added to both.
+    const float legacyTerm = lerp(1.0, 0.62 + 0.38 * saturate(dot(n, lightDirection)),
+      lightDirectionAndMode.w);
+    lightingRgb = lightmappedSurface > 0.5
+      ? float3(1.0, 1.0, 1.0)
+      : max(skyTerm, float3(legacyTerm, legacyTerm, legacyTerm));
+    const uint litCount = (uint)lightCountAndParams.x;
+    for (uint litIndex = 0u; litIndex < litCount; ++litIndex) {
+      float3 toLight = lightPositionRadius[litIndex].xyz - worldPosition;
+      float litDistance = length(toLight);
+      float falloff = saturate(1.0 - litDistance / max(lightPositionRadius[litIndex].w, 1.0e-4));
+      falloff *= falloff;
+      if (falloff <= 0.0) continue;
+      float3 towards = safeNormalize(toLight);
+      float litDiffuse = saturate(dot(n, towards));
+      float cone = 1.0;
+      if (lightConeParams[litIndex].y > 0.5) {
+        // The axis points away from the lamp, so the lamp-to-pixel vector
+        // (-towards) is the one the cosine is measured with.
+        float cosAngle = dot(-towards, safeNormalize(lightDirectionAndCone[litIndex].xyz));
+        float edge = smoothstep(lightColorIntensity[litIndex].w,
+          lightDirectionAndCone[litIndex].w, cosAngle);
+        cone = pow(saturate(edge), max(lightConeParams[litIndex].x, 1.0));
+      }
+      lightingRgb += lightColorIntensity[litIndex].rgb * (falloff * litDiffuse * cone);
+    }
+    lighting = max(lightingRgb.r, max(lightingRgb.g, lightingRgb.b));
+  } else {
+    lighting = lerp(1.0, 0.62 + 0.38 * saturate(dot(n, lightDirection)), lightDirectionAndMode.w);
+    lightingRgb = float3(lighting, lighting, lighting);
+  }
+  // Shared by both paths: the probe readouts below print it, and it is the key
+  // light's N.L -- the map's sun when the map's lights are on.
   float diffuse = saturate(dot(n, lightDirection));
-  float lighting = lerp(1.0, 0.62 + 0.38 * diffuse, lightDirectionAndMode.w);
   if (cameraPositionAndSpecular.w > 0.5) {
     float3 viewDirection = safeNormalize(cameraPositionAndSpecular.xyz - worldPosition);
     float3 halfDirection = safeNormalize(lightDirection + viewDirection);
-    lighting += 0.12 * pow(saturate(dot(n, halfDirection)), 32.0);
+    float specular = 0.12 * pow(saturate(dot(n, halfDirection)), 32.0);
+    lighting += specular;
+    lightingRgb += float3(specular, specular, specular);
   }
   lighting = max(0.0, min(lighting, 2.0));
+  // Same ceiling the old scalar clamp applied, now per channel: a lamp at
+  // point-blank cannot write a colour the old frame could not have contained.
+  lightingRgb = clamp(lightingRgb, float3(0.0, 0.0, 0.0), float3(2.0, 2.0, 2.0));
   // T96: the world alpha output. The two keys ride `feature.x` (TEXCOORD6,
   // written by the renderer from the material the tile belongs to): bit 16 is
   // `$alphatest`, bit 8 is `$translucent`. A cutout has no blend state and draws
@@ -518,16 +621,16 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // product of albedo and lighting cannot be black while lighting is not).
   if (envFeatures.x > 1.5) {
     if (envFeatures.x < 1.6) return float4(diffuse, saturate(length(Ng)), lighting * 0.5, 1.0);
-    return float4(albedo * lighting, 1.0);
+    return float4(albedo * lightingRgb, 1.0);
   }
   if ((featureMask & 32u) != 0u && fogParams.w > 0.5) {
     float3 fogDelta = (cameraPositionAndSpecular.xyz - worldPosition) * fogScale.xyz;
     float fogDistance = length(fogDelta);
     float fogAmount = saturate((fogDistance - fogParams.x) / max(fogParams.y - fogParams.x, 1.0e-3));
     fogAmount = min(fogAmount, fogParams.z);
-    return float4(lerp(albedo * lighting, fogColor.rgb, fogAmount), outputAlpha);
+    return float4(lerp(albedo * lightingRgb, fogColor.rgb, fogAmount), outputAlpha);
   }
-  return float4(albedo * lighting, outputAlpha);
+  return float4(albedo * lightingRgb, outputAlpha);
 }
 )HLSL";
 
