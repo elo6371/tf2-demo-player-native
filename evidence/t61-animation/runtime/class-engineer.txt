@@ -1,18 +1,40 @@
-animtable model=models/player/engineer.mdl animSource=models/player/engineer_animations.mdl separate=1 bones=73 bindBones=73 validBindBones=73 sequences=351 idleSeq=9 idleLabel=AttackStand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY poseSeq=265 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_PRIMARY_reload|a_PRIMARY_reload_loop|b_PRIMARY_reload_loop|PRIMARY_reload_end|a_PRIMARYcrouch_reload|reloadcrouch_PRIMARY_end|PRIMARY_reloadcrouch|a_PRIMARY_reloadcrouch_loop|b_PRIMARY_reloadcrouch_loop|...
+animtable model=models/player/engineer.mdl animSource=models/player/engineer_animations.mdl separate=1 bones=73 bindBones=73 validBindBones=73 sequences=351 idleSeq=176 idleLabel=stand_PRIMARY movingSeq=265 movingLabel=run_PRIMARY poseSeq=265 poseLabel=run_PRIMARY poseFrames=19 labels=ref|ragdoll|user_ref|ragdollspawn|r_handposes|r_armposes|PRIMARY_aimmatrix_idle|PRIMARY_aimmatrix_run|PRIMARY_aimmatrix_crouch_idle|AttackStand_PRIMARY|AttackCrouch_PRIMARY|AttackSwim_PRIMARY|ReloadStand_PRIMARY|ReloadCrouch_PRIMARY|ReloadSwim_PRIMARY|a_PRIMARY_reload|a_PRIMARY_reload_loop|b_PRIMARY_reload_loop|PRIMARY_reload_end|a_PRIMARYcrouch_reload|reloadcrouch_PRIMARY_end|PRIMARY_reloadcrouch|a_PRIMARY_reloadcrouch_loop|b_PRIMARY_reloadcrouch_loop|...
 boundDiag bindRadius=76.265198 boundDiag=153.530396 bones=73 composed=1 reason=-
-contcand rank=0 sequence=252 label=s_swimAlign_ITEM2 frames=61 sparseStep=5.989169 halfSwing=79.305054
-contcand rank=1 sequence=263 label=s_swimAlign_LOSER frames=61 sparseStep=5.989169 halfSwing=79.305054
-contcand rank=2 sequence=256 label=swim_PDA frames=31 sparseStep=15.033545 halfSwing=78.123810
-contcand rank=3 sequence=349 label=layer_taunt_killer_time_outro frames=69 sparseStep=15.507639 halfSwing=88.701012
-contcand rank=4 sequence=343 label=layer_taunt_headbutt_start frames=186 sparseStep=18.230675 halfSwing=85.764648
-contpick sequence=252 label=s_swimAlign_ITEM2 frames=61 sweepStep=7.102366 limit=38.382599 halfSwing=79.305054
-animcontseq sequence=252 label=s_swimAlign_ITEM2 frames=61 sweepStep=7.102366
-animpose cycle=0.0000 sequence=265 label=run_PRIMARY frame=0/19 localFrame=0 sectionFrames=0 bones=73 checksum=ec4dacb424ebf956 maxDelta=77.884537 finite=1
-animpose cycle=0.2500 sequence=265 label=run_PRIMARY frame=4/19 localFrame=4 sectionFrames=0 bones=73 checksum=27fc75ab7d0c391f maxDelta=83.335449 finite=1
-animpose cycle=0.5000 sequence=265 label=run_PRIMARY frame=9/19 localFrame=9 sectionFrames=0 bones=73 checksum=119d8df3e0d0a006 maxDelta=77.438210 finite=1
-animpose cycle=0.7500 sequence=265 label=run_PRIMARY frame=14/19 localFrame=14 sectionFrames=0 bones=73 checksum=ab122e66ffdf0da7 maxDelta=82.237099 finite=1
-animcont sequence=252 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=7.102366 worstBone=55 worstElement=13 worstTick=60 usable=1
-animrate idleRate=0.000000 movingRate=1.000000 idleOneSecond=0.000000000 movingOneSecond=0.999999702 expected=1.000000000
+contcand rank=0 sequence=256 label=swim_PDA frames=31 sparseStep=14.595675 halfSwing=80.157898
+contcand rank=1 sequence=347 label=layer_taunt_killer_time_intro frames=837 sparseStep=16.307835 halfSwing=88.018257
+contcand rank=2 sequence=343 label=layer_taunt_headbutt_start frames=186 sparseStep=17.511723 halfSwing=81.755783
+contcand rank=3 sequence=145 label=layer_taunt03 frames=139 sparseStep=17.812452 halfSwing=85.171478
+contcand rank=4 sequence=287 label=airwalk_PRIMARY frames=31 sparseStep=18.693106 halfSwing=94.869308
+contpick sequence=256 label=swim_PDA frames=31 sweepStep=14.595675 limit=38.382599 halfSwing=80.157898
+animcontseq sequence=256 label=swim_PDA frames=31 sweepStep=14.595675
+animpose cycle=0.0000 sequence=265 label=run_PRIMARY frame=0/19 localFrame=0 sectionFrames=0 bones=73 checksum=01abc3729ff7f9bc maxDelta=73.651581 finite=1
+animpose cycle=0.2500 sequence=265 label=run_PRIMARY frame=4/19 localFrame=4 sectionFrames=0 bones=73 checksum=2014eaa750b3c5cf maxDelta=80.141396 finite=1
+animpose cycle=0.5000 sequence=265 label=run_PRIMARY frame=9/19 localFrame=9 sectionFrames=0 bones=73 checksum=1791e5b6e6e6c6ae maxDelta=75.818336 finite=1
+animpose cycle=0.7500 sequence=265 label=run_PRIMARY frame=14/19 localFrame=14 sectionFrames=0 bones=73 checksum=011635398cd2c193 maxDelta=73.973053 finite=1
+animcont sequence=256 steps=60 tickRate=60.000 speed=125.000 rate=0.500000 finalCycle=0.499999851 maxStepDelta=14.595675 worstBone=60 worstElement=14 worstTick=8 usable=1
+animrate idleRate=0.638298 movingRate=1.000000 idleOneSecond=0.638297856 movingOneSecond=0.999999702 expected=1.000000000 cycleRate=0.638298 idleFrames=47 idleFps=30.000000
+animclock speed=0.000 tick=0 rate=0.638298 cycle=0.000000000 delta=0.000000000 advanced=0 state=idle
+animclock speed=0.000 tick=1 rate=0.638298 cycle=0.010638298 delta=0.010638298 advanced=1 state=idle
+animclock speed=0.000 tick=2 rate=0.638298 cycle=0.021276595 delta=0.010638298 advanced=1 state=idle
+animclock speed=0.000 tick=3 rate=0.638298 cycle=0.031914894 delta=0.010638298 advanced=1 state=idle
+animclock speed=0.000 tick=4 rate=0.638298 cycle=0.042553190 delta=0.010638298 advanced=1 state=idle
+animclock speed=250.000 tick=0 rate=1.000000 cycle=0.000000000 delta=0.000000000 advanced=0 state=moving
+animclock speed=250.000 tick=1 rate=1.000000 cycle=0.016666668 delta=0.016666668 advanced=1 state=moving
+animclock speed=250.000 tick=2 rate=1.000000 cycle=0.033333335 delta=0.016666668 advanced=1 state=moving
+animclock speed=250.000 tick=3 rate=1.000000 cycle=0.050000001 delta=0.016666668 advanced=1 state=moving
+animclock speed=250.000 tick=4 rate=1.000000 cycle=0.066666670 delta=0.016666668 advanced=1 state=moving
+animblend speed=0.000 idle=1.000000 walk=0.000000 run=0.000000 sum=1.000000
+animblend speed=75.000 idle=0.501672 walk=0.498328 run=0.000000 sum=1.000000
+animblend speed=150.000 idle=0.000000 walk=1.000000 run=0.000000 sum=1.000000
+animblend speed=250.000 idle=0.000000 walk=0.333333 run=0.666667 sum=1.000000
+animblend speed=500.000 idle=0.000000 walk=0.000000 run=1.000000 sum=1.000000
+animblend aim viewYaw=0.000 bodyYaw=0.000 weight=0.000000 capped=0 cap=0.500
+animblend aim viewYaw=30.000 bodyYaw=0.000 weight=0.333333 capped=0 cap=0.500
+animblend aim viewYaw=60.000 bodyYaw=0.000 weight=0.666667 capped=1 cap=0.500
+animblend aim viewYaw=90.000 bodyYaw=0.000 weight=1.000000 capped=1 cap=0.500
+animblend aim viewYaw=180.000 bodyYaw=0.000 weight=1.000000 capped=1 cap=0.500
+animblend aim viewYaw=175.000 bodyYaw=-175.000 weight=0.111111 capped=0 cap=0.500
+animblend stable=0.000000,0.333333,0.666667 twice=1
 animtick mode=synthetic tick=0 speed=300.000 state=moving cycle=0.000000000 deltaCycle=0.000000000 advanced=0
 animtick mode=synthetic tick=10 speed=300.000 state=moving cycle=0.200000003 deltaCycle=0.020000001 advanced=1
 animtick mode=synthetic tick=20 speed=300.000 state=moving cycle=0.400000066 deltaCycle=0.020000001 advanced=1
