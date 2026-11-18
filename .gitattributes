@@ -42,3 +42,29 @@ evidence/t91-merge/** -text
 # the same bytes on both sides. Byte for byte, like evidence/t30 (T30) and
 # evidence/t68 (T68); D-69.
 evidence/t100-userinfo/** -text
+
+# --- line-ending governance (N25; ruled 2026-11-14, applied 2026-11-18) ---
+# The sources, the build definitions and every gate script are read as text by
+# tools that care about the byte before the newline. A CRLF checkout is not
+# cosmetic: bash reports "$'\r': command not found" for a script whose lines end
+# in CR, the EOL guard in the gate harness fails the script by name, and a
+# byte-comparing gate sees "1,25c1,25" on identical text. core.autocrlf is a
+# per-checkout setting, so the only place that survives a fresh clone is here.
+#
+# Scope is deliberately the ruled one -- native/{src,include,tools,cmake}, the
+# root gate scripts and tools/ -- and NOT a global "* text=auto eol=lf": markdown
+# keeps the bytes it was committed with, the evidence directories above stay
+# -text, and this change carries no repository-wide renormalise. All 502 tracked
+# files under these paths are already LF in both the index and the worktree
+# (git ls-files --eol: 502 x "i/lf w/lf", zero CRLF, zero binaries), so pinning
+# them rewrites nothing; it only stops a later checkout from handing them out
+# with CR. The patterns are directory-scoped on purpose: native/third_party/**
+# holds a tracked WebView2Loader.dll and stays unspecified (no text/eol attribute),
+# so binary payloads keep their bytes. A future binary inside one of the pinned
+# directories needs its own -text exception -- text=lf on a DLL would corrupt it.
+/*.sh text eol=lf
+/native/src/** text eol=lf
+/native/include/** text eol=lf
+/native/tools/** text eol=lf
+/native/cmake/** text eol=lf
+/tools/** text eol=lf
