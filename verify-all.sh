@@ -944,7 +944,7 @@ tail -16 "$OUT/22-weapon-animation.txt"
 #
 # T39 replaced section 4's whole-frame byte bound with the measured-silhouette
 # rule and its real-pose control (11 -> 12 assertions; see
-# T39-WEAPON-ANIMATION-2026-10-21.md), and the forward run on the final tree
+# docs/reports/T39-WEAPON-ANIMATION-2026-10-21.md), and the forward run on the final tree
 # emits 57 OK + 0 FAIL = 57 with per-section counts 27 / 6 / 5 / 12 / 6 / 1.
 #
 # 2026-10-29, after T60: 57 -> 62, per-section 27 / 6 / 5 / 17 / 6 / 1.

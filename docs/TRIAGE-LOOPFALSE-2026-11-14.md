@@ -90,7 +90,7 @@
 ### 5. 权威依据：正确的期望值是什么
 
 1. **mdl 字段**：`mstudioseqdesc_t` 的 `+12` 是 `flags`，`STUDIO_LOOPING = 0x0001`。仓库内有独立仪器的
-   逐字节确认：`T2.5-MAPPING-RECON-2026-10-12.md:83-85`（`+4` label、`+8` activity 名、`+12` flags、`+16` 数值 activity）。
+   逐字节确认：`docs/reports/T2.5-MAPPING-RECON-2026-10-12.md:83-85`（`+4` label、`+8` activity 名、`+12` flags、`+16` 数值 activity）。
    探针写 `flags=1` 表示 loop、`flags=0` 表示 once，**写法正确**；产品读 `+12` 再 `&1`，**也正确**。
 2. **真实数据的独立反证**：同一次运行 `realLoop=true`（`animation_viewmodel_probe.cpp:361-374`）——
    它在真实 `scout.mdl` 的 76 骨模型上找一条 `sequence.looping && animDesc>=0 && frameCount>=2` 的序列，

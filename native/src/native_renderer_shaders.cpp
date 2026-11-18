@@ -231,7 +231,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     return float4(1.0, 0.0, 1.0, 1.0);
   }
   if (envFeatures.x > 8.5) {
-    uint entityDetail = ((uint)feature.x) & 4u;
+    uint entityDetail = ((uint)(feature.x + 0.5)) & 4u;
     return float4(saturate(blend), saturate(blendModulate),
       entityDetail != 0u ? 1.0 : 0.0, 1.0);
   }
@@ -309,6 +309,25 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   }
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
+  // N06 probe 6/7 (forensic, 2026-11-18): one vector per arm, so no reading can
+  // be attributed to the wrong channel. View 16 is the vertex colour the albedo is
+  // lerped from plus the blend weight; 17 is the albedo next to the sample, the
+  // sample's alpha and the vertex alpha. Both ride the gap between the terms probe
+  // (1.52) and the lightmap probe (1.62).
+  if (envFeatures.x > 1.585) return float4(colour.r, colour.g, colour.a, blendWeight);
+  if (envFeatures.x > 1.565) return float4(albedo.r, sampled.r, sampledTexel.a, colour.a);
+  // N06 probe: the terms whose product is the albedo, side by side, so a black
+  // pixel can be attributed to the vertex colour or to the blend layer instead
+  // of being guessed at. R = albedo, G = the vertex colour's red, B = the blend
+  // weight. View 12 is the same pixel one step earlier: R = colour.a,
+  // G = colour.g, B = the sampled texel's alpha. Both are placed after the
+  // declarations they read: the first cut sat above them and HLSL refused it.
+  // The two probe modes ride 1.9 and 2.4 because every other value is already
+  // claimed by an arm above: 12 and up is magenta, 3.5-11.5 are the T11/T26/T61
+  // views, 2.5-3.5 is the environment cube and 0.5-1.5 is the raw texel. The
+  // gap between them is dead on the product path, so nothing else can read it.
+  if (envFeatures.x > 2.3) return float4(colour.a, colour.g, sampledTexel.a, 1.0);
+  if (envFeatures.x > 1.85) return float4(albedo.r, colour.r, blendWeight, 1.0);
   // T27: `$detail`. The layer is combined with the SAME TextureCombine the SDK
   // uses (common_ps_fxc.h), at the point the SDK calls it: on the base colour
   // with the vertex tint already applied, before lighting (`albedo =
@@ -317,7 +336,9 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // CPU -- this pass has one atlas uv per vertex, so the repetition has to live
   // in the pixels rather than in a second texcoord. A material with no detail
   // tile has bit 2 clear and never samples here.
-  uint featureMask = (uint)feature.x;
+  // Round, never truncate: `feature` is interpolated, so a mask 16 can arrive as
+  // 15.9999998 and truncate to 15 -- losing `$alphatest`, gaining detail (black).
+  uint featureMask = (uint)(feature.x + 0.5);
   // Map-only unlit/model blend modes. World and player feature masks never set
   // these bits. UnlitTwoTexture multiplies both textures and adds with ONE/ONE;
   // Modulate interpolates from neutral grey through the texture's alpha before
@@ -342,7 +363,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   }
   if ((featureMask & 4u) != 0u) {
     float4 detailColor = detailAtlas.Sample(sampler0, uv);
-    albedo = combineDetail(albedo, detailColor, (uint)feature.y, feature.z);
+    albedo = combineDetail(albedo, detailColor, (uint)(feature.y + 0.5), feature.z);
   }
   // T21: mode 6 is the ALBEDO the material path produced -- both layers of a
   // blend material already mixed, the detail layer combined, the flat branch for
@@ -352,6 +373,9 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // which is the only way to tell "the wall is dark because the material is
   // dark" from "the wall is dark because it sampled the wrong tile".
   if (envFeatures.y > 0.5) return float4(albedo, 1.0);
+  // N06 probe 8: the same albedo one branch later, next to the vertex colour it
+  // came from, so view 17 and the albedo view can be compared in one frame.
+  if (envFeatures.x > 1.545) return float4(albedo.r, colour.r, sampled.r, sampledTexel.a);
   // T62: the ambient here is the map's lightmap intensity, which is a per-map
   // compensation for lightmapped world faces. A draw with NO lightmap uv (the
   // entity vertex shader writes lightUv = (-1,-1)) never reaches the lightmap
@@ -382,6 +406,16 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     lightColour = pow(max(lightmapTexture.Sample(sampler0, lightUv).rgb, 0.0), 1.0 / 2.2);
   }
   albedo *= lightColour;
+  // N06 probe 3: attribute a black product to the lightmap instead of guessing.
+  // R = the light colour actually multiplied in, G = the raw lightmap texel's
+  // red, B = whether this pass samples the lightmap at all (lightmapFeatures.w).
+  // It rides 1.7: every arm above claims another value (2.3 and up, 1.85-2.3,
+  // 0.5-1.5, 2.5-3.5 and 3.5+), so 1.5-1.85 is the last free gap.
+  if (envFeatures.x > 1.65) {
+    return float4(lightColour.r,
+      lightmapTexture.Sample(sampler0, max(lightUv, float2(0.0, 0.0))).r,
+      lightmapFeatures.w, 1.0);
+  }
   float3 Ng = safeNormalize(normal);
   // T27: the per-material normal. Bit 0 means this material's own `$bumpmap`
   // tile was blitted into the batch's bump atlas; the vertex's tangent frame
@@ -475,6 +509,17 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // delta is multiplied by the inverse vertex scale on all axes
   // (native_renderer_world.cpp:93-101). The uniform world transform keeps fog
   // distance and camera geometry in the same map metric.
+  // N06 probe 4/5. 1.62 is the colour the product path is about to write, with
+  // fog not yet blended in: if a surface reads black in a product capture but
+  // shows a grey here, the arithmetic that ran after the lightmap zeroed it, and
+  // if it is black here too the value itself is zero and the next question is
+  // which term. 1.52 returns those terms: R = diffuse (0 with a dead normal),
+  // G = |Ng| (0 when the vertex carried no usable normal), B = lighting / 2 (a
+  // product of albedo and lighting cannot be black while lighting is not).
+  if (envFeatures.x > 1.5) {
+    if (envFeatures.x < 1.6) return float4(diffuse, saturate(length(Ng)), lighting * 0.5, 1.0);
+    return float4(albedo * lighting, 1.0);
+  }
   if ((featureMask & 32u) != 0u && fogParams.w > 0.5) {
     float3 fogDelta = (cameraPositionAndSpecular.xyz - worldPosition) * fogScale.xyz;
     float fogDistance = length(fogDelta);

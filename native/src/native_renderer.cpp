@@ -561,7 +561,8 @@ bool Renderer::createPipeline() {
     D3D11_RASTERIZER_DESC viewModelRasterDescription{};
     viewModelRasterDescription.FillMode = D3D11_FILL_SOLID;
     viewModelRasterDescription.CullMode = D3D11_CULL_NONE;
-    viewModelRasterDescription.FrontCounterClockwise = FALSE;
+    viewModelRasterDescription.FrontCounterClockwise =
+      horizontalFlipCorrectionEnabled() ? TRUE : FALSE;
     viewModelRasterDescription.DepthClipEnable = TRUE;
     initStage_ = "createRasterState.viewModel";
     if (FAILED(device_->CreateRasterizerState(&viewModelRasterDescription,
@@ -745,7 +746,12 @@ bool Renderer::createPipeline() {
   D3D11_RASTERIZER_DESC rasterDescription{};
   rasterDescription.FillMode = D3D11_FILL_SOLID;
   rasterDescription.CullMode = D3D11_CULL_BACK;
-  rasterDescription.FrontCounterClockwise = FALSE;
+  // The world's stored winding is front-facing in a left-handed, unmirrored
+  // pipeline; the horizontal flip (renderer_internal.h) reverses screen winding,
+  // so the front-face rule reverses with it. sky/noCull/water are clones of this
+  // description and inherit the flip, which is what keeps the water pass from
+  // changing classification relative to the world pass.
+  rasterDescription.FrontCounterClockwise = horizontalFlipCorrectionEnabled() ? TRUE : FALSE;
   rasterDescription.DepthClipEnable = TRUE;
   if (FAILED(device_->CreateRasterizerState(&rasterDescription, rasterizerState_.GetAddressOf()))) return false;
   // The sky box is drawn from the inside, so the world's back-face culling

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <limits>
@@ -15,6 +16,18 @@
 
 namespace tf2::native {
 namespace {
+// TF2_NATIVE_MODEL_WINDING=keep restores the model file's own triangle order for
+// an A/B; anything else (including unset) flips it to the world's outward-front
+// convention. _dupenv_s rather than getenv: the latter is C4996 under MSVC and
+// this tree builds warning-clean.
+bool modelWindingFlipEnabled() {
+  char* raw = nullptr;
+  std::size_t length = 0;
+  if (_dupenv_s(&raw, &length, "TF2_NATIVE_MODEL_WINDING") != 0 || raw == nullptr) return true;
+  const bool keep = std::strcmp(raw, "keep") == 0;
+  std::free(raw);
+  return !keep;
+}
 using Bytes = std::vector<std::uint8_t>;
 constexpr std::uint32_t kIdStudio = 0x54534449u; // "IDST"
 constexpr std::uint32_t kIdVvd = 0x56534449u; // "IDSV"
@@ -1549,8 +1562,22 @@ bool ModelLoader::buildBindPoseMesh(ModelMetadata& metadata, std::size_t descrip
   metadata.bindPoseVertices.clear();
   metadata.bindPoseVertexCount = 0;
   metadata.bindPoseVertices.reserve(descriptor.renderIndexCount);
+  const bool flipWinding = modelWindingFlipEnabled();
   for (std::uint32_t i = 0; i < descriptor.renderIndexCount; ++i) {
-    const auto original = metadata.renderIndices[descriptor.renderIndexStart + i];
+    // Winding: Source model triangles are wound clockwise seen from outside; the
+    // world's emission rule is counter-clockwise from outside (bsp_map.cpp T11)
+    // and the product's rasterizer takes clockwise as front. Drawn in file order
+    // the models therefore showed their interior -- a barrel or a Scout read as
+    // "its back faces are culled". Swap the last two vertices of every triangle
+    // so the two conventions meet. The vertex COUNT and the order-independent
+    // per-vertex checks are unchanged, so ranges, budgets and probes still hold.
+    std::uint32_t sourceIndex = i;
+    if (flipWinding) {
+      const std::uint32_t slot = i % 3u;
+      if (slot == 1u && i + 1u < descriptor.renderIndexCount) sourceIndex = i + 1u;
+      else if (slot == 2u) sourceIndex = i - 1u;
+    }
+    const auto original = metadata.renderIndices[descriptor.renderIndexStart + sourceIndex];
     if (original >= metadata.vertices.size()) { error = "render index exceeds VVD vertices"; metadata.bindPoseVertices.clear(); return false; }
     const auto& source = metadata.vertices[original];
     const float weightSum = source.weights[0] + source.weights[1] + source.weights[2];
@@ -1600,6 +1627,7 @@ bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& er
   }
   metadata.bindPoseLod0Budget = budget;
   metadata.bindPoseVertices.reserve(budget);
+  const bool flipWinding = modelWindingFlipEnabled();
   std::size_t skipped = 0;
   for (const auto& descriptor : metadata.indices) {
     if (anyLod0 && descriptor.lod != 0) continue;
@@ -1609,7 +1637,15 @@ bool ModelLoader::buildBindPoseMeshLod0(ModelMetadata& metadata, std::string& er
     }
     const std::size_t rangeStart = metadata.bindPoseVertices.size();
     for (std::uint32_t i = 0; i < descriptor.renderIndexCount; ++i) {
-      const auto original = metadata.renderIndices[descriptor.renderIndexStart + i];
+      // Same winding swap as buildBindPoseMesh above: this is the path the
+      // product actually draws entity meshes and static props from.
+      std::uint32_t sourceIndex = i;
+      if (flipWinding) {
+        const std::uint32_t slot = i % 3u;
+        if (slot == 1u && i + 1u < descriptor.renderIndexCount) sourceIndex = i + 1u;
+        else if (slot == 2u) sourceIndex = i - 1u;
+      }
+      const auto original = metadata.renderIndices[descriptor.renderIndexStart + sourceIndex];
       if (original >= metadata.vertices.size()) { ++skipped; continue; }
       const auto& source = metadata.vertices[original];
       const float weightSum = source.weights[0] + source.weights[1] + source.weights[2];

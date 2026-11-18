@@ -389,6 +389,7 @@ struct PlayerAnimationOptions {
   std::int32_t motionWindowEnd = -1;
   bool dumpSequences = false;
   bool dumpBoneUsage = false;
+  bool companionLoopTest = false;
 };
 
 int failPlayerAnimation(const std::string& reason, const std::string& detail) {
@@ -1239,6 +1240,62 @@ int playerAnimationEventCensus(int argc, char** argv) {
   return 0;
 }
 
+// Compare the merged table with the included model's own descriptors, keeping
+// their different sequence index spaces separate. Test past the first cycle:
+// quarter-cycle samples alone cannot distinguish wrapping from clamping.
+int companionLoopTest(const tf2::native::AssetRoot& root,
+    const tf2::native::AnimationBinding& binding) {
+  using namespace tf2::native;
+  if (!binding.separateAnimSource) return failPlayerAnimation("no-companion", binding.modelPath);
+  AnimationBindingCache sourceCache;
+  sourceCache.reset(&root);
+  AnimationInputStatus status;
+  std::string reason;
+  const auto* source = sourceCache.resolve(binding.animPath, status, reason);
+  if (!source || source->separateAnimSource) return failPlayerAnimation("source-unavailable", reason);
+  std::size_t compared = 0, mismatches = 0;
+  bool sampled[2] = {false, false};
+  bool killed[2] = {false, false};
+  AnimationModel mutant = binding.anims;
+  for (std::size_t i = 0; i < binding.anims.sequences.size(); ++i) {
+    const auto& merged = binding.anims.sequences[i];
+    if (merged.animDesc < 0) continue;
+    const auto found = std::find_if(source->anims.sequences.begin(), source->anims.sequences.end(),
+      [&](const AnimationSequence& sequence) { return sequence.label == merged.label; });
+    if (found == source->anims.sequences.end()) { ++mismatches; continue; }
+    ++compared;
+    if (merged.looping != found->looping || (merged.flags & 1) != (found->flags & 1)) {
+      ++mismatches;
+      std::printf("companion-loop mismatch label=%s mergedFlags=%d sourceFlags=%d\n",
+        merged.label.c_str(), merged.flags, found->flags);
+    }
+    const int kind = found->looping ? 1 : 0;
+    if (sampled[kind] || found->animDesc < 0
+        || static_cast<std::size_t>(found->animDesc) >= source->anims.animations.size()) continue;
+    const auto& desc = source->anims.animations[static_cast<std::size_t>(found->animDesc)];
+    if (desc.frameCount <= 4 || desc.frameCount > 100000 || !(desc.fps > 0.0f)) continue;
+    const auto sourceIndex = static_cast<std::int32_t>(found - source->anims.sequences.begin());
+    const int tick = desc.frameCount + 3;
+    const auto expected = sampleAnimation(source->anims, sourceIndex, tick, desc.fps);
+    const auto actual = sampleAnimation(binding.anims, static_cast<std::int32_t>(i), tick, desc.fps);
+    if (expected.status != AnimationStatus::Ok) continue;
+    sampled[kind] = true;
+    if (actual.status != AnimationStatus::Ok || actual.frame != expected.frame) ++mismatches;
+    mutant.sequences[i].looping = !found->looping;
+    const auto negative = sampleAnimation(mutant, static_cast<std::int32_t>(i), tick, desc.fps);
+    killed[kind] = negative.status == AnimationStatus::Ok && negative.frame != expected.frame;
+    mutant.sequences[i].looping = merged.looping;
+    std::printf("companion-loop sample label=%s looping=%d tick=%d expected=%d actual=%d "
+      "mutated=%d killed=%d\n", merged.label.c_str(), found->looping ? 1 : 0,
+      tick, expected.frame, actual.frame, negative.frame, killed[kind] ? 1 : 0);
+  }
+  const bool pass = compared > 0 && mismatches == 0 && sampled[0] && sampled[1] && killed[0] && killed[1];
+  std::printf("COMPANION-LOOP=%s compared=%zu mismatches=%zu loopSample=%d clampSample=%d "
+    "loopMutation=%d clampMutation=%d\n", pass ? "PASS" : "FAIL", compared, mismatches,
+    sampled[1] ? 1 : 0, sampled[0] ? 1 : 0, killed[1] ? 1 : 0, killed[0] ? 1 : 0);
+  return pass ? 0 : 1;
+}
+
 int playerAnimationTest(int argc, char** argv) {
   using namespace tf2::native;
   PlayerAnimationOptions options;
@@ -1256,6 +1313,7 @@ int playerAnimationTest(int argc, char** argv) {
     else if (argument == "--idle-sequence") { const char* v = next("--idle-sequence"); if (!v) return 2; options.idleSequence = std::atoi(v); }
     else if (argument == "--dump-sequences") { options.dumpSequences = true; }
     else if (argument == "--dump-bone-usage") { options.dumpBoneUsage = true; }
+    else if (argument == "--companion-loop-test") { options.companionLoopTest = true; }
     else if (argument == "--moving-sequence") { const char* v = next("--moving-sequence"); if (!v) return 2; options.movingSequence = std::atoi(v); }
     else if (argument == "--ticks") {
       const char* v = next("--ticks"); if (!v) return 2;
@@ -1298,6 +1356,7 @@ int playerAnimationTest(int argc, char** argv) {
     }
     return failPlayerAnimation("binding-" + name, reason);
   }
+  if (options.companionLoopTest) return companionLoopTest(root, *binding);
   const auto& anims = binding->anims;
   if (options.dumpBoneUsage) {
     const auto asset = ModelLoader::resolveAsset(root, options.modelPath);

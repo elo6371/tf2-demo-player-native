@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -479,6 +480,66 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldBumpFeature_.materials = bumpMaterials.size();
   worldBump2Feature_.materials = bump2Materials.size();
   worldDetailFeature_.materials = detailBlitMaterials.size();
+  // Diagnostic: `TF2_NATIVE_DUMP_ATLAS=<dir>` writes each batch's CPU-side
+  // layers as PPM plus a text map of where every tile landed. A layer whose
+  // pixels disagree with what the frame shows can then be looked at directly
+  // instead of inferred from the picture it produces; the file names carry the
+  // batch and the map carries the tile rectangle, so a noisy region of a frame
+  // can be traced back to the exact texels that fed it.
+  if (const char* dumpDirectory = std::getenv("TF2_NATIVE_DUMP_ATLAS")) {
+    // `alpha` writes the alpha channel as a grey image: the cutout a
+    // `$alphatest` material's discard is decided by is the one channel a PPM of
+    // the colour cannot show, and a fence whose alpha is wrong looks like a
+    // correct texture in every colour dump.
+    const auto writePpm = [](const std::string& path, const std::vector<std::uint8_t>& pixels,
+                             std::uint32_t width, std::uint32_t height, bool alpha = false) {
+      std::FILE* file = std::fopen(path.c_str(), "wb");
+      if (file == nullptr) return;
+      std::fprintf(file, "P6\n%u %u\n255\n", width, height);
+      for (std::size_t at = 0; at + 3 < pixels.size(); at += 4u) {
+        if (alpha) {
+          const std::uint8_t grey = pixels[at + 3];
+          const std::uint8_t triple[3] = {grey, grey, grey};
+          std::fwrite(triple, 1, 3, file);
+        } else {
+          std::fwrite(&pixels[at], 1, 3, file);
+        }
+      }
+      std::fclose(file);
+    };
+    std::string map;
+    map += "TF2 native world atlas dump\n";
+    for (std::size_t batch = 0; batch < plan.batches.size(); ++batch) {
+      const auto& layout = plan.batches[batch];
+      char name[64];
+      std::snprintf(name, sizeof(name), "\\batch%zu", batch);
+      const std::string prefix = std::string(dumpDirectory) + name;
+      writePpm(prefix + "-albedo.ppm", atlasPixels[batch], layout.width, layout.height);
+      writePpm(prefix + "-albedo-alpha.ppm", atlasPixels[batch], layout.width, layout.height, true);
+      if (!blendPixels[batch].empty()) writePpm(prefix + "-blend.ppm", blendPixels[batch], layout.width, layout.height);
+      if (!modulatePixels[batch].empty()) writePpm(prefix + "-modulate.ppm", modulatePixels[batch], layout.width, layout.height);
+      if (!bumpPixels[batch].empty()) writePpm(prefix + "-bump.ppm", bumpPixels[batch], layout.width, layout.height);
+      if (!bump2Pixels[batch].empty()) writePpm(prefix + "-bump2.ppm", bump2Pixels[batch], layout.width, layout.height);
+      char line[256];
+      std::snprintf(line, sizeof(line), "batch %zu %ux%u tiles=%d\n", batch, layout.width, layout.height, layout.tiles);
+      map += line;
+    }
+    for (std::size_t index = 0; index < plan.slots.size(); ++index) {
+      const auto& slot = plan.slots[index];
+      if (slot.batch < 0) continue;
+      char line[512];
+      std::snprintf(line, sizeof(line), "tile %d batch %d x=%u y=%u w=%u h=%u src=%ux%u blend=%d modulate=%d material=%s\n",
+        slot.tile, slot.batch, slot.x, slot.y, slot.width, slot.height,
+        slot.sourceWidth, slot.sourceHeight, slot.blend ? 1 : 0, slot.modulate ? 1 : 0,
+        index < textures.size() ? textures[index].material.c_str() : "?");
+      map += line;
+    }
+    const std::string mapPath = std::string(dumpDirectory) + "\\atlas-map.txt";
+    if (std::FILE* file = std::fopen(mapPath.c_str(), "wb")) {
+      std::fwrite(map.data(), 1, map.size(), file);
+      std::fclose(file);
+    }
+  }
   // T12's 67.6 MiB note still applies per batch: a batch of 64 tiles is over the
   // 64 MiB guard the ordinary textures use, and that guard exists to catch a
   // runaway allocation rather than to refuse the size this pass is built around.
@@ -506,7 +567,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     const std::uint64_t atlasBudget = std::max<std::uint64_t>(64ull * 1024ull * 1024ull,
       layout.albedoBytes);
     Texture2D albedo;
-    if (!albedo.create(device_.Get(), atlasPixels[batch], layout.width, layout.height,
+    if (!albedo.createMipped(device_.Get(), context_.Get(), atlasPixels[batch], layout.width, layout.height,
                        &atlasError, atlasBudget)) {
       worldAtlasReason_ = atlasError.empty() ? "the world atlas texture was refused" : atlasError;
       lastError_ = E_FAIL;
@@ -515,7 +576,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     worldAtlasTextures_.push_back(std::move(albedo));
     if (!blendPixels[batch].empty()) {
       Texture2D blend;
-      if (!blend.create(device_.Get(), blendPixels[batch], layout.width, layout.height,
+      if (!blend.createMipped(device_.Get(), context_.Get(), blendPixels[batch], layout.width, layout.height,
                         &atlasError, atlasBudget)) {
         worldAtlasReason_ = atlasError.empty() ? "the blend atlas texture was refused" : atlasError;
         lastError_ = E_FAIL;
@@ -528,7 +589,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     }
     if (!modulatePixels[batch].empty()) {
       Texture2D modulate;
-      if (!modulate.create(device_.Get(), modulatePixels[batch], layout.width, layout.height,
+      if (!modulate.createMipped(device_.Get(), context_.Get(), modulatePixels[batch], layout.width, layout.height,
                            &atlasError, atlasBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the blend modulate atlas texture was refused" : atlasError;
@@ -547,7 +608,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       layout.featureBytes);
     if (!bumpPixels[batch].empty()) {
       Texture2D bump;
-      if (!bump.create(device_.Get(), bumpPixels[batch], layout.featureWidth,
+      if (!bump.createMipped(device_.Get(), context_.Get(), bumpPixels[batch], layout.featureWidth,
                        layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the bump atlas texture was refused" : atlasError;
@@ -560,7 +621,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     }
     if (!bump2Pixels[batch].empty()) {
       Texture2D bump2;
-      if (!bump2.create(device_.Get(), bump2Pixels[batch], layout.featureWidth,
+      if (!bump2.createMipped(device_.Get(), context_.Get(), bump2Pixels[batch], layout.featureWidth,
                         layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the bump2 atlas texture was refused" : atlasError;
@@ -574,7 +635,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // The detail layer, same rectangle rule and same budget as the normals.
     if (!detailPixels[batch].empty()) {
       Texture2D detail;
-      if (!detail.create(device_.Get(), detailPixels[batch], layout.featureWidth,
+      if (!detail.createMipped(device_.Get(), context_.Get(), detailPixels[batch], layout.featureWidth,
                          layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the detail atlas texture was refused" : atlasError;
@@ -660,6 +721,23 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // position and scale it has in the full frame -- a mask taken from a
     // re-centred world would not overlay the picture it is meant to bound.
     if (worldTerrainOnly_ && terrainMaterials.count(triangle.material) == 0) continue;
+    // N06 diagnostic: drop every triangle of one material by substring, so the
+    // geometry a cutout material hides can be seen and traced directly. The
+    // command line cannot take another switch (MSVC C1061 on main.cpp's chain),
+    // so it is an environment knob; empty is off and the upload is unchanged.
+    static const std::string hiddenMaterial = [] {
+      const char* raw = std::getenv("TF2_NATIVE_HIDE_MATERIAL");
+      return std::string(raw != nullptr ? raw : "");
+    }();
+    if (!hiddenMaterial.empty() && triangle.material.find(hiddenMaterial) != std::string::npos) continue;
+    // N06 diagnostic, the inverse of the knob above: keep only the triangles of
+    // one material so its raster can be looked at on its own, with nothing
+    // behind it. Empty is off.
+    static const std::string onlyMaterial = [] {
+      const char* raw = std::getenv("TF2_NATIVE_ONLY_MATERIAL");
+      return std::string(raw != nullptr ? raw : "");
+    }();
+    if (!onlyMaterial.empty() && triangle.material.find(onlyMaterial) == std::string::npos) continue;
     const auto ab = BspVertex{triangle.b.x - triangle.a.x, triangle.b.y - triangle.a.y, triangle.b.z - triangle.a.z};
     const auto ac = BspVertex{triangle.c.x - triangle.a.x, triangle.c.y - triangle.a.y, triangle.c.z - triangle.a.z};
     const float nx = ab.y * ac.z - ab.z * ac.y, ny = ab.z * ac.x - ab.x * ac.z, nz = ab.x * ac.y - ab.y * ac.x;

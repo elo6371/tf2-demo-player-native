@@ -430,7 +430,7 @@ regfield() { # regfield <region-line-key> <field>
 # The frame's total dark population moved 183,571 -> 208,630 and this gate does
 # not claim it fell: the clip was showing the far side of the map, the frame now
 # shows the room, and the room's left wall is in the map's own shadow. What
-# changed is which surfaces are dark. See T29-WORLD-VISUAL-2026-10-20.md and
+# changed is which surfaces are dark. See docs/reports/T29-WORLD-VISUAL-2026-10-20.md and
 # world-near-clip-check.sh (the focused gate for this fix).
 for spec in "x=0,y=0 101.7 105.7 15.33 21.33 0.30 1.2 4.2" \
             "x=0,y=560 106.1 110.1 21.2 27.2 0.20 2.49 5.49" \
