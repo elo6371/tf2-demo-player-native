@@ -797,8 +797,15 @@ UNKNOWN_RC=$?
 eq "arg surface: an unknown argument is still ignored, rc=13 is the value refusal" "$UNKNOWN_RC" "13"
 ge "arg surface: the run wrote a trace file with lines" \
   "$([ -f "$ARGS_UNKNOWN_TRACE" ] && wc -l < "$ARGS_UNKNOWN_TRACE" | tr -d ' ' || echo 0)" 1
-eq "arg surface: the trace has exactly one args: line" \
-  "$(trace_text "$ARGS_UNKNOWN_TRACE" | grep -c '^[0-9.]\+ args: ' || true)" "1"
+eq "arg surface: the trace carries exactly one args: unrecognized= reading" \
+  "$(trace_text "$ARGS_UNKNOWN_TRACE" | grep -c '^[0-9.]\+ args: unrecognized=' || true)" "1"
+# The refused switch value (--playback-speed 0) writes a second, different line
+# (main.cpp:4988): it names what the loop refused, where the line above counts
+# what it did not consume. Counting every "args: " line and expecting one held
+# only while that second line was silent; this wave added it. Each line is
+# asserted on its own so neither can disappear unnoticed.
+eq "arg surface: the refused switch value is its own args: line" \
+  "$(trace_text "$ARGS_UNKNOWN_TRACE" | grep -c "^[0-9.]\+ args: refused switch count=1 first=$UNKNOWN_FLAG$" || true)" "1"
 eq "arg surface: the unknown argument is counted (args: unrecognized=1)" \
   "$(trace_text "$ARGS_UNKNOWN_TRACE" | grep -c 'args: unrecognized=1 ' || true)" "1"
 # The end anchor below is "$", not "[$]": a bracket expression matches a
