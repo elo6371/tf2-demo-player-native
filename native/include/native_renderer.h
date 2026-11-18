@@ -1490,6 +1490,15 @@ public:
   void setViewModelFov(float fov) { settings_.viewModelFov = clampViewModelFov(fov); }
   float viewModelFov() const { return settings_.viewModelFov; }
   void setWorldFov(float fov) { settings_.worldFov = clampViewModelFov(fov); }
+  // C2: --world-fov is an explicit override of the stored value. It is a separate
+  // entry point rather than a bool on setWorldFov because the trace has to say
+  // which of the two the frame was drawn through, and a bookmark applied later
+  // still carries its own fov (that is a camera action, not a startup default).
+  void setWorldFovFromCli(float fov) {
+    settings_.worldFov = clampViewModelFov(fov);
+    worldFovFromCli_ = true;
+  }
+  bool worldFovFromCli() const { return worldFovFromCli_; }
   float worldFov() const { return settings_.worldFov; }
 
   // ---- First-person ViewModel pass (T2) -----------------------------------
@@ -2508,6 +2517,7 @@ private:
   WorldFogState worldFog_{};
   std::size_t worldFogVertices_ = 0;
   RenderSettings settings_{};
+  bool worldFovFromCli_ = false;
   float cameraYaw_ = 0.0f;
   float cameraPitch_ = 0.36f;
   float cameraDistance_ = 1.65f;

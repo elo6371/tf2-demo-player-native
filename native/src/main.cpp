@@ -3489,6 +3489,10 @@ bool outlineVertexExtent = false;
   bool viewModelLeftHand = false;
   float viewModelFov = 0.0f;
   bool viewModelFovGiven = false;
+  // C2 (2026-11-18): the world FOV used to be reachable only through
+  // settings.ini's [renderer] worldFov. --world-fov is the explicit override.
+  float worldFovCli = 0.0f;
+  bool worldFovGiven = false;
   bool viewModelIdentityBones = false;
   // Off by default, and the default is the point. This flag exists so the
   // accepted-pose path is reachable end to end and a gate can prove it moves the
@@ -3626,6 +3630,9 @@ bool outlineVertexExtent = false;
   // a frame with itself and report a difference of zero as a pass.
   int invalidViewModelEffectArgument = 0;
   bool viewModelArgumentRejected = false;
+  // C2: --world-fov's own refusal counter; see the check next to the other
+  // world-argument refusals.
+  bool worldFovArgumentRejected = false;
   // Diagnostic: treat the world material as if it declared an env map, so the
   // six-face sampling branch can be run on content that does not ask for it.
   // No installed map's first material declares $envmap -- measured across all
@@ -4076,6 +4083,30 @@ bool outlineVertexExtent = false;
       // a flag that is not consumed anywhere is an unrecognised argument (pushed
       // at main.cpp:3133, refused by --strict-args at main.cpp:3173).
       if (wcscmp(arguments[i], L"--world-fog") == 0) { worldFogGiven = true; continue; }
+      if (wcscmp(arguments[i], L"--world-fov") == 0) {
+        // C2 (2026-11-18): the world projection had no CLI entry -- only
+        // settings.ini's [renderer] worldFov. It lives on this ladder rather than
+        // in the else-if chain below because that chain is already at the
+        // compiler's block-nesting limit (C1061), and because an explicit
+        // override of one stored number is exactly what the ladder is for.
+        if (i + 1 < argumentCount) {
+          wchar_t* end = nullptr;
+          const double parsed = std::wcstod(arguments[++i], &end);
+          // Same rule as --viewmodel-fov: a non-numeric or non-finite FOV is
+          // refused rather than silently becoming the stored value, so "the gate
+          // asked for 100" and "the gate asked for nothing" cannot read the same.
+          if (end && *end == L'\0' && std::isfinite(parsed)) {
+            worldFovCli = static_cast<float>(parsed);
+            worldFovGiven = true;
+          } else {
+            worldFovArgumentRejected = true;
+          }
+        } else {
+          worldFovArgumentRejected = true;
+        }
+        continue;
+      }
+
       if (wcscmp(arguments[i], L"--world-atlas-no-translucent-rescue") == 0) {
         worldAtlasTranslucentRescue = false; continue;
       }
@@ -5057,12 +5088,26 @@ bool outlineVertexExtent = false;
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-face-trace-points; it takes screen points as x,y;x,y.\n");
     return 13;
   }
+  if (worldFovArgumentRejected) {
+    // C2: a refused world FOV must not fall back to the stored one, or a gate
+    // that asked for 100 and silently got 90 would measure the wrong picture.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-fov; it takes a number of degrees (clamped to 40..120).\n");
+    return 13;
+  }
   if (invalidViewModelEffectArgument) {
     // T2 (2026-10-14): same rule for the three advanced-material switches.
     OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel-phong/--viewmodel-bump/--viewmodel-selfillum; each takes on or off.\n");
     return 13;
   }
   renderer.setSettings(persistent.render);
+  // C2: apply --world-fov once, here -- the settings are in and nothing has drawn
+  // yet. The clamp lives with the setter, so 10 is reported as 40 rather than
+  // silently kept.
+  if (worldFovGiven) {
+    renderer.setWorldFovFromCli(worldFovCli);
+    traceFmt("camera: world-fov source=cli requested=%.4f applied=%.4f",
+      worldFovCli, renderer.worldFov());
+  }
   // The native shell uses the installed TF2 `tf` directory as its first
   // resource boundary; Demo header parsing and the first resource selection pass are active.
   std::vector<std::filesystem::path> candidates = {

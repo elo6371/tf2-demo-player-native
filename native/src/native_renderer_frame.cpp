@@ -505,8 +505,12 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // capture log (horizontal 90 -> vertical 73.7398 through the 4:3 Source
     // reference) instead of something a reader has to verify in the source.
     if (!capturePath_.empty()) {
-      std::printf("capture: fov source=settings.worldFov horizontal=%.4f vertical=%.4f"
+      // C2: name the origin as well as the value -- "horizontal 90" from a gate's
+      // settings file and the same 90 from --world-fov are different claims about
+      // what was asked for.
+      std::printf("capture: fov source=%s horizontal=%.4f vertical=%.4f"
         " rule=sourceHorizontalFovToVertical aspect=%.6f near=%.4f far=%.4f\n",
+        worldFovFromCli_ ? "cli.worldFov" : "settings.worldFov",
         settings_.worldFov, worldVerticalFov, aspect, worldNearPlane, worldFarPlane);
     }
     XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(worldVerticalFov), aspect, worldNearPlane, worldFarPlane);

@@ -55,7 +55,7 @@ per-pane 投影 FOV/aspect 与每 pane viewmodel pass 的资源账」。
 
 **契约语义变化**：split 下 VM 在 pane1 的世界之前，因此 gpu: viewmodel pass order ... worldPass=9 viewModelPass=8 afterWorld=0；viewmodel-contract-check.sh 的 afterWorld=1 断言只在单 pane 成立，split 帧要按「pane0 世界之后」读。
 
-### C2 world FOV 只能改 settings.ini
+### C2（已实装 2026-11-18）world FOV 的 CLI 入口
 
 世界 FOV 只有 `settings_.worldFov`（`native_renderer_frame.cpp:490`），CLI 只有
 `--viewmodel-fov`（`main.cpp:4509-4520`）；worldFov 入口是 settings.ini
@@ -66,8 +66,25 @@ clamp 40..120 复用 `native/include/native_renderer.h:1492`。
 aspect 变（0.75 = 4:3 参照）。所以两个 pane 现在已经有不同的水平 FOV，缺的是
 「给某个 pane 单独的缩放」。
 
-验收：`--world-fov 75` 跑一帧，`capture: fov` 行应打印 horizontal=75、vertical=59.8404
+验收：`--world-fov 75` 跑一帧，`capture: fov` 行应打印 source=cli.worldFov horizontal=75、vertical=59.8404
 （`native/tools/camera_probe.cpp:525-530` 有 pin）。
+
+实装：`--world-fov <degrees>`（`native/src/main.cpp` 的参数阶梯，not the else-if chain —— 那条链已经顶到 C1061 的块嵌套上限，见 `main.cpp:4767-4771` 的既有注释）。
+严格解析照 `--viewmodel-fov`：非数字/非有限值一律拒绝（`worldFovArgumentRejected` → rc=13），不回落到存储值；
+应用点只有一处 `renderer.setSettings(persistent.render)` 之后（`main.cpp:5086-5101`），clamp 复用 `setWorldFovFromCli` → `clampViewModelFov`（40..120）。
+`capture: fov` 行的 source 现在会区分 `settings.worldFov` / `cli.worldFov`（`native_renderer_frame.cpp:507-514`），
+所以“settings 里写着 90”和“命令行要了 90”在日志里不再同形。
+
+实测（同机位 1264×681，脚本 `.scratch/n18-fov/capture.sh`；settings 用副本，不再让运行写回 fixture）：
+
+| 跑法 | `camera: world-fov` | `capture: fov` | 与默认帧差异 |
+| --- | --- | --- | --- |
+| 默认（settings 90） | 无该行 | source=settings.worldFov horizontal=90.0000 vertical=73.7398 | — |
+| `--world-fov 100` | requested=100.0000 applied=100.0000 | source=cli.worldFov horizontal=100.0000 vertical=83.5817 | 535312 px（62%），max 202 |
+| `--world-fov 10` | requested=10.0000 applied=40.0000 | source=cli.worldFov horizontal=40、垂直角同步 | 785496 px（91%），max 226 |
+| `--world-fov abc` / `--world-fov`（缺值） | rc=13，不产出 BMP | — | — |
+
+aspect 不变（1.856094 = 1264/681）：这一项只动 FOV，不动 pane 的宽高比。
 
 ### C3 follow 只在 pane0 上平权
 
