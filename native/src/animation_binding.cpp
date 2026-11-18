@@ -294,6 +294,12 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
           // The base model can carry a zero-blend sequence stub. Report the
           // blend count of the animation source whose descriptor we sample.
           sequence.blendCount = candidateSequence.blendCount;
+          // Included descriptors own playback semantics (CStudioHdr::pSeqdesc).
+          // A base STUDIO_OVERRIDE stub is not necessarily marked looping.
+          // Keep the base index/activity and unrelated flags, but take the
+          // STUDIO_LOOPING bit from the descriptor whose frames we sample.
+          sequence.looping = candidateSequence.looping;
+          sequence.flags = (sequence.flags & ~1) | (candidateSequence.flags & 1);
         }
         break;
       }
