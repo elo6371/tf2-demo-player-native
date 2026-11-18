@@ -5,7 +5,15 @@
 用途：交给下一位执行者的中文工作入口；配套详细交接为 `PROJECT-HANDOFF-2026-11-14.md`。
 本文件中的安排是建议执行顺序，不代表已启动任务或已向其他聊天派发任务。
 
-## 当前执行快照（2026-11-18，优先于下文旧快照）
+## 最新执行入口（2026-11-18，上传后续作）
+
+完整N00–N30任务、按步接续、失败后自主解决、五个责任域队列、架构效率和源码参考要求已更新到[全项目连续执行清单](PROJECT-EXECUTION-UPDATE-2026-11-18.md)。该清单及[N-STATUS最新节](N-STATUS-2026-11-14.md)优先于下文旧身份记录；首发七图/粒子/多视角范围保持用户既定要求。
+
+本轮实际修复companion序列循环位：九职业2516条元数据一致，跨周期样本与反向变异通过，pose-family40/40；已编进产品`8b1ab1f0…677641`，详见[N17修复与证据](N17-COMPANION-LOOP-2026-11-18.md)。默认动画和Scout视觉仍未闭环，不重复开发n17anim尚未提交的时钟/混合WIP；先审验再接回。
+
+已核main/tag快照`98ddaeba`（无evidence）；开工远端integrate`30a2fcfb`与本地`3e3f47f3`不一致。决定保留历史，以浅克隆main提供轻量代码副本；archive仍引用旧blob时重做快照不会让完整clone变20MB。
+
+## 历史执行快照（2026-11-18早期）
 
 当前集成树 `work/integrate` 基线 `f25e954f`（产品 `5a599d1e`：世界 FOV 拆分、动画 helper skin 矩阵、idle token 选择、实体账本字段），上一基线 `2305215`、功能合并 tip `d5037e58`。本轮重建 exe SHA-256 `f341ab1e…0d15`（3,185,664 B，exe_count=54），并在该 exe 上复跑 camera_probe / camera-ui / pose-families 三门（全部 PASS，读数见各行），但未重跑完整视觉门禁与 verify-all。依据 `docs/WORLD-VISUAL-REPORT-2026-11-17-ZH.md`、`docs/WORLD-VISUAL-INTEGRATION-2026-11-17.md` 与本轮N17相机调查；下面2026-11-15 candidate/e5记录均为历史，不覆盖本快照。
 

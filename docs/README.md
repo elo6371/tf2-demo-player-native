@@ -1,16 +1,19 @@
 # Documentation index
 
-Start with the two live documents; everything else is a dated working record.
+Start with the live status and execution documents below; dated measurements retain their own binary and input identities.
 
 ## Live status and plan
 
 | Document | What it holds |
 |---|---|
+| [PROJECT-EXECUTION-UPDATE-2026-11-18.md](PROJECT-EXECUTION-UPDATE-2026-11-18.md) | Latest N00–N30 execution order, architecture queue, source references and repository decision |
 | [N-STATUS-2026-11-14.md](N-STATUS-2026-11-14.md) | Per-card N-status: what is measured, what is still open |
 | [PROJECT-NEXT-TASKS-2026-11-14.md](PROJECT-NEXT-TASKS-2026-11-14.md) | Open task matrix with acceptance criteria |
 | [KNOWN-ISSUES-AND-FIXES.md](KNOWN-ISSUES-AND-FIXES.md) | Verified failure modes and their fixes |
 | [DEFECT-REGISTER-MASTER-2026-11-14.md](DEFECT-REGISTER-MASTER-2026-11-14.md) | Defect register |
 | [RELEASE-POLICY.md](RELEASE-POLICY.md) | What counts as acceptance |
+| [TF2-SOURCE-REFERENCE-INDEX.md](TF2-SOURCE-REFERENCE-INDEX.md) | Required source websites, pinned revisions and limits |
+| [N17-COMPANION-LOOP-2026-11-18.md](N17-COMPANION-LOOP-2026-11-18.md) | Reproduced cross-cycle sampling defect, fix, nine-class checks and negative controls |
 
 ## Historical task reports
 

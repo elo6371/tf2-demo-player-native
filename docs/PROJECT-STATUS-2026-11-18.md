@@ -11,6 +11,10 @@ Windows 原生 TF2 demo 播放器与渲染器（C++17 + Win32 + Direct3D 11）�
 142 个脚本的门禁体系。**它不是一个能替代 TF2 客户端的成品**，视觉正确性按子系统分别签收，
 目前世界渲染接近收口、角色动画与部分 UI 仍未闭环。
 
+11-18 续作：最新执行顺序、N00–N30接续步骤与架构任务以
+[全项目连续执行清单](PROJECT-EXECUTION-UPDATE-2026-11-18.md) 为准；本轮已修 companion
+循环位丢失并做九职业验证，默认动画/完整Scout外观仍未闭环。
+
 ## 代码规模
 
 | 项目 | 数量 |
@@ -26,12 +30,13 @@ Windows 原生 TF2 demo 播放器与渲染器（C++17 + Win32 + Direct3D 11）�
 
 | 分支 | 内容 |
 |---|---|
-| `work/integrate` | 当前开发线，本轮 2026-11-18 的渲染修复在 `daa607e` |
-| `p0-entity-protocol` / `main` | 2026-11-13 的干净交接树（`6f475caf`），不含之后的开发提交 |
+| `work/integrate` | 当前开发线，11-18续作开工本地 `3e3f47f3`，远端实查 `30a2fcfb`；渲染修复 `daa607e0` 已含 |
+| `main` | 11-18公开快照 `98ddaeba`，tag `snapshot-2026-11-18` 同指该提交；788文件、不含evidence，native与续作前integrate一致 |
+| `p0-entity-protocol` | 远端11-13交接快照 `6f475caf`，与本机该名称工作区的推进状态分开记 |
 | `archive/full-history-2026-11-13` | 历史全量归档 |
 
-`work/integrate` 领先交接树 1,327 个提交；两条线不是祖先关系，需要合并才能让公开分支
-带上当前代码。
+上述main与远端integrate身份已用GitHub refs/fetch复核；后续循环位修复不自动进入main快照。
+保留开发历史，不强推重写；archive引用旧blob时完整clone仍包含历史大对象，需要轻量代码副本可浅克隆main。
 
 ## 已实现且能跑通的子系统
 
@@ -54,8 +59,8 @@ Windows 原生 TF2 demo 播放器与渲染器（C++17 + Win32 + Direct3D 11）�
 |---|---|---|
 | 世界画面（N06/N07） | 主要缺面根因已修 | 仍有 pr600 绕序残点、退化位移面、world-material 基线 |
 | 天空/位移（N10） | 报告级局部 PASS | `sky_camera` 路径 UNSUPPORTED，3D skybox 未实现 |
-| 相机（N12） | A/B PASS | STV 蹲伏眼高有一次 COINCIDENT 不算绿；精确 tick 消费端未改 |
-| 角色外观（N17） | 投影与 idle 选序已窄修 | **默认仍是 bind pose**；LOD/UV/material 未逐项签收 |
+| 相机（N12） | A/B与POV精确轨道有历史局部证据 | STV relay精确轨道消费、身份/包顺序和当前exe复验未闭环；COINCIDENT不算绿 |
+| 角色外观（N17） | 投影、idle选序、helper与companion循环位已窄修 | **默认仍是 bind pose**；LOD/UV/material、完整pose/blend和同机位外观未签收；其它工作区WIP未合入 |
 | 第一人称/武器（N18） | 独立未验 | 第三人称闭环不替代 arms/viewmodel 验收 |
 | UI（N13–N16） | 侦察与契约为主 | 没有 follow/选人命令；DPI/HUD 遮挡未过；多视角只有契约 |
 | 音频（N21） | 覆盖报告 | 听感需要人在场 |
@@ -94,4 +99,4 @@ bash verify-all.sh --quick             # 整链门禁（约 2.7 小时）
 
 1. 角色默认动画（bind pose → 可验证的 idle/pose/blend），这是当前最大的功能缺口。
 2. 世界残项：pr600 绕序残点、退化位移面、world-material 基线。
-3. 让公开分支带上当前代码，并决定 `evidence/` 是否继续随仓库分发。
+3. 架构效率与功能并行：N25证据/捕获复用→N26构建实测→N22/N23工具链/警告→N24主循环小片拆分；普通更新开发分支，保留历史，main快照不冒充发布。
