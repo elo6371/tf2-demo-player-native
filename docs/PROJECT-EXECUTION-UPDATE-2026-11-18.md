@@ -88,7 +88,7 @@
 | N22 部分 | 代码已公开不等于CI已跑；检测MSVC/SDK与路径，移硬编码；本地代表构建→Windows CI代表目标→干净机复现；缺工具具名失败，保存远端run URL/commit |
 | N23 部分 | 先重新量当前/W4覆盖（旧6/54不是现值）；按目标清越界/生命周期/返回值警告，新增目标不得退化；D3D resize/device/WinMM失败注入；不全局禁警告换绿 |
 | N24 方案，待实施 | 先量当前main调用/状态所有权；按相机/pane边界选一个现有可独立职责做原行为搬迁，功能修复另提交；两demo×三tick的相机/关键trace/图像不变才接下一片，不新增泛用框架 |
-| N25 部分 | 列gate输入/输出/耗时/依赖；产品与gate脚本身份分开，capture key含exe/demo/map/资源/设置/tick/实际相机/viewport；先两个代表复用与失效负控，再推广；空判词/rc丢失/写脏必须红。此前已授权的.gitattributes行尾治理仍需落地：明确文本LF/批处理及二进制例外，先核跨worktree影响，不夹带全仓renormalize |
+| N25 部分 | 列gate输入/输出/耗时/依赖；产品与gate脚本身份分开，capture key含exe/demo/map/资源/设置/tick/实际相机/viewport；先两个代表复用与失效负控，再推广；空判词/rc丢失/写脏必须红。**已授权的.gitattributes行尾治理已落地**（`07d8ca7d`：`native/{src,include,tools,cmake}`、根门禁脚本、`tools/` 钉 `text eol=lf`；502 个文件本来全 LF，fresh checkout 负控 1610/16313/106 CR → 0；见 `docs/LINE-ENDINGS-2026-11-18.md`），仍留：markdown 不动、`.ps1` 未裁、程序自写 CRLF 不管 |
 | N26 待实测 | 同机测clean/no-op/单TU/公共头；记录编译/链接/IO/动作数与exe哈希，验证tf2_core实际复用及头依赖；先修实测瓶颈，再考虑缓存，不凭旧时间猜优化 |
 | N27 契约/能力有证据，入口未完成 | MF SinkWriter接产品离线视频+音频，固定tick帧时钟、输出失败/取消/组件缺失契约；Finalize后若需byte-identical，正确解析容器时间字段归一化，再跨进程比mdat/解码帧/音频/容器，不写固定字节偏移；长片音画同步另验 |
 | N28 部分 | 依赖最少的就绪小片逐个集成；每片记冲突/构建/影响门/身份，旧分支PASS保留历史不转移；本轮main是快照，不替代最终集成候选 |
