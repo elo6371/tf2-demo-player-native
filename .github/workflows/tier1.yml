@@ -1,0 +1,102 @@
+# tier1 -- the fast tier of the acceptance ladder, on a GitHub-hosted Windows runner.
+#
+# WHY THIS FILE EXISTS
+#   The repo has had a public remote for weeks and no CI: N22's finding is that
+#   "the code is public" was being read as "CI ran". This is the smallest job that
+#   answers the question a small edit raises -- does it still compile, do the six
+#   probes' own invariants still hold, and is every gate registered -- without the
+#   private Team Fortress 2 assets, a GPU, or an audio device.
+#
+# WHAT IT RUNS, AND WHY NOT MORE
+#   verify-fast.sh is the tier-1 job itself: header of that file, "Nothing here
+#   reads a demo, opens a window, or touches an audio device". verify-all.sh and
+#   verify-release.sh are deliberately absent: they decode whole demos, capture
+#   frames and mutate the source, so they need the private assets, a physical GPU
+#   and minutes-to-hours of runtime. Putting them here would make the job red for
+#   reasons that are not about the change under test.
+#
+# TRIGGERS
+#   main and candidate/* on push, every pull request, and a manual dispatch.
+#   Development branches (work/*) are intentionally NOT matched: this file lands on
+#   a work branch first, and a workflow that fires on its own landing commit would
+#   make the first run unreadable. To try it on the work branch, dispatch it by
+#   hand (gh workflow run tier1 --ref work/integrate) or push a candidate/* branch --
+#   those are the two ways this file has been designed to be exercised.
+#
+# LINE ENDINGS
+#   Six .gitattributes rules pin native/{src,include,tools,cmake}, the root gate
+#   scripts and tools/ to text eol=lf (07d8ca7d, docs/LINE-ENDINGS-2026-11-18.md).
+#   The guard step below asserts that on the checked-out tree instead of trusting
+#   it: CRLF anywhere in a .sh is how 21 scripts once read as syntax errors, and a
+#   silent renormalisation would reintroduce that without touching a byte of code.
+#
+# STATUS: NOT YET OBSERVED ON THE REMOTE (see docs/N22-CI-TIER1-LANDING-2026-11-18.md).
+name: tier1
+
+on:
+  push:
+    branches:
+      - main
+      - "candidate/*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A second push supersedes the first: tier 1 answers "is this revision sound", so
+# an older run's verdict stops being interesting the moment a newer one exists.
+concurrency:
+  group: tier1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    # windows-2022 ships VS2022 with nmake/cl.exe and the Windows SDK, which is
+    # what build-target.sh configures against (-G "NMake Makefiles").
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          # The gates record provenanceHead and the registry check reads the
+          # index; a shallow clone makes both lie. The repo is small enough that
+          # the depth is not worth the risk.
+          fetch-depth: 0
+
+      - name: line endings stay LF
+        # Asserts the .gitattributes pin on the tree the runner actually materialised,
+        # rather than assuming the attribute survived checkout.
+        run: |
+          set -uo pipefail
+          crlf=$(git ls-files --eol -- '*.sh' 'native/src/**' 'native/include/**' 'native/tools/**' 'native/cmake/**' 'tools/**' | grep -c 'w/crlf' || true)
+          echo "worktree CRLF files: $crlf"
+          if [ "$crlf" -ne 0 ]; then
+            echo "TIER1-LINE-ENDINGS=FAIL (a pinned path came back CRLF; .gitattributes is not being honoured)"
+            git ls-files --eol -- '*.sh' 'native/src/**' | grep 'w/crlf' | head -5
+            exit 1
+          fi
+          echo "TIER1-LINE-ENDINGS=PASS"
+
+      - name: toolchain
+        # Named failure when MSVC/SDK cannot be found: tools/tf2-toolchain.sh exits
+        # non-zero with a TF2-TOOLCHAIN: line instead of letting the build die later
+        # with "cl.exe: not found".
+        run: bash tools/tf2-toolchain.sh
+
+      - name: tier 1
+        # --mutation: perturb each captured probe output and require the shipped
+        # assertions to go red, so a probe that stopped discriminating reads red too.
+        run: bash verify-fast.sh --mutation
+
+      - name: upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier1-evidence
+          path: evidence/fast
+          if-no-files-found: warn

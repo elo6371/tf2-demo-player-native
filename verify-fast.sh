@@ -77,6 +77,14 @@ done
 # chain's per-step counts: an assertion list that quietly shrinks is not a gate.
 # (36 -> 43 on 2026-10-11: viewmodel_fov_probe joined this tier for the T2
 # ViewModel work, with seven assertions of its own.)
+#
+# The 43 is arithmetic, not a habit: E_PRESENTATION 10 + E_ENTITY_MODEL 8 +
+# E_WORLD_MATERIAL 7 + E_MODEL_POSE 7 + E_ITEM_SCHEMA 4 + E_VIEWMODEL_FOV 7 = 43.
+# N22-CI-DRAFT.md:168 recorded 44 for the same six arrays and could not explain
+# the gap; the extra one is the three-line comment inside E_MODEL_POSE being read
+# as an entry (that list has seven strings, the last one after the comment). If
+# the pin and the arrays ever disagree, the guard in the final verdict below is
+# what goes red -- not this comment.
 FAST_ASSERTIONS=43
 
 # The build is the first assertion of this tier and its failure is reported by
