@@ -89,7 +89,7 @@
 | N23 部分 | 先重新量当前/W4覆盖（旧6/54不是现值）；按目标清越界/生命周期/返回值警告，新增目标不得退化；D3D resize/device/WinMM失败注入；不全局禁警告换绿 |
 | N24 方案，待实施 | 先量当前main调用/状态所有权；按相机/pane边界选一个现有可独立职责做原行为搬迁，功能修复另提交；两demo×三tick的相机/关键trace/图像不变才接下一片，不新增泛用框架 |
 | N25 部分 | 列gate输入/输出/耗时/依赖；产品与gate脚本身份分开，capture key含exe/demo/map/资源/设置/tick/实际相机/viewport；先两个代表复用与失效负控，再推广；空判词/rc丢失/写脏必须红。**已授权的.gitattributes行尾治理已落地**（`07d8ca7d`：`native/{src,include,tools,cmake}`、根门禁脚本、`tools/` 钉 `text eol=lf`；502 个文件本来全 LF，fresh checkout 负控 1610/16313/106 CR → 0；见 `docs/LINE-ENDINGS-2026-11-18.md`），仍留：markdown 不动、`.ps1` 未裁、程序自写 CRLF 不管 |
-| N26 待实测 | 同机测clean/no-op/单TU/公共头；记录编译/链接/IO/动作数与exe哈希，验证tf2_core实际复用及头依赖；先修实测瓶颈，再考虑缓存，不凭旧时间猜优化 |
+| N26 已实测（本轮） | 同机同锁同工具链：configure 1.88 s；clean 121.25 s（86 TU，exe `96c47828` 与既有 build-nmake 逐字节相同）；no-op 3.06 s（0 TU）；单 TU 4.70 s（1 TU）；公共头 native_renderer.h 118.88 s（81/86 TU = 94%，等同全量重编）；clean 日志 20 条 warning C（C4456×6 C4244×6 C4996×4 C4267×2 C4457×1 C4100×1）；IO 未测；见 docs/N26-BUILD-MEASUREMENT-2026-11-18.md |
 | N27 契约/能力有证据，入口未完成 | MF SinkWriter接产品离线视频+音频，固定tick帧时钟、输出失败/取消/组件缺失契约；Finalize后若需byte-identical，正确解析容器时间字段归一化，再跨进程比mdat/解码帧/音频/容器，不写固定字节偏移；长片音画同步另验 |
 | N28 部分 | 依赖最少的就绪小片逐个集成；每片记冲突/构建/影响门/身份，旧分支PASS保留历史不转移；本轮main是快照，不替代最终集成候选 |
 | N29 阻塞，前置未齐 | 具名完整候选+首发矩阵+安装/资源清单→独立干净环境走查→冻结源码/资源/pins；缺环境精确列人工步骤，不伪造完成 |
