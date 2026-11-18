@@ -113,7 +113,7 @@ trace 不是默认写的：必须给 `TF2_NATIVE_TRACE=<file>` 才落盘（`nati
 | `m1` | 删掉 `native/src/main.cpp:9005-9019` 的 T27 hold，改为 `(void)captureTick;` | `FAIL seek 24001: captured frame drawn at the requested tick` | 复现 T26 语义："首个 ≥N 的帧"。32x 下必然跨 tick，24001 是最稳的用例 |
 | `m2` | `native/src/main.cpp:2429` 把 `--playback-speed 8` 当 4 播 | `FAIL speed 8x: the run really used the requested speed` | 像素断言抓不到映射错误（见 S2 边界）；必须有读数断言兜住，否则"8x 当 4x"会全绿 |
 
-补充记录（脚本自动做，不靠人记）：m2 下把三对像素断言的结果也 grep 进 `mutation.log`（`timeline-mutations.sh:191-192`）—— 预期它们**仍然绿**，证明"像素测确定性、不测倍速"。这不是门禁的缺陷，而是设计边界，写在 `TIMELINE-GATE.md` §4 里。
+补充记录（脚本自动做，不靠人记）：m2 下把三对像素断言的结果也 grep 进 `mutation.log`（`timeline-mutations.sh:191-192`）—— 预期它们**仍然绿**，证明"像素测确定性、不测倍速"。这不是门禁的缺陷，而是设计边界，写在 `docs/reports/TIMELINE-GATE.md` §4 里。
 
 断言命中的机器判据（`timeline-mutations.sh:83-85`）：
 
@@ -135,13 +135,13 @@ named_red() { grep -a -qF "FAIL $2" "$OUT/gates/$1/gate.log"; }
 ## 7. 与 D 表的关系
 
 - **D-26**（后退 seek 相位复位）：本门禁**不覆盖**，理由写在脚本头注释（`timeline-check.sh:43-49`）—— 那是 T61 的有意取舍（`main.cpp:9339-9346`），对其变红等于要求推翻既有决策。
-- **D-27（提案，待 D 表所有者落盘）**：`--capture-tick` 被误读成 seek。整行文本在 `TIMELINE-GATE.md` §10，落盘时末列先写 `CAN-RED-UNANCHORED`（门禁尚未进主线树），进主线后改 `CAN-RED gate:timeline-check.sh#captured frame drawn at the requested tick`。
-- 门禁可判红但**未接入**时的口径：本条门禁建议作为 `verify-all.sh` 第 31 步（需要 GPU 抓帧，与 step 16 同类），不进 `verify-fast.sh`（不读 demo、不开窗），也不进"只判定已有证据"的发布判定层 —— 详见 `TIMELINE-GATE.md` §7。
+- **D-27（提案，待 D 表所有者落盘）**：`--capture-tick` 被误读成 seek。整行文本在 `docs/reports/TIMELINE-GATE.md` §10，落盘时末列先写 `CAN-RED-UNANCHORED`（门禁尚未进主线树），进主线后改 `CAN-RED gate:timeline-check.sh#captured frame drawn at the requested tick`。
+- 门禁可判红但**未接入**时的口径：本条门禁建议作为 `verify-all.sh` 第 31 步（需要 GPU 抓帧，与 step 16 同类），不进 `verify-fast.sh`（不读 demo、不开窗），也不进"只判定已有证据"的发布判定层 —— 详见 `docs/reports/TIMELINE-GATE.md` §7。
 
 ## 8. 本文件的证据状态（不吹）
 
 - 断言语义、代码锚点、变异机制：**已实现**，锚点行号逐条读过源码与脚本。
-- 全绿 29 条 / m1 / m2 的**本树实测数字**：**尚未产出**。forward 部分由合并窗口整链第 12 步（`TIMELINE-CHECK=PASS`）代跑；m1/m2 待整链结束后按 lead 派发单独跑。本文件与 `TIMELINE-GATE.md` 里的实测占位（§6/§8）在拿到原文后回填，未回填前不得把"设计如此"写成"已验证"。
+- 全绿 29 条 / m1 / m2 的**本树实测数字**：**尚未产出**。forward 部分由合并窗口整链第 12 步（`TIMELINE-CHECK=PASS`）代跑；m1/m2 待整链结束后按 lead 派发单独跑。本文件与 `docs/reports/TIMELINE-GATE.md` 里的实测占位（§6/§8）在拿到原文后回填，未回填前不得把"设计如此"写成"已验证"。
 - 环境依赖：Windows + D3D11 GPU 抓帧、SNAKE demo（`bb841c6d…cp_snakewater_final1.dem`）、`python 3.13`。换机器要改 `timeline-check.sh:76-84` 的路径。
 ## 9. 门禁自身的缺陷（供总报告「门禁自身的缺陷」一节）
 

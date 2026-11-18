@@ -264,3 +264,6 @@ evidence/t92-install/gate/
 evidence/outline/inputs/*.settings.ini
 evidence/outline/inputs/*.ui.ini
 evidence/outline/*.pgm
+
+# local build logs
+.build-*.log

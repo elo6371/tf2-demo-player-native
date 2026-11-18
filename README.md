@@ -6,11 +6,26 @@ An experimental Windows-native Team Fortress 2 demo player and renderer built wi
 
 ## Project status
 
-The public default branch is `p0-entity-protocol`. This checkout is the release HEAD of the T8/T9/T10 source-split merge (branch `integration/t79-final`); when `git rev-parse p0-entity-protocol` equals `git rev-parse HEAD`, the public branch carries the current software: the Win32/Direct3D 11 demo player with entity-protocol, world and material rendering, viewmodel and player animation, HUD and logs panel, audio playback and INI settings persistence (there is no settings screen in the product: `UiCommand::OpenSettings` exists at `native/src/native_ui.cpp:377` but no product code sends it; only `native/tools/native_ui_probe.cpp:340` does), including the T75 install lifecycle and the T80/T82/T83/T84 camera, PVS, brush-geometry and gate work recorded in CHANGELOG.md. Older T50-T54 reports remain in `evidence/` as historical records.
+The public branch `main` carries the current product tree: a snapshot of `work/integrate` with `evidence/` left on the development branch, because the raw captures are a gigabyte and nobody needs them to build. `p0-entity-protocol` is the 2026-11-13 handoff snapshot and stays as history; `work/integrate` is where development happens. The software is: the Win32/Direct3D 11 demo player with entity-protocol, world and material rendering, viewmodel and player animation, HUD and logs panel, audio playback and INI settings persistence (there is no settings screen in the product: `UiCommand::OpenSettings` exists at `native/src/native_ui.cpp:377` but no product code sends it; only `native/tools/native_ui_probe.cpp:340` does), including the T75 install lifecycle and the T80/T82/T83/T84 camera, PVS, brush-geometry and gate work recorded in CHANGELOG.md. Older T50-T54 reports remain in `evidence/` as historical records.
 
 World geometry/material rendering and third-person player models/animation are still under development. A passing focused gate is not a claim that every map, material, class, or animation is visually correct.
 
-See [CHANGELOG.md](CHANGELOG.md) for the current hosted snapshot, [docs/KNOWN-ISSUES-AND-FIXES.md](docs/KNOWN-ISSUES-AND-FIXES.md) for verified failure modes and their status, and [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md) for acceptance rules.
+See [docs/PROJECT-STATUS-2026-11-18.md](docs/PROJECT-STATUS-2026-11-18.md) for what the product does today and what is still open, [CHANGELOG.md](CHANGELOG.md) for the current hosted snapshot, [docs/KNOWN-ISSUES-AND-FIXES.md](docs/KNOWN-ISSUES-AND-FIXES.md) for verified failure modes and their status, and [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md) for acceptance rules.
+
+## Repository layout
+
+| Path | What lives there |
+|---|---|
+| `native/` | The product: C++17 sources, headers, HLSL, probes (`native/tools/`) and CMake files. |
+| `native/build-nmake/` | Build output; not tracked. |
+| `*.sh`, `*.py` at the repository root | The gate suite — one script per gate plus the shared build and measurement helpers. They stay at the root because they resolve fixtures and the product binary relative to it. |
+| `docs/` | Live status, plans and design records. Start at [docs/README.md](docs/README.md). |
+| `docs/reports/` | The dated T-round reports that used to sit in the root, newest last ([index](docs/reports/README.md)). |
+| `analysis/` | Reference captures and image comparisons used as evidence. |
+| `testdata/` | Small fixtures the gates read. |
+| `evidence/` | Raw gate output, captures and traces, kept as the historical record. Large by design and not needed to build or run the product. |
+| `tools/` | Standalone helpers that are not gates. |
+
 
 ## Verification status
 

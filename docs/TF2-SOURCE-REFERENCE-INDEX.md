@@ -40,6 +40,10 @@ Official SDK revision also checked: `e1f1fd42271805072f052051c26c21caa2c87b04` (
 
 ## Demo parsers and capture tools
 
+11-18 code actually checked for the companion-loop fix: official SDK [`src/public/studio.cpp#L932`](https://github.com/ValveSoftware/source-sdk-2013/blob/e1f1fd42271805072f052051c26c21caa2c87b04/src/public/studio.cpp#L932), [`studio.h#L3078`](https://github.com/ValveSoftware/source-sdk-2013/blob/e1f1fd42271805072f052051c26c21caa2c87b04/src/public/studio.h#L3078), and OthmanAba [`tf2_src/public/studio.cpp#L918`](https://github.com/OthmanAba/TeamFortress2/blob/1b81dded673d49adebf4d0958e52236ecc28a956/tf2_src/public/studio.cpp#L918). The included descriptor owns loop semantics; the project copied only its animation index/blend count. Runtime sampling and two inverse loop controls verified the narrow fix; this does not validate full Source sequence blending. See [the repair report](N17-COMPANION-LOOP-2026-11-18.md).
+
+For minimap tasks, inspect [demos.tf](https://demos.tf/) and locate its corresponding public implementation through [demostf on GitHub](https://github.com/demostf). Record the actual repository/file/revision and license before reusing code; prefer safe, useful reuse, or document a better-fitting alternative. Do not guess a source-file URL or pull the whole website stack into the native application.
+
 | Reference | Use it for | Limits |
 |---|---|---|
 | [demostf/parser](https://github.com/demostf/parser) | Independent Rust parser for packet, entity, and demo protocol cross-checks. | Pin a revision and compare fields/tick semantics against local fixtures. |

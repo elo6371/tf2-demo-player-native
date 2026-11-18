@@ -80,6 +80,14 @@ candidates() {
 
 for class in "${CLASSES[@]}"; do
   model="models/player/${class}.mdl"
+  loop_log="$OUT/${class}-companion-loop.txt"
+  if ! "$PROBE" --player-animation-test --tf-root "$TF" --model "$model" --companion-loop-test > "$loop_log" 2>&1; then
+    failure "$class: companion loop metadata or cross-cycle sampling failed (see $loop_log)"
+  elif ! rg -q '^COMPANION-LOOP=PASS ' "$loop_log"; then
+    failure "$class: companion loop check returned no PASS verdict"
+  else
+    say "  $class $(rg '^COMPANION-LOOP=PASS ' "$loop_log")"
+  fi
   dump="$OUT/${class}-sequences.txt"
   raw="$OUT/${class}-sequences.raw.txt"
   if ! "$PROBE" --player-animation-test --tf-root "$TF" --model "$model" --dump-sequences > "$raw" 2>&1; then

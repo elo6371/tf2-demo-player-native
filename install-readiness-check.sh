@@ -85,7 +85,7 @@ FIXTURES_PY="$(cygpath -w "$REPO/install-readiness-fixtures.py" 2>/dev/null || p
 # title-capture stops polling as soon as the connected title appears, so a warm
 # run costs its real load time, not this value.
 #   120 s = 5.0x the slowest warm time-to-connected-title measured on this host
-#   (24.0 s, T47-COLD-READINESS-2026-10-21.md) and 4x the old 30 s bound that the
+#   (24.0 s, docs/reports/T47-COLD-READINESS-2026-10-21.md) and 4x the old 30 s bound that the
 #   cold run exceeded. The cold path itself cannot be reproduced on demand
 #   without clearing system-wide caches (out of bounds), so the number is
 #   anchored to the measured warm reading plus the forced-timeout control in
@@ -392,7 +392,7 @@ case_requested() { sed -n "s/.*resources: requested=\(.*\) tf_root=.*/\1/p" "$(c
 sec "8b/13 positive control: a too-short poll bound is TITLE-CAPTURE-TIMEOUT, not a connected title"
 # T47: the cold-cache classification must be provable on demand. Five seconds is
 # shorter than this host's measured warm time-to-connected-title for the real
-# root (recorded in T47-COLD-READINESS-2026-10-21.md), so the case is cut while
+# root (recorded in docs/reports/T47-COLD-READINESS-2026-10-21.md), so the case is cut while
 # the trace already reports valid=1 -- exactly the T43 shape. The control passes
 # only if the capture names the timeout separately AND the title is not the
 # connected form. If the product ever loaded inside five seconds the control

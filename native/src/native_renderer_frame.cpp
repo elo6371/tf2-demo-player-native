@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -496,7 +497,13 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
         " rule=sourceHorizontalFovToVertical aspect=%.6f near=%.4f far=%.4f\n",
         settings_.worldFov, worldVerticalFov, aspect, worldNearPlane, worldFarPlane);
     }
-    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(worldVerticalFov), aspect, worldNearPlane, worldFarPlane);
+    XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(worldVerticalFov), aspect, worldNearPlane, worldFarPlane);
+    // The view basis puts game LEFT on screen right (see the proof in
+    // renderer_internal.h's horizontalFlipCorrectionEnabled); negating clip-space
+    // X is what puts the world back the way the game shows it. The matching cull
+    // flip lives in native_renderer.cpp's rasterizer states -- the two are one
+    // change and must never be applied separately.
+    if (horizontalFlipCorrectionEnabled()) projection.r[0] = XMVectorNegate(projection.r[0]);
     const XMMATRIX mvp = view * projection;
     WorldConstantsData& constants = frameConstants;
     XMStoreFloat4x4(&constants.mvp, mvp);
@@ -714,7 +721,16 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // restored immediately after it -- otherwise a flat capture would also
     // flatten the water and the markers and the diagnosis would be about the
     // wrong pass.
-    if (worldDebugView_ != 0 && frameConstantsValid) {
+    // N06 probe hook: the command line's debug view is a giant if/else chain in
+    // main.cpp that MSVC refuses to grow (C1061 block nesting too deep), so the
+    // two probe views are selected by environment instead. It is a diagnostic,
+    // read once, and it only ever overrides a view the caller already asked for.
+    static const int probeViewEnv = [] {
+      const char* raw = std::getenv("TF2_NATIVE_WORLD_VIEW");
+      return raw != nullptr ? std::atoi(raw) : 0;
+    }();
+    const int debugViewNow = probeViewEnv != 0 ? probeViewEnv : worldDebugView_;
+    if (debugViewNow != 0 && frameConstantsValid) {
       WorldConstantsData debugConstants = frameConstants;
       // 1/2 are the flat/depth views and ride envFeatures.x (0 is the product
       // path); the albedo view rides envFeatures.y because x > 3.5 is already
@@ -722,23 +738,40 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       // there first -- measured: the first albedo capture was a depth frame.
       // T26 adds mode 4 = face id, which deliberately rides that same block at
       // 6.0 and is therefore a third member of it rather than a new sweep.
-      debugConstants.envFeatures.x = worldDebugView_ == 2 ? 5.0f
-        : worldDebugView_ == 3 ? 0.0f
-        : worldDebugView_ == 4 ? 6.0f
-        : worldDebugView_ == 5 ? 1.0f
-        : worldDebugView_ == 6 ? 8.0f
-        : worldDebugView_ == 7 ? 9.0f
+      debugConstants.envFeatures.x = debugViewNow == 2 ? 5.0f
+        : debugViewNow == 3 ? 0.0f
+        : debugViewNow == 4 ? 6.0f
+        : debugViewNow == 5 ? 1.0f
+        : debugViewNow == 6 ? 8.0f
+        : debugViewNow == 7 ? 9.0f
         // N05 step 2: mode 10 is the magenta isolation view -- one flat opaque
         // colour, so "did this triangle paint this pixel" is a colour equality
         // rather than a difference from a background that other passes also fill.
-        : worldDebugView_ == 10 ? 12.0f
+        : debugViewNow == 10 ? 12.0f
+        // N06 probe views: 11 rides 16.0 and 12 rides 17.0, both above the
+        // magenta arm, and both are read in the shared pixel shader where the
+        // albedo terms exist. They are diagnostics, not product modes.
+        : debugViewNow == 11 ? 1.9f
+        : debugViewNow == 12 ? 2.4f
+        : debugViewNow == 13 ? 1.7f
+        // N06 probe 4/5: 14 returns the composed colour the product path is
+        // about to write (albedo * lighting, before fog), 15 returns the terms
+        // that make it (diffuse, |normal|, lighting). Both ride values no other
+        // arm claims (1.5-1.65, below the 1.65 lightmap probe).
+        : debugViewNow == 14 ? 1.62f
+        : debugViewNow == 15 ? 1.52f
+        // N06 probe 6/7: the albedo's terms at one pixel (16) and the sample's
+        // alpha next to the blend weight and the vertex colour (17).
+        : debugViewNow == 16 ? 1.59f
+        : debugViewNow == 17 ? 1.57f
+        : debugViewNow == 18 ? 1.55f
         // Coverage mode (8) knowingly falls through to 4.0 so the world
         // never wears the sentinel; only the entity pass sits above it.
         // The id view (9) falls through for the same reason: the world is
         // background there, and a world pixel in an id colour would join a
         // per-entity mask it does not belong to.
         : 4.0f;
-      debugConstants.envFeatures.y = worldDebugView_ == 3 ? 1.0f : 0.0f;
+      debugConstants.envFeatures.y = debugViewNow == 3 ? 1.0f : 0.0f;
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &debugConstants, 0, 0);
     }
     // ---- T19: one draw per batch, each with its own atlas -----------------
