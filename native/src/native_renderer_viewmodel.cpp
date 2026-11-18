@@ -568,8 +568,12 @@ bool Renderer::drawViewModel() {
   // model's own radius so the whole weapon is in front of it.
   const float nearPlane = std::max(radius * 0.05f, 0.01f);
   const float farPlane = distance + radius * 4.0f;
-  const XMMATRIX projection = XMMatrixPerspectiveFovLH(
+  XMMATRIX projection = XMMatrixPerspectiveFovLH(
     XMConvertToRadians(viewModelState_.fov), aspect, nearPlane, farPlane);
+  // Same horizontal flip as the world pass: the weapon is drawn in world space
+  // through frameView_, so without this it would sit on the wrong side of a
+  // corrected world.
+  if (horizontalFlipCorrectionEnabled()) projection.r[0] = XMVectorNegate(projection.r[0]);
   const XMMATRIX mvp = worldMatrix * view * projection;
   viewModelFramePlanes_ = { nearPlane, farPlane, distance, radius };
 
@@ -806,8 +810,9 @@ bool Renderer::drawViewModel() {
       weaponWorld[3], weaponWorld[7], weaponWorld[11], 1.0f);
     const float weaponNear = std::max(weaponRadius * 0.05f, 0.01f);
     const float weaponFar = distance + weaponRadius * 4.0f;
-    const XMMATRIX weaponProjection = XMMatrixPerspectiveFovLH(
+    XMMATRIX weaponProjection = XMMatrixPerspectiveFovLH(
       XMConvertToRadians(viewModelWeaponState_.fov), aspect, weaponNear, weaponFar);
+    if (horizontalFlipCorrectionEnabled()) weaponProjection.r[0] = XMVectorNegate(weaponProjection.r[0]);
     const XMMATRIX weaponMvp = weaponWorldMatrix * view * weaponProjection;
     {
       const XMVECTOR centre = XMVectorSet(wcx, wcy, wcz, 1.0f);
