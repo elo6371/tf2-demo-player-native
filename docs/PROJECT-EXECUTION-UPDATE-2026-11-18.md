@@ -73,7 +73,7 @@
 | N07 部分 | 使用产品具名材质链，覆盖BSP pak、TF/HL2挂载顺序、IncludeReader；零缺VMT不等于画对。补water分类/损坏资产控制；按具名道具/材质做UV、贴图、noCull（实际需要时）可见签收 |
 | N08 部分 | 控制点对象→状态netprop→skin/bodygroup→实际draw；选至少两种占领状态与切换，验证暂停/seek/恢复，禁止写成“控制台” |
 | N09 部分 | Upward推车模型/轨道/动态brush，至少直道/弯道/暂停/seek；用实体身份、变换与帧证明移动，不能只列资源存在 |
-| N10 部分，有UNSUPPORTED | 保留六面天空有限PASS；实现真实sky_camera origin/scale与3D skybox独立pass，先一个首发正例+关闭负控+不受影响区域，再扩适用图；不以普通天空覆盖代替3D天空 |
+| N10 部分，3D天空已实装未推广 | 保留六面天空有限PASS；真实sky_camera origin/scale 与 3D skybox 独立 pass 已实装（`--world-sky-3d`，默认 off，off 帧逐字节等于基准 `30315f8f`；on 与 off 差 94 像素）见 docs/WORLD-SKY3D-2026-11-18.md；剩：第二张图正例、远离天空相机机位的抓帧、blended 顺序逐像素归因、trace cluster 断言；不以普通天空覆盖代替3D天空 |
 | N11 未达成 | 目前14格只有2格合格；先完成主要修复，再在一个最终候选补七图POV/STV。每格同资源/视角/tick身份、判词/rc/图像/剩余缺陷，缺输入明确BLOCKED |
 | N12 部分 | 保留POV眼位独立oracle；relay消费精确tick轨道并记录resolved tick/age/entity生命周期；包内SetView/PacketEntities顺序须有可判别样本，不能用0样本判安全；站/蹲/死亡、seek各验 |
 | N13 未达成 | 从已有UiCommand/相机优先级契约出发实现选人/follow/模式命令及可见入口；本地/被跟随/观察者身份明确；A1–A7逐项实测，不只加按钮 |
