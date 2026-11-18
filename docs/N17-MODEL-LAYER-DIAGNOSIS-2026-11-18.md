@@ -120,7 +120,7 @@
 | E4 | 动画相位动态验证 | 让 demo 连续推进 ≥3 tick 再抓 | `animsum` 出现 `advanced>0`、`maxDeltaCycle>0`、实体行 `cycle` 单调增、`animFrame` 分母>1；两 tick 间 Scout 的 skin 矩阵哈希不同 |
 | E5 | bodygroup 消费 | 同帧改 `m_nBody`（Scout 0/1/2/4/8；另选一个「model1 非空」的职业） | HUD `bodygroup` 从 `unknown` 变已知；Scout 几何不变（预期），另一职业几何随位变化（证明选择器接通） |
 | E6 | LOD 消费者（可选/性能向） | 临时代码强制 `targetLod=2` | `gpu overlay verts` 从 23442 → 4369（VVD `numLODVertexes[2]`），画面仍完整 |
-| E7 | 离线 ANI 解码（**不跑产品，最高性价比**） | 扩展 `mdl_scan.py`：解 `scout_animations.mdl` 的 `stand_PRIMARY` frame 0 逐骨 delta，与 bind pose 合成后投影成点云 | 离线姿态≈直立小幅 → 产品的大弓步=U2b（采样/绑定错）；离线姿态本身就是大弓步 → U2a（产品对，别改） |
+| E7 | 离线 ANI 解码（**已执行 → 结论见 §7.2，U2a**） | 扩展 `mdl_scan.py`：解 `scout_animations.mdl` 的 `stand_PRIMARY` frame 0 逐骨 delta，与 bind pose 合成后投影成点云 | 离线姿态≈直立小幅 → 产品的大弓步=U2b（采样/绑定错）；离线姿态本身就是大弓步 → U2a（产品对，别改） |
 | E8 | FOV 自证 | 日志加一行生效 `worldFov`（水平/竖直/换算来源）或画面里放已知尺寸标尺 | 抓帧日志出现该行且竖直=73.7398°，同时与 A 级 TF2 同机位参考帧比对同距离身高比 ≈1.00 |
 
 ## 5. 交付给 lead 的接口
@@ -162,3 +162,73 @@
 5. 冻结抓帧的 `advanced=0/cycle=0` **不能当缺陷证据**（`native/include/animation_clock.h:99`：重复 tick 不推进）。
 6. ID 着色是 `(colorID,0,0)`：Scout 91、BLU Engineer 80；同色=同实体，这是排除「别实体错挂」的关键手段。
 7. 本卡所有「源码已改」都只是**源码层证据**，没有一条断言它们在**已拍画面**里生效；凡涉及可见观感的结论都以「待运行验证」标记。
+
+## 7. E7 离线裁决与两项只读补充（2026-11-18 执行，只读）
+
+脚本：`.scratch/n17-model-scout/anim_frame0.py`（逐字复现 `native/src/animation_decoder.cpp` 的采样）、`anim_all.py`（9 职业同帧对照）、`anim_eulercheck.py`（euler 变体自检）、`mdl_bg.py`（bodygroup 顶点表）、`vtx_list.py`（pool 映射 + 逐 range 三角形审计）。
+
+### 7.1 解码器可信度自检（先证明解码器不是错的那个）
+- 用**已知会动**的 `scout run_PRIMARY`（seq 188 / animDesc 499 / 49 帧 / 28 根 euler 骨）：逐帧 footZ 4.77→28.01 交替、13/25 帧有脚贴地（<8u）、pelvisZ 稳定 42.70–44.57 → RLE 通道、quat64、composeLocalToModel 全链路正确。
+- 因此下面对 `stand_PRIMARY` 的读数是可信的。
+
+### 7.2 裁决 U2a：`stand_PRIMARY` 本身就是一个「大跨步 + 前倾」的**静态**姿势
+- `scout stand_PRIMARY` = seq 151 / animDesc 386 / name `@stand_PRIMARY` / fps 30 / frames 45 / flags 1（looping）/ animIndex 559684 / sectionFrames 0。
+- **flags 直方图 = `0x20:54` + `0x21:7`**：61 根骨**全部**只有 RAWROT2（常量 quat64），其中 7 根另有 RAWPOS；**没有任何逐帧通道** → frame 0..44 逐字节同姿。抓帧里的 `frame=0/45 cycle=0` 不是「卡住」，是这条 animdesc 里只有一帧内容。
+- 姿态读数（模型空间，up=Z，身高 ext=58.6）：pelvis `(-2.39,4.51,38.31)`、head `(10.72,0.28,59.45)`、foot_L `(20.55,10.87,5.15)`、foot_R `(-19.53,-4.98,6.08)` → 两脚 X 相距 **40.1u**、且**都贴地**（z≈5–6），头在骨盆前 **13.1u**。与截图的大跨步/前倾同向。
+- 逐骨 delta vs bind（deg，前 10）：`weapon_bone_1 179.10`、`bip_dogtag_0 172.55`、`bip_dogtag_1 171.59`、`bip_pelvis 116.51`、`bip_lowerArm_R 83.11`、`bip_thumb_2_R 76.51`、`bip_hip_L 66.38`、`bip_lowerArm_L 65.27`、`bip_middle_1_R 61.17`、`bip_hand_L 56.55`；其余 ≤55°。
+- 对照职业（同 `stand_PRIMARY` 同帧；spread=两脚 X 间距，head/pelvis 为 Z，leanX=head.x−pelvis.x，maxMove=frame0↔中间帧最大骨位移）：
+
+| 职业 | bones | seq/desc | frames | eulerBones | spread | head | pelvis | leanX | maxMove |
+|---|---|---|---|---|---|---|---|---|---|
+| scout | 76 | 151/386 | 45 | **0** | **40.1** | 59.5 | 38.3 | 13.1 | **0.00** |
+| engineer | 73 | 141/454 | 47 | 22 | 13.8 | 63.2 | 37.6 | 7.8 | 0.93 |
+| soldier | 86 | 147/297 | 51 | 19 | 20.2 | 61.9 | 36.5 | 17.0 | 1.34 |
+| pyro | 76 | 101/312 | 61 | 21 | 9.4 | 64.6 | 41.5 | 2.9 | 0.85 |
+| demo | 82 | 91/263 | 34 | 22 | 22.7 | 67.2 | 42.7 | 10.0 | 0.74 |
+| heavy | 77 | 62/263 | 61 | 22 | 13.8 | 75.6 | 38.2 | −4.0 | 2.42 |
+| medic | 92 | 57/211 | 49 | 37 | 20.4 | 73.6 | 47.4 | 5.9 | 0.44 |
+| sniper | 74 | 119/379 | 41 | 23 | 15.5 | 71.8 | 45.1 | −1.6 | 0.56 |
+| spy | — | 无 `stand_PRIMARY`（用 `stand_SECONDARY`） | — | — | — | — | — | — | — |
+
+→ Scout 的 40.1u 是全场最宽（第二 demo 22.7），且是**唯一 0 根 euler 骨、maxMove=0.00** 的职业。
+- **结论（U2a）**：产品画出的弓步/前倾随资产数据，采样层无错，**不要按「姿态错」去改采样器**。反过来，「idle 不动」在这条 animdesc 上是数据属性（零逐帧通道）；TF2 真实 idle 是否靠 aim-matrix/程序化叠加，以及这条 desc 是否就是 TF2 实际播放的那一条，仍无法离线判定（§5 「必须 TF2 参考帧」项不变）。
+
+### 7.3 顺带反驳一条候选缺陷（euler 顺序，原 C1）——**不要改**
+- 产品 `radianEulerToQuat` 用 AngleQuaternion 布局（channel0→roll 槽），Source studiomdl 用 `RadianEulerQuaternion`；同一组通道值喂两式，逐骨 local 差可达 **175°**、模型空间位置差可达 **58u**。
+- 但用已知会动的 `run_PRIMARY` 裁决：**产品式** → footZ 4.77–28.01、**13/25** 帧有脚贴地（合理步态）；**Source 式** → footZ 17.49–54.96、**0/25** 帧贴地（整体悬空）。产品式才与该数据自洽 → 原「euler 顺序缺陷 C1」**不成立，已撤销**。
+
+### 7.4 补充 1：9 职业 bodygroup 的 model1/model2 顶点数（脚本 `mdl_bg.py`）
+| 职业 | 有额外 model 的 bodypart（各 model 顶点数） |
+|---|---|
+| scout | hat(146,0) headphones(474,0) shoes_socks(1047,0) dogtags(236,0) → **全部 model1=0** |
+| engineer | **rightarm(833, 8391, 0)** |
+| soldier | **rocket(0, 628)**、**medal(0, 334)**、grenades(1288) |
+| demo | **smile(0, 100)** |
+| heavy | **hands(2876, 0, 4882)**（三套 model）、bullets(2069) |
+| spy | **spyMask(0, 314)** |
+| sniper | **arrows(0, 2382)**、**darts(0, 436)** |
+| pyro / medic | 全部 bodypart 只有 1 个 model |
+
+→ **Scout 的「bodygroup 叠加不可见」是职业个案，不是通例**：model 里 model1 恰好为空。engineer 的 `rightarm` model1 有 **8,391** 顶点（是 model0 的 10 倍）、heavy 有第三套手 **4,882**、sniper `arrows` **2,382** —— 这些职业一旦走同一条绘制路径，缺少 m_nBody 过滤会**可见地多画一整套肢体**。E5 的判据成立，且影响面比 Scout 大得多（建议用 engineer rightarm 或 heavy hands 做正对照）。
+
+### 7.5 补充 2：深色条状物与 range 对齐
+- **前提更正**：既有 trace **没有逐 range 行**——只有 `scene: entityRanges ranges=313 texturedRanges=312 ... meshes=73` 这类汇总，没有 `vertexCount/firstVertex`。因此「用既有 trace 做 range 级对齐」在这份数据上**不可行**（要 range 级明细必须先合 §4 的 E1 埋点）。
+- 离线替代（`vtx_list.py`）：重建 pool 映射（cursor=**8261** ✓）后逐 (bp,model,mesh) 解出 LOD0 的 range 与全部三角形——8 条 range、**7,814 个三角形**、**最长边 5.69u（身高的 9.7%），>10u 的三角形 0 条**。
+- LOD0 range 表（材质槽 / sg 顶点 / 索引 / 模型空间 bbox）：
+
+| range | mat | sgVerts | idx | x | y | z |
+|---|---|---|---|---|---|---|
+| bp0 mesh0（身体） | 0 | 2157 | 8490 | −15.40..15.40 | 14.17..70.56 | −15.59..4.00 |
+| bp0 mesh1（头/手材质组） | 1 | 1531 | 7962 | −4.05..4.05 | 67.77..81.12 | −5.97..4.29 |
+| bp0 mesh2/3（眼球 L/R） | 2/3 | 18 / 18 | 60 / 60 | ±(0.74..1.90) | 75.37..76.10 | 2.31..2.87 |
+| bp1 帽子 | 0 | 140 | 582 | −3.43..3.40 | 75.89..81.27 | −5.20..6.60 |
+| bp2 耳机 | 0 | 425 | 1542 | −3.51..5.51 | 70.99..81.61 | −3.03..5.40 |
+| bp3 鞋袜 | 0 | 830 | 4176 | −10.89..10.89 | −0.08..14.66 | −7.89..3.45 |
+| bp4 狗牌 | 0 | 172 | 570 | −2.98..2.98 | 65.28..71.69 | −5.21..4.32 |
+
+- 推论：**没有任何一条 range 的静态几何斜穿躯干**（唯一覆盖 y≈45..70 的是 body mesh0 自身），且**不存在长三角形** → 排除「多发的 buffer / 索引接错 / 少解一条 range / strip 当 list 解」这四类。
+- 剩下的候选只有两个：(a) mesh0 的**表面着色**（贴图暗区/UV 采样）——它在**未蒙皮 bind 帧就已存在**，最支持这一条；(b) mesh0 顶点被骨矩阵位移——但 bind 帧无动画绑定，可能性低。
+- 单点先试：`bp4 狗牌` 是唯一 z 伸出胸前的 bodygroup（+4.32），其骨 `bip_dogtag_0/1` 恰好是 delta 第二/第三大（172.5°/171.6°）→ E2 隔离时先关 bp4，再关 bp0mesh1。
+
+### 7.6 交接给 n17-draw
+§4 的 E2/E3/E4/E8 判据不变，另加三条：① E2 优先顺序 bp4 → bp0mesh1 → bp0mesh0；② E5 正对照改用 engineer `rightarm`（model1=8391）或 heavy `hands`（model2=4882）；③ 姿态不再按缺陷追（§7.2 已判 U2a），只追「idle 是否有逐帧运动」这条数据属性。
