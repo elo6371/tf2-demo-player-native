@@ -31,22 +31,28 @@
 #   target is still picked up by `cmake --build` alone; running configure
 #   unconditionally cost 22 s per call on this machine and bought nothing.
 #
-# HEADER DEPENDENCIES ARE NOT TRACKED -- THE STAMP GUARD
-#   Every `.obj.d` under the build tree is empty: 144 of 144, measured after a
-#   clean build on 2026-10-11. CMake hands `cmake_cl_compile_depends` a localized
+# HEADER DEPENDENCIES: TRACKED NOW, STAMP GUARD KEPT AS A FALLBACK
+#   The 2026-10-11 reading was "every `.obj.d` under the build tree is empty:
+#   144 of 144". CMake handed `cmake_cl_compile_depends` a localized
 #   `--filter-prefix` ("注意: 包含文件:") captured at configure time, the bytes
-#   cl.exe emits at build time do not match it, and so not one include line is
-#   ever recorded. NMake therefore has no header dependencies at all, and the
-#   failure is silent: editing a header does not rebuild the translation units
-#   that include it, and the stale object links into the exe.
+#   cl.exe emitted at build time did not match it, so no include line was ever
+#   recorded. The failure was silent and it bit this worktree: adding a member to
+#   `native_renderer.h` left `main.cpp.obj` stale, the two objects then disagreed
+#   about the struct layout, and a run printed `skinning=1` and `alignment=-` on a
+#   line whose own log had just recorded `alignment=weapon_bone`.
 #
-#   It already bit this worktree. Adding a member to `native_renderer.h` left
-#   `main.cpp.obj` stale, the two objects then disagreed about the struct layout,
-#   and a run printed `skinning=1` and `alignment=-` on a line whose own log had
-#   just recorded `alignment=weapon_bone`. Until the generator is fixed, a header
-#   newer than the stamp forces the requested targets to really rebuild by
-#   touching their sources. The stamp lives in the build tree, so a clean build
-#   resets it.
+#   That is not what this tree does any more. Measured 2026-11-18 (N26
+#   follow-up, docs/N26-DEPENDENCY-ACCURACY-2026-11-18.md): the depend files are
+#   populated and nmake rebuilds exactly the objects they name -- touching
+#   `native_renderer.h` rebuilt 19 objects, `hud_font.h` 12, `item_schema.h` 31,
+#   each equal to the include scan's prediction and each well under the blanket
+#   touch's 87 objects / 129 s (12 took 24 s).
+#
+#   So the guard below trusts the depend files when every changed header is named
+#   in one, and falls back to touching every source when a changed header is not
+#   named in any of them. That fallback is also what happens if the localized
+#   prefix bug ever returns, because empty depend files name no header. The stamp
+#   lives in the build tree, so a clean build resets it.
 #
 # Usage: bash build-target.sh entity_model_probe [tf2_demo_native ...]
 # Exit:  0 = the named targets built; 1 = they did not.
@@ -135,10 +141,34 @@ if [ "$FRESH_TREE" -eq 1 ]; then
 elif [ ! -f "$STAMP" ]; then
   echo "note: header stamp is missing; forcing requested source rebuild"
   touch native/src/*.cpp native/tools/*.cpp
-elif [ -n "$(find native/include native/src native/tools native/third_party \
-    \( -name '*.h' -o -name '*.hpp' \) -newer "$STAMP" -print -quit 2>/dev/null)" ]; then
-  echo "note: a header is newer than $STAMP; touching sources (header deps are untracked)"
-  touch native/src/*.cpp native/tools/*.cpp
+else
+  # N26 follow-up (measured 2026-11-18): this guard used to touch every source
+  # whenever any header moved, on the belief that NMAKE has no header deps. It
+  # does: CMake's MSVC/NMake backend writes per-object header lists into
+  # CMakeFiles/<target>.dir/compiler_depend.make, and they are accurate --
+  # touching native/include/native_renderer.h rebuilt 19 objects in 62 s (static
+  # fanout 18 TUs plus one probe object) and native/include/hud_font.h rebuilt 12
+  # in 25 s, while the blanket touch rebuilt 87 in 129 s. So let nmake do its job
+  # when every changed header is listed in at least one depend file, and fall
+  # back to the blanket touch only for a header no depend file mentions: a
+  # brand-new header that nothing has included yet cannot be reasoned about this
+  # way, and that is exactly the case the old guard protected.
+  CHANGED_HEADERS=$(find native/include native/src native/tools native/third_party \
+    \( -name '*.h' -o -name '*.hpp' \) -newer "$STAMP" -print 2>/dev/null)
+  UNTRACKED_HEADERS=""
+  for _h in $CHANGED_HEADERS; do
+    _tail=${_h#./}
+    _tail=${_tail//\//\\}
+    if ! grep -qF -- "$_tail" "$BUILD"/CMakeFiles/*/compiler_depend.make 2>/dev/null; then
+      UNTRACKED_HEADERS="$UNTRACKED_HEADERS $_h"
+    fi
+  done
+  if [ -n "$UNTRACKED_HEADERS" ]; then
+    echo "note: no depend file mentions$UNTRACKED_HEADERS; touching sources (header deps unknown)"
+    touch native/src/*.cpp native/tools/*.cpp
+  elif [ -n "$CHANGED_HEADERS" ]; then
+    echo "note: headers newer than $STAMP appear in the depend files; nmake rebuilds their dependents"
+  fi
 fi
 cmake --build "$BUILD" --target "$@" > "$LOG" 2>&1
 rc=$?
