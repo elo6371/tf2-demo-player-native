@@ -115,6 +115,18 @@ private:
   std::size_t unusableBindings_ = 0;
 };
 
+// T105-n17: one layer of a blended pose. `sequence` names the clip, `weight`
+// carries how much of the final pose it supplies, and `cycle` is that clip's
+// own position inside itself -- a static aim pose sits at 0 while the
+// locomotion cycles advance. A negative cycle means "use the request's cycle".
+inline constexpr std::size_t kMaxBlendLayers = 4;
+
+struct AnimationBlendLayer {
+  std::int32_t sequence = -1;
+  float cycle = -1.0f;
+  float weight = 0.0f;
+};
+
 // What the entity said. `hasCycle` matters: m_flCycle is a 0..1 position inside
 // the sequence and is the more faithful input when the demo carries it, while
 // `tick` is the fallback that always exists.
@@ -126,6 +138,11 @@ struct AnimationSampleRequest {
   float playbackRate = 0.0f;
   std::int32_t tick = 0;
   float tickRate = 30.0f;
+  // T105-n17: when blendLayerCount > 0 the sampler mixes these layers instead
+  // of playing `sequence` alone. Slots are fixed (idle, walk, run, aim) so the
+  // same input produces the same weights in the same order.
+  std::size_t blendLayerCount = 0;
+  std::array<AnimationBlendLayer, kMaxBlendLayers> blendLayers{};
 };
 
 struct AnimationSampleResult {
@@ -155,6 +172,18 @@ struct AnimationSampleResult {
   // channel reached, so "the helper bone did not move" stays distinguishable
   // from "collapse this thing onto the origin". Empty when bindPose is true.
   std::vector<std::array<float, 12>> boneModelMatrices;
+  // T105-n17: the blend actually applied. blendWeights/blendSequences are
+  // indexed by LAYER SLOT and carry the normalised weights, so a caller can
+  // assert "sum == 1" and name each layer's clip from one reading.
+  // blendRawWeightSum is the caller's own sum BEFORE normalisation: a dropped
+  // layer shows up there instead of being silently scaled away.
+  std::size_t blendLayers = 0;
+  std::size_t blendDropped = 0;
+  float blendWeightSum = 0.0f;
+  float blendRawWeightSum = 0.0f;
+  std::array<float, kMaxBlendLayers> blendWeights{{0.0f, 0.0f, 0.0f, 0.0f}};
+  std::array<std::int32_t, kMaxBlendLayers> blendSequences{{-1, -1, -1, -1}};
+  std::string blendReason;
 };
 
 // Composes two row-major 3x4 transforms in the convention the skinning path

@@ -1,5 +1,7 @@
 #include "animation_binding.h"
 
+#include "animation_blend.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -427,6 +429,99 @@ bool composeLocalToModelMatrices(
   return true;
 }
 
+namespace {
+
+// T105-n17: the m_flCycle -> decoder-tick conversion, kept in ONE place so a
+// blended layer and a single-sequence sample cannot disagree about what a
+// cycle means.
+bool cycleToSampleTick(const AnimationDesc& anim, const AnimationSampleRequest& request,
+    bool hasCycle, float cycle, std::int32_t& sampleTick, std::string& reason) {
+  sampleTick = request.tick;
+  if (hasCycle && std::isfinite(cycle)) {
+    const double frames = static_cast<double>(cycle) * static_cast<double>(anim.frameCount);
+    const double ticks = frames * static_cast<double>(request.tickRate) / static_cast<double>(anim.fps);
+    if (!std::isfinite(ticks) || ticks < -1.0e9 || ticks > 1.0e9) {
+      reason = "m_flCycle is not usable";
+      return false;
+    }
+    sampleTick = static_cast<std::int32_t>(ticks);
+  }
+  if (sampleTick < 0 || !(request.tickRate > 0.0f) || !std::isfinite(request.tickRate)) {
+    reason = "tick or tick rate is not usable";
+    return false;
+  }
+  return true;
+}
+
+// One layer's local pose, in the decoder's own layout.
+struct LocalPose {
+  std::vector<std::array<float, 3>> position;
+  std::vector<std::array<float, 4>> rotation;
+};
+
+// Weighted average of local transforms: positions linearly, rotations with a
+// sign-aligned weighted sum and a renormalise (nlerp). The sign alignment is
+// load-bearing: q and -q are the same rotation, but averaging them unaligned
+// cancels the bone. Same layers in the same order produce the same bits.
+bool blendLocalPoses(const std::vector<LocalPose>& poses, const std::vector<float>& weights,
+    LocalPose& out, std::string& reason) {
+  if (poses.empty() || poses.size() != weights.size()) { reason = "no blend layers"; return false; }
+  const std::size_t bones = poses[0].position.size();
+  if (bones == 0 || poses[0].rotation.size() != bones) {
+    reason = "blend layers carry no bones";
+    return false;
+  }
+  for (const auto& pose : poses) {
+    if (pose.position.size() != bones || pose.rotation.size() != bones) {
+      reason = "blend layers disagree on bone count";
+      return false;
+    }
+  }
+  out.position.assign(bones, std::array<float, 3>{{0.0f, 0.0f, 0.0f}});
+  out.rotation.assign(bones, std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}});
+  for (std::size_t bone = 0; bone < bones; ++bone) {
+    const auto& reference = poses[0].rotation[bone];
+    double x = 0.0, y = 0.0, z = 0.0, w = 0.0;
+    for (std::size_t layer = 0; layer < poses.size(); ++layer) {
+      const float weight = weights[layer];
+      if (!(weight > 0.0f) || !std::isfinite(weight)) continue;
+      const auto& position = poses[layer].position[bone];
+      out.position[bone][0] += position[0] * weight;
+      out.position[bone][1] += position[1] * weight;
+      out.position[bone][2] += position[2] * weight;
+      const auto& rotation = poses[layer].rotation[bone];
+      const double dot = static_cast<double>(reference[0]) * rotation[0]
+        + static_cast<double>(reference[1]) * rotation[1]
+        + static_cast<double>(reference[2]) * rotation[2]
+        + static_cast<double>(reference[3]) * rotation[3];
+      const double sign = dot < 0.0 ? -1.0 : 1.0;
+      x += sign * static_cast<double>(rotation[0]) * weight;
+      y += sign * static_cast<double>(rotation[1]) * weight;
+      z += sign * static_cast<double>(rotation[2]) * weight;
+      w += sign * static_cast<double>(rotation[3]) * weight;
+    }
+    const double length = std::sqrt(x * x + y * y + z * z + w * w);
+    if (length > 1.0e-6 && std::isfinite(length)) {
+      out.rotation[bone][0] = static_cast<float>(x / length);
+      out.rotation[bone][1] = static_cast<float>(y / length);
+      out.rotation[bone][2] = static_cast<float>(z / length);
+      out.rotation[bone][3] = static_cast<float>(w / length);
+    } else {
+      // Opposed rotations cancel; the reference bone is the honest fallback,
+      // not a zero quaternion that would collapse the bone onto its origin.
+      out.rotation[bone] = reference;
+    }
+    for (int axis = 0; axis < 3; ++axis) {
+      if (!std::isfinite(out.position[bone][axis])) {
+        out.position[bone][axis] = poses[0].position[bone][axis];
+      }
+    }
+  }
+  return true;
+}
+
+} // namespace
+
 AnimationSampleResult buildAnimationSkinMatrices(
     const AnimationBinding* binding,
     const AnimationSampleRequest& request) {
@@ -501,13 +596,98 @@ AnimationSampleResult buildAnimationSkinMatrices(
   result.localFrame = sample.localFrame;
   result.sectionFrames = sample.sectionFrames;
 
+  // T105-n17: when layers are requested the pose is their weighted mix, not the
+  // single sequence above. The single sample still ran: it is the fallback when
+  // every layer is unusable, and it is what the single-sequence callers
+  // (weapon attach, crouch/flinch layers) keep getting bit for bit.
+  LocalPose pose;
+  pose.position = sample.localPosition;
+  pose.rotation = sample.localRotation;
+  if (request.blendLayerCount > 0) {
+    std::vector<LocalPose> poses;
+    std::vector<float> weights;
+    const std::size_t requested = request.blendLayerCount < kMaxBlendLayers
+      ? request.blendLayerCount : kMaxBlendLayers;
+    float dominantWeight = -1.0f;
+    std::size_t dropped = 0;
+    for (std::size_t slot = 0; slot < requested; ++slot) {
+      const AnimationBlendLayer& layer = request.blendLayers[slot];
+      if (!(layer.weight > 0.0f) || !std::isfinite(layer.weight)) { ++dropped; continue; }
+      if (layer.sequence < 0) { ++dropped; continue; }
+      if (static_cast<std::size_t>(layer.sequence) >= binding->anims.sequences.size()) {
+        ++dropped;
+        continue;
+      }
+      const auto& layerSequence =
+        binding->anims.sequences[static_cast<std::size_t>(layer.sequence)];
+      if (layerSequence.animDesc < 0
+          || static_cast<std::size_t>(layerSequence.animDesc) >= binding->anims.animations.size()) {
+        ++dropped;
+        continue;
+      }
+      const auto& layerAnim =
+        binding->anims.animations[static_cast<std::size_t>(layerSequence.animDesc)];
+      if (!(layerAnim.fps > 0.0f) || !std::isfinite(layerAnim.fps) || layerAnim.frameCount <= 0) {
+        ++dropped;
+        continue;
+      }
+      std::int32_t layerTick = request.tick;
+      std::string tickReason;
+      const bool layerHasCycle = layer.cycle >= 0.0f || request.hasCycle;
+      const float layerCycle = layer.cycle >= 0.0f ? layer.cycle : request.cycle;
+      if (!cycleToSampleTick(layerAnim, request, layerHasCycle, layerCycle, layerTick, tickReason)) {
+        ++dropped;
+        continue;
+      }
+      const AnimationSample layerSample =
+        sampleAnimation(binding->anims, layer.sequence, layerTick, request.tickRate);
+      if (layerSample.status != AnimationStatus::Ok) { ++dropped; continue; }
+      LocalPose layerPose;
+      layerPose.position = layerSample.localPosition;
+      layerPose.rotation = layerSample.localRotation;
+      poses.push_back(std::move(layerPose));
+      weights.push_back(layer.weight);
+      result.blendSequences[slot] = layer.sequence;
+      result.blendWeights[slot] = layer.weight;
+      if (layer.weight > dominantWeight) {
+        dominantWeight = layer.weight;
+        result.sequenceLabel = layerSample.sequenceLabel;
+        result.frame = layerSample.frame;
+        result.frameCount = layerSample.frameCount;
+        result.localFrame = layerSample.localFrame;
+        result.sectionFrames = layerSample.sectionFrames;
+      }
+    }
+    result.blendDropped = dropped;
+    float rawSum = 0.0f;
+    if (!poses.empty() && normalizeBlendWeights(weights.data(), weights.size(), &rawSum)) {
+      result.blendRawWeightSum = rawSum;
+      result.blendWeightSum = 1.0f;
+      result.blendLayers = poses.size();
+      std::size_t used = 0;
+      for (std::size_t slot = 0; slot < requested; ++slot) {
+        if (result.blendWeights[slot] > 0.0f && used < weights.size()) {
+          result.blendWeights[slot] = weights[used++];
+        }
+      }
+      if (!blendLocalPoses(poses, weights, pose, result.blendReason)) {
+        pose.position = sample.localPosition;
+        pose.rotation = sample.localRotation;
+        result.blendLayers = 0;
+        result.blendReason = "blend kept the single sample: " + result.blendReason;
+      }
+    } else {
+      result.blendReason = "every blend layer was unusable; played the single sequence";
+    }
+  }
+
   // The animation skeleton's own parent chain.
   std::vector<std::int32_t> parents;
   parents.reserve(binding->anims.bones.size());
   for (const auto& bone : binding->anims.bones) parents.push_back(bone.parent);
   std::vector<std::array<float, 12>> animWorld;
   std::string composeReason;
-  if (!composeLocalToModelMatrices(parents, sample.localPosition, sample.localRotation,
+  if (!composeLocalToModelMatrices(parents, pose.position, pose.rotation,
       animWorld, composeReason)) {
     return refuse(AnimationInputStatus::SampleFailed, composeReason);
   }

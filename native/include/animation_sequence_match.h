@@ -369,6 +369,91 @@ inline bool sequenceLabelIsCrouchPoseCandidate(const std::string& label) {
   return true;
 }
 
+// T105-n17: the walk rung of the locomotion blend. The moving needle list also
+// matches walk, but it ranks an animated `walk` candidate below any earlier
+// animated `run`, and it cannot say "this is a WALK cycle". Measured on the nine
+// class tables (2026-11-18): some tables -- scout included -- have no standing
+// walk_PRIMARY at all, only crouch_walk_* / airwalk_*. This returns -1 there and
+// the blend caller reuses the run cycle for the walk rung and says so in its
+// trace, which is honest about the table instead of inventing a clip.
+inline bool sequenceLabelIsWalkCycleCandidate(const std::string& label) {
+  if (!sequenceLabelHasToken(label, "walk")) return false;
+  if (sequenceLabelHasToken(label, "airwalk")) return false;
+  if (sequenceLabelHasToken(label, "crouch")) return false;
+  if (sequenceLabelHasToken(label, "swim")) return false;
+  if (sequenceLabelIsOneShot(label)) return false;
+  return true;
+}
+
+// Pick the standing walk cycle (frameCount > 1 only: a one-frame walk pose would
+// freeze the rung). Prefers the label whose leading token is walk, then the
+// earliest animated candidate. -1 when the table has no standing walk cycle.
+template <typename LabelAt, typename FrameCountAt>
+std::int32_t chooseWalkSequence(std::size_t sequenceCount,
+    const LabelAt& labelAt, const FrameCountAt& frameCountAt, std::string* label) {
+  std::int32_t primary = -1;
+  std::int32_t any = -1;
+  std::string primaryLabel, anyLabel;
+  for (std::size_t index = 0; index < sequenceCount; ++index) {
+    const std::string& candidate = labelAt(index);
+    if (!sequenceLabelIsWalkCycleCandidate(candidate)) continue;
+    if (frameCountAt(index) <= 1) continue;
+    if (sequenceLabelPrimaryTokenMatches(candidate, "walk") && primary < 0) {
+      primary = static_cast<std::int32_t>(index);
+      primaryLabel = candidate;
+    }
+    if (any < 0) {
+      any = static_cast<std::int32_t>(index);
+      anyLabel = candidate;
+    }
+  }
+  if (primary >= 0) {
+    if (label != nullptr) *label = primaryLabel;
+    return primary;
+  }
+  if (any >= 0 && label != nullptr) *label = anyLabel;
+  return any;
+}
+
+// T105-n17: the aim layer's clip. TF2 ships the aim as ONE-FRAME 12-blend
+// "aimmatrix" poses (PRIMARY_aimmatrix_idle / _run / _crouch_idle ...), not as a
+// cycle, so the locomotion selector's "prefer animated over posed" tier is the
+// wrong rule here and this picker is separate: frameCount >= 1 is enough, and
+// the crouch / stun families are rejected because a standing blend must not
+// borrow a ducked pose. The aim layer's weight comes from the caller; its own
+// cycle stays 0, which is what a static pose means.
+template <typename LabelAt, typename FrameCountAt>
+std::int32_t chooseAimMatrixSequence(std::size_t sequenceCount,
+    const LabelAt& labelAt, const FrameCountAt& frameCountAt,
+    bool moving, std::string* label) {
+  const char* const wanted = moving ? "run" : "idle";
+  std::int32_t primary = -1;
+  std::int32_t any = -1;
+  std::string primaryLabel, anyLabel;
+  for (std::size_t index = 0; index < sequenceCount; ++index) {
+    const std::string& candidate = labelAt(index);
+    if (!sequenceLabelHasToken(candidate, "aimmatrix")) continue;
+    if (!sequenceLabelHasToken(candidate, wanted)) continue;
+    if (sequenceLabelHasToken(candidate, "crouch")) continue;
+    if (sequenceLabelHasToken(candidate, "stun")) continue;
+    if (frameCountAt(index) <= 0) continue;
+    if (sequenceLabelPrimaryTokenMatches(candidate, "primary") && primary < 0) {
+      primary = static_cast<std::int32_t>(index);
+      primaryLabel = candidate;
+    }
+    if (any < 0) {
+      any = static_cast<std::int32_t>(index);
+      anyLabel = candidate;
+    }
+  }
+  if (primary >= 0) {
+    if (label != nullptr) *label = primaryLabel;
+    return primary;
+  }
+  if (any >= 0 && label != nullptr) *label = anyLabel;
+  return any;
+}
+
 // Pick the crouch locomotion cycle. Returns -1 when the model has no such cycle
 // (scout / soldier / demo / engineer / sniper / spy); the caller then falls back
 // to the crouch POSE rather than to the idle pick, because a standing run while

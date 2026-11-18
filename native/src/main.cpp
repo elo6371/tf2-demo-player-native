@@ -35,6 +35,7 @@
 // T61: the pure animation clock. In the product rather than inlined because the
 // probe and the gate drive the same arithmetic (see animation_clock.h).
 #include "animation_clock.h"
+#include "animation_blend.h"
 #include "item_schema.h"
 #include "native_ui.h"
 #include "pane_input.h"
@@ -5330,6 +5331,14 @@ bool outlineVertexExtent = false;
     bool hasLastOrigin = false;
     float lastOrigin[3] = {0.0f, 0.0f, 0.0f};
     std::int32_t lastOriginTick = 0;
+    // T105-n17: the heading this body was last seen travelling in, in degrees,
+    // and whether one has ever been measured. The scene update runs several
+    // frames per demo tick and only the first frame of a tick can measure an
+    // origin delta, so without persisting the heading the aim layer would exist
+    // for one frame of the tick and vanish for the next: one server state drawn
+    // as two poses.
+    bool hasHeading = false;
+    float headingDegrees = 0.0f;
     std::int32_t sequence = -1;
     std::string sequenceLabel;
     float speed = 0.0f;
@@ -5358,6 +5367,15 @@ bool outlineVertexExtent = false;
     std::int32_t moving = -1;
     std::string idleLabel;
     std::string movingLabel;
+    // T105-n17: the other two locomotion rungs and the aim layer. `walk` is -1
+    // when the table has no standing walk cycle (scout has none), in which case
+    // the walk rung reuses `moving` and the blend reports walkFallback=1.
+    std::int32_t walk = -1;
+    std::string walkLabel;
+    std::int32_t aimIdle = -1;
+    std::int32_t aimMoving = -1;
+    std::string aimIdleLabel;
+    std::string aimMovingLabel;
     // T84: the state layers for this model. -1 is a real answer here and the
     // trace says so ("no crouch label" / "no flinch label"); the caller must not
     // substitute the idle pick for a crouch it could not find, because that is
@@ -5371,6 +5389,25 @@ bool outlineVertexExtent = false;
     std::string flinchLabel;
   };
   std::unordered_map<std::string, PlayerSequenceChoice> playerSequenceChoices;
+  // T105-n17: what one body actually submitted to the blender. The pose is
+  // sampled outside the drive block, so the weights have to outlive it for the
+  // one trace line that prints them.
+  struct PlayerBlendReading {
+    float idle = 0.0f;
+    float walk = 0.0f;
+    float run = 0.0f;
+    float aim = 0.0f;
+    float sum = 0.0f;
+    float idleRate = 0.0f;
+    float rate = 0.0f;
+    float viewYaw = 0.0f;
+    float bodyYaw = 0.0f;
+    std::int32_t seqIdle = -1;
+    std::int32_t seqWalk = -1;
+    std::int32_t seqRun = -1;
+    std::int32_t seqAim = -1;
+    bool walkFallback = false;
+  };
   const tf2::native::AnimationClockConfig playerAnimationConfig;
   // The T2.5 reading, kept out of AnimationSceneStats on purpose: that struct is
   // the entity pass's account and its counters are what weapon-animation-check.sh
@@ -12981,6 +13018,8 @@ bool outlineVertexExtent = false;
         std::size_t playerAnimFlinchStarts = 0;
         std::size_t playerAnimFallback = 0;
         std::size_t stateTraceLines = 0;
+        std::size_t blendTraceLines = 0;
+        std::size_t frameTraceLines = 0;
         // T61: the draw budget. The renderer accepts 96 instances per update
         // and the resolver appends the player-class bodies AFTER every world
         // prop, so a first-come-first-served ceiling spends the whole budget on
@@ -13338,6 +13377,9 @@ bool outlineVertexExtent = false;
             std::size_t ledgerSkinBones = 0;
             std::size_t ledgerValidBones = 0;
             float ledgerCycle = -1.0f;
+            // T105-n17: filled by the drive block, printed by the blend trace
+            // after the pose is sampled (the sampler is what drops layers).
+            PlayerBlendReading blendReading;
             tf2::native::AnimationInputStatus animStatus = tf2::native::AnimationInputStatus::ModelMissing;
             std::string animReason;
             const auto* binding = animationBindings.resolve(instance.modelPath, animStatus, animReason);
@@ -13360,29 +13402,10 @@ bool outlineVertexExtent = false;
             if (playerAnimationEnabled && player && binding != nullptr) {
               ++playerAnimEntities;
               PlayerAnimationRuntime& runtime = playerAnimationRuntimes[instance.entityIndex];
-              const float tickRate = static_cast<float>(g_playback.tickRate);
-              float speed = 0.0f;
-              if (runtime.hasLastOrigin && resolvedSceneTick > runtime.lastOriginTick) {
-                const double dx = static_cast<double>(instance.transform.origin[0])
-                  - static_cast<double>(runtime.lastOrigin[0]);
-                const double dy = static_cast<double>(instance.transform.origin[1])
-                  - static_cast<double>(runtime.lastOrigin[1]);
-                const double dz = static_cast<double>(instance.transform.origin[2])
-                  - static_cast<double>(runtime.lastOrigin[2]);
-                const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-                const double elapsedTicks = static_cast<double>(resolvedSceneTick - runtime.lastOriginTick);
-                speed = static_cast<float>(distance * static_cast<double>(tickRate) / elapsedTicks);
-              }
-              runtime.hasLastOrigin = true;
-              runtime.lastOrigin[0] = instance.transform.origin[0];
-              runtime.lastOrigin[1] = instance.transform.origin[1];
-              runtime.lastOrigin[2] = instance.transform.origin[2];
-              runtime.lastOriginTick = resolvedSceneTick;
-              const tf2::native::AnimationClockStep step = tf2::native::advanceAnimationClock(
-                runtime.clock, resolvedSceneTick, tickRate, speed, playerAnimationConfig);
-              runtime.speed = step.speed;
-              runtime.moving = step.state == tf2::native::AnimationDriveState::Moving;
-              ledgerState = tf2::native::animationDriveStateName(step.state);
+              // T105-n17: the clock step MOVED below the sequence pick (see the
+              // block after the choice resolution). It cannot run here any more:
+              // the idle rate is derived from the idle clip's own duration, and
+              // the picker is what resolves which clip that is.
               PlayerSequenceChoice& choice = playerSequenceChoices[instance.modelPath];
               if (!choice.resolved) {
                 choice.resolved = true;
@@ -13420,14 +13443,30 @@ bool outlineVertexExtent = false;
                 choice.flinch = tf2::native::chooseFlinchSequence(
                   binding->anims.sequences.size(), labelAt, frameCountAt,
                   &choice.flinchLabel, &choice.flinchTicks);
+                // T105-n17: the walk rung and the aim layer, from the same table
+                // and the same header as every other pick. walk stays -1 on a
+                // table with no standing walk cycle; the blend then reuses the
+                // run clip for that rung and says walkFallback=1 in its trace
+                // instead of pretending a clip exists.
+                choice.walk = tf2::native::chooseWalkSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt, &choice.walkLabel);
+                choice.aimIdle = tf2::native::chooseAimMatrixSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt, false,
+                  &choice.aimIdleLabel);
+                choice.aimMoving = tf2::native::chooseAimMatrixSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt, true,
+                  &choice.aimMovingLabel);
                 // T61.1: one line per model, whatever the per-entity trace cap
                 // is. The pick is per modelPath and resolved once, so the
                 // capped "anim: ent=" lines can only ever show the first eight
                 // bodies; a gate that wants to assert what the product plays
                 // needs a line that is always present exactly once per model.
-                traceFmt("anim: pick model=%s idleSeq=%d idleLabel=%s movingSeq=%d movingLabel=%s",
+                traceFmt("anim: pick model=%s idleSeq=%d idleLabel=%s movingSeq=%d movingLabel=%s walkSeq=%d walkLabel=%s aimIdleSeq=%d aimIdleLabel=%s aimMoveSeq=%d aimMoveLabel=%s",
                   instance.modelPath.c_str(), choice.idle, choice.idleLabel.c_str(),
-                  choice.moving, choice.movingLabel.c_str());
+                  choice.moving, choice.movingLabel.c_str(),
+                  choice.walk, choice.walkLabel.c_str(),
+                  choice.aimIdle, choice.aimIdleLabel.c_str(),
+                  choice.aimMoving, choice.aimMovingLabel.c_str());
                 if (animationDriveStates) {
                   // One line per model for the state picks, so a gate can name
                   // the clip each layer would play WITHOUT relying on a body
@@ -13438,9 +13477,123 @@ bool outlineVertexExtent = false;
                     choice.flinch, choice.flinchLabel.c_str(), choice.flinchTicks);
                 }
               }
+              // T105-n17: the clock step runs AFTER the sequence pick, because
+              // the idle rate is derived from the idle clip's own duration (one
+              // section = one cycle, so rate = fps / frameCount). Stepping
+              // before the pick meant stepping at an idle rate nobody had
+              // resolved yet -- which is why a standing body stayed at cycle 0.
+              const float tickRate = static_cast<float>(g_playback.tickRate);
+              float speed = 0.0f;
+              bool hasBodyHeading = false;
+              double bodyHeadingDegrees = 0.0;
+              if (runtime.hasLastOrigin && resolvedSceneTick > runtime.lastOriginTick) {
+                const double dx = static_cast<double>(instance.transform.origin[0])
+                  - static_cast<double>(runtime.lastOrigin[0]);
+                const double dy = static_cast<double>(instance.transform.origin[1])
+                  - static_cast<double>(runtime.lastOrigin[1]);
+                const double dz = static_cast<double>(instance.transform.origin[2])
+                  - static_cast<double>(runtime.lastOrigin[2]);
+                const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+                const double elapsedTicks = static_cast<double>(resolvedSceneTick - runtime.lastOriginTick);
+                speed = static_cast<float>(distance * static_cast<double>(tickRate) / elapsedTicks);
+                // T105-n17: the body's heading comes from the direction it
+                // actually travelled. CTFPlayer does not network m_angRotation,
+                // so the origin delta is the only heading the demo carries;
+                // m_angEyeAngles is the VIEW, which is the other side of the
+                // aim comparison.
+                if (distance > 1.0e-6) {
+                  bodyHeadingDegrees = std::atan2(dy, dx) * (180.0 / 3.14159265358979323846);
+                  hasBodyHeading = true;
+                  runtime.hasHeading = true;
+                  runtime.headingDegrees = static_cast<float>(bodyHeadingDegrees);
+                }
+              } else {
+                // The same tick drawn twice is not a still body and is not a
+                // reason to re-weight the blend: keep the measured speed.
+                speed = runtime.speed;
+              }
+              // T105-n17: a body that did not move on this update still has the
+              // heading it was last observed travelling in, and the aim layer is
+              // defined by that heading -- not by this frame's delta. Reuse the
+              // persisted one so every update at a given tick weighs the blend
+              // the same way. hasHeading stays false only for a body that has
+              // never been seen moving, which keeps a standing body unaimed.
+              hasBodyHeading = runtime.hasHeading;
+              bodyHeadingDegrees = static_cast<double>(runtime.headingDegrees);
+              runtime.hasLastOrigin = true;
+              runtime.lastOrigin[0] = instance.transform.origin[0];
+              runtime.lastOrigin[1] = instance.transform.origin[1];
+              runtime.lastOrigin[2] = instance.transform.origin[2];
+              runtime.lastOriginTick = resolvedSceneTick;
+              float idleRate = 0.0f;
+              if (choice.idle >= 0) {
+                const std::size_t idleIndex = static_cast<std::size_t>(choice.idle);
+                if (idleIndex < binding->anims.sequences.size()) {
+                  const std::int32_t idleDesc = binding->anims.sequences[idleIndex].animDesc;
+                  if (idleDesc >= 0
+                      && static_cast<std::size_t>(idleDesc) < binding->anims.animations.size()) {
+                    const auto& idleAnim =
+                      binding->anims.animations[static_cast<std::size_t>(idleDesc)];
+                    idleRate = tf2::native::animationCycleRate(idleAnim.frameCount, idleAnim.fps);
+                  }
+                }
+              }
+              tf2::native::AnimationClockConfig clockConfig = playerAnimationConfig;
+              clockConfig.idleRate = idleRate;
+              const tf2::native::AnimationClockStep step = tf2::native::advanceAnimationClock(
+                runtime.clock, resolvedSceneTick, tickRate, speed, clockConfig);
+              runtime.speed = step.speed;
+              runtime.moving = step.state == tf2::native::AnimationDriveState::Moving;
+              ledgerState = tf2::native::animationDriveStateName(step.state);
+              // T105-n17: the locomotion blend. Two ramps over speed give each
+              // rung a weight and the three sum to one by construction; the aim
+              // layer then takes a share of that sum and the locomotion rungs
+              // give it up, so the four weights still sum to one.
+              const tf2::native::LocomotionWeights locomotion =
+                tf2::native::locomotionBlendWeights(step.speed);
+              const float viewYaw = instance.transform.hasAngles
+                ? instance.transform.angles[1] : 0.0f;
+              // A body's heading cannot be measured on a body that has not moved
+              // since the last tick, so a standing body aims with weight 0 in
+              // this version. The alternative is inventing a heading out of the
+              // view angle, which would make the aim layer weight itself.
+              const float aimDegrees = hasBodyHeading
+                ? tf2::native::aimLayerWeightDegrees(viewYaw,
+                    static_cast<float>(bodyHeadingDegrees))
+                : 0.0f;
+              const std::int32_t aimSequence = runtime.moving ? choice.aimMoving : choice.aimIdle;
+              // The aim matrix is a ONE-FRAME pose: letting it carry the whole
+              // body would stop the locomotion cycle, so its share is capped and
+              // the cycle keeps driving the body underneath.
+              float aimWeight = aimDegrees;
+              if (aimWeight > tf2::native::kAimLayerWeightCap) {
+                aimWeight = tf2::native::kAimLayerWeightCap;
+              }
+              const bool haveAimLayer = aimSequence >= 0 && aimWeight > 0.0f;
+              const float locomotionShare = haveAimLayer ? 1.0f - aimWeight : 1.0f;
+              const std::int32_t walkRung = choice.walk >= 0 ? choice.walk : choice.moving;
+              blendReading.idle = locomotion.idle * locomotionShare;
+              blendReading.walk = locomotion.walk * locomotionShare;
+              blendReading.run = locomotion.run * locomotionShare;
+              blendReading.aim = haveAimLayer ? aimWeight : 0.0f;
+              blendReading.sum = blendReading.idle + blendReading.walk
+                + blendReading.run + blendReading.aim;
+              blendReading.idleRate = idleRate;
+              blendReading.rate = step.rate;
+              blendReading.viewYaw = viewYaw;
+              blendReading.bodyYaw = hasBodyHeading ? static_cast<float>(bodyHeadingDegrees) : 0.0f;
+              blendReading.seqIdle = choice.idle;
+              blendReading.seqWalk = walkRung;
+              blendReading.seqRun = choice.moving;
+              blendReading.seqAim = haveAimLayer ? aimSequence : -1;
+              blendReading.walkFallback = choice.walk < 0;
               std::int32_t chosen = runtime.moving ? choice.moving : choice.idle;
               std::string chosenLabel = runtime.moving ? choice.movingLabel : choice.idleLabel;
               float chosenCycle = step.cycle;
+              // T105-n17: crouch / flinch hand-pick ONE sequence for the whole
+              // body, so the blend must not stack its rungs over them. Set by
+              // the state block, read by the submit block below.
+              bool driveLayerApplied = false;
               // T84: the server-data-driven layer. legacy never enters this
               // block, so the pre-T84 pick -- and the picture it produced -- is
               // untouched by the flag being absent.
@@ -13547,6 +13700,7 @@ bool outlineVertexExtent = false;
                   }
                 }
                 if (!layered) ++playerAnimFallback;
+                driveLayerApplied = layered;
                 // T84: trace state TRANSITIONS per entity, not every frame. A
                 // full-playback cover run draws bodies on thousands of frames; a
                 // line per frame would be a huge trace that hides the one thing a
@@ -13602,6 +13756,20 @@ bool outlineVertexExtent = false;
                 request.hasCycle = true;
                 request.cycle = chosenCycle;
                 request.hasPlaybackRate = false;
+                // T105-n17: submit the blend. The state layers above hand-pick a
+                // single clip, so their frames keep the single-sequence path and
+                // stay bit-identical to the pre-blend build; everything else goes
+                // through the sampler's weighted mix.
+                request.blendLayerCount = 0;
+                if (!driveLayerApplied && blendReading.sum > 0.0f) {
+                  // Slot order is fixed in the sampler (idle, walk, run, aim), so
+                  // two runs over the same input can only agree here.
+                  request.blendLayerCount = blendReading.seqAim >= 0 ? 4u : 3u;
+                  request.blendLayers[0] = {blendReading.seqIdle, step.cycle, blendReading.idle};
+                  request.blendLayers[1] = {blendReading.seqWalk, step.cycle, blendReading.walk};
+                  request.blendLayers[2] = {blendReading.seqRun, step.cycle, blendReading.run};
+                  request.blendLayers[3] = {blendReading.seqAim, 0.0f, blendReading.aim};
+                }
               } else {
                 ++playerAnimSkipped;
               }
@@ -13655,6 +13823,44 @@ bool outlineVertexExtent = false;
               ledgerSkinBones = sampled.skinBones;
               ledgerValidBones = sampled.validBones;
               if (request.hasCycle) ledgerCycle = request.cycle;
+              // T105-n17: what this body asked the blender for, and what the
+              // blender applied. `sum` is the submitted weights' sum (1 by
+              // construction); appliedSum is the sampler's normalised sum after
+              // dropping layers it could not sample, and layers/dropped say how
+              // many layers survived. Every field is a pure function of the tick
+              // and the entity state, so two runs over the same tick agree here
+              // bit for bit -- that is what makes the weights assertable.
+              if (request.blendLayerCount > 0 && blendTraceLines < 8) {
+                ++blendTraceLines;
+                float appliedSum = 0.0f;
+                for (std::size_t slot = 0; slot < sampled.blendWeights.size(); ++slot) {
+                  appliedSum += sampled.blendWeights[slot];
+                }
+                traceFmt("anim: blend tick=%d ent=%d model=%s state=%s idle=%.6f walk=%.6f run=%.6f aim=%.6f sum=%.6f rate=%.6f cycle=%.6f idleRate=%.6f viewYaw=%.3f bodyYaw=%.3f seqs=%d,%d,%d,%d walkFallback=%d layers=%zu dropped=%zu appliedSum=%.6f blendReason=%s",
+                  static_cast<int>(resolvedSceneTick),
+                  static_cast<int>(instance.entityIndex),
+                  instance.modelPath.c_str(),
+                  ledgerState.c_str(),
+                  static_cast<double>(blendReading.idle),
+                  static_cast<double>(blendReading.walk),
+                  static_cast<double>(blendReading.run),
+                  static_cast<double>(blendReading.aim),
+                  static_cast<double>(blendReading.sum),
+                  static_cast<double>(blendReading.rate),
+                  static_cast<double>(request.cycle),
+                  static_cast<double>(blendReading.idleRate),
+                  static_cast<double>(blendReading.viewYaw),
+                  static_cast<double>(blendReading.bodyYaw),
+                  static_cast<int>(blendReading.seqIdle),
+                  static_cast<int>(blendReading.seqWalk),
+                  static_cast<int>(blendReading.seqRun),
+                  static_cast<int>(blendReading.seqAim),
+                  blendReading.walkFallback ? 1 : 0,
+                  sampled.blendLayers,
+                  sampled.blendDropped,
+                  static_cast<double>(appliedSum),
+                  sampled.blendReason.empty() ? "-" : sampled.blendReason.c_str());
+              }
               if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
                 draw.skinningEnabled = true;
                 draw.boneOffset = static_cast<std::uint32_t>(entityBoneMatrices.size());
@@ -13703,6 +13909,31 @@ bool outlineVertexExtent = false;
                 const bool poseChanged = previousPose != animationStats.poseHashByEntity.end()
                   && previousPose->second != poseHash;
                 animationStats.poseHashByEntity[instance.entityIndex] = poseHash;
+                // T105-n17: one per-body reading of what the sampler returned for
+                // the cycle the clock asked for, next to the hash of the pose it
+                // uploaded. The "anim: ent=" line says the cursor moved; this
+                // line says what frame that cursor landed on and whether the
+                // uploaded skin matrices actually changed because of it. Capped
+                // like the other per-frame lines, so it covers the first eight
+                // bodies of each update.
+                // Only bodies the animation clock drives, so the cap below is
+                // spent on players instead of the first eight world props.
+                const bool clockDrivenBody =
+                  playerAnimationRuntimes.find(instance.entityIndex) != playerAnimationRuntimes.end();
+                if (clockDrivenBody && frameTraceLines < 8) {
+                  ++frameTraceLines;
+                  traceFmt("anim: frame tick=%d ent=%d model=%s seq=%d frame=%d/%d localFrame=%d sectionFrames=%d cycle=%.6f frameAdvanced=%d poseChanged=%d poseHash=%016llx",
+                    static_cast<int>(resolvedSceneTick),
+                    static_cast<int>(instance.entityIndex),
+                    instance.modelPath.c_str(),
+                    request.sequence,
+                    sampled.frame, sampled.frameCount,
+                    sampled.localFrame, sampled.sectionFrames,
+                    static_cast<double>(request.cycle),
+                    frameAdvanced ? 1 : 0,
+                    poseChanged ? 1 : 0,
+                    static_cast<unsigned long long>(poseHash));
+                }
                 if (poseChanged) {
                   ++animationStats.poseChanges;
                   // The witness is the entity whose uploaded pose has been

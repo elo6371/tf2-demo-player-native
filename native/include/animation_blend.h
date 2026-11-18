@@ -108,6 +108,14 @@ inline float wrappedDegreeDifference(float a, float b) {
   return static_cast<float>(delta);
 }
 
+// The most of the body the aim layer may take. The aim matrix clips are
+// ONE-FRAME poses (TF2 ships them as 12-blend aim matrices, not cycles), so a
+// weight of 1 would stand the locomotion cycle still while the body is moving.
+// Keeping a floor of locomotion under it is wrong in a different way from
+// freezing, and it is the smaller wrong: the cycle keeps advancing and the arms
+// still lean into the aim.
+inline constexpr float kAimLayerWeightCap = 0.5f;
+
 // Aim layer weight: |view yaw - body yaw| / fullYawDeg, clamped to [0,1].
 // 0 = looking along the body (locomotion alone), 1 = aiming fullYawDeg or more
 // off the body (the aim pose takes over). The full angle is a parameter, not a

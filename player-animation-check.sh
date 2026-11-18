@@ -310,14 +310,50 @@ done
 
 # ===========================================================================
 echo
-echo "=== 5/6 D: movingRate > idleRate, one moving second == expected, idle second == 0 ==="
+echo "=== 5/6 D: movingRate > idleRate, one moving second == expected, idle second == idleRate, four consecutive ticks advance ==="
 SCOUT_LOG="$OUT/class-scout.txt"
 rate=$(grep '^animrate ' "$SCOUT_LOG" | head -1)
 echo "  $rate"
 assert_gt_float "D movingRate" "$(field "$rate" movingRate)" "$(field "$rate" idleRate)"
-assert_eq "D idleRate" "$(field "$rate" idleRate)" "0.000000"
-assert_eq "D idleOneSecond" "$(field "$rate" idleOneSecond)" "0.000000000"
+# T105-n17 (2026-11-18): the idle cursor advances. A standing body plays its
+# idle clip, and one second of standing must advance exactly one cycle's worth
+# of that clip -- fps / frameCount -- not zero. The old "0.000000" pinned the
+# defect: the clock had no idle rate at all, so a standing body's cursor never
+# left frame 0 no matter how long the demo ran.
+assert_close_pct "D idleRate == clip cycleRate" "$(field "$rate" idleRate)" "$(field "$rate" cycleRate)" 1
+assert_close_pct "D idleOneSecond == idleRate" "$(field "$rate" idleOneSecond)" "$(field "$rate" idleRate)" 1
 assert_close_pct "D movingOneSecond" "$(field "$rate" movingOneSecond)" "$(field "$rate" expected)" 1
+# T105-n17: CONSECUTIVE ticks. A single trace frame cannot distinguish "the
+# cursor advanced" from "the cursor sits at frame 0 no matter how long the demo
+# runs"; four ticks in a row can. At rest every tick after the baseline must
+# advance (the standing body keeps playing its stand cycle) and at run speed
+# every tick must advance; the cycle only grows, and a second probe run of the
+# same tick sequence must reproduce the same cycles bit for bit. Unlike the two
+# tick sections below, this one passes the rate the PRODUCT resolves from the
+# idle clip's own duration -- the default config's idleRate=0 still means "no
+# idle timing was resolved", which is why those sections legitimately expect 0.
+for clock_pair in "0.000 rest" "250.000 run"; do
+  set -- $clock_pair
+  clock_speed=$1
+  clock_name=$2
+  clock_prev=""
+  for clock_tick in 1 2 3 4; do
+    clock_line=$(grep -a "^animclock speed=$clock_speed tick=$clock_tick " "$SCOUT_LOG" | head -1)
+    assert_eq "D $clock_name consecutive tick $clock_tick advanced" "$(field "$clock_line" advanced)" "1"
+    assert_gt_float "D $clock_name consecutive tick $clock_tick delta" "$(field "$clock_line" delta)" 0
+    clock_cycle=$(field "$clock_line" cycle)
+    if [ -n "$clock_prev" ]; then
+      assert_gt_float "D $clock_name cycle grows by tick $clock_tick" "$clock_cycle" "$clock_prev"
+    fi
+    clock_prev=$clock_cycle
+  done
+done
+clock_idle=$(grep -a '^animclock speed=0.000 tick=4 ' "$SCOUT_LOG" | head -1)
+clock_expected=$(awk -v r="$(field "$rate" idleRate)" 'BEGIN { printf "%.9f", r / 60 }')
+assert_close_pct "D idle tick delta == idleRate/tickRate" "$(field "$clock_idle" delta)" "$clock_expected" 1
+assert_eq "D clock sequence repeatable" \
+  "$(grep -a '^animclock ' "$REPEAT_LOG" | md5sum | cut -d' ' -f1)" \
+  "$(grep -a '^animclock ' "$SCOUT_LOG" | md5sum | cut -d' ' -f1)"
 
 # ===========================================================================
 echo
@@ -406,7 +442,7 @@ echo
 # exactly this reason, so this one now does too, and the prose line stays for a
 # human reading the log.
 if [ "$fail" = "0" ]; then
-  echo "PASS player-animation-check: negative controls named-failed; A sequences>=200 and bindBones==bones; B four distinct poses inside boundDiag; C maxStepDelta<=boundDiag/4; D moving second==expected, idle second==0; E speed advances the cycle and no speed freezes it."
+  echo "PASS player-animation-check: negative controls named-failed; A sequences>=200 and bindBones==bones; B four distinct poses inside boundDiag; C maxStepDelta<=boundDiag/4; D moving second==expected, idle second==the clip's own cycle rate and four consecutive ticks advance; E speed advances the cycle and no speed freezes it."
   echo "PLAYER-ANIMATION-CHECK=PASS"
 else
   echo "FAIL player-animation-check: see the FAIL lines above."

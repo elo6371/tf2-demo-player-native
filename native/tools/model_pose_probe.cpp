@@ -1,6 +1,7 @@
 #include "animation_binding.h"
 #include "animation_sequence_match.h"
 #include "animation_clock.h"
+#include "animation_blend.h"
 #include "asset_root.h"
 #include "demo_header.h"
 #include "entity_model.h"
@@ -472,6 +473,16 @@ std::int32_t animationFrameCount(const tf2::native::AnimationModel& anims, std::
   const std::int32_t descriptor = anims.sequences[static_cast<std::size_t>(sequence)].animDesc;
   if (descriptor < 0 || static_cast<std::size_t>(descriptor) >= anims.animations.size()) return 0;
   return anims.animations[static_cast<std::size_t>(descriptor)].frameCount;
+}
+
+// T105-n17: the descriptor's fps. The idle cycle rate is derived from the
+// clip's OWN duration (one section = one cycle, rate = fps / frameCount), so the
+// probe has to read the same two numbers the product reads. 0 when unavailable.
+float animationSequenceFps(const tf2::native::AnimationModel& anims, std::int32_t sequence) {
+  if (sequence < 0 || static_cast<std::size_t>(sequence) >= anims.sequences.size()) return 0.0f;
+  const std::int32_t descriptor = anims.sequences[static_cast<std::size_t>(sequence)].animDesc;
+  if (descriptor < 0 || static_cast<std::size_t>(descriptor) >= anims.animations.size()) return 0.0f;
+  return anims.animations[static_cast<std::size_t>(descriptor)].fps;
 }
 
 // A sequence the sampler actually moves through. The label-based pick can land
@@ -1591,20 +1602,32 @@ int playerAnimationTest(int argc, char** argv) {
   }
 
   // D: one second of ticks at rest and at run speed. The moving delta must be
-  // the rate times the second; the idle delta must be exactly zero.
+  // the rate times the second; the idle delta must be the IDLE RATE times the
+  // second, and that rate is derived from the idle clip's own duration (T105:
+  // one section = one cycle, rate = fps / frameCount). A hardcoded 45-frame
+  // literal here would pass on scout and lie about every other table.
   {
-    const auto runOneSecond = [](float speed) {
+    const auto runOneSecond = [](float speed, const AnimationClockConfig& config) {
       AnimationClockState clock;
       float delta = 0.0f;
       for (std::int32_t tick = 0; tick <= 60; ++tick) {
-        delta += advanceAnimationClock(clock, tick, 60.0f, speed).deltaCycle;
+        delta += advanceAnimationClock(clock, tick, 60.0f, speed, config).deltaCycle;
       }
       return delta;
     };
-    const float idleRate = animationRateForSpeed(0.0f);
+    const std::int32_t idleFrames = animationFrameCount(anims, idleSequence);
+    const float idleFps = animationSequenceFps(anims, idleSequence);
+    const float cycleRate = animationCycleRate(idleFrames, idleFps);
+    const float idleRate = cycleRate;
     const float movingRate = animationRateForSpeed(250.0f);
-    const float idleDelta = runOneSecond(0.0f);
-    const float movingDelta = runOneSecond(250.0f);
+    // T105: idleRate lives on the CONFIG, because it is the caller's job to
+    // resolve the idle clip's duration (the clock cannot know which sequence a
+    // body is idle in). Passing it here is what the product now does; without
+    // it the clock's idleRate default of 0 still means "frozen".
+    AnimationClockConfig idleConfig;
+    idleConfig.idleRate = cycleRate;
+    const float idleDelta = runOneSecond(0.0f, idleConfig);
+    const float movingDelta = runOneSecond(250.0f, AnimationClockConfig{});
     // The expectation is derived from the CONFIG CONTRACT, not from the
     // function under test: strideUnits=250 and speed=250 give exactly 1.0
     // cycles/s inside [minMovingRate=0.05, maxMovingRate=3.0]. Deriving it from
@@ -1612,7 +1635,67 @@ int playerAnimationTest(int argc, char** argv) {
     // would move the expectation with it (T61 mutation m3 depends on this).
     const float expectedMoving = 250.0f / 250.0f;
     std::printf("animrate idleRate=%.6f movingRate=%.6f idleOneSecond=%.9f movingOneSecond=%.9f "
-      "expected=%.9f\n", idleRate, movingRate, idleDelta, movingDelta, expectedMoving);
+      "expected=%.9f cycleRate=%.6f idleFrames=%d idleFps=%.6f\n",
+      idleRate, movingRate, idleDelta, movingDelta, expectedMoving, cycleRate, idleFrames, idleFps);
+  }
+
+
+  // G: the clock over CONSECUTIVE ticks, which is the reading a single trace
+  // frame cannot give. At rest the cursor must advance on every tick after the
+  // baseline by idleRate/tickRate (idleRate resolved from the idle clip's own
+  // duration, exactly as the product resolves it); at run speed by rate/tickRate.
+  // The same tick sequence is printed twice per run and the gate also compares a
+  // second probe run: a clock driven by wall time, or an idle rate invented
+  // somewhere other than the clip's duration, cannot reproduce these lines.
+  {
+    const auto stepFiveTicks = [](float speed, const AnimationClockConfig& config) {
+      AnimationClockState clock;
+      for (std::int32_t tick = 0; tick <= 4; ++tick) {
+        const AnimationClockStep step = advanceAnimationClock(clock, tick, 60.0f, speed, config);
+        std::printf("animclock speed=%.3f tick=%d rate=%.6f cycle=%.9f delta=%.9f advanced=%d state=%s\n",
+          static_cast<double>(speed), static_cast<int>(tick), static_cast<double>(step.rate),
+          static_cast<double>(clock.cycle), static_cast<double>(step.deltaCycle),
+          step.advanced ? 1 : 0, animationDriveStateName(step.state));
+      }
+    };
+    AnimationClockConfig idleClockConfig;
+    idleClockConfig.idleRate = animationCycleRate(animationFrameCount(anims, idleSequence),
+      animationSequenceFps(anims, idleSequence));
+    stepFiveTicks(0.0f, idleClockConfig);
+    stepFiveTicks(250.0f, AnimationClockConfig{});
+  }
+
+  // F: the blend functions the product now runs, at the speeds a demo actually
+  // produces. Printed so a gate can assert the weights SUM TO ONE and that the
+  // same speed yields the same weights -- the sampler's own trace line is the
+  // per-tick evidence, this is the function-level one.
+  {
+    const float speeds[] = {0.0f, 75.0f, 150.0f, 250.0f, 500.0f};
+    for (const float speed : speeds) {
+      const tf2::native::LocomotionWeights weights = tf2::native::locomotionBlendWeights(speed);
+      std::printf("animblend speed=%.3f idle=%.6f walk=%.6f run=%.6f sum=%.6f\n",
+        static_cast<double>(speed), static_cast<double>(weights.idle),
+        static_cast<double>(weights.walk), static_cast<double>(weights.run),
+        static_cast<double>(weights.idle + weights.walk + weights.run));
+    }
+    const float yawPairs[][2] = {{0.0f, 0.0f}, {30.0f, 0.0f}, {60.0f, 0.0f}, {90.0f, 0.0f},
+      {180.0f, 0.0f}, {175.0f, -175.0f}};
+    for (const auto& pair : yawPairs) {
+      const float weight = tf2::native::aimLayerWeightDegrees(pair[0], pair[1]);
+      const bool capped = weight > tf2::native::kAimLayerWeightCap;
+      std::printf("animblend aim viewYaw=%.3f bodyYaw=%.3f weight=%.6f capped=%d cap=%.3f\n",
+        static_cast<double>(pair[0]), static_cast<double>(pair[1]),
+        static_cast<double>(weight), capped ? 1 : 0,
+        static_cast<double>(tf2::native::kAimLayerWeightCap));
+    }
+    // Same input twice: the weights must be bit-identical, not merely close.
+    const tf2::native::LocomotionWeights again = tf2::native::locomotionBlendWeights(250.0f);
+    const tf2::native::LocomotionWeights first = tf2::native::locomotionBlendWeights(250.0f);
+    const bool identical = again.idle == first.idle && again.walk == first.walk
+      && again.run == first.run;
+    std::printf("animblend stable=%.6f,%.6f,%.6f twice=%d\n",
+      static_cast<double>(again.idle), static_cast<double>(again.walk),
+      static_cast<double>(again.run), identical ? 1 : 0);
   }
 
   // E: the tick script (and, when a recording is given, the same rule against
