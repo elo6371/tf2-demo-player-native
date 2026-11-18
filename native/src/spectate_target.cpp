@@ -202,7 +202,8 @@ void SpectateDirector::update(double nowSeconds,
     // task asks for the opposite: no jump, no default orbit, no world origin.
     if (transitionActive_) {
       const double elapsed = nowSeconds - transitionStart_;
-      const double t = kHandoverSeconds > 0.0 ? elapsed / kHandoverSeconds : 1.0;
+      // The zero-length guard is a static_assert in transitionProgress().
+      const double t = elapsed / kHandoverSeconds;
       if (!(t < 1.0)) transitionActive_ = false;
     }
     return;
@@ -246,7 +247,8 @@ void SpectateDirector::update(double nowSeconds,
   const bool haveLive = target_ >= 0 && slotFor(target_, slots, &live) && live->hasOrigin;
   if (transitionActive_) {
     const double elapsed = nowSeconds - transitionStart_;
-    double t = kHandoverSeconds > 0.0 ? elapsed / kHandoverSeconds : 1.0;
+    // The zero-length guard is a static_assert in transitionProgress().
+    double t = elapsed / kHandoverSeconds;
     if (!(t > 0.0)) t = 0.0; // a clock reading older than the start is a new epoch
     if (t >= 1.0) {
       transitionActive_ = false;
