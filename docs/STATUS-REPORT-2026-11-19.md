@@ -103,6 +103,10 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
    （`N11-SEVEN-MAP-MATRIX=PASS rows=14/14 identical_pairs=0`，13:32，约 22 分钟；
    读数 `evidence/n11-matrix/readings.tsv`，记录 `docs/N11-SEVEN-MAP-MATRIX-2026-11-15.md` §9）。
    两条待查读数：cp_sunshine POV 的 eye=0,0,-359 且 PVS 未剔除；全部 14 格 tiles=0。
+7. 本批再追加：D01 的 COLOR0 取证完成（`docs/D01-COLOUR0-READBACK-2026-11-19.md`）。
+   COLOR0 今天**不缺失**（849 读 70、919 读 255），同一 recipe 的产品帧在 849 读到 70,70,70
+   而不是归档帧的 0,0,0；`albedo×lighting` 与 lightmap 探针同值，没有零化步骤。
+   结论：D01 的「顶点色缺失」对今天的树不成立，要关它需要一个绑定提交的复现器。
 
 ## 6. 证据路径
 

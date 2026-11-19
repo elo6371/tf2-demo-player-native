@@ -1,0 +1,22 @@
+# D01 compose probe, 2026-11-19T05:41:19Z
+# exe=3fa3bbeba99c1f96 head=1e43e8f9
+# demo=cp_sultry_b8a STV tick=0 camera='-600 -600 950 20 45'
+# view14 R,G,B = albedo*lighting (product colour before fog)
+# view15 R = diffuse   G = |Ng| (1 = usable normal)   B = lighting/2
+# view13 = the lightmap probe
+
+run view0 rc=0
+run view13 rc=0
+run view14 rc=0
+run view15 rc=0
+
+pixel	view0	view13	view14	view15	note
+849,396	70,70,70	70,70,70	70,70,70	70,70,70	OPEN: black in the product frame
+919,379	39,36,34	255,255,255	255,255,255	209,255,127	OPEN: black in the product frame
+902,385	68,60,53	255,255,255	255,255,255	209,255,127	control: trace and draw agree
+873,366	57,59,57	57,59,57	57,59,57	57,59,57	control: alpha=0 texel
+
+## how to read it
+view14 grey where the product frame is black -> the value is fine, arithmetic after
+  the lightmap zeroed it; view14 black -> albedo*lighting is zero, and view15 says
+  which factor (diffuse 0 = dead normal, lighting 0 = the lighting product).

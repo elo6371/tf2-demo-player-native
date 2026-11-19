@@ -1,0 +1,18 @@
+# D01 COLOR0 readback, 2026-11-19T05:34:00Z
+# exe=3fa3bbeba99c1f96 head=1e43e8f9
+# demo=cp_sultry_b8a STV tick=0 camera='-600 -600 950 20 45'
+# view16 channels = R:colour.r G:colour.g B:colour.a A:blendWeight
+# view17 channels = R:albedo.r G:sampled.r B:sampledTexel.a A:colour.a
+
+run view16 rc=0
+run view17 rc=0
+
+pixel      view16 view17   note                         
+849,396    70,70,70 70,70,70 OPEN: albedo frame pinned 0,0,0               
+919,379    255,255,255 142,142,255 OPEN: texel=albedo=210,208,197               
+902,385    255,255,255 148,148,255 control: trace and draw agree               
+873,366    57,59,57 57,59,57 control: alpha=0 texel               
+
+## what the numbers say
+849,396 view16 colour.rgb=(70,70) colour.a=70   view17 albedo.r=70
+919,379 view16 colour.rgb=(255,255) colour.a=255   view17 albedo.r=142

@@ -32,7 +32,7 @@
 |---|---|---|---|
 | L1 | 清理旧产物与仓库卫生 | **今天完成第一轮** | 见 §3 |
 | L2 | N11 七图矩阵：脚本 + 真跑一次 | **完成（2026-11-19 13:32）`N11-SEVEN-MAP-MATRIX=PASS rows=14/14 identical_pairs=0`** | 读数入库 `evidence/n11-matrix/readings.tsv`；§9 两条待查读数（sunshine POV 相机、tiles=0） |
-| L3 | D01 COLOR0 取证（849/919 顶点色归因） | 待做 | 用现有 View16/17 回读 + 新增 dump，给出 texel 级结论 |
+| L3 | D01 COLOR0 取证（849/919 顶点色归因） | **完成（2026-11-19 13:45）；结论改写：黑点不复现** | `docs/D01-COLOUR0-READBACK-2026-11-19.md`：COLOR0 读到 70/255，产品帧 849=70,70,70；D01 需绑定提交的复现器才能关 |
 | L4 | `/analyze` 全树重扫（139 TU） | 待做 | 逐 TU 读数 + 与 2026-11-18 基线 diff |
 | L5 | ASan 两条路径（model / material） | 待做 | 两次带 ASan 运行，0 报告或逐条定位 |
 | L6 | CI 首跑排查（`.github/workflows/tier1.yml` 在仓但零运行） | **已推 `candidate/ci-smoke`（`b83a9c2e`）触发；本机到 api.github.com 不可达，结果只能远端看** | 要么首次真跑绿灯，要么写清被什么挡住 |
