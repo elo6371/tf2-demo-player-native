@@ -31,11 +31,11 @@
 | 编号 | 任务 | 状态 | 验收 |
 |---|---|---|---|
 | L1 | 清理旧产物与仓库卫生 | **今天完成第一轮** | 见 §3 |
-| L2 | N11 七图矩阵：脚本 + 真跑一次 | 待做 | 7 张图各出单元格，JSON Lines 落 evidence |
+| L2 | N11 七图矩阵：脚本 + 真跑一次 | **脚本落地（`10cb6469`/`b83a9c2e`），14 格真跑中** | 7 张图各出单元格，读数落 `evidence/n11-matrix/readings.tsv` |
 | L3 | D01 COLOR0 取证（849/919 顶点色归因） | 待做 | 用现有 View16/17 回读 + 新增 dump，给出 texel 级结论 |
 | L4 | `/analyze` 全树重扫（139 TU） | 待做 | 逐 TU 读数 + 与 2026-11-18 基线 diff |
 | L5 | ASan 两条路径（model / material） | 待做 | 两次带 ASan 运行，0 报告或逐条定位 |
-| L6 | CI 首跑排查（`.github/workflows/tier1.yml` 在仓但零运行） | 待做 | 要么首次真跑绿灯，要么写清被什么挡住 |
+| L6 | CI 首跑排查（`.github/workflows/tier1.yml` 在仓但零运行） | **已推 `candidate/ci-smoke`（`b83a9c2e`）触发；本机到 api.github.com 不可达，结果只能远端看** | 要么首次真跑绿灯，要么写清被什么挡住 |
 | L7 | T84 成本：3848 s → 目标 < 2400 s | 待做 | 同读数的前提下压缩时长，仍 4/4 负控 |
 | L8 | 每轮进度回写（本文件 + STATUS-REPORT + TASK-LIST） | 持续 | 每次提交带读数 |
 
@@ -56,7 +56,8 @@
 
 - `/d/_shared/n25-drive`（8.1 GB，被 `docs/GATE-VERDICTS-ROUND2-2026-11-15.md` 与 `STATUS-REPORT` 引用，是 animation-drive-states PASS 的原始证据）。
 - 被文档引用的 `.scratch` 目录（`warn-check`、`build-identity-run`、`t62-map-axes` 等）。
-- 9 个实验 worktree（`t105-b1..b3/base/p1..p3/vt-pre/vt-post`）：它们**带未提交改动**（13–180 个脏文件），不是产物而是未归档的实验，先不动，后续逐个判定「合并/存档/删除」。
+- 9 个实验 worktree（`t105-b1..b3/base/p1..p3/vt-pre/vt-post`）：2026-11-19 判定完毕 —— 脏文件全是 `evidence/*` 再生成产物加两三个 check 脚本的本地改动；已把文字 diff 归档成 `/d/_shared/worktree-archive/<name>.patch` + `<name>.status.txt`（共 47 MB，排除 bmp/csv/raw），底提交 `ae0b47cc`/`917332d7`/`10d13559` 均已在 `work/integrate` 祖先链上，随后 `git worktree remove --force` 全部删除。D 盘可用 44,656 → **56,914 MB**（+12.2 GB），`git worktree list` 剩 20 个。
+- 33 个本地分支**不推**（无工程必要性，远端分支已够用）；CI 只推 `candidate/ci-smoke` 一条，不改产品。
 
 ## 4 同步规则（保证 Gemini 看到的和你我一致）
 
