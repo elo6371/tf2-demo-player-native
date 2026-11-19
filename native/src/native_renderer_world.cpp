@@ -807,12 +807,37 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
           applyTransform(triangle.cu, triangle.cv, &cu, &cv);
         }
       }
-      a.u = worldTileCoord(au, t.sourceWidth, t.x, t.width, batch.width);
-      a.v = worldTileCoord(av, t.sourceHeight, t.y, t.height, batch.height);
-      b.u = worldTileCoord(bu, t.sourceWidth, t.x, t.width, batch.width);
-      b.v = worldTileCoord(bv, t.sourceHeight, t.y, t.height, batch.height);
-      c.u = worldTileCoord(cu, t.sourceWidth, t.x, t.width, batch.width);
-      c.v = worldTileCoord(cv, t.sourceHeight, t.y, t.height, batch.height);
+      if (worldUvPsEnabled() && t.sourceWidth != 0 && t.sourceHeight != 0
+          && batch.width != 0 && batch.height != 0) {
+        // G7: hand the shader the unwrapped uv plus the tile rectangle. The
+        // mapping is worldTileCoord's own -- atlas = (tile + 0.5)/atlasSize +
+        // frac(uv) * extent/atlasSize -- with the frac left to the sampler, so a
+        // quad inside one tile rasterises exactly as it did before and only a
+        // quad that crosses a tile boundary changes (it tiles instead of
+        // stretching one copy of the texture across the whole face).
+        const float invSourceW = 1.0f / static_cast<float>(t.sourceWidth);
+        const float invSourceH = 1.0f / static_cast<float>(t.sourceHeight);
+        const float invAtlasW = 1.0f / static_cast<float>(batch.width);
+        const float invAtlasH = 1.0f / static_cast<float>(batch.height);
+        const float tileU0 = (static_cast<float>(t.x) + 0.5f) * invAtlasW;
+        const float tileV0 = (static_cast<float>(t.y) + 0.5f) * invAtlasH;
+        const float tileUSpan = static_cast<float>(t.width) * invAtlasW;
+        const float tileVSpan = static_cast<float>(t.height) * invAtlasH;
+        a.u = au * invSourceW; a.v = av * invSourceH;
+        b.u = bu * invSourceW; b.v = bv * invSourceH;
+        c.u = cu * invSourceW; c.v = cv * invSourceH;
+        a.tileU0 = b.tileU0 = c.tileU0 = tileU0;
+        a.tileV0 = b.tileV0 = c.tileV0 = tileV0;
+        a.tileUSpan = b.tileUSpan = c.tileUSpan = tileUSpan;
+        a.tileVSpan = b.tileVSpan = c.tileVSpan = tileVSpan;
+      } else {
+        a.u = worldTileCoord(au, t.sourceWidth, t.x, t.width, batch.width);
+        a.v = worldTileCoord(av, t.sourceHeight, t.y, t.height, batch.height);
+        b.u = worldTileCoord(bu, t.sourceWidth, t.x, t.width, batch.width);
+        b.v = worldTileCoord(bv, t.sourceHeight, t.y, t.height, batch.height);
+        c.u = worldTileCoord(cu, t.sourceWidth, t.x, t.width, batch.width);
+        c.v = worldTileCoord(cv, t.sourceHeight, t.y, t.height, batch.height);
+      }
       // T12: a weight is handed to the shader only for a material that shipped
       // a second layer. A displacement whose VMT names one layer keeps the
       // sentinel, because the blend atlas has no tile under its uv and the

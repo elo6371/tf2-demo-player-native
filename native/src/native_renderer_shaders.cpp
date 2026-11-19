@@ -49,9 +49,9 @@ cbuffer WorldConstants : register(b0) {
   float4 lightDirectionAndCone[16]; // xyz spot axis, w cosInner
   float4 lightConeParams[16];       // x exponent, y isSpot
 };
-struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
-struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; };
-Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; output.feature = input.feature; output.tangent = input.tangent; return output; }
+struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; float4 tileRect : TEXCOORD8; };
+struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; float4 tileRect : TEXCOORD8; };
+Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; output.feature = input.feature; output.tangent = input.tangent; output.tileRect = input.tileRect; return output; }
 )HLSL";
 
   // N05 step 3: the stream output channel.
@@ -88,6 +88,7 @@ struct WorldOutput {
   float blendModulate : TEXCOORD5;
   float4 feature : TEXCOORD6;
   float4 tangent : TEXCOORD7;
+  float4 tileRect : TEXCOORD8;
 };
 struct ClipSample {
   float4 position : SV_POSITION;
@@ -100,6 +101,7 @@ struct ClipSample {
   float blendModulate : TEXCOORD5;
   float4 feature : TEXCOORD6;
   float4 tangent : TEXCOORD7;
+  float4 tileRect : TEXCOORD8;
 };
 [maxvertexcount(3)]
 void main(triangle WorldOutput input[3], inout TriangleStream<ClipSample> stream) {
@@ -121,6 +123,7 @@ void main(triangle WorldOutput input[3], inout TriangleStream<ClipSample> stream
     sample.blendModulate = input[i].blendModulate;
     sample.feature = input[i].feature;
     sample.tangent = input[i].tangent;
+    sample.tileRect = input[i].tileRect;
     stream.Append(sample);
   }
   stream.RestartStrip();
@@ -219,7 +222,17 @@ float3 tangentNormal(float3 texel, float3 Ng, float4 tangent) {
   float3 n = decodeNormal(texel);
   return safeNormalize(T * n.x + B * n.y + Ng * n.z);
 }
-float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5, float4 feature : TEXCOORD6, float4 tangent : TEXCOORD7) : SV_TARGET {
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5, float4 feature : TEXCOORD6, float4 tangent : TEXCOORD7, float4 tileRect : TEXCOORD8) : SV_TARGET {
+  // G7: the tiling is resolved here rather than by the uploader. The gradient
+  // is taken from the unwrapped uv (times the tile span) and not from the
+  // wrapped coordinate, because frac() steps at a tile boundary and a
+  // derivative read across that step would pick a coarser mip there and draw a
+  // seam line. Derivatives are computed before any of the mode branches below,
+  // so they are read in uniform control flow.
+  const bool g7TileWrap = (tileRect.z > 0.0 || tileRect.w > 0.0);
+  const float2 g7Uv = g7TileWrap ? tileRect.xy + frac(uv) * tileRect.zw : uv;
+  const float2 g7Ddx = ddx(uv) * tileRect.zw;
+  const float2 g7Ddy = ddy(uv) * tileRect.zw;
   // Mode 3 is the sky box, and it short-circuits: the box is lit by nothing,
   // carries no lightmap uv and has no meaningful normal, so running the
   // lighting half of this shader over it would be inventing a direction to
@@ -289,7 +302,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // channels copied per texel (world_tile_atlas.cpp:271), so `$translucent` and
   // `$alphatest` only ever needed a consumer -- this is it. `sampled` stays the
   // rgb triple every existing arm reads, so the opaque path is unchanged.
-  float4 sampledTexel = texture0.Sample(sampler0, uv);
+  float4 sampledTexel = g7TileWrap ? texture0.SampleGrad(sampler0, g7Uv, g7Ddx, g7Ddy) : texture0.Sample(sampler0, uv);
   float3 sampled = sampledTexel.rgb;
   // T61 diagnostic: the raw t0 sample for this pixel's uv, before the blend
   // layer, the lightmap and the lighting. This is the value the GPU read.
@@ -320,7 +333,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   if (blend >= 0.0) {
     float weight = blend;
     if (blendModulate > 0.5) {
-      float4 mask = blendModulateTexture.Sample(sampler0, uv);
+      float4 mask = g7TileWrap ? blendModulateTexture.SampleGrad(sampler0, g7Uv, g7Ddx, g7Ddy) : blendModulateTexture.Sample(sampler0, uv);
       float lower = saturate(mask.g - mask.r);
       float upper = saturate(mask.g + mask.r);
       // smoothstep with a zero-width range is undefined in HLSL and would turn
@@ -329,7 +342,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
       weight = smoothstep(lower, lower + max(upper - lower, 1.0e-5), weight);
     }
     blendWeight = saturate(weight);
-    sampled = lerp(sampled, blendTexture.Sample(sampler0, uv).rgb, blendWeight);
+    sampled = lerp(sampled, (g7TileWrap ? blendTexture.SampleGrad(sampler0, g7Uv, g7Ddx, g7Ddy) : blendTexture.Sample(sampler0, uv)).rgb, blendWeight);
   }
   float lightmapFactor = max(lightmapFeatures.x, 0.0);
   float3 albedo = lerp(colour.rgb, sampled * colour.rgb, colour.a);
@@ -386,7 +399,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
       saturate(sampledTexel.a * colour.a)), 1.0);
   }
   if ((featureMask & 4u) != 0u) {
-    float4 detailColor = detailAtlas.Sample(sampler0, uv);
+    float4 detailColor = g7TileWrap ? detailAtlas.SampleGrad(sampler0, g7Uv, g7Ddx, g7Ddy) : detailAtlas.Sample(sampler0, uv);
     albedo = combineDetail(albedo, detailColor, (uint)(feature.y + 0.5), feature.z);
   }
   // T21: mode 6 is the ALBEDO the material path produced -- both layers of a
@@ -464,7 +477,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
     // concatenated by the compiler and must stay separate.
     R"HLSL(
   const bool hasLayer1 = (featureMask & 1u) != 0u;
-  float3 nMaterial = tangentNormal(bumpAtlas.Sample(sampler0, uv).xyz, Ng, tangent);
+  float3 nMaterial = tangentNormal((g7TileWrap ? bumpAtlas.SampleGrad(sampler0, g7Uv, g7Ddx, g7Ddy) : bumpAtlas.Sample(sampler0, uv)).xyz, Ng, tangent);
   float3 bump = bumpTexture.Sample(sampler0, uv).xyz * 2.0 - 1.0;
   float3 nLegacy = lightmapFeatures.y > 0.5
     ? safeNormalize(Ng + float3(bump.xy * 0.35, bump.z * 0.1)) : Ng;
@@ -491,7 +504,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // declares layer 2. The diagnostic flag does not masquerade as a mask bit.
   const bool useLayer2 = ((featureMask & 2u) != 0u || feature.w > 0.5)
     && (hasLayer1 || envFeatures.z > 0.5);
-  float3 n2 = tangentNormal(bumpAtlas2.Sample(sampler0, uv).xyz, Ng, tangent);
+  float3 n2 = tangentNormal((g7TileWrap ? bumpAtlas2.SampleGrad(sampler0, g7Uv, g7Ddx, g7Ddy) : bumpAtlas2.Sample(sampler0, uv)).xyz, Ng, tangent);
   n = useLayer2 ? safeNormalize(lerp(n, n2, blendWeight)) : n;
   // envFeatures.x is the mode the renderer is actually in, not a claim about it:
   // 0 = no env map, 1 = the 2D approximation, 2 = a real six-face cube. The two
@@ -906,6 +919,14 @@ struct Output {
   float blendModulate : TEXCOORD5;
   float4 feature : TEXCOORD6;
   float4 tangent : TEXCOORD7;
+  // G7: the shared world pixel shader reads a ninth interpolant as well, the
+  // atlas tile rectangle, and this pass draws through that same pixel shader.
+  // Same rule as T61 above: an interpolant the vertex shader never writes is
+  // undefined here, and on this driver it reads as 1.0 -- which would switch
+  // the tiled sampling path on with a rectangle of ones over every entity.
+  // G7 is a world-surface fix, so the entity pass writes zeros and keeps the
+  // old untiled sampling.
+  float4 tileRect : TEXCOORD8;
 };
 Output main(Input input) {
   Output output;
@@ -956,6 +977,7 @@ Output main(Input input) {
   output.blendModulate = 0.0;
   output.feature = float4((float)input.boneInfo.w, 0.0, 0.0, 0.0);
   output.tangent = float4(1.0, 0.0, 0.0, 0.0);
+  output.tileRect = float4(0.0, 0.0, 0.0, 0.0);
   return output;
 }
 )HLSL";

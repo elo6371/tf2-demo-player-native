@@ -34,6 +34,24 @@ namespace tf2::native {
 // TF2_NATIVE_FLIP_X=0/off/keep restores the mirrored pipeline for A/B captures;
 // the corrected pipeline is the default because it is the one that matches the
 // game.
+// G7 (2026-11-19): the atlas tiling is done by the pixel shader, not by the
+// uploader, so a face whose uv range crosses a tile boundary stops being a
+// stretched copy of one tile. The uploader still folds the uv on the CPU
+// (worldTileCoord) unless this is set; when it is set it hands the shader the
+// tile rectangle instead. TF2_NATIVE_UV_PS=0 is therefore the old picture byte
+// for byte and =1 is the new path. Read once, never per frame.
+inline bool worldUvPsEnabled() {
+  static const bool enabled = [] {
+    char* raw = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&raw, &length, "TF2_NATIVE_UV_PS") != 0 || raw == nullptr) return false;
+    const bool on = std::strcmp(raw, "1") == 0 || std::strcmp(raw, "on") == 0
+      || std::strcmp(raw, "true") == 0;
+    std::free(raw);
+    return on;
+  }();
+  return enabled;
+}
 inline bool horizontalFlipCorrectionEnabled() {
   char* raw = nullptr;
   std::size_t length = 0;
@@ -88,6 +106,14 @@ struct WorldVertex {
   float tangentY = 0.0f;
   float tangentZ = 1.0f;
   float tangentSign = 1.0f;
+  // G7: the atlas tile this vertex's uv sits in. tileU0/tileV0 are the tile's
+  // first texel centre in atlas space, the spans its extent as a fraction of
+  // the atlas. Zero spans mean "the uploader already folded this uv" and the
+  // CPU path stays in charge.
+  float tileU0 = 0.0f;
+  float tileV0 = 0.0f;
+  float tileUSpan = 0.0f;
+  float tileVSpan = 0.0f;
 };
 // T2 (2026-10-14): the water pass reuses the world's input layout and vertex
 // shader, which is only sound while the two vertex structs agree field for
@@ -102,7 +128,11 @@ static_assert(offsetof(WorldWaterVertex, u) == offsetof(WorldVertex, u)
   && offsetof(WorldWaterVertex, blendModulate) == offsetof(WorldVertex, blendModulate)
   && offsetof(WorldWaterVertex, featureMask) == offsetof(WorldVertex, featureMask)
   && offsetof(WorldWaterVertex, detailMode) == offsetof(WorldVertex, detailMode)
-  && offsetof(WorldWaterVertex, tangentX) == offsetof(WorldVertex, tangentX),
+  && offsetof(WorldWaterVertex, tangentX) == offsetof(WorldVertex, tangentX)
+  && offsetof(WorldWaterVertex, tileU0) == offsetof(WorldVertex, tileU0)
+  && offsetof(WorldWaterVertex, tileV0) == offsetof(WorldVertex, tileV0)
+  && offsetof(WorldWaterVertex, tileUSpan) == offsetof(WorldVertex, tileUSpan)
+  && offsetof(WorldWaterVertex, tileVSpan) == offsetof(WorldVertex, tileVSpan),
   "the water vertex's uv, normal, light-uv, blend and feature offsets must match the world's");
 struct EntityModelGpuVertex {
   float x, y, z;

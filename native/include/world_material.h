@@ -408,6 +408,13 @@ struct WorldWaterVertex {
   float tangentY = 0.0f;
   float tangentZ = 1.0f;
   float tangentSign = 1.0f;
+  // G7: the tile rectangle the world pixel shader needs when the wrap moved to
+  // the GPU (TF2_NATIVE_UV_PS=1). Water never tiles an atlas, so these stay zero
+  // and the shader samples its uv exactly as before.
+  float tileU0 = 0.0f;
+  float tileV0 = 0.0f;
+  float tileUSpan = 0.0f;
+  float tileVSpan = 0.0f;
 };
 
 // The water material's parsed parameters. TF2's water shaders carry the two

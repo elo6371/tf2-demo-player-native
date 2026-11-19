@@ -433,9 +433,11 @@ bool Renderer::createPipeline() {
       // atlas draws, so the material's own feature inputs travel on the vertex.
       {"TEXCOORD", 6, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 64, D3D11_INPUT_PER_VERTEX_DATA, 0},
       {"TEXCOORD", 7, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 80, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      // G7: the tile rectangle, so the pixel shader can do the wrap itself.
+      {"TEXCOORD", 8, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 96, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
     initStage_ = "layout.world";
-    const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, 9, worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
+    const bool layoutCreated = SUCCEEDED(device_->CreateInputLayout(worldElements, static_cast<UINT>(std::size(worldElements)), worldVertexBytecode->GetBufferPointer(), worldVertexBytecode->GetBufferSize(), worldInputLayout_.GetAddressOf()));
     if (!layoutCreated) {
       worldVertexShader_.Reset(); worldPixelShader_.Reset(); skyPixelShader_.Reset(); worldInputLayout_.Reset();
       worldClipCaptureGeometryShader_.Reset();
