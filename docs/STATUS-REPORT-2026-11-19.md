@@ -113,6 +113,11 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
    读数 `evidence/analyze/2026-11-19-summary.tsv`、记录 `docs/ANALYZE-FULL-TREE-2026-11-19.md`。
    产品 exe 只剩 5 条，其中 `wWinMain` 的 C6262 58,208 B 要等 N24 phase 2 拆函数才会消失。
 
+9. 本批 G6：文档-源码一致性第二遍已应用并推送（`d68c5286`，3 份台账 16 行 + 分配表 G6 标完成）。
+   改掉的旧事实：`WARN-GATE tus=138`→**139**、`main.cpp` 12,883→**16,221**（`wWinMain` 起于 `:2971`）、
+   N22「未推远端」→ `.github/workflows/tier1.yml` 已推但零运行（触发不含 `work/*`）；
+   N18 的 `viewModelRequested` 引用改到 `main.cpp:8601/8985/10155/11833/14704`，`sky_camera` 指向 `native/src/bsp_map.cpp:629-638`。
+
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
