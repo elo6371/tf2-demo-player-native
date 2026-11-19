@@ -74,10 +74,10 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
 
 ## 4. 架构优化现状
 
-- `native/src/main.cpp` 现在 **16,221 行**（N24 phase 1 于 2026-11-19 抽出 renderer self-test，`88ade848`）；
-  `int WINAPI wWinMain` 现在 `native/src/main.cpp:2971` 开、`:16221` 闭（N24 phase 1 抽出
-  `main_selftest.cpp` 之后起点前移；`:3163` 已在 CLI 声明区内），**13,251 行一个函数**未变
-  （N24 计划时 15,324 行文件 / 12,392 行函数，之后长了 1,089/859 行）。
+- `native/src/main.cpp` 现在 **16,046 行**（N24 phase 1 抽出 renderer self-test `88ade848`；G1 阶段 B 轮 1 抽走 CLI 比较链 `3d5a782a`）；
+  `int WINAPI wWinMain` 现在 `native/src/main.cpp:2954` 开、`:16046` 闭（B1 删掉 wWinMain 前的 20 行 helper，起点再前移 17 行），
+  **13,093 行一个函数**（B1 在函数内净减 158 行：200 行 else-if 链换成 44 行环境构造 + 2 个调用点）；
+  （N24 计划时 15,324 行文件 / 12,392 行函数。函数仍是单体，只是变短了。）
 - 已有的拆分只搬周边：`main_hud.cpp` 1,608、`native_ui.cpp` 730、`main_helpers.cpp` 198、
   `camera_script.cpp` 633、`main_ui.cpp` 347、`main_internal.h` 180、`main_camera.cpp` 139、
   `main_lifecycle.cpp` 116、`main_trace.cpp` 104。
@@ -85,7 +85,8 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
   `main_internal.h` 声明、`tf2-product.cmake` 条目；`wWinMain` 未动。§4 其余阶段仍是方案。
   phase 1 顺带暴露一个构建陷阱：编辑工具保留 mtime → NMake 既不重编也不重跑 CMake，链接了拆分前 obj，
   身份门禁的 compiled-input 探针以 `LNK2019` 抓到；`touch native/CMakeLists.txt` 重配后才转绿。
-- 结构化约束（计划里记录、仍成立）：wWinMain 无 `goto`/清理标签、191 条 `L"--"` 比较（`wcscmp` 全部 212 条、`L"--"` 字面量 200 个）一条长比较链、
+- 结构化约束（计划里记录、仍成立）：wWinMain 无 `goto`/清理标签、B1 后 156 条 `wcscmp(..., L"--"` 一条长比较链 + `main_cli.h` 34 个表项
+  = 190 条开关比较（`wcscmp` 全部 212 条、`L"--"` 字面量 159 个；旧文「191 条 / 212 条」是 B1 前按别的口径数的，实测 `wcscmp(..., L"--"` 是 194）、
   MSVC C1061 嵌套上限已撞过一次、306 处 `traceFmt` 属可观测契约、54 个按引用 lambda。
 - `tf2_core` 51 个编译单元、`tf2_demo_native` 30 个（`/analyze` 覆盖口径）；N22 的 `tier1.yml`
   文件已落地但零运行；N26 构建缓存实测未做。
@@ -131,6 +132,13 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
     （trace `draw: begin tick=0`、`sceneTick=10320` vs premise `10252`）、identity 1 px LSB（`(658,416)`；
     其余 2,582,351 像素相同）。结论：门禁基线是「既有欠账」，不是 N18 回归；读数
     `evidence/n18-gate-baseline-2026-11-19/`，卡见 `docs/TASK-LIST-2026-11-19.md` §2 第 14 条。
+
+12. 本批 B1（G1 阶段 B 轮 1）：31 个带值开关 + 3 个无值开关从 `main.cpp` 的 else-if 链迁进 `native/src/main_cli.h`
+    （`3d5a782a`，`main.cpp` −226/+51、新文件 376 行 / 34 表项、`wcscmp` 254→212）。行为零变化：与 pre-B1 exe 做 30 用例
+    A/B 差异矩阵（11 渲染帧 md5 + 19 parse 的 exit/stderr），`BUILD-IDENTITY=PASS assertions=222`（`head=348846548dbf`），
+    warn/argument-refusal/hud/map-overview 四门禁全绿。过程中 `hud-check` 第一次红在 reset 用例的
+    已知偶发 `0xE06D7363`（T38 §7.6 / `main.cpp:12554` 的 TEMP DIAGNOSTIC）；同命令在新 exe 跑 3 次、pre-B1 exe 跑 1 次全绿，
+    重跑门禁 PASS，与 B1 无关，作为偶发记录留档。
 
 ## 6. 证据路径
 
