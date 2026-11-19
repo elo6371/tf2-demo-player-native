@@ -79,6 +79,7 @@
 // and the using-directive below keeps every call site spelled exactly as it
 // was: this was a move, not a rewrite.
 #include "main_internal.h"
+#include "main_cli.h"
 #include "playback_state.h"
 #include "main_hud.h"
 #include "target_identity.h"
@@ -299,36 +300,18 @@ bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character
 
 namespace {
 
-// T105: claim a switch that takes no value, from the argument loop's fall-through
-// branch. See the call site: the else-if chain cannot grow a branch (C1061), and a
-// switch nobody parses is a measurement nobody took, so the value-less diagnostics
-// below are matched here and everything else keeps D-23's record-and-continue
-// behaviour.
+// T105: the value-less diagnostics that used to be claimed from here live in
+// native/src/main_cli.h (kValueLessFlagTable). See the call site in the argument
+// loop's fall-through branch: the else-if chain cannot grow a branch (C1061), and
+// a switch nobody parses is a measurement nobody took, so the value-less switches
+// are matched by name in a callee and everything else keeps D-23's
+// record-and-continue behaviour.
 //
 // `--entity-tint-mutation` is the negative control for the team-tint fix and
 // `--world-tile-fill` asks for the per-material tile-fill ledger; both exist so a
 // gate can show its claim going RED, so both have to be reachable from a command
 // line without a branch of their own.
-void claimValueLessSwitch(const std::wstring& argument, std::vector<std::wstring>& unrecognized,
-    bool& entityTintMutation, bool& worldTileFill, bool& entityBindPoseMutation) {
-  if (argument == L"--entity-tint-mutation") {
-    entityTintMutation = true;
-    return;
-  }
-  // Draw stage: the control that decides geometry vs skinning for the wedge the
-  // scout draws over its own chest. Value-less on purpose -- it either withholds the
-  // bone matrices or it does not, and a value would suggest a middle setting that
-  // would leave the reader unable to say which picture they were looking at.
-  if (argument == L"--entity-bind-pose-mutation") {
-    entityBindPoseMutation = true;
-    return;
-  }
-  if (argument == L"--world-tile-fill") {
-    worldTileFill = true;
-    return;
-  }
-  unrecognized.push_back(argument);
-}
+
 
 // T105 B: the VTF format's own numbering, named. The number alone leaves a reader
 // holding the format table in their head to tell "a DXT1 tile came out noisy"
@@ -3662,205 +3645,47 @@ bool outlineVertexExtent = false;
   // The chain is a pure dispatch over mutually exclusive flags, so moving a
   // group of arms into a function changes no behaviour: order never decided
   // anything, and "this argument was mine" is now the return value.
+  tf2::native::main_internal::CliParseEnv cliEnv{
+      persistent,
+      g_logsPanelOptions.openAtStartup,
+      g_logsPanelOptions.url,
+      g_logsPanelOptions.url2,
+      g_logsPanelOptions.width,
+      g_logsPanelOptions.userData,
+      g_logsPanelOptions.script,
+      g_logsPanelOptions.pumpMilliseconds,
+      g_logsPanelOptions.measureFrames,
+      g_logsPanelArgumentRejected,
+      playbackSpeed,
+      playbackSpeedRejected,
+      outlineRequested,
+      outlineGiven,
+      outlineDepthMode,
+      outlineDepthGiven,
+      outlineArgumentRejected,
+      outlineVertexExtent,
+      cameraScriptPath,
+      cameraScriptRejected,
+      hudRoot,
+      hudLayout,
+      hudScale,
+      hudScaleGiven,
+      hudConfigRequested,
+      hudArgumentRejected,
+      hudOnGiven,
+      hudOn,
+      hudOffCli,
+      hudLiveCli,
+      hudMinimapCli,
+      hudResetRequested,
+      hudApplyRequested,
+      g_hudTextTest,
+      entityTintMutation,
+      worldTileFillTrace,
+      entityBindPoseMutation,
+      narrowAscii};
   const auto parseFeatureArgument = [&](int& i) -> bool {
-      if (wcscmp(arguments[i], L"--projectile-trajectory") == 0) {
-        // T53. Off unless this flag or the settings file says otherwise.
-        persistent.render.projectileTrajectory = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--trajectory-player") == 0 && i + 1 < argumentCount) {
-        // "all" is -1; a number is an entity index. A gate runs both, so the
-        // difference between the two filters is a captured pair of frames rather
-        // than a claim about a branch.
-        const std::wstring value = arguments[++i];
-        persistent.render.selectedPlayerEntity = (value == L"all")
-          ? -1 : static_cast<std::int32_t>(wcstol(value.c_str(), nullptr, 10));
-        return true;
-      } else if (wcscmp(arguments[i], L"--trajectory-linger-ms") == 0 && i + 1 < argumentCount) {
-        persistent.render.trajectoryLingerMs = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
-        return true;
-      } else if (wcscmp(arguments[i], L"--trajectory-quality") == 0 && i + 1 < argumentCount) {
-        const std::wstring value = arguments[++i];
-        persistent.render.trajectoryQuality = (value == L"low")
-          ? tf2::native::RenderSettings::TrajectoryQuality::Low
-          : tf2::native::RenderSettings::TrajectoryQuality::High;
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-open") == 0) {
-        g_logsPanelOptions.openAtStartup = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-url") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.url = narrowAscii(arguments[++i]);
-        g_logsPanelOptions.openAtStartup = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-url2") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.url2 = narrowAscii(arguments[++i]);
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-width") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const long parsed = std::wcstol(arguments[++i], &end, 10);
-        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.width = static_cast<int>(parsed);
-        else g_logsPanelArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-user-data") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.userData = narrowAscii(arguments[++i]);
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-script") == 0 && i + 1 < argumentCount) {
-        g_logsPanelOptions.script = narrowAscii(arguments[++i]);
-        g_logsPanelOptions.openAtStartup = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-pump-ms") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const long parsed = std::wcstol(arguments[++i], &end, 10);
-        if (end && *end == L'\0' && parsed > 0) g_logsPanelOptions.pumpMilliseconds = static_cast<int>(parsed);
-        else g_logsPanelArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--logstf-measure") == 0) {
-        g_logsPanelOptions.measureFrames = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--playback-speed") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const double parsed = std::wcstod(arguments[++i], &end);
-        if (end && *end == L'\0' && parsed > 0.0) playbackSpeed = parsed;
-        else playbackSpeedRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--playback-speed") == 0) {
-        playbackSpeedRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--outline") == 0 && i + 1 < argumentCount) {
-        const wchar_t* value = arguments[++i];
-        if (wcscmp(value, L"on") == 0) { outlineRequested = true; outlineGiven = true; }
-        else if (wcscmp(value, L"off") == 0) { outlineRequested = false; outlineGiven = true; }
-        else outlineArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--outline") == 0) {
-        outlineArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--outline-depth") == 0 && i + 1 < argumentCount) {
-        const wchar_t* value = arguments[++i];
-        if (wcscmp(value, L"xray") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::XRay; outlineDepthGiven = true; }
-        else if (wcscmp(value, L"tested") == 0) { outlineDepthMode = tf2::native::OverlayDepthMode::DepthTested; outlineDepthGiven = true; }
-        else outlineArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--outline-depth") == 0) {
-        outlineArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--outline-vertex-extent") == 0) {
-        // T52 (2026-10-23): publish each silhouette's region from the vertices
-        // the draw consumes instead of from the entity AABB. Off by default: it
-        // transforms every vertex of every silhouette every frame, which no
-        // normal run needs. The gate turns it on for the runs it measures.
-        outlineVertexExtent = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--camera-script") == 0 && i + 1 < argumentCount) {
-        // T50: the scripted acceptance driver (see runCameraScriptStep). A file
-        // of steps, each reported as `camera: accept`; the run quits when the
-        // script says so, with the exit code carrying the failure count.
-        cameraScriptPath = arguments[++i];
-        return true;
-      } else if (wcscmp(arguments[i], L"--camera-script") == 0) {
-        cameraScriptRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-root") == 0 && i + 1 < argumentCount) {
-        hudRoot = arguments[++i];
-        if (hudRoot.empty()) hudArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-root") == 0) {
-        hudArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-layout") == 0 && i + 1 < argumentCount) {
-        // The document path is stored narrow because that is what HudSettings and
-        // the [hud] settings file carry. A wide value that does not round-trip to
-        // UTF-8 is refused rather than transliterated.
-        if (!tf2::native::wideToUtf8(arguments[++i], hudLayout) || hudLayout.empty()) {
-          hudArgumentRejected = true;
-        }
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-layout") == 0) {
-        hudArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-scale") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const long parsed = std::wcstol(arguments[++i], &end, 10);
-        if (end && *end == L'\0' && parsed >= 50 && parsed <= 200) {
-          hudScale = static_cast<int>(parsed);
-          hudScaleGiven = true;
-          hudConfigRequested = true;
-        } else {
-          hudArgumentRejected = true;
-        }
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-scale") == 0) {
-        hudArgumentRejected = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-on") == 0) {
-        hudOnGiven = true; hudOn = true; hudConfigRequested = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-off") == 0) {
-        hudOnGiven = true; hudOn = false; hudConfigRequested = true;
-        hudOffCli = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-live") == 0) {
-        // T97: draw the live readout on an evidence frame too. The capture path
-        // suppresses it by default so that twenty-odd pixel gates keep measuring
-        // what they were written to measure; this flag is how a gate asks for it.
-        hudLiveCli = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--overview-open") == 0) {
-        // E11: the map-overview screen, on from launch. The hotkey is the
-        // interactive door; this one is the door every gate uses, because a gate
-        // must not depend on a WM_KEYDOWN reaching the window it captured.
-        tf2::native::mapOverviewSetOpen(true);
-        return true;
-      } else if (wcscmp(arguments[i], L"--overview-root") == 0 && i + 1 < argumentCount) {
-        // The demos.tf basemap package (images/*.png + boundaries.json). Defaults
-        // to the checkout's E:/demo测试/demos_tf_maps, but a build server or a
-        // different machine passes its own root; the panel names the reason when
-        // a map or file is missing instead of drawing a guessed rectangle.
-        std::string overviewRoot;
-        if (!tf2::native::wideToUtf8(arguments[++i], overviewRoot) || overviewRoot.empty()) {
-          std::fprintf(stderr, "--overview-root: bad path\n");
-          std::fflush(stderr);
-          return false;
-        }
-        tf2::native::basemapSetRoot(overviewRoot);
-        return true;
-      } else if (wcscmp(arguments[i], L"--overview-image") == 0 && i + 1 < argumentCount) {
-        // The single base-image override (a PNG from the package, or any WIC-
-        // decodable file). With no override the path is <overview-root>/images/
-        // <resolved key>.png, so the shipped package drops in with no code change.
-        std::string overviewImage;
-        if (!tf2::native::wideToUtf8(arguments[++i], overviewImage) || overviewImage.empty()) {
-          std::fprintf(stderr, "--overview-image: bad path\n");
-          std::fflush(stderr);
-          return false;
-        }
-        tf2::native::mapOverviewSetImageOverride(overviewImage);
-        tf2::native::mapOverviewSetOpen(true);
-        return true;
-      } else if (wcscmp(arguments[i], L"--overview-hide") == 0 && i + 1 < argumentCount) {
-        // Negative-control hook: remove one entity from the screen so the gate can
-        // prove a removal removes exactly one icon and exactly one row.
-        tf2::native::mapOverviewSetHiddenEntity(_wtoi(arguments[++i]));
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-minimap") == 0) {
-        // E9: draw the minimap panel beside the readout. Separate from --hud-live
-        // on purpose: a gate may want the readout without the panel, and the panel
-        // is the only thing here that changes pixels outside the readout.
-        hudMinimapCli = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-reset") == 0) {
-        hudResetRequested = true;
-        hudConfigRequested = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-apply") == 0) {
-        hudApplyRequested = true;
-        return true;
-      } else if (wcscmp(arguments[i], L"--hud-text-test") == 0) {
-        // T67: draw the fixed primitive list (text, filled panel, two dots)
-        // instead of an imported layout, so the gate can assert exact pixels.
-        g_hudTextTest = true;
-        return true;
-      }
-    return false;
+    return tf2::native::main_internal::dispatchFeatureSwitch(cliEnv, arguments, argumentCount, i);
   };
   // D-23 (2026-11-07): the argument loop below drops a switch it does not know,
   // in silence, and the run continues with a configuration nobody asked for. Two
@@ -4715,13 +4540,13 @@ bool outlineVertexExtent = false;
         // D-23: recorded, not rejected. The default run still ignores it, which
         // is the behaviour every existing gate was written against.
         //
-        // T105: two switches that take no value are claimed from HERE instead of
+        // T105: three switches that take no value are claimed from HERE instead of
         // from branches of their own. The else-if chain above already sits at
         // MSVC's block-nesting limit (C1061) and a new `else if` is exactly what
         // a T105 build failed on, so a value-less switch is resolved by name in a
         // callee and everything else is recorded exactly as before.
-        claimValueLessSwitch(arguments[i], unrecognizedArguments, entityTintMutation,
-          worldTileFillTrace, entityBindPoseMutation);
+        tf2::native::main_internal::dispatchValueLessSwitch(
+            cliEnv, arguments, argumentCount, i, unrecognizedArguments);
       }
     }
     persistent.render.normalize();
