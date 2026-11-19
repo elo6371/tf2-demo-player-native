@@ -541,8 +541,33 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   // plane, which is how the first version drew and changed no pixels.
   const float radius = std::max(viewModelMeshRadius_, 1e-3f);
   const float distance = radius * 2.2f;
-  const float rightOffset = radius * 0.30f;
-  const float downOffset = -radius * 0.22f;
+  // N18 framing. The mesh centre is placed at a chosen point ON THE PANE, not on
+  // the eye's forward axis: a first-person weapon belongs in the lower right
+  // corner, and that is a statement about the picture, not about the model. The
+  // two numbers are NDC (x grows to the right, y grows up, both -1..1) and the
+  // pane's own FOV and aspect solve them back into camera-space offsets, so a
+  // window resize moves the composition with the pane instead of sliding the
+  // weapon off it, and a bigger model does not need a different constant.
+  //
+  // Measured before this change (v_scattergun_scout, 1264x681, fov 90): the
+  // offsets below were radius-scaled (0.30r right, 0.22r down) and put the
+  // centre at ndc=(-0.072,-0.096) -- the middle of the frame. The distance stays
+  // at 2.2r, which is the pass's own near-plane solve and is asserted by the
+  // presentation gate; only the placement inside the picture moves here.
+  constexpr float kViewModelFramingNdcX = 0.40f;   // + = right of the pane
+  constexpr float kViewModelFramingNdcY = -0.62f;  // - = below the pane centre
+  const std::uint32_t framingWidth = viewportWidth != 0u ? viewportWidth : width_;
+  const std::uint32_t framingHeight = viewportHeight != 0u ? viewportHeight : height_;
+  const float framingAspect = framingHeight == 0 ? 1.0f
+    : static_cast<float>(framingWidth) / static_cast<float>(framingHeight);
+  const float framingTanHalfFov = std::tan(XMConvertToRadians(viewModelState_.fov) * 0.5f);
+  // The projection below negates clip x when the horizontal flip correction is
+  // on, so a camera-space offset towards the right of the pane renders on the
+  // left; the sign is carried here so the composition is the same in both modes.
+  const float framingScreenSign = horizontalFlipCorrectionEnabled() ? -1.0f : 1.0f;
+  const float rightOffset = framingScreenSign * kViewModelFramingNdcX
+    * framingTanHalfFov * framingAspect * distance;
+  const float downOffset = kViewModelFramingNdcY * framingTanHalfFov * distance;
   const float targetX = frameEye_[0] + frameForward_[0] * distance
     + frameRight_[0] * rightOffset + frameUp_[0] * downOffset;
   const float targetY = frameEye_[1] + frameForward_[1] * distance
@@ -562,13 +587,11 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
     world[2], world[6], world[10], 0.0f,
     world[3], world[7], world[11], 1.0f);
   const XMMATRIX view = XMLoadFloat4x4(&frameView_);
-  // N18: the pane's aspect when the caller named one. A split frame draws two
-  // panes on one surface; the window aspect would stretch the weapon into the
-  // half it is not drawn in (and squash it in the half it is).
-  const std::uint32_t aspectWidth = viewportWidth != 0u ? viewportWidth : width_;
-  const std::uint32_t aspectHeight = viewportHeight != 0u ? viewportHeight : height_;
-  const float aspect = aspectHeight == 0 ? 1.0f
-    : static_cast<float>(aspectWidth) / static_cast<float>(aspectHeight);
+  // N18: the pane's aspect, solved above together with the framing so the two
+  // cannot disagree about which pane they are placing for. A split frame draws
+  // two panes on one surface; the window aspect would stretch the weapon into
+  // the half it is not drawn in (and squash it in the half it is).
+  const float aspect = framingAspect;
 
   // Its own projection: the ViewModel FOV, and a near plane derived from the
   // model's own radius so the whole weapon is in front of it.
