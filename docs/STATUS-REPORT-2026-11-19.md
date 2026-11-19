@@ -52,7 +52,7 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 
 **A. 产品与证据缺口（不是工程问题）**
 - N05 849/919 像素缺陷：现象已确证，机制未归因，D01 仍 OPEN。
-- N10 3D skybox 未实现、`sky_camera` 路径 UNSUPPORTED。
+- N10 3D skybox 渲染 pass 未实现；`sky_camera` 实体**已解析**（`native/src/bsp_map.cpp:628-640` 写 `map.skyCamera`），缺的是缩放第二遍与深度清除。
 - N11 七图矩阵 14 格只有 2 格合格；证据跨 4 个 exe，没有同一 exe 覆盖七图。
 - N13 没有 broadcaster/follow/选人命令（缺模型层命令，不是缺按钮）。
 - N17/N18 viewmodel 动画仍是 bind pose、POV 帧无 viewmodel、LOD1+ 不支持。
@@ -61,7 +61,7 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 **B. 工程瓶颈（本仓库自身）**
 - CI 零运行（见 §1）；55 个门禁在本轮只跑了身份门禁 + 3 个烟测 + demo-clock，其余没有真实 verdict。
   2026-11-19 追加：animation-drive-states 在 `work/integrate`（HEAD `7542bf5e`）重跑得到 `ANIMATION-DRIVE-STATES=PASS`（9 次运行全 rc=0、3848 s、四条内置负控 4/4 带原因串验证），见 `docs/GATE-VERDICTS-ROUND2-2026-11-15.md` 末尾。
-- `/analyze` 不在门禁；4 条 C6262（57–131 KB 栈帧）只记录未取舍。
+- `/analyze` 不在门禁；4 条 C6262 里三处（`native_ui.cpp:70/76`、`settings_store.cpp:132`、`main.cpp:2287`）2026-11-19 已搬堆，第 4 条 `wWinMain`（58,208 B）留待 N24 拆分；`/analyze` 三 TU 复测未做。
 - 33 分支 82 提交未推；两条断链谱系占 283 个原始提交，属清理前历史。
 - `.gitattributes` 行尾规则已定策略，仍等安全窗口落地。
 
@@ -82,7 +82,7 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
   `main_internal.h` 声明、`tf2-product.cmake` 条目；`wWinMain` 未动。§4 其余阶段仍是方案。
   phase 1 顺带暴露一个构建陷阱：编辑工具保留 mtime → NMake 既不重编也不重跑 CMake，链接了拆分前 obj，
   身份门禁的 compiled-input 探针以 `LNK2019` 抓到；`touch native/CMakeLists.txt` 重配后才转绿。
-- 结构化约束（计划里记录、仍成立）：wWinMain 无 `goto`/清理标签、183 个开关一条 1354 行比较链、
+- 结构化约束（计划里记录、仍成立）：wWinMain 无 `goto`/清理标签、191 条 `L"--"` 比较（`wcscmp` 全部 212 条、`L"--"` 字面量 200 个）一条长比较链、
   MSVC C1061 嵌套上限已撞过一次、306 处 `traceFmt` 属可观测契约、54 个按引用 lambda。
 - `tf2_core` 51 个编译单元、`tf2_demo_native` 30 个（`/analyze` 覆盖口径）；N22 的 `tier1.yml`
   文件已落地但零运行；N26 构建缓存实测未做。
@@ -96,6 +96,8 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
    下一步 phase 2。
 3. N25 剩下的门禁补真实 verdict（身份门禁已 PASS；animation-drive-states 2026-11-19 也 PASS 且负控 4/4；其余仍是"修了没跑"）。
 4. 其余 33 个分支是否推 GitHub 属用户决策；断链谱系只留历史。
+5. 本批（2026-11-19 下午）：P9 三处栈转堆已落地、外部评审 triage 已写（`docs/GEMINI-REVIEW-TRIAGE-2026-11-19.md`）；
+   排期与未解决项见 `docs/TASK-LIST-2026-11-19.md`，下一步是 `/analyze` 三 TU 复测与身份门禁复跑。
 
 ## 6. 证据路径
 
