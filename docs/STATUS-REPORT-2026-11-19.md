@@ -61,7 +61,7 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 **B. 工程瓶颈（本仓库自身）**
 - CI 零运行（见 §1）；55 个门禁在本轮只跑了身份门禁 + 3 个烟测 + demo-clock，其余没有真实 verdict。
   2026-11-19 追加：animation-drive-states 在 `work/integrate`（HEAD `7542bf5e`）重跑得到 `ANIMATION-DRIVE-STATES=PASS`（9 次运行全 rc=0、3848 s、四条内置负控 4/4 带原因串验证），见 `docs/GATE-VERDICTS-ROUND2-2026-11-15.md` 末尾。
-- `/analyze` 不在门禁；4 条 C6262 里三处（`native_ui.cpp:70/76`、`settings_store.cpp:132`、`main.cpp:2287`）2026-11-19 已搬堆，第 4 条 `wWinMain`（58,208 B）留待 N24 拆分；`/analyze` 三 TU 复测未做。
+- `/analyze` 不在门禁；4 条 C6262 里三处（`native_ui.cpp:70/76`、`settings_store.cpp:132`、`main.cpp:2287`）2026-11-19 已搬堆，第 4 条 `wWinMain`（58,208 B）留待 N24 拆分；`/analyze` 三 TU 已在 2026-11-19 复测（`native_ui` warnings=0、`settings_store` warnings=0、`main.cpp` 只剩 `wWinMain` 的 C6262/C28251，全树未重扫）。
 - 33 分支 82 提交未推；两条断链谱系占 283 个原始提交，属清理前历史。
 - `.gitattributes` 行尾规则已定策略，仍等安全窗口落地。
 
