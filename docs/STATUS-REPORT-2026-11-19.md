@@ -56,7 +56,7 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
 - N10 3D skybox 渲染 pass 未实现；`sky_camera` 实体**已解析**（`native/src/bsp_map.cpp:628-640` 写 `map.skyCamera`），缺的是缩放第二遍与深度清除。
 - N11 七图矩阵 14 格只有 2 格合格；证据跨 4 个 exe，没有同一 exe 覆盖七图。
 - N13 没有 broadcaster/follow/选人命令（缺模型层命令，不是缺按钮）。
-- N17/N18 viewmodel 动画仍是 bind pose、POV 帧无 viewmodel、LOD1+ 不支持。
+- N17/N18 viewmodel：N18 已能画（`4b08984a` 门闩）、右下构图已达成（`7250df6c` NDC 构图）、POV 录制上蒙皮链实测通（`applied=1`、`boneTableCoverage=58/58`）；**仍不对**的是首人称武器体（画的是实体世界模型 `c_sniperrifle.mdl`，占满画面且与手不合），N17 混合与 LOD1+ 仍不支持。
 - N20 三个指定效果未实现；N21 听感需人在场；N27 导出只有契约、产品未实现；N28–N30 发布未冻结、干净环境走查与 `verify-release.sh` 未跑。
 
 **B. 工程瓶颈（本仓库自身）**
@@ -176,6 +176,22 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
     另销一条假债：我此前记的 `entity.cpp:154/:165` 用 48 B 结构写 `WorldVertex` 不成立，实测那是 `entityMarkerVertexBuffer_`（`WorldVertex` 完全匹配）。
     插曲：第一次跑门禁时树上有补丁 + 3 份未提交文档（1 tracked + 3 untracked），identity 的「gate left the tree with the record count
     it found = 4, expected 1」等 5 条因此红；先提交清树后单独复跑即 222 全绿 —— 门禁检查的是开跑瞬间的树状态，不是代码回归。
+15. 本批 G9（N18 placement，`7250df6c`，2026-11-20 00:10）：`native/src/native_renderer_viewmodel.cpp` +32/−9，把 viewmodel 的 placement
+    从「半径倍数偏移」改成「画面 NDC 点位 + 该 pane 自己的 FOV/aspect 反解」：`kViewModelFramingNdcX=0.40`、`kViewModelFramingNdcY=-0.62`、
+    `framingTanHalfFov=tan(fov/2)`、水平翻转时 `framingScreenSign=-1`；`distance` 仍 `radius*2.2f`（presentation 门禁把 ratio 钉在 [2.10,2.30]）。
+    读数：默认关 tick-0 帧 `0fcb6867c46d55d9ef9fc95bf65596c2` 与 HEAD 干净构建逐字节一致；开（`TF2_NATIVE_VIEWMODEL_PATH=v_scattergun_scout.mdl`）
+    matcha 帧 `a985ddb4cfa572fb9ff4d772472a1a60`、centre ndc (-0.072,-0.096)→(0.358,-0.545)。
+    POV 录制（`D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-08-08_21-43-59.dem`，唯一带 ViewModel 实体的 pinned 录制）
+    首次把 pose 链跑通：`scene: vmAnim entity=685 sequence=1 entitySequence=28 rate=1.31 status=ok poseAvailable=1 applied=1 frame=0/1`、
+    `gpu: viewmodel pass order … skinning=1 boneTableCoverage=58/58 animationInput=bones:58 drawnModel=c_sniper_arms.mdl entityModelMatchesDrawn=1`、
+    centre ndc=(0.391,-0.605)、帧 `5c5e874af1d46b848b211d0c3636f3f3`；关掉 `--viewmodel-apply-animation` 的对照帧
+    `cb7261a3b409816fb5e3f9b8680eda3a`，两帧只差 1,014 px（0.12%）——该模型 rest pose 本身就是持枪姿势，蒙皮的可见变化小，与 trace 的 applied 是两个维度。
+    **如实记录**：同一帧里 `scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl`
+    被画到手臂同一个 target 上（23,061 顶点、`weaponMeshRadius=33.83`、`weaponClip` z 66.134..67.269），世界模型在第一人称距离被放大、占满画面且与手不合 ——
+    这是本轮之后最该修的一张卡，且不是蒙皮问题（bind/apply 只差 0.12%）。
+    契约门禁：`assertions_ok=153`、`VIEWMODEL-CONTRACT=FAIL`，唯一红仍是既有 capture-point 0≠7（`draw: begin tick=0`、`sceneTick=10320` vs premise `10252`），
+    identity 段本次 PASS（`BMP-DIFF differing=0 max_delta=0`，此前 1 px LSB 红未复现）；门禁重写的 9 个 `evidence/viewmodel/*` 已 `git checkout` 还原、未提交。
+    抓帧口径（本机未入库）：`.scratch/g7/cap.sh`（matcha）、`.scratch/g7/cap-pov.sh`（POV）、差异工具 `.scratch/g7/ab/pov3.py`。
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
@@ -187,4 +203,5 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
 - T84 门禁重跑：`/d/_shared/n25-drive/`（9 次捕获各 2,582,406 B bmp + ~200 MB trace）、日志 `/d/_shared/n25-drive-rerun.log`
 - T84 并行跑法（`--jobs 4`）：`/d/_shared/t84-jobs4/`（9 bmp + trace）、日志 `/d/_shared/t84-jobs4b.log`；入库读数 `evidence/t84-animdrive/parallel-jobs4/`
 - N18 门禁基线（`e5b33781`，2026-11-19）：日志 `/d/_shared/n18-contract-baseline.log`；入库读数 `evidence/n18-gate-baseline-2026-11-19/`（README + 290 行日志）
+- N18 构图 / POV pose（`7250df6c`，2026-11-20）：`.scratch/g7/cap/pov{1,2,3}.bmp|.trace`（POV 录制 146.8 MB，BMP 2,582,406 B）、`.scratch/g7/cap/frame1-{off,on}.bmp`（matcha）、契约门禁日志 `.scratch/g7/gate-vm-contract.log`（153 OK / 1 条已知红）、构建日志 `.scratch/g7/build-frame1.log`
 - N11 七图矩阵：`evidence/n11-matrix/readings.tsv`（入库）、`.scratch/n11-matrix/`（BMP 与完整 trace，可再生）、日志 `/d/_shared/n11-matrix.log`
