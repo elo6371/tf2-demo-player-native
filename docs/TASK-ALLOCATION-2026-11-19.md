@@ -31,7 +31,7 @@
 | 编号 | 任务 | 状态 | 验收 |
 |---|---|---|---|
 | L1 | 清理旧产物与仓库卫生 | **今天完成第一轮** | 见 §3 |
-| L2 | N11 七图矩阵：脚本 + 真跑一次 | **脚本落地（`10cb6469`/`b83a9c2e`），14 格真跑中** | 7 张图各出单元格，读数落 `evidence/n11-matrix/readings.tsv` |
+| L2 | N11 七图矩阵：脚本 + 真跑一次 | **完成（2026-11-19 13:32）`N11-SEVEN-MAP-MATRIX=PASS rows=14/14 identical_pairs=0`** | 读数入库 `evidence/n11-matrix/readings.tsv`；§9 两条待查读数（sunshine POV 相机、tiles=0） |
 | L3 | D01 COLOR0 取证（849/919 顶点色归因） | 待做 | 用现有 View16/17 回读 + 新增 dump，给出 texel 级结论 |
 | L4 | `/analyze` 全树重扫（139 TU） | 待做 | 逐 TU 读数 + 与 2026-11-18 基线 diff |
 | L5 | ASan 两条路径（model / material） | 待做 | 两次带 ASan 运行，0 报告或逐条定位 |

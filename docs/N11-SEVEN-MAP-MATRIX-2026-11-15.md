@@ -293,5 +293,56 @@ D:/TF2_Native_Worktrees/t105-e5/native/build-nmake/demo_open_probe.exe --scan "<
 
 ---
 
-*本文写作时的仓库状态：HEAD 6dd853e，工作树无改动（本卡只读）。*
+## 9. 2026-11-19 复跑：同一 exe 的 14/14 矩阵（PASS）
+
+本节的目的是补掉本文 §8 第 1 条（"一个 exe 同时出 POV 和 STV 的配对格"从未发生）。
+驱动脚本 `tools/n11-seven-map-matrix.sh`：一个 exe、7 张图、两列、逐格一次
+`--capture-tick 2000 --capture-frame`，读数写 `evidence/n11-matrix/readings.tsv`。
+
+- exe：`native/build-nmake/tf2_demo_native.exe`（与 `work/integrate` @ 777ce0d5 同树）
+- tick：**2000**，两列相同。tick 20000 在 100 MB 的 POV demo 上撞 420 s 超时（rc=124），
+  7 分钟一格的矩阵没人重跑；2000 已过出生点、在比赛内。
+- 采样：每格都看 `scene: camera ... eye=x,y,z ... src=demo|follow`（**POV 与 STV 都发射这一行**）。
+  `scene: eye` 只有 POV 路径有，脚本对 POV 格单独断言它存在。
+
+| map | 列 | tick 落点 | eye | camera src | staticProps available/inst/visible/pvs/drawn | bmp sha256（前 16） |
+|---|---|---|---|---|---|---|
+| cp_process_f12 | POV | 2000 | 4736.0,1440.0,644.0 | demo | 1/1353/163/1190/163 | 4e5efa36f47895a3 |
+| cp_process_f12 | STV | 2000 | 2045.2,1813.4,614.1 | follow | 1/1353/456/897/456 | 9e24904e06499d7e |
+| cp_gullywash_f9 | POV | 2000 | -51.3,-624.0,373.0 | demo | 1/1257/248/1009/248 | 2ce5a157c390d9dd |
+| cp_gullywash_f9 | STV | 2000 | -1356.4,145.3,235.0 | follow | 1/1257/219/1038/219 | 9e83df45ec8ef9b9 |
+| cp_sultry_b8a | POV | 2000 | 177.1,-608.4,708.0 | demo | 1/1866/374/1492/374 | 530b2cdba85f01e2 |
+| cp_sultry_b8a | STV | 2000 | -2070.1,1864.6,657.0 | follow | 1/1866/331/1535/331 | 70762d785be1656f |
+| cp_sunshine | POV | 2000 | 0.0,0.0,-359.0 | demo | 1/1617/1617/0/1617 | 2474b428f3d77f99 |
+| cp_sunshine | STV | 2000 | -4296.4,2131.8,72.9 | follow | 1/1617/427/1190/427 | 06944caf8b22dd64 |
+| koth_bagel_rc11 | POV | 2000 | -3164.7,285.4,427.0 | demo | 1/1562/536/1026/536 | 20617c94afe7d62f |
+| koth_bagel_rc11 | STV | 2000 | 914.0,-1000.0,563.8 | follow | 1/1562/599/963/599 | 43fce0e775f686de |
+| koth_product_final | POV | 2000 | -1093.9,407.6,407.9 | demo | 1/942/507/435/507 | 742658825cfa299c |
+| koth_product_final | STV | 2000 | -1864.3,-1060.8,112.4 | follow | 1/942/305/637/305 | 7ef20b55f041448e |
+| pl_upward_f12 | POV | 2000 | 1797.4,-1398.0,387.9 | demo | 1/1107/429/678/429 | 882177bc544df8f9 |
+| pl_upward_f12 | STV | 2000 | -1945.3,-1016.6,243.1 | follow | 1/1107/344/763/344 | df0e151a7b3d4166 |
+
+- 14/14 格 rc=0、BMP 非空（每格 2,582,406 B，1280×672 8-bit）、trace 有 `scene: camera` 与 `capture: frame`。
+- 同一图两列的 sha 全不相同 → POV/STV 不是同一张图被复制。
+- 判据：`N11-SEVEN-MAP-MATRIX=PASS rows=14/14 identical_pairs=0`（2026-11-19 13:32，`/d/_shared/n11-matrix.log`）。
+
+### 9.1 两条读数需要单独看，不是门禁失败
+
+1. **cp_sunshine POV 的相机不可信**：eye=0,0,-359 且 visible=instances=1617、pvsRejected=0 —
+   这一格没有有效视角、PVS 也没剔除任何实例。矩阵只断言"读到了相机行"，所以它 PASS，
+   但这张 POV demo 的相机路径需要单独查（与 §4 的两个像素缺陷没有直接证据关系）。
+2. **tiles=0（全部 14 格）**：tick 2000 这一帧没有 `gpu: world tile-fill` 行。可能是这些图/
+   这一帧没有走 tiled 材质路径，也可能是计数只在特定风格下发；记录为待查，不判负。
+
+### 9.2 本节不证明什么
+
+- 不证明画面正确。像素对不对仍是 D01 的问题（`docs/BLACKPOINT-849-919-2026-11-14.md`）。
+- 只对本机、本 exe、本批 demo 成立；BMP 与完整 trace 在 `.scratch/n11-matrix`（可再生，未入库），
+  入库的是 `readings.tsv`、每格最后 40 行 trace 摘录（`runs/*.txt`）与出处行（`runs/*.columns`）。
+- 复跑命令：`bash ../_shared/hostlock.sh run n11-matrix bash tools/n11-seven-map-matrix.sh`（约 22 分钟）。
+
+
+---
+
+*本文写作时的仓库状态：HEAD 6dd853e，工作树无改动（本卡只读）。2026-11-19 追加 §9。*
 

@@ -1,0 +1,40 @@
+72894.2 scene: clock tick=1984 entryTick=1985 serverTick=50829 serverTickKnown=1
+72907.5 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+72909.6 scene: camera mode=first-person target=1 follows=1348 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+72914.8 scene: clock tick=1985 entryTick=1986 serverTick=50830 serverTickKnown=1
+72929.4 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+72931.5 scene: camera mode=first-person target=1 follows=1349 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+72937.6 scene: clock tick=1987 entryTick=1988 serverTick=50832 serverTickKnown=1
+72951.2 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+72953.0 scene: camera mode=first-person target=1 follows=1350 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+72958.5 scene: clock tick=1988 entryTick=1989 serverTick=50833 serverTickKnown=1
+72972.1 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+72974.0 scene: camera mode=first-person target=1 follows=1351 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+72979.1 scene: clock tick=1989 entryTick=1990 serverTick=50834 serverTickKnown=1
+72992.4 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+72994.2 scene: camera mode=first-person target=1 follows=1352 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+72998.6 scene: clock tick=1991 entryTick=1992 serverTick=50836 serverTickKnown=1
+73013.2 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73015.5 scene: camera mode=first-person target=1 follows=1353 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73022.3 scene: clock tick=1992 entryTick=1993 serverTick=50837 serverTickKnown=1
+73036.2 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73038.0 scene: camera mode=first-person target=1 follows=1354 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73042.6 scene: clock tick=1994 entryTick=1995 serverTick=50839 serverTickKnown=1
+73056.9 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73058.7 scene: camera mode=first-person target=1 follows=1355 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73064.5 scene: clock tick=1995 entryTick=1996 serverTick=50840 serverTickKnown=1
+73079.0 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73081.1 scene: camera mode=first-person target=1 follows=1356 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73086.4 scene: clock tick=1997 entryTick=1998 serverTick=50842 serverTickKnown=1
+73100.4 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73102.5 scene: camera mode=first-person target=1 follows=1357 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73106.9 scene: clock tick=1998 entryTick=1999 serverTick=50843 serverTickKnown=1
+73121.6 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73123.7 scene: camera mode=first-person target=1 follows=1358 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73128.5 scene: clock tick=1999 entryTick=2000 serverTick=50844 serverTickKnown=1
+73142.0 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73144.0 scene: camera mode=first-person target=1 follows=1359 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73148.8 scene: clock tick=2000 entryTick=2001 serverTick=50845 serverTickKnown=1
+73163.0 scene: staticProps available=1 instances=1353 visible=456 pvsRejected=897 drawn=456 missingMesh=0 budget=4075 eyeCluster=725 eye=2045.2,1813.4,614.1
+73164.9 scene: camera mode=first-person target=1 follows=1360 holds=1 freeze=0 eye=2045.2,1813.4,614.1 pitch=7.41 yaw=174.90 src=follow
+73177.2 capture: frame width=1264 height=681 dpi=96

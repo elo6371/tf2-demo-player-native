@@ -99,6 +99,10 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 5. 本批（2026-11-19 下午）：P9 三处栈转堆已落地、外部评审 triage 已写（`docs/GEMINI-REVIEW-TRIAGE-2026-11-19.md`）；
    排期与未解决项见 `docs/TASK-LIST-2026-11-19.md`；身份门禁已在 P9 树复跑 PASS（`head=dbe8abcf`，
    2026-11-19 12:02），下一步是 `/analyze` 全树复扫。
+6. 本批追加：N11 七图矩阵已用**同一个 exe** 跑完 14/14 格并 PASS
+   （`N11-SEVEN-MAP-MATRIX=PASS rows=14/14 identical_pairs=0`，13:32，约 22 分钟；
+   读数 `evidence/n11-matrix/readings.tsv`，记录 `docs/N11-SEVEN-MAP-MATRIX-2026-11-15.md` §9）。
+   两条待查读数：cp_sunshine POV 的 eye=0,0,-359 且 PVS 未剔除；全部 14 格 tiles=0。
 
 ## 6. 证据路径
 
@@ -109,3 +113,4 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 - sanitizer 读数：`/d/_shared/n23-asan-selftest.log`、`/d/_shared/n23-asan-demo-scan.log`
 - 环境自证：`/d/_shared/asan-smoke.cpp`、`smoke-run.log`
 - T84 门禁重跑：`/d/_shared/n25-drive/`（9 次捕获各 2,582,406 B bmp + ~200 MB trace）、日志 `/d/_shared/n25-drive-rerun.log`
+- N11 七图矩阵：`evidence/n11-matrix/readings.tsv`（入库）、`.scratch/n11-matrix/`（BMP 与完整 trace，可再生）、日志 `/d/_shared/n11-matrix.log`

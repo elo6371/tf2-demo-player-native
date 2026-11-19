@@ -104,7 +104,7 @@ run_cell() { # run_cell <map> <col> <demo-abs> <tick> -> prints "rc bmp"
 extract_cell() { # extract_cell <tag> <trace>
   local tag="$1" trace="$2"
   grep -aE '(scene: (eye|camera|cameraFilter|staticProps|clock)|capture: (frame|fov)|demo: (open|map)|gpu: models done)' \
-    "$trace" > "$OUT/runs/${tag}.txt" 2>/dev/null || true
+    "$trace" 2>/dev/null | tail -40 > "$OUT/runs/${tag}.txt" || true
   [ -s "$OUT/runs/${tag}.txt" ]
 }
 

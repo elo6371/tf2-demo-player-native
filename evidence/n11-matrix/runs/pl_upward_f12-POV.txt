@@ -1,0 +1,40 @@
+147673.6 scene: eye origin=1831.3,-1389.1,356.9 offsetZ=75.0001 eye=1831.3,-1389.1,431.9 viewEntity=9 originTick=4195 offsetTick=4195 offsetAge=0 life=0 obs=0 reason=applied
+147673.6 scene: eye row src=camera reqTick=4195 rowTick=4195 backfill=0 flags=31 rowOrigin=1831.2620,-1389.1288,356.8513 rowOffsetZ=75.0001 srcOrigin=1831.2620,-1389.1288,356.8513 offsetAge=0 miss=
+147681.9 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1831.3,-1389.1,431.9
+147683.5 scene: camera mode=first-person target=1 follows=1567 holds=0 freeze=0 eye=1831.3,-1389.1,431.9 pitch=24.66 yaw=-158.00 src=demo
+147688.9 scene: clock tick=1993 entryTick=1993 serverTick=4195 serverTickKnown=1
+147690.7 scene: eye origin=1831.3,-1389.1,356.9 offsetZ=75.0001 eye=1831.3,-1389.1,431.9 viewEntity=9 originTick=4195 offsetTick=4195 offsetAge=0 life=0 obs=0 reason=applied
+147690.7 scene: eye row src=camera reqTick=4195 rowTick=4195 backfill=0 flags=31 rowOrigin=1831.2620,-1389.1288,356.8513 rowOffsetZ=75.0001 srcOrigin=1831.2620,-1389.1288,356.8513 offsetAge=0 miss=
+147698.8 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1831.3,-1389.1,431.9
+147700.3 scene: camera mode=first-person target=1 follows=1568 holds=0 freeze=0 eye=1831.3,-1389.1,431.9 pitch=24.66 yaw=-158.00 src=demo
+147706.6 scene: clock tick=1995 entryTick=1995 serverTick=4197 serverTickKnown=1
+147708.3 scene: eye origin=1818.7,-1392.9,341.7 offsetZ=75.0001 eye=1818.7,-1392.9,416.7 viewEntity=9 originTick=4197 offsetTick=4197 offsetAge=0 life=0 obs=0 reason=applied
+147708.3 scene: eye row src=camera reqTick=4197 rowTick=4197 backfill=0 flags=31 rowOrigin=1818.6973,-1392.8594,341.7313 rowOffsetZ=75.0001 srcOrigin=1818.6973,-1392.8594,341.7313 offsetAge=0 miss=
+147716.3 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1818.7,-1392.9,416.7
+147717.8 scene: camera mode=first-person target=1 follows=1569 holds=0 freeze=0 eye=1818.7,-1392.9,416.7 pitch=24.17 yaw=-160.57 src=demo
+147723.2 scene: clock tick=1996 entryTick=1996 serverTick=4199 serverTickKnown=1
+147725.0 scene: eye origin=1810.2,-1394.9,330.8 offsetZ=75.0001 eye=1810.2,-1394.9,405.8 viewEntity=9 originTick=4199 offsetTick=4199 offsetAge=0 life=0 obs=0 reason=applied
+147725.0 scene: eye row src=camera reqTick=4199 rowTick=4199 backfill=0 flags=31 rowOrigin=1810.1589,-1394.9167,330.7513 rowOffsetZ=75.0001 srcOrigin=1810.1589,-1394.9167,330.7513 offsetAge=0 miss=
+147733.4 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1810.2,-1394.9,405.8
+147735.0 scene: camera mode=first-person target=1 follows=1570 holds=0 freeze=0 eye=1810.2,-1394.9,405.8 pitch=24.17 yaw=-160.57 src=demo
+147742.3 scene: clock tick=1997 entryTick=1997 serverTick=4200 serverTickKnown=1
+147744.2 scene: eye origin=1810.2,-1394.9,330.8 offsetZ=75.0001 eye=1810.2,-1394.9,405.8 viewEntity=9 originTick=4200 offsetTick=4200 offsetAge=0 life=0 obs=0 reason=applied
+147744.2 scene: eye row src=camera reqTick=4200 rowTick=4200 backfill=0 flags=31 rowOrigin=1810.1589,-1394.9167,330.7513 rowOffsetZ=75.0001 srcOrigin=1810.1589,-1394.9167,330.7513 offsetAge=0 miss=
+147752.3 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1810.2,-1394.9,405.8
+147754.0 scene: camera mode=first-person target=1 follows=1571 holds=0 freeze=0 eye=1810.2,-1394.9,405.8 pitch=24.17 yaw=-160.57 src=demo
+147760.2 scene: clock tick=1998 entryTick=1998 serverTick=4200 serverTickKnown=1
+147761.9 scene: eye origin=1810.2,-1394.9,330.8 offsetZ=75.0001 eye=1810.2,-1394.9,405.8 viewEntity=9 originTick=4200 offsetTick=4200 offsetAge=0 life=0 obs=0 reason=applied
+147761.9 scene: eye row src=camera reqTick=4200 rowTick=4200 backfill=0 flags=31 rowOrigin=1810.1589,-1394.9167,330.7513 rowOffsetZ=75.0001 srcOrigin=1810.1589,-1394.9167,330.7513 offsetAge=0 miss=
+147770.1 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1810.2,-1394.9,405.8
+147771.6 scene: camera mode=first-person target=1 follows=1572 holds=0 freeze=0 eye=1810.2,-1394.9,405.8 pitch=24.17 yaw=-160.57 src=demo
+147776.8 scene: clock tick=1999 entryTick=1999 serverTick=4202 serverTickKnown=1
+147778.6 scene: eye origin=1797.4,-1398.0,312.9 offsetZ=75.0001 eye=1797.4,-1398.0,387.9 viewEntity=9 originTick=4202 offsetTick=4202 offsetAge=0 life=0 obs=0 reason=applied
+147778.6 scene: eye row src=camera reqTick=4202 rowTick=4202 backfill=0 flags=31 rowOrigin=1797.3514,-1398.0028,312.9313 rowOffsetZ=75.0001 srcOrigin=1797.3514,-1398.0028,312.9313 offsetAge=0 miss=
+147787.4 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1797.4,-1398.0,387.9
+147789.0 scene: camera mode=first-person target=1 follows=1573 holds=0 freeze=0 eye=1797.4,-1398.0,387.9 pitch=24.17 yaw=-160.57 src=demo
+147794.2 scene: clock tick=2000 entryTick=2000 serverTick=4203 serverTickKnown=1
+147796.0 scene: eye origin=1797.4,-1398.0,312.9 offsetZ=75.0001 eye=1797.4,-1398.0,387.9 viewEntity=9 originTick=4203 offsetTick=4203 offsetAge=0 life=0 obs=0 reason=applied
+147796.0 scene: eye row src=camera reqTick=4203 rowTick=4203 backfill=0 flags=31 rowOrigin=1797.3514,-1398.0028,312.9313 rowOffsetZ=75.0001 srcOrigin=1797.3514,-1398.0028,312.9313 offsetAge=0 miss=
+147804.0 scene: staticProps available=1 instances=1107 visible=429 pvsRejected=678 drawn=429 missingMesh=0 budget=4077 eyeCluster=732 eye=1797.4,-1398.0,387.9
+147805.5 scene: camera mode=first-person target=1 follows=1574 holds=0 freeze=0 eye=1797.4,-1398.0,387.9 pitch=24.17 yaw=-160.57 src=demo
+147826.9 capture: frame width=1264 height=681 dpi=96
