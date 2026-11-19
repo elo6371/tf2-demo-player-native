@@ -39,6 +39,7 @@
 
 namespace tf2::native {
 class ReviewSession;
+class Renderer;
 }  // namespace tf2::native
 
 namespace tf2::native::main_internal {
@@ -51,6 +52,12 @@ double traceNowMs();
 void traceCheckpoint(const char* what);
 void traceFmt(const char* format, ...);
 void openTrace();
+
+// ------------------------------------------------ renderer self-test (N24 P1)
+// Moved out of main.cpp by N24 phase 1 (2026-11-19) as pure code motion; the
+// trace text, the --renderer-resize-selftest switch and the exit codes
+// (0 pass, 14 initialize failed, 15 checks failed) are unchanged.
+int runRendererSelftest(tf2::native::Renderer& renderer, HWND window, bool faultSpecIgnored);
 
 // ----------------------------------------------------- installer lifecycle
 // T37 (moved out of main.cpp:72-151): four modes, not "a playback run with a

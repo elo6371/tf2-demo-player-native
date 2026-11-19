@@ -15,6 +15,10 @@
 # ---------------------------------------------------------------------------
 add_executable(tf2_demo_native WIN32
   src/main.cpp
+  # N24 phase 1 (2026-11-19): the renderer resize/render self-test moved out of
+  # main.cpp as pure code motion -- body verbatim, same trace text and exit
+  # codes (docs/N24-MAIN-SPLIT-PLAN-2026-11-16.md section 7).
+  src/main_selftest.cpp
   # T76: the two translation units split out of main.cpp -- the trace
   # checkpoint channel and the T37 installer lifecycle -- with their shared
   # declarations in src/main_internal.h. Code motion only: the command line,
