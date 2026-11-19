@@ -147,19 +147,64 @@
 
 对上引擎语义时，下面这些公开源码库可以直接对读。**只做交叉验证：不要抄进补丁，也不许声称你编译/读过整个库。**
 
-| 参考库 | 用来对什么 |
-|---|---|
-| `https://github.com/ValveSoftware/source-sdk-2013` | 同代 Source 引擎的 client/server 源码：粒子系统与 operator 求值（`src/game/client/` 下的 particles 相关文件）、studio 模型头与 LOD（`public/studio.h`、mdllib）、材质与 UV 处理。**G3 的 operator 语义、G2 的 switch 距离字段以这里为准。** |
-| `https://github.com/ValveSoftware/Source-1-Games` | Source 1 各游戏的游戏层代码（按分支发布）。TF2 侧实体动画状态、viewmodel 门闩的官方写法参照这里。**G8 对读这个。** |
-| `https://github.com/ValveSoftware/halflife` | HL1 SDK。只作老式粒子/精灵实现的对照，**不要**拿它推断 Source 引擎行为。 |
+| 参考库 | 星 | 说明 |
+|---|---|---|
+| `https://github.com/OthmanAba/TeamFortress2` | 321 | 2020-04-22 泄露原版，最完整 |
+| `https://github.com/sr2echa/TF2-Source-Code` | 80 | 同一份的镜像 |
+| `https://github.com/lua9520/source-engine-2018-hl2_src` | 324 | 2018 年版泄露 |
+| `https://github.com/NicknineTheEagle/TF2-Base` | 286 | **合法替代**：把老版 TF2 移植到官方开源的 `source-sdk-2013` 上 |
+| `https://github.com/ValveSoftware/source-sdk-2013` | 10140 | Valve 官方开源的同代 Source 引擎与游戏层代码 |
+| `https://github.com/ValveSoftware/Source-1-Games` | — | Source 1 各游戏的游戏层代码（按分支发布） |
+| `https://github.com/ValveSoftware/halflife` | — | HL1 SDK，只作老式粒子/精灵对照 |
 
-对读规则：
+### 7.2 Demo 解析器（对你项目最有用）
+
+| 仓库 | 语言 | 说明 |
+|---|---|---|
+| `https://github.com/demostf/parser` | Rust | 事实标准，demo.tf 官网在用 |
+| `https://github.com/demostf/demo.js` | TypeScript | 是解析规范的另一份实现，适合对拍字段语义 |
+| `https://github.com/PazerOP/DemoLib2` | C++ | 完整重实现，最接近本仓技术栈 |
+| `https://github.com/Nocrex/tf2-demo-player` | Rust | 同样是播放器，可对读播放语义 |
+| `https://github.com/programmer1o1/demoscope` | Rust | 通用 demo 解析 + 3D 可视化 |
+
+**用途**：本仓 `native/` 有自研 `.dem` 解析。核字段语义（tick 语义、`temp_entities`、`usercmd`、字符串表）时以 `demostf/parser` 与 `demostf/demo.js` 为准，不要凭猜测改解析器。
+
+### 7.3 BSP 地图解析
+
+| 仓库 | 语言 | 说明 |
+|---|---|---|
+| `https://github.com/Galaco/bsp` | Go | 轻量 BSP 读取，适合核 lump 结构与边界 |
+| `https://github.com/tasbox-org/source-parsers` | C++ | 完整 Source 格式解析，含 BSP/VPK |
+| `https://github.com/pySourceSDK/ValveBSP` | Python | 便于快速比对某个 lump |
+
+**用途**：对读 `native/src/bsp_map.cpp` 的 lump 解析、`sky_camera` 字段（`:628-640`）、面/顶点索引的符号与范围。
+
+### 7.4 物品 Schema（后续 HUD/装备显示用）
+
+| 仓库 | 说明 |
+|---|---|
+| `https://github.com/SteamTracking/GameTracking-TF2` | 自动追踪每次更新，schema 与本地化字符串都在 |
+| `https://github.com/tsuza/tf2-item-schema` | 持续更新的 item schema |
+
+### 7.5 用在哪（任务 → 参考库）
+
+| 任务 | 对读哪个 |
+|---|---|
+| G2 LOD 选级 | `source-sdk-2013` 的 `public/studio.h` 与 studio 渲染代码（switch 距离、LOD 记录布局） |
+| G3 粒子 operator 求值 | `source-sdk-2013` 的 client 粒子代码；TF2 特有 operator 用 `TF2-Base` 核 |
+| G7 逐顶点 UV / 纹理 | `source-sdk-2013` 的 materialsystem 相关代码 |
+| G8 viewmodel 门闩 | `TF2-Base`（合法）优先，泄露源仅交叉检查 |
+| `.dem` 字段语义 | `demostf/parser`、`demostf/demo.js`、`DemoLib2` |
+| BSP lump / 实体 | `Galaco/bsp`、`tasbox-org/source-parsers`、`ValveBSP` |
+| G4/G1/G5/G6 | 与本条无关，不必对读外部库 |
+
+### 7.6 对读规则（违规即退回）
 
 1. 引用任何外部源码结论，必须写「库 + 路径 + 文件 + 行号」，并说明它对应本仓哪一处（本仓行号）。
 2. 外部源码只能解释**语义**，不能证明「本仓现在是什么样」——本仓的证据只认本仓行号与本仓文档里的字节读数。
 3. 链接打不开或版本对不上，就以本仓 `docs/` 里已有的证据为准，并在交付里标注「未能对读外部源码」。
-4. 外部库的许可证与本仓不同，**一行代码都不许复制进来**；只许按语义重写。
-
+4. 外部库许可证与本仓不同，**一行代码都不许复制进来**；只许按语义重写。
+5. 泄露源（7.1 前三行）只许用来核「某个字段是什么意思」，**不许复制、不许出现在提交信息/文档/交付物里**；能用 `TF2-Base`、`Source-1-Games` 解释的就不要碰泄露源。
 ## 8 你上次踩过的坑（这次别踩）
 
 1. P9 补丁用 **4 空格**缩进、仓库是 2 空格 → 三个 hunk 全 `patch does not apply`。这次先确认缩进。
