@@ -9,41 +9,43 @@
 # one exe (whatever is at native/build-nmake), loops the 7 maps x 2 columns
 # through it, and writes one row per cell with the readings that row is made of.
 #
-# TICK: 2000 by default, not the 30000/40000 the older single-map evidence used.
-# Measured once the wrong way round: a 100 MB POV demo asked for tick 20000 hit
-# the 420 s ceiling (rc=124) before it drew a frame, and a matrix that spends
-# seven minutes per POV cell is a matrix nobody reruns. Tick 2000 is deep enough
-# to be past the spawn and inside the match, and it is the same tick in both
-# columns, which is what the comparison actually needs. Override with N11_TICK.
+# TICK: 2000 by default. Measured the wrong way round once: a 100 MB POV demo
+# asked for tick 20000 hit the 420 s ceiling (rc=124) before it drew a frame, and
+# a matrix that spends seven minutes per POV cell is a matrix nobody reruns. Tick
+# 2000 is past the spawn and inside the match, and it is the same tick in both
+# columns, which is what the comparison needs. Override with N11_TICK.
+#
+# CAMERA: read from "scene: camera ... eye=x,y,z ... src=demo|follow|free|camera".
+# The first cut read "scene: eye origin=", which only the POV path emits (it is
+# tied to a local player); every STV cell then read eye="?" and the matrix scored
+# its own healthy runs as failures. The camera line is emitted in both columns.
+# "scene: eye" is still required for POV cells, where it exists.
 #
 # What it records per cell (all from that single run's own trace):
 #   map, column, demo, tick requested / tick the frame was drawn on,
-#   the eye origin the trace reported, the static-props PVS tally,
+#   camera eye x,y,z, camera src, the static-props PVS tally,
 #   how many world tile-fill lines the material path emitted,
 #   capture byte size + sha256.
-# The trace lines are NOT at column 0: main_trace.cpp prefixes every line with
-# seconds since start ("108985.5 scene: eye ..."), so every grep here is
-# unanchored on purpose. The first cut anchored them and read nothing.
+# Trace lines are NOT at column 0: main_trace.cpp prefixes each with seconds
+# since start ("108985.5 scene: eye ..."), so the greps are unanchored on purpose.
 #
-# What it asserts (this is a recorder AND a gate):
+# Assertions:
 #   * every cell ran to rc=0 and wrote a non-empty BMP,
-#   * every cell's trace carries a "scene: eye" and a "capture: frame" line,
-#   * within a map, POV and STV captures are NOT byte-identical (a matrix cell
-#     that reproduces the other column is not evidence for either).
-# What it does NOT assert: that the picture is right. That is the D01 question
-# (docs/DEFECT-REGISTER-MASTER-2026-11-14.md), and it needs eyes on pixels.
+#   * every cell's trace carries "scene: camera" and "capture: frame",
+#   * POV cells also carry "scene: eye",
+#   * within a map, POV and STV captures are NOT byte-identical.
+# What it does NOT assert: that the picture is right -- that is D01.
 #
 # Cost: 14 product launches, each loading a 56-147 MB demo. Run it under the
 # host lock (hostlock.sh run n11-matrix ...) and in the background.
 #
-# Outputs: evidence/n11-matrix/readings.tsv (one row per cell), evidence/n11-matrix/
-#   runs/<map>-<col>.txt (the grep-extracted trace lines, small),
-#   evidence/n11-matrix/runs/<map>-<col>.columns (raw BMP/rc provenance lines).
-#   The BMPs and the full traces stay in .scratch/n11-matrix (tens of MB each).
+# Outputs: evidence/n11-matrix/readings.tsv, evidence/n11-matrix/runs/<tag>.txt
+#   (extracted trace lines), evidence/n11-matrix/runs/<tag>.columns (provenance).
+#   BMPs and full traces stay in .scratch/n11-matrix.
 #
-# Exit: 0 every cell has its readings and every assertion holds
+# Exit: 0 every cell has readings and every assertion holds
 #       (prints N11-SEVEN-MAP-MATRIX=PASS); 1 a cell is missing or an assertion
-#       fails; 2 usage/environment error (missing exe, missing demo).
+#       fails; 2 usage/environment error.
 set -uo pipefail
 cd "$(dirname "$0")/.." 2>/dev/null || {
   echo "FATAL: script is not inside the repository" >&2; exit 2; }
@@ -64,9 +66,7 @@ done
 mkdir -p "$SCRATCH" "$OUT/runs"
 rm -f "$OUT/readings.tsv"
 
-# map|POV demo|STV demo -- relative to $DEMO_ROOT/<map>/ . Byte sizes and the
-# "which of these is a real match recording" question live in the N11 doc; this
-# script takes the files as given and lets the trace say what map they are.
+# map|POV demo|STV demo -- relative to $DEMO_ROOT/<map>/.
 PAIRS=(
   "cp_process_f12|POV/autorecord_2026-09-03_21-05-39.dem|STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem"
   "cp_gullywash_f9|POV/autorecord_2026-05-21_21-08-36.dem|STV/gully4454.dem"
@@ -83,17 +83,15 @@ ISO_SETTINGS="$ISO_DIR/settings.ini"
 ISO_UI="$ISO_DIR/ui.ini"
 trap 'rm -rf "$ISO_DIR"' EXIT
 
-printf 'map\tcolumn\tdemo\ttick_requested\ttick_landed\teye\tsrc\tstaticProps\ttiles\tbmp_bytes\tbmp_sha256\trc\n' > "$OUT/readings.tsv"
+printf 'map\tcolumn\tdemo\ttick_requested\ttick_landed\teye\tcamera_src\tstaticProps\ttiles\tbmp_bytes\tbmp_sha256\trc\n' > "$OUT/readings.tsv"
 
 run_cell() { # run_cell <map> <col> <demo-abs> <tick> -> prints "rc bmp"
   local map="$1" col="$2" demo="$3" tick="$4"
   local tag="${map}-${col}"
   local bmp="$SCRATCH/${tag}.bmp"
   local trace="$SCRATCH/${tag}.trace"
-  local trace_win
   rm -f "$bmp" "$bmp.csv" "$trace" "$SCRATCH/${tag}-t${tick}.log"
-  trace_win=$(cygpath -w "$trace")
-  TF2_NATIVE_TRACE="$trace_win" timeout "$RUN_TIMEOUT" "$EXE" \
+  TF2_NATIVE_TRACE="$(cygpath -w "$trace")" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
     --settings-file "$ISO_SETTINGS" --ui-settings-file "$ISO_UI" \
     --demo "$demo" --capture-tick "$tick" \
@@ -105,7 +103,7 @@ run_cell() { # run_cell <map> <col> <demo-abs> <tick> -> prints "rc bmp"
 
 extract_cell() { # extract_cell <tag> <trace>
   local tag="$1" trace="$2"
-  grep -aE '(scene: (eye|cameraFilter|staticProps|clock)|capture: frame|demo: (open|map)|gpu: models done)' \
+  grep -aE '(scene: (eye|camera|cameraFilter|staticProps|clock)|capture: (frame|fov)|demo: (open|map)|gpu: models done)' \
     "$trace" > "$OUT/runs/${tag}.txt" 2>/dev/null || true
   [ -s "$OUT/runs/${tag}.txt" ]
 }
@@ -124,10 +122,8 @@ for pair in "${PAIRS[@]}"; do
     fi
     read -r rc bmp <<< "$(run_cell "$map" "$col" "$demo" "$TICK")"
     trace="$SCRATCH/${tag}.trace"
-    # A cell that times out at the requested tick is retried once, at a low
-    # tick, and the retry is recorded as such rather than reported as the same
-    # reading. The old run's first attempt (tick 20000) hit rc=124 on the
-    # 100 MB process POV demo; that is a cost problem, not a demo problem.
+    # A cell that times out at the requested tick is retried once at a low tick
+    # and recorded as such, rather than reported as the same reading.
     if [ "$rc" -ne 0 ] || [ ! -s "$bmp" ]; then
       echo "RETRY $tag at tick=$FALLBACK_TICK (first attempt rc=$rc)"
       read -r rc bmp <<< "$(run_cell "$map" "$col" "$demo" "$FALLBACK_TICK")"
@@ -136,24 +132,32 @@ for pair in "${PAIRS[@]}"; do
     bytes=0; [ -f "$bmp" ] && bytes=$(stat -c %s "$bmp" 2>/dev/null || echo 0)
     sha="-"; [ "$bytes" -gt 0 ] && sha=$(sha256sum "$bmp" | cut -c1-16)
     tick_landed=$(grep -aE 'scene: clock tick=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*tick=\(-\?[0-9][0-9]*\).*/\1/p')
-    eye=$(grep -aE 'scene: eye origin=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*origin=\([^ ]*\).*/\1/p')
-    src=$(grep -aE 'scene: eye row src=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*src=\([^ ]*\).*/\1/p')
+    cam=$(grep -aE 'scene: camera mode=' "$trace" 2>/dev/null | tail -1)
+    eye=$(printf '%s' "$cam" | sed -n 's/.* eye=\([^ ]*\).*/\1/p')
+    src=$(printf '%s' "$cam" | sed -n 's/.* src=\([^ ]*\).*/\1/p')
     props=$(grep -aE 'scene: staticProps available=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*available=\([0-9]*\) instances=\([0-9]*\) visible=\([0-9]*\) pvsRejected=\([0-9]*\) drawn=\([0-9]*\).*/\1\/\2\/\3\/\4\/\5/p')
     tiles=$(grep -acE 'gpu: world tile-fill' "$trace" 2>/dev/null || true)
     tiles=${tiles:-0}
+    frames=$(grep -acE 'capture: frame' "$trace" 2>/dev/null || true)
+    frames=${frames:-0}
+    eyes=$(grep -acE 'scene: eye origin=' "$trace" 2>/dev/null || true)
+    eyes=${eyes:-0}
     row_ok=0
-    if [ "$rc" -eq 0 ] && [ "$bytes" -gt 0 ] && [ -n "${eye:-}" ] && [ -n "${tick_landed:-}" ] && extract_cell "$tag" "$trace"; then row_ok=1; fi
+    if [ "$rc" -eq 0 ] && [ "$bytes" -gt 0 ] && [ -n "${eye:-}" ] && [ -n "${tick_landed:-}" ] \
+       && [ "$frames" -gt 0 ] && extract_cell "$tag" "$trace"; then
+      if [ "$col" = "STV" ] || [ "$eyes" -gt 0 ]; then row_ok=1; fi
+    fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$map" "$col" "$(basename "$demo")" "$TICK" "${tick_landed:-?}" "${eye:-?}" "${src:-?}" "${props:-?}" "${tiles:-0}" "$bytes" "$sha" "$rc" >> "$OUT/readings.tsv"
-    printf 'cell=%s rc=%s bytes=%s sha=%s tick_landed=%s eye=%s\n' "$tag" "$rc" "$bytes" "$sha" "${tick_landed:-?}" "${eye:-?}" >> "$OUT/runs/${tag}.columns"
-    if [ "$row_ok" -eq 1 ]; then ok=$((ok+1)); echo "OK   $tag tick=${tick_landed:-?} bytes=$bytes"; else echo "FAIL $tag rc=$rc bytes=$bytes"; fi
+    printf 'cell=%s rc=%s bytes=%s sha=%s tick_landed=%s eye=%s camera_src=%s eye_lines=%s\n' \
+      "$tag" "$rc" "$bytes" "$sha" "${tick_landed:-?}" "${eye:-?}" "${src:-?}" "$eyes" >> "$OUT/runs/${tag}.columns"
+    if [ "$row_ok" -eq 1 ]; then ok=$((ok+1)); echo "OK   $tag tick=${tick_landed:-?} eye=${eye:-?} src=${src:-?} bytes=$bytes"; else echo "FAIL $tag rc=$rc bytes=$bytes"; fi
     rm -f "$bmp"
   done
 done
 
-# Cross-column assertion: for every map that produced both columns, the two
-# BMPs must differ. The BMPs are deleted once their hashes are taken, so the
-# check reads the TSV rather than the files.
+# Cross-column assertion: per map, POV and STV must not be byte-identical. The
+# BMPs are deleted once hashed, so the check reads the TSV.
 dup=0
 for map in $(cut -f1 "$OUT/readings.tsv" | tail -n +2 | sort -u); do
   p=$(awk -F'\t' -v m="$map" '$1==m && $2=="POV"{print $11}' "$OUT/readings.tsv")
