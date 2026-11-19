@@ -1,0 +1,41 @@
+  RUNS 9 in 839 s (jobs=4)
+  RUN default tick=16780 rc=0 bytes=2582406
+  RUN legacy-crouch tick=14765 rc=0 bytes=2582406
+  RUN legacy tick=16780 rc=0 bytes=2582406
+  RUN states-flinch tick=16780 rc=0 bytes=2582406
+  RUN states-flinch-repeat tick=16780 rc=0 bytes=2582406
+  RUN states-crouch tick=14765 rc=0 bytes=2582406
+  RUN states-crouch-b tick=14800 rc=0 bytes=2582406
+  RUN states-cover tick=20000 rc=0 bytes=2582406
+  RUN early tick=12000 rc=0 bytes=2582406
+
+== readings
+  OK   A default frame == --animation-drive legacy frame (md5 28a62efc448a1e59d4344d385e751c76)
+  OK   A legacy trace carries no animdsum line
+  OK   A legacy trace still carries the T61 lines (anim: pick x7, animsum x7034)
+  OK   B the states trace names state=flinch (x24) and plays a_flinch frames (x14624)
+  OK   B the legacy trace names no state and plays no flinch (legacy is still the T61 path)
+  LINE B flinch tick 16780 md5 28a62efc448a1e59d4344d385e751c76 (states) vs 28a62efc448a1e59d4344d385e751c76 (legacy) -- identical is EXPECTED here, that body draws no pixels
+  OK   B repeated states run at tick 16780 is byte-identical
+  OK   B both crouch ticks name the same state (state=crouch)
+  OK   B crouch layer reached the frame: states 13ba87bb1c011d1a5cbb766bdd47fde0 != legacy e01e7b3403225025bdd67c1e463d2646 at tick 14765
+  LINE B crouch tick 14765 md5 13ba87bb1c011d1a5cbb766bdd47fde0, tick 14800 md5 2426c44445f496808f9ea3a0683b0d2e (state=crouch both)
+  OK   C state=crouch needle=crouch reason=flags-duck
+  OK   C state=crouchwalk needle=crouch reason=flags-duck
+  OK   C state=flinch needle=flinch reason=health-drop
+  LINE C peak over 8831 animdsum frames: crouch=2 crouchwalk=2(tick=11355) flinch=7 flinchStarts=7(tick=12016) fallback=10
+  LINE C last frame: 336151.0 animdsum: tick=29526 crouch=0 crouchwalk=1 flinch=5 flinchStarts=0 fallback=5
+  OK   C the playback reached crouch=2 in at least one frame
+  OK   C the playback reached crouchwalk=2 in at least one frame
+  OK   C the playback reached flinch=7 in at least one frame
+  OK   C the playback reached flinchStarts=7 in at least one frame
+  OK   C the playback reached fallback=10 in at least one frame
+  READINGS=PASS
+
+== negative controls
+  OK   negative control 1-flinch-renamed failed as required:   FAIL C no trace line names state=flinch
+  OK   negative control 2-flinch-stripped failed as required:   FAIL B the states trace never names state=flinch (state lines x0, a_flinch frames x0)
+  OK   negative control 3-crouch-as-legacy failed as required:   FAIL B the crouch layer did not reach the frame: states and legacy are byte-identical at tick 14765 (e01e7b3403225025bdd67c1e463d2646 vs e01e7b3403225025bdd67c1e463d2646)
+  OK   negative control 4-dsum-stripped failed as required:   FAIL C no animdsum line in the cover run trace
+
+  SUMMARY failures=0 controls=4/4

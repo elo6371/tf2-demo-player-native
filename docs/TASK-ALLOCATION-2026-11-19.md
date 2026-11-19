@@ -36,7 +36,7 @@
 | L4 | `/analyze` 全树重扫 | **完成（2026-11-19 13:57）55 target / 136 TU / 19 警告 / 失败 0** | `docs/ANALYZE-FULL-TREE-2026-11-19.md`；入库 `evidence/analyze/2026-11-19-summary.tsv`；对 P9 前的两个 target −3 条 |
 | L5 | ASan 两条路径（model / material） | **完成（2026-11-19 14:13）104 用例 / 报告 0 / hit-rows 0** | `docs/ASAN-MODEL-MATERIAL-2026-11-19.md`；读数入库 `evidence/asan-2026-11-19/`；22 个非零退出逐条归因 |
 | L6 | CI 首跑排查（`.github/workflows/tier1.yml` 在仓但零运行） | **已推 `candidate/ci-smoke`（`b83a9c2e`）触发；本机到 api.github.com 不可达，结果只能远端看** | 要么首次真跑绿灯，要么写清被什么挡住 |
-| L7 | T84 成本：3848 s → 目标 < 2400 s | 待做 | 同读数的前提下压缩时长，仍 4/4 负控 |
+| L7 | T84 成本：3848 s → 目标 < 2400 s | **完成（2026-11-19 14:48）1,713 s、2.25×、九帧 md5 不变** | 门禁新增 `--jobs N`（默认 1）；`--jobs 4` 跑法见 `evidence/t84-animdrive/parallel-jobs4/README.md`，读数同目录 |
 | L8 | 每轮进度回写（本文件 + STATUS-REPORT + TASK-LIST） | 持续 | 每次提交带读数 |
 
 优先级：L2 → L3 → L4（后台跑）→ L5 → L7 → L6。

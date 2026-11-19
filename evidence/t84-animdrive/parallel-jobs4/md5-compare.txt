@@ -1,0 +1,15 @@
+# parallel --jobs 4 frame md5 vs the 2026-11-19 serial reference
+#
+# left  = evidence this run wrote under /d/_shared/t84-jobs4/ (T84_STATES_OUT)
+# right = /d/_shared/n25-drive/, the serial PASS of 2026-11-19 (3848 s)
+# every pair is identical: overlapping runs did not move a single pixel.
+
+default.bmp             28a62efc448a1e59d4344d385e751c76 28a62efc448a1e59d4344d385e751c76
+early.bmp               ef98d7e9064ff520c5b46439877e42f7 ef98d7e9064ff520c5b46439877e42f7
+legacy-crouch.bmp       e01e7b3403225025bdd67c1e463d2646 e01e7b3403225025bdd67c1e463d2646
+legacy.bmp              28a62efc448a1e59d4344d385e751c76 28a62efc448a1e59d4344d385e751c76
+states-cover.bmp        451174a07d5b5720bcaf0862485925b3 451174a07d5b5720bcaf0862485925b3
+states-crouch-b.bmp     2426c44445f496808f9ea3a0683b0d2e 2426c44445f496808f9ea3a0683b0d2e
+states-crouch.bmp       13ba87bb1c011d1a5cbb766bdd47fde0 13ba87bb1c011d1a5cbb766bdd47fde0
+states-flinch-repeat.bmp 28a62efc448a1e59d4344d385e751c76 28a62efc448a1e59d4344d385e751c76
+states-flinch.bmp       28a62efc448a1e59d4344d385e751c76 28a62efc448a1e59d4344d385e751c76

@@ -62,9 +62,16 @@
 # the machine is shared; it does not take the lock itself (same convention as
 # frame-capture-check.sh: the runner holds it).
 #
-# Usage: bash animation-drive-states-check.sh [--skip-negative-controls]
+# Usage: bash animation-drive-states-check.sh [--skip-negative-controls] [--jobs N]
 #        --playback-speed is REFUSED (exit 2): the flinchStarts peak it asserts is
 #        an edge reading whose value follows sampling density (D59).
+#        --jobs N (N>1) starts N of the nine captures at a time instead of one after
+#        another. The readings are NOT speed-derived: every run still starts from the
+#        demo's first tick and advances to the same --capture-tick, and the assertion
+#        set is unchanged. What changes is only how many processes decode at once, and
+#        each run gets its own copy of the isolated settings pair so concurrent exits
+#        cannot clobber the next run's inputs. Default is 1 (the historical serial
+#        behaviour); D57's <40 min single-lock rule is what makes the opt-in worth it.
 # Exit:  0 = every reading held and all four controls failed for their named
 #            reason; the last line is ANIMATION-DRIVE-STATES=PASS.
 #        1 = a reading or a control did not hold.
@@ -115,6 +122,7 @@ TIMEOUT=420
 
 SKIP_NEG=0
 DRY_RUN=0
+JOBS=1
 # --controls-only re-drives the negative controls (and re-reads the artifacts) over an
 # OUT this gate already filled, WITHOUT starting the nine product runs (67 min). Added
 # 2026-11-15: the four control reasons came back empty because of a glued grep flag
@@ -122,9 +130,11 @@ DRY_RUN=0
 # re-capture every attempt. It refuses an OUT that lacks any frame or trace the
 # checker reads, so a stale or partial OUT fails loudly instead of "passing".
 CONTROLS_ONLY=0
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --skip-negative-controls) SKIP_NEG=1 ;;
+    --jobs) JOBS="${2:-}"; shift ;;
+    --jobs=*) JOBS="${1#--jobs=}" ;;
     --dry-run) DRY_RUN=1 ;;
     --controls-only) CONTROLS_ONLY=1 ;;
     --playback-speed|--playback-speed=*)
@@ -134,9 +144,14 @@ for arg in "$@"; do
       echo "       in the same commit if a different speed is ever needed, and re-take" >&2
       echo "       every reading (see the SAMPLING DENSITY block in this file's header)." >&2
       exit 2 ;;
-    *) echo "FATAL: unknown argument: $arg"; exit 2 ;;
+    *) echo "FATAL: unknown argument: $1"; exit 2 ;;
   esac
+  shift
 done
+case "$JOBS" in
+  ''|*[!0-9]*) echo "FATAL: --jobs expects a positive integer" >&2; exit 2 ;;
+esac
+[ "$JOBS" -ge 1 ] || { echo "FATAL: --jobs expects a positive integer" >&2; exit 2; }
 
 for path in "$EXE" "$DEMO" ${COVER_DEMO:+"$COVER_DEMO"}; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 2; }
@@ -170,6 +185,28 @@ run_capture() { # run_capture <name> <tick> [extra args...]
   local bmp="$OUT/$name.bmp" trace="$OUT/$name.trace" log="$OUT/$name.log"
   rm -f "$bmp" "$trace" "$log" "$OUT/$name.csv"
   local demo="${RUN_DEMO:-$DEMO}"
+  # One settings pair per run when captures overlap: the product writes its settings
+  # back on exit, so two concurrent runs sharing one file would hand each other a
+  # mid-flight copy and the next run would start from a different state than the one
+  # this gate seeded. Serial runs keep using the seeded pair untouched, which is what
+  # every reading taken before 2026-11-19 used.
+  local settings="$ISO_SETTINGS" ui="$ISO_UI"
+  if [ "$JOBS" -gt 1 ]; then
+    mkdir -p "$OUT/iso"
+    cp "$ISO_SETTINGS" "$OUT/iso/$name.settings.ini"
+    # ui.ini is not seeded by verify-iso.sh: the product creates it on exit, so on a
+    # fresh worktree the first run is handed a path that does not exist yet. Copy it
+    # when it does exist, otherwise hand this run an empty file of its own -- an empty
+    # ui.ini means the same thing to the product as a missing one, and two concurrent
+    # runs no longer write the same file on exit.
+    if [ -f "$ISO_UI" ]; then
+      cp "$ISO_UI" "$OUT/iso/$name.ui.ini"
+    else
+      : > "$OUT/iso/$name.ui.ini"
+    fi
+    settings="$OUT/iso/$name.settings.ini"
+    ui="$OUT/iso/$name.ui.ini"
+  fi
   # --player-animation is on EVERY run, including the two legacy ones. Without
   # it the T61 path (anim: pick / animsummary) never executes, so "legacy is
   # untouched" would be measured on a binary path the gate never entered -- the
@@ -185,19 +222,61 @@ run_capture() { # run_capture <name> <tick> [extra args...]
   # with cygpath -w, exactly as build-identity-check.sh does for the same reason.
   trace_env=$(cygpath -w "$trace")
   TF2_NATIVE_TRACE="$trace_env" timeout "$TIMEOUT" "$EXE" --tf-root "$TF" \
-    --settings-file "$ISO_SETTINGS" \
-    --ui-settings-file "$ISO_UI" \
+    --settings-file "$settings" \
+    --ui-settings-file "$ui" \
     --audio-device "$AUDIO_DEVICE" --demo "$demo" --capture-tick "$tick" \
     --capture-frame "$bmp" --metrics-file "$OUT/$name.csv" \
     --player-animation "$@" > "$log" 2>&1
   local rc=$?
   echo "$rc" > "$OUT/$name.rc"
-  if [ -s "$bmp" ]; then
-    echo "  RUN $name tick=$tick rc=$rc bytes=$(wc -c < "$bmp")" | tee -a "$GATE_LOG"
-  else
-    echo "  RUN $name tick=$tick rc=$rc BMP-MISSING" | tee -a "$GATE_LOG"
-  fi
   return $rc
+}
+
+# The nine captures are independent: same demo, same starting tick, same assertion
+# set, only the capture tick and the --animation-drive argument differ. JOBS>1 starts
+# them in waves of N and waits for the wave before the next one. Nothing about the
+# readings is speed-derived -- that is exactly why --playback-speed is refused below
+# (D59: the flinchStarts peak is an edge reading) -- so overlapping runs cannot move
+# a number; they only share the machine. Report lines are printed after the capture
+# phase in both modes, so serial and parallel output are the same shape.
+QUEUE_NAME=() QUEUE_TICK=() QUEUE_DEMO=() QUEUE_ARGS=()
+queue_capture() { # queue_capture <name> <tick> [extra args...]
+  local name="$1" tick="$2"; shift 2
+  QUEUE_NAME+=("$name")
+  QUEUE_TICK+=("$tick")
+  QUEUE_DEMO+=("${RUN_DEMO:-$DEMO}")
+  # Word-split on purpose: every extra argument this gate passes is a bare token
+  # (--animation-drive <mode>), so joining with a space round-trips exactly.
+  QUEUE_ARGS+=("$*")
+}
+
+flush_captures() {
+  local total=${#QUEUE_NAME[@]} i=0 j pids=()
+  while [ "$i" -lt "$total" ]; do
+    pids=()
+    j=0
+    while [ "$j" -lt "$JOBS" ] && [ "$i" -lt "$total" ]; do
+      ( RUN_DEMO="${QUEUE_DEMO[$i]}" run_capture "${QUEUE_NAME[$i]}" "${QUEUE_TICK[$i]}" ${QUEUE_ARGS[$i]} ) &
+      pids+=($!)
+      i=$((i + 1)); j=$((j + 1))
+    done
+    # A failing capture is not a shell error here: its .bmp/.rc pair is the record,
+    # and report_capture turns that pair into the FAIL line and the exit code.
+    wait "${pids[@]}" 2>/dev/null || true
+  done
+}
+
+report_capture() { # report_capture <name> <tick> <failure-message>
+  local name="$1" tick="$2" msg="$3"
+  local rc
+  rc="$(cat "$OUT/$name.rc" 2>/dev/null || true)"
+  rc="${rc:-missing}"
+  if [ -s "$OUT/$name.bmp" ]; then
+    say "  RUN $name tick=$tick rc=$rc bytes=$(wc -c < "$OUT/$name.bmp")"
+  else
+    say "  RUN $name tick=$tick rc=$rc BMP-MISSING"
+  fi
+  [ "$rc" = "0" ] && [ -s "$OUT/$name.bmp" ] || failure "$msg"
 }
 
 
@@ -447,17 +526,29 @@ if [ "$CONTROLS_ONLY" -eq 1 ]; then
   say "  REUSED-OUT $OUT (nine captures already present; this invocation starts no product process)"
   say "  reused exe: $EXE"
 else
-run_capture default          "$FLINCH_TICK" || failure "default run did not capture"
+capture_started=$(date +%s)
+queue_capture default          "$FLINCH_TICK"
 # The legacy frame AT THE CROUCH TICK. B3 needs the same tick as states-crouch,
 # otherwise "the layer reached the frame" would compare two different moments.
-run_capture legacy-crouch    "$CROUCH_TICK" --animation-drive legacy || failure "legacy crouch run did not capture"
-run_capture legacy           "$FLINCH_TICK" --animation-drive legacy || failure "legacy run did not capture"
-run_capture states-flinch    "$FLINCH_TICK" --animation-drive states || failure "states flinch run did not capture"
-run_capture states-flinch-repeat "$FLINCH_TICK" --animation-drive states || failure "states repeat run did not capture"
-run_capture states-crouch    "$CROUCH_TICK" --animation-drive states || failure "states crouch run did not capture"
-run_capture states-crouch-b  "$SAME_STATE_TICK_B" --animation-drive states || failure "states same-state run did not capture"
-RUN_DEMO="$COVER_DEMO" run_capture states-cover "$COVER_TICK" --animation-drive states || failure "states cover run did not capture"
-run_capture early            "$EARLY_TICK" --animation-drive states || failure "early run did not capture"
+queue_capture legacy-crouch    "$CROUCH_TICK" --animation-drive legacy
+queue_capture legacy           "$FLINCH_TICK" --animation-drive legacy
+queue_capture states-flinch    "$FLINCH_TICK" --animation-drive states
+queue_capture states-flinch-repeat "$FLINCH_TICK" --animation-drive states
+queue_capture states-crouch    "$CROUCH_TICK" --animation-drive states
+queue_capture states-crouch-b  "$SAME_STATE_TICK_B" --animation-drive states
+RUN_DEMO="$COVER_DEMO" queue_capture states-cover     "$COVER_TICK" --animation-drive states
+queue_capture early            "$EARLY_TICK" --animation-drive states
+flush_captures
+say "  RUNS ${#QUEUE_NAME[@]} in $(( $(date +%s) - capture_started )) s (jobs=$JOBS)"
+report_capture default           "$FLINCH_TICK" "default run did not capture"
+report_capture legacy-crouch     "$CROUCH_TICK" "legacy crouch run did not capture"
+report_capture legacy            "$FLINCH_TICK" "legacy run did not capture"
+report_capture states-flinch     "$FLINCH_TICK" "states flinch run did not capture"
+report_capture states-flinch-repeat "$FLINCH_TICK" "states repeat run did not capture"
+report_capture states-crouch     "$CROUCH_TICK" "states crouch run did not capture"
+report_capture states-crouch-b   "$SAME_STATE_TICK_B" "states same-state run did not capture"
+report_capture states-cover      "$COVER_TICK" "states cover run did not capture"
+report_capture early             "$EARLY_TICK" "early run did not capture"
 fi
 
 say ""
