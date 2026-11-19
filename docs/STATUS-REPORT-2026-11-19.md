@@ -73,7 +73,8 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 ## 4. 架构优化现状
 
 - `native/src/main.cpp` 现在 **16,221 行**（N24 phase 1 于 2026-11-19 抽出 renderer self-test，`88ade848`）；
-  `int WINAPI wWinMain` 仍在 `native/src/main.cpp:3163` 开、`:16221` 闭，**13,251 行一个函数**未变
+  `int WINAPI wWinMain` 现在 `native/src/main.cpp:2971` 开、`:16221` 闭（N24 phase 1 抽出
+  `main_selftest.cpp` 之后起点前移；`:3163` 已在 CLI 声明区内），**13,251 行一个函数**未变
   （N24 计划时 15,324 行文件 / 12,392 行函数，之后长了 1,089/859 行）。
 - 已有的拆分只搬周边：`main_hud.cpp` 1,608、`native_ui.cpp` 730、`main_helpers.cpp` 198、
   `camera_script.cpp` 633、`main_ui.cpp` 347、`main_internal.h` 180、`main_camera.cpp` 139、
