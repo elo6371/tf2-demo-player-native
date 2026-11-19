@@ -42,7 +42,7 @@
 | N12 相机 | **A/B PASS；C 第一步完成，第二步未做** | A/B 报告绑定 exe `1c3580e2…`。C 已加相机 tick 轨道和 Q5 哨兵；`demo-clock-check.sh` 一次 exit 0 / 62 断言。C 的精确 tick 消费端未改；SetView/PacketEntities 次序在 POV 样本为 0，stale 仍实测 1100/15 tick |
 | N13–N16 UI | **侦察/契约为主，功能未闭环** | N13 没有 follow/选人命令；N14 底图与独立比例未签收；N15 DPI/HUD 遮挡未过；N16 只有多视角契约、没有产品实现 |
 | N17–N21 角色/音频 | **覆盖报告，产品证据不足** | ViewModel 动画仍 bind pose/NOT VERIFIED；OOM 当前 HEAD 未跑；N20 三指定效果未实现；N21 听感需人在场 |
-| N22–N26 工程 | **计划与部分门禁修复已落地，工程验收未完成** | N22 CI 未远端运行；N23 全树 `/W4` 已落地（55/55、138 TU 零告警、7 个目标 `/WX`，见 `docs/N23-WALL-LEVEL-2026-11-18.md`），静态分析/故障注入未开始；N24 拆分仅有方案；N25 五门禁修复没有真实 verdict（本轮只跑 demo-clock）；N26 构建缓存实测待做 |
+| N22–N26 工程 | **计划与部分门禁修复已落地，工程验收未完成** | N22 CI 未远端运行；N23 全树 `/W4` 已落地（55/55、138 TU 零告警、7 个目标 `/WX`，见 `docs/N23-WALL-LEVEL-2026-11-18.md`），身份门禁干净树 PASS（assertions=222），`/analyze` 测过 81 TU（8 条、修 1 条）；sanitizer 因缺 x64 ASan 运行库未跑、故障注入未开始；N24 拆分仅有方案；N25 五门禁修复没有真实 verdict（本轮只跑 demo-clock）；N26 构建缓存实测待做 |
 | N27 导出 | **范围和组件契约已裁决，产品实现未开始** | MF 探针支持方案 C；须实现产品内音视频导出、可选组件安装/卸载和缺组件的明确失败路径 |
 | N28–N30 发布 | **N28 文档就绪；N29/N30 阻塞** | 还未集成冻结，未做干净环境走查，未跑 `verify-release.sh`；禁止写成发布验收完成 |
 | `.gitattributes` 行尾规则 | **策略已定，文件改动待安全窗口** | 选定仅约束 `native/src`、`native/include`、`native/tools`、`native/cmake`、根目录门禁脚本及 `tools` 为 LF；证据目录保留 `-text`，不动 Markdown、不做全树 renormalize。本轮补丁在共享工作树并发写入时两次消失，当前 `.gitattributes` 与 HEAD 相同，不能宣称已生效 |
@@ -414,8 +414,8 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 
 ### N23　警告、静态检查与错误注入（F + B）
 
-- [x] 输出 product/core/probe 的 `/W4` 覆盖矩阵与现有告警分类；分目标补，清理后再局部 `/WX`。（2026-11-18：55/55 目标 /W4、138 TU 零告警、`_CRT_SECURE_NO_WARNINGS` 作为唯一方言定义、7 个目标 /WX；覆盖矩阵与逐条修法见 `docs/N23-WALL-LEVEL-2026-11-18.md`，产品 exe `2e44c7e3…`）
-- [ ] sanitizer/静态分析只选当前 Windows 编译器支持的组合，先 parser/资源生命周期代表目标，不凭配置文件声称运行干净。
+- [x] 输出 product/core/probe 的 `/W4` 覆盖矩阵与现有告警分类；分目标补，清理后再局部 `/WX`。（2026-11-18：55/55 目标 /W4、138 TU 零告警、`_CRT_SECURE_NO_WARNINGS` 作为唯一方言定义、7 个目标 /WX；覆盖矩阵与逐条修法见 `docs/N23-WALL-LEVEL-2026-11-18.md`，产品 exe `2e44c7e3…`；2026-11-19：干净树 `BUILD-IDENTITY=PASS assertions=222` head `aa8b0df0438d`，`/analyze` 51+30 TU、8 条告警、修 1 条 C6326，见该文档 §7/§8）
+- [ ] sanitizer/静态分析只选当前 Windows 编译器支持的组合，先 parser/资源生命周期代表目标，不凭配置文件声称运行干净。（2026-11-19：`/analyze` 已测 51+30 TU，见 `docs/N23-WALL-LEVEL-2026-11-18.md` §8；sanitizer 未跑——当前 MSVC 安装缺 x64 ASan 运行库，链接报 `LNK1104: clang_rt.asan_static_runtime_thunk-x86_64.lib`，只有 i386 运行时）
 - [ ] WinMM/D3D 故障注入、resize 与有效控制挂到对应域窄测；格式/许可证策略单独提交，不混产品修复。
 
 ### N24　继续拆主循环与核心边界（F，和功能单写协调）
