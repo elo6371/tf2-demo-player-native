@@ -73,11 +73,16 @@ jobs:
         # rather than assuming the attribute survived checkout.
         run: |
           set -uo pipefail
-          crlf=$(git ls-files --eol -- '*.sh' 'native/src/**' 'native/include/**' 'native/tools/**' 'native/cmake/**' 'tools/**' | grep -c 'w/crlf' || true)
+          # The pathspec below IS the .gitattributes pin, not "every file": evidence/
+          # holds scripts outside the ruled scope, and on a windows runner
+          # (core.autocrlf=true) those legitimately check out CRLF -- a broader
+          # '*.sh' pattern reds the run at this step before the toolchain starts
+          # (observed: run 44462555445, 44 CRLF worktree files, all evidence/**).
+          crlf=$(git ls-files --eol -- '/*.sh' 'native/src/**' 'native/include/**' 'native/tools/**' 'native/cmake/**' 'tools/**' | grep -c 'w/crlf' || true)
           echo "worktree CRLF files: $crlf"
           if [ "$crlf" -ne 0 ]; then
             echo "TIER1-LINE-ENDINGS=FAIL (a pinned path came back CRLF; .gitattributes is not being honoured)"
-            git ls-files --eol -- '*.sh' 'native/src/**' | grep 'w/crlf' | head -5
+            git ls-files --eol -- '/*.sh' 'native/src/**' | grep 'w/crlf' | head -5
             exit 1
           fi
           echo "TIER1-LINE-ENDINGS=PASS"
