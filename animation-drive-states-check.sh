@@ -176,7 +176,15 @@ run_capture() { # run_capture <name> <tick> [extra args...]
   # first real run of this gate did exactly that and reported the T61 lines as
   # lost when they had simply never been asked for (2026-11-05 18:36, freeze4
   # step drives).
-  TF2_NATIVE_TRACE="$trace" timeout "$TIMEOUT" "$EXE" --tf-root "$TF" \
+  # 2026-11-19: TF2_NATIVE_TRACE is read by the product through
+  # GetEnvironmentVariableW, and MSYS converts command-line ARGUMENTS but NOT
+  # environment VARIABLE values. Handing it the POSIX "$trace" put a path with no
+  # drive letter in front of _wfopen_s, which failed silently: six trace
+  # artifacts were missing while the BMPs (a command-line argument) were fine,
+  # and all four negative controls then failed "for the wrong reason". Convert
+  # with cygpath -w, exactly as build-identity-check.sh does for the same reason.
+  trace_env=$(cygpath -w "$trace")
+  TF2_NATIVE_TRACE="$trace_env" timeout "$TIMEOUT" "$EXE" --tf-root "$TF" \
     --settings-file "$ISO_SETTINGS" \
     --ui-settings-file "$ISO_UI" \
     --audio-device "$AUDIO_DEVICE" --demo "$demo" --capture-tick "$tick" \
