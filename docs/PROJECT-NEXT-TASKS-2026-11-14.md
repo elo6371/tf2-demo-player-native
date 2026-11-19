@@ -353,9 +353,9 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 
 - [x] **N17-ENTITY-POSE / 同帧测量（未提交）**：实体账本含cycle、frame/localFrame/sectionFrames、skinBones/validBones；Scout ent14 ID91默认无序列，实验idle=175、cycle0、frame0/45；四帧均exit0。只证明产品实际选择/绘制，不证明TF2视觉等价。
 - [x] **N17-PROBE-META / 仪表修正（未提交）**：companion blendCount复制正确（Scout stand=1/run=9/aim=12）；helper矩阵纳入写入数（78/78），同时保留无有效通道拒绝；helper自测新增计数断言。职业姿态门默认写scratch，锁内九职业40样本PASS且不污染tracked evidence。
-- [ ] **N17-IDLE-CYCLE / 下一步E实施、B复核**：当前速度时钟在idle停cycle，不能重建45帧idle；先按固定revision TF2源码核idle与动作时钟语义，再以demo resolved tick而非墙钟做确定性采样；暂停、seek、重启应复现，补“强制首帧/使用墙钟”负控。不得仅因状态名是idle就判姿态正确。
+- [ ] **N17-IDLE-CYCLE / 下一步E实施、B复核**：多 tick 下速度时钟已接入 `idleRate`（`main.cpp:13661-13675`），但首帧单 tick 仍因 `!state.hasPrevious` 停在 `cycle=0`（`animation_clock.cpp:90-143`）；先按固定revision TF2源码核idle与动作时钟语义，再以demo resolved tick而非墙钟做确定性采样；暂停、seek、重启应复现，补“强制首帧/使用墙钟”负控。不得仅因状态名是idle就判姿态正确。
 - [ ] **N17-BLEND / 接续IDLE-CYCLE，可独立盘点**：读本机scout_animations的blend网格、pose参数范围、动画索引和bone权重；核OthmanAba/Valve的相同字段，再实现run/aim必要的参数混合与旋转插值。测试参数端点/中间值、缺失参数、不支持格式；错误blend索引必须红。只采第一animDesc不能声称支持九blend；无证据参数不得硬猜。
-- [ ] **N17-DEFAULT-ACCEPT / 接续视觉验收**：取得同demo/实体/pose/相机/FOV/viewport的TF2参考，先比较silhouette/关键骨点，再分mesh/LOD、材质UV定位剩余差异；通过后才调整默认动画策略。现状默认bind pose明确保留为缺陷，不能以“实验开关能动”关闭。
+- [ ] **N17-DEFAULT-ACCEPT / 接续视觉验收**：取得同demo/实体/pose/相机/FOV/viewport的TF2参考，先比较silhouette/关键骨点，再分mesh/LOD、材质UV定位剩余差异；注：默认开关已于 `fd25e93c` 翻转为开（`main.cpp:3331`），但视觉验收未过前仍不得以“开关已开”关闭本卡。
 - [ ] **N17-FINAL-GATES / 合入前**：本轮camera-ui和overview在旧`666a1ac2…`分别PASS/231 PASS；最终`f341ab1e…`只完成定向资产、自测和四帧。按影响补最终相机/UI/双窗/ViewModel/旧书签与七图验证，再审全链；禁止挪用旧exe的通过。
 
 - [ ] **N17-VIS / Scout视觉疑点**：固定 `analysis/integrated-up0.png` 对应demo/tick/玩家实体/userid/team/武器状态、相机/FOV、viewport和分辨率；报告测得屏外像素为0，因此“Scout被边缘裁切”不是已观察事实。先锁定已修正的世界投影，再用同录制实体/姿势的TF2参考比较silhouette、mesh/LOD、材质区域和骨骼姿态。
@@ -366,7 +366,7 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 - [ ] **N17-METRIC-INTEGRATION / 坐标修复集成验收**：旧归一化书签/preset需要重新验证和明确迁移策略；复核split-view相机隔离、ViewModel对齐、HUD/overview和七图pin。先将画面差异归因到有意的FOV/尺度修正或独立缺陷，再讨论重钉；不得用重钉跳过产品回归。
 - [x] **N17-IDLE / idle误选局部修复（2026-11-17，未提交）**：旧选择器实测Scout选`AttackStand_PRIMARY`(9)，改为WholeToken与首词元优先后选`stand_PRIMARY`(175)；九职业均选通用`stand_*`，`--matcher-selftest`的`genericIdle=1 oneShot=1`、探针与产品定向构建通过。该项只证明通用idle的选序正确，不证明截图角色命中fallback、最终姿态或外观与TF2一致；实体级draw/pose轨迹与同帧视觉对照仍须执行。
 - [ ] **N17-SOURCE / TF2源码对照**：参考OthmanAba/TeamFortress2 revision `1b81dded673d49adebf4d0958e52236ecc28a956` 的`CTFPlayerAnimState::CalcMainActivity`、`TranslateActivity`及客户端动画更新；按观测到的demo字段实现并验证必要activity映射/叠加层。源码只作实现参考，不代替当前TF2资产及运行时对照。详见`docs/TF2-SOURCE-REFERENCE-INDEX.md`与`docs/N17-SCOUT-CAMERA-ANIMATION-2026-11-17.md`。
-- [ ] **N17-ANIM-DEFAULT / 默认姿态链**：当前产品默认`playerAnimationEnabled=false`，自然运行保留bind pose；`--player-animation --animation-drive states`会驱动姿态，但不是完整TF2 activity/gesture/pose/layer实现。以游标1已抓双路径；游标不是server tick，必须分别绑定`entryTick/serverTick/resolved scene tick`，不使用固定偏移。先将trace的entity、model、sequence/cycle、skin矩阵覆盖与draw range绑定，再以TF2同帧参考比较idle/run等类别；未通过前不把实验动画设默认，也不把汇总`boneMismatch`直接解释为映射错误。详见N17报告。
+- [ ] **N17-ANIM-DEFAULT / 默认姿态链**：当前产品默认已于 `fd25e93c` 改为 `playerAnimationEnabled=true`（`main.cpp:3331`，原记 `false`）；`--player-animation --animation-drive states`会驱动姿态，但不是完整TF2 activity/gesture/pose/layer实现。以游标1已抓双路径；游标不是server tick，必须分别绑定`entryTick/serverTick/resolved scene tick`，不使用固定偏移。先将trace的entity、model、sequence/cycle、skin矩阵覆盖与draw range绑定，再以TF2同帧参考比较idle/run等类别；未通过前不得以“开关已开”视为验收通过，也不把汇总`boneMismatch`直接解释为映射错误。详见N17报告。
 - [ ] **N17-PROBE / 探测器覆盖审计**：逐项审`entity_model_probe`、`model_pose_probe`、`player-model-check.sh`、`class-pose-family-check.sh`、`player-body-appearance-check.sh`、`world-entity-tint-check.sh`的输入、断言、变异、盲区。解析成功/meshBuilt、序列可解/变化、队色mask分别不是游戏内外观等价；现有tint门的379,038px主要证明颜色路径，不证明玩家Scout轮廓、UV或骨骼正确。
 - [ ] 加同帧角色ROI验收：游戏参考与产品相机/实体配准；比较外轮廓、可见mesh/遮挡、关键材质区域和姿态。用至少一种故意错LOD/隐藏mesh、错UV或错bone映射的变异证明相应视觉断言会红，未能检出的属性必须明确标为UNTESTED；容差由重复采集和配准误差测出，不凭肉眼调宽。
 - [ ] 按观测分支定位修复：错误LOD/mesh→模型选择与绘制范围；材质/UV→资源或坐标解析；静态姿态对、动画错→骨绑定/序列/时钟；仅屏幕位置错→相机。一次改一个已证实因素，修复前后同帧A/B并保留变异负控；成功后以Scout为模板扩九职业/双队样本。
