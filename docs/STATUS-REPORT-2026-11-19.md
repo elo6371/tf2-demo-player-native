@@ -125,6 +125,12 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
     `GATE-REGISTRY=PASS excluded=53`、`VERIFY-FAST=PASS (assertions_ok=43)`；run #3 `44479356155`（`4f1a52d7`）七个 step 全 success（3 m 14 s），
     首次 CI 绿，读数 `evidence/ci-run3-2026-11-19.md`。
 
+11. 本批 N18 基线：`viewmodel-contract-check.sh` 在 `e5b33781` 上跑出 `assertions_ok=152` / `VIEWMODEL-CONTRACT=FAIL`，
+    两条红与 2026-11-18 在 `979c6904`（N18 之前）和 `5bac7eaa`（N18 之后）上的读数逐项相同 —— capture point 0/7
+    （trace `draw: begin tick=0`、`sceneTick=10320` vs premise `10252`）、identity 1 px LSB（`(658,416)`；
+    其余 2,582,351 像素相同）。结论：门禁基线是「既有欠账」，不是 N18 回归；读数
+    `evidence/n18-gate-baseline-2026-11-19/`，卡见 `docs/TASK-LIST-2026-11-19.md` §2 第 14 条。
+
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
@@ -135,4 +141,5 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 - 环境自证：`/d/_shared/asan-smoke.cpp`、`smoke-run.log`
 - T84 门禁重跑：`/d/_shared/n25-drive/`（9 次捕获各 2,582,406 B bmp + ~200 MB trace）、日志 `/d/_shared/n25-drive-rerun.log`
 - T84 并行跑法（`--jobs 4`）：`/d/_shared/t84-jobs4/`（9 bmp + trace）、日志 `/d/_shared/t84-jobs4b.log`；入库读数 `evidence/t84-animdrive/parallel-jobs4/`
+- N18 门禁基线（`e5b33781`，2026-11-19）：日志 `/d/_shared/n18-contract-baseline.log`；入库读数 `evidence/n18-gate-baseline-2026-11-19/`（README + 290 行日志）
 - N11 七图矩阵：`evidence/n11-matrix/readings.tsv`（入库）、`.scratch/n11-matrix/`（BMP 与完整 trace，可再生）、日志 `/d/_shared/n11-matrix.log`
