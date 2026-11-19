@@ -1,24 +1,25 @@
 # 状态报告 — GitHub 同步 / 环境 / 难题 / 架构（2026-11-19）
 
 写给"现在的进度到哪了、还剩什么卡着"。所有数字都是 2026-11-19 在本机（t105-integrate，
-HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现状。
+HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现状。
 
 ## 1. GitHub 与当前进度一致吗
 
-**分支内容一致，CI 零运行，大部分工作分支没推。**
+**分支内容一致；CI 已实跑（tier 1 首次全绿）；大部分工作分支按用户裁决不推。**
 
 | 项 | 读数 |
 |---|---|
-| `origin/work/integrate` | `2aa812dc441978d742632f4f9add67a18bb7669c` = 本地 HEAD |
-| GitHub 分支 | 仅 4 个：`main` `98ddaeba`、`p0-entity-protocol` `6f475caf`、`work/integrate` `2aa812dc`、`archive/full-history-2026-11-13` `50a355a0` |
-| GitHub Actions | `actions/runs` 的 `total_count = 0` —— **一次都没有跑过** |
-| `.github/workflows/tier1.yml` | 只在 `work/integrate` 上有；触发条件 `main`、`candidate/*`、PR、手动 dispatch，**不含 `work/*`**；远端没有 `candidate/*` 分支 |
-| 本地未推送 | 33 个分支带内容，干净谱系 **82 个唯一提交**未推（`git rev-list --all --not --remotes=origin` 过滤干净根 `7ab4e725`） |
+| `origin/work/integrate` | `89733ac4ed8e2ee650fb30d75841b5c592e0a5ab` = 本地 HEAD（2026-11-19 16:05 实测） |
+| GitHub 分支 | 5 个：`main` `98ddaeba`、`p0-entity-protocol` `6f475caf`、`work/integrate` `89733ac4`、`candidate/ci-smoke` `4f1a52d7`（临时 CI 验证分支）、`archive/full-history-2026-11-13` `50a355a0` |
+| GitHub Actions | 3 次 tier-1 run：`44462555445` 红（LF 守卫）、`44476744537` 红（两条新门禁未登记）、`44479356155` **绿**（`4f1a52d7`，3 m 14 s） |
+| `.github/workflows/tier1.yml` | 在 `work/integrate` 与 `candidate/ci-smoke` 上；触发 `main`、`candidate/*`、PR、手动 dispatch，**不含 `work/*`** |
+| 本地未推送 | **161 个本地分支**；**234 个提交**不在任何 origin ref 里（`git rev-list --all --not --remotes=origin`）；origin 只有 5 个分支 |
+| worktree | 20 个登记，3 个有未提交改动（`D:/TF2_Native_Test` 25、`t105-n17anim` 8、`t105-overview` 4），按用户裁决保留现场 |
 | patch 等价 | `task/weapon-animation` 的 7 个提交 `git cherry` 全为 `-`（内容已在远端，只是 SHA 不同） |
 | 断链谱系 | `integration/animation-diagnostics`（142 个提交）、`integration/entity-material`（141 个），根 `087926a4` 与干净根 `7ab4e725` 不连通，**不可合并、不可当工作推** |
 
-结论：远端 `work/integrate` 与本地完全一致（含文档、门禁修复、`/analyze` 结论）；
-"进度"层面不一致的部分是 —— 33 个分支的 82 个提交只在本地，CI 从未验证过任何一次提交。
+结论：远端 `work/integrate` 与本地完全一致到 `89733ac4`（含文档、门禁修复、`/analyze` 结论）；
+"进度"层面不一致的部分是 —— 161 个本地分支 / 234 个未推提交按用户 2026-11-19 裁决不整体推；CI 只验证过 `candidate/ci-smoke` 上的 tier 1（run #3 绿）。
 
 ## 2. 环境：x64 ASan 已安装（本轮）
 
@@ -59,11 +60,11 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 - N20 三个指定效果未实现；N21 听感需人在场；N27 导出只有契约、产品未实现；N28–N30 发布未冻结、干净环境走查与 `verify-release.sh` 未跑。
 
 **B. 工程瓶颈（本仓库自身）**
-- CI 零运行（见 §1）；55 个门禁在本轮只跑了身份门禁 + 3 个烟测 + demo-clock，其余没有真实 verdict。
+- CI 只跑 tier 1（run #3 `44479356155` 绿，3 m 14 s）；verify-all 与 verify-release 未进 CI，55 个门禁其余没有真实 verdict。
   2026-11-19 追加：animation-drive-states 在 `work/integrate`（HEAD `7542bf5e`）重跑得到 `ANIMATION-DRIVE-STATES=PASS`（9 次运行全 rc=0、3848 s、四条内置负控 4/4 带原因串验证），见 `docs/GATE-VERDICTS-ROUND2-2026-11-15.md` 末尾。
   2026-11-19 14:48 成本已压：同一门禁加 `--jobs 4`（九个捕获分波并行，默认仍是 1）后 3,848 → 1,713 s（捕获 839 s），`READINGS=PASS`、负控 4/4、九帧 md5 与串行逐字节相同，读数 `evidence/t84-animdrive/parallel-jobs4/`。
 - `/analyze` 不在门禁；4 条 C6262 里三处（`native_ui.cpp:70/76`、`settings_store.cpp:132`、`main.cpp:2287`）2026-11-19 已搬堆，第 4 条 `wWinMain`（58,208 B）留待 N24 拆分；`/analyze` 三 TU 已在 2026-11-19 复测（`native_ui` warnings=0、`settings_store` warnings=0、`main.cpp` 只剩 `wWinMain` 的 C6262/C28251，全树未重扫）。
-- 33 分支 82 提交未推；两条断链谱系占 283 个原始提交，属清理前历史。
+- 161 个本地分支 / 234 个未推提交（按用户 2026-11-19 裁决不整体推）；两条断链谱系占 283 个原始提交，属清理前历史。
 - `.gitattributes` 行尾规则已定策略，仍等安全窗口落地。
 
 **C. 工具与网络**
@@ -97,7 +98,7 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 2. ~~N24 phase 1（renderer self-test 抽出 `main.cpp`）~~ 已于 2026-11-19 完成（`88ade848`，读数见 §4）；
    下一步 phase 2。
 3. N25 剩下的门禁补真实 verdict（身份门禁已 PASS；animation-drive-states 2026-11-19 也 PASS 且负控 4/4；其余仍是"修了没跑"）。
-4. 其余 33 个分支是否推 GitHub 属用户决策；断链谱系只留历史。
+4. 161 个本地分支 / 234 个未推提交按用户 2026-11-19 裁决不整体推，只推验收后的任务分支或修复提交；20 个 worktree 不批量合并/删除/归档，3 个脏现场保留（`D:/TF2_Native_Test` 25、`t105-n17anim` 8、`t105-overview` 4）；断链谱系只留历史。
 5. 本批（2026-11-19 下午）：P9 三处栈转堆已落地、外部评审 triage 已写（`docs/GEMINI-REVIEW-TRIAGE-2026-11-19.md`）；
    排期与未解决项见 `docs/TASK-LIST-2026-11-19.md`；身份门禁已在 P9 树复跑 PASS（`head=dbe8abcf`，
    2026-11-19 12:02），下一步是 `/analyze` 全树复扫。

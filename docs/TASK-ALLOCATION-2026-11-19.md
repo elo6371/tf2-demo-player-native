@@ -57,7 +57,7 @@
 - `/d/_shared/n25-drive`（8.1 GB，被 `docs/GATE-VERDICTS-ROUND2-2026-11-15.md` 与 `STATUS-REPORT` 引用，是 animation-drive-states PASS 的原始证据）。
 - 被文档引用的 `.scratch` 目录（`warn-check`、`build-identity-run`、`t62-map-axes` 等）。
 - 9 个实验 worktree（`t105-b1..b3/base/p1..p3/vt-pre/vt-post`）：2026-11-19 判定完毕 —— 脏文件全是 `evidence/*` 再生成产物加两三个 check 脚本的本地改动；已把文字 diff 归档成 `/d/_shared/worktree-archive/<name>.patch` + `<name>.status.txt`（共 47 MB，排除 bmp/csv/raw），底提交 `ae0b47cc`/`917332d7`/`10d13559` 均已在 `work/integrate` 祖先链上，随后 `git worktree remove --force` 全部删除。D 盘可用 44,656 → **56,914 MB**（+12.2 GB），`git worktree list` 剩 20 个。
-- 33 个本地分支**不推**（无工程必要性，远端分支已够用）；CI 只推 `candidate/ci-smoke` 一条，不改产品。
+- 本地 161 个分支 / 234 个未推提交**不整体推**（用户 2026-11-19 裁决：只推验收后的任务分支或修复提交）；`candidate/ci-smoke` 是临时 CI 验证分支，run #3 `44479356155` 绿后本次 smoke 结束，不设常设；20 个 worktree 不批量合并/删除/归档。
 
 ## 4 同步规则（保证 Gemini 看到的和你我一致）
 
