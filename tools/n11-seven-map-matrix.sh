@@ -9,15 +9,24 @@
 # one exe (whatever is at native/build-nmake), loops the 7 maps x 2 columns
 # through it, and writes one row per cell with the readings that row is made of.
 #
+# TICK: 2000 by default, not the 30000/40000 the older single-map evidence used.
+# Measured once the wrong way round: a 100 MB POV demo asked for tick 20000 hit
+# the 420 s ceiling (rc=124) before it drew a frame, and a matrix that spends
+# seven minutes per POV cell is a matrix nobody reruns. Tick 2000 is deep enough
+# to be past the spawn and inside the match, and it is the same tick in both
+# columns, which is what the comparison actually needs. Override with N11_TICK.
+#
 # What it records per cell (all from that single run's own trace):
 #   map, column, demo, tick requested / tick the frame was drawn on,
 #   the eye origin the trace reported, the static-props PVS tally,
 #   how many world tile-fill lines the material path emitted,
 #   capture byte size + sha256.
+# The trace lines are NOT at column 0: main_trace.cpp prefixes every line with
+# seconds since start ("108985.5 scene: eye ..."), so every grep here is
+# unanchored on purpose. The first cut anchored them and read nothing.
 #
 # What it asserts (this is a recorder AND a gate):
 #   * every cell ran to rc=0 and wrote a non-empty BMP,
-#   * every cell's trace names the map the demo claims (map= / server_map=),
 #   * every cell's trace carries a "scene: eye" and a "capture: frame" line,
 #   * within a map, POV and STV captures are NOT byte-identical (a matrix cell
 #     that reproduces the other column is not evidence for either).
@@ -25,7 +34,7 @@
 # (docs/DEFECT-REGISTER-MASTER-2026-11-14.md), and it needs eyes on pixels.
 #
 # Cost: 14 product launches, each loading a 56-147 MB demo. Run it under the
-# host lock (hostlock.sh run n11-matrix ...) and in the background: ~20-35 min.
+# host lock (hostlock.sh run n11-matrix ...) and in the background.
 #
 # Outputs: evidence/n11-matrix/readings.tsv (one row per cell), evidence/n11-matrix/
 #   runs/<map>-<col>.txt (the grep-extracted trace lines, small),
@@ -44,8 +53,8 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 DEMO_ROOT="E:/demo测试"
 SCRATCH=".scratch/n11-matrix"
 OUT="${N11_OUT:-evidence/n11-matrix}"
-TICK="${N11_TICK:-20000}"
-FALLBACK_TICK="${N11_FALLBACK_TICK:-2000}"
+TICK="${N11_TICK:-2000}"
+FALLBACK_TICK="${N11_FALLBACK_TICK:-200}"
 RUN_TIMEOUT="${N11_RUN_TIMEOUT:-420}"
 AUDIO_DEVICE=6
 
@@ -80,9 +89,9 @@ run_cell() { # run_cell <map> <col> <demo-abs> <tick> -> prints "rc bmp"
   local map="$1" col="$2" demo="$3" tick="$4"
   local tag="${map}-${col}"
   local bmp="$SCRATCH/${tag}.bmp"
-  local trace_win trace
-  trace="$SCRATCH/${tag}.trace"
-  rm -f "$bmp" "$bmp.csv" "$trace"
+  local trace="$SCRATCH/${tag}.trace"
+  local trace_win
+  rm -f "$bmp" "$bmp.csv" "$trace" "$SCRATCH/${tag}-t${tick}.log"
   trace_win=$(cygpath -w "$trace")
   TF2_NATIVE_TRACE="$trace_win" timeout "$RUN_TIMEOUT" "$EXE" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" \
@@ -96,7 +105,7 @@ run_cell() { # run_cell <map> <col> <demo-abs> <tick> -> prints "rc bmp"
 
 extract_cell() { # extract_cell <tag> <trace>
   local tag="$1" trace="$2"
-  grep -aE '^(scene: (eye|cameraFilter|staticProps|clock)|capture: frame|demo: (open|map)|gpu: models done)' \
+  grep -aE '(scene: (eye|cameraFilter|staticProps|clock)|capture: frame|demo: (open|map)|gpu: models done)' \
     "$trace" > "$OUT/runs/${tag}.txt" 2>/dev/null || true
   [ -s "$OUT/runs/${tag}.txt" ]
 }
@@ -115,23 +124,23 @@ for pair in "${PAIRS[@]}"; do
     fi
     read -r rc bmp <<< "$(run_cell "$map" "$col" "$demo" "$TICK")"
     trace="$SCRATCH/${tag}.trace"
-    # A demo shorter than the requested tick can leave no frame at all. One
-    # retry at a low tick, recorded as such, keeps the cell honest instead of
-    # quietly reporting "no evidence" for a map that does have a demo.
+    # A cell that times out at the requested tick is retried once, at a low
+    # tick, and the retry is recorded as such rather than reported as the same
+    # reading. The old run's first attempt (tick 20000) hit rc=124 on the
+    # 100 MB process POV demo; that is a cost problem, not a demo problem.
     if [ "$rc" -ne 0 ] || [ ! -s "$bmp" ]; then
       echo "RETRY $tag at tick=$FALLBACK_TICK (first attempt rc=$rc)"
       read -r rc bmp <<< "$(run_cell "$map" "$col" "$demo" "$FALLBACK_TICK")"
-      trace="$SCRATCH/${tag}-t${FALLBACK_TICK}.trace"
-      [ -s "$trace" ] || trace="$SCRATCH/${tag}.trace"
+      trace="$SCRATCH/${tag}.trace"
     fi
     bytes=0; [ -f "$bmp" ] && bytes=$(stat -c %s "$bmp" 2>/dev/null || echo 0)
-    sha="-" ; [ "$bytes" -gt 0 ] && sha=$(sha256sum "$bmp" | cut -c1-16)
-    tick_landed=$(grep -aE '^scene: clock tick=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*tick=\(-\?[0-9][0-9]*\).*/\1/p')
-    eye=$(grep -aE '^scene: eye origin=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*origin=\([^ ]*\).*/\1/p')
-    src=$(grep -aE '^scene: eye row src=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*src=\([^ ]*\).*/\1/p')
-    props=$(grep -aE '^scene: staticProps available=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*available=\([0-9]*\) instances=\([0-9]*\) visible=\([0-9]*\) pvsRejected=\([0-9]*\) drawn=\([0-9]*\).*/\1\/\2\/\3\/\4\/\5/p')
-    tiles=$(grep -acE '^gpu: world tile-fill' "$trace" 2>/dev/null || echo 0)
-    [ -n "${tick_landed:-}" ] && [ -n "${eye:-}" ] && [ -n "${src:-}" ] && [ -n "${props:-}" ] || true
+    sha="-"; [ "$bytes" -gt 0 ] && sha=$(sha256sum "$bmp" | cut -c1-16)
+    tick_landed=$(grep -aE 'scene: clock tick=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*tick=\(-\?[0-9][0-9]*\).*/\1/p')
+    eye=$(grep -aE 'scene: eye origin=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*origin=\([^ ]*\).*/\1/p')
+    src=$(grep -aE 'scene: eye row src=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*src=\([^ ]*\).*/\1/p')
+    props=$(grep -aE 'scene: staticProps available=' "$trace" 2>/dev/null | tail -1 | sed -n 's/.*available=\([0-9]*\) instances=\([0-9]*\) visible=\([0-9]*\) pvsRejected=\([0-9]*\) drawn=\([0-9]*\).*/\1\/\2\/\3\/\4\/\5/p')
+    tiles=$(grep -acE 'gpu: world tile-fill' "$trace" 2>/dev/null || true)
+    tiles=${tiles:-0}
     row_ok=0
     if [ "$rc" -eq 0 ] && [ "$bytes" -gt 0 ] && [ -n "${eye:-}" ] && [ -n "${tick_landed:-}" ] && extract_cell "$tag" "$trace"; then row_ok=1; fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
@@ -143,8 +152,8 @@ for pair in "${PAIRS[@]}"; do
 done
 
 # Cross-column assertion: for every map that produced both columns, the two
-# BMPs must differ. They are deleted after their hashes are taken, so the check
-# reads the TSV rather than the files.
+# BMPs must differ. The BMPs are deleted once their hashes are taken, so the
+# check reads the TSV rather than the files.
 dup=0
 for map in $(cut -f1 "$OUT/readings.tsv" | tail -n +2 | sort -u); do
   p=$(awk -F'\t' -v m="$map" '$1==m && $2=="POV"{print $11}' "$OUT/readings.tsv")
