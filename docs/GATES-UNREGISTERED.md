@@ -36,6 +36,7 @@ Classes:
 | Gate | Class | Why it is not in a chain | When it runs / owner |
 |---|---|---|---|
 | `animation-drive-states-check.sh` | segmented | T84 crouch/flinch state gate; needs the T84 fixture and a player-state tick, not a general build/smoke run. | P4 animation batch; character/weapon owner. |
+| `argument-refusal-check.sh` | segmented | T105 CLI refusal gate: launches the product on the pl_upward STV demo under the shared lock to prove an unknown `--switch` exits 13 and draws no frame. Needs a demo, a trace and the host lock, none of which the fast tier carries. | CLI/argument-loop changes; CLI owner. |
 | `attach-weapon-budget-check.sh` | segmented | P0 OOM/budget gate for three named weapon models; its fixture is the Highlander STV demo, not the chain's pinned scene. | R4-4 budget acceptance; character/weapon owner. |
 | `bone-mismatch-semantics-check.sh` | segmented | Pins what `boneMismatch` counts; it is a semantics diagnostic, not a release pass/fail. | P4 animation batch; character/weapon owner. |
 | `camera-ui-check.sh` | segmented | Camera/UI contract gate; overlaps the registered `hud-live-check.sh` and needs the camera script fixtures. | Camera/UI changes; UI owner. |
@@ -80,6 +81,7 @@ Classes:
 | `weapon-material-check.sh` | segmented | Weapon-body material/range gate; P4 domain gate. | P4 weapon material changes; character/weapon owner. |
 | `webview2-loader-check.sh` | external | Proves the WebView2 loader is resolved from the executable directory; needs the shipped runtime/package. | Packaging and loader changes; UI owner. |
 | `world-material-check.sh` | segmented | Pins six world-material capability states/reasons; run when a material feature changes. | Map material changes; map renderer owner. |
+| `world-entity-tint-check.sh` | segmented | T105 double-tint gate: four product launches (normal, mutation, raw-texel, coverage) on pl_upward_f12 tick 0 under the shared lock, asserting the counter half and the pixel half against the negative control. Needs a demo, GPU captures and the lock. | Entity tint/material changes; map renderer owner. |
 | `world-material-effects-check.sh` | segmented | Water/viewmodel advanced-material effects; water reflection is out of scope and the rest is P4. | Map/P4 material changes; map renderer owner. |
 | `world-material-face-check.sh` | segmented | World-material pixel chain at a named face; map acceptance evidence, not a daily smoke. | R2-4 map acceptance; map renderer owner. |
 | `world-material-semantics-check.sh` | blocked | **Reason corrected 2026-11-14:** it is not I-24 pin drift. Its pinned recording `tf/demos/autorecord_2026-07-02_13-26-46.dem` is no longer on disk (absent from `tf/demos`, and a search of `E:/demo测试` and `D:/TF2_Demo_Player` finds no copy), so capture A returns rc=2 twelve times and every downstream reading is empty. Blocked on the asset; the pin-drift question cannot even be asked until it is restored. | Restore or repoint the recording, then re-ask F1-3; map/QA owner. |

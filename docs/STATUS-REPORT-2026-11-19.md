@@ -118,6 +118,12 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
    N22「未推远端」→ `.github/workflows/tier1.yml` 已推但零运行（触发不含 `work/*`）；
    N18 的 `viewModelRequested` 引用改到 `main.cpp:8601/8985/10155/11833/14704`，`sky_camera` 指向 `native/src/bsp_map.cpp:629-638`。
 
+10. 本批 L6：CI 首跑两连红已定位修齐 —— run #1 是 LF 守卫把 `evidence/**` 下 44 个未钉脚本当 CRLF（`d3bb5d05` 修）；
+    run #2 的 tier 1 红在 3/3 的门禁登记（`GATE-REGISTRY=FAIL gates=88 registered=35 excluded=51`：新门禁
+    `argument-refusal-check.sh`（`97ad8917`）与 `world-entity-tint-check.sh`（`adce1061`）既不在链里也不在排除表），
+    两条已按 segmented 登记进 `docs/GATES-UNREGISTERED.md`；本地 `verify-fast.sh --mutation` 复跑
+    `GATE-REGISTRY=PASS excluded=53`、`VERIFY-FAST=PASS (assertions_ok=43)`，等 run #3 的远端读数。
+
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
