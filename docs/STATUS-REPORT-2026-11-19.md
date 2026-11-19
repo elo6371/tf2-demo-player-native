@@ -140,6 +140,25 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
     已知偶发 `0xE06D7363`（T38 §7.6 / `main.cpp:12554` 的 TEMP DIAGNOSTIC）；同命令在新 exe 跑 3 次、pre-B1 exe 跑 1 次全绿，
     重跑门禁 PASS，与 B1 无关，作为偶发记录留档。
 
+13. 本批 G7（逐顶点 UV 的 PS 侧修复，`26280880`）：CPU 折行（`native/src/world_tile_atlas.cpp:340-347`：
+    `atlas = (offset + wrapped*extent/sourceSize + 0.5)/atlasSize`，`wrapped = fract(*)`）让跨越瓦片边界的面
+    把整面压进一块 tile。现在上传器改写成给 PS「未折行 uv + tile 原点/跨度」（`WorldVertex` 96→112 B，
+    第 9 个输入元素 TEXCOORD8，count 由硬编码 9 改为 `std::size(worldElements)`——HEAD 时数组只有 8 条），
+    世界 PS 在任何 mode 分支前算 `tileRect.xy + fract(uv)*tileRect.zw`（导数取未折行 uv 乘跨度，否则
+    `fract` 的台阶会让采样跨台阶取到粗 mip、画出接缝），六处 `sampler0` 采样只在矩形非零时走 `SampleGrad`。
+    矩形用 `(tile+0.5)/atlas` 与 `extent/atlas` 而不是 `extent-1`：前者才是 `worldTileCoord` 的逆，这是默认关/开
+    在单 tile 面上能对齐的原因。`TF2_NATIVE_UV_PS` 默认 0：上传器仍走原六行，tick-0 抓帧 md5
+    `0fcb6867c46d55d9ef9fc95bf65596c2` 与 HEAD 干净构建逐字节一致；=1 帧 `f108aed50b20e99e2f1171a1be0dc317`，
+    与 PS=0 差 99,117 px（>8 级 20,073、>32 级 671，后者就是跨瓦片边界的面），负控把 `tileUSpan` 乘 0.25 后
+    帧变 `3e9db58c3f72cb0bc3061c455bb40216`（151,552 px 离开 PS=1）。`BUILD-IDENTITY=PASS assertions=222`（`head=cf64153ba3bf`）
+    + argument-refusal/hud/map-overview/frame-capture 四门禁 rc=0。过程中定位两个坑：① `worldPixelShader_` 是共享像素着色器，
+    entity pass 也绑它，而 `entityModelVertexSource` 没声明 TEXCOORD8 —— 按 `native_renderer_shaders.cpp:902-917` 的 T61 记录，
+    本驱动把未写插值读作 1.0，于是 tiled 路径带着「全 1 矩形」在每个实体上打开（实测整帧 68% 错误、采样到错误 atlas tile）；
+    补 `float4 tileRect : TEXCOORD8` 并写 0 后（T61 同款「声明并写中性值」），世界面之外零差异。② 上一次门禁被超时打断，
+    留下 0 字节的 `native/build-nmake/CMakeFiles/tf2_demo_native.dir/src/main.cpp.obj`（`LNK1136`）和未还原的
+    `docs/RELEASE-POLICY.md` probe 注释（identity 的 docs-probe 7 条红）；删 0 字节 obj、`git checkout -- docs/RELEASE-POLICY.md` 后 222 全绿。
+    抓帧口径 `.scratch/g7/cap.sh`（本机、未入库），差异工具 `.scratch/g7/diff.py`。
+
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
