@@ -120,6 +120,30 @@ else
       break
     fi
   done
+  # N24 (2026-11-19): a source named in native/cmake but absent from the
+  # configured object list is a RECONFIGURE bug, not a compile bug. A tool that
+  # preserves mtimes (explicit timestamps, some editors) leaves every build
+  # dependency older than the cache, so `nmake`'s cmake_check_build_system sees
+  # no change: it neither reconfigures nor relinks with the new translation unit.
+  # Measured that day as `LNK2019: unresolved external symbol
+  # runRendererSelftest` after main_selftest.cpp landed, which left the identity
+  # gate with no exe to read. The check compares the product's source list in
+  # CMake with the artifact nmake actually reads, and only when that target is
+  # requested here.
+  for _t in "$@"; do
+    [ "$_t" = tf2_demo_native ] || continue
+    _product_make="$BUILD/CMakeFiles/tf2_demo_native.dir/build.make"
+    [ -f "$_product_make" ] || break
+    for _src in $(awk '/^add_executable\(tf2_demo_native /{f=1} f&&/^\)/{f=0} f' \
+        native/cmake/tf2-product.cmake | grep -oE 'src/[A-Za-z0-9_]+\.cpp'); do
+      if ! grep -q "tf2_demo_native.dir/$_src.obj" "$_product_make"; then
+        echo "note: $_src is named in native/cmake but missing from the configured link; configuring"
+        NEED_CONFIGURE=1
+        break
+      fi
+    done
+    break
+  done
 fi
 if [ "$NEED_CONFIGURE" -eq 1 ]; then
   echo "=== configure ==="

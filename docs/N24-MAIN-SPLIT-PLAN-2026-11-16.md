@@ -1,8 +1,10 @@
 # N24 — Splitting `native/src/main.cpp` (plan)
 
-Status: **plan only — nothing applied.** No source file was edited, no build was run, no
-product was executed to produce this document.
-Tree: `D:/TF2_Native_Worktrees/t105-e5`, HEAD `50c8a235`, 2026-11-16.
+Status: **phase 1 landed 2026-11-19 (`88ade848`), the rest is still plan.** The plan below was
+written with no source file edited and no build run; the note at the end of §7 records what the
+implementation actually measured, including the stale-build trap it exposed.
+Plan tree: `D:/TF2_Native_Worktrees/t105-e5`, HEAD `50c8a235`, 2026-11-16. Implementation tree:
+`D:/TF2_Native_Worktrees/t105-integrate`.
 Method: every number below was read off the working tree with `grep -n`, `sed -n` and `awk`
 over `native/src/main.cpp` (15,324 lines, `wc -l`). Because line numbers drift, every phase
 also names the **anchor text** it moves — the anchors, not the numbers, are the contract.
@@ -362,6 +364,39 @@ bash build-identity-check.sh                               # M3 mutation still a
 bash tools/audit-tree.sh                                   # only the 4 intended files differ
 ```
 Rollback: `git checkout -- native/src/main.cpp native/src/main_internal.h native/cmake/tf2-product.cmake && rm native/src/main_selftest.cpp`.
+
+**Landed (2026-11-19, commit `88ade848`; gates re-read at `7542bf5e`).** The four edits match the
+plan. `main.cpp` 16,413 → **16,221** lines (−192; the tree had grown to 16,413 and the anonymous
+namespace sat at 2935-3130, not 2705-2896). New `native/src/main_selftest.cpp` **213** lines (doc
+comment + body verbatim inside `namespace tf2::native::main_internal`). `main_internal.h` 180 →
+**187** (forward `class Renderer;` plus the declaration). `tf2-product.cmake` +3 (one source line
+plus its two comment lines). The call site
+`const int selftestResult = runRendererSelftest(renderer, window, !faultSpec.empty());` now sits at
+`native/src/main.cpp:3280`, spelling unchanged; `grep -c 'wcscmp(arguments\[i\]'` is **212**, not
+the plan's 183 (the chain kept growing). `wWinMain` itself is untouched and still opens at
+`native/src/main.cpp:3163`.
+
+Readings after the split: `tools/warn-check.sh` `WARN-GATE tus=138` /
+`WARN-GATE=PASS new=0 fixed=0 same=0`; `--renderer-resize-selftest` →
+`renderer-selftest: RESULT=PASS checks=30 fail=0 unbind=3 refused=1 mapRefused=0 exit=0`;
+`tools/fault-seam-check.sh` → `FAULT-SEAM=PASS seams=winmm injected=9 named=0-unnamed
+backend-restored=yes valid-path=ok`; `frame-capture-check.sh` → `FRAME-CAPTURE=PASS` 4/4;
+`build-identity-check.sh` → `BUILD-IDENTITY=PASS assertions=222` at head `7542bf5e` on a clean
+tree.
+
+**The trap this phase exposed (read before phase 2).** The first build after the split "passed"
+while linking the **stale** `main.cpp.obj`: the edits were applied with a tool that preserves file
+mtimes, so `native_internal.h` and `tf2-product.cmake` still carried 2026-11-17 timestamps. NMake
+therefore neither recompiled `main.cpp` nor re-ran CMake, the generated `objects1.rsp` still lacked
+`main_selftest.cpp.obj`, and the binary was pre-split code — it even passed
+`--renderer-resize-selftest`, because that function was still inlined there. The identity gate
+found it the moment its compiled-input probe touched `main.cpp` for real:
+`main.cpp.obj : error LNK2019: 无法解析的外部符号 … runRendererSelftest` then LNK1120, and the exe was
+left missing. `touch native/CMakeLists.txt` re-ran configure, `objects1.rsp` gained the new TU, and
+only then did the gates above turn green (`exe sha256 c726aa87…`, up from the stale `10e96d1b…`).
+Consequences for later phases: (a) after editing any `.cmake` or source file, prove the build tree
+reconfigured (`grep -c main_selftest native/build-nmake/CMakeFiles/tf2_demo_native.dir/objects1.rsp`
+must be 1); (b) a "successful" no-op build is not evidence of freshness — the object list is.
 
 ## 8. What cannot be determined without building
 

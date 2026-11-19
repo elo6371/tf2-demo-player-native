@@ -60,6 +60,7 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 
 **B. 工程瓶颈（本仓库自身）**
 - CI 零运行（见 §1）；55 个门禁在本轮只跑了身份门禁 + 3 个烟测 + demo-clock，其余没有真实 verdict。
+  2026-11-19 追加：animation-drive-states 在 `work/integrate`（HEAD `7542bf5e`）重跑得到 `ANIMATION-DRIVE-STATES=PASS`（9 次运行全 rc=0、3848 s、四条内置负控 4/4 带原因串验证），见 `docs/GATE-VERDICTS-ROUND2-2026-11-15.md` 末尾。
 - `/analyze` 不在门禁；4 条 C6262（57–131 KB 栈帧）只记录未取舍。
 - 33 分支 82 提交未推；两条断链谱系占 283 个原始提交，属清理前历史。
 - `.gitattributes` 行尾规则已定策略，仍等安全窗口落地。
@@ -71,25 +72,29 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 
 ## 4. 架构优化现状
 
-- `native/src/main.cpp` 现在 **16,413 行**；`int WINAPI wWinMain` 在 `native/src/main.cpp:3163` 开、文件末尾 `:16413` 闭，
-  **13,251 行一个函数**（N24 计划时 15,324 行文件 / 12,392 行函数，后来长了 1,089/859 行）。
+- `native/src/main.cpp` 现在 **16,221 行**（N24 phase 1 于 2026-11-19 抽出 renderer self-test，`88ade848`）；
+  `int WINAPI wWinMain` 仍在 `native/src/main.cpp:3163` 开、`:16221` 闭，**13,251 行一个函数**未变
+  （N24 计划时 15,324 行文件 / 12,392 行函数，之后长了 1,089/859 行）。
 - 已有的拆分只搬周边：`main_hud.cpp` 1,608、`native_ui.cpp` 730、`main_helpers.cpp` 198、
   `camera_script.cpp` 633、`main_ui.cpp` 347、`main_internal.h` 180、`main_camera.cpp` 139、
   `main_lifecycle.cpp` 116、`main_trace.cpp` 104。
-- `docs/N24-MAIN-SPLIT-PLAN-2026-11-16.md` 状态仍是 **plan only**：§4 目标 TU 与阶段顺序、§7 phase 1
-  （renderer self-test 移出）已细化到可执行，**源码一行未动**。
+- `docs/N24-MAIN-SPLIT-PLAN-2026-11-16.md` §7 **phase 1 已落地**（`88ade848`）：新 TU 213 行、`main.cpp` −192 行、
+  `main_internal.h` 声明、`tf2-product.cmake` 条目；`wWinMain` 未动。§4 其余阶段仍是方案。
+  phase 1 顺带暴露一个构建陷阱：编辑工具保留 mtime → NMake 既不重编也不重跑 CMake，链接了拆分前 obj，
+  身份门禁的 compiled-input 探针以 `LNK2019` 抓到；`touch native/CMakeLists.txt` 重配后才转绿。
 - 结构化约束（计划里记录、仍成立）：wWinMain 无 `goto`/清理标签、183 个开关一条 1354 行比较链、
   MSVC C1061 嵌套上限已撞过一次、306 处 `traceFmt` 属可观测契约、54 个按引用 lambda。
 - `tf2_core` 51 个编译单元、`tf2_demo_native` 30 个（`/analyze` 覆盖口径）；N22 的 `tier1.yml`
   文件已落地但零运行；N26 构建缓存实测未做。
-- 判断：架构优化停在"方案 + 证据"，没进入执行。第一步应是 N24 phase 1（低风险、可门禁验证），
-  而不是继续往 `main.cpp` 里加东西。
+- 判断：架构优化刚起步——phase 1（最低风险、可门禁验证）已落地并有五项读数，`wWinMain` 仍未动。
+  下一步是 phase 2 的 seam（renderer/HUD 调用面），而不是继续往 `main.cpp` 里加东西。
 
 ## 5. 本轮之后的第一步（建议顺序）
 
 1. 把本报告的 sanitizer 结论写回 `docs/N23-WALL-LEVEL-2026-11-18.md` §8 与状态行（本轮已做）。
-2. N24 phase 1（renderer self-test 抽出 `main.cpp`），用现有 `/W4` + 烟测门禁守门。
-3. N25 五个门禁补真实 verdict（身份门禁已 PASS，其余仍是"修了没跑"）。
+2. ~~N24 phase 1（renderer self-test 抽出 `main.cpp`）~~ 已于 2026-11-19 完成（`88ade848`，读数见 §4）；
+   下一步 phase 2。
+3. N25 剩下的门禁补真实 verdict（身份门禁已 PASS；animation-drive-states 2026-11-19 也 PASS 且负控 4/4；其余仍是"修了没跑"）。
 4. 其余 33 个分支是否推 GitHub 属用户决策；断链谱系只留历史。
 
 ## 6. 证据路径
@@ -99,3 +104,4 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 - ASan 构建：`/d/_shared/n23-asan-build/`、脚本 `/d/_shared/n23-asan-build.sh`、日志 `/d/_shared/n23-asan-build.log`
 - sanitizer 读数：`/d/_shared/n23-asan-selftest.log`、`/d/_shared/n23-asan-demo-scan.log`
 - 环境自证：`/d/_shared/asan-smoke.cpp`、`smoke-run.log`
+- T84 门禁重跑：`/d/_shared/n25-drive/`（9 次捕获各 2,582,406 B bmp + ~200 MB trace）、日志 `/d/_shared/n25-drive-rerun.log`
