@@ -143,7 +143,24 @@
 
 `bash build-target.sh tf2_demo_native` → `--renderer-resize-selftest`（PASS checks=30）→ `bash tools/warn-check.sh`（WARN-GATE tus=139）→ `bash build-identity-check.sh`（assertions=222）→ 画面相关再跑 `frame-capture-check.sh`。源码动过就重跑 identity，它会把 exe sha、HEAD、native 树 sha 一起钉住。
 
-## 7 你上次踩过的坑（这次别踩）
+## 7 参考实现（只读对照，不是依赖）
+
+对上引擎语义时，下面这些公开源码库可以直接对读。**只做交叉验证：不要抄进补丁，也不许声称你编译/读过整个库。**
+
+| 参考库 | 用来对什么 |
+|---|---|
+| `https://github.com/ValveSoftware/source-sdk-2013` | 同代 Source 引擎的 client/server 源码：粒子系统与 operator 求值（`src/game/client/` 下的 particles 相关文件）、studio 模型头与 LOD（`public/studio.h`、mdllib）、材质与 UV 处理。**G3 的 operator 语义、G2 的 switch 距离字段以这里为准。** |
+| `https://github.com/ValveSoftware/Source-1-Games` | Source 1 各游戏的游戏层代码（按分支发布）。TF2 侧实体动画状态、viewmodel 门闩的官方写法参照这里。**G8 对读这个。** |
+| `https://github.com/ValveSoftware/halflife` | HL1 SDK。只作老式粒子/精灵实现的对照，**不要**拿它推断 Source 引擎行为。 |
+
+对读规则：
+
+1. 引用任何外部源码结论，必须写「库 + 路径 + 文件 + 行号」，并说明它对应本仓哪一处（本仓行号）。
+2. 外部源码只能解释**语义**，不能证明「本仓现在是什么样」——本仓的证据只认本仓行号与本仓文档里的字节读数。
+3. 链接打不开或版本对不上，就以本仓 `docs/` 里已有的证据为准，并在交付里标注「未能对读外部源码」。
+4. 外部库的许可证与本仓不同，**一行代码都不许复制进来**；只许按语义重写。
+
+## 8 你上次踩过的坑（这次别踩）
 
 1. P9 补丁用 **4 空格**缩进、仓库是 2 空格 → 三个 hunk 全 `patch does not apply`。这次先确认缩进。
 2. 静态评审把「CPU 边函数」引成 `main.cpp:8616`，那里实际是 viewmodel 的 lambda；真正的边函数在 `main.cpp:10940-10974`（负容差判断在 `:10955`）。**引用前二次确认符号上下文。**
