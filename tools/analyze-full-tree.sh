@@ -25,8 +25,16 @@ OUTBASE="${ANALYZE_OUT:-/d/_shared/n23-analyze-$STAMP}"
 mkdir -p "$OUTBASE"
 TSV="$OUTBASE/summary.tsv"
 printf 'target\ttus\twarnings\trc\n' > "$TSV"
-TARGETS=$(ls -d "$BUILD"/CMakeFiles/*.dir 2>/dev/null | sed -e 's#.*/##' -e 's/\.dir$//' | sort)
+# Enumerate with a shell glob + basename, not "ls | sed": ls given an absolute
+# MSYS path prints Windows-style backslash paths, so a sed on '/' matched nothing
+# and every target was silently skipped (the driver reported tus=0 in 3 s).
+TARGETS=""
+for d in "$BUILD"/CMakeFiles/*.dir; do
+  [ -d "$d" ] || continue
+  TARGETS="$TARGETS $(basename "$d" .dir)"
+done
 [ -n "$TARGETS" ] || { echo "NO-TARGETS $BUILD"; exit 1; }
+echo "TARGETS=$(echo $TARGETS | wc -w) BUILD=$BUILD"
 FAILED=0
 for t in $TARGETS; do
   [ -f "$BUILD/CMakeFiles/$t.dir/flags.make" ] || continue
@@ -38,7 +46,7 @@ for t in $TARGETS; do
   line=$(grep -E '^SUMMARY ' "$log" | tail -1)
   tus=$(printf '%s' "$line" | sed -n 's/.* tus=\([0-9]*\).*/\1/p'); tus=${tus:-0}
   warns=$(printf '%s' "$line" | sed -n 's/.* warnings=\([0-9]*\).*/\1/p'); warns=${warns:-0}
-  [ -s "$line" ] || rc=1
+  [ -n "$line" ] || rc=1   # -s tests a file named by the SUMMARY text; -n is the intended "did the runner print a summary" test
   [ "$rc" -ne 0 ] && FAILED=1
   printf '%s\t%s\t%s\t%s\n' "$t" "$tus" "$warns" "$rc" >> "$TSV"
   echo "TARGET=$t tus=$tus warnings=$warns rc=$rc"

@@ -50,7 +50,7 @@ for path in "$EXE" "$DEMO" "$TF"; do
 done
 command -v python >/dev/null 2>&1 || { echo "FATAL: missing python" >&2; exit 2; }
 
-. "$(dirname "$0")/verify-iso.sh"
+. "$(dirname "$0")/../verify-iso.sh"   # gate helpers live at the repo root, this script in tools/
 ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/tf2-d01.XXXXXX") || exit 2
 ISO_SETTINGS="$ISO_DIR/settings.ini"
 ISO_UI="$ISO_DIR/ui.ini"

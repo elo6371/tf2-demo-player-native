@@ -108,6 +108,9 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
    COLOR0 今天**不缺失**（849 读 70、919 读 255），同一 recipe 的产品帧在 849 读到 70,70,70
    而不是归档帧的 0,0,0；`albedo×lighting` 与 lightmap 探针同值，没有零化步骤。
    结论：D01 的「顶点色缺失」对今天的树不成立，要关它需要一个绑定提交的复现器。
+8. 本批收尾：`/analyze` 全树重扫完成（55 target / 136 TU / **19 条警告** / 分析失败 0，约 10 分钟），
+   读数 `evidence/analyze/2026-11-19-summary.tsv`、记录 `docs/ANALYZE-FULL-TREE-2026-11-19.md`。
+   产品 exe 只剩 5 条，其中 `wWinMain` 的 C6262 58,208 B 要等 N24 phase 2 拆函数才会消失。
 
 ## 6. 证据路径
 
