@@ -97,11 +97,13 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
 3. N25 剩下的门禁补真实 verdict（身份门禁已 PASS；animation-drive-states 2026-11-19 也 PASS 且负控 4/4；其余仍是"修了没跑"）。
 4. 其余 33 个分支是否推 GitHub 属用户决策；断链谱系只留历史。
 5. 本批（2026-11-19 下午）：P9 三处栈转堆已落地、外部评审 triage 已写（`docs/GEMINI-REVIEW-TRIAGE-2026-11-19.md`）；
-   排期与未解决项见 `docs/TASK-LIST-2026-11-19.md`，下一步是 `/analyze` 三 TU 复测与身份门禁复跑。
+   排期与未解决项见 `docs/TASK-LIST-2026-11-19.md`；身份门禁已在 P9 树复跑 PASS（`head=dbe8abcf`，
+   2026-11-19 12:02），下一步是 `/analyze` 全树复扫。
 
 ## 6. 证据路径
 
-- 门禁：`/d/_shared/n23-identity-forward4`（`BUILD-IDENTITY=PASS assertions=222`）
+- 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
+  早先 `/d/_shared/n23-identity-forward4`（`7542bf5e` 树，同样 222）
 - `/analyze`：`/d/_shared/n23-analyze/<target>/`、`/d/_shared/n23-analyze-final.log`
 - ASan 构建：`/d/_shared/n23-asan-build/`、脚本 `/d/_shared/n23-asan-build.sh`、日志 `/d/_shared/n23-asan-build.log`
 - sanitizer 读数：`/d/_shared/n23-asan-selftest.log`、`/d/_shared/n23-asan-demo-scan.log`
