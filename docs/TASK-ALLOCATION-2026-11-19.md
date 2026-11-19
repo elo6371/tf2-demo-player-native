@@ -34,7 +34,7 @@
 | L2 | N11 七图矩阵：脚本 + 真跑一次 | **完成（2026-11-19 13:32）`N11-SEVEN-MAP-MATRIX=PASS rows=14/14 identical_pairs=0`** | 读数入库 `evidence/n11-matrix/readings.tsv`；§9 两条待查读数（sunshine POV 相机、tiles=0） |
 | L3 | D01 COLOR0 取证（849/919 顶点色归因） | **完成（2026-11-19 13:45）；结论改写：黑点不复现** | `docs/D01-COLOUR0-READBACK-2026-11-19.md`：COLOR0 读到 70/255，产品帧 849=70,70,70；D01 需绑定提交的复现器才能关 |
 | L4 | `/analyze` 全树重扫 | **完成（2026-11-19 13:57）55 target / 136 TU / 19 警告 / 失败 0** | `docs/ANALYZE-FULL-TREE-2026-11-19.md`；入库 `evidence/analyze/2026-11-19-summary.tsv`；对 P9 前的两个 target −3 条 |
-| L5 | ASan 两条路径（model / material） | 待做 | 两次带 ASan 运行，0 报告或逐条定位 |
+| L5 | ASan 两条路径（model / material） | **完成（2026-11-19 14:13）104 用例 / 报告 0 / hit-rows 0** | `docs/ASAN-MODEL-MATERIAL-2026-11-19.md`；读数入库 `evidence/asan-2026-11-19/`；22 个非零退出逐条归因 |
 | L6 | CI 首跑排查（`.github/workflows/tier1.yml` 在仓但零运行） | **已推 `candidate/ci-smoke`（`b83a9c2e`）触发；本机到 api.github.com 不可达，结果只能远端看** | 要么首次真跑绿灯，要么写清被什么挡住 |
 | L7 | T84 成本：3848 s → 目标 < 2400 s | 待做 | 同读数的前提下压缩时长，仍 4/4 负控 |
 | L8 | 每轮进度回写（本文件 + STATUS-REPORT + TASK-LIST） | 持续 | 每次提交带读数 |
