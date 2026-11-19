@@ -21,7 +21,7 @@
 | G5 | `/analyze` 剩余告警定性 | 中 | 逐条判定 |
 | G6 | 文档-源码一致性第二遍（≥8 处） | 中 | 表格 + 文档补丁（**完成**：16 处，2026-11-19 应用 `g6-doc-changes-c57bd32b.tsv`，改 3 文件 16 行） |
 | G7 | 逐顶点 UV 的 PS 侧修复 | 中 | HLSL 补丁；**已入库（2026-11-19，`26280880`）**：上传器把「未折行 uv + tile 原点/跨度」交给 PS，由 `frac(uv)` 平铺，`TF2_NATIVE_UV_PS` 默认关时逐字节回退（5 文件 +104/−18；PS=0 帧 md5 `0fcb6867` = HEAD 干净构建，PS=1 只在跨瓦片边界面变化，负控 `span*0.25` 变帧；entity VS 补写 TEXCOORD8=0 是同 T61 的驱动机制） |
-| G8 | N18 viewmodel 门闩 | 中 | 最小补丁（默认关）；**门禁基线已跑（2026-11-19 15:37，`assertions_ok=152`，两条既有红与 N18 无关）**，读数 `evidence/n18-gate-baseline-2026-11-19/` |
+| G8 | N18 viewmodel 门闩 | 中 | **已入库（2026-11-19，`4b08984a`）**：`TF2_NATIVE_VIEWMODEL_PATH` = `--viewmodel <path> --viewmodel-apply-animation` 的精确别名，默认关 tick-0 帧逐字节回退 `0fcb6867`；开时 `drawn=1`（23169 顶点/45 骨骼），帧差 14,444 px；identity 222 + 四门禁绿。**placement/pose 未接**（bind pose、中央横躺），门禁两条既有红仍开（`assertions_ok=152`） |
 | G9 | N11 七图采集脚本 | 轻 | 脚本 |
 
 批次 1 只要求它交 G4 阶段 1 + G6，拿到反馈前不许往下跑（见任务包 §5）。

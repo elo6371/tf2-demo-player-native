@@ -159,6 +159,23 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
     `docs/RELEASE-POLICY.md` probe 注释（identity 的 docs-probe 7 条红）；删 0 字节 obj、`git checkout -- docs/RELEASE-POLICY.md` 后 222 全绿。
     抓帧口径 `.scratch/g7/cap.sh`（本机、未入库），差异工具 `.scratch/g7/diff.py`。
 
+14. 本批 G8（N18 viewmodel 门闩，`4b08984a`）：`native/src/main.cpp` +22 —— 在 `persistent.render.normalize();` 之后、
+    D-23 unrecognized 打印之前，`if (commandViewModel.empty())` 里用单次 `static const std::wstring` +
+    `_wdupenv_s(..., L"TF2_NATIVE_VIEWMODEL_PATH")` 读环境变量，非空则等价于 `--viewmodel <path> --viewmodel-apply-animation`。
+    默认关逐字节回退：tick-0 帧 md5 `0fcb6867c46d55d9ef9fc95bf65596c2` 与 HEAD 干净构建一致；env 指向
+    `models/weapons/v_models/v_scattergun_scout.mdl` 时帧 `452e018299ad0ccd305be1973c450de3`，与 off 差 14,444 px
+    （>8 级 14,444、>32 级 14,281，bbox (488,283)-(678,498)），trace 有 `gpu: viewmodel request … status=ok`、
+    `upload mesh=1 vertices=23169 bones=45`、`pass … drawCalls=1 vertices=23169`、`drawn=1 reason=drawn`；显式 `--viewmodel`
+    同路径 + `--viewmodel-apply-animation` 的帧 md5 与 env 完全相同（env 是 CLI 精确别名），env 为空串回到基线。
+    `BUILD-IDENTITY=PASS assertions=222`（`head=74ee1e90ae17`，清树）+ argument-refusal/hud/map-overview/frame-capture 四门禁 rc=0。
+    **如实记录限制**：枪虽然画出来了，但位置在画面中央偏左、横躺、bind pose —— trace 里 `poseAvailable=0`、
+    `scene: vmAnim … status=missing`、`weaponBody refusal=noViewModelEntity`，即 placement/pose 未接；「右下第一人称构图」未达成。
+    同批三份只读文档（`74ee1e90`）：`docs/ARCH-MAIN-SPLIT-B2-2026-11-19.md`、`docs/ARCH-RENDERER-BINDING-CONTRACT-2026-11-19.md`、
+    `docs/N24-PHASE2-SURVEY-2026-11-19.md`，我逐条抽 16 处 `文件:行号` 对照全部命中；唯一错处是 T3 §5 债 #2 说
+    `CreateInputLayout(worldElements, 9, …)` 仍硬编码（G7 `a64b549f` 已改为 `std::size(worldElements)`，文档里改成「已修」）；
+    另销一条假债：我此前记的 `entity.cpp:154/:165` 用 48 B 结构写 `WorldVertex` 不成立，实测那是 `entityMarkerVertexBuffer_`（`WorldVertex` 完全匹配）。
+    插曲：第一次跑门禁时树上有补丁 + 3 份未提交文档（1 tracked + 3 untracked），identity 的「gate left the tree with the record count
+    it found = 4, expected 1」等 5 条因此红；先提交清树后单独复跑即 222 全绿 —— 门禁检查的是开跑瞬间的树状态，不是代码回归。
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
