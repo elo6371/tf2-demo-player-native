@@ -4551,6 +4551,28 @@ bool outlineVertexExtent = false;
     }
     persistent.render.normalize();
   }
+  // G8 (N18 viewmodel latch): allow TF2_NATIVE_VIEWMODEL_PATH to opt into
+  // first-person viewmodel drawing without adding a CLI switch (C1061).
+  // Explicit --viewmodel always wins so A/B CLI runs never read the env path;
+  // unset or empty leaves commandViewModel and viewModelApplyAnimation at
+  // their defaults so the baseline frame is byte-for-byte unchanged.
+  if (commandViewModel.empty()) {
+    static const std::wstring envViewModelPath = [] {
+      wchar_t* raw = nullptr;
+      std::size_t length = 0;
+      if (_wdupenv_s(&raw, &length, L"TF2_NATIVE_VIEWMODEL_PATH") != 0
+          || raw == nullptr) {
+        return std::wstring();
+      }
+      std::wstring value(raw);
+      std::free(raw);
+      return value;
+    }();
+    if (!envViewModelPath.empty()) {
+      commandViewModel = envViewModelPath;
+      viewModelApplyAnimation = true;
+    }
+  }
   // D-23: printed unconditionally, including the zero case, so that "the loop
   // recognised the argument" and "the trace lost the line" cannot look alike.
   // The first name is repeated outside the list because the list is capped; a
