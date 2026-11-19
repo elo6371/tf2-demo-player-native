@@ -35,7 +35,7 @@
 | L3 | D01 COLOR0 取证（849/919 顶点色归因） | **完成（2026-11-19 13:45）；结论改写：黑点不复现** | `docs/D01-COLOUR0-READBACK-2026-11-19.md`：COLOR0 读到 70/255，产品帧 849=70,70,70；D01 需绑定提交的复现器才能关 |
 | L4 | `/analyze` 全树重扫 | **完成（2026-11-19 13:57）55 target / 136 TU / 19 警告 / 失败 0** | `docs/ANALYZE-FULL-TREE-2026-11-19.md`；入库 `evidence/analyze/2026-11-19-summary.tsv`；对 P9 前的两个 target −3 条 |
 | L5 | ASan 两条路径（model / material） | **完成（2026-11-19 14:13）104 用例 / 报告 0 / hit-rows 0** | `docs/ASAN-MODEL-MATERIAL-2026-11-19.md`；读数入库 `evidence/asan-2026-11-19/`；22 个非零退出逐条归因 |
-| L6 | CI 首跑排查（`.github/workflows/tier1.yml` 在仓但零运行） | **进行中：run #1 行尾红已修（`d3bb5d05`）；run #2 tier 1 红已定位为门禁登记（`excluded=51`→两条新门禁未登记），登记后本地 `verify-fast.sh --mutation` = `VERIFY-FAST=PASS (43/43)`，等 run #3** | 本地复现记录 `GATE-REGISTRY=FAIL 51 → PASS 53`；远端 runs/jobs 无 token 可读，日志与 artifact 需 token |
+| L6 | CI 首跑排查（`.github/workflows/tier1.yml` 在仓但零运行） | **完成（2026-11-19 15:27Z）run #3 `44479356155` 全绿：7 step success / 3 m 14 s / tier 1 PASS** | run #1 行尾红（`d3bb5d05` 修）、run #2 门禁登记红（`4f1a52d7` 修）；读数 `evidence/ci-run3-2026-11-19.md` |
 | L7 | T84 成本：3848 s → 目标 < 2400 s | **完成（2026-11-19 14:48）1,713 s、2.25×、九帧 md5 不变** | 门禁新增 `--jobs N`（默认 1）；`--jobs 4` 跑法见 `evidence/t84-animdrive/parallel-jobs4/README.md`，读数同目录 |
 | L8 | 每轮进度回写（本文件 + STATUS-REPORT + TASK-LIST） | 持续 | 每次提交带读数 |
 

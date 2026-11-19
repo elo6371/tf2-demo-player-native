@@ -122,7 +122,8 @@ HEAD `2aa812dc`）实测或从 GitHub API 读到的，不引用旧报告当现�
     run #2 的 tier 1 红在 3/3 的门禁登记（`GATE-REGISTRY=FAIL gates=88 registered=35 excluded=51`：新门禁
     `argument-refusal-check.sh`（`97ad8917`）与 `world-entity-tint-check.sh`（`adce1061`）既不在链里也不在排除表），
     两条已按 segmented 登记进 `docs/GATES-UNREGISTERED.md`；本地 `verify-fast.sh --mutation` 复跑
-    `GATE-REGISTRY=PASS excluded=53`、`VERIFY-FAST=PASS (assertions_ok=43)`，等 run #3 的远端读数。
+    `GATE-REGISTRY=PASS excluded=53`、`VERIFY-FAST=PASS (assertions_ok=43)`；run #3 `44479356155`（`4f1a52d7`）七个 step 全 success（3 m 14 s），
+    首次 CI 绿，读数 `evidence/ci-run3-2026-11-19.md`。
 
 ## 6. 证据路径
 
