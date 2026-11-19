@@ -415,7 +415,7 @@ Q5 证据保留缺口：运行报告说明原始 7 份生成物已还原、26 �
 ### N23　警告、静态检查与错误注入（F + B）
 
 - [x] 输出 product/core/probe 的 `/W4` 覆盖矩阵与现有告警分类；分目标补，清理后再局部 `/WX`。（2026-11-18：55/55 目标 /W4、138 TU 零告警、`_CRT_SECURE_NO_WARNINGS` 作为唯一方言定义、7 个目标 /WX；覆盖矩阵与逐条修法见 `docs/N23-WALL-LEVEL-2026-11-18.md`，产品 exe `2e44c7e3…`；2026-11-19：干净树 `BUILD-IDENTITY=PASS assertions=222` head `aa8b0df0438d`，`/analyze` 51+30 TU、8 条告警、修 1 条 C6326，见该文档 §7/§8）
-- [ ] sanitizer/静态分析只选当前 Windows 编译器支持的组合，先 parser/资源生命周期代表目标，不凭配置文件声称运行干净。（2026-11-19：`/analyze` 已测 51+30 TU，见 `docs/N23-WALL-LEVEL-2026-11-18.md` §8；sanitizer 未跑——当前 MSVC 安装缺 x64 ASan 运行库，链接报 `LNK1104: clang_rt.asan_static_runtime_thunk-x86_64.lib`，只有 i386 运行时）
+- [x] sanitizer/静态分析只选当前 Windows 编译器支持的组合，先 parser/资源生命周期代表目标，不凭配置文件声称运行干净。（2026-11-19：`/analyze` 已测 51+30 TU，见 `docs/N23-WALL-LEVEL-2026-11-18.md` §8；ASan x64 已装并取两条路径读数——install CLI selftest `PASS cases=4 checks=21 fail=0`、`demo_open_probe --scan` 25,130 包 `malformed_packets=0`，均 0 条报告；边界：model/material 与资源生命周期无读数，本机 `tf/` 无 `models` 目录，ASan 构建不在门禁里）
 - [ ] WinMM/D3D 故障注入、resize 与有效控制挂到对应域窄测；格式/许可证策略单独提交，不混产品修复。
 
 ### N24　继续拆主循环与核心边界（F，和功能单写协调）
