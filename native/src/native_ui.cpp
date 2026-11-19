@@ -67,16 +67,16 @@ void loadUiSettings(UiSettings& settings) {
   settings.fov = static_cast<float>(migrateLegacyViewModelFov(readUiInt(path, L"fov", kDefaultViewModelFovInt)));
   settings.vsync = readUiInt(path, L"vsync", 0) != 0;
   settings.volume = static_cast<float>(readUiInt(path, L"volumePercent", 100)) / 100.0f;
-  wchar_t root[32768]{};
-  GetPrivateProfileStringW(L"ui", L"tfRoot", L"", root,
-    static_cast<DWORD>(std::size(root)), path.c_str());
-  if (root[0] != L'\0') settings.tfRoot = root;
+  std::wstring buffer(32768, L'\0');
+  GetPrivateProfileStringW(L"ui", L"tfRoot", L"", buffer.data(),
+    static_cast<DWORD>(buffer.size()), path.c_str());
+  if (buffer[0] != L'\0') settings.tfRoot = buffer.c_str();
   for (std::size_t index = 0; index < 8; ++index) {
     const std::wstring key = L"recentDemo" + std::to_wstring(index);
-    wchar_t recent[32768]{};
-    GetPrivateProfileStringW(L"ui", key.c_str(), L"", recent,
-      static_cast<DWORD>(std::size(recent)), path.c_str());
-    if (recent[0] != L'\0') settings.recentDemos.emplace_back(recent);
+    buffer[0] = L'\0';
+    GetPrivateProfileStringW(L"ui", key.c_str(), L"", buffer.data(),
+      static_cast<DWORD>(buffer.size()), path.c_str());
+    if (buffer[0] != L'\0') settings.recentDemos.emplace_back(buffer.c_str());
   }
 }
 

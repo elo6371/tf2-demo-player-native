@@ -2284,16 +2284,16 @@ void beginReviewSession(const std::filesystem::path& workspacePath,
 
 
 bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
-  wchar_t buffer[32768]{};
+  std::wstring buffer(32768, L'\0');
   OPENFILENAMEW dialog{};
   dialog.lStructSize = sizeof(dialog);
   dialog.hwndOwner = owner;
   dialog.lpstrFilter = L"Demo files (*.dem)\0*.dem\0All files (*.*)\0*.*\0\0";
-  dialog.lpstrFile = buffer;
-  dialog.nMaxFile = static_cast<DWORD>(std::size(buffer));
+  dialog.lpstrFile = buffer.data();
+  dialog.nMaxFile = static_cast<DWORD>(buffer.size());
   dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
   if (!GetOpenFileNameW(&dialog)) return false;
-  result = std::filesystem::path(buffer);
+  result = std::filesystem::path(buffer.c_str());
   return true;
 }
 

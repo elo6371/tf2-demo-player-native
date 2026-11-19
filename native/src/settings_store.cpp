@@ -129,12 +129,12 @@ PersistentSettings loadSettings() {
   result.render.trajectoryQuality = readInt(file, L"trajectoryQuality", 1) == 0
     ? RenderSettings::TrajectoryQuality::Low : RenderSettings::TrajectoryQuality::High;
   result.render.normalize();
-  wchar_t root[32768]{};
-  GetPrivateProfileStringW(kSection, L"tfRoot", L"", root,
-    static_cast<DWORD>(std::size(root)), file.c_str());
+  std::wstring root(32768, L'\0');
+  GetPrivateProfileStringW(kSection, L"tfRoot", L"", root.data(),
+    static_cast<DWORD>(root.size()), file.c_str());
   if (root[0] != L'\0') {
     std::error_code error;
-    const auto canonical = std::filesystem::weakly_canonical(std::filesystem::path(root), error);
+    const auto canonical = std::filesystem::weakly_canonical(std::filesystem::path(root.c_str()), error);
     if (!error && !canonical.empty()) result.tfRoot = canonical;
   }
   return result;
