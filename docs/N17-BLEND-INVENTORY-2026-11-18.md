@@ -111,7 +111,7 @@ Scout 的混合网格是**逐序列自带**的：`scout_animations.mdl` 377 条�
 
 补充（排除"同一动画复制 9 份"）：9 格的骨骼集合、RLE 块数、整块字节数各不相同（§4.4）。
 
-**扁平化顺序 [推断]**：`k = i(move_y)*3 + i(move_x)`，外层 move_y（南→北 = −1→+1），内层 move_x（西→东 = −1→+1）。证据：前三格 SW,S,SE（同一 y、x 从西到东）、中三格 W,C,E、后三格 NW,N,NE；且 `paramstart=(−1,−1)` 对应索引 0。
+**扁平化顺序 [推断]**：`k = i(move_x)*3 + i(move_y)`，外层 move_x（南→北 = −1→+1，前后），内层 move_y（西→东 = −1→+1，左右）。**注意 move_x=前后、move_y=左右（Source 坐标语义，见 §8）；按 paramindex 读：行轴 = paramindex[1]、列轴 = paramindex[0]。**证据：前三格 SW,S,SE（同一 y、x 从西到东）、中三格 W,C,E、后三格 NW,N,NE；且 `paramstart=(−1,−1)` 对应索引 0。
 
 **⚠ Scout 没有 9 混合的 walk_* 家族。** 9 混合家族为：`run_*`(8)、`crouch_walk_*`(8)、`swim_*`(7)、`Jump_Start_*`(7)、`Jump_Float_*`(7)、`jump_double_*`(2)；`stand_*` 9 条全是 nb=1。也就是说：站立姿势**没有**方向混合，方向混合出现在 run / crouch_walk / swim / jump。
 
@@ -123,7 +123,7 @@ Scout 的混合网格是**逐序列自带**的：`scout_animations.mdl` 377 条�
 
 **扁平化顺序 [推断]**：`k = i(body_pitch)*3 + i(body_yaw)`（行宽 3 = yaw 采样数）。若按 4 宽分行，k0..k3 会混入不同 pitch，与名字矛盾。
 
-**⚠ 两族的嵌套方向相反**：9 混合内层是 param[1]（move_x）、12 混合内层是 param[0]（body_yaw）；行宽都恰好是 3，但 9 混合的行宽等于 gs[1]、12 混合的行宽等于 gs[0]。**因此没有一个统一公式能从 groupsize 推出扁平化顺序** → §6 UNKNOWN-1。
+**两族看似相反、实为同一公式**：列轴 = paramindex[0]（move_y / body_yaw = 横向），行轴 = paramindex[1]（move_x / body_pitch = 前后/纵向），`k = i(paramindex[1])*gs[0] + i(paramindex[0])`。早期版本把参数名 move_* 当成前后/左右语义，才得出"方向相反、无统一公式"的错误结论 → §8 与 §6 UNKNOWN-1。
 
 ### §2.4 其余一维网格（6 条）[直读]
 
@@ -526,7 +526,7 @@ k0（`a_runSW_PRIMARY`）逐骨每轴值块数（28 根 RLE 骨骼；其余 33 �
 
 | # | UNKNOWN | 现状 |
 |---|---|---|
-| 1 | **groupsize → blend 索引的通用扁平化公式** | 两族都是"行宽 3、垂直轴在外"，但 9 混合外层是 param[1]、12 混合外层是 param[0]；行宽在 9 混合等于 gs[1]、在 12 混合等于 gs[0]。**没有统一公式**，实现须按家族/名序判定，或从引擎代码取权威实现 |
+| 1 | **groupsize → blend 索引的通用扁平化公式** | **已解决（2026-11-20，§8）**：统一公式 `k = y*gs[0]+x`，`x=paramindex[0]`（横向 move_y/yaw）、`y=paramindex[1]`（前后 move_x/pitch）；原"两族相反"结论作废 |
 | 2 | pose 参数 `flags`（值 1，仅 body_pitch/body_yaw）的语义 | 未验证；可能是"循环/可回绕"提示，无证据 |
 | 3 | body_pitch 区间：基础模型 −45..45 vs companion −45..90，运行时以谁为准 | 两者皆 [直读]；权威未定 |
 | 4 | 节点 flags 的 0x10（DELTA）、0x02（raw48 旋转）在本素材中的实际用例 | 本卡三例均未出现；全库是否存在未统计 |
@@ -581,3 +581,16 @@ python .scratch/n17-blend/gen_frags3.py
 
 ---
 文档结束。文中所有数据表均由 §7 的脚本从素材直接生成，未手工誊抄。
+
+---
+
+## §8 2026-11-20 修正：UNKNOWN-1 已解决（G5 独立复核后）
+
+复核证据见 `.scratch/n17-g5-check.md`。本节**推翻 §2.2/§2.3 与 §6 UNKNOWN-1 中"两族嵌套方向相反、没有统一公式"的结论**；其余偏移结论不变（原始字节复核全部一致）。
+
+1. Source 坐标语义：x = 前后（forward）、y = 左右（lateral）。pose 参数名沿用该语义：`move_x` = 前后、`move_y` = 左右；`body_yaw` = 横向、`body_pitch` = 纵向。独立证据：一维网格 `a_vehicle_NS_leans` 用 move_x（§2.4，NS=南北=前后）、`a_steer_allclass_matrix` 用 move_y（转向=左右）。
+2. 原始角落名复核：9 格文件顺序 = 南行 SW,S,SE（前后=−1，左右 −1→+1）、中行 W,C,E、北行 NW,N,NE → **列 = 左右 = move_y = paramindex[0]，行 = 前后 = move_x = paramindex[1]**。因此 `k = i(move_x)*3 + i(move_y) = i(paramindex[1])*gs[0] + i(paramindex[0])`。
+3. 12 格：列 = body_yaw = paramindex[0]，行 = body_pitch = paramindex[1] → 同一公式。与上游 `skeleton.rs:703-744`（x=share(0)、y=share(1)、cell=i16(list+(y*width+x)*2)）逐字一致。
+4. 扁平化**有统一公式**：`k = y*gs[0] + x`，`x` 取 paramindex[0]，`y` 取 paramindex[1]。§2.2 的 `k=i(move_y)*3+i(move_x)` 是"名字误当语义"下的转写，仅因 3×3 两轴等长而数值巧合，**不要照此实现**；§2.3 的 12 格公式碰巧正确。
+5. weight_list 是**连续权重**：5674 条可读权重中 1582 条含非 0/1 值（0.5/0.4/0.75/0.7…；`AttackSwim_PRIMARY` 的 pelvis/prop_bone=0.5）；aim 网格 `PRIMARY_aimmatrix_idle` 恰好 0/1（腿 [13..18,21,22] 为 0）。Step 3 应按 float 缩放叠加，不能二值化。
+6. 维度读数修正：scout companion 实测 39 个 3×3、28 个 3×4、**7** 个一维（§2.4 原写 6；各职业 6~7）；27 个 mdl 上 numblends==gs0*gs1 违例 0；groupsize=0 只出现在 numblends=0 的占位序列。
