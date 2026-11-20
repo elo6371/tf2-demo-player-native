@@ -650,56 +650,59 @@ AnimationStatus decodeAnimationModel(const std::uint8_t* bytes, std::size_t size
   return AnimationStatus::Ok;
 }
 
-AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequenceIndex, int tick, float tickRate) {
-  AnimationSample sample;
+namespace {
+
+// T105-n17 Step 2: the sampler body shared by a sequence and a blend grid cell.
+// A sequence resolves to one animdesc; a grid cell IS an animdesc, so both paths
+// land here and cannot drift apart in frame policy, section handling or chain
+// validation. Returns false with sample.reason set; on success the pose fields
+// are filled and sample.status is Ok.
+bool sampleAnimDescCore(const AnimationModel& model, std::int32_t animDesc, bool looping,
+    const std::string& label, int tick, float tickRate, AnimationSample& sample) {
+  sample.sequenceLabel = label;
+  sample.looping = looping;
+  sample.animDesc = animDesc;
   if (!model.loaded || model.bytes.empty()) {
     sample.reason = "animation model is not loaded";
-    return sample;
+    return false;
   }
-  if (sequenceIndex < 0 || static_cast<std::size_t>(sequenceIndex) >= model.sequences.size()) {
-    sample.reason = "sequence index is outside the sequence table";
-    return sample;
-  }
-  const auto& sequence = model.sequences[static_cast<std::size_t>(sequenceIndex)];
-  sample.sequenceLabel = sequence.label;
-  sample.looping = sequence.looping;
-  sample.animDesc = sequence.animDesc;
-  if (sequence.animDesc < 0 || static_cast<std::size_t>(sequence.animDesc) >= model.animations.size()) {
+  if (animDesc < 0 || static_cast<std::size_t>(animDesc) >= model.animations.size()) {
     sample.reason = "sequence has no animation binding";
-    return sample;
+    return false;
   }
-  const auto& anim = model.animations[static_cast<std::size_t>(sequence.animDesc)];
+  const auto& anim = model.animations[static_cast<std::size_t>(animDesc)];
   sample.fps = anim.fps;
   sample.frameCount = anim.frameCount;
   if (tick < 0 || !(tickRate > 0.0f) || !std::isfinite(tickRate)) {
     sample.reason = "tick or tick rate is not usable";
-    return sample;
+    return false;
   }
   if (anim.frameCount <= 0 || anim.frameCount > 100000) {
     sample.reason = "animation frame count is not usable";
-    return sample;
+    return false;
   }
   if (!(anim.fps > 0.0f) || !std::isfinite(anim.fps)) {
     sample.reason = "animation rate is not usable";
-    return sample;
+    return false;
   }
   const double cursor = static_cast<double>(tick) * static_cast<double>(anim.fps) / static_cast<double>(tickRate);
-  const int frame = selectFrame(cursor, anim.frameCount, sequence.looping);
+  const int frame = selectFrame(cursor, anim.frameCount, looping);
   sample.frame = frame;
 
   std::int32_t animTable = 0;
   readAt(model.bytes.data(), model.bytes.size(), 184, animTable);
-  const auto animOffset = static_cast<std::size_t>(animTable) + static_cast<std::size_t>(sequence.animDesc) * kAnimStride;
+  const auto animOffset = static_cast<std::size_t>(animTable) + static_cast<std::size_t>(animDesc) * kAnimStride;
   std::size_t dataOffset = 0;
   int localFrame = 0;
   if (!locateFrame(model.bytes.data(), model.bytes.size(), animOffset, anim, frame, dataOffset, localFrame, sample.reason)) {
-    return sample;
+    return false;
   }
   sample.localFrame = localFrame;
   sample.sectionFrames = anim.sectionFrames;
 
   sample.localPosition.assign(model.bones.size(), {});
   sample.localRotation.assign(model.bones.size(), {0.0f, 0.0f, 0.0f, 1.0f});
+  sample.boneAnimated.assign(model.bones.size(), 0);
   for (std::size_t i = 0; i < model.bones.size(); ++i) {
     sample.localPosition[i] = model.bones[i].position;
     sample.localRotation[i] = model.bones[i].rotation;
@@ -709,7 +712,7 @@ AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequen
   for (std::size_t step = 0; step < model.bones.size(); ++step) {
     if (boneCursor + 4 > model.bytes.size()) {
       sample.reason = "animation block offset is outside the file";
-      return sample;
+      return false;
     }
     const int boneIndex = model.bytes[boneCursor];
     std::int16_t next = 0;
@@ -726,31 +729,32 @@ AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequen
     if (boneIndex == kAnimationChainTerminator) break;
     if (boneIndex >= static_cast<int>(model.bones.size())) {
       sample.reason = "animation bone index is outside the skeleton";
-      return sample;
+      return false;
     }
     if (seen[static_cast<std::size_t>(boneIndex)]) {
       sample.reason = "animation bone index repeats";
-      return sample;
+      return false;
     }
     seen[static_cast<std::size_t>(boneIndex)] = true;
+    sample.boneAnimated[static_cast<std::size_t>(boneIndex)] = 1;
     if (!readBoneFrame(model.bytes.data(), model.bytes.size(), model.bones[static_cast<std::size_t>(boneIndex)],
         boneCursor, localFrame, sample.localPosition[static_cast<std::size_t>(boneIndex)],
         sample.localRotation[static_cast<std::size_t>(boneIndex)], sample.reason)) {
-      return sample;
+      return false;
     }
     if (next == 0) break;
     if (next < 4) {
       sample.reason = next < 0 ? "animation bone link offset is negative" : "animation bone link offset is too small";
-      return sample;
+      return false;
     }
     if (boneCursor + static_cast<std::size_t>(next) <= boneCursor) {
       sample.reason = "animation bone link offset is outside the file";
-      return sample;
+      return false;
     }
     boneCursor += static_cast<std::size_t>(next);
     if (step + 1 == model.bones.size()) {
       sample.reason = "animation bone chain is longer than the skeleton";
-      return sample;
+      return false;
     }
   }
 
@@ -758,11 +762,114 @@ AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequen
   parents.reserve(model.bones.size());
   for (const auto& bone : model.bones) parents.push_back(bone.parent);
   if (!composeLocalToModel(parents, sample.localPosition, sample.localRotation, sample.modelPosition, sample.reason)) {
-    return sample;
+    return false;
   }
   sample.status = AnimationStatus::Ok;
   sample.reason.clear();
+  return true;
+}
+
+} // namespace
+
+AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequenceIndex, int tick, float tickRate) {
+  AnimationSample sample;
+  if (!model.loaded || model.bytes.empty()) {
+    sample.reason = "animation model is not loaded";
+    return sample;
+  }
+  if (sequenceIndex < 0 || static_cast<std::size_t>(sequenceIndex) >= model.sequences.size()) {
+    sample.reason = "sequence index is outside the sequence table";
+    return sample;
+  }
+  const auto& sequence = model.sequences[static_cast<std::size_t>(sequenceIndex)];
+  sample.sequenceLabel = sequence.label;
+  if (sequence.animDesc < 0 || static_cast<std::size_t>(sequence.animDesc) >= model.animations.size()) {
+    sample.reason = "sequence has no animation binding";
+    return sample;
+  }
+  sampleAnimDescCore(model, sequence.animDesc, sequence.looping, sequence.label, tick, tickRate, sample);
   return sample;
+}
+
+AnimationSample sampleAnimDesc(const AnimationModel& model, std::int32_t animDesc, bool looping,
+    int tick, float tickRate) {
+  AnimationSample sample;
+  sampleAnimDescCore(model, animDesc, looping, std::string(), tick, tickRate, sample);
+  return sample;
+}
+
+bool censusAnimationChannels(const AnimationModel& model, std::int32_t animDesc,
+    AnimationChannelCensus& out) {
+  out = AnimationChannelCensus{};
+  if (!model.loaded || model.bytes.empty()) {
+    out.reason = "animation model is not loaded";
+    return false;
+  }
+  if (animDesc < 0 || static_cast<std::size_t>(animDesc) >= model.animations.size()) {
+    out.reason = "sequence has no animation binding";
+    return false;
+  }
+  const auto& anim = model.animations[static_cast<std::size_t>(animDesc)];
+  if (anim.frameCount <= 0 || anim.frameCount > 100000) {
+    out.reason = "animation frame count is not usable";
+    return false;
+  }
+  if (!(anim.fps > 0.0f) || !std::isfinite(anim.fps)) {
+    out.reason = "animation rate is not usable";
+    return false;
+  }
+  std::int32_t animTable = 0;
+  readAt(model.bytes.data(), model.bytes.size(), 184, animTable);
+  const auto animOffset = static_cast<std::size_t>(animTable) + static_cast<std::size_t>(animDesc) * kAnimStride;
+  std::size_t dataOffset = 0;
+  int localFrame = 0;
+  if (!locateFrame(model.bytes.data(), model.bytes.size(), animOffset, anim, 0, dataOffset, localFrame, out.reason)) {
+    return false;
+  }
+  out.boneAnimated.assign(model.bones.size(), 0);
+  std::vector<bool> seen(model.bones.size(), false);
+  std::size_t boneCursor = dataOffset;
+  for (std::size_t step = 0; step < model.bones.size(); ++step) {
+    if (boneCursor + 4 > model.bytes.size()) {
+      out.reason = "animation block offset is outside the file";
+      return false;
+    }
+    const int boneIndex = model.bytes[boneCursor];
+    std::int16_t next = 0;
+    readAt(model.bytes.data(), model.bytes.size(), boneCursor + 2, next);
+    if (boneIndex == kAnimationChainTerminator) break;
+    if (boneIndex >= static_cast<int>(model.bones.size())) {
+      out.reason = "animation bone index is outside the skeleton";
+      return false;
+    }
+    if (seen[static_cast<std::size_t>(boneIndex)]) {
+      out.reason = "animation bone index repeats";
+      return false;
+    }
+    seen[static_cast<std::size_t>(boneIndex)] = true;
+    out.boneAnimated[static_cast<std::size_t>(boneIndex)] = 1;
+    ++out.animatedBones;
+    // SEQUENCE_DELTA content is exactly the 0x10 flag on a channel record, and a
+    // layer can only stack deltas the file actually ships.
+    if ((model.bytes[boneCursor + 1] & kDelta) != 0) ++out.deltaBones;
+    if (next == 0) break;
+    if (next < 4) {
+      out.reason = next < 0 ? "animation bone link offset is negative" : "animation bone link offset is too small";
+      return false;
+    }
+    if (boneCursor + static_cast<std::size_t>(next) <= boneCursor) {
+      out.reason = "animation bone link offset is outside the file";
+      return false;
+    }
+    boneCursor += static_cast<std::size_t>(next);
+    if (step + 1 == model.bones.size()) {
+      out.reason = "animation bone chain is longer than the skeleton";
+      return false;
+    }
+  }
+  out.ok = true;
+  out.reason.clear();
+  return true;
 }
 
 } // namespace tf2::native

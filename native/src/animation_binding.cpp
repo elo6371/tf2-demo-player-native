@@ -460,11 +460,9 @@ bool cycleToSampleTick(const AnimationDesc& anim, const AnimationSampleRequest& 
   return true;
 }
 
-// One layer's local pose, in the decoder's own layout.
-struct LocalPose {
-  std::vector<std::array<float, 3>> position;
-  std::vector<std::array<float, 4>> rotation;
-};
+// One layer's local pose, in the decoder's own layout. The public name exists so
+// the Step 3 gate can be asserted without a demo; this TU keeps the short alias.
+using LocalPose = AnimationLocalPose;
 
 // Weighted average of local transforms: positions linearly, rotations with a
 // sign-aligned weighted sum and a renormalise (nlerp). The sign alignment is
@@ -527,7 +525,305 @@ bool blendLocalPoses(const std::vector<LocalPose>& poses, const std::vector<floa
   return true;
 }
 
+// T105-n17 Step 2: pose parameter name -> grid axis role. Name, not slot index:
+// the roster swaps move_x/move_y between slots 4 and 5 depending on the class.
+PoseGridAxisRole poseGridAxisRoleFromName(const std::string& name) {
+  std::string lower;
+  lower.reserve(name.size());
+  for (char c : name) lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  if (lower == "move_x") return PoseGridAxisRole::MoveX;
+  if (lower == "move_y") return PoseGridAxisRole::MoveY;
+  if (lower == "body_yaw") return PoseGridAxisRole::BodyYaw;
+  if (lower == "body_pitch") return PoseGridAxisRole::BodyPitch;
+  return PoseGridAxisRole::Unmapped;
+}
+
+// One grid sequence sampled at one cycle: the bilinear pose plus the readings the
+// result and the probe report.
+struct GridPoseSample {
+  LocalPose pose;
+  PoseGridCoordinate coordinates;
+  std::array<std::int32_t, 4> frames{{0, 0, 0, 0}};
+  AnimationSample dominant;
+  bool hasDominant = false;
+  std::vector<std::uint8_t> boneMask;
+};
+
+// Every cell is evaluated at the same CYCLE, not at the same tick: cells of one
+// grid can have different frame counts (the swim family mixes 31 and 61 frame
+// clips), and converting each cell with its own frame count keeps the phase
+// aligned. Returns false when the lookup or a needed cell is unusable; the
+// caller then keeps the single-cell sample it already has.
+bool samplePoseGrid(const AnimationBinding& binding, const AnimationSequence& sequence,
+    const AnimationSampleRequest& request, bool hasCycle, float cycle,
+    GridPoseSample& out, std::string& reason) {
+  const AnimationModel& model = binding.anims;
+  if (!poseGridCoordinates(model, sequence, request.pose, out.coordinates, reason)) return false;
+  std::vector<LocalPose> poses;
+  std::vector<float> weights;
+  out.boneMask.assign(model.bones.size(), 0);
+  float dominantWeight = -1.0f;
+  for (std::size_t corner = 0; corner < 4; ++corner) {
+    const float weight = out.coordinates.weight[corner];
+    if (!(weight > 0.0f) || !std::isfinite(weight)) continue;
+    const std::int32_t cell = out.coordinates.cell[corner];
+    if (cell < 0 || static_cast<std::size_t>(cell) >= model.animations.size()) {
+      reason = "blend grid cell is outside the animation table";
+      return false;
+    }
+    const auto& cellAnim = model.animations[static_cast<std::size_t>(cell)];
+    out.frames[corner] = cellAnim.frameCount;
+    std::int32_t cellTick = request.tick;
+    if (!cycleToSampleTick(cellAnim, request, hasCycle, cycle, cellTick, reason)) return false;
+    AnimationSample cellSample = sampleAnimDesc(model, cell, sequence.looping, cellTick, request.tickRate);
+    if (cellSample.status != AnimationStatus::Ok) {
+      reason = "blend grid cell " + cellAnim.name + ": " + cellSample.reason;
+      return false;
+    }
+    // A cell only animates part of the skeleton; the layer may supply exactly the
+    // union of what its corners animate.
+    for (std::size_t bone = 0; bone < out.boneMask.size() && bone < cellSample.boneAnimated.size(); ++bone) {
+      if (cellSample.boneAnimated[bone] != 0) out.boneMask[bone] = 1;
+    }
+    LocalPose cellPose;
+    cellPose.position = std::move(cellSample.localPosition);
+    cellPose.rotation = std::move(cellSample.localRotation);
+    poses.push_back(std::move(cellPose));
+    weights.push_back(weight);
+    if (weight > dominantWeight) {
+      dominantWeight = weight;
+      out.dominant = std::move(cellSample);
+      out.hasDominant = true;
+    }
+  }
+  if (poses.empty()) {
+    reason = "blend grid produced no corner";
+    return false;
+  }
+  if (poses.size() == 1) {
+    out.pose = std::move(poses[0]);
+    return true;
+  }
+  float rawSum = 0.0f;
+  if (!normalizeBlendWeights(weights.data(), weights.size(), &rawSum)) {
+    reason = "blend grid weights are not usable";
+    return false;
+  }
+  return blendLocalPoses(poses, weights, out.pose, reason);
+}
+
 } // namespace
+
+const char* animationBlendModeName(AnimationBlendMode mode) {
+  switch (mode) {
+  case AnimationBlendMode::PoseGrid: return "posegrid";
+  case AnimationBlendMode::Legacy: break;
+  }
+  return "legacy";
+}
+
+bool parseAnimationBlendMode(const std::string& value, AnimationBlendMode& out) {
+  if (value == "legacy") { out = AnimationBlendMode::Legacy; return true; }
+  if (value == "posegrid") { out = AnimationBlendMode::PoseGrid; return true; }
+  return false;
+}
+
+const char* poseGridAxisRoleName(PoseGridAxisRole role) {
+  switch (role) {
+  case PoseGridAxisRole::MoveX: return "move_x";
+  case PoseGridAxisRole::MoveY: return "move_y";
+  case PoseGridAxisRole::BodyYaw: return "body_yaw";
+  case PoseGridAxisRole::BodyPitch: return "body_pitch";
+  case PoseGridAxisRole::Unmapped: return "unmapped";
+  case PoseGridAxisRole::None: break;
+  }
+  return "none";
+}
+
+bool poseWeightListGatesBone(const AnimationWeightList& weights, std::size_t bone) {
+  // An unreadable table must degrade to the legacy blend, not freeze bones: only
+  // a table that decoded can take a bone away from a layer.
+  if (!weights.readable) return true;
+  if (bone >= weights.weights.size()) return true;
+  return weights.weights[bone] > 0.0f;
+}
+
+bool poseGridCoordinates(const AnimationModel& model, const AnimationSequence& sequence,
+    const AnimationPoseInput& input, PoseGridCoordinate& out, std::string& reason) {
+  out = PoseGridCoordinate{};
+  const AnimationBlendGrid& grid = sequence.grid;
+  if (!grid.valid || grid.cells.empty()) {
+    reason = "sequence has no blend grid";
+    return false;
+  }
+  const std::int32_t width = grid.groupSize[0];
+  const std::int32_t height = grid.groupSize[1];
+  if (width <= 0 || height <= 0
+      || static_cast<std::size_t>(width) * static_cast<std::size_t>(height) != grid.cells.size()) {
+    reason = "blend grid cell count does not match its group sizes";
+    return false;
+  }
+  for (std::size_t axis = 0; axis < 2; ++axis) {
+    const std::int32_t count = grid.groupSize[axis];
+    if (count <= 1) continue;
+    const std::int32_t slot = grid.paramIndex[axis];
+    if (slot < 0 || static_cast<std::size_t>(slot) >= model.poseParameters.size()) {
+      reason = "blend grid axis is not a pose parameter";
+      return false;
+    }
+    const AnimationPoseParam& param = model.poseParameters[static_cast<std::size_t>(slot)];
+    const PoseGridAxisRole role = poseGridAxisRoleFromName(param.name);
+    out.role[axis] = role;
+    if (role == PoseGridAxisRole::Unmapped) {
+      reason = "pose parameter '" + param.name + "' drives a grid axis this input cannot supply";
+      return false;
+    }
+    // A recognised axis with no input keeps its neutral value (0) rather than
+    // refusing: a caller that supplies only movement still gets the centre of an
+    // aim grid, which is the bind-pose row.
+    float value = 0.0f;
+    if (role == PoseGridAxisRole::MoveX) { if (input.hasMove) value = input.moveX; }
+    else if (role == PoseGridAxisRole::MoveY) { if (input.hasMove) value = input.moveY; }
+    else if (role == PoseGridAxisRole::BodyYaw) { if (input.hasAim) value = input.aimYaw; }
+    else if (role == PoseGridAxisRole::BodyPitch) { if (input.hasAim) value = input.aimPitch; }
+    if (!std::isfinite(value)) value = 0.0f;
+    const float low = std::min(grid.paramStart[axis], grid.paramEnd[axis]);
+    const float high = std::max(grid.paramStart[axis], grid.paramEnd[axis]);
+    const float clamped = std::min(std::max(value, low), high);
+    out.clamped[axis] = clamped != value;
+    const float span = grid.paramEnd[axis] - grid.paramStart[axis];
+    float position = 0.0f;
+    if (span > 0.0f || span < 0.0f) {
+      position = (clamped - grid.paramStart[axis]) / span * static_cast<float>(count - 1);
+    }
+    if (!std::isfinite(position)) position = 0.0f;
+    out.position[axis] = position;
+    std::int32_t lower = static_cast<std::int32_t>(std::floor(position));
+    if (lower < 0) lower = 0;
+    if (lower > count - 1) lower = count - 1;
+    if (lower > count - 2) {
+      // The last cell is a corner, not a band: keep the lower corner at count-2
+      // and let the fraction reach 1, so interpolation does not fold back.
+      lower = count - 2;
+      out.fraction[axis] = 1.0f;
+    } else {
+      out.fraction[axis] = position - static_cast<float>(lower);
+    }
+    out.index[axis] = lower;
+  }
+  const auto at = [&grid, width](std::int32_t column, std::int32_t row) -> std::int32_t {
+    const std::size_t k = static_cast<std::size_t>(row) * static_cast<std::size_t>(width)
+      + static_cast<std::size_t>(column);
+    return k < grid.cells.size() ? grid.cells[k] : -1;
+  };
+  const std::int32_t i0 = out.index[0];
+  const std::int32_t i1 = out.index[1];
+  const std::int32_t columnHigh = width > 1 ? std::min<std::int32_t>(i0 + 1, width - 1) : i0;
+  const std::int32_t rowHigh = height > 1 ? std::min<std::int32_t>(i1 + 1, height - 1) : i1;
+  out.cell[0] = at(i0, i1);
+  out.cell[1] = at(columnHigh, i1);
+  out.cell[2] = at(i0, rowHigh);
+  out.cell[3] = at(columnHigh, rowHigh);
+  const float fx = width > 1 ? out.fraction[0] : 0.0f;
+  const float fy = height > 1 ? out.fraction[1] : 0.0f;
+  out.weight[0] = (1.0f - fx) * (1.0f - fy);
+  out.weight[1] = fx * (1.0f - fy);
+  out.weight[2] = (1.0f - fx) * fy;
+  out.weight[3] = fx * fy;
+  for (std::size_t corner = 0; corner < 4; ++corner) {
+    if (!(out.weight[corner] > 0.0f)) continue;
+    const std::int32_t cell = out.cell[corner];
+    if (cell < 0 || static_cast<std::size_t>(cell) >= model.animations.size()) {
+      reason = "blend grid cell is outside the animation table";
+      return false;
+    }
+  }
+  return true;
+}
+
+bool blendPoseLayers(const std::vector<AnimationLocalPose>& poses,
+    const std::vector<float>& weights,
+    const std::vector<std::vector<std::uint8_t>>* boneGates,
+    AnimationLocalPose& out, std::size_t& gatedBones, std::size_t& isolatedBones,
+    std::string& reason) {
+  gatedBones = 0;
+  isolatedBones = 0;
+  if (boneGates == nullptr) return blendLocalPoses(poses, weights, out, reason);
+  if (poses.empty() || poses.size() != weights.size()) { reason = "no blend layers"; return false; }
+  if (boneGates->size() != poses.size()) {
+    reason = "bone gates disagree with the layer count";
+    return false;
+  }
+  const std::size_t bones = poses[0].position.size();
+  if (bones == 0 || poses[0].rotation.size() != bones) {
+    reason = "blend layers carry no bones";
+    return false;
+  }
+  for (const auto& pose : poses) {
+    if (pose.position.size() != bones || pose.rotation.size() != bones) {
+      reason = "blend layers disagree on bone count";
+      return false;
+    }
+  }
+  std::size_t dominant = 0;
+  for (std::size_t layer = 1; layer < poses.size(); ++layer) {
+    if (weights[layer] > weights[dominant]) dominant = layer;
+  }
+  out.position.assign(bones, std::array<float, 3>{{0.0f, 0.0f, 0.0f}});
+  out.rotation.assign(bones, std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}});
+  for (std::size_t bone = 0; bone < bones; ++bone) {
+    const auto& reference = poses[0].rotation[bone];
+    double x = 0.0, y = 0.0, z = 0.0, w = 0.0;
+    double px = 0.0, py = 0.0, pz = 0.0;
+    double participant = 0.0;
+    bool excluded = false;
+    for (std::size_t layer = 0; layer < poses.size(); ++layer) {
+      const float weight = weights[layer];
+      if (!(weight > 0.0f) || !std::isfinite(weight)) continue;
+      const std::vector<std::uint8_t>& gate = (*boneGates)[layer];
+      if (bone < gate.size() && gate[bone] == 0) { excluded = true; continue; }
+      const auto& position = poses[layer].position[bone];
+      px += static_cast<double>(position[0]) * weight;
+      py += static_cast<double>(position[1]) * weight;
+      pz += static_cast<double>(position[2]) * weight;
+      const auto& rotation = poses[layer].rotation[bone];
+      const double dot = static_cast<double>(reference[0]) * rotation[0]
+        + static_cast<double>(reference[1]) * rotation[1]
+        + static_cast<double>(reference[2]) * rotation[2]
+        + static_cast<double>(reference[3]) * rotation[3];
+      const double sign = dot < 0.0 ? -1.0 : 1.0;
+      x += sign * static_cast<double>(rotation[0]) * weight;
+      y += sign * static_cast<double>(rotation[1]) * weight;
+      z += sign * static_cast<double>(rotation[2]) * weight;
+      w += sign * static_cast<double>(rotation[3]) * weight;
+      participant += weight;
+    }
+    if (excluded) ++gatedBones;
+    if (!(participant > 0.0)) {
+      ++isolatedBones;
+      out.position[bone] = poses[dominant].position[bone];
+      out.rotation[bone] = poses[dominant].rotation[bone];
+      continue;
+    }
+    const double inverse = 1.0 / participant;
+    const double position[3] = {px * inverse, py * inverse, pz * inverse};
+    for (int axis = 0; axis < 3; ++axis) {
+      out.position[bone][axis] = std::isfinite(position[axis])
+        ? static_cast<float>(position[axis])
+        : poses[dominant].position[bone][axis];
+    }
+    const double length = std::sqrt(x * x + y * y + z * z + w * w);
+    if (length > 1.0e-6 && std::isfinite(length)) {
+      out.rotation[bone][0] = static_cast<float>(x / length);
+      out.rotation[bone][1] = static_cast<float>(y / length);
+      out.rotation[bone][2] = static_cast<float>(z / length);
+      out.rotation[bone][3] = static_cast<float>(w / length);
+    } else {
+      out.rotation[bone] = poses[dominant].rotation[bone];
+    }
+  }
+  return true;
+}
 
 AnimationSampleResult buildAnimationSkinMatrices(
     const AnimationBinding* binding,
@@ -610,9 +906,46 @@ AnimationSampleResult buildAnimationSkinMatrices(
   LocalPose pose;
   pose.position = sample.localPosition;
   pose.rotation = sample.localRotation;
+
+  // T105-n17 Step 2: a grid sequence is INDEXED by pose parameters, not played as
+  // its first cell. The single sample above stays the fallback: a grid whose axis
+  // this call has no input for keeps the legacy picture and says why.
+  const bool poseGridMode = request.blendMode == AnimationBlendMode::PoseGrid;
+  const auto applyGridReadings = [&result](const GridPoseSample& grid) {
+    result.poseGridIndex = grid.coordinates.index;
+    result.poseGridFraction = grid.coordinates.fraction;
+    result.poseGridRoles[0] = static_cast<std::int32_t>(grid.coordinates.role[0]);
+    result.poseGridRoles[1] = static_cast<std::int32_t>(grid.coordinates.role[1]);
+    result.poseGridClamped = grid.coordinates.clamped;
+    result.poseGridCells = grid.coordinates.cell;
+    result.poseGridWeights = grid.coordinates.weight;
+    result.poseGridFrames = grid.frames;
+  };
+  std::vector<std::uint8_t> primaryMask;
+  if (poseGridMode && sequence.grid.valid) {
+    GridPoseSample grid;
+    std::string gridReason;
+    if (samplePoseGrid(*binding, sequence, request, request.hasCycle, request.cycle,
+        grid, gridReason)) {
+      pose = std::move(grid.pose);
+      primaryMask = std::move(grid.boneMask);
+      applyGridReadings(grid);
+      result.poseGridApplied = true;
+      ++result.poseGridLayers;
+      if (grid.hasDominant) {
+        result.frame = grid.dominant.frame;
+        result.frameCount = grid.dominant.frameCount;
+        result.localFrame = grid.dominant.localFrame;
+        result.sectionFrames = grid.dominant.sectionFrames;
+      }
+    } else {
+      result.poseGridReason = gridReason;
+    }
+  }
   if (request.blendLayerCount > 0) {
     std::vector<LocalPose> poses;
     std::vector<float> weights;
+    std::vector<std::vector<std::uint8_t>> gates;
     const std::size_t requested = request.blendLayerCount < kMaxBlendLayers
       ? request.blendLayerCount : kMaxBlendLayers;
     float dominantWeight = -1.0f;
@@ -638,27 +971,57 @@ AnimationSampleResult buildAnimationSkinMatrices(
         ++dropped;
         continue;
       }
-      std::int32_t layerTick = request.tick;
-      std::string tickReason;
       const bool layerHasCycle = layer.cycle >= 0.0f || request.hasCycle;
       const float layerCycle = layer.cycle >= 0.0f ? layer.cycle : request.cycle;
-      if (!cycleToSampleTick(layerAnim, request, layerHasCycle, layerCycle, layerTick, tickReason)) {
-        ++dropped;
-        continue;
-      }
-      const AnimationSample layerSample =
-        sampleAnimation(binding->anims, layer.sequence, layerTick, request.tickRate);
-      if (layerSample.status != AnimationStatus::Ok) { ++dropped; continue; }
       LocalPose layerPose;
-      layerPose.position = layerSample.localPosition;
-      layerPose.rotation = layerSample.localRotation;
+      std::vector<std::uint8_t> layerMask;
+      AnimationSample layerSample;
+      bool layerSampled = false;
+      if (poseGridMode && layerSequence.grid.valid) {
+        GridPoseSample grid;
+        std::string gridReason;
+        if (samplePoseGrid(*binding, layerSequence, request, layerHasCycle, layerCycle,
+            grid, gridReason)) {
+          layerPose = std::move(grid.pose);
+          layerMask = std::move(grid.boneMask);
+          layerSample = std::move(grid.dominant);
+          layerSampled = true;
+          if (!result.poseGridApplied) applyGridReadings(grid);
+          result.poseGridApplied = true;
+          ++result.poseGridLayers;
+        } else if (result.poseGridReason.empty()) {
+          result.poseGridReason = gridReason;
+        }
+      }
+      if (!layerSampled) {
+        std::int32_t layerTick = request.tick;
+        std::string tickReason;
+        if (!cycleToSampleTick(layerAnim, request, layerHasCycle, layerCycle, layerTick, tickReason)) {
+          ++dropped;
+          continue;
+        }
+        layerSample = sampleAnimation(binding->anims, layer.sequence, layerTick, request.tickRate);
+        if (layerSample.status != AnimationStatus::Ok) { ++dropped; continue; }
+        layerPose.position = layerSample.localPosition;
+        layerPose.rotation = layerSample.localRotation;
+        layerMask = layerSample.boneAnimated;
+      }
       poses.push_back(std::move(layerPose));
       weights.push_back(layer.weight);
+      if (poseGridMode && request.poseBoneMask) {
+        std::vector<std::uint8_t> gate(binding->anims.bones.size(), 1);
+        for (std::size_t bone = 0; bone < gate.size(); ++bone) {
+          bool supplies = poseWeightListGatesBone(layerSequence.weights, bone);
+          if (supplies && bone < layerMask.size()) supplies = layerMask[bone] != 0;
+          gate[bone] = supplies ? 1 : 0;
+        }
+        gates.push_back(std::move(gate));
+      }
       result.blendSequences[slot] = layer.sequence;
       result.blendWeights[slot] = layer.weight;
       if (layer.weight > dominantWeight) {
         dominantWeight = layer.weight;
-        result.sequenceLabel = layerSample.sequenceLabel;
+        result.sequenceLabel = layerSequence.label;
         result.frame = layerSample.frame;
         result.frameCount = layerSample.frameCount;
         result.localFrame = layerSample.localFrame;
@@ -677,11 +1040,19 @@ AnimationSampleResult buildAnimationSkinMatrices(
           result.blendWeights[slot] = weights[used++];
         }
       }
-      if (!blendLocalPoses(poses, weights, pose, result.blendReason)) {
+      const std::vector<std::vector<std::uint8_t>>* gateList =
+        (poseGridMode && request.poseBoneMask && gates.size() == poses.size()) ? &gates : nullptr;
+      std::size_t gatedBones = 0;
+      std::size_t isolatedBones = 0;
+      if (!blendPoseLayers(poses, weights, gateList, pose, gatedBones, isolatedBones,
+          result.blendReason)) {
         pose.position = sample.localPosition;
         pose.rotation = sample.localRotation;
         result.blendLayers = 0;
         result.blendReason = "blend kept the single sample: " + result.blendReason;
+      } else {
+        result.poseMaskGatedBones = gatedBones;
+        result.poseMaskIsolatedBones = isolatedBones;
       }
     } else {
       result.blendReason = "every blend layer was unusable; played the single sequence";
@@ -1004,6 +1375,124 @@ void animationGridCensus(const AnimationBinding& binding, std::vector<std::strin
     std::snprintf(line, sizeof(line), "GRID-POSE-PARAMS model=%s slots=%zu%s%s",
       binding.modelPath.c_str(), model.poseParameters.size(),
       slots.empty() ? "" : " ", slots.c_str());
+    out.emplace_back(line);
+  }
+
+  // GRID-DELTA / GRID-GATE (Step 3): the two facts that decide whether per-bone
+  // gating can do anything at all -- do grid cells carry SEQUENCE_DELTA channels,
+  // and does a grid weight_list actually disagree with the bones its cells animate.
+  // Every cell is walked once here through the same channel census the probe uses.
+  std::size_t deltaCells = 0;
+  std::size_t deltaCellsWithDelta = 0;
+  std::size_t deltaChannels = 0;
+  std::size_t deltaCellFailures = 0;
+  std::size_t deltaShown = 0;
+  std::size_t gatePartial = 0;
+  std::size_t gateAllZero = 0;
+  std::size_t gateShown = 0;
+  for (std::size_t i = 0; i < model.sequences.size(); ++i) {
+    const auto& sequence = model.sequences[i];
+    if (!sequence.grid.valid) continue;
+    std::vector<std::uint8_t> animated(model.bones.size(), 0);
+    std::size_t seqCells = 0;
+    std::size_t seqDeltaCells = 0;
+    std::size_t seqDeltaChannels = 0;
+    std::size_t seqFailures = 0;
+    for (std::size_t k = 0; k < sequence.grid.cells.size(); ++k) {
+      const std::int32_t cell = sequence.grid.cells[k];
+      if (cell < 0 || static_cast<std::size_t>(cell) >= model.animations.size()) {
+        ++seqFailures;
+        continue;
+      }
+      AnimationChannelCensus channels;
+      if (!censusAnimationChannels(model, cell, channels) || !channels.ok) {
+        ++seqFailures;
+        continue;
+      }
+      ++seqCells;
+      if (channels.deltaBones > 0) {
+        ++seqDeltaCells;
+        seqDeltaChannels += channels.deltaBones;
+      }
+      for (std::size_t bone = 0; bone < animated.size() && bone < channels.boneAnimated.size(); ++bone) {
+        if (channels.boneAnimated[bone] != 0) animated[bone] = 1;
+      }
+    }
+    deltaCells += seqCells;
+    deltaCellsWithDelta += seqDeltaCells;
+    deltaChannels += seqDeltaChannels;
+    deltaCellFailures += seqFailures;
+    if (seqDeltaCells > 0 && deltaShown < 8) {
+      ++deltaShown;
+      char line[512];
+      std::snprintf(line, sizeof(line),
+        "GRID-DELTA seq=%zu label=%s cells=%zu cellsWithDelta=%zu deltaChannels=%zu failures=%zu",
+        i, sequence.label.c_str(), seqCells, seqDeltaCells, seqDeltaChannels, seqFailures);
+      out.emplace_back(line);
+    }
+
+    const AnimationWeightList& list = sequence.weights;
+    if (!list.readable || list.boneCount == 0) continue;
+    const bool ones = list.zeroCount == 0 && list.minWeight == 1.0f && list.maxWeight == 1.0f
+      && list.sum == static_cast<float>(list.boneCount);
+    if (ones) continue;
+    const bool zeros = list.zeroCount == list.boneCount;
+    if (zeros) ++gateAllZero;
+    else ++gatePartial;
+    if (gateShown >= 8) continue;
+    ++gateShown;
+    std::size_t supplied = 0;
+    std::size_t animatedCount = 0;
+    std::size_t both = 0;
+    std::string ranges;
+    std::size_t rangeRun = 0;
+    for (std::size_t bone = 0; bone < animated.size(); ++bone) {
+      const bool anim = animated[bone] != 0;
+      const bool sup = poseWeightListGatesBone(list, bone);
+      if (sup) ++supplied;
+      if (anim) ++animatedCount;
+      if (sup && anim) ++both;
+      if (sup == anim) {
+        if (rangeRun > 0) {
+          if (!ranges.empty()) ranges += ',';
+          ranges += std::to_string(bone - rangeRun);
+          if (rangeRun > 1) {
+            ranges += '-';
+            ranges += std::to_string(bone - 1);
+          }
+          rangeRun = 0;
+        }
+      } else {
+        ++rangeRun;
+      }
+    }
+    if (rangeRun > 0) {
+      if (!ranges.empty()) ranges += ',';
+      ranges += std::to_string(animated.size() - rangeRun);
+      if (rangeRun > 1) {
+        ranges += '-';
+        ranges += std::to_string(animated.size() - 1);
+      }
+    }
+    char line[1024];
+    std::snprintf(line, sizeof(line),
+      "GRID-GATE seq=%zu label=%s bones=%zu supplied=%zu animated=%zu both=%zu disagree=%s",
+      i, sequence.label.c_str(), animated.size(), supplied, animatedCount, both,
+      ranges.empty() ? "-" : ranges.c_str());
+    out.emplace_back(line);
+  }
+  {
+    char line[512];
+    std::snprintf(line, sizeof(line),
+      "GRID-DELTA-SUMMARY model=%s cells=%zu cellsWithDelta=%zu deltaChannels=%zu cellFailures=%zu",
+      binding.modelPath.c_str(), deltaCells, deltaCellsWithDelta, deltaChannels, deltaCellFailures);
+    out.emplace_back(line);
+  }
+  {
+    char line[512];
+    std::snprintf(line, sizeof(line),
+      "GRID-GATE-SUMMARY model=%s grids=%zu partial=%zu allZero=%zu",
+      binding.modelPath.c_str(), multi, gatePartial, gateAllZero);
     out.emplace_back(line);
   }
 }

@@ -135,6 +135,85 @@ struct AnimationBlendLayer {
   float weight = 0.0f;
 };
 
+// T105-n17 Step 2: the pose parameters a blend grid is indexed by, in the units
+// the pose parameter table uses (m_flPoseParameter: degrees for the aim axes,
+// -1..1 for the movement axes; a negative moveX is backward).
+//
+// These values are NOT on the wire: m_flPoseParameter is not sent for a player,
+// so the caller derives them by the rule the Step 2 report states and hands them
+// in. A grid whose axis this input cannot name keeps the legacy single-cell pose
+// and reports why through poseGridReason, rather than silently indexing with 0.
+struct AnimationPoseInput {
+  bool hasMove = false;
+  float moveX = 0.0f;     // forward (+) / backward (-), -1..1
+  float moveY = 0.0f;     // right (+) / left (-), -1..1
+  bool hasAim = false;
+  float aimYaw = 0.0f;    // degrees, + = right of the facing the mesh is drawn in
+  float aimPitch = 0.0f;  // degrees, + = up
+};
+
+// Legacy plays the sequence bound cell -- the whole 1D locomotion ramp for the
+// run grids -- and is the default, so every existing reading and the pose hash
+// stay byte-identical until a caller opts in. PoseGrid indexes a sequence grid
+// with AnimationPoseInput and blends the four neighbouring cells bilinearly.
+enum class AnimationBlendMode { Legacy, PoseGrid };
+
+const char* animationBlendModeName(AnimationBlendMode mode);
+bool parseAnimationBlendMode(const std::string& value, AnimationBlendMode& out);
+
+// Which pose parameter drives a grid axis, resolved from the slot NAME and not
+// the slot index: the roster stores move_x/move_y in slots (4,5) for
+// scout/heavy/sniper and in (5,4) for the other six classes, so an index-based
+// reading would be wrong for half of it. Axis 0 is the file inner index
+// (column) and axis 1 its outer one (row): cell k = i1 * groupSize[0] + i0.
+enum class PoseGridAxisRole { None, MoveX, MoveY, BodyYaw, BodyPitch, Unmapped };
+
+const char* poseGridAxisRoleName(PoseGridAxisRole role);
+
+// One bilinear lookup. Corner order is [0]=(i0,i1), [1]=(i0+1,i1),
+// [2]=(i0,i1+1), [3]=(i0+1,i1+1); fraction is the 0..1 position toward the
+// upper corner of each axis, position the same position in cell units.
+struct PoseGridCoordinate {
+  std::array<std::int32_t, 2> index{{0, 0}};
+  std::array<float, 2> fraction{{0.0f, 0.0f}};
+  std::array<float, 2> position{{0.0f, 0.0f}};
+  std::array<bool, 2> clamped{{false, false}};
+  std::array<PoseGridAxisRole, 2> role{{PoseGridAxisRole::None, PoseGridAxisRole::None}};
+  std::array<std::int32_t, 4> cell{{-1, -1, -1, -1}};
+  std::array<float, 4> weight{{0.0f, 0.0f, 0.0f, 0.0f}};
+};
+
+// Reads the sequence grid and turns the pose input into four corner cells and
+// weights. Returns false (with a reason) when the grid is absent, an axis names
+// a pose parameter this input cannot drive, or a corner cell is not an animdesc
+// the model has; the caller then keeps its single-cell sample.
+bool poseGridCoordinates(const AnimationModel& model, const AnimationSequence& sequence,
+  const AnimationPoseInput& input, PoseGridCoordinate& out, std::string& reason);
+
+// T105-n17 Step 3: the per-bone gate a weight list applies. A list that did not
+// decode, or a bone past its end, supplies the bone to every layer -- an
+// unreadable table must degrade to the legacy blend, not freeze the skeleton.
+bool poseWeightListGatesBone(const AnimationWeightList& weights, std::size_t bone);
+
+// One layer local pose, in the decoder layout.
+struct AnimationLocalPose {
+  std::vector<std::array<float, 3>> position;
+  std::vector<std::array<float, 4>> rotation;
+};
+
+// Per-bone blend with optional per-layer bone gates. nullptr gates is the
+// legacy blend, unchanged bit for bit. Otherwise a layer supplies a bone only
+// when its weight is positive AND its gate for that bone is non-zero; the
+// participating weights are renormalised per bone (so a gated-off layer does not
+// shrink the bone), and a bone no layer may supply falls back to the dominant
+// layer instead of collapsing toward the origin. gatedBones counts bones whose
+// blend changed because a contributor was gated off; isolatedBones counts the
+// fallbacks.
+bool blendPoseLayers(const std::vector<AnimationLocalPose>& poses,
+  const std::vector<float>& weights,
+  const std::vector<std::vector<std::uint8_t>>* boneGates,
+  AnimationLocalPose& out, std::size_t& gatedBones, std::size_t& isolatedBones,
+  std::string& reason);
 // What the entity said. `hasCycle` matters: m_flCycle is a 0..1 position inside
 // the sequence and is the more faithful input when the demo carries it, while
 // `tick` is the fallback that always exists.
@@ -151,6 +230,12 @@ struct AnimationSampleRequest {
   // same input produces the same weights in the same order.
   std::size_t blendLayerCount = 0;
   std::array<AnimationBlendLayer, kMaxBlendLayers> blendLayers{};
+  // T105-n17 Step 2/3: opt-in grid sampling, and the weight_list gate that only
+  // PoseGrid mode can use. Both default off so a request written before this
+  // change behaves exactly as it did.
+  AnimationBlendMode blendMode = AnimationBlendMode::Legacy;
+  AnimationPoseInput pose;
+  bool poseBoneMask = false;
 };
 
 struct AnimationSampleResult {
@@ -192,6 +277,25 @@ struct AnimationSampleResult {
   std::array<float, kMaxBlendLayers> blendWeights{{0.0f, 0.0f, 0.0f, 0.0f}};
   std::array<std::int32_t, kMaxBlendLayers> blendSequences{{-1, -1, -1, -1}};
   std::string blendReason;
+  // T105-n17 Step 2: the grid lookup actually taken. These describe the FIRST
+  // sequence sampled through a grid in this call (the primary sequence when it
+  // has one, otherwise the first grid layer), and poseGridLayers counts how many
+  // sequences went through a grid. All zero when the mode is Legacy or no sample
+  // carried a valid grid.
+  bool poseGridApplied = false;
+  std::size_t poseGridLayers = 0;
+  std::array<std::int32_t, 2> poseGridIndex{{0, 0}};
+  std::array<float, 2> poseGridFraction{{0.0f, 0.0f}};
+  std::array<std::int32_t, 2> poseGridRoles{{0, 0}};  // PoseGridAxisRole per axis
+  std::array<bool, 2> poseGridClamped{{false, false}};
+  std::array<std::int32_t, 4> poseGridCells{{-1, -1, -1, -1}};
+  std::array<float, 4> poseGridWeights{{0.0f, 0.0f, 0.0f, 0.0f}};
+  std::array<std::int32_t, 4> poseGridFrames{{0, 0, 0, 0}};
+  std::size_t poseMaskGatedBones = 0;
+  std::size_t poseMaskIsolatedBones = 0;
+  // Why a grid that should have been used was not: the trace prints it instead of
+  // showing a grid-mode sample that silently kept cell 0.
+  std::string poseGridReason;
 };
 
 // Composes two row-major 3x4 transforms in the convention the skinning path

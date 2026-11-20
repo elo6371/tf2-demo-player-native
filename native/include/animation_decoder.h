@@ -146,6 +146,12 @@ struct AnimationSample {
   std::vector<std::array<float, 3>> localPosition;
   std::vector<std::array<float, 4>> localRotation;
   std::vector<std::array<float, 3>> modelPosition;
+  // T105-n17 Step 2: one byte per bone, 1 where this animation block carried a
+  // channel for it. A grid cell covers part of the skeleton -- the aim matrices
+  // carry about 16 upper-body bones and leave the legs untouched -- so a blend
+  // layer has to know which bones its clip can actually supply. That is the
+  // per-bone half of the weight_list gate.
+  std::vector<std::uint8_t> boneAnimated;
 };
 
 // T105-n17 Step 1: the decoded model also carries every sequence's blend grid,
@@ -157,6 +163,29 @@ AnimationStatus decodeAnimationModel(const std::uint8_t* bytes, std::size_t size
 
 AnimationSample sampleAnimation(const AnimationModel& model, std::int32_t sequenceIndex,
   int tick, float tickRate);
+
+// T105-n17 Step 2: a blend grid cell names a LOCAL ANIMATION (an animdesc index),
+// one table below sequences, so the grid sampler needs an entry that starts
+// there. `looping` comes from the sequence that owns the grid; everything else
+// (frame policy, section table, chain validation) is the same code path as a
+// sequence sample, so the two cannot drift apart.
+AnimationSample sampleAnimDesc(const AnimationModel& model, std::int32_t animDesc,
+  bool looping, int tick, float tickRate);
+
+// T105-n17 Step 3: what one animation block's bone chain carries. A blend layer
+// can only stack SEQUENCE_DELTA content that exists, so the delta channels are
+// counted before anything is stacked; boneAnimated is the same mask a sample
+// publishes, filled without decoding a pose.
+struct AnimationChannelCensus {
+  bool ok = false;
+  std::string reason;
+  std::size_t animatedBones = 0;
+  std::size_t deltaBones = 0;
+  std::vector<std::uint8_t> boneAnimated;
+};
+
+bool censusAnimationChannels(const AnimationModel& model, std::int32_t animDesc,
+  AnimationChannelCensus& out);
 
 // Parents must be -1 or an earlier bone. Child model = parent model * local.
 bool composeLocalToModel(const std::vector<std::int32_t>& parents,

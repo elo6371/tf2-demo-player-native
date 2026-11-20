@@ -191,6 +191,214 @@ int helperSkinSelfTest() {
   return bindControl && translation && rotation ? 0 : 1;
 }
 
+// T105-n17 Step 2/3: the grid sampler is arithmetic, so it can be pinned without a
+// single game asset. A synthetic model states the two axes, the slot order and the
+// cell order, and the checks below are exactly the rules the product depends on.
+// The slot-swap case is the one a hardcoded column/row index passes on half the
+// roster and fails on the other half, which is why real data alone cannot pin it.
+int poseGridSelfTest() {
+  using namespace tf2::native;
+  AnimationModel skeleton;
+  skeleton.loaded = true;
+  skeleton.bones.resize(2);
+  skeleton.bones[0].parent = -1;
+  skeleton.bones[1].parent = 0;
+  skeleton.animations.resize(16);
+  for (auto& anim : skeleton.animations) {
+    anim.fps = 30.0f;
+    anim.frameCount = 2;
+    anim.animIndex = 0;
+  }
+  const auto makeParam = [](const char* name, float start, float end) {
+    AnimationPoseParam param;
+    param.name = name;
+    param.start = start;
+    param.end = end;
+    return param;
+  };
+  const auto makeGrid = [](std::array<std::int32_t, 2> groupSize,
+                           std::array<std::int32_t, 2> slots,
+                           std::array<float, 2> start,
+                           std::array<float, 2> end,
+                           std::vector<std::int16_t> cells) {
+    AnimationBlendGrid grid;
+    grid.valid = true;
+    grid.groupSize = groupSize;
+    grid.paramIndex = slots;
+    grid.paramStart = start;
+    grid.paramEnd = end;
+    grid.cells = std::move(cells);
+    return grid;
+  };
+
+  // A: 2x2 movement grid. Forward is move_x at slot 0, lateral move_y at slot 1.
+  AnimationModel move;
+  move.bones = skeleton.bones;
+  move.animations = skeleton.animations;
+  move.poseParameters = {makeParam("move_x", -45.0f, 45.0f), makeParam("move_y", -45.0f, 45.0f)};
+  AnimationSequence moveSequence;
+  moveSequence.label = "synthetic_move";
+  moveSequence.grid = makeGrid({2, 2}, {0, 1}, {-45.0f, -45.0f}, {45.0f, 45.0f}, {0, 1, 2, 3});
+  move.sequences = {moveSequence};
+  AnimationPoseInput centred;
+  centred.hasMove = true;
+  centred.moveX = 0.0f;
+  centred.moveY = 0.0f;
+  PoseGridCoordinate centre;
+  std::string reason;
+  const bool centreOk = poseGridCoordinates(move, move.sequences[0], centred, centre, reason)
+    && centre.index[0] == 0 && centre.index[1] == 0
+    && std::fabs(centre.fraction[0] - 0.5f) < 1.0e-5f
+    && std::fabs(centre.fraction[1] - 0.5f) < 1.0e-5f
+    && std::fabs(centre.weight[0] - 0.25f) < 1.0e-5f
+    && std::fabs(centre.weight[3] - 0.25f) < 1.0e-5f
+    && centre.cell[0] == 0 && centre.cell[1] == 1 && centre.cell[2] == 2 && centre.cell[3] == 3
+    && centre.role[0] == PoseGridAxisRole::MoveX && centre.role[1] == PoseGridAxisRole::MoveY;
+  AnimationPoseInput farX = centred;
+  farX.moveX = 100.0f;
+  PoseGridCoordinate clamped;
+  const bool clampOk = poseGridCoordinates(move, move.sequences[0], farX, clamped, reason)
+    && clamped.clamped[0] && !clamped.clamped[1]
+    && std::fabs(clamped.fraction[0] - 1.0f) < 1.0e-5f
+    && clamped.weight[0] == 0.0f
+    && std::fabs(clamped.weight[1] + clamped.weight[3] - 1.0f) < 1.0e-5f;
+
+  // The same motion with the two slots swapped: the roles follow the pose
+  // parameter NAME, not the slot index, so the reading must not move.
+  AnimationModel swappedModel;
+  swappedModel.bones = skeleton.bones;
+  swappedModel.animations = skeleton.animations;
+  swappedModel.poseParameters = {makeParam("move_y", -45.0f, 45.0f), makeParam("move_x", -45.0f, 45.0f)};
+  AnimationSequence swappedSequence = moveSequence;
+  swappedSequence.grid = makeGrid({2, 2}, {1, 0}, {-45.0f, -45.0f}, {45.0f, 45.0f}, {0, 1, 2, 3});
+  swappedModel.sequences = {swappedSequence};
+  AnimationPoseInput diagonal;
+  diagonal.hasMove = true;
+  diagonal.moveX = 10.0f;
+  diagonal.moveY = 20.0f;
+  PoseGridCoordinate direct;
+  PoseGridCoordinate swapped;
+  const bool directOk = poseGridCoordinates(move, move.sequences[0], diagonal, direct, reason);
+  const bool swapOk = poseGridCoordinates(swappedModel, swappedModel.sequences[0], diagonal, swapped, reason);
+  const bool swapTestOk = directOk && swapOk
+    && direct.role[0] == PoseGridAxisRole::MoveX && swapped.role[0] == PoseGridAxisRole::MoveX
+    && direct.role[1] == PoseGridAxisRole::MoveY && swapped.role[1] == PoseGridAxisRole::MoveY
+    && direct.index[0] == swapped.index[0] && direct.index[1] == swapped.index[1]
+    && std::fabs(direct.fraction[0] - swapped.fraction[0]) < 1.0e-6f
+    && std::fabs(direct.fraction[1] - swapped.fraction[1]) < 1.0e-6f
+    && direct.cell[0] == swapped.cell[0] && direct.cell[3] == swapped.cell[3];
+
+  // B: 12-cell aim grid, 3 columns of body_yaw by 4 rows of body_pitch. The
+  // centre cell is k = i1 * groupSize[0] + i0; Step 1 read it as 7 in real data.
+  AnimationModel aim;
+  aim.bones = skeleton.bones;
+  aim.animations = skeleton.animations;
+  aim.poseParameters = {makeParam("body_yaw", -45.0f, 45.0f), makeParam("body_pitch", -45.0f, 90.0f)};
+  AnimationSequence aimSequence;
+  aimSequence.label = "synthetic_aim";
+  std::vector<std::int16_t> aimCells(12);
+  for (std::size_t k = 0; k < aimCells.size(); ++k) aimCells[k] = static_cast<std::int16_t>(k);
+  aimSequence.grid = makeGrid({3, 4}, {0, 1}, {-45.0f, -45.0f}, {45.0f, 90.0f}, aimCells);
+  aim.sequences = {aimSequence};
+  AnimationPoseInput middle;
+  middle.hasAim = true;
+  middle.aimYaw = 0.0f;
+  middle.aimPitch = 45.0f;
+  PoseGridCoordinate centreCell;
+  const bool aimCentreOk = poseGridCoordinates(aim, aim.sequences[0], middle, centreCell, reason)
+    && centreCell.index[0] == 1 && centreCell.index[1] == 2
+    && centreCell.weight[0] == 1.0f && centreCell.cell[0] == 7;
+  AnimationPoseInput corner;
+  corner.hasAim = true;
+  corner.aimYaw = 45.0f;
+  corner.aimPitch = 90.0f;
+  PoseGridCoordinate lastCell;
+  const bool aimCornerOk = poseGridCoordinates(aim, aim.sequences[0], corner, lastCell, reason)
+    && lastCell.weight[3] == 1.0f && lastCell.cell[3] == 11
+    && std::fabs(lastCell.fraction[0] - 1.0f) < 1.0e-5f;
+
+  // C: a grid axis this call cannot supply (the 17x1 r_handposes grid names
+  // r_hand_grip) must be refused with a readable reason, not silently sampled
+  // at its first cell.
+  AnimationModel grip;
+  grip.poseParameters = {makeParam("r_hand_grip", 0.0f, 16.0f)};
+  AnimationSequence gripSequence;
+  gripSequence.label = "synthetic_grip";
+  gripSequence.grid = makeGrid({17, 1}, {0, -1}, {0.0f, 0.0f}, {16.0f, 0.0f},
+    std::vector<std::int16_t>(17, 0));
+  grip.sequences = {gripSequence};
+  PoseGridCoordinate gripOut;
+  std::string gripReason;
+  const bool gripOk = !poseGridCoordinates(grip, grip.sequences[0], centred, gripOut, gripReason)
+    && gripReason.find("cannot supply") != std::string::npos;
+
+  // D: the per-bone gate. Bone 1 is absent from layer 1, so its value must be
+  // layer 0 alone while bone 0 keeps the 50/50 mix.
+  const auto makePose = [](const std::array<float, 3>& position) {
+    AnimationLocalPose pose;
+    pose.position = {position, position};
+    pose.rotation = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 1.0f}};
+    return pose;
+  };
+  std::vector<std::vector<std::uint8_t>> gates = {{1, 1}, {1, 0}};
+  const std::vector<float> weights = {0.5f, 0.5f};
+  AnimationLocalPose blended;
+  std::size_t gatedBones = 0;
+  std::size_t isolatedBones = 0;
+  std::string blendReason;
+  const bool gateOk = blendPoseLayers(
+      {makePose({{1.0f, 0.0f, 0.0f}}), makePose({{0.0f, 1.0f, 0.0f}})},
+      weights, &gates, blended, gatedBones, isolatedBones, blendReason)
+    && std::fabs(blended.position[0][0] - 0.5f) < 1.0e-5f
+    && std::fabs(blended.position[0][1] - 0.5f) < 1.0e-5f
+    && std::fabs(blended.position[1][0] - 1.0f) < 1.0e-5f
+    && std::fabs(blended.position[1][1]) < 1.0e-5f
+    && gatedBones == 1 && isolatedBones == 0;
+  AnimationWeightList table;
+  table.readable = true;
+  table.boneCount = 3;
+  table.weights = {1.0f, 0.0f, 1.0f};
+  const bool weightOk = poseWeightListGatesBone(table, 0)
+    && !poseWeightListGatesBone(table, 1)
+    && poseWeightListGatesBone(table, 2)
+    && poseWeightListGatesBone(table, 3)
+    && poseWeightListGatesBone(AnimationWeightList{}, 0);
+
+  // E: a full sweep across the movement grid: exactly one valid cell set, four
+  // non-negative weights that sum to 1, and no discontinuity in fraction.
+  bool sweepOk = true;
+  float previous = 0.0f;
+  for (int step = 0; step <= 200 && sweepOk; ++step) {
+    const float t = static_cast<float>(step) / 200.0f;
+    AnimationPoseInput input;
+    input.hasMove = true;
+    input.moveX = -45.0f + 90.0f * t;
+    input.moveY = 45.0f - 90.0f * t;
+    PoseGridCoordinate coordinate;
+    if (!poseGridCoordinates(move, move.sequences[0], input, coordinate, reason)) {
+      sweepOk = false;
+      break;
+    }
+    float sum = 0.0f;
+    for (const float weight : coordinate.weight) {
+      if (!(weight >= 0.0f)) sweepOk = false;
+      sum += weight;
+    }
+    if (std::fabs(sum - 1.0f) > 1.0e-4f) sweepOk = false;
+    if (coordinate.index[0] < 0 || coordinate.index[0] > 1
+        || coordinate.index[1] < 0 || coordinate.index[1] > 1) sweepOk = false;
+    if (step > 0 && std::fabs(coordinate.fraction[0] - previous) > 0.5f) sweepOk = false;
+    previous = coordinate.fraction[0];
+  }
+
+  std::printf("posegrid-selftest centre=%d clamp=%d swap=%d aim12=%d grip=%d gate=%d weight=%d sweep=%d\n",
+    centreOk ? 1 : 0, clampOk ? 1 : 0, swapTestOk ? 1 : 0,
+    aimCentreOk && aimCornerOk ? 1 : 0, gripOk ? 1 : 0, gateOk ? 1 : 0,
+    weightOk ? 1 : 0, sweepOk ? 1 : 0);
+  return centreOk && clampOk && swapTestOk && aimCentreOk && aimCornerOk && gripOk
+    && gateOk && weightOk && sweepOk ? 0 : 1;
+}
+
 int matcherSelfTest() {
   using tf2::native::SequenceMatchMode;
   const auto selectorFor = [](const std::vector<std::string>& labels,
@@ -1717,12 +1925,13 @@ int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--matcher-selftest") return matcherSelfTest();
   if (argc == 2 && std::string(argv[1]) == "--helper-skin-selftest") return helperSkinSelfTest();
   if (argc == 2 && std::string(argv[1]) == "--entity-id-selftest") return entityIdSelfTest();
+  if (argc == 2 && std::string(argv[1]) == "--posegrid-selftest") return poseGridSelfTest();
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--player-animation-test") return playerAnimationTest(argc, argv);
     if (std::string(argv[i]) == "--player-animation-event-census") return playerAnimationEventCensus(argc, argv);
   }
   if (argc != 2) {
-    std::cerr << "usage: model_pose_probe <model.mdl> | --self-test"
+    std::cerr << "usage: model_pose_probe <model.mdl> | --self-test | --posegrid-selftest"
       << " | --player-animation-test --tf-root <tf> --model <model.mdl>"
       << " [--sequence N] [--idle-sequence N] [--moving-sequence N]"
       << " [--dump-bone-usage]"
