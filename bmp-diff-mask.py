@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bmp-diff-mask.py A.bmp B.bmp --mask C.bmp D.bmp [--mask E.bmp F.bmp]... [--max-outside N] [--min-changed N]
+"""bmp-diff-mask.py A.bmp B.bmp --mask C.bmp D.bmp [--mask E.bmp F.bmp]... [--max-outside N] [--min-changed N] [--dilate N]
 
 WHY THIS EXISTS
   "The material change is limited to the weapon body" is not a statement about a
@@ -23,6 +23,16 @@ WHY THIS EXISTS
     mask           pixels covered by C/D (the body's own coverage)
     outside        changed pixels the mask does NOT cover -- must be 0
   `outside=0` is the statement that no hand, sleeve, or world pixel moved.
+
+  --dilate N widens the mask by N pixels before the comparison and exists for one
+  measured reason: a mask drawn from the bind silhouette does not cover pixels a
+  SKINNED pose moves past that silhouette. viewmodel-apply-check.sh compares a bind
+  frame against an applied frame, and on the pl_upward_f12 recording the pose moves
+  a vertex 6.1 model units, which lands 86 pixels outside a 18529 px bind mask --
+  the pose's own new edge, not a moved hand. The caller passes the smallest
+  dilation that makes those edge pixels count as inside, and the mutation controls
+  in the same gate still exceed --max-outside by orders of magnitude, so the
+  tolerance does not buy a defect any room.
 
 Both frames must have identical geometry. Exit codes:
   0  every given bound held
@@ -69,6 +79,7 @@ def main(argv):
     args = argv[1:]
     max_outside = 0
     min_changed = None
+    dilate = 0
     positional = []
     mask_pairs = []
     index = 0
@@ -81,7 +92,7 @@ def main(argv):
             mask_pairs.append((args[index + 1], args[index + 2]))
             index += 3
             continue
-        if token in ("--max-outside", "--min-changed"):
+        if token in ("--max-outside", "--min-changed", "--dilate"):
             if index + 1 >= len(args):
                 print("BMP-MASK status=ERROR reason=%s needs a value" % token)
                 return EXIT_ERROR
@@ -90,8 +101,13 @@ def main(argv):
             except ValueError:
                 print("BMP-MASK status=ERROR reason=%s is not an integer" % token)
                 return EXIT_ERROR
+            if value < 0:
+                print("BMP-MASK status=ERROR reason=%s must not be negative" % token)
+                return EXIT_ERROR
             if token == "--max-outside":
                 max_outside = value
+            elif token == "--dilate":
+                dilate = value
             else:
                 min_changed = value
             index += 2
@@ -134,6 +150,47 @@ def main(argv):
     min_x, min_y, max_x, max_y = width, height, -1, -1
     sample = bpp  # compare whole pixels, not channels
 
+    # The mask is materialised as one flag per pixel so that it can be dilated
+    # before the comparison. The row-by-row short circuit below then reads the
+    # flag instead of re-comparing the mask frames for every pixel of every row.
+    mask_flags = [bytearray(width) for _ in range(height)]
+    for (left, right) in mask_frames:
+        for row in range(height):
+            source_row = (height - 1 - row) if first_flip else row
+            start = source_row * stride
+            left_row = left[0][start:start + stride]
+            right_row = right[0][start:start + stride]
+            if left_row == right_row:
+                continue
+            flags = mask_flags[row]
+            for column in range(0, stride, sample):
+                end = column + sample
+                if left_row[column:end] != right_row[column:end]:
+                    flags[column // bpp] = 1
+    if dilate > 0:
+        # Separable box dilation: horizontal first, then vertical. Written out
+        # rather than pulled from a library because this tool ships with the
+        # gate and must run on the interpreter the gate already uses.
+        for row in range(height):
+            flags = mask_flags[row]
+            widened = bytearray(width)
+            for x in range(width):
+                if flags[x]:
+                    left_edge = x - dilate if x > dilate else 0
+                    right_edge = x + dilate + 1 if x + dilate + 1 < width else width
+                    widened[left_edge:right_edge] = b"\x01" * (right_edge - left_edge)
+            mask_flags[row] = widened
+        for row in range(height):
+            flags = mask_flags[row]
+            for other in range(row - dilate if row > dilate else 0,
+                              row + dilate + 1 if row + dilate + 1 < height else height):
+                if other == row:
+                    continue
+                source = mask_flags[other]
+                for x in range(width):
+                    if source[x]:
+                        flags[x] = 1
+
     for row in range(height):
         # Row `row` is in top-left origin coordinates, which is what the mask
         # and the bbox report use. BMP stores bottom-up unless the height is
@@ -142,30 +199,16 @@ def main(argv):
         start = source_row * stride
         row_a = first[start:start + stride]
         row_b = second[start:start + stride]
-        mask_rows = []
-        any_mask = False
-        for (left, right) in mask_frames:
-            left_row = left[0][start:start + stride]
-            right_row = right[0][start:start + stride]
-            differs = left_row != right_row
-            mask_rows.append((left_row, right_row, differs))
-            if differs:
-                any_mask = True
+        flags = mask_flags[row]
+        any_mask = any(flags)
         if row_a == row_b and not any_mask:
             continue
         for column in range(0, stride, sample):
             end = column + sample
-            a = row_a[column:end]
-            b = row_b[column:end]
-            is_changed = a != b
-            in_mask = False
-            for (left_row, right_row, differs) in mask_rows:
-                if differs and left_row[column:end] != right_row[column:end]:
-                    in_mask = True
-                    break
+            in_mask = flags[column // bpp] == 1
             if in_mask:
                 mask_pixels += 1
-            if not is_changed:
+            if row_a[column:end] == row_b[column:end]:
                 continue
             changed += 1
             if in_mask:
@@ -195,8 +238,8 @@ def main(argv):
         reasons.append("changed=%d is below %d" % (changed, min_changed))
     verdict = "FAIL" if reasons else "PASS"
     suffix = (" status=%s reason=%s" % (verdict, "; ".join(reasons))) if reasons else " status=%s" % verdict
-    print("BMP-MASK changed=%d inside=%d outside=%d mask_pixels=%d %s%s" % (
-        changed, inside, outside, mask_pixels, bbox, suffix))
+    print("BMP-MASK changed=%d inside=%d outside=%d mask_pixels=%d dilate=%d %s%s" % (
+        changed, inside, outside, mask_pixels, dilate, bbox, suffix))
     return EXIT_PASS if not reasons else EXIT_FAIL
 
 

@@ -104,14 +104,17 @@ ISO_UI="$ISO_DIR_WIN/ui.ini"
 
 PROBE=native/build-nmake/weapon_body_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
-# The POV recording viewmodel-animation-check.sh and viewmodel-companion-check.sh
-# both pin, and the one whose tick 16306 the chain was measured on. It is pinned
-# here by size and sha256 rather than found by a glob: the Steam demos directory
-# is LIVE -- recordings land in it while a round is being worked on -- and "the
-# input is not here" and "the input is clean" must not read the same.
-POV_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
-POV_SIZE=21856667
-POV_SHA=c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e
+# The POV recording this host still has: the user's pl_upward_f12 POV, the one
+# viewmodel-animation-check.sh re-pinned to on 2026-11-15 (its N01 plan A) after
+# the 07-02 Sniper POV went missing from every root this host can see. Pinned here
+# by size and sha256 rather than found by a glob: the Steam demos directory is
+# LIVE -- recordings land in it while a round is being worked on -- and "the input
+# is not here" and "the input is clean" must not read the same. TF2_POV_ROOT lets
+# a host that keeps the file elsewhere run the gate without editing it.
+POV_ROOT="${TF2_POV_ROOT:-E:/demo测试/pl_upward_f12/POV}"
+POV_DEMO="$POV_ROOT/autorecord_2026-08-08_21-43-59.dem"
+POV_SIZE=146853666
+POV_SHA=14b4943a8d7e866677091bb5a4843882bfed1105bc5ef27d955bbc4cd3ad00e8
 
 # The model the pass is TOLD to draw with --viewmodel. It is the control, not the
 # picture: the body comes from the recording's own entity chain.
@@ -120,25 +123,37 @@ VM_MODEL="models/weapons/v_models/v_scattergun_scout.mdl"
 # body its weapon entity names, and a second real weapon body for the material
 # chain, so "weapons resolve" is not one file's accident.
 ARM_MODEL="models/weapons/c_models/c_sniper_arms.mdl"
-WEAPON_MODEL="models/workshop/weapons/c_models/c_pro_rifle/c_pro_rifle.mdl"
+WEAPON_MODEL="models/weapons/c_models/c_machete/c_machete.mdl"
 MEDIGUN_MODEL="models/weapons/c_models/c_medigun/c_medigun.mdl"
-# The entity indices and the world model index the POV recording carries at tick
-# 16306, measured 2026-10-12: ViewModel entity 1077, weapon entity 1008
-# (CTFSniperRifle), m_iWorldModelIndex 533 -> c_pro_rifle.mdl. Pinned because
-# they are what "the body came from the entity's own index" means.
-EXPECT_VIEWMODEL_ENTITY=1077
-EXPECT_WEAPON_ENTITY=1008
-EXPECT_WORLD_MODEL_INDEX=533
-EXPECT_WEAPON_CLASS=CTFSniperRifle
+# The entity indices and the world model index the POV recording carries at the
+# capture tick. Re-measured 2026-11-20 on the pl_upward_f12 recording this host has
+# (the 07-02 values were 1077 / 1008 / 533 -> c_pro_rifle.mdl, and both the
+# recording and the model it named are gone). Measured with the probe on the same
+# tick the captures take (3000; 2500 and 4000 read the same chain, 16306 does not
+# -- the recording switches weapon later), so section 2 and sections 3+ read one
+# chain. Pinned because they are what "the body came from the entity's own index"
+# means.
+EXPECT_VIEWMODEL_ENTITY=685
+EXPECT_WEAPON_ENTITY=810
+EXPECT_WORLD_MODEL_INDEX=201
+EXPECT_WEAPON_CLASS=CTFClub
 # The OTHER index on that same weapon entity, m_nModelIndex (== m_iViewModelIndex),
-# measured 2026-10-12 at tick 2000: 1032, which resolves to the arms. m1 reads it
-# where the world index belongs, so this is the value the reading has to report
-# once the slot is swapped -- and reporting it is what makes the swapped slot a
-# measured fact rather than an inference from the refusal.
+# which resolves to the arms. Read at the frame's tick, not at the probe's: m1
+# reads it where the world index belongs, so this is the value the reading has to
+# report once the slot is swapped -- and reporting it is what makes the swapped
+# slot a measured fact rather than an inference from the refusal.
 EXPECT_WEAPON_VIEW_MODEL_INDEX=1032
 # The tick the frames are taken at: early enough that the recording has settled
 # and the chain is live on it, and reached in about 90 s of playback.
-CAPTURE_TICK=2000
+CAPTURE_TICK=3000
+# The probe's --tick is a SERVER tick; --capture-tick is the playback cursor. They
+# are two spaces (the N17 tick note in docs/N-STATUS-2026-11-14.md), and on this
+# recording they differ by ~2200: the captured frame at cursor 3000 prints
+# "scene: clock tick=3000 entryTick=3000 serverTick=5202", and the probe at 5202
+# reads the same chain the product's frame drew (685 -> 810 CTFClub 201 machete;
+# probe at 3000 reads the sniper rifle, cursor 3000 draws the machete). Pinned so
+# section 2 and sections 3+ describe one weapon rather than two.
+PROBE_TICK=5202
 TRACE_DIR=evidence/fast/weapon-body
 
 # Git may check this script out with CRLF; strip the carriage return from path
@@ -328,9 +343,16 @@ run_probe() { # run_probe <name> [extra...]  -- JSON on stdout, checks on stderr
 # file does: Python prints its booleans as `True`, and an assertion expecting the
 # JSON `true` would fail on a correct run -- which is how this read the first time.
 probe_field() {
+  # errors="replace", not a strict decode: the probe echoes the demo path it was
+  # given, and on this host that path is E:/demo测试/pl_upward_f12/POV/... -- the
+  # shell hands the native binary those characters as the console code page, so
+  # the JSON bytes are not UTF-8 and a strict decode threw on the whole document,
+  # turning EVERY field into "" (section 2 then read <none> on a run whose probe
+  # had resolved the chain correctly, checksPassed=134). Only the informational
+  # demo field carries those bytes; every field an assertion reads is ASCII.
   "$PY" -c 'import json, sys
 try:
-    value = json.load(open(sys.argv[1], encoding="utf-8")).get(sys.argv[2], "")
+    value = json.load(open(sys.argv[1], encoding="utf-8", errors="replace")).get(sys.argv[2], "")
     print(value if isinstance(value, str) else json.dumps(value))
 except Exception:
     print("")' "$1" "$2"
@@ -420,7 +442,7 @@ done
 echo
 echo "=== 2/6 the chain on the game's own files ==="
 run_probe real --tf-root "$TF" --model "$WEAPON_MODEL" --model "$MEDIGUN_MODEL" \
-  --model "$ARM_MODEL" --demo "$POV_DEMO" --tick 16306
+  --model "$ARM_MODEL" --demo "$POV_DEMO" --tick "$PROBE_TICK"
 assert_eq "the probe's real-file rc" "$LAST_RC" "0"
 assert_eq "three weapon-side models resolved" "$(probe_field "$LAST_PROBE_FILE" materialModelsTested)" "3"
 assert_eq "and every one of their material slots reached a texture" \
@@ -536,7 +558,17 @@ echo
 echo "=== 5/6 the body is not rebuilt per frame ==="
 BODY_BUILDS=$(grep -ac "gpu: viewmodel weaponBody model=" "$TRACE_DIR/body-on.trace" 2>/dev/null || true)
 BODY_LINES=$(grep -ac "scene: weaponBody entity=" "$TRACE_DIR/body-on.trace" 2>/dev/null || true)
-assert_eq "the body's MDL was parsed and its mesh uploaded exactly once" "$BODY_BUILDS" "1"
+# Once per distinct MODEL, not once per run: this recording switches weapon during
+# the capture window (the frame at tick 0 draws the sniper rifle, the captured frame
+# at 3000 draws the machete), and the first run of this gate read 2 lines and went
+# red on a correct cache. A per-frame rebuild still fails this: the count for one
+# model would then be the frame count.
+BODY_DISTINCT=$(grep -a "gpu: viewmodel weaponBody model=" "$TRACE_DIR/body-on.trace" 2>/dev/null   | sed 's/.*model=\([^ ]*\).*/\1/' | sort -u | wc -l)
+assert_eq "each body model the run resolved was built exactly once" "$BODY_BUILDS" "$BODY_DISTINCT"
+assert_ge "work count -- at least one body model was built" "$BODY_DISTINCT" "1"
+assert_contains "the captured frame's body model is among them" \
+  "$(grep -a 'gpu: viewmodel weaponBody model=' "$TRACE_DIR/body-on.trace" | tr -d '\r')" "model=$WEAPON_MODEL"
+
 assert_ge "work count -- scene updates that resolved the chain" "$BODY_LINES" "1"
 # The arms' own request, for the same reason and as the control: both slots are
 # built once per distinct path, so a run that rebuilt either would show up here.

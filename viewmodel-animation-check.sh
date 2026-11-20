@@ -441,7 +441,13 @@ while read -r size sha256 root name; do
     echo "  FAIL pinned recording is absent: $path"; fail=1; continue
   fi
   actual_size=$(stat -c%s "$path")
-  actual_sha=$(sha256sum "$path" | cut -d' ' -f1)
+  # </dev/null is load-bearing: the sha256sum on this host (WinuxCmd 1.2.1, see
+  # `which sha256sum`) reads its standard input even when it is given a file, and
+  # inside a `while read ... done < "$INPUTS"` loop that swallows the rest of the pin
+  # file -- only the first data row was ever verified, so the count assertion below
+  # read 1 where the file has 2. Reproduced: a 3-row file in the same construct
+  # processed 1 row with the plain call and all 3 with </dev/null.
+  actual_sha=$(sha256sum "$path" </dev/null | cut -d' ' -f1)
   if [ "$actual_size" != "$size" ]; then
     echo "  FAIL pinned recording $name is $actual_size bytes, pinned $size"; fail=1; continue
   fi

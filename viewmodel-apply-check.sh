@@ -54,6 +54,11 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 MODEL="models/weapons/c_models/c_sniper_arms.mdl"
 VM_MODEL="models/weapons/v_models/v_scattergun_scout.mdl"
 INPUTS=evidence/viewmodel/animation-inputs.txt
+# The tick the captures are taken at. Stays 0: this gate forces its own viewmodel
+# model (--viewmodel) and reads the pose it asked for, so it does not need the
+# player's weapon-body chain to resolve (weapon_body_probe refuses below 2500 on
+# this recording, which is weapon-body-check.sh's premise, not this gate's), and a
+# cursor-0 capture is the cheap frame that makes six captures affordable here.
 TICK=0
 RUN_TIMEOUT=300
 # The sequence the entity's own model can pose. Read from the gate's pinned
@@ -110,7 +115,10 @@ echo $$ > "$LOCK_DIR/pid"
 # The sweep runs before any capture, and it rebuilds when it had to put a file
 # back: the executable left behind was linked from the mutated source, so it
 # cannot be the binary these frames are attributed to.
-MUTATION_SOURCES="native/src/main.cpp native/src/native_renderer.cpp native/src/viewmodel.cpp"
+# Every file a mutation can leave behind, m4's camera patch included: the sweep
+# above is the only thing that notices an interrupted run, so a source missing
+# from this list is a source that can stay mutated.
+MUTATION_SOURCES="native/src/main.cpp native/src/native_renderer.cpp native/src/native_renderer_shaders.cpp native/src/native_renderer_viewmodel.cpp native/src/viewmodel.cpp"
 ORPHANS_RESTORED=0
 for source in $MUTATION_SOURCES; do
   for candidate in "$SCRATCH"/viewmodel-apply-*/"$(basename "$source")".backup; do
@@ -264,24 +272,48 @@ if [ ! -f "$INPUTS" ]; then
 fi
 DEMO=""
 PINNED=0
+# The input file is shared with viewmodel-animation-check.sh, whose N01 re-pin
+# (2026-11-15) moved the POV slot out of tf/demos: the 07-02 Sniper POV is gone
+# from every root this host can see and the user's pl_upward_f12 recording
+# replaced it. The roots below are therefore part of the premise, not hardcoded
+# accidents; TF2_POV_ROOT / TF2_TESTDATA_ROOT override them for a host that keeps
+# the files elsewhere.
+POV_ROOT="${TF2_POV_ROOT:-E:/demo测试/pl_upward_f12/POV}"
+TESTDATA_ROOT="${TF2_TESTDATA_ROOT:-D:/TF2_Demo_Player/testdata/demos}"
+POV_ROOT=${POV_ROOT%$'\r'}
+TESTDATA_ROOT=${TESTDATA_ROOT%$'\r'}
 while read -r size sha256 root name; do
   name=${name%$'\r'}
   case "$size" in ''|'#'*) continue ;; esac
-  [ "$root" = "steam" ] || continue
-  path="$TF/demos/$name"
+  case "$root" in
+    steam) path="$TF/demos/$name" ;;
+    archive-pov) path="$POV_ROOT/$name" ;;
+    testdata) path="$TESTDATA_ROOT/$name" ;;
+    *) fail_line "unknown input root '$root' for $name"; continue ;;
+  esac
   if [ ! -f "$path" ]; then
     fail_line "pinned recording is absent: $path"; continue
   fi
   actual_size=$(stat -c%s "$path")
-  actual_sha=$(sha256sum "$path" | cut -d' ' -f1)
+  # </dev/null is load-bearing: the sha256sum on this host (WinuxCmd 1.2.1, which is
+  # what `which sha256sum` resolves) reads its standard input even when it is given a
+  # file, and inside a `while read ... done < "$INPUTS"` loop that swallows the rest
+  # of the pin file -- only the first data row was ever verified, so the count
+  # assertion below read 1 where the file has 2. Measured on a 3-row file: the plain
+  # call processed 1 row, the same call with </dev/null processed all 3.
+  actual_sha=$(sha256sum "$path" </dev/null | cut -d' ' -f1)
   if [ "$actual_size" != "$size" ] || [ "$actual_sha" != "$sha256" ]; then
     fail_line "pinned recording $name is $actual_size/$actual_sha, pinned $size/$sha256"; continue
   fi
   pass "$name pinned ($size bytes, ${sha256:0:16}...)"
   PINNED=$((PINNED + 1))
-  DEMO="$path"
+  # DEMO is the POV recording: the one whose ViewModel entity chain the captures
+  # read. The matcha row is verified here too (the file is shared) but that
+  # recording owns no ViewModel entity -- it is the "pairing fails" fixture -- so
+  # it must not become the demo under test.
+  if [ "$root" = "archive-pov" ]; then DEMO="$path"; fi
 done < "$INPUTS"
-assert_eq "pinned recordings verified" "$PINNED" "1"
+assert_eq "pinned recordings verified" "$PINNED" "2"
 if [ -z "$DEMO" ]; then
   echo "VIEWMODEL-APPLY=FAIL (no recording)"
   exit 1
@@ -403,8 +435,15 @@ if [ "$MUTATION" -eq 0 ]; then
   # `sequence=29 sequenceOverride=1` -- two fields that contradict each other.
   assert_eq "applied: effective sequence" \
     "$(reading "$apply_pass" 'scene: vmAnim entity=' sequence)" "$POSE_SEQUENCE"
+  # The recorded sequence is read from the bind run of the SAME demo at the SAME
+  # tick rather than compared against a constant: "29" was the 07-02 recording's
+  # reading, this recording carries 28, and a frozen number pins one recording's
+  # demo data into a claim that is really about the override. What the claim needs is
+  # that applying the override does not overwrite what the recording carries, and
+  # that is a comparison of the two runs.
   assert_eq "applied: the recording's own sequence is still reported" \
-    "$(reading "$apply_pass" 'scene: vmAnim entity=' entitySequence)" "29"
+    "$(reading "$apply_pass" 'scene: vmAnim entity=' entitySequence)" \
+    "$(reading "$bind_pass" 'scene: vmAnim entity=' entitySequence)"
   assert_eq "applied: the override is reported" \
     "$(reading "$apply_pass" 'scene: vmAnim entity=' sequenceOverride)" "$POSE_SEQUENCE"
   assert_eq "applied: the pose was sampled from a one-frame sequence" \
@@ -498,8 +537,20 @@ fi
 # ---------------------------------------------------------------------------
 echo
 echo "=== 5/6 the frames: applied differs, repeat is identical, both stay on the ViewModel ==="
-CONTAIN_OUTSIDE_MAX=64   # measured 2 on the intact build; see the evidence file
-CONTAIN_CHANGED_MIN=1000 # measured 10097 (textured) / 5586 (flat); 10% of the lower
+# Measured on the recording this gate now captures (pl_upward_f12, tick 0): the
+# intact tree changes 1387 px (textured) / 1228 px (flat), and the m2 transposition
+# drew 169981 px outside the mask, so the bound can stay small and still be the
+# thing that catches a moved hand.
+CONTAIN_OUTSIDE_MAX=64
+CONTAIN_CHANGED_MIN=1000 # 72%/81% of the two measured changes; a defect that stops skinning drops below it
+# CONTAIN_DILATE is the one tolerance in this section and it is measured, not
+# negotiated. A mask drawn from the bind frame cannot cover pixels a SKINNED pose
+# moves past the bind silhouette: on this recording 86 changed pixels sit within one
+# pixel of that silhouette, and dilate=1 was measured to leave outside=0 (dilate=0
+# reads outside=86, dilate=2..8 also read 0). The containment mutants still report
+# thousands of pixels outside, so the dilation stops the pose's own new edge from
+# being read as a moved hand without giving a real defect any room.
+CONTAIN_DILATE=1
 
 # The mask tool answers one question: does the difference between two frames stay
 # inside the pixels the ViewModel covers? It is asked twice with OPPOSITE
@@ -511,7 +562,8 @@ CONTAIN_CHANGED_MIN=1000 # measured 10097 (textured) / 5586 (flat); 10% of the l
 mask_measure() { # mask_measure <a> <b> <maskA> <maskB>
   local out fields
   out=$(python bmp-diff-mask.py "$1" "$2" --mask "$3" "$4" \
-    --max-outside "$CONTAIN_OUTSIDE_MAX" --min-changed "$CONTAIN_CHANGED_MIN" 2>&1 | tail -1)
+    --max-outside "$CONTAIN_OUTSIDE_MAX" --min-changed "$CONTAIN_CHANGED_MIN" \
+    --dilate "$CONTAIN_DILATE" 2>&1 | tail -1)
   REPORT_LINE=$out
   # Only the field section is parsed. On a FAIL the tool repeats the offending
   # number inside its `reason=` clause -- `... outside=169981 ... status=FAIL
@@ -632,18 +684,42 @@ PATCH
   # taken from the wrong component. The upload, the stride, the layout and the
   # shader's control flow are all untouched, which is why only a picture can see
   # it.
+  # The ViewModel program no longer lives in native_renderer.cpp: 3218e9bd split
+  # all 14 HLSL programs into native_renderer_shaders.cpp, and this patch went
+  # stale with them -- the 2026-11-20 --mutation run reported "m2 did not apply",
+  # which is the harness saying "this defect is no longer in the file", not "the
+  # fix is wrong". That file holds THREE programs carrying the same skinning
+  # expression (two world/entity ones reading `boneColumns`, one ViewModel one
+  # reading `viewModelBones`). patch-source.py replaces exactly one occurrence and
+  # refuses an ambiguous needle, so the needle is the WHOLE function anchored on
+  # `viewModelBones`; matching a world program instead would leave the frame this
+  # gate measures untouched and report the mutation as undetected.
   echo "--- m2 bone-read-transposed: the columns are consumed as if they were rows ---"
   MUTATION_TOTAL=$((MUTATION_TOTAL + 1))
-  apply_mutation native/src/native_renderer.cpp "bone-read-transposed"
-  if ! patch_source native/src/native_renderer.cpp <<'PATCH'
+  apply_mutation native/src/native_renderer_shaders.cpp "bone-read-transposed"
+  if ! patch_source native/src/native_renderer_shaders.cpp <<'PATCH'
+float4 skinByBone(float3 vertexPosition, float weightW, uint boneSlot) {
+  uint first = boneSlot * 4;
+  float4 c0 = viewModelBones[first + 0];
+  float4 c1 = viewModelBones[first + 1];
+  float4 c2 = viewModelBones[first + 2];
+  float4 c3 = viewModelBones[first + 3];
   return float4(
     vertexPosition.x * c0.x + vertexPosition.y * c1.x + vertexPosition.z * c2.x + weightW * c3.x,
     vertexPosition.x * c0.y + vertexPosition.y * c1.y + vertexPosition.z * c2.y + weightW * c3.y,
     vertexPosition.x * c0.z + vertexPosition.y * c1.z + vertexPosition.z * c2.z + weightW * c3.z,
     weightW);
+}
 %%
+float4 skinByBone(float3 vertexPosition, float weightW, uint boneSlot) {
+  uint first = boneSlot * 4;
+  float4 c0 = viewModelBones[first + 0];
+  float4 c1 = viewModelBones[first + 1];
+  float4 c2 = viewModelBones[first + 2];
+  float4 c3 = viewModelBones[first + 3];
   float4 v = float4(vertexPosition, weightW);
   return float4(dot(v, c0), dot(v, c1), dot(v, c2), weightW);
+}
 PATCH
   then
     fail_line "m2 did not apply to native/src/native_renderer.cpp"
@@ -799,13 +875,15 @@ if [ "$MUTATION" -eq 0 ]; then
       reading_line "$RUN_DIR/bind.trace" "$pattern"
     done
     echo
-    echo "## mask containment (bounds: outside <= $CONTAIN_OUTSIDE_MAX, changed >= $CONTAIN_CHANGED_MIN)"
+    echo "## mask containment (bounds: outside <= $CONTAIN_OUTSIDE_MAX, changed >= $CONTAIN_CHANGED_MIN, mask dilate = $CONTAIN_DILATE px)"
     python bmp-diff-mask.py "$RUN_DIR/bind.bmp" "$RUN_DIR/apply.bmp" \
       --mask "$RUN_DIR/world.bmp" "$RUN_DIR/bind.bmp" \
-      --max-outside "$CONTAIN_OUTSIDE_MAX" --min-changed "$CONTAIN_CHANGED_MIN" 2>&1 | tail -1
+      --max-outside "$CONTAIN_OUTSIDE_MAX" --min-changed "$CONTAIN_CHANGED_MIN" \
+      --dilate "$CONTAIN_DILATE" 2>&1 | tail -1
     python bmp-diff-mask.py "$RUN_DIR/flat-bind.bmp" "$RUN_DIR/flat-apply.bmp" \
       --mask "$RUN_DIR/world.bmp" "$RUN_DIR/flat-bind.bmp" \
-      --max-outside "$CONTAIN_OUTSIDE_MAX" --min-changed "$CONTAIN_CHANGED_MIN" 2>&1 | tail -1
+      --max-outside "$CONTAIN_OUTSIDE_MAX" --min-changed "$CONTAIN_CHANGED_MIN" \
+      --dilate "$CONTAIN_DILATE" 2>&1 | tail -1
     echo
     echo "## caveats"
     echo "paused_capture=1 (a playing capture lands on a scheduler-dependent tick)"
