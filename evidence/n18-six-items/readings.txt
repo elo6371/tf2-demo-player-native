@@ -1,0 +1,159 @@
+# N18 six-item evidence — per-run readings
+# Source: .scratch/n18/<run>.trace (TF2_NATIVE_TRACE), extracted by .scratch/n18-readings.sh.
+# This is the exact text of the '== readings' section of .scratch/n18-batch.log (batch 2026-11-20 15:32).
+# Large traces are NOT committed (18-33 MB each); traces live in .scratch/n18/ on the work machine.
+== readings
+=== body-rifle
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.98,-26.10,-65.42) weaponGrip=(-72.98,-26.10,-65.42) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.76,6.25,14.08)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1791 named=1791 present=1791 refusals=none:1791
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_models/c_sniperrifle/c_sniperrifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1974 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=1974 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1791 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1791 28/28 
+  bodypaths:    1791 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl 
+=== body-rifle-off
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.98,-26.10,-65.42) weaponGrip=(0.00,0.00,0.00) residual=-1.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.00,0.00,0.00)
+  body: scene: weaponBody entity=-1 class=- worldModelIndex=0 path=- refusal=none fallback=off reason=the weapon body is switched off (--viewmodel-weapon-body off) observations=0 named=0 present=0 refusals=-
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=0 texturedRanges=0 fallbackRanges=0 boundSlots=0 keys=- runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1792 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=1792 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1766 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1766 28/28 
+  bodypaths:    1766 - 
+=== body-machete
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.98,-26.10,-65.42) weaponGrip=(-72.98,-26.10,-65.42) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(-0.04,2.61,8.89)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_machete/c_machete.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1932 named=1932 present=1932 refusals=none:1932
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/v_machete/v_machete.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=2160 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=2160 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1932 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1932 28/28 
+  bodypaths:    1932 models/weapons/c_models/c_machete/c_machete.mdl 
+=== body-rifle-left
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.97,-26.10,-65.42) weaponGrip=(-72.97,-26.10,-65.42) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.76,6.25,14.08)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1967 named=1967 present=1967 refusals=none:1967
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_models/c_sniperrifle/c_sniperrifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone_L reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=left drawn=2341 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=2341 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone_L vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1967 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1967 28/28 
+  bodypaths:    1967 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl 
+=== body-rifle-anim
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.98,-26.10,-65.42) weaponGrip=(-72.98,-26.10,-65.42) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.76,6.25,14.08)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1970 named=1970 present=1970 refusals=none:1970
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_models/c_sniperrifle/c_sniperrifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=2273 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=2273 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1970 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1970 28/28 
+  bodypaths:    1970 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl 
+=== body-rifle-seq29
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.98,-26.10,-65.42) weaponGrip=(-72.98,-26.10,-65.42) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.76,6.25,14.08)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1968 named=1968 present=1968 refusals=none:1968
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_models/c_sniperrifle/c_sniperrifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=2308 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=29 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=1 frame=50/51 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=29
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=2308 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=1 boneTableCoverage=58/58 animationInput=bones:58 meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=1 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=29 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1968 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1968 29/28 
+  bodypaths:    1968 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl 
+=== missing-vm
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.98,-26.10,-65.42) weaponGrip=(-72.98,-26.10,-65.42) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.76,6.25,14.08)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1623 named=1623 present=1623 refusals=none:1623
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_models/c_sniperrifle/c_sniperrifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_does_not_exist.mdl resourceStatus=incomplete(mdl=0,vvd=0,vtx=0,mesh=0) attachmentStatus=absent sequenceCount=0 fov=90.0 settingsFov=90.0 hand=right drawn=1630 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=1630 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1623 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1623 28/28 
+  bodypaths:    1623 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl 
+=== missing-body
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-72.98,-26.10,-65.42) weaponGrip=(0.00,0.00,0.00) residual=-1.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.00,0.00,0.00)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_does_not_exist.mdl refusal=none fallback=buildFailed reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1805 named=1805 present=1805 refusals=none:1805
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=0 texturedRanges=0 fallbackRanges=0 boundSlots=0 keys=- runtimeFailure=- unboundReason=- flatColor=0 override=1 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=1845 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=1845 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=1805 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    1805 28/28 
+  bodypaths:    1805 models/weapons/c_models/c_does_not_exist.mdl 
+=== sw-before
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-82.00,-56.29,-35.82) weaponGrip=(-82.00,-56.29,-35.82) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(0.76,6.25,14.08)
+  body: scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=2264 named=2264 present=2264 refusals=none:2264
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/c_models/c_sniperrifle/c_sniperrifle.vtf runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=2281 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=28 entitySequence=28 rate=1.31 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=30/31 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=2281 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=2264 target=3 src=director tr=0 prog=0.000 focus=-1147.0,-2327.9,268.3 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=2177 checked=11 indexResolved=0 noIndex=11 classFallback=11 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    2264 28/28 
+  bodypaths:    2264 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl 
+=== sw-after
+  rc=0 bmp=2582406
+  grip: gpu: viewmodel grip armsGrip=(-12.96,27.41,-52.34) weaponGrip=(-12.96,27.41,-52.34) residual=0.0000 armsCentreModel=(0.00,52.05,-1.80) weaponCentreModel=(-0.04,2.61,8.89)
+  body: scene: weaponBody entity=810 class=CTFClub worldModelIndex=201 path=models/weapons/c_models/c_machete/c_machete.mdl refusal=none fallback=- reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=2334 named=2334 present=2334 refusals=none:2334
+  bodygpu: gpu: viewmodel weaponBodyMaterial ranges=1 texturedRanges=1 fallbackRanges=0 boundSlots=1 keys=materials/models/weapons/v_machete/v_machete.vtf runtimeFailure=- unboundReason=- flatColor=0 override=0 slotOverride=-1
+  companion: gpu: viewmodel companion path=models/weapons/c_models/c_sniper_arms.mdl status=ok meshReady=1 sequences=43 bones=58 attachment=weapon_bone reason=-
+  path: viewModelPath=models/weapons/v_models/v_scattergun_scout.mdl resourceStatus=ok attachmentStatus=ok(valid=5,partial=0,invalid=0,total=5) sequenceCount=7 fov=90.0 settingsFov=90.0 hand=right drawn=2349 reason=drawn
+  vmanim: scene: vmAnim entity=685 sequence=6 entitySequence=6 rate=1.00 cyclePresent=0 model=models/weapons/c_models/c_sniper_arms.mdl status=ok poseAvailable=1 applied=0 frame=16/60 entityRule=the viewmodel entity with a model that holds the view entity's active weapon reason=- owner=9 viewEntity=9 modelIndex=998 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 bindPose=0 sequenceOverride=-1
+  pass: gpu: viewmodel pass order worldPass=1 viewModelPass=8 afterWorld=1 drawCalls=2349 vertices=9996 depthWrite=1 depthFunc=less_equal skinning=0 boneTableCoverage=0/0 animationInput=ok meshRadius=29.88 alignment=weapon_bone vmAnimInput=ok vmAnimApplied=0 drawnModel=models/weapons/c_models/c_sniper_arms.mdl entityModelMatchesDrawn=1 sequenceInRange=1 sequenceAccepted=1 sequenceOverride=-1 modelMismatch=0 boneMismatch=0 bindPose=0 ranges=2 boundSlots=2
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=2326 target=6 src=director tr=0 prog=0.000 focus=271.1,-1615.9,348.2 deaths=1 handovers=1 notarget=0 resync=0 manual=0 rejected=0 director=2 stable=0 hidden=8 lastdeath=4837
+  filter: removed1=2 removed0=1 hidden0_9=2
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=4837 checked=7 indexResolved=0 noIndex=7 classFallback=7 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs:    2326 28/28       8 6/6 
+  bodypaths:       8 models/weapons/c_models/c_machete/c_machete.mdl    2326 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl 
+=== stv-control
+  rc=0 bmp=2582406
+  grip: 
+  body: 
+  bodygpu: 
+  companion: 
+  path: 
+  vmanim: 
+  pass: 
+  spectate: spectate: summary rejectedFlags=0 corpses=0 hiddenInstances=463 target=2 src=director tr=0 prog=0.000 focus=-1945.3,-1016.6,198.1 deaths=0 handovers=0 notarget=0 resync=0 manual=0 rejected=0 director=1 stable=0 hidden=1 lastdeath=-1
+  filter: removed1=0 removed0=1 hidden0_9=0
+  pma: scene: PLAYER-MODEL-ASSERT=PASS tick=12765 checked=18 indexResolved=0 noIndex=18 classFallback=18 mismatched=0 unresolved=0 firstMismatch=-
+  vmanim_seqs: 
+  bodypaths: 

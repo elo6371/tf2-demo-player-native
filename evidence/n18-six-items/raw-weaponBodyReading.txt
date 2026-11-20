@@ -1,0 +1,6 @@
+=== body-machete
+gpu: viewmodel weaponBodyReading armDrawCalls=2160 weaponDrawCalls=2160 weaponModelIndex=208 weaponModelPath=models/weapons/c_models/c_machete/c_machete.mdl weaponMaterials=1/1/1/1 weaponFallback=- weaponVisible=1 weaponReason=drawn weaponEntity=734 weaponClass=CTFSniperRifle weaponMeshRadius=18.37 weaponVertices=3405 weaponClip=(1.182,-20.681,92.783,93.089) weaponMaterialsFailure=-
+=== body-rifle-left
+gpu: viewmodel weaponBodyReading armDrawCalls=2341 weaponDrawCalls=2341 weaponModelIndex=208 weaponModelPath=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl weaponMaterials=2/2/2/2 weaponFallback=- weaponVisible=1 weaponReason=drawn weaponEntity=734 weaponClass=CTFSniperRifle weaponMeshRadius=33.83 weaponVertices=23061 weaponClip=(3.163,-16.162,89.536,90.475) weaponMaterialsFailure=-
+=== body-rifle-anim
+gpu: viewmodel weaponBodyReading armDrawCalls=2273 weaponDrawCalls=2273 weaponModelIndex=208 weaponModelPath=models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl weaponMaterials=2/2/2/2 weaponFallback=- weaponVisible=1 weaponReason=drawn weaponEntity=734 weaponClass=CTFSniperRifle weaponMeshRadius=33.83 weaponVertices=23061 weaponClip=(2.889,-16.751,88.213,89.162) weaponMaterialsFailure=-

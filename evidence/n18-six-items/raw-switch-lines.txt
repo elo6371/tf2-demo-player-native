@@ -1,0 +1,14 @@
+=== sw-before
+196569.7 scene: clock tick=2600 entryTick=2600 serverTick=4802 serverTickKnown=1
+196571.9 scene: eye row src=camera reqTick=4802 rowTick=4802 backfill=0 flags=31 rowOrigin=1199.4156,-2097.7678,251.8828 rowOffsetZ=75.0001 srcOrigin=1199.4156,-2097.7678,251.8828 offsetAge=0 miss=
+=== sw-after
+198558.6 scene: clock tick=2660 entryTick=2660 serverTick=4860 serverTickKnown=1
+198562.6 scene: eye row src=camera reqTick=4860 rowTick=4860 backfill=0 flags=31 rowOrigin=1097.6080,-2104.6831,288.0312 rowOffsetZ=75.0001 srcOrigin=1097.6080,-2104.6831,288.0312 offsetAge=0 miss=
+=== sw-after weaponBody path changes
+0 models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl
+2634 models/weapons/c_models/c_machete/c_machete.mdl
+=== body-rifle cameraFilter last 3
+132048.7 scene: cameraFilter removed=1 indices=9 candidates=320 submitted=322 hidden0=9 hidden1=-1
+149947.8 scene: cameraFilter removed=0 indices=- candidates=321 submitted=322 hidden0=-1 hidden1=-1
+150009.8 scene: cameraFilter removed=1 indices=9 candidates=320 submitted=322 hidden0=9 hidden1=-1
+DONE

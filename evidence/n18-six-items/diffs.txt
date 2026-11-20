@@ -1,0 +1,21 @@
+# N18 six-item evidence — pixel diffs (8 pairs)
+# Read: python bmp-diff-bbox.py <A.bmp> <B.bmp> — differing pixel count + bbox, top-left origin; always exit 0.
+# Source frames: .scratch/n18/<run>.bmp (1264x681, 24bpp, 2,582,406 B each); body-default comes from .scratch/n18-control.sh.
+# Regenerated 2026-11-20 from those BMPs; matches the '=== diff' block of .scratch/n18-batch.log.
+== diff body-rifle -> body-rifle-off
+differing_pixels=4447 bbox=(x=617..695, y=283..486) w=79 h=204
+== diff body-rifle -> body-machete
+differing_pixels=4876 bbox=(x=617..695, y=283..486) w=79 h=204
+== diff body-rifle -> body-rifle-left
+differing_pixels=12322 bbox=(x=617..938, y=283..582) w=322 h=300
+== diff body-rifle -> body-rifle-anim
+differing_pixels=13628 bbox=(x=756..937, y=388..582) w=182 h=195
+== diff body-rifle-anim -> body-rifle-seq29
+differing_pixels=539 bbox=(x=826..903, y=388..515) w=78 h=128
+== diff body-rifle -> missing-vm
+differing_pixels=0 (frames byte-identical)
+== diff body-rifle -> missing-body
+differing_pixels=4447 bbox=(x=617..695, y=283..486) w=79 h=204
+== diff sw-before -> sw-after
+differing_pixels=858961 bbox=(x=0..1263, y=0..680) w=1264 h=681
+N18-DIFFS-DONE

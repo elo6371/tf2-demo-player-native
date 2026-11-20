@@ -1,0 +1,16 @@
+# N18 six-item evidence — capture md5 (12 runs)
+# md5sum of .scratch/n18/<run>.bmp; every frame is 1264x681 24bpp, 2,582,406 B.
+# body-default belongs to the control run (.scratch/n18-control.sh); the other 11 to .scratch/n18-batch.sh.
+# Equal hashes mean byte-identical frames; the pixel reading of each pair is in diffs.txt.
+66d61c7bfdcb792ee22c2ca4fe3032d0  body-default.bmp
+84e82034a5162315da24c4592ba8899f  body-machete.bmp
+70a8a4c209bd133aa77867b62c16b182  body-rifle-anim.bmp
+7d0b5b4becb20dffbfa67749fd564465  body-rifle-left.bmp
+a14f685f7008cc78bc0306ae6a783ccd  body-rifle-off.bmp
+cf185e3ce746576b9cf0dbd6b93c822c  body-rifle-seq29.bmp
+66d61c7bfdcb792ee22c2ca4fe3032d0  body-rifle.bmp
+a14f685f7008cc78bc0306ae6a783ccd  missing-body.bmp
+66d61c7bfdcb792ee22c2ca4fe3032d0  missing-vm.bmp
+c26418d692d00d640cd67f0265f48e35  stv-control.bmp
+fd7c6b85d941842deb88a626cda8eb30  sw-after.bmp
+704e8f82aa86f74c0f6aac87d1e390e4  sw-before.bmp

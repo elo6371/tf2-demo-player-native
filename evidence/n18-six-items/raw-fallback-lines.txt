@@ -1,0 +1,7 @@
+# N18 six-item evidence — the two fallback runs, verbatim trace lines
+# Source: .scratch/n18/<run>.trace, last occurrence of each reading; leading numbers are the trace's own timestamps.
+# "off" = --viewmodel-weapon-body off; "missing-body" = --viewmodel-weapon-model .../c_does_not_exist.mdl.
+168440.9 gpu: viewmodel weaponBodyReading armDrawCalls=1792 weaponDrawCalls=0 weaponModelIndex=0 weaponModelPath=- weaponMaterials=0/0/0/0 weaponFallback=off weaponVisible=0 weaponReason=the weapon body is switched off weaponEntity=-1 weaponClass=- weaponMeshRadius=0.00 weaponVertices=0 weaponClip=(0.000,0.000,0.000,0.000) weaponMaterialsFailure=-
+168426.1 scene: weaponBody entity=-1 class=- worldModelIndex=0 path=- refusal=none fallback=off reason=the weapon body is switched off (--viewmodel-weapon-body off) observations=0 named=0 present=0 refusals=-
+194914.0 gpu: viewmodel weaponBodyReading armDrawCalls=1845 weaponDrawCalls=0 weaponModelIndex=208 weaponModelPath=models/weapons/c_models/c_does_not_exist.mdl weaponMaterials=0/0/0/0 weaponFallback=buildFailed weaponVisible=0 weaponReason=viewmodel was not found weaponEntity=734 weaponClass=CTFSniperRifle weaponMeshRadius=0.00 weaponVertices=0 weaponClip=(0.000,0.000,0.000,0.000) weaponMaterialsFailure=-
+194895.2 scene: weaponBody entity=734 class=CTFSniperRifle worldModelIndex=208 path=models/weapons/c_models/c_does_not_exist.mdl refusal=none fallback=buildFailed reason=the weapon entity's own m_iWorldModelIndex names the weapon body observations=1805 named=1805 present=1805 refusals=none:1805
