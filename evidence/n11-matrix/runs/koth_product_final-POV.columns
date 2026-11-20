@@ -1,1 +1,3 @@
 cell=koth_product_final-POV rc=0 bytes=2582406 sha=742658825cfa299c tick_landed=2000 eye=-1093.9,407.6,407.9 camera_src=demo eye_lines=1760
+cell=koth_product_final-POV tick=2000 landed=2000 rc=0 bytes=2582406 sha=742658825cfa299c eye=-1093.9,407.6,407.9 camera_src=demo blend_tiles=3 tile_fill_lines=0 eye_lines=1756
+cell=koth_product_final-POV tick=2000 landed=2000 rc=0 bytes=2582406 sha=742658825cfa299c eye=-1093.9,407.6,407.9 camera_src=demo blend_tiles=3 tile_fill_lines=0 eye_lines=1748

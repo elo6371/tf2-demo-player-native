@@ -1,1 +1,3 @@
 cell=cp_sunshine-POV rc=0 bytes=2582406 sha=2474b428f3d77f99 tick_landed=2000 eye=0.0,0.0,-359.0 camera_src=demo eye_lines=1773
+cell=cp_sunshine-POV tick=1000 landed=1000 rc=0 bytes=2582406 sha=60addc10bc5d94a2 eye=-5551.9,4905.8,-23.9 camera_src=demo blend_tiles=4 tile_fill_lines=0 eye_lines=899
+cell=cp_sunshine-POV tick=1000 landed=1000 rc=0 bytes=2582406 sha=60addc10bc5d94a2 eye=-5551.9,4905.8,-23.9 camera_src=demo blend_tiles=4 tile_fill_lines=0 eye_lines=921

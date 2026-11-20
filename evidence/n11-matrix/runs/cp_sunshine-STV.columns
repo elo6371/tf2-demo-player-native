@@ -1,1 +1,3 @@
 cell=cp_sunshine-STV rc=0 bytes=2582406 sha=06944caf8b22dd64 tick_landed=2000 eye=-4296.4,2131.8,72.9 camera_src=follow eye_lines=0
+cell=cp_sunshine-STV tick=1000 landed=1000 rc=0 bytes=2582406 sha=df102ed7b264f5bd eye=-3297.9,3812.5,168.3 camera_src=follow blend_tiles=4 tile_fill_lines=0 eye_lines=0
+cell=cp_sunshine-STV tick=1000 landed=1000 rc=0 bytes=2582406 sha=df102ed7b264f5bd eye=-3297.9,3812.5,168.3 camera_src=follow blend_tiles=4 tile_fill_lines=0 eye_lines=0

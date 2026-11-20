@@ -1,1 +1,3 @@
 cell=cp_gullywash_f9-POV rc=0 bytes=2582406 sha=2ce5a157c390d9dd tick_landed=2000 eye=-51.3,-624.0,373.0 camera_src=demo eye_lines=1670
+cell=cp_gullywash_f9-POV tick=2000 landed=2000 rc=0 bytes=2582406 sha=2ce5a157c390d9dd eye=-51.3,-624.0,373.0 camera_src=demo blend_tiles=1 tile_fill_lines=0 eye_lines=1673
+cell=cp_gullywash_f9-POV tick=2000 landed=2000 rc=0 bytes=2582406 sha=2ce5a157c390d9dd eye=-51.3,-624.0,373.0 camera_src=demo blend_tiles=1 tile_fill_lines=0 eye_lines=1674

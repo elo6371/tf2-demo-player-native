@@ -1,1 +1,3 @@
 cell=cp_sultry_b8a-STV rc=0 bytes=2582406 sha=70762d785be1656f tick_landed=2000 eye=-2070.1,1864.6,657.0 camera_src=follow eye_lines=0
+cell=cp_sultry_b8a-STV tick=2000 landed=2000 rc=0 bytes=2582406 sha=73c180ecb033ec1b eye=-2070.1,1864.6,657.0 camera_src=follow blend_tiles=10 tile_fill_lines=0 eye_lines=0
+cell=cp_sultry_b8a-STV tick=2000 landed=2000 rc=0 bytes=2582406 sha=73c180ecb033ec1b eye=-2070.1,1864.6,657.0 camera_src=follow blend_tiles=10 tile_fill_lines=0 eye_lines=0
