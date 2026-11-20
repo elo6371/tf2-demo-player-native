@@ -714,14 +714,14 @@ PATCH
   # the `gpu: viewmodel frame` line. Nothing else in the tree can see it.
   echo "--- m4 camera-inside-mesh: the placement distance collapses to 0.22x the radius ---"
   MUTATION_TOTAL=$((MUTATION_TOTAL + 1))
-  apply_mutation native/src/native_renderer.cpp "camera-inside-mesh"
-  if ! patch_source native/src/native_renderer.cpp <<'PATCH'
+  apply_mutation native/src/native_renderer_viewmodel.cpp "camera-inside-mesh"
+  if ! patch_source native/src/native_renderer_viewmodel.cpp <<'PATCH'
   const float distance = radius * 2.2f;
 %%
   const float distance = radius * 0.22f;
 PATCH
   then
-    fail_line "m4 did not apply to native/src/native_renderer.cpp"
+    fail_line "m4 did not apply to native/src/native_renderer_viewmodel.cpp"
   else
     if bash build-target.sh tf2_demo_native > "$RUN_DIR/m4-build.log" 2>&1; then
       run_product m4-apply --viewmodel "$VM_MODEL" --viewmodel-sequence "$POSE_SEQUENCE" --viewmodel-apply-animation
