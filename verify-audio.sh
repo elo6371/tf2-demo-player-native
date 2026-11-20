@@ -315,7 +315,7 @@ else
     if [ "$got_size" != "$want_size" ]; then
       bad=$((bad + 1)); printf '  FAIL %s (wrong size: %s, pinned %s)\n' "$label" "$got_size" "$want_size"; continue
     fi
-    got_hash=$(sha256sum "$demo_path" | cut -d' ' -f1)
+  got_hash=$(sha256sum "$demo_path" </dev/null | cut -d' ' -f1)
     if [ "$got_hash" != "$want_hash" ]; then
       bad=$((bad + 1)); printf '  FAIL %s (wrong hash: %s)\n' "$label" "$got_hash"; continue
     fi
@@ -524,7 +524,7 @@ else
     if [ "$got_size" != "$want_size" ]; then
       bad=$((bad + 1)); printf '  FAIL %s (wrong size: %s, pinned %s)\n' "$label" "$got_size" "$want_size"; continue
     fi
-    got_hash=$(sha256sum "$demo_path" | cut -d' ' -f1)
+  got_hash=$(sha256sum "$demo_path" </dev/null | cut -d' ' -f1)
     if [ "$got_hash" != "$want_hash" ]; then
       bad=$((bad + 1)); printf '  FAIL %s (wrong hash: %s)\n' "$label" "$got_hash"; continue
     fi
@@ -776,7 +776,7 @@ else
     if [ "$got_size" != "$want_size" ]; then
       bad=$((bad + 1)); printf '  FAIL %s (wrong size: %s, pinned %s)\n' "$label" "$got_size" "$want_size"; continue
     fi
-    got_hash=$(sha256sum "$demo_path" | cut -d' ' -f1)
+  got_hash=$(sha256sum "$demo_path" </dev/null | cut -d' ' -f1)
     if [ "$got_hash" != "$want_hash" ]; then
       bad=$((bad + 1)); printf '  FAIL %s (wrong hash: %s)\n' "$label" "$got_hash"; continue
     fi

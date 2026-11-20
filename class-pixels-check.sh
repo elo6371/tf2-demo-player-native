@@ -129,7 +129,7 @@ say_fail() { echo "  FAIL $*"; fail=1; }
 sha_of() {
   local f="$1"
   [ -f "$f" ] || { echo "<none>"; return 0; }
-  sha256sum "$f" 2>/dev/null | cut -d' ' -f1
+  sha256sum "$f" </dev/null 2>/dev/null | cut -d' ' -f1
 }
 
 # --- ANIMATION PHASE: the quantity that decides whether two frames are comparable

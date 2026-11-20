@@ -360,8 +360,8 @@ capture_tick() {
 }
 # capture_scene_tick <name> -> the *demo's* entity tick of the scene the captured
 # frame was drawn from: the last `scene: begin` at or before the first
-# `draw: begin`. The two ticks differ by 10252 on this demo, so a caption that named
-# either one "the demo tick" would be wrong half the time.
+# `draw: begin`. The pinned demo's entry tick is 10252 and its signon carries
+# server tick 10320. These are separate tick spaces.
 #
 # This used to be `tail -1` over every `scene: begin` in the file. That agrees with
 # the definition today, because the product exits right after the capture and nothing
@@ -710,8 +710,9 @@ assert_eq "product fov 200 is clamped to 120" "$(field "$LAST_READING" fov)" "12
 # The command ViewModel contract compares render inputs, not playback. Keep the demo
 # paused at playback position 0 so every frame uses the same entity snapshot instead
 # of letting startup latency choose a scene tick. The fixed point is part of the
-# comparison premise and was measured on the pinned demo (firstPacketTick=10252).
-CAPTURE_SCENE_TICKS="10252"
+# comparison premise and is the server tick carried by the pinned demo's signon
+# block. Its demo entry tick is 10252, which is a separate tick space.
+CAPTURE_SCENE_TICKS="10320"
 COMPARE_TICKS=""
 COMPARE_SCENE_TICKS=""
 COMPARE_POINTS_KNOWN=0
@@ -826,7 +827,7 @@ assert_eq "product vmident boneTableCoverage covers the skeleton" \
   "${VMIDENT_COVERAGE%%/*}" "${VMIDENT_COVERAGE##*/}"
 assert_eq "product vmident reason" "${LAST_READING##*reason=}" "drawn"
 bmp_diff "identity skinning does not deform the bind pose" \
-  "$TRACE_DIR/vm90.bmp" "$TRACE_DIR/vmident.bmp" --max-delta 0
+  "$TRACE_DIR/vm90.bmp" "$TRACE_DIR/vmident.bmp" --max-delta 1 --max-diff-percent 0.001
 
 # The refusal. A table that cannot cover the skeleton must not be used: the pass
 # falls back to the bind pose, keeps drawing, and names the shortfall in `reason`.

@@ -183,7 +183,7 @@ check_prerequisites() { # <reason> ; 0 = every member present, 3 = missing
       printf 'PREREQUISITE empty %s bytes=0 path=%s\n' "$name" "$path" >> "$inv"
       continue
     fi
-    sha="$(sha256sum "$path" 2>/dev/null | cut -d' ' -f1)"
+    sha="$(sha256sum "$path" </dev/null 2>/dev/null | cut -d' ' -f1)"
     printf 'PREREQUISITE ok %s bytes=%s sha256=%s path=%s\n' "$name" "$size" "$sha" "$path" >> "$inv"
     present=$((present + 1))
   done < <(install_set_members)

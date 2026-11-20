@@ -968,7 +968,7 @@ compare_user_files_intact() { # <label> <before-prefix> <dir>
     if [ ! -f "$dir/$relative" ]; then
       echo "  FAIL $label: $relative is gone"; bad=1; continue
     fi
-    actual=$( cd "$dir" && sha256sum "$relative" | cut -d' ' -f1 )
+    actual=$( cd "$dir" && sha256sum "$relative" </dev/null | cut -d' ' -f1 )
     if [ "$actual" != "$expected" ]; then
       echo "  FAIL $label: $relative changed ($expected -> $actual)"; bad=1
     fi

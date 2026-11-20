@@ -133,7 +133,7 @@ PARTIAL_DIR="$OUT/.partial"
 
 # ---- small helpers -------------------------------------------------------
 CR=$(printf '\r')
-sha_of() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
+sha_of() { sha256sum "$1" </dev/null 2>/dev/null | cut -d' ' -f1; }
 file_size() { wc -c < "$1" 2>/dev/null | tr -d ' '; }
 win_path() { # win_path <posix path> -> the path the product receives
   local p="$1"

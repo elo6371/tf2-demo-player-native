@@ -201,7 +201,7 @@ while read -r size sha256 root name; do
     fail_line "pinned recording is absent: $path"; continue
   fi
   actual_size=$(stat -c%s "$path")
-  actual_sha=$(sha256sum "$path" | cut -d' ' -f1)
+  actual_sha=$(sha256sum "$path" </dev/null | cut -d' ' -f1)
   if [ "$actual_size" != "$size" ] || [ "$actual_sha" != "$sha256" ]; then
     fail_line "pinned recording $name is $actual_size/$actual_sha, pinned $size/$sha256"; continue
   fi

@@ -159,7 +159,7 @@ else
     if [ "$got_size" != "$want_size" ]; then
       say_bad "$label (wrong size: $got_size, pinned $want_size)"; continue
     fi
-    got_hash=$(sha256sum "$demo_path" | cut -d' ' -f1)
+    got_hash=$(sha256sum "$demo_path" </dev/null | cut -d' ' -f1)
     if [ "$got_hash" != "$want_hash" ]; then
       say_bad "$label (wrong hash: $got_hash)"; continue
     fi

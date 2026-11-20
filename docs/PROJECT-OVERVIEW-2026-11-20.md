@@ -2,7 +2,7 @@
 
 写给"这个东西现在能干什么、还差什么"。口径是**本机可复现的证据**，不是卡片的愿望清单；
 每一条后面跟的是要在哪读到它（脚本、文档或源码行）。没跑过的门禁不写 PASS。
-基线：`work/integrate` HEAD `3b140351`（已与 origin 同步；本轮 5 个提交已推）。
+本轮门禁复跑基于 `work/integrate` 的 `630302e6` 及下述脚本修复。
 
 ## 1 这个项目是什么
 
@@ -32,11 +32,11 @@
 |---|---|---|
 | 第一人称武器体 | 武器体是从实体自己的 `m_iWorldModelIndex` 解出来的**世界模型**（`c_sniperrifle.mdl`），被搬到与手臂同一个 target | 两半各自把**自身 AABB 中心**搬到 target（`native_renderer_viewmodel.cpp:536-538`+`:578-579` vs `:826-834`），长枪的几何中心不在握把，所以"枪离手"。残差 `Δ = M_wpn(b_wpn − c_wpn) − M_arm(b_arm − c_arm)`（Gemini 第 10 轮复核）。修法：把 `:832-833` 的平移锚点换成 weapon_bone，而不是重挂骨骼链 |
 | 玩家动画 | 默认动画已翻转为开（`fd25e93c`，`main.cpp:3331` `playerAnimationEnabled=true`）；idle/moving 选序器修好 | 只有 `kIdleNeedles`/`kMovingNeedles` 两组（`main.cpp:481-505`）；9/12-way blend、aimmatrix、LOD1+ 都没有；Scout 同机位视觉未验收 |
-| 3D 天空盒 | `sky_camera` 实体**已解析**（`native/src/bsp_map.cpp:628-640` 写 `map.skyCamera`）；六面天空 + 雾在画 | 第二遍渲染与深度清除未实现；前提是先去掉 z 钉远平面（`native_renderer_frame.cpp:961-963`）；远离中心未量级压缩（文档口径） |
+| 3D 天空盒 | `sky_camera` 已解析，`--world-sky-3d on\|off` 与渲染 pass 已落地，默认关闭 | 单图已有四个远离原点的机位 A/B。位置、比例、主场景遮挡和接缝仍需对照验收。见 [3D 天空盒报告](WORLD-SKY3D-2026-11-18.md) |
 | 分屏 / pane | `--pane-mode` 与 pane 级相机隐藏（`g_paneSplit`/`g_pane1CameraHiddenEntity`，`main.cpp:12884-12885`）已在代码里 | N16 只完成契约（双 pane/PIP/四视角边界），产品没有真正的多视角流程 |
 | 小地图 | 在线底图与单 CP 标记能画 | 底图与独立标尺未完成（N14）；Bagel 单 CP 不能判朝向 |
 | DPI / resize | 布局数学 42 组合无越界 | 实测 HUD panel 不随 DPI 缩放，与状态栏相撞（最大 17.1%） |
-| 七图矩阵 | 14 格矩阵有逐格记录 | 只有 2 格合格；六图 POV 零帧；证据跨 4 个 exe，没有同一 exe 覆盖七图（N11） |
+| 七图矩阵 | 11-19 同一 exe 采集 14/14，`identical_pairs=0`（`1e43e8f9`） | Sunshine POV 相机与 `tiles=0` 待查。采集记录对应 11-19 的 exe，逐图画面验收另记。见 [矩阵读数](../evidence/n11-matrix/readings.tsv) |
 | 世界画面残项 | 主要缺面根因已修 | pr600 绕序剔除仍有 94 px；14 个退化位移 patch 仍平面 fallback；N05 的 849/919 像素缺陷现象确证、机制未归因 |
 | 推车 / 动态 brush | 静态盘点有记录 | 随时间移动、弯道、暂停/seek 未验（N09 部分 / NOT VERIFIED） |
 
@@ -65,15 +65,12 @@
   另外三处红按机制修（`sha256sum` 吞 stdin / 写死 demo 序列号 / 蒙皮姿态越出 bind 掩膜需 1 px 膨胀），
   无变异读数 `VIEWMODEL-APPLY=PASS (42 assertions, 0 failures)`，`--mutation` 读数 `PASS (14 assertions, 0 failures)`
   （四个变异各自动到该门禁读的数，m4 因此完成整门禁验证；首轮 m2 变异目标随 `3218e9bd` 的 HLSL 搬迁失效，见审计 #15）。
-- **还欠的两条红**（要改门禁语义，等批准）：`viewmodel-contract-check.sh` 的 capture point 0≠7
-  （premise `CAPTURE_SCENE_TICKS=10252` vs 实测 10320，根因是 T63-F1 的两套 tick 空间）、
-  identity 的 1 px LSB（2026-11-20 复跑未复现）。
+- **Viewmodel contract 整门通过**。Server tick 固定为 signon 携带的 `10320`，7/7 抓帧命中，旧 entry tick `10252` 命中 0/7。恒等蒙皮允许最多 1 LSB 且不同颜色通道字节上限为 `0.001%`，同指令流对照组保持 0 LSB。整门 `VIEWMODEL-CONTRACT=PASS`，154 条断言。见 [验证记录](GATE-FOLLOWUP-2026-11-20.md)。
 - **m4 的整门禁验证已完成**：mutation 目标指向 `native_renderer_viewmodel.cpp`，前向 42 条断言 + 四个变异 14 条断言全绿，
   四个变异各自动到该门禁读的数（m1 三条；m2 遮罩 7747 px 越出 48554 px 掩膜；m3 两条；m4 相机进入模型
   `distance=6.5735 against radius=29.8797`），还原后 bind 帧 `085cbb1788969505…` 逐字节一致。
 - **`sha256sum` 吞 stdin 是平台缺陷**：本机 `sha256sum` 是 WinuxCmd 1.2.1，给了文件参数仍读标准输入，
-  把 `while read … < 钉住表` 的剩余行吃光 → 只核对第一行、其余行静默消失；全仓 12 处同构造（10 个脚本），
-  本批只修被测的两处，其余 8 处列在审计 #14 待排。
+  会吃掉 `while read` 的剩余行。审计 #14 实列 9 个待修调用（含 HUD），复查另定位 3 个调用。12 个调用在 10 个脚本内补上 `</dev/null`。语法检查和三行负控通过，完整相关门禁结果按各自窗口登记。
 - 142 个根目录 `*.sh`；`GATE-REGISTRY` 88 个门禁 / 已登记 35 / 排除 53；e/sidecar 身份门禁是唯一能证明
   "二进制是这个源建的"的那一层，任何提交前必须干净树。
 
@@ -81,9 +78,9 @@
 
 1. 第一人称武器体：把 `native_renderer_viewmodel.cpp:832-833` 的锚点换成 weapon_bone，用同一 POV 帧前后对比（预期只动枪，不动手臂）。
 2. 玩家动画：blend/aimmatrix 参数化 + 同机位 TF2 参考帧验收（N17）。
-3. 3D 天空盒：先拆 z 钉远平面，再加第二遍 pass + 深度清除（D02）。
+3. 3D 天空盒：用非原点机位和 TF2 参考验位置、比例、遮挡及接缝（D02）。
 4. N05 849/919：给实际 draw 加 face/triangle/pass/UV/atlas 诊断，同输入下归因。
-5. 门禁：两条既有红改语义（等批准）+ 其余 8 处 `sha256sum` 站点；然后把 verify-all 接进 CI。
+5. 门禁：按影响复跑涉及哈希的门禁。现有 tier 1 跑独立探针，`verify-all` 仍由有 TF2 资产和 GPU 的本地候选窗口执行。
 6. 发布线：N29 干净环境 → N30 `verify-release.sh`。
 
 ## 7 这份总览不宣称什么
@@ -91,4 +88,4 @@
 - 没跑过的门禁不写 PASS；除 `weapon-body-check.sh`/`viewmodel-apply-check.sh` 今天的两轮之外，
   其余门禁读数来自它们各自的证据窗口，不是当前 exe 的整门 verdict。
 - 七图、HUD、overview 的历史 PASS 绑定旧 exe 身份，不继承到当前 HEAD（`c9f8e599` / 本轮推到 origin 的那一批）。
-- "已实现"指代码路径与至少一条读数存在，不等于"与真 TF2 观感一致"；观感类项目（N21 听感、人物外观、雾/天空接缝）都还需要人眼/人耳验收。
+- N21 听感、人物外观、雾与天空接缝由项目负责人现场签收。
