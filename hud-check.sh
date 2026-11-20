@@ -1156,8 +1156,25 @@ if [ "$MUTATION" -eq 1 ]; then
 import sys
 path = sys.argv[1]
 text = open(path, encoding='utf-8').read()
-needle = "  if (layout.includeCount != 0) {"
-replacement = "  if (false && layout.includeCount != 0) {"
+# The defect: the structural refusal for "#base" is disabled -- the branch still
+# runs, but it no longer names a reason and no longer returns, so a document
+# that depends on an include parses as if it were complete. Written as a
+# statement edit, NOT as "if (false && ...)": a constant condition is C4127
+# under /W4 and /WX turns the mutation itself into a build failure instead of a
+# behavioural defect, which is exactly how the first version of this mutation
+# stopped being able to score anything.
+needle = (
+    "  if (layout.includeCount != 0) {\n"
+    "    layout.reason = HudRefusal::UnsupportedInclude;\n"
+    "    layout.detail = std::to_string(layout.includeCount) + \" #base directive(s)\";\n"
+    "    return layout;\n"
+    "  }"
+)
+replacement = (
+    "  if (layout.includeCount != 0) {\n"
+    "    layout.detail = std::to_string(layout.includeCount) + \" #base directive(s)\";\n"
+    "  }"
+)
 if needle not in text:
     raise SystemExit("mutation-1 anchor not found")
 open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, replacement, 1))
@@ -1208,11 +1225,15 @@ text = open(path, encoding='utf-8').read()
 # comparison go red. A mutation that merely removed the scissor would NOT do
 # that, because the quads already lie inside the rects; the mutation has to
 # change what is drawn, not only how it is clipped.
+#
+# The anchor moved with the renderer split: the pass now computes the clip rect
+# from "primitive.x / primitive.y" and the primitive's own "width / height"
+# in native/src/native_renderer_frame.cpp, not from "rect.left / rect.top".
 needle = (
-    "    const float left = (std::max)(0.0f, rect.left);\n"
-    "    const float top = (std::max)(0.0f, rect.top);\n"
-    "    const float right = (std::min)(static_cast<float>(width_), rect.right);\n"
-    "    const float bottom = (std::min)(static_cast<float>(height_), rect.bottom);"
+    "    const float left = (std::max)(0.0f, primitive.x);\n"
+    "    const float top = (std::max)(0.0f, primitive.y);\n"
+    "    const float right = (std::min)(static_cast<float>(width_), primitive.x + width);\n"
+    "    const float bottom = (std::min)(static_cast<float>(height_), primitive.y + height);"
 )
 replacement = (
     "    const float left = 0.0f;\n"
