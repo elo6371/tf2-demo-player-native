@@ -14,6 +14,10 @@
 //      at advance time: counted as skipped, never resolved, never played.
 //   4. The null-sink contract: with a playback sink injected the scheduler
 //      resolves, counts and advances without any audio-device open.
+//   5. The wave's own loop metadata: a 'cue ' point and a 'smpl' sampler loop
+//      are read back as the sample frames the file names, and a file that names
+//      none reads as no loop -- the same answer every wave gave before the
+//      reader existed. This is a reading only; the playback path is unchanged.
 //
 // THE NOISE CONTRACT
 //   No scenario opens a real audio device. The one scenario that exercises the
@@ -217,6 +221,79 @@ std::vector<std::uint8_t> craftWav(std::uint32_t sampleRate, std::uint16_t block
   return bytes;
 }
 
+// A WAV that carries the loop metadata Source writes into a looping wave: an
+// optional 'cue ' chunk (one cue point whose dwSampleOffset is the sample the
+// loop begins at) and an optional 'smpl' chunk (one sampler loop with
+// dwStart/dwEnd). The PCM payload is identical in every variant, so the bytes
+// differ only in the metadata the reader is being asked about.
+std::vector<std::uint8_t> craftWavWithLoopMetadata(bool withCue, bool withSmpl,
+    std::uint32_t cueOffset, std::uint32_t loopStart, std::uint32_t loopEnd) {
+  std::vector<std::uint8_t> bytes;
+  const auto u16 = [&bytes](std::uint16_t value) {
+    bytes.push_back(static_cast<std::uint8_t>(value & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xff));
+  };
+  const auto u32 = [&bytes](std::uint32_t value) {
+    bytes.push_back(static_cast<std::uint8_t>(value & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 16) & 0xff));
+    bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xff));
+  };
+  const auto text = [&bytes](const char* four) {
+    for (int i = 0; i < 4; ++i) bytes.push_back(static_cast<std::uint8_t>(four[i]));
+  };
+  text("RIFF");
+  u32(0);   // patched below, once the chunk list is known
+  text("WAVE");
+  text("fmt ");
+  u32(16);
+  u16(1);   // PCM
+  u16(1);   // mono
+  u32(11025);
+  u32(11025);
+  u16(1);   // block align
+  u16(8);   // bits per sample
+  if (withCue) {
+    text("cue ");
+    u32(4 + 24);
+    u32(1);          // dwNumCuePoints
+    u32(0);          // dwName
+    u32(0);          // dwPosition
+    text("data");    // fccChunk: the chunk these positions index
+    u32(0);          // dwChunkStart
+    u32(0);          // dwBlockStart
+    u32(cueOffset);  // dwSampleOffset: the loop's first sample frame
+  }
+  if (withSmpl) {
+    text("smpl");
+    u32(36 + 24);
+    u32(0);          // manufacturer
+    u32(0);          // product
+    u32(0);          // samplePeriod
+    u32(60);         // MIDI unity note
+    u32(0);          // MIDI pitch fraction
+    u32(0);          // SMPTE format
+    u32(0);          // SMPTE offset
+    u32(1);          // numSampleLoops
+    u32(0);          // samplerData
+    u32(0);          // dwIdentifier
+    u32(0);          // dwType: 0 = forward loop
+    u32(loopStart);  // dwStart
+    u32(loopEnd);    // dwEnd: one past the loop's last sample
+    u32(0);          // dwFraction
+    u32(0);          // dwPlayCount: 0 = loop forever
+  }
+  text("data");
+  u32(64);
+  bytes.resize(bytes.size() + 64u, 128u);
+  const std::uint32_t riffSize = static_cast<std::uint32_t>(bytes.size() - 8);
+  for (int i = 0; i < 4; ++i) {
+    bytes[static_cast<std::size_t>(4 + i)] =
+      static_cast<std::uint8_t>((riffSize >> (8 * i)) & 0xffu);
+  }
+  return bytes;
+}
+
 // Crafted MPEG streams for the three MP3 refusals. Each is the smallest byte
 // sequence that reaches the failure it names, so the assertion is about the
 // decoder's contract rather than about a file that happens to ship.
@@ -290,6 +367,60 @@ struct ContractRun {
 
 void check(ContractRun& run, const std::string& what, bool condition) {
   run.checks.emplace_back(what, condition);
+}
+
+// --------------------------------------------------------------------------
+// 1c. The wave's own loop metadata: read when present, absent by default.
+// --------------------------------------------------------------------------
+// Additive by construction: a WAV that names a loop reads back the sample frames
+// the file names, and a WAV that names none reads hasLoop = false -- the same
+// answer every WAV gave before this reader existed. Nothing below asserts
+// anything about playback, because the playback path is deliberately untouched:
+// the loop fields are a reading, and a reader that fails on the factory .wav
+// corpus would be a regression the audio gates would catch first.
+void readLoopMetadata(ContractRun& run) {
+  // Cue only: the Source convention for a looping wave is a cue point at the
+  // sample the loop begins at. 4800 frames at 11025 Hz is 0.44 s in.
+  WavPcmData cueWav;
+  const bool cueParsed =
+    parseWav(craftWavWithLoopMetadata(true, false, 4800u, 0u, 0u), cueWav);
+  // Sampler loop only: dwStart / dwEnd, end exclusive.
+  WavPcmData smplWav;
+  const bool smplParsed =
+    parseWav(craftWavWithLoopMetadata(false, true, 0u, 4410u, 8820u), smplWav);
+  // Both chunks, deliberately disagreeing: the sampler's loop is the loop, the
+  // cue point stays the separate reading it has always been.
+  WavPcmData bothWav;
+  const bool bothParsed =
+    parseWav(craftWavWithLoopMetadata(true, true, 4800u, 4410u, 8820u), bothWav);
+  // The control: a plain WAV names no loop, and that reads as absent without
+  // turning the file into a refusal.
+  WavPcmData plainWav;
+  const bool plainParsed = parseWav(craftWav(11025, 1, 11025, 64), plainWav);
+
+  run.readings.set("wavCuePresent", static_cast<long long>(cueWav.loop.hasCuePoint ? 1 : 0));
+  run.readings.set("wavCueOffsetSamples", static_cast<long long>(cueWav.loop.cueSampleOffset));
+  run.readings.set("wavCueLoopStart", static_cast<long long>(cueWav.loop.loopStart));
+  run.readings.set("wavSmplLoopStart", static_cast<long long>(smplWav.loop.loopStart));
+  run.readings.set("wavSmplLoopEnd", static_cast<long long>(smplWav.loop.loopEnd));
+  run.readings.set("wavBothCueOffset", static_cast<long long>(bothWav.loop.cueSampleOffset));
+  run.readings.set("wavBothLoopStart", static_cast<long long>(bothWav.loop.loopStart));
+  run.readings.set("wavNoLoopPresent", static_cast<long long>(plainWav.loop.hasLoop ? 1 : 0));
+
+  check(run, "a WAV cue point is read as the loop start sample frame",
+    cueParsed && cueWav.valid && cueWav.loop.hasCuePoint && cueWav.loop.cueCount == 1
+      && cueWav.loop.cueSampleOffset == 4800u && cueWav.loop.hasLoop
+      && cueWav.loop.loopStart == 4800u && cueWav.loop.loopEnd == 0u);
+  check(run, "a WAV sampler loop keeps its own start and its exclusive end",
+    smplParsed && smplWav.valid && smplWav.loop.hasLoop && smplWav.loop.smplLoopCount == 1
+      && smplWav.loop.loopStart == 4410u && smplWav.loop.loopEnd == 8820u
+      && !smplWav.loop.hasCuePoint);
+  check(run, "with both chunks the sampler loop wins and the cue point stays a separate reading",
+    bothParsed && bothWav.valid && bothWav.loop.loopStart == 4410u
+      && bothWav.loop.loopEnd == 8820u && bothWav.loop.cueSampleOffset == 4800u);
+  check(run, "a WAV that names no loop reads as no loop, not as a refusal",
+    plainParsed && plainWav.valid && !plainWav.loop.hasLoop && !plainWav.loop.hasCuePoint
+      && plainWav.loop.cueCount == 0 && plainWav.loop.smplLoopCount == 0);
 }
 
 void runContract(ContractRun& run) {
@@ -849,6 +980,11 @@ void runContract(ContractRun& run) {
   run.readings.set("device_open_attempts", static_cast<long long>(audioDeviceOpenAttempts()));
   check(run, "no audio device was opened by any contract scenario",
     audioDeviceOpenAttempts() == 0 && audioDeviceOpenedCount() == 0);
+
+  // Last, so the new keys stay after every key the gate already pinned (the
+  // readings line is an ordered list and this probe's contract says new keys
+  // are appended, not inserted).
+  readLoopMetadata(run);
 }
 
 // --------------------------------------------------------------------------

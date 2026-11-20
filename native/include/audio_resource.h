@@ -51,6 +51,42 @@ enum class Mp3DecodeStatus : std::uint8_t {
   InvalidStream,
 };
 
+// Loop metadata read from the wave file's own RIFF chunks, in sample frames.
+//
+// Source ships a looping sound's loop points inside the wave rather than in the
+// soundscript: a 'cue ' chunk carries cue points, and a 'smpl' chunk carries the
+// sampler's loop list. Both express positions in sample frames -- not bytes, not
+// seconds -- and a sampler that loops a wave starts at loopStart and wraps back
+// when it reaches loopEnd.
+//
+// Absence is a reading, not an error: hasLoop == false means the file named no
+// loop, which is the case for the overwhelming majority of sounds and must be
+// read exactly the way every WAV read before this struct existed. Nothing in the
+// playback path consumes these fields yet; they are here so that a loop that is
+// eventually added to playback gets the file's own answer instead of a guess
+// from duration or file name.
+struct WavLoopInfo {
+  // The sampler's loop list from 'smpl' (dwStart / dwEnd), first loop only.
+  // loopEnd is exclusive: RIFF smpl's dwEnd is the sample after the loop's last
+  // one, so a consumer wrapping at loopEnd produces no gap and no repeat.
+  bool hasLoop = false;
+  std::uint32_t loopStart = 0;
+  std::uint32_t loopEnd = 0;
+  // The cue point from 'cue ': its dwSampleOffset, the sample where a looping
+  // wave begins. Recorded separately from loopStart because a file may carry
+  // both chunks; the 'smpl' loop wins when it exists, and a cue-only file
+  // derives loopStart from its first cue point. loopEnd stays 0 in that case --
+  // "no end named" -- meaning the loop runs to the end of the buffer.
+  bool hasCuePoint = false;
+  std::uint32_t cueSampleOffset = 0;
+  // Counts as written in the chunk headers: how many cue points the file names
+  // and how many sampler loops it lists. Kept because "no points at all" and
+  // "one point we read" are different answers, and the count is what separates
+  // them when the loop itself is derived from a cue point.
+  std::uint32_t cueCount = 0;
+  std::uint32_t smplLoopCount = 0;
+};
+
 struct WavPcmData {
   // Which reader produced these bytes: parseWav sets Wav, decodeMp3ToPcm sets
   // Mp3. The provenance is carried on the PCM rather than re-derived by the
@@ -66,6 +102,10 @@ struct WavPcmData {
   std::uint16_t blockAlign = 0;
   std::uint32_t byteRate = 0;
   std::vector<std::uint8_t> pcm;
+  // The file's own loop points, in sample frames; absent on the overwhelming
+  // majority of sounds. parseWav fills it from 'cue ' and 'smpl' chunks; nothing
+  // reads it yet -- see WavLoopInfo for why the reading precedes the behaviour.
+  WavLoopInfo loop;
   bool valid = false;
   std::string error;
 };

@@ -70,6 +70,55 @@ bool isSoundCharacter(char c) {
   }
 }
 
+// 'cue ' chunk: dwNumCuePoints, then one 24-byte cue point per entry (dwName,
+// dwPosition, fccChunk, dwChunkStart, dwBlockStart, dwSampleOffset). Source
+// names the sample a looping wave begins at in the first point's dwSampleOffset.
+// Extra points are counted, not interpreted: a wave file carries at most one
+// loop, and a caller that needs more can read them from the same chunk later.
+void readCueChunk(const std::vector<std::uint8_t>& bytes, std::size_t data,
+    std::uint32_t size, WavLoopInfo& loop) {
+  if (size < 4) return;
+  std::uint32_t count = 0;
+  if (!readU32(bytes, data, count)) return;
+  loop.cueCount = count;
+  if (count == 0) return;
+  // A chunk too short to hold one cue point is metadata this reader cannot use.
+  // It is ignored, not refused: the wave itself is still playable, and turning a
+  // file that plays today into a named refusal over an optional chunk would make
+  // the reader the louder failure.
+  if (size < 4 + 24) return;
+  std::uint32_t offset = 0;
+  if (!readU32(bytes, data + 4 + 20, offset)) return;
+  loop.hasCuePoint = true;
+  loop.cueSampleOffset = offset;
+}
+
+// 'smpl' chunk: 36 bytes of sampler header (manufacturer, product, sample
+// period, MIDI unity note, pitch fraction, SMPTE format, SMPTE offset,
+// numSampleLoops, samplerData), then one 24-byte loop record each (dwIdentifier,
+// dwType, dwStart, dwEnd, dwFraction, dwPlayCount). Only the first loop is read:
+// a wave carries one loop in practice and the sampler's duration loop is entry
+// zero; numSampleLoops is kept so "no loops listed" and "one loop read" stay
+// distinguishable.
+void readSmplChunk(const std::vector<std::uint8_t>& bytes, std::size_t data,
+    std::uint32_t size, WavLoopInfo& loop) {
+  constexpr std::uint32_t kHeaderBytes = 36;
+  std::uint32_t count = 0;
+  if (size < kHeaderBytes || !readU32(bytes, data + 28, count)) return;
+  loop.smplLoopCount = count;
+  if (count == 0) return;
+  if (size < kHeaderBytes + 24) return;
+  std::uint32_t start = 0;
+  std::uint32_t end = 0;
+  if (!readU32(bytes, data + kHeaderBytes + 8, start)
+      || !readU32(bytes, data + kHeaderBytes + 12, end)) {
+    return;
+  }
+  loop.hasLoop = true;
+  loop.loopStart = start;
+  loop.loopEnd = end;
+}
+
 } // namespace
 
 std::size_t leadingSoundCharacterCount(const std::string& name) {
@@ -118,8 +167,25 @@ bool parseWav(const std::vector<std::uint8_t>& bytes, WavPcmData& out) {
       out.pcm.assign(bytes.begin() + static_cast<std::ptrdiff_t>(cursor),
         bytes.begin() + static_cast<std::ptrdiff_t>(cursor + chunkSize));
       hasData = true;
+    } else if (fourcc(bytes, chunkHeader, "cue ")) {
+      // Loop metadata is read, never required. A wave with neither chunk is the
+      // normal case and stays playable; a malformed one of these is ignored by
+      // the helpers rather than turned into a refusal.
+      readCueChunk(bytes, cursor, chunkSize, out.loop);
+    } else if (fourcc(bytes, chunkHeader, "smpl")) {
+      readSmplChunk(bytes, cursor, chunkSize, out.loop);
     }
     cursor += chunkSize + (chunkSize & 1u);
+  }
+  // A cue point with no sampler loop still names where the loop begins -- that is
+  // the Source convention for a single-region looping wave -- so the loop start
+  // falls back to it. loopEnd stays 0, "no end named": the loop runs to the end
+  // of the buffer. A 'smpl' loop, when present, has already won because it names
+  // both ends explicitly.
+  if (!out.loop.hasLoop && out.loop.hasCuePoint) {
+    out.loop.hasLoop = true;
+    out.loop.loopStart = out.loop.cueSampleOffset;
+    out.loop.loopEnd = 0;
   }
   if (!hasFormat || !hasData) { out.error = "WAV fmt or data chunk is missing"; return false; }
   if (out.encoding != WavEncoding::Pcm && out.encoding != WavEncoding::IeeeFloat) {
