@@ -40,6 +40,8 @@
 namespace tf2::native {
 class ReviewSession;
 class Renderer;
+struct AssetRoot;
+struct PersistentSettings;
 }  // namespace tf2::native
 
 namespace tf2::native::main_internal {
@@ -58,6 +60,28 @@ void openTrace();
 // trace text, the --renderer-resize-selftest switch and the exit codes
 // (0 pass, 14 initialize failed, 15 checks failed) are unchanged.
 int runRendererSelftest(tf2::native::Renderer& renderer, HWND window, bool faultSpecIgnored);
+
+// --------------------------------------------- shutdown persistence (N24 B2-1)
+// Moved out of wWinMain (main.cpp:15997-16065 as HEAD 54d7f3e7 had it) as pure
+// code motion: the bookmarks/keybinds save, renderer.shutdown(), the logs panel's
+// last frame, saveSettings(), the T51 hud: keys reading, the [hud] save/summary
+// and the review session's finish/reset, in the order the exit path always ran
+// them. g_renderer = nullptr and the exit code deliberately stay in wWinMain.
+//
+// The five globals the tail names -- g_cameraBookmarks, g_hud, g_reviewSession,
+// g_keyBinds and g_keybinds -- stay globals: main_shutdown.cpp declares them
+// through the same headers main.cpp uses, so no second copy exists. renderer,
+// persistent and assets are wWinMain locals and travel by reference, as do the
+// three HUD switch values -- the tail only reads them, and they outlive the call.
+struct ShutdownPersistenceInputs {
+  tf2::native::Renderer& renderer;
+  tf2::native::PersistentSettings& persistent;
+  const tf2::native::AssetRoot& assets;
+  bool hudConfigRequested = false;
+  const std::filesystem::path& hudRoot;
+  const std::string& hudLayout;
+};
+void runShutdownPersistence(ShutdownPersistenceInputs& inputs);
 
 // ----------------------------------------------------- installer lifecycle
 // T37 (moved out of main.cpp:72-151): four modes, not "a playback run with a

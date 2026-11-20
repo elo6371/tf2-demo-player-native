@@ -19,6 +19,10 @@ add_executable(tf2_demo_native WIN32
   # main.cpp as pure code motion -- body verbatim, same trace text and exit
   # codes (docs/N24-MAIN-SPLIT-PLAN-2026-11-16.md section 7).
   src/main_selftest.cpp
+  # N24 B2-1 (2026-11-20): the exit-path persistence and teardown tail moved
+  # out of wWinMain as pure code motion -- order, trace text and exit codes
+  # verbatim (docs/N24-MAIN-SPLIT-PLAN-2026-11-16.md section 7).
+  src/main_shutdown.cpp
   # T76: the two translation units split out of main.cpp -- the trace
   # checkpoint channel and the T37 installer lifecycle -- with their shared
   # declarations in src/main_internal.h. Code motion only: the command line,

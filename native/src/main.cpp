@@ -15996,74 +15996,14 @@ bool outlineVertexExtent = false;
         tf2::native::poseTraceFields(bookmark.pose).c_str());
     }
   }
-  // T50: the bookmarks and the key table are durable, so they are written at
-  // exit whether or not a script ran. loadSettings() runs before the window is
-  // created; this is the matching write. A script may have saved them already;
-  // the write is idempotent.
-  if (!tf2::native::settingsPath().empty()) {
-    g_cameraBookmarks.saveToSettings(tf2::native::settingsPath());
-    g_keyBinds.saveToSettings(tf2::native::settingsPath());
-  }
-  renderer.shutdown();
-  // T54: the panel's browser must be gone before the process exits, and its
-  // frame-time window is emitted here so the reading covers the whole run.
+  // N24 B2-1 (2026-11-20): the exit-path persistence and teardown tail moved to
+  // src/main_shutdown.cpp as pure code motion -- the seven steps, their order and
+  // every trace line are unchanged. g_renderer = nullptr stays below because the
+  // N12-C eye counters between them are a reading, not teardown.
   {
-    const std::string frameLine = tf2::native::logsPanelFrameLine();
-    if (!frameLine.empty()) traceFmt("%s", frameLine.c_str());
-    traceFmt("%s", tf2::native::logsPanelSummaryLine().c_str());
-    traceFmt("%s", tf2::native::logsPanelRuntimeLine().c_str());
-    tf2::native::logsPanelShutdown();
-  }
-  persistent.render = renderer.settings();
-  if (assets.valid()) persistent.tfRoot = assets.tfDirectory;
-  tf2::native::saveSettings(persistent);
-  // T51: the shared hotkey table, as a reading.
-  //
-  // NOTHING IS WRITTEN HERE, and that is a decision rather than an omission.
-  // [keys] is one table shared by two features (contract 1.2) and T50 ships the
-  // editor that rebinds it; a second exit path writing the same section would be
-  // two writers on one file, and a capture-only run would rewrite the tester's
-  // bindings as a side effect of taking a screenshot. T51 registers its three
-  // actions into the table so they are discoverable, dispatches them, and reports
-  // them -- the write stays with the feature that owns the editor.
-  if (g_keybindsLoaded) {
-    traceFmt("hud: keys actions=%zu registered=%d dispatched=%u suppressed=%u conflicts=%u",
-      g_keybinds.actions().size(),
-      (g_keybinds.registered("hud.toggle") && g_keybinds.registered("hud.preview")
-        && g_keybinds.registered("hud.reset")) ? 1 : 0,
-      g_keybinds.dispatchOkCount(), g_keybinds.suppressedByFocusCount(),
-      g_keybinds.conflictCount());
-  }
-
-  // T51: the [hud] section is written on the same exit path as [renderer], so a
-  // user who imported a HUD and never pressed another button still gets it back
-  // next run. A plain capture run writes nothing: hudTouched stays false unless
-  // a hud.* value was actually asked for.
-  {
-    std::string hudStatus;
-    const auto hudSettingsFile = uiSettingsFilePath(hudStatus);
-    const bool hudTouched = hudConfigRequested || !hudRoot.empty() || !hudLayout.empty()
-      || g_hud.imported() || g_hud.lastRefusal() != tf2::native::HudRefusal::None;
-    if (!hudSettingsFile.empty() && hudTouched) {
-      const bool saved = g_hud.saveTo(hudSettingsFile);
-      traceFmt("hud: save path=%s ok=%d enabled=%d scale=%d",
-        hudSettingsFile.u8string().c_str(), saved ? 1 : 0,
-        g_hud.settings().enabled ? 1 : 0, g_hud.settings().scalePercent);
-    }
-    traceFmt("hud: summary imported=%d accepted=%d refused=%d panels=%zu visible=%zu"
-      " invalid=%zu scale=%d enabled=%d lastReason=%s",
-      g_hud.imported() ? 1 : 0, g_hud.acceptedImports(), g_hud.refusedImports(),
-      g_hud.layout().panels.size(), g_hud.visiblePanels(), g_hud.invalidPanels(),
-      g_hud.settings().scalePercent, g_hud.settings().enabled ? 1 : 0,
-      tf2::native::hudRefusalName(g_hud.lastRefusal()));
-  }
-  // T71/T72: close the workspace on the way out. finish() captures where playback
-  // really is, autosaves and reports the close state, which is what makes
-  // "reopen the demo and the bookmark is still there" a property of an ordinary
-  // run rather than of the gate that saved it.
-  if (g_reviewSession) {
-    g_reviewSession->finish();
-    g_reviewSession.reset();
+    ShutdownPersistenceInputs shutdownInputs{renderer, persistent, assets,
+      hudConfigRequested, hudRoot, hudLayout};
+    runShutdownPersistence(shutdownInputs);
   }
 
   // N12-C step 2: the eye counters, once, on the same exit path as the other
