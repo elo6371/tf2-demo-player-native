@@ -573,6 +573,10 @@ ViewModelAnimationOutcome resolveViewModelAnimationInput(
   outcome.status = ViewModelAnimationStatus::Ok;
   outcome.bindPose = false;
   outcome.skinMatrices = sampled.skinMatrices;
+  // N18 P2: the bone frames travel with the skinning table. They are the same
+  // bones (the size check above refused anything else), and copying them here
+  // keeps the caller from having to re-derive a pose it was already handed.
+  outcome.boneModelMatrices = sampled.boneModelMatrices;
   outcome.reason.clear();
   return outcome;
 }

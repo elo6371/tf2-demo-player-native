@@ -3273,6 +3273,19 @@ bool outlineVertexExtent = false;
   //                             material line, so an overridden run cannot be
   //                             read as a natural one, and it must move nothing
   //                             outside the body's own coverage.
+  //   --viewmodel-weapon-attach <attachment|bone>  where the static weapon body
+  //                             rides. `attachment` (the default, and therefore
+  //                             the baseline every existing gate was captured on)
+  //                             pins the body's own attachment anchor to the arms'
+  //                             grip; `bone` ignores that anchor and places the
+  //                             body on the arms' `weapon_bone` world frame -- the
+  //                             same rigid transform the third-person attach path
+  //                             uses. An A/B switch only: the two runs differ by
+  //                             that transform and nothing else. The `=` spelling
+  //                             is accepted too. A model with no such bone keeps
+  //                             the attachment placement and says
+  //                             `attachMode=bone-missing`, instead of quietly
+  //                             drawing the body at the model origin.
   //   --viewmodel-sequence <n>  an input OVERRIDE, not a feature: use sequence n
   //                             in place of the entity's own m_nSequence. It
   //                             exists because on both pinned recordings the
@@ -3367,6 +3380,14 @@ bool outlineVertexExtent = false;
   // make the hands move and the claim untestable. Same state as a slot that
   // failed to resolve, so the control and the fallback cannot diverge.
   bool viewModelWeaponFlatColor = false;
+  // N18 P2: where the static weapon body rides. `Attachment` is the shipped
+  // chain -- the body's attachment anchor through the hand transform, then the
+  // placement that pins that anchor to the arms' grip -- and it stays the default
+  // so an unmodified run is exactly today's picture. `Bone` replaces it with the
+  // arms' own `weapon_bone` world frame, the placement the P1 offline proof says
+  // is exact for a rigid body. See the `--viewmodel-weapon-attach` parse site.
+  enum class ViewModelWeaponAttachMode { Attachment, Bone };
+  ViewModelWeaponAttachMode viewModelWeaponAttachMode = ViewModelWeaponAttachMode::Attachment;
   // An INPUT OVERRIDE: draw this model as the body instead of the one the weapon
   // entity's own `m_iWorldModelIndex` names. It exists because the recording's
   // weapon (`c_pro_rifle.mdl`) names two material slots that resolve to the SAME
@@ -3814,6 +3835,48 @@ bool outlineVertexExtent = false;
         } else {
           worldSky3dArgumentRejected = true;
         }
+        continue;
+      }
+
+      // N18 P2: --viewmodel-weapon-attach attachment|bone. A ladder arm rather
+      // than an else-if arm for the reason the blocks above state: that chain is
+      // already at the compiler nesting limit (C1061). This flag reads at most
+      // one following argument and only sets a local, which is what the ladder
+      // is for. It was tried in the chain first and main.cpp:4552 refused it.
+      //
+      // An unknown value is a refused argument, not a silent fallback.
+      // attachment is the default AND the A/B baseline this round compares
+      // against, so a run whose bone spelling fell back to attachment would make
+      // the two frames identical and a 0 px difference read as a pass.
+      if (wcscmp(arguments[i], L"--viewmodel-weapon-attach") == 0 && i + 1 < argumentCount) {
+        const wchar_t* attachValue = arguments[++i];
+        if (wcscmp(attachValue, L"attachment") == 0) {
+          viewModelWeaponAttachMode = ViewModelWeaponAttachMode::Attachment;
+        } else if (wcscmp(attachValue, L"bone") == 0) {
+          viewModelWeaponAttachMode = ViewModelWeaponAttachMode::Bone;
+        } else {
+          viewModelArgumentRejected = true;
+        }
+        continue;
+      }
+      // The plan writes the flag with =, and a gate may copy that spelling; the
+      // prefix compare makes both spellings one switch instead of two names.
+      if (std::wstring(arguments[i]).compare(0, 26, L"--viewmodel-weapon-attach=") == 0) {
+        const wchar_t* attachValue = arguments[i] + 26;
+        if (wcscmp(attachValue, L"attachment") == 0) {
+          viewModelWeaponAttachMode = ViewModelWeaponAttachMode::Attachment;
+        } else if (wcscmp(attachValue, L"bone") == 0) {
+          viewModelWeaponAttachMode = ViewModelWeaponAttachMode::Bone;
+        } else {
+          viewModelArgumentRejected = true;
+        }
+        continue;
+      }
+      // A bare switch pins nothing and must be refused rather than eaten: the
+      // unknown-switch rule after the loop would otherwise report a command line
+      // the product half-understood.
+      if (wcscmp(arguments[i], L"--viewmodel-weapon-attach") == 0) {
+        viewModelArgumentRejected = true;
         continue;
       }
 
@@ -4745,7 +4808,7 @@ bool outlineVertexExtent = false;
     return 13;
   }
   if (viewModelArgumentRejected) {
-    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov/--viewmodel-render/--viewmodel-weapon-body/--viewmodel-sequence; refusing to guess.\n");
+    OutputDebugStringW(L"TF2 Demo Player: invalid --viewmodel/--viewmodel-hand/--viewmodel-fov/--viewmodel-render/--viewmodel-weapon-body/--viewmodel-weapon-attach/--viewmodel-sequence; refusing to guess.\n");
     return 13;
   }
   if (g_logsPanelArgumentRejected) {
@@ -8402,12 +8465,39 @@ bool outlineVertexExtent = false;
   // as a row-major 3x4, the three basis vectors as its columns and the origin as
   // its translation column -- the "attachment local -> owning bone / model space"
   // stage of the chain.
-  const auto viewModelDrawStateFor = [](const tf2::native::ViewModelRequest& request,
+  // N18 P2: `mstudio_bone_t::poseToBone` is model -> bone (the inverse bind), a
+  // row-major 3x4 with `v' = M * v`, so its inverse is the bone's rest frame in
+  // model space: the transpose of the 3x3 and `-R^T t`. The rotation is
+  // orthonormal by construction, which is what makes the transpose legal -- the
+  // same identity animation_binding.cpp applies to un-animated bones, just done
+  // once per request instead of per frame.
+  const auto viewModelBoneRestModelMatrix = [](const tf2::native::ModelBone& bone,
+      std::array<float, 12>& out) {
+    if (!bone.poseToBoneValid) return false;
+    const auto& m = bone.poseToBone;
+    out = {
+      m[0], m[4], m[8],
+      -(m[0] * m[3] + m[4] * m[7] + m[8] * m[11]),
+      m[1], m[5], m[9],
+      -(m[1] * m[3] + m[5] * m[7] + m[9] * m[11]),
+      m[2], m[6], m[10],
+      -(m[2] * m[3] + m[6] * m[7] + m[10] * m[11]),
+    };
+    for (const float value : out) {
+      if (!std::isfinite(value)) return false;
+    }
+    return true;
+  };
+  const auto viewModelDrawStateFor = [&](const tf2::native::ViewModelRequest& request,
       bool leftHand) {
     tf2::native::ViewModelDrawState state;
     state.fov = request.fov;
     state.leftHand = leftHand;
     state.handTransform = request.handTransform;
+    // N18 P2: the placement choice travels with the state. The body pass runs
+    // after the state it was built from and reads its own copy, so the command
+    // line is asked exactly once, here, and never again at draw time.
+    state.weaponAttachBone = viewModelWeaponAttachMode == ViewModelWeaponAttachMode::Bone;
     state.attachmentValid = request.alignmentIndex >= 0
       && static_cast<std::size_t>(request.alignmentIndex) < request.attachments.size();
     if (state.attachmentValid) {
@@ -8418,6 +8508,32 @@ bool outlineVertexExtent = false;
         attachment.axisX[1], attachment.axisY[1], attachment.axisZ[1], attachment.origin[1],
         attachment.axisX[2], attachment.axisY[2], attachment.axisZ[2], attachment.origin[2],
       };
+    }
+    // N18 P2: the arms' grip frame, in ARMS model space, and the hand frame the
+    // upstream `GRIP_DISTANCE` check measures against. The name comes from the
+    // same preference table the attachment alignment uses, so the bone and the
+    // attachment name the same grip; a model with neither leaves the state
+    // invalid and the pass keeps the attachment placement.
+    if (viewModelWeaponAttachMode == ViewModelWeaponAttachMode::Bone) {
+      const auto hand = leftHand
+        ? tf2::native::ViewModelHand::Left : tf2::native::ViewModelHand::Right;
+      for (const auto& name : tf2::native::defaultViewModelAlignmentPreferences(hand)) {
+        for (const auto& bone : request.bones) {
+          if (bone.name != name) continue;
+          if (viewModelBoneRestModelMatrix(bone, state.gripBoneWorld)) {
+            state.gripBoneValid = true;
+            state.gripBoneName = name;
+          }
+          break;
+        }
+        if (state.gripBoneValid) break;
+      }
+      const std::string handBoneName = leftHand ? "bip_hand_L" : "bip_hand_R";
+      for (const auto& bone : request.bones) {
+        if (bone.name != handBoneName) continue;
+        state.gripHandValid = viewModelBoneRestModelMatrix(bone, state.gripHandWorld);
+        break;
+      }
     }
     return state;
   };
@@ -11904,6 +12020,21 @@ bool outlineVertexExtent = false;
       static_cast<double>(renderer.viewModelGripResidual()),
       armsCentreModel[0], armsCentreModel[1], armsCentreModel[2],
       weaponCentreModel[0], weaponCentreModel[1], weaponCentreModel[2]);
+    // N18 P2: which placement the body actually used, its world origin, and the
+    // distance to the arms' hand -- the upstream `GRIP_DISTANCE=12` reading. Its
+    // own line for the mechanical reason stated just below for the material
+    // line: the grip line above is what every existing gate pins, and
+    // `traceFmt`'s 512-byte buffer is not the place to grow a pinned line.
+    {
+      const std::string& attachSource = renderer.viewModelWeaponAttachSource();
+      const std::string& gripBoneName = renderer.viewModelGripBoneName();
+      const auto& attachWorld = renderer.viewModelWeaponAttachWorld();
+      traceFmt("gpu: viewmodel weaponAttach attachMode=%s gripBone=%s weaponWorld=(%.2f,%.2f,%.2f) gripToHand=%.4f",
+        attachSource.c_str(),
+        gripBoneName.empty() ? "-" : gripBoneName.c_str(),
+        attachWorld[0], attachWorld[1], attachWorld[2],
+        static_cast<double>(renderer.viewModelWeaponAttachHandDistance()));
+    }
     // T14: what the draw did with the slots above, on its own line.
     //   It is separate from the draw reading for a mechanical reason as well as
     //   a conceptual one: `traceFmt` formats into a 512-byte buffer, and
@@ -14862,6 +14993,26 @@ bool outlineVertexExtent = false;
           state.skinningEnabled = true;
           state.boneCount = static_cast<std::uint32_t>(outcome.skinMatrices.size());
           state.animationApplied = true;
+          // N18 P2: the grip frame follows the pose. `boneModelMatrices` is the
+          // same table the upload above consumed -- one row-major bone frame per
+          // bone -- so it is indexed by the name the base state resolved: no
+          // remap, no second solve. The base state carries the REST frame, and
+          // `state` is a copy of it at the top of this block, which is what
+          // restores that rest frame on any frame that applies no pose.
+          if (viewModelWeaponAttachMode == ViewModelWeaponAttachMode::Bone
+              && (state.gripBoneValid || state.gripHandValid)
+              && outcome.boneModelMatrices.size() == drawnRequest.bones.size()) {
+            const std::string handBoneName = state.leftHand ? "bip_hand_L" : "bip_hand_R";
+            for (std::size_t boneIndex = 0; boneIndex < drawnRequest.bones.size(); ++boneIndex) {
+              const std::string& boneName = drawnRequest.bones[boneIndex].name;
+              if (state.gripBoneValid && boneName == state.gripBoneName) {
+                state.gripBoneWorld = outcome.boneModelMatrices[boneIndex];
+              }
+              if (state.gripHandValid && boneName == handBoneName) {
+                state.gripHandWorld = outcome.boneModelMatrices[boneIndex];
+              }
+            }
+          }
           ++viewModelAnimationStats.posesApplied;
         } else {
           // No table behind a pose that is not applied. Without this the previous

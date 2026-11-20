@@ -372,6 +372,25 @@ struct ViewModelDrawState {
   bool materialTranslucent = false;
   bool materialAlphaTest = false;
   std::string attachmentName;
+  // N18 P2: how the static weapon body is placed, and the arms' own grip frame
+  // the `bone` placement rides. `weaponAttachBone` is a placement choice only --
+  // mesh, material, sequence and skinning inputs are identical in both modes --
+  // so an A/B pair differs by a transform and nothing else.
+  //
+  // The switch lives on the weapon body's state; the frame lives on the arms'
+  // state and is in ARMS model space. `gripBoneWorld` is `inverse(poseToBone)`
+  // when no pose is applied and the posed bone model matrix when one is (see
+  // main.cpp). `gripHandWorld` is the same quantity for the hand bone and exists
+  // only so the trace can report the upstream `GRIP_DISTANCE` check; both are
+  // invalid rather than defaulted when the model carries no such bone, and bone
+  // mode then falls back to the attachment placement instead of drawing the body
+  // at the model origin.
+  bool weaponAttachBone = false;
+  bool gripBoneValid = false;
+  bool gripHandValid = false;
+  std::array<float, 12> gripBoneWorld{};
+  std::array<float, 12> gripHandWorld{};
+  std::string gripBoneName;
   // Bind pose is `skinningEnabled = false`: the mesh is drawn through the
   // unskinned path rather than being skinned with a matrix table the caller
   // could not build. The plan is explicit that a bone-mapping failure refuses
@@ -1740,6 +1759,16 @@ public:
   // Negative means "not measured this frame" (the body did not draw), which is
   // deliberately not 0.0: a body that never drew is not an aligned body.
   float viewModelGripResidual() const { return viewModelGripResidual_; }
+  // N18 P2: which placement the weapon body actually used this frame, its world
+  // origin, and the distance from that origin to the arms' `bip_hand_R` world
+  // frame -- the upstream `GRIP_DISTANCE=12` reading. The source strings are
+  // `attachment`, `bone`, `bone-missing` (the switch asked for a frame the arms
+  // model does not carry, so the attachment placement was kept) and `none` (the
+  // body did not draw; the distance is -1 for the same reason the residual is).
+  const std::string& viewModelWeaponAttachSource() const { return viewModelWeaponAttachSource_; }
+  const std::array<float, 3>& viewModelWeaponAttachWorld() const { return viewModelWeaponAttachWorld_; }
+  float viewModelWeaponAttachHandDistance() const { return viewModelWeaponAttachHandDistance_; }
+  const std::string& viewModelGripBoneName() const { return viewModelGripBoneName_; }
   // The model-space mesh centres the placement solve moves each half by. They
   // are what explains the residual: both halves are placed by their centre, and
   // neither centre is where the model is held.
@@ -2339,6 +2368,22 @@ private:
   float viewModelGripResidual_ = -1.0f;
   std::size_t viewModelArmDrawCallCount_ = 0;
   std::size_t viewModelWeaponDrawCallCount_ = 0;
+  // N18 P2: the arms pass's world matrix (framing placement folded in, so the
+  // body inherits the arms' framing without a second solve) and the grip frames
+  // it was handed, kept for the weapon pass that runs after it in the same draw.
+  // Reset with the other per-frame readings: a frame that never reached the arms
+  // draw must not leave a skeleton here for the body to ride.
+  std::array<float, 12> viewModelArmsWorld_{};
+  bool viewModelArmsWorldValid_ = false;
+  std::array<float, 12> viewModelArmGripBoneWorld_{};
+  bool viewModelArmGripBoneValid_ = false;
+  std::array<float, 12> viewModelArmGripHandWorld_{};
+  bool viewModelArmGripHandValid_ = false;
+  std::string viewModelGripBoneName_;
+  // The weapon body's own P2 readings, reset every frame for the same reason.
+  std::string viewModelWeaponAttachSource_ = "none";
+  std::array<float, 3> viewModelWeaponAttachWorld_{};
+  float viewModelWeaponAttachHandDistance_ = -1.0f;
   Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelBoneBuffer_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> viewModelBoneView_;
   std::size_t viewModelBoneCapacity_ = 0;

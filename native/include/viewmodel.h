@@ -333,6 +333,13 @@ struct ViewModelAnimationOutcome {
   // refused input may produce.
   bool bindPose = true;
   std::vector<std::array<float, 16>> skinMatrices;
+  // N18 P2: the same pose as bone-model matrices (row-major 3x4, model space),
+  // copied straight from the sampler. The weapon placement needs a BONE FRAME,
+  // not a skinning matrix -- `skin[i] = model[i] * poseToBone[i]` has the inverse
+  // bind folded in and would misplace anything attached to it -- and the sampler
+  // already publishes both (`animation_binding.h`), so this is a copy, not a
+  // second derivation. Empty exactly when `bindPose` is true.
+  std::vector<std::array<float, 12>> boneModelMatrices;
 };
 
 // The whole contract as one function, so it can be driven without a window, a

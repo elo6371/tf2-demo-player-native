@@ -480,6 +480,24 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   viewModelGripArmsWorld_.fill(0.0f);
   viewModelGripWeaponWorld_.fill(0.0f);
   viewModelGripResidual_ = -1.0f;
+  // N18 P2: the arms' world matrix and the grip frames it carried belong to the
+  // arms pass, and the weapon body pass after it reads them. A frame that never
+  // reached the arms draw must not leave the previous frame's skeleton in place
+  // for the body to ride, so they are cleared with the other readings -- and the
+  // body's own placement readings with them.
+  viewModelArmsWorld_.fill(0.0f);
+  viewModelArmsWorldValid_ = false;
+  viewModelArmGripBoneWorld_.fill(0.0f);
+  viewModelArmGripBoneValid_ = false;
+  // The name is what the trace prints beside `bone-missing`; it belongs to the
+  // frame that carried the bone, so it goes with the validity flag. Left behind,
+  // it would name a bone from an earlier arms pass on a frame that had none.
+  viewModelGripBoneName_.clear();
+  viewModelArmGripHandWorld_.fill(0.0f);
+  viewModelArmGripHandValid_ = false;
+  viewModelWeaponAttachSource_ = "none";
+  viewModelWeaponAttachWorld_.fill(0.0f);
+  viewModelWeaponAttachHandDistance_ = -1.0f;
   viewModelWeaponDrawReason_ = "the pass did not draw";
   if (!context_) { viewModelDrawReason_ = "the renderer has no device context"; return false; }
   if (!viewModelState_.enabled) {
@@ -583,6 +601,19 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   viewModelPlacementTarget_ = { targetX, targetY, targetZ };
   const auto placement = translation34(targetX - centerX, targetY - centerY, targetZ - centerZ);
   const auto world = multiply34(placement, attachmentHand);
+  // N18 P2: publish the arms' own world matrix and the grip frames this state
+  // carried, for the weapon body pass that runs later in this same draw. The
+  // framing placement is already folded into `world`, so the body inherits the
+  // arms' framing instead of running a second solve that could disagree with it.
+  viewModelArmsWorld_ = world;
+  viewModelArmsWorldValid_ = true;
+  viewModelArmGripBoneValid_ = viewModelState_.gripBoneValid;
+  if (viewModelArmGripBoneValid_) {
+    viewModelArmGripBoneWorld_ = viewModelState_.gripBoneWorld;
+    viewModelGripBoneName_ = viewModelState_.gripBoneName;
+  }
+  viewModelArmGripHandValid_ = viewModelState_.gripHandValid;
+  if (viewModelArmGripHandValid_) viewModelArmGripHandWorld_ = viewModelState_.gripHandWorld;
   // N18: the point the arms are actually held by. The attachment's origin (the
   // hand, for `weapon_bone`) goes through the hand transform and then through
   // the same placement the mesh centre went through. `placement` is a pure
@@ -867,7 +898,42 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
       viewModelGripArmsWorld_[0] - weaponAnchorHandX,
       viewModelGripArmsWorld_[1] - weaponAnchorHandY,
       viewModelGripArmsWorld_[2] - weaponAnchorHandZ);
-    const auto weaponWorld = multiply34(weaponPlacement, weaponAttachmentHand);
+    std::array<float, 12> weaponWorld = multiply34(weaponPlacement, weaponAttachmentHand);
+    // N18 P2: the A/B placement. In `bone` mode the body rides the arms' own
+    // `weapon_bone` frame instead of the attachment anchor: the arms' world
+    // matrix times that grip frame, the same rigid transform the third-person
+    // attach path uses. The two branches differ by that one transform -- mesh,
+    // material, sequence and skinning state above are shared -- so a same-tick
+    // A/B pair isolates the placement.
+    //
+    // The frame is usable only when the arms pass ran and its state carried the
+    // bone (a model with no `weapon_bone` carries none); otherwise the
+    // attachment placement stays and the reading says `bone-missing`, rather
+    // than letting a body drawn at the model origin pass for a bone-placed one.
+    if (viewModelWeaponState_.weaponAttachBone) {
+      if (viewModelArmsWorldValid_ && viewModelArmGripBoneValid_) {
+        weaponWorld = multiply34(viewModelArmsWorld_, viewModelArmGripBoneWorld_);
+        viewModelWeaponAttachSource_ = "bone";
+      } else {
+        viewModelWeaponAttachSource_ = "bone-missing";
+      }
+    } else {
+      viewModelWeaponAttachSource_ = "attachment";
+    }
+    // The two P2 readings, taken from whichever placement won. `gripToHand` is the
+    // upstream `GRIP_DISTANCE` check on the frame closest to this body -- its
+    // origin to the arms' hand. No hand frame leaves it at -1, which reads as
+    // "not measured", not as "zero".
+    viewModelWeaponAttachWorld_ = {
+      weaponWorld[3], weaponWorld[7], weaponWorld[11] };
+    if (viewModelArmsWorldValid_ && viewModelArmGripHandValid_) {
+      const auto gripHandWorld = multiply34(viewModelArmsWorld_, viewModelArmGripHandWorld_);
+      const float attachDx = viewModelWeaponAttachWorld_[0] - gripHandWorld[3];
+      const float attachDy = viewModelWeaponAttachWorld_[1] - gripHandWorld[7];
+      const float attachDz = viewModelWeaponAttachWorld_[2] - gripHandWorld[11];
+      viewModelWeaponAttachHandDistance_ =
+        std::sqrt(attachDx * attachDx + attachDy * attachDy + attachDz * attachDz);
+    }
     // The same anchor through the finished placement: the measured grip. It is
     // read back rather than assumed, so a regression in the placement above shows
     // up here as a non-zero residual instead of hiding.
