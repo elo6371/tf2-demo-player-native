@@ -204,6 +204,23 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
     `--debug-camera 321 -2679 290 0 285.87` 帧 `3439914e577045614e48ad5064ae7079`（`mode=free-look src=debug`、`hidden0=-1`）。
     设计说明/未闭合项：`docs/N18-FIRSTPERSON-VISIBILITY-2026-11-20.md`；抓帧口径 `.scratch/g7/cap-pov2.sh`（本机未入库，帧 `pov-final.png`/`pov-neg-third.png`/`pov-neg-debugcam.png` 在 `.scratch/g7/cap/`）。
 
+17. 本批门禁重钉（2026-11-20，用户批准）：两道门禁从红转绿。
+    `weapon-body-check.sh` 钉的 07-02 录制已不存在（同 D12 根因，审计 #12），改钉 POV `autorecord_2026-08-08_21-43-59.dem`
+    （146,853,666 B、sha256 `14b4943a8d7e…`）；`CAPTURE_TICK=3000` 是播放游标、`PROBE_TICK=5202` 是 server tick
+    （trace `scene: clock tick=3000 entryTick=3000 serverTick=5202`），两组常量必须分开；section 2 读 JSON 加 `errors="replace"`
+    （demo 路径是 GBK 字节，否则 `json.load` 抛异常、九个字段全读成 `<none>`）；section 5 改成「每个 distinct model 各建一次」。
+    run4（job `bash-6ce2c544f7954db9`）→ `WEAPON-BODY=PASS`、RC=0：`each body model the run resolved was built exactly once = 2`、
+    `contains model=models/weapons/c_models/c_machete/c_machete.mdl`、`scene updates that resolved the chain = 2637`、arms 模型 exactly once = 1。
+    `viewmodel-apply-check.sh` 第 0 段加 `TF2_POV_ROOT`/`TF2_TESTDATA_ROOT` 三根映射 → `pinned recordings verified = 2`；
+    三处红按机制修（`sha256sum` 吞 stdin → `</dev/null`；写死 `sequence 29` → 与同 demo 同 tick 的 bind 跑读出的 `entitySequence=28` 对比；
+    蒙皮姿态越出 bind 掩膜 → `bmp-diff-mask.py --dilate 1`，outside 86→0、mask 18529→48554 px）。
+    无变异 `VIEWMODEL-APPLY=PASS (42 assertions, 0 failures)`、RC=0（`.scratch/apply-run2.log`）；修前 run1 = `FAIL (4 failed of 41)`。
+    `--mutation` 复验 m4：首轮唯一红是 m2 变异目标过期（`3218e9bd` 把 14 个 HLSL 程序搬进 `native_renderer_shaders.cpp`，审计 #15），
+    改正后 `VIEWMODEL-APPLY=PASS (14 assertions, 0 failures)`、RC=0（`.scratch/apply-mutation2.log`，job `bash-7c4ce22ee6f642f6`）：
+    m1/m2/m3/m4 四个变异各自动到本门禁读的数（m2 `7747 outside a 48554 px ViewModel mask`、m4 `distance=6.5735 against radius=29.8797`），
+    还原后 bind 帧 `085cbb1788969505…` 逐字节一致。
+    审计登记：`docs/GATE-PREMISE-AUDIT-2026-11-20.md` #12/#13/#14（#14 是本轮新发现的 `sha256sum` 吞 stdin，全仓 12 处同构造、本批只修两处）。
+
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；

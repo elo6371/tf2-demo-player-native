@@ -27,7 +27,11 @@
 | 12 | （本轮新发现，交付未列）`weapon-body-check.sh` 钉的 07-02 录制同样已不存在 | **CONFIRMED** | 本轮实跑（job bash-26b108cf1a9048e9，rc=1）：`0/6` 段 FAIL「the recording's size = 0, expected 21856667」「the recording's sha256 = <none>, expected c8a58501d222bdd9aec6db92d2782931a29a13d963a87364d603263e6dab091e」；`body-off.trace` 头 `demo: open failed path=D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem reason=demo file cannot be opened`；`3/6` 段 body-on/body-off/repeat 全 `rc=2`、读数全 `<none>`。与 #1/D12 同一根因（`CAPTURE_TICK=2000`，证据目录 `evidence/fast/weapon-body` 已被 .gitignore:41 忽略）。 |
 | 13 | （本轮新发现）`viewmodel-apply-check.sh` 第 0 段在 N01 重钉后失效 | **CONFIRMED** | `:56` `INPUTS=evidence/viewmodel/animation-inputs.txt`；`:267-283` 的循环只收 `root = steam`（`:270` `[ "$root" = "steam" ] || continue`，拼 `$TF/demos/$name`），而输入文件仅两行数据、root 是 `archive-pov`（`:32` 146853666/`14b4943a…` `autorecord_2026-08-08_21-43-59.dem`）与 `testdata`（`:33`），两行都被 skip → `assert_eq "pinned recordings verified" 0 1` → `VIEWMODEL-APPLY=FAIL (no recording)`，2026-11-20 09:54 实跑约 2 秒退出、未留锁。**后果：m4 修复无法用整门禁验证。** |
 
-统计：CONFIRMED 7 条（#1、#7、#8、#9、#10、#12、#13），PARTIAL 4 条（#3、#4、#5、#6），REFUTED 2 条（#2、#11）。
+| 14 | （本轮新发现，交付未列）`while read … done < 钉住表` 里调 `sha256sum` 会吞掉表的剩余行 | **CONFIRMED** | 本机 `which sha256sum` = `…/winuxcmd/usr/bin/sha256sum.exe`（**WinuxCmd 1.2.1**），它在**给了文件参数时仍然读标准输入**；放在 `while read -r size sha256 root name; do … done < "$INPUTS"` 的循环体里，第一次 `sha256sum` 就把钉住表剩下的行吃光，于是**只有第一行数据被核对**。复现：3 行文件同构造，裸调用只处理 1 行，加 `</dev/null` 处理 3 行。后果：`viewmodel-apply-check.sh` 第 0 段读 `PINNED=1`（期望 2），matcha 行从第二行加入钉住表起**从未被核对过**；`viewmodel-animation-check.sh:444` 同一构造同一症状。同类站点（均为 `while read` 循环体，未修）：`viewmodel-companion-check.sh:294`、`viewmodel-presentation-check.sh:204`、`viewmodel-range-check.sh:306`、`viewmodel-robustness-check.sh:240`、`verify-audio.sh:318/527/779`、`verify-audio-content.sh:162`、`hud-check.sh:971`（`cd "$dir" && sha256sum`）。修法：调用处补 `</dev/null`（一行，语义不变）。已修：`viewmodel-apply-check.sh:295`、`viewmodel-animation-check.sh:444`。 |
+
+| 15 | （本轮新发现）`viewmodel-apply-check.sh` 的 m2 变异打向 `native/src/native_renderer.cpp`，而 14 个 HLSL 程序已在 `3218e9bd`「hold the 14 HLSL programs apart from the state that compiles them」搬到 `native/src/native_renderer_shaders.cpp` | **CONFIRMED** | 2026-11-20 首次跑通前向之后跑 `--mutation`（job `bash-0cd1334dc38a4135`）：m1 三条 OK、m3 三条 OK、m4 OK（`the eye is inside the model: distance=6.5735 against radius=29.8797 (the gate pins 2.2x)`）、还原后 bind 帧逐字节一致 OK，**唯一红是 `FAIL m2 did not apply to native/src/native_renderer.cpp`** —— 那行的语义是「这个缺陷已不在该文件」，不是「修复写错了」。修法：目标改 `native/src/native_renderer_shaders.cpp`；该文件有**三个**同构造 `skinByBone`（两个世界/实体 program 读 `boneColumns`、一个 ViewModel program 读 `viewModelBones`），`patch-source.py` 只替换一处且拒绝歧义 needle，所以 needle 取**整个函数**并以 `viewModelBones` 锚定，避免打到世界 program 上导致被测帧不变、变异被误报为「未检出」。dry-run 实测只改 `:1055-1059` 五行。同批还修了 `MUTATION_SOURCES`（原缺 `native_renderer_shaders.cpp` 与 m4 的目标 `native_renderer_viewmodel.cpp`，中断时孤儿备份扫描不会还原这两个文件）。 |
+
+统计：CONFIRMED 9 条（#1、#7、#8、#9、#10、#12、#13、#14、#15），PARTIAL 4 条（#3、#4、#5、#6），REFUTED 2 条（#2、#11）。
 
 ## §2 交付需要改口径的地方
 
@@ -39,6 +43,18 @@
    「钉死录制缺失」是 2026-11-14 的历史读数。
 4. **#4/#5/#6 改叫「脆弱断言」**（D 类，不是 B 类）：它们绑定固定 fixture，换 demo/TF2 版本才红，
    当前不构成过期前提；改法（同 run 基线对比）仍有价值。
+
+5. **#12/#13/#14 已修（2026-11-20，用户批准后）**：`weapon-body-check.sh` 改钉 POV 录制（146,853,666 B / `14b4943a…`）、
+   拆分 `CAPTURE_TICK=3000` 与 `PROBE_TICK=5202`、section 5 改「每个 distinct model 各建一次」→ run4 `WEAPON-BODY=PASS`（RC=0）；
+   `viewmodel-apply-check.sh` 第 0 段加三根映射 → `pinned recordings verified = 2`，三处红按机制修（`</dev/null`/
+   同 run 基线对比/`--dilate 1`）→ `VIEWMODEL-APPLY=PASS (42 assertions, 0 failures)`。
+   #14 的修法只覆盖被测两处，其余 8 个站点未动。
+   #15 的修法已验：`--mutation` 重跑（`.scratch/apply-mutation2.log`，job `bash-7c4ce22ee6f642f6`）
+   `VIEWMODEL-APPLY=PASS (14 assertions, 0 failures)`、RC=0，其中
+   `m2 applied against the bind ViewModel mask: 18177 px changed, 7747 outside a 48554 px ViewModel mask`（变异被抓到）、
+   `m4 the eye is inside the model: distance=6.5735 against radius=29.8797 (the gate pins 2.2x)`，
+   还原后 `the restored source redraws the pre-mutation bind frame = 085cbb1788969505…`（源码确实回到原样）。
+   这条读数是 **m4 修复的整门禁验证**：前向 42 条断言 + 四个变异全部按设计动到本门禁读的数。
 
 ## §3 本轮自己加的增量（校准样本之外）
 
