@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | 1 | 2D pose 网格双线性 + 逐骨骼 weight_list + SEQUENCE_DELTA | N17 | 我方只有一维 locomotion 权重 + 单一 aim 层（自述"approximation, not TF2 parity"） | **采纳（实现）** |
 | 2 | 同名骨骼合并（Skeleton::attaches_to / attached_world），Attachment 只作枪口 | N18 | P2 已实现 bone 放置（arms 世界矩阵 × weapon_bone 帧）：body 位移 46.2226 模型单位、像素差 946 px，默认 attachment 逐字节不变 | **采纳（已实现并实测，32f78ed9）** |
-| 3 | demo_sounds 增量解码、96 声部、WAV cue loop、60 dB/36 u 衰减、POV 开火音补播 | N21 | 我方 computeSpatialMix 是线性 (1-d/max)^rolloff（max=2048, rolloff=1.0），无 cue loop、无 POV 补播；(a) 审计还发现听者用了归一化盒坐标（见 §3） | **部分采纳（(a) 已审计，听者缺陷待修）** |
+| 3 | demo_sounds 增量解码、96 声部、WAV cue loop、60 dB/36 u 衰减、POV 开火音补播 | N21 | 我方原 computeSpatialMix 是线性 (1-d/max)^rolloff（max=2048, rolloff=1.0），无 cue loop、无 POV 补播；(a) 审计发现听者用了归一化盒坐标（见 §3） | **部分采纳（(a) 听者已修 + 公式开关 1f00b759，(b) cue/smpl 解析 6d9d9ea6，(c) 未做）** |
 | 4 | 整段快照 + MAX_FRAMES=150_000 + 稀疏采样；8 位 simtick 重建 | N12/N19 | 我方有 seek，但未见帧快照上限 | **采纳（先审计再定）** |
 | 5 | 多标签页关闭时把 GPU 资源推入 closing 队列，下一帧统一释放 | N16 | 我方单窗无 pane，契约未涉及多窗资源生命周期 | **延后（记入契约）** |
 | 6 | clip.rs：后台线程编码 5/10/20s 片段，无 ffmpeg 降级 800px GIF | N27 | 我方 MF 探针 H.264/AAC 可用；产品导出未实现 | **延后（兜底参考）** |
@@ -58,6 +58,13 @@ P2（提交 `32f78ed9`）把这个问题落成了同帧 A/B 开关 `--viewmodel-
 - (b) 结论：WAV 解析只有 fmt(106)/data(117)（`native/src/audio_resource.cpp:88-140`），不解析 cue 点 / loop_start；上游 `audio.rs:75-78` 会读成 `Clip.loop_start`。
 - (c) 尚未审计（本轮只做 (a)(b)），留待批准后再查。
 - 已知限制：每 sound 的 level 未解析（`native/include/demo_header.h:124-138`、`native/src/demo_header_sound.cpp:125-130` 丢弃 9 bit），dB 三档只能作敏感度带；只一次 run 一张图、前 500 条事件；未做双耳试听与 pan/master 对比。
+- 已实施（2026-11-20，提交 `1f00b759`、`6d9d9ea6`；默认路径不变，要开关才切公式）：
+  - 听者修复：音频块改为优先取 `g_scenePovEye.eye`（地图单位，`src=pov`），取不到再退 `renderer.cameraEyeMapWorld()`（`src=camera`），两者都失败则喂非有限坐标（`src=none`，调度器读作"不衰减"而不是"听者在原点"）；每 64 tick 打一行 `audio: listener tick= src= model= pos=` 作回归。同一 POV demo（tick 3000）：32 个采样点全部与前一帧 `scene: camera ... eye=` 一致（误差 <0.05 u）；修复前数百 tick 恒定不变。
+  - 参考公式开关：`--audio-spatial linear|reference`，默认 `linear`（出厂混音不变），裸开关或未知值 rc=13 拒绝；`reference` 实现上游曲线——`scale=1/36`（60 dB）、`relative=d*scale`、`falloff = relative>0.1 ? min(1/relative,1) : 1`，**永不静音**（与线性版 2048 u 硬静音的差别是刻意的）。`audio_effects_probe` 断言 36 u=1、72 u=0.5（-6 dB）、360 u=0.1（-20 dB）、3600 u=0.01（-40 dB，且不静音）、NaN→静音。
+  - A/B（同 build、同 demo、tick 3000、`--audio-device 6`）：`linear` played=485 / inaudible=393 / missing=716；`reference` played=878 / inaudible=0 / missing=323。差额 393 恰是线性版被 2048 u 截断消音的那批事件（485+393=878，716-393=323）；两版 `duplicateTicks` 不同（0 vs 368，帧节奏差异），不影响计数解释，但说明这不是逐帧严格对齐的 A/B。
+  - (b) 已实现：`WavLoopInfo`（hasLoop / loopStart / loopEnd 排他、cuePoint、smplLoopCount）解析 RIFF `cue `（count@0、首点 dwSampleOffset）与 `smpl`（numLoops@28、首 loop dwStart@36+8、dwEnd@36+12）；畸形块忽略不拒播，cue-only 回退 loopStart、loopEnd=0；播放层零改动（还没有人消费 loop 区间）。
+  - 崩溃记录：本轮 bisect 中的 0xC0000005 与音频无关——残留 `main.cpp.obj` 对上放大后的动画结构体（`AnimationSampleResult` 280→424 字节）砸调用方栈；纯 HEAD 构建同 demo 同 tick 抓帧 rc=0。
+  - 仍未做：(c) POV 开火/挥砍补播（另见 `.scratch/n21c-review/pov-fire-audit.md`：该 demo 只解到 5127/140863 条 `svc_Sounds`、覆盖 tick 0..12187，而录制者的 223 次 player_hurt / 82 次 player_death 全在 13876..304763，不能用它回答"computed-owner 开火无声"）；公式尚未设为默认；未做双耳试听；`level` 仍未解析。
 
 ## 4 N12/N19：长片内存与快照上限（采纳为审计）
 
