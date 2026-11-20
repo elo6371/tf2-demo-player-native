@@ -403,7 +403,13 @@ AudioScheduleStats AudioEventScheduler::advance(const SoundEventTimeline& timeli
     }
     WavPcmData wav;
     auto& player = players_[nextVoice_++ % kVoiceCount];
-    lastSpatialMix_ = listenerValid_ ? computeSpatialMix(event.origin, listener_) : SpatialMix{1.0f, 0.0f};
+    if (!listenerValid_) {
+      lastSpatialMix_ = SpatialMix{1.0f, 0.0f};
+    } else if (spatialReference_) {
+      lastSpatialMix_ = computeSpatialMixReference(event.origin, listener_);
+    } else {
+      lastSpatialMix_ = computeSpatialMix(event.origin, listener_);
+    }
     // AUD-03: the master gain multiplies the event volume here -- before the
     // missing/inaudible decision below and before applyPcmPan scales the buffer,
     // so a muted master writes silence instead of full-scale samples.

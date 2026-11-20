@@ -2,6 +2,7 @@
 // T105 B: std::function carries the tile-fill reading's downscale so the check
 // runs the same lambda the fetch used rather than a copy of it.
 #include <functional>
+#include <limits>
 #include "asset_root.h"
 #include "map_lookup.h"
 #include "settings_store.h"
@@ -3102,6 +3103,12 @@ int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand
   std::filesystem::path commandModel;
   UINT audioDevice = WAVE_MAPPER;
   bool audioDeviceRejected = false;
+  // N21(a2): the distance model the mixer applies. false keeps the shipped
+  // (1 - d/2048) curve; true selects the reference 36 u inverse one. A local
+  // flag, applied once after the scheduler exists, so the shipped path is a
+  // boolean that stays false rather than a different code path.
+  bool audioSpatialReference = false;
+  bool audioSpatialRejected = false;
   // Test-only capture modes, off by default so the product path keeps the
   // window and the audio device exactly as before:
   //   --hidden-window   create the window and render normally, never show it
@@ -3741,6 +3748,21 @@ bool outlineVertexExtent = false;
       // none of them reads another argument.
       if (wcscmp(arguments[i], L"--hidden-window") == 0) { hiddenWindow = true; continue; }
       if (wcscmp(arguments[i], L"--audio-disabled") == 0) { audioDisabled = true; continue; }
+      // N21(a2): --audio-spatial takes a word. A bare switch or an unknown one
+      // is refused below rather than read as the default, because the point of
+      // the switch is to A/B two models and "the flag did nothing" must not be
+      // indistinguishable from "this build only has one model".
+      if (wcscmp(arguments[i], L"--audio-spatial") == 0) {
+        if (i + 1 < argumentCount) {
+          const wchar_t* spatialMode = arguments[++i];
+          if (wcscmp(spatialMode, L"linear") == 0) audioSpatialReference = false;
+          else if (wcscmp(spatialMode, L"reference") == 0) audioSpatialReference = true;
+          else audioSpatialRejected = true;
+        } else {
+          audioSpatialRejected = true;
+        }
+        continue;
+      }
       if (wcscmp(arguments[i], L"--start-paused") == 0) { startPaused = true; continue; }
       if (wcscmp(arguments[i], L"--vsync") == 0) { persistent.render.vsync = true; continue; }
       if (wcscmp(arguments[i], L"--no-vsync") == 0) { persistent.render.vsync = false; continue; }
@@ -4731,6 +4753,10 @@ bool outlineVertexExtent = false;
   if (worldRefusedMaskGiven > 1) ++invalidWorldDebugArgument;
   if (audioDeviceRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --audio-device; default device not used.\n");
+    return 13;
+  }
+  if (audioSpatialRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --audio-spatial; expected 'linear' or 'reference'.\n");
     return 13;
   }
   if (captureTickRejected) {
@@ -7919,6 +7945,7 @@ bool outlineVertexExtent = false;
   effectTimeline.sortByTick();
   tf2::native::AudioEventScheduler soundScheduler;
   soundScheduler.setDeviceId(audioDevice);
+  soundScheduler.setSpatialReference(audioSpatialReference);
   if (audioDisabled) {
     // --audio-disabled: the contract is that waveOutOpen is never called. A
     // sink that resolves each event and then answers `skipped` keeps the tick
@@ -12253,9 +12280,48 @@ bool outlineVertexExtent = false;
         } else if (g_playback.tick < lastAudioTick) {
           soundScheduler.reset(g_playback.tick);
         }
+        // T73: the scheduler mixes in map units, but observerFocusWorld returns
+        // the normalized focus-box point (native_renderer_camera.cpp: world->box
+        // in setObserverFocusWorld, the raw box triple here). Feeding it to
+        // setListenerPosition put the ear at box coordinates: the N21(a) audit
+        // measured a constant (-0.6,-0.3,0.4) listener while the camera eye moved
+        // through the map, and 260/500 events were culled as inaudible, 51 of
+        // them within 500 u.
+        //
+        // The map point also has to be the eye the frame RENDERS from, and that
+        // is g_scenePovEye.eye -- the value the "scene: camera" line prints at
+        // 12662. The renderer's focus is merely an input to the camera decision
+        // made later in this iteration (12632), so reading it here measured one
+        // frame behind in the best case and a frozen point for 600+ ticks in the
+        // capture the N21(a2) run took. Prefer the resolved POV eye, fall back to
+        // the renderer's map-space camera eye (orbit or debug camera), and when
+        // neither exists tell the scheduler (non-finite listener = no
+        // attenuation) instead of swallowing events against a stale point.
         float listenerX = 0.0f, listenerY = 0.0f, listenerZ = 0.25f;
-        if (renderer.observerFocusWorld(listenerX, listenerY, listenerZ)) {
+        const char* listenerSource = "none";
+        bool listenerValid = false;
+        if (g_scenePovEye.hasOrigin && std::isfinite(g_scenePovEye.eye[0])
+            && std::isfinite(g_scenePovEye.eye[1]) && std::isfinite(g_scenePovEye.eye[2])) {
+          listenerX = g_scenePovEye.eye[0];
+          listenerY = g_scenePovEye.eye[1];
+          listenerZ = g_scenePovEye.eye[2];
+          listenerSource = "pov";
+          listenerValid = true;
+        } else if (renderer.cameraEyeMapWorld(listenerX, listenerY, listenerZ)) {
+          listenerSource = "camera";
+          listenerValid = true;
+        }
+        if (listenerValid) {
           soundScheduler.setListenerPosition(listenerX, listenerY, listenerZ);
+        } else {
+          const float noListener = std::numeric_limits<float>::quiet_NaN();
+          soundScheduler.setListenerPosition(noListener, noListener, noListener);
+        }
+        if (g_playback.tick % 64 == 0) {
+          traceFmt("audio: listener tick=%d valid=%d src=%s model=%s pos=(%.2f,%.2f,%.2f)",
+            static_cast<int>(g_playback.tick), listenerValid ? 1 : 0, listenerSource,
+            audioSpatialReference ? "reference" : "linear",
+            listenerX, listenerY, listenerZ);
         }
         soundScheduler.advance(soundTimeline, g_playback.tick);
         // One line per tick the playback cursor actually moves. This is the

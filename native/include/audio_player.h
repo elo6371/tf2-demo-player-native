@@ -234,6 +234,12 @@ public:
     masterVolume_ = volume < 0.0f ? 0.0f : (volume > 1.0f ? 1.0f : volume);
   }
   float masterVolume() const { return masterVolume_; }
+  // N21(a2): which distance model advance() applies. false is the shipped
+  // linear (1 - d/maxDistance)^rolloff curve, true the reference 36 u inverse
+  // one. A switch, not a default change: every existing run keeps its numbers
+  // until a caller asks for the other model.
+  void setSpatialReference(bool reference) { spatialReference_ = reference; }
+  bool spatialReference() const { return spatialReference_; }
 
 private:
   static constexpr std::size_t kVoiceCount = 8;
@@ -248,6 +254,7 @@ private:
   bool stopped_ = true;
   float listener_[3] = {0.0f, 0.0f, 0.25f};
   bool listenerValid_ = false;
+  bool spatialReference_ = false;
   SpatialMix lastSpatialMix_{};
   // 1.0 until the product says otherwise, so a run that never touches it keeps
   // the pre-AUD-03 numbers exactly.

@@ -648,6 +648,29 @@ int main(int argc, char** argv) {
     && panned.pan > 0.9f && panned.gain > 0.0f && panned.gain < 1.0f
     && silent.isSilent() && invalid.isSilent();
 
+  // N21(a3): the reference model is the upstream 60 dB / 36 u curve -- unity
+  // inside 36 u, then 36/distance, and never silent. These readings pin the
+  // constants and the shape: 72 u is exactly -6 dB (0.5), 360 u exactly -20 dB
+  // (0.1), and 3600 u is a -40 dB tail the linear model has already muted by
+  // then (distant above). If future work changes the reference constants the
+  // failures name themselves, and if it accidentally re-adds a maxDistance cut
+  // the far reading notices.
+  const float refAt36[3] = {36.0f, 0.0f, 0.0f};
+  const float refAt72[3] = {72.0f, 0.0f, 0.0f};
+  const float refAt360[3] = {360.0f, 0.0f, 0.0f};
+  const float refAt3600[3] = {3600.0f, 0.0f, 0.0f};
+  const SpatialMix refZero = computeSpatialMixReference(ahead, listener);
+  const SpatialMix ref36 = computeSpatialMixReference(refAt36, listener);
+  const SpatialMix ref72 = computeSpatialMixReference(refAt72, listener);
+  const SpatialMix ref360 = computeSpatialMixReference(refAt360, listener);
+  const SpatialMix ref3600 = computeSpatialMixReference(refAt3600, listener);
+  const SpatialMix refBad = computeSpatialMixReference(bad, listener);
+  const bool spatialReference = refZero.gain == 1.0f && ref36.gain == 1.0f
+    && ref72.gain > 0.499f && ref72.gain < 0.501f
+    && ref360.gain > 0.0999f && ref360.gain < 0.1001f
+    && !ref3600.isSilent() && ref3600.gain > 0.00999f && ref3600.gain < 0.01001f
+    && refBad.isSilent() && ref72.pan == 0.0f;
+
   std::size_t sinkCalls = 0;
   AudioEventScheduler scheduler;
   scheduler.setDeviceId(0);
@@ -783,7 +806,8 @@ int main(int argc, char** argv) {
   // this process made must be zero. Asserting the counter turns "this probe
   // never touches a device" from a property of the code into a reading.
   const bool noDevice = waveOutOpenCalls() == 0;
-  const bool pass = delayMath && kinds && spatial && deviceUntouched && missingKept && hud
+  const bool pass = delayMath && kinds && spatial && spatialReference
+    && deviceUntouched && missingKept && hud
     && particleTiming && syntheticPcfOk && emptyRejected && unsupportedRejected && truncatedRejected
     && realOk && noDevice;
   std::cout << "{\"selfTest\":" << (pass ? "true" : "false")
@@ -791,6 +815,7 @@ int main(int argc, char** argv) {
             << ",\"kinds\":" << (kinds ? "true" : "false")
             << ",\"voiceFiltered\":" << ((voiceRejected && announcerRejected && musicRejected) ? "true" : "false")
             << ",\"spatial\":" << (spatial ? "true" : "false")
+            << ",\"spatialReference\":" << (spatialReference ? "true" : "false")
             << ",\"schedulerSink\":" << (deviceUntouched ? "true" : "false")
             << ",\"missingKept\":" << (missingKept ? "true" : "false")
             << ",\"hud\":" << (hud ? "true" : "false")

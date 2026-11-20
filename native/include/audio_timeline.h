@@ -100,6 +100,18 @@ struct SpatialMix {
 SpatialMix computeSpatialMix(const float source[3], const float listener[3],
   float maxDistance = 2048.0f, float rolloff = 1.0f);
 
+// N21(a3): the reference (upstream) distance model, kept beside the linear one
+// so a switch can A/B them without moving the shipped default. It is Source's
+// 60 dB / 36 u curve as the N21(a) audit measured it: scale=1/36,
+// relative=distance*scale, gain=min(1/relative, 1) with a guard so relative<=0.1
+// answers 1 instead of asking for 1/0. One consequence is deliberate and is what
+// the A/B counts are read against: there is no inaudible radius -- the reference
+// player never mutes a resolved sound, so a far event plays at a tiny gain
+// rather than turning into eventsInaudible the way the linear model's
+// maxDistance cut does.
+SpatialMix computeSpatialMixReference(const float source[3], const float listener[3],
+  float referenceDistance = 36.0f);
+
 // Path-token match for vo/voice/announcer/radio/music/commentary. This is the
 // filtered set: classifySoundEvent splits it into the voice, announcer and
 // music kinds, and this predicate is their union.

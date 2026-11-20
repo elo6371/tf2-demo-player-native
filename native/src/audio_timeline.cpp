@@ -138,6 +138,29 @@ SpatialMix computeSpatialMix(const float source[3], const float listener[3],
   return result;
 }
 
+SpatialMix computeSpatialMixReference(const float source[3], const float listener[3],
+    float referenceDistance) {
+  if (!source || !listener || !std::isfinite(referenceDistance) || referenceDistance <= 0.0f) return {};
+  const float dx = source[0] - listener[0];
+  const float dy = source[1] - listener[1];
+  const float dz = source[2] - listener[2];
+  if (!std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(dz)) return {};
+  const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+  if (!std::isfinite(distance)) return {};
+  SpatialMix result;
+  // Upstream src/player/audio.rs: relative = distance * scale, scale = 1/36 at
+  // the 60 dB level, falloff = relative > 0.1 ? min(1/relative, 1) : 1. The 0.1
+  // guard keeps a source on top of the listener from asking for 1/0 while still
+  // answering exactly the 1 that the min() would have truncated to; past the
+  // guard the curve is the plain inverse ratio and never reaches zero, which is
+  // the difference the A/B against computeSpatialMix is meant to show.
+  const float relative = distance / referenceDistance;
+  result.gain = relative > 0.1f ? std::min(1.0f / relative, 1.0f) : 1.0f;
+  const float horizontalDistance = std::hypot(dx, dy);
+  if (horizontalDistance > 0.0001f) result.pan = std::clamp(dy / horizontalDistance, -1.0f, 1.0f);
+  return result;
+}
+
 void SoundEventTimeline::clear() { events_.clear(); }
 
 bool SoundEventTimeline::add(SoundPlaybackEvent event) {
