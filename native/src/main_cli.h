@@ -5,6 +5,7 @@
 // claimValueLessSwitch (main.cpp:312-331, 3 flags) with zero behavior change.
 // Header-only in B1 to keep the patch within 2 files and avoid CMake churn.
 
+#include "animation_binding.h"
 #include "native_renderer.h"
 #include "settings_store.h"
 
@@ -63,6 +64,9 @@ struct CliParseEnv {
   bool& entityTintMutation;
   bool& worldTileFillTrace;
   bool& entityBindPoseMutation;
+  bool& playerAnimationEnabled;
+  AnimationBlendMode& animationBlendMode;
+  bool& animationBlendArgumentRejected;
   std::string (*narrowAscii)(const wchar_t*);
 };
 
@@ -158,6 +162,27 @@ inline const FlagSpec kFeatureFlagTable[] = {
     const double parsed = std::wcstod(arguments[++i], &end);
     if (end && *end == L'\0' && parsed > 0.0) env.playbackSpeed = parsed;
     else env.playbackSpeedRejected = true;
+    return true;
+  }},
+  {L"--animation-blend", FlagArity::One, [](CliParseEnv& env, LPWSTR* arguments, int argumentCount, int& i) {
+    // T105-n17 Step 2/3: which sampler the player body uses. Refused rather
+    // than defaulted on a typo, so "the gate asked for posegrid" and "the gate
+    // asked for nothing" cannot read the same in the trace.
+    if (i + 1 >= argumentCount) {
+      env.animationBlendArgumentRejected = true;
+      return true;
+    }
+    const std::wstring value = arguments[++i];
+    if (value == L"posegrid") {
+      env.animationBlendMode = AnimationBlendMode::PoseGrid;
+      // The grid is filled by the driven clock, so asking for the sampler
+      // without that path would silently sample nothing.
+      env.playerAnimationEnabled = true;
+    } else if (value == L"legacy") {
+      env.animationBlendMode = AnimationBlendMode::Legacy;
+    } else {
+      env.animationBlendArgumentRejected = true;
+    }
     return true;
   }},
   {L"--outline", FlagArity::One, [](CliParseEnv& env, LPWSTR* arguments, int argumentCount, int& i) {

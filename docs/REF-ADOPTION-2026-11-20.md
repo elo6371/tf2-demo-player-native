@@ -26,6 +26,12 @@
 - 离线结构已盘点：`docs/N17-BLEND-INVENTORY-2026-11-18.md`（Scout companion 377 序列中 74 条 numblends!=1：39 条 3×3 移动网格、28 条 3(yaw)×4(pitch) 瞄准矩阵、6 条一维；基础 mdl 306 条 numblends 全 0，必须读 companion）。
 
 落地建议：先做只读判定——从 demo 取 move_x/move_y 与 aim yaw/pitch 的归一化参数，检查我方当前权重与网格坐标是否可映射；再分两步实现（网格采样 → 逐骨骼 weight_list/delta），每步带 probe 读数与 trace 权重。
+已实施（2026-11-20，提交 `4236fad0`、`f0d82aa9`、`03da539c`；默认路径不变，要开关才切采样器）：
+- Step 1 `4236fad0`：解 mdl 的 POSE_PARAM / WEIGHT_LIST 与网格单元，`model_pose_probe` 打印每模型 `GRID-POSE-PARAMS` / `GRID-CELLS` / `WEIGHTLIST` 读数（离线判定轴角色与网格形状）。
+- Step 2/3 `f0d82aa9`：按参数名解析轴（`move_x`/`move_y` 在槽 4/5 或 5/4，随职业换）、角点同 cycle 对相位、在 width×height 上做 2D 双线性采样、按每骨骼 `weight_list` gate（某层对某骨骼权重为 0 就排除该骨骼；全排除时回退 dominant 并计 `poseMaskIsolatedBones`），并统计每序列 delta 通道；`--posegrid-selftest` 8 项断言全过（centre/clamp/swap/aim12/grip/gate/weight/sweep）。跨层 `SEQUENCE_DELTA` 仍未实现。
+- Phase B `03da539c`：产品开关 `--animation-blend posegrid|legacy`（从 `native/src/main_cli.h` 的 flag 表解析，因为 `main.cpp` 的 argv 链已到 MSVC C1061 块嵌套上限）；`posegrid` 用归一化速度喂 `move_x`/`move_y`（网格轴范围就是 [-1..1]）、用 view−body 的 yaw/pitch 喂瞄准网格、权重掩码打开；每帧（上限 8 行）打 `anim: posegrid tick= ent= model= applied= layers= idx= frac= cells= w= roles= clamp= gated= isolated= reason=`。
+- 仿真实测（matcha demo，`--capture-tick 3000`）：不开关与 `--animation-blend legacy` 两种跑法抓帧 md5 都是 `9681f12c9e672ae896105f7756b3bf5f`，与改动前 exe 逐字节相同；`--animation-blend posegrid` rc=0、无 UNHANDLED，全程 16136 次采样 `applied=1`，同 tick 画面与 legacy 差 71.4% 像素（网格采样确实在驱动姿态）；未知值/裸开关 rc=13。
+- 未验证：`move_y` / `aim_pitch` 的符号、网格带来的根位移量级是否合理、与源引擎的视觉保真；这些留给 N17 的视觉抽检卡，不阻塞开关合入。
 
 ## 2 N18：同名骨骼合并 vs attachment（采纳为判定任务）
 

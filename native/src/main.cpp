@@ -3347,6 +3347,12 @@ bool outlineVertexExtent = false;
   // same, which is what makes the byte-identical claim testable.
   bool animationDriveStates = false;
   bool animationDriveArgumentRejected = false;
+  // T105-n17 Step 2/3: which sampler the player body uses. Legacy keeps the
+  // pre-grid sample, so the default run stays byte-identical; posegrid opts
+  // into the bilinear grid sample and the per-bone weight_list gate. Refused
+  // rather than defaulted on a typo, for the same reason as --animation-drive.
+  tf2::native::AnimationBlendMode animationBlendMode = tf2::native::AnimationBlendMode::Legacy;
+  bool animationBlendArgumentRejected = false;
   // T83: third-person weapon attach, OFF by default. Two reasons, and the
   // second decides it. (1) A held weapon REPLACES the standalone instance of the
   // same weapon entity, so switching this on changes the picture of every armed
@@ -3717,6 +3723,9 @@ bool outlineVertexExtent = false;
       entityTintMutation,
       worldTileFillTrace,
       entityBindPoseMutation,
+      playerAnimationEnabled,
+      animationBlendMode,
+      animationBlendArgumentRejected,
       narrowAscii};
   const auto parseFeatureArgument = [&](int& i) -> bool {
     return tf2::native::main_internal::dispatchFeatureSwitch(cliEnv, arguments, argumentCount, i);
@@ -4765,6 +4774,10 @@ bool outlineVertexExtent = false;
   }
   if (animationDriveArgumentRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --animation-drive; expected 'states' or 'legacy'.\n");
+    return 13;
+  }
+  if (animationBlendArgumentRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --animation-blend; expected 'posegrid' or 'legacy'.\n");
     return 13;
   }
   if (!captureDepthPath.empty() && captureFramePath.empty()) {
@@ -13141,6 +13154,7 @@ bool outlineVertexExtent = false;
         std::size_t playerAnimFallback = 0;
         std::size_t stateTraceLines = 0;
         std::size_t blendTraceLines = 0;
+        std::size_t poseGridTraceLines = 0;
         std::size_t frameTraceLines = 0;
         // T61: the draw budget. The renderer accepts 96 instances per update
         // and the resolver appends the player-class bodies AFTER every world
@@ -13933,6 +13947,26 @@ bool outlineVertexExtent = false;
                   request.blendLayers[2] = {blendReading.seqRun, step.cycle, blendReading.run};
                   request.blendLayers[3] = {blendReading.seqAim, 0.0f, blendReading.aim};
                 }
+                // T105-n17 Step 2/3: the grid sampler reads two analog inputs
+                // and the weight_list gate. Only this mode has them; in legacy
+                // every field stays at its default so the sample is the pre-grid
+                // one. move_x/move_y are [-1..1] in the files (GRID-POSE-PARAMS),
+                // so a normalised velocity is the right unit; the run speed the
+                // normalisation divides by is the fastest replayed class, not a
+                // per-class one, because the demo carries no class speed table.
+                if (animationBlendMode == tf2::native::AnimationBlendMode::PoseGrid) {
+                  const float normalisedSpeed = std::min(1.0f, step.speed / 300.0f);
+                  const double relative = (static_cast<double>(viewYaw) - bodyHeadingDegrees)
+                    * (3.14159265358979323846 / 180.0);
+                  request.blendMode = animationBlendMode;
+                  request.pose.hasMove = step.speed > 0.0f;
+                  request.pose.moveX = normalisedSpeed * static_cast<float>(std::cos(relative));
+                  request.pose.moveY = normalisedSpeed * static_cast<float>(-std::sin(relative));
+                  request.pose.hasAim = hasBodyHeading;
+                  request.pose.aimYaw = static_cast<float>(viewYaw - bodyHeadingDegrees);
+                  request.pose.aimPitch = -instance.transform.angles[0];
+                  request.poseBoneMask = true;
+                }
               } else {
                 ++playerAnimSkipped;
               }
@@ -14023,6 +14057,35 @@ bool outlineVertexExtent = false;
                   sampled.blendDropped,
                   static_cast<double>(appliedSum),
                   sampled.blendReason.empty() ? "-" : sampled.blendReason.c_str());
+              }
+              if (request.blendMode == tf2::native::AnimationBlendMode::PoseGrid
+                  && poseGridTraceLines < 8) {
+                ++poseGridTraceLines;
+                traceFmt("anim: posegrid tick=%d ent=%d model=%s applied=%d layers=%zu idx=%d,%d frac=%.3f,%.3f cells=%d,%d,%d,%d w=%.3f,%.3f,%.3f,%.3f roles=%d,%d clamp=%d,%d gated=%zu isolated=%zu reason=%s",
+                  static_cast<int>(resolvedSceneTick),
+                  static_cast<int>(instance.entityIndex),
+                  instance.modelPath.c_str(),
+                  sampled.poseGridApplied ? 1 : 0,
+                  sampled.poseGridLayers,
+                  static_cast<int>(sampled.poseGridIndex[0]),
+                  static_cast<int>(sampled.poseGridIndex[1]),
+                  static_cast<double>(sampled.poseGridFraction[0]),
+                  static_cast<double>(sampled.poseGridFraction[1]),
+                  static_cast<int>(sampled.poseGridCells[0]),
+                  static_cast<int>(sampled.poseGridCells[1]),
+                  static_cast<int>(sampled.poseGridCells[2]),
+                  static_cast<int>(sampled.poseGridCells[3]),
+                  static_cast<double>(sampled.poseGridWeights[0]),
+                  static_cast<double>(sampled.poseGridWeights[1]),
+                  static_cast<double>(sampled.poseGridWeights[2]),
+                  static_cast<double>(sampled.poseGridWeights[3]),
+                  static_cast<int>(sampled.poseGridRoles[0]),
+                  static_cast<int>(sampled.poseGridRoles[1]),
+                  sampled.poseGridClamped[0] ? 1 : 0,
+                  sampled.poseGridClamped[1] ? 1 : 0,
+                  sampled.poseMaskGatedBones,
+                  sampled.poseMaskIsolatedBones,
+                  sampled.poseGridReason.empty() ? "-" : sampled.poseGridReason.c_str());
               }
               if (!sampled.bindPose && !sampled.skinMatrices.empty()
                   && entityBindPoseMutation) {
