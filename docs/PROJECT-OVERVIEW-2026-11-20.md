@@ -54,7 +54,7 @@
 
 ## 5 工程债 / 门禁现状（2026-11-20）
 
-- **门禁前提债今天修掉三条**（`docs/GATE-PREMISE-AUDIT-2026-11-20.md` #12/#13/#14；#14 是修的过程中发现的平台缺陷）：
+- **门禁前提债今天修掉四条**（`docs/GATE-PREMISE-AUDIT-2026-11-20.md` #12–#15；#14 是平台缺陷、#15 是变异目标随 HLSL 搬迁过期）：
   `weapon-body-check.sh` 原来钉的是**已不存在的** `autorecord_2026-07-02_13-26-46.dem`，现改钉
   `E:/demo测试/pl_upward_f12/POV/autorecord_2026-08-08_21-43-59.dem`（146,853,666 B、`14b4943a…`），
   实体常量按该录制实测改为 ViewModel 685 / weapon 810 / worldModelIndex 201 / `CTFClub` + `c_machete.mdl`，
@@ -90,5 +90,5 @@
 
 - 没跑过的门禁不写 PASS；除 `weapon-body-check.sh`/`viewmodel-apply-check.sh` 今天的两轮之外，
   其余门禁读数来自它们各自的证据窗口，不是当前 exe 的整门 verdict。
-- 七图、HUD、overview 的历史 PASS 绑定旧 exe 身份，不继承到 `892e0056`。
+- 七图、HUD、overview 的历史 PASS 绑定旧 exe 身份，不继承到当前 HEAD（`c9f8e599` / 本轮推到 origin 的那一批）。
 - "已实现"指代码路径与至少一条读数存在，不等于"与真 TF2 观感一致"；观感类项目（N21 听感、人物外观、雾/天空接缝）都还需要人眼/人耳验收。
