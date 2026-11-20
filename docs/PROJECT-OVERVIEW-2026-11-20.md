@@ -2,7 +2,7 @@
 
 写给"这个东西现在能干什么、还差什么"。口径是**本机可复现的证据**，不是卡片的愿望清单；
 每一条后面跟的是要在哪读到它（脚本、文档或源码行）。没跑过的门禁不写 PASS。
-基线：`work/integrate` HEAD `892e0056`（本地比 origin 多 3 个提交），本轮另有门禁改写未提交。
+基线：`work/integrate` HEAD `3b140351`（已与 origin 同步；本轮 5 个提交已推）。
 
 ## 1 这个项目是什么
 
@@ -68,8 +68,9 @@
 - **还欠的两条红**（要改门禁语义，等批准）：`viewmodel-contract-check.sh` 的 capture point 0≠7
   （premise `CAPTURE_SCENE_TICKS=10252` vs 实测 10320，根因是 T63-F1 的两套 tick 空间）、
   identity 的 1 px LSB（2026-11-20 复跑未复现）。
-- **m4 mutation 目标已修**（`viewmodel-apply-check.sh` 三处指向 `native_renderer_viewmodel.cpp`），前向整门禁已绿，
-  `--mutation` 复验（四个变异、约 40 分钟）在跑。
+- **m4 的整门禁验证已完成**：mutation 目标指向 `native_renderer_viewmodel.cpp`，前向 42 条断言 + 四个变异 14 条断言全绿，
+  四个变异各自动到该门禁读的数（m1 三条；m2 遮罩 7747 px 越出 48554 px 掩膜；m3 两条；m4 相机进入模型
+  `distance=6.5735 against radius=29.8797`），还原后 bind 帧 `085cbb1788969505…` 逐字节一致。
 - **`sha256sum` 吞 stdin 是平台缺陷**：本机 `sha256sum` 是 WinuxCmd 1.2.1，给了文件参数仍读标准输入，
   把 `while read … < 钉住表` 的剩余行吃光 → 只核对第一行、其余行静默消失；全仓 12 处同构造（10 个脚本），
   本批只修被测的两处，其余 8 处列在审计 #14 待排。
@@ -82,7 +83,7 @@
 2. 玩家动画：blend/aimmatrix 参数化 + 同机位 TF2 参考帧验收（N17）。
 3. 3D 天空盒：先拆 z 钉远平面，再加第二遍 pass + 深度清除（D02）。
 4. N05 849/919：给实际 draw 加 face/triangle/pass/UV/atlas 诊断，同输入下归因。
-5. 门禁：两条既有红改语义 + m4 整门禁跑绿；然后把 verify-all 接进 CI。
+5. 门禁：两条既有红改语义（等批准）+ 其余 8 处 `sha256sum` 站点；然后把 verify-all 接进 CI。
 6. 发布线：N29 干净环境 → N30 `verify-release.sh`。
 
 ## 7 这份总览不宣称什么
