@@ -12404,6 +12404,26 @@ bool outlineVertexExtent = false;
         cameraEyeY = g_scenePovEye.eye[1];
         cameraEyeZ = g_scenePovEye.eye[2];
       }
+      // N18-B step 2: deciding this where the CAMERA is decided (the relay block
+      // near the end of the frame) put the hide after the draw list had already
+      // been filtered, so it could only reach the NEXT scene tick -- and a paused
+      // demo never has one, which is exactly how the first patch produced two
+      // frames byte-identical to the unfixed build. The eye exists here, in the
+      // same block the candidate filter runs under, so the hide is decided here:
+      // a first-person demo eye (reason=applied above) stands in the player whose
+      // origin it starts from, and that player's own body cannot be drawn from the
+      // inside. The relay's spectate camera has always done the same
+      // (placeSpectatorView). Not in third person and not under --debug-camera:
+      // those lenses are outside the player and a diagnostic frame must not lose
+      // a body.
+      if (!g_debugCamera
+          && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson
+          && haveObserverView && g_scenePovEye.entityIndex >= 0
+          && g_scenePovEye.offsetApplied) {
+        g_spectateCameraHiddenEntity = static_cast<std::int32_t>(g_scenePovEye.entityIndex);
+      } else {
+        g_spectateCameraHiddenEntity = -1;
+      }
       // Printed on every resolved scene tick, beside the eye it explains: the
       // origin, the offset, the final eye, and each source's tick. The negative
       // controls read this line -- offsetZ=0 on a living player means the
@@ -15200,9 +15220,11 @@ bool outlineVertexExtent = false;
             cameraTraceSource = "follow";
           }
         } else {
-          // A demo eye, or a mode that does not stand in the player: nothing is
-          // hidden on the camera's account.
-          g_spectateCameraHiddenEntity = -1;
+          // A demo eye, or a mode that does not stand in the player. The body the
+          // demo eye stands in was already hidden where that eye resolved (the
+          // N18-B step 2 block: g_spectateCameraHiddenEntity), because by the time
+          // this branch runs the frame's candidate list has long been filtered.
+          // Nothing to decide here.
         }
       }
     }
