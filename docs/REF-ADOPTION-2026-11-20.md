@@ -10,8 +10,8 @@
 | # | 上游机制 | 对应我方卡 | 现状差距 | 采纳 |
 |---|---|---|---|---|
 | 1 | 2D pose 网格双线性 + 逐骨骼 weight_list + SEQUENCE_DELTA | N17 | 我方只有一维 locomotion 权重 + 单一 aim 层（自述"approximation, not TF2 parity"） | **采纳（实现）** |
-| 2 | 同名骨骼合并（Skeleton::attaches_to / attached_world），Attachment 只作枪口 | N18 | 我方走 attachment 链（weapon_bone 挂点），读数 residual=0.0000；未验证是否该用骨骼合并 | **采纳（先离线判定再定）** |
-| 3 | demo_sounds 增量解码、96 声部、WAV cue loop、60 dB/36 u 衰减、POV 开火音补播 | N21 | 我方 computeSpatialMix 是线性 (1-d/max)^rolloff（max=2048, rolloff=1.0），无 cue loop、无 POV 补播 | **部分采纳** |
+| 2 | 同名骨骼合并（Skeleton::attaches_to / attached_world），Attachment 只作枪口 | N18 | P2 已实现 bone 放置（arms 世界矩阵 × weapon_bone 帧）：body 位移 46.2226 模型单位、像素差 946 px，默认 attachment 逐字节不变 | **采纳（已实现并实测，32f78ed9）** |
+| 3 | demo_sounds 增量解码、96 声部、WAV cue loop、60 dB/36 u 衰减、POV 开火音补播 | N21 | 我方 computeSpatialMix 是线性 (1-d/max)^rolloff（max=2048, rolloff=1.0），无 cue loop、无 POV 补播；(a) 审计还发现听者用了归一化盒坐标（见 §3） | **部分采纳（(a) 已审计，听者缺陷待修）** |
 | 4 | 整段快照 + MAX_FRAMES=150_000 + 稀疏采样；8 位 simtick 重建 | N12/N19 | 我方有 seek，但未见帧快照上限 | **采纳（先审计再定）** |
 | 5 | 多标签页关闭时把 GPU 资源推入 closing 队列，下一帧统一释放 | N16 | 我方单窗无 pane，契约未涉及多窗资源生命周期 | **延后（记入契约）** |
 | 6 | clip.rs：后台线程编码 5/10/20s 片段，无 ffmpeg 降级 800px GIF | N27 | 我方 MF 探针 H.264/AAC 可用；产品导出未实现 | **延后（兜底参考）** |
@@ -35,6 +35,11 @@
 - `native/src/native_renderer_viewmodel.cpp:518-595`、`:811-870` 全走 attachment 链：attachment local → 手部骨骼 → placement；实测 `grip ... residual=0.0000`、`alignment=weapon_bone`。
 - 也就是说：**当前读数支持 attachment 已对准**；要判断"长枪离手"是否另有原因，应先回答 c_sniperrifle.mdl / c_sniper_arms.mdl 与玩家骨骼是否存在同名骨骼。若不存在，骨骼合并不适用，残差假设应转向蒙皮/姿态；若存在，才用同 tick 像素差（已知基线 4447 px）对比两种挂法。
 
+P2（提交 `32f78ed9`）把这个问题落成了同帧 A/B 开关 `--viewmodel-weapon-attach=attachment|bone`：
+- `bone` 时 `weaponWorld = armsWorld × gripBoneFrame`（帧取 `boneModelMatrices`，rest 帧由 `poseToBone` 逆求），实测 body 原点相对 attachment 放置位移 **46.2226** 模型单位（P1 离线预测 46.22234），同 tick 像素差 **946 px**、bbox 139×203；
+- 默认 `attachment` 的帧与改动前**逐字节相同**（md5 911768d4…），`viewmodel-contract-check.sh` 154 断言 PASS；`--viewmodel-weapon-attach=lol` 与裸开关均以 rc=13 拒绝；
+- 未实测：`bone-missing` 回退（本机没有缺 `weapon_bone` 的便利模型）与 posed（非 rest）帧路径。
+
 ## 3 N21：空间音频常量、loop 点与 POV 补播（部分采纳）
 
 上游 `src/player/audio.rs`：独立线程 96 声部混音、读 WAV cue point 作 loop_start、`REFERENCE_DB=60.0` / `REFERENCE_DISTANCE=36.0` 距离衰减、`LIMITER_KNEE=0.6` 软限幅；`demo_sounds.rs` 按 SoundInfo_t::ReadDelta 增量解 svc_Sounds。GUIDE 指出 POV 录制者自己的开火/挥砍音效在 demo 里常缺失，需从第一人称动画补播。
@@ -44,6 +49,15 @@
 - 没有 60 dB 参考距离模型、没有 cue loop_start、没有 POV 开火补播；`audio: seek reset` 已有（main.cpp:12117）。
 
 落地建议：先做三问审计——(a) 同一 tick 我方 gain 与 60 dB/36 u 公式差多少（用既有 trace 的 origin/listener 数值离线算）；(b) WAV cue 点解析是否存在；(c) recorded-owner 的开火音效在 trace 里是否真的缺失。
+
+(a) 审计结果（2026-11-20，报告 `.scratch/n21a-review/spatial-audit.md`，只读，产品行为未改）：
+- 两边是两个模型：上游 `scale=10^((60-level)/20)/36`，`relative=d*scale`，`falloff=relative>0.1 ? min(1/relative,1) : 1`，永不静音；我方 `(1-d/2048)^1.0`，d>=2048 硬静音。60 dB 档下 d=100/512/1024 我方响 +8.44/+20.56/+23.06 dB，d=2048 上游仍 -35.1 dB 而我方 0；90 dB 档下 d=512/1024/1600 我方反而轻 -2.50/-6.02/-10.24 dB。两条曲线在 60 dB 于 36.66 u 与 2011.34 u 相交。
+- **更严重的是听者缺陷**：`native/src/main.cpp:12256-12259` 把 `renderer.observerFocusWorld()` 喂给 `soundScheduler.setListenerPosition`，而 `observerFocusWorld`（`native/src/native_renderer_camera.cpp:75-79`）返回的是归一化盒坐标（`:51-62` 的 world→box），声源 origin 却是地图单位。实测 500 条事件听众恒为 `(-0.6,-0.3,0.4)` 且不随相机 eye 移动；后果 260/500（52%）被判 inaudible，其中 51 条真实距离 <500 u（最近 144.8 u 的 `machete_swing`），同时 94 条真实 >=2048 u 仍在响；`oursGain==0` 与 inaudible 260/260 一一对应。T10 为 PVS 修过同类问题：`observerFocusMapWorld` 精确逆（`native_renderer_camera.cpp:81-96`）已在 `native/src/main.cpp:9663` 使用。
+- 真实分布（500 条，tick 8..1568，24.5 s）：真实距离中位 1621.42 u（产品打印中位 2065.51 u），300 条 <2048、200 条 >=2048；按真实距离重算 dB 差（300 条可闻，level=60）：中位 +20.95，296/300 >+6 dB。
+- 建议（未实施）：先把监听点换成 `observerFocusMapWorld`（取不到时 clearListener 或跳过衰减，不沿用盒坐标），再换上分段反比公式（level 未知按 60 dB，maxDistance 只作可选静音），并加"每 N 条事件 trace 一次 listener"的回归。
+- (b) 结论：WAV 解析只有 fmt(106)/data(117)（`native/src/audio_resource.cpp:88-140`），不解析 cue 点 / loop_start；上游 `audio.rs:75-78` 会读成 `Clip.loop_start`。
+- (c) 尚未审计（本轮只做 (a)(b)），留待批准后再查。
+- 已知限制：每 sound 的 level 未解析（`native/include/demo_header.h:124-138`、`native/src/demo_header_sound.cpp:125-130` 丢弃 9 bit），dB 三档只能作敏感度带；只一次 run 一张图、前 500 条事件；未做双耳试听与 pan/master 对比。
 
 ## 4 N12/N19：长片内存与快照上限（采纳为审计）
 
