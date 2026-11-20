@@ -192,6 +192,18 @@ HEAD `89733ac4`）实测或从 GitHub API 读到的，不引用旧报告当现�
     契约门禁：`assertions_ok=153`、`VIEWMODEL-CONTRACT=FAIL`，唯一红仍是既有 capture-point 0≠7（`draw: begin tick=0`、`sceneTick=10320` vs premise `10252`），
     identity 段本次 PASS（`BMP-DIFF differing=0 max_delta=0`，此前 1 px LSB 红未复现）；门禁重写的 9 个 `evidence/viewmodel/*` 已 `git checkout` 还原、未提交。
     抓帧口径（本机未入库）：`.scratch/g7/cap.sh`（matcha）、`.scratch/g7/cap-pov.sh`（POV）、差异工具 `.scratch/g7/ab/pov3.py`。
+16. 本批 N18-B（第一人称自身身体隐藏，2026-11-20）：`native/src/main.cpp` +20/−3。判据搬到**眼解析块**（`native/src/main.cpp:12407-12426`：
+    `!g_debugCamera && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson && haveObserverView && g_scenePovEye.entityIndex >= 0 && g_scenePovEye.offsetApplied`
+    → `g_spectateCameraHiddenEntity = static_cast<std::int32_t>(g_scenePovEye.entityIndex)`，否则 `-1`）；帧尾 relay 块原来的 `else { g_spectateCameraHiddenEntity = -1; }` 改成只留注释。
+    为什么搬：该块在候选过滤（`native/src/main.cpp:12868-12919` 的 `hiddenForCamera`）**之后**跑，写在那里只能影响下一个 scene tick，而暂停的 demo 没有下一个 tick ——
+    第一次就地补丁得到的两帧与修前**逐字节相同**（`pov-fix-on 5c5e874af1d46b848b211d0c3636f3f3` / `pov-fix-off 7b67e44a2f18b5c0c0fead5a07f62c11`，trace 里 `cameraFilter removed=0 … hidden0=-1`）。
+    最终构建（`bash build-target.sh tf2_demo_native` rc=0）读数：POV 帧 `md5 3bf37d4f48c4ffb61660aaf3ee181ac9`（1264x681 BMP 2,582,406 B），
+    `scene: cameraFilter removed=1 indices=9 candidates=320 submitted=322 hidden0=9 hidden1=-1`、`scene: camera mode=first-person target=1 follows=1 holds=0 freeze=0 eye=375.1,-2871.0,288.9 pitch=2.15 yaw=105.87 src=demo`；
+    画面里自己的身体（原占右侧）不再绘制，只剩第一人称手臂+枪（枪仍是世界模型 `models/weapons/c_models/c_sniperrifle/c_sniperrifle.mdl` 走 viewmodel target，N17/N18 的已知未闭合项，本轮未动）。
+    负控都照常画出身体：`--pane-mode 0 third` 帧 `27d22722f3444a0d3d181320410a24d7`（`cameraFilter removed=0 indices=- candidates=321 submitted=322 hidden0=-1 hidden1=-1`，`mode=third-person`）、
+    `--debug-camera 321 -2679 290 0 285.87` 帧 `3439914e577045614e48ad5064ae7079`（`mode=free-look src=debug`、`hidden0=-1`）。
+    设计说明/未闭合项：`docs/N18-FIRSTPERSON-VISIBILITY-2026-11-20.md`；抓帧口径 `.scratch/g7/cap-pov2.sh`（本机未入库，帧 `pov-final.png`/`pov-neg-third.png`/`pov-neg-debugcam.png` 在 `.scratch/g7/cap/`）。
+
 ## 6. 证据路径
 
 - 门禁：`/d/_shared/p9-identity.log`（P9 树 `head=dbe8abcf`，`BUILD-IDENTITY=PASS assertions=222`，12:02）；
