@@ -208,4 +208,26 @@ bool handleCameraAction(const std::string& action, std::string& reason);
 bool dispatchHotkey(unsigned vk, bool ctrl, bool alt, bool shift, bool character,
     std::string& action, std::string& result);
 
+// ----------------------------------------- renderer & HUD startup (N24 B2-2)
+// Moved out of wWinMain (main.cpp:8296-8376) as pure code motion.
+// registerKeybinds stays DEFINED in main.cpp (hud-check.sh mutation-3 edits
+// its registerDefault line there); g_renderer stays DEFINED in main.cpp and
+// keeps its nullptr teardown and exit-code ownership in wWinMain.
+extern tf2::native::Renderer* g_renderer;
+void registerKeybinds(const std::filesystem::path& settingsFile);
+
+struct RendererHudInitInputs {
+  tf2::native::Renderer& renderer;
+  HWND window = nullptr;
+  const std::filesystem::path& hudRoot;
+  const std::string& hudLayout;
+  int hudScale = 100;
+  bool hudScaleGiven = false;
+  bool hudOnGiven = false;
+  bool hudOn = false;
+  bool hudResetRequested = false;
+  bool hudApplyRequested = false;
+};
+bool initializeRendererAndHud(const RendererHudInitInputs& inputs);
+
 }  // namespace tf2::native::main_internal

@@ -34,6 +34,9 @@ add_executable(tf2_demo_native WIN32
   # hud: readings). registerKeybinds stays in main.cpp -- hud-check.sh mutates
   # its text there.
   src/main_hud.cpp
+  # N24 B2-2 (2026-11-20): renderer initialize & T51/T67 HUD startup block moved
+  # out of wWinMain (main.cpp:8296-8376) as pure code motion -- order verbatim.
+  src/main_renderer_hud.cpp
   # T76: the T50 camera pose/bookmark layer.
   src/main_camera.cpp
   # T76 stage 4 (2026-11-13): the T50 camera-script driver (--camera-script).

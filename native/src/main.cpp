@@ -2280,6 +2280,9 @@ bool chooseDemoFile(HWND owner, std::filesystem::path& result) {
   return true;
 }
 
+}  // namespace
+
+namespace tf2::native::main_internal {
 // ---------------------------------------------------------------------------
 // T76 (2026-10-29): the T51 HUD block -- its state, the folder picker, the
 // layout push and every hud: reading -- moved to src/main_hud.cpp. The hotkey
@@ -2342,6 +2345,9 @@ void registerKeybinds(const std::filesystem::path& settingsFile) {
       "pause=free insert=unused home=playback end=playback prior=unused next=unused "
       "delete=reserved-n16");
 }
+}  // namespace tf2::native::main_internal
+
+namespace {
 
 
 // Whether a text field owns the keyboard right now. The focus rule is a property
@@ -8293,86 +8299,23 @@ bool outlineVertexExtent = false;
     return true;
   };
   refreshWindowTitle();
-  if (!renderer.initialize(window)) {
-    // The HRESULT is the only thing that distinguishes "no D3D device" from "a
-    // shader failed to compile at run time", and both exit the same way.
-    traceFmt("gpu: initialize failed stage=%s hr=0x%08lX",
-      renderer.initStage(), static_cast<unsigned long>(renderer.lastError()));
-    DestroyWindow(window);
-    return 12;
-  }
-  // ---- T51: load the HUD state and apply it -------------------------------
-  //
-  // The [hud] section lives in ui.ini, which is the file NativeUiController owns.
-  // It is loaded after the renderer exists because the rectangles can only be
-  // resolved once the window has a client size, and applied before the first
-  // frame so a --hud-apply run captures a frame that already has the HUD on it.
   {
-    std::string settingsStatus;
-    const auto hudSettingsFile = uiSettingsFilePath(settingsStatus);
-    if (!hudSettingsFile.empty()) {
-      g_hud.loadFrom(hudSettingsFile);
+    const RendererHudInitInputs rendererHudInit{
+        renderer,
+        window,
+        hudRoot,
+        hudLayout,
+        hudScale,
+        hudScaleGiven,
+        hudOnGiven,
+        hudOn,
+        hudResetRequested,
+        hudApplyRequested,
+    };
+    if (!initializeRendererAndHud(rendererHudInit)) {
+      DestroyWindow(window);
+      return 12;
     }
-    traceFmt("hud: settings-file path=%s status=%s loaded=%d repaired=%d",
-      hudSettingsFile.empty() ? "-" : hudSettingsFile.u8string().c_str(),
-      settingsStatus.c_str(), hudSettingsFile.empty() ? 0 : 1, g_hud.repaired() ? 1 : 0);
-    {
-      tf2::native::HudState::HudOverrides overrides;
-      std::string detail;
-      overrides.importRequested = !hudRoot.empty() || !hudLayout.empty() || hudApplyRequested;
-      overrides.root = hudRoot;
-      overrides.layout = hudLayout;
-      if (overrides.importRequested && overrides.layout.empty() && !hudRoot.empty()) {
-        overrides.layout = discoverHudLayout(hudRoot, detail);
-        if (overrides.layout.empty()) {
-          // Nothing to import: recorded as a refusal rather than silently doing
-          // nothing, for the reason the picker path gives.
-          traceFmt("hud: import refused reason=%s detail=no-document-in-root",
-            detail.compare(0, 10, "ambiguous:") == 0 ? "ambiguous-document" : "missing");
-          g_hud.noteDiscoveryRefusal(detail.empty() ? "cli-no-document" : detail);
-          overrides.importRequested = false;
-        }
-      }
-      overrides.resetRequested = hudResetRequested;
-      overrides.scaleGiven = hudScaleGiven;
-      overrides.scalePercent = hudScale;
-      overrides.enabledGiven = hudOnGiven;
-      overrides.enabled = hudOn;
-      RECT client{};
-      GetClientRect(window, &client);
-      const float dpiScale = static_cast<float>(GetDpiForWindow(window)) / 96.0f;
-      const auto overridesResult = g_hud.applyOverrides(overrides,
-        client.right, client.bottom, dpiScale);
-      traceFmt("hud: cli import=%d reset=%d scale=%d enabled=%d result=%s discover=%s",
-        overrides.importRequested ? 1 : 0, hudResetRequested ? 1 : 0,
-        hudScaleGiven ? hudScale : -1, hudOnGiven ? (hudOn ? 1 : 0) : -1,
-        tf2::native::hudApplyResultName(overridesResult),
-        detail.empty() ? "-" : detail.c_str());
-      if (overrides.importRequested) {
-        traceFmt("hud: import result=%s document=%s source=cli",
-          tf2::native::hudApplyResultName(g_hud.lastApply()), overrides.layout.c_str());
-      }
-      if (hudResetRequested) {
-        // The reset's own return value, not the flag that asked for it: the gate
-        // asserts "the reset ran", and a line printed from the request would be a
-        // comment rather than a reading. g_hud.lastReset() is exactly the value
-        // resetToDefault() returned, so this cannot print "reset" for a reset that
-        // did not happen. (The button and hotkey paths print the same line from
-        // hudResetToDefault; the CLI path needs its own because the button is not
-        // what ran.)
-        traceFmt("hud: reset result=%s", tf2::native::hudApplyResultName(g_hud.lastReset()));
-      }
-    }
-    registerKeybinds(hudSettingsFile);
-    hudApplyRects(window);
-    // T67: the panel container is pure layout, so its self-test runs without a
-    // device and is reported as a reading rather than a comment.
-    {
-      const tf2::native::HudPanelSelfTest panelTest = tf2::native::hudPanelSelfTest();
-      traceFmt("hudpanel: cases=%zu pass=%zu fail=%zu", panelTest.cases, panelTest.passed, panelTest.failed);
-    }
-    hudUpdateStatus(window);
-    hudPublishTrace(window);
   }
   renderer.setWorldMaterialParams(mapMaterialParams);
   // T54: the scripted panel sequence runs once the renderer and the window are
