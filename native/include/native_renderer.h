@@ -1728,6 +1728,23 @@ public:
   // arms centre has, so "the weapon is off screen" is answerable for this draw
   // as well.
   const std::array<float, 4>& viewModelWeaponCenterClip() const { return viewModelWeaponCenterClip_; }
+  // N18 grip reading. The composite is built from two anchors that are not the
+  // same point: the arms hang off the attachment table of their own model
+  // (`weapon_bone`), while the weapon body is a shipped world model with no
+  // attachment table at all (measured `attachment=-` on c_sniperrifle and
+  // c_pro_rifle), so its only anchor is its model origin. Both are published in
+  // world space, together with the distance between them, so the residual is a
+  // measurement instead of a claim about the placement solve.
+  const std::array<float, 3>& viewModelGripArmsWorld() const { return viewModelGripArmsWorld_; }
+  const std::array<float, 3>& viewModelGripWeaponWorld() const { return viewModelGripWeaponWorld_; }
+  // Negative means "not measured this frame" (the body did not draw), which is
+  // deliberately not 0.0: a body that never drew is not an aligned body.
+  float viewModelGripResidual() const { return viewModelGripResidual_; }
+  // The model-space mesh centres the placement solve moves each half by. They
+  // are what explains the residual: both halves are placed by their centre, and
+  // neither centre is where the model is held.
+  const float* viewModelMeshCenterModel() const { return viewModelMeshCenter_; }
+  const float* viewModelWeaponMeshCenterModel() const { return viewModelWeaponMeshCenter_; }
   // The pass's depth policy, recorded from the description the state was created
   // with. D3D11 cannot read a state object back, so this is the input to
   // CreateDepthStencilState rather than the device's copy -- stated rather than
@@ -2314,6 +2331,12 @@ private:
   std::string viewModelWeaponMaterialKeys_;
   std::string viewModelWeaponDrawReason_ = "the weapon body pass never ran";
   std::array<float, 4> viewModelWeaponCenterClip_{};
+  // N18: the two grip anchors through the same hand transform, in world space,
+  // and the distance between them (-1 = the body did not draw this frame, so
+  // there was nothing to compare).
+  std::array<float, 3> viewModelGripArmsWorld_{};
+  std::array<float, 3> viewModelGripWeaponWorld_{};
+  float viewModelGripResidual_ = -1.0f;
   std::size_t viewModelArmDrawCallCount_ = 0;
   std::size_t viewModelWeaponDrawCallCount_ = 0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> viewModelBoneBuffer_;

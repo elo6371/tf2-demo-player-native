@@ -265,6 +265,16 @@ assert_gt_float() {
     echo "  FAIL $1 = ${2:-<none>}, expected > $3"; fail=1; FAIL_LINES+=("$1: ${2:-<none>} <= $3")
   fi
 }
+# And the other direction: a residual that has to be small. The emptiness guard is
+# not decoration -- awk reads an empty string as 0, so a reader that came back
+# blank would satisfy "0 < 1.0" and report a comparison that never happened.
+assert_lt_float() {
+  if [ -n "${2:-}" ] && awk -v a="$2" -v b="$3" 'BEGIN { exit !(a < b) }' 2>/dev/null; then
+    echo "  OK   $1 = $2 (< $3)"
+  else
+    echo "  FAIL $1 = ${2:-<none>}, expected < $3"; fail=1; FAIL_LINES+=("$1: ${2:-<none>} >= $3")
+  fi
+}
 assert_contains() {
   case "${2:-}" in
     *"$3"*) echo "  OK   $1 contains $3" ;;
@@ -283,6 +293,15 @@ assert_not_contains() {
 # field <line> <name> -> the value of name=<value> in a trace line, "" if absent.
 field() {
   printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p" | head -1
+}
+# grip_field <run> <key> -> one key=value out of that run's LAST "gpu: viewmodel
+# grip" line. The line carries tuples ("armsGrip=(x,y,z)"), so the space-splitting
+# field reader above is the wrong tool: this asks for the key and stops at the
+# next space. The last line is the frame that produced the frame file.
+grip_field() {
+  grep -a "gpu: viewmodel grip" "$TRACE_DIR/$1.trace" 2>/dev/null \
+    | tr -d '\r' | tail -1 \
+    | sed -n "s/.*[[:space:]]$2=\([^[:space:]]*\).*/\1/p"
 }
 # byte_diff <a> <b> -> how many byte positions differ, or -1 if a file is missing.
 byte_diff() {
@@ -502,6 +521,24 @@ assert_gt "work count -- the body's mesh has vertices" \
 assert_gt_float "the body's mesh has a measured radius of its own" \
   "$(field "$LAST_READING" weaponMeshRadius)" "0"
 
+# N18 -- where the body sits relative to the hand it is supposed to hang from.
+# The placement used to solve the body's mesh CENTRE onto the arms' framing
+# target, which is the wrong point for a model built around its own grip:
+# measured on this recording, the c_machete's centre is (-0.04,2.61,8.89) inside
+# a 29.88 radius (the origin IS the grip), while the arms' mesh centre sits 52.05
+# up from their feet. That left the two grip anchors 50.58 world units apart and
+# the body floating beside the hand. The placement now coincides the anchors, so
+# this reading has to be near zero -- and the two assertions below are ordered so
+# that the sentinel cannot pass as a success: -1 means "no body was drawn, no
+# comparison was made", which is smaller than 1.0 and would sail through a bare
+# "residual < 1.0".
+GRIP_RESIDUAL=$(grip_field body-on residual)
+assert_gt_float "the grip residual is a comparison, not the no-body sentinel" \
+  "$GRIP_RESIDUAL" "-1.0"
+assert_eq "the body's grip anchor is the arms' grip anchor" \
+  "$(grip_field body-on weaponGrip)" "$(grip_field body-on armsGrip)"
+assert_lt_float "so the body hangs from the arms, not beside them" "$GRIP_RESIDUAL" "1.0"
+
 run_product_until_tick body-off "$CAPTURE_TICK" --viewmodel-weapon-body off
 assert_eq "the body-off frame was taken at the same tick as the benchmark" \
   "$(capture_tick_of body-off)" "$CAPTURE_TICK"
@@ -514,6 +551,13 @@ assert_eq "and the reading names the switch rather than a lookup failure" \
   "$(field "$LAST_READING" weaponFallback)" "off"
 assert_eq "the off run reports no model index it never looked for" \
   "$(field "$LAST_READING" weaponModelIndex)" "0"
+# The control for the reading above: with no body drawn there is nothing to
+# compare a grip against, and the reading says exactly that (-1, not 0). This is
+# what licenses "residual=0.0000" on the body-on run as a measurement.
+assert_eq "with no body drawn the grip reading says nothing was compared" \
+  "$(grip_field body-off residual)" "-1.0000"
+assert_eq "control -- switching the body off leaves the arms' grip where it was" \
+  "$(grip_field body-off armsGrip)" "$(grip_field body-on armsGrip)"
 
 # ---------------------------------------------------------------------------
 # Section 4 -- the picture

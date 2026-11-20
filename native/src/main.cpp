@@ -11943,6 +11943,24 @@ bool outlineVertexExtent = false;
       weaponClip[0], weaponClip[1], weaponClip[2], weaponClip[3],
       viewModelWeaponStats.lastMaterialFailure.empty()
         ? "-" : viewModelWeaponStats.lastMaterialFailure.c_str());
+    // N18 grip reading: the two anchors the first-person composite is built
+    // from, in world space, and the distance between them. `residual=-1` means
+    // no body drew this frame, so nothing was compared. The two model-space
+    // centres are printed beside them because placing a body by its mesh centre
+    // is what went wrong: the arms model stands on the origin (centre y=52) while
+    // the c_ weapon model is built around its own grip (centre within 9 units of
+    // it), so the two centres are not the same point and never were.
+    const auto& gripArms = renderer.viewModelGripArmsWorld();
+    const auto& gripWeapon = renderer.viewModelGripWeaponWorld();
+    const float* armsCentreModel = renderer.viewModelMeshCenterModel();
+    const float* weaponCentreModel = renderer.viewModelWeaponMeshCenterModel();
+    traceFmt("gpu: viewmodel grip armsGrip=(%.2f,%.2f,%.2f) weaponGrip=(%.2f,%.2f,%.2f) "
+      "residual=%.4f armsCentreModel=(%.2f,%.2f,%.2f) weaponCentreModel=(%.2f,%.2f,%.2f)",
+      gripArms[0], gripArms[1], gripArms[2],
+      gripWeapon[0], gripWeapon[1], gripWeapon[2],
+      static_cast<double>(renderer.viewModelGripResidual()),
+      armsCentreModel[0], armsCentreModel[1], armsCentreModel[2],
+      weaponCentreModel[0], weaponCentreModel[1], weaponCentreModel[2]);
     // T14: what the draw did with the slots above, on its own line.
     //   It is separate from the draw reading for a mechanical reason as well as
     //   a conceptual one: `traceFmt` formats into a 512-byte buffer, and

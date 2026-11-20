@@ -474,6 +474,12 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   // return below is the whole pass being off, and the body must not keep the
   // previous frame's reason (or centre) as if this frame had produced it.
   viewModelWeaponCenterClip_.fill(0.0f);
+  // Same rule for the two grip anchors. The residual's "not measured" value is
+  // -1 rather than 0: a frame in which no body drew compared nothing, and 0.0
+  // would read as "the anchors coincide".
+  viewModelGripArmsWorld_.fill(0.0f);
+  viewModelGripWeaponWorld_.fill(0.0f);
+  viewModelGripResidual_ = -1.0f;
   viewModelWeaponDrawReason_ = "the pass did not draw";
   if (!context_) { viewModelDrawReason_ = "the renderer has no device context"; return false; }
   if (!viewModelState_.enabled) {
@@ -577,6 +583,16 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   viewModelPlacementTarget_ = { targetX, targetY, targetZ };
   const auto placement = translation34(targetX - centerX, targetY - centerY, targetZ - centerZ);
   const auto world = multiply34(placement, attachmentHand);
+  // N18: the point the arms are actually held by. The attachment's origin (the
+  // hand, for `weapon_bone`) goes through the hand transform and then through
+  // the same placement the mesh centre went through. `placement` is a pure
+  // translation, so the product's translation column is that translation plus
+  // the attachment origin -- no rotation to fold in. This is the anchor the
+  // weapon body's own anchor is measured against.
+  viewModelGripArmsWorld_ = {
+    attachmentHand[3] + placement[3],
+    attachmentHand[7] + placement[7],
+    attachmentHand[11] + placement[11] };
 
   // Transposed into the row-vector form the shader multiplies with: the basis
   // becomes the rows and the translation moves to the last row, which is where
@@ -790,12 +806,17 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   // composite in front of the map, and a second clear would erase the arms the
   // first draw just wrote.
   //
-  // The body shares the arms' placement point. The two models make up one
-  // first-person composite in front of one eye, so the body's own centre is
-  // solved onto the same target the arms were solved onto -- a second,
-  // independent placement formula would let the two drift apart as their radii
-  // differ. Its own radius still drives its own near and far planes, because
-  // those are about the geometry actually being drawn.
+  // The body is placed by the grip it shares with the arms, not by its own
+  // centre. A first-person gun hangs FROM the hand: the arms' `weapon_bone`
+  // attachment origin and the body's own origin are made the same world point,
+  // which is what "held" means. Solving the body's mesh centre onto the arms'
+  // framing target instead (the pre-N18 formula) left the two anchors apart --
+  // measured at capture tick 3000 on pl_upward_f12: 50.58 units, with the arms
+  // model authored feet-origin (its centre sits at y=52.05) and the body
+  // authored inside its own mesh (centre (2.61,8.89) inside a 29.88 radius), so
+  // the body floated beside the arm instead of hanging from it. Its own radius
+  // still drives its own near and far planes, because those are about the
+  // geometry actually being drawn.
   //
   // Reaching this point means the arms draw already happened (every early
   // return above is the whole pass being off -- a first-person composite that
@@ -823,15 +844,46 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
     const float wcx = viewModelWeaponMeshCenter_[0];
     const float wcy = viewModelWeaponMeshCenter_[1];
     const float wcz = viewModelWeaponMeshCenter_[2];
-    const float weaponCenterX = weaponAttachmentHand[0] * wcx + weaponAttachmentHand[1] * wcy
-      + weaponAttachmentHand[2] * wcz + weaponAttachmentHand[3];
-    const float weaponCenterY = weaponAttachmentHand[4] * wcx + weaponAttachmentHand[5] * wcy
-      + weaponAttachmentHand[6] * wcz + weaponAttachmentHand[7];
-    const float weaponCenterZ = weaponAttachmentHand[8] * wcx + weaponAttachmentHand[9] * wcy
-      + weaponAttachmentHand[10] * wcz + weaponAttachmentHand[11];
-    const auto weaponPlacement =
-      translation34(targetX - weaponCenterX, targetY - weaponCenterY, targetZ - weaponCenterZ);
+    // The body's own anchor, through its own chain: an attachment origin when the
+    // model carries one, its own origin otherwise. -- which is every shipped
+    // weapon world model measured so far (`attachment=-` on c_sniperrifle and
+    // c_pro_rifle): the origin is the only point those files define.
+    const std::array<float, 3> weaponAnchorModel = viewModelWeaponState_.attachmentValid
+      ? std::array<float, 3>{ weaponAttachment[3], weaponAttachment[7], weaponAttachment[11] }
+      : std::array<float, 3>{ 0.0f, 0.0f, 0.0f };
+    const float weaponAnchorHandX = weaponAttachmentHand[0] * weaponAnchorModel[0]
+      + weaponAttachmentHand[1] * weaponAnchorModel[1]
+      + weaponAttachmentHand[2] * weaponAnchorModel[2] + weaponAttachmentHand[3];
+    const float weaponAnchorHandY = weaponAttachmentHand[4] * weaponAnchorModel[0]
+      + weaponAttachmentHand[5] * weaponAnchorModel[1]
+      + weaponAttachmentHand[6] * weaponAnchorModel[2] + weaponAttachmentHand[7];
+    const float weaponAnchorHandZ = weaponAttachmentHand[8] * weaponAnchorModel[0]
+      + weaponAttachmentHand[9] * weaponAnchorModel[1]
+      + weaponAttachmentHand[10] * weaponAnchorModel[2] + weaponAttachmentHand[11];
+    // The placement is now whatever puts that anchor where the arms' grip already
+    // is, so the residual the gate reads is zero by construction and any non-zero
+    // value is a real regression.
+    const auto weaponPlacement = translation34(
+      viewModelGripArmsWorld_[0] - weaponAnchorHandX,
+      viewModelGripArmsWorld_[1] - weaponAnchorHandY,
+      viewModelGripArmsWorld_[2] - weaponAnchorHandZ);
     const auto weaponWorld = multiply34(weaponPlacement, weaponAttachmentHand);
+    // The same anchor through the finished placement: the measured grip. It is
+    // read back rather than assumed, so a regression in the placement above shows
+    // up here as a non-zero residual instead of hiding.
+    viewModelGripWeaponWorld_ = {
+      weaponWorld[0] * weaponAnchorModel[0] + weaponWorld[1] * weaponAnchorModel[1]
+        + weaponWorld[2] * weaponAnchorModel[2] + weaponWorld[3],
+      weaponWorld[4] * weaponAnchorModel[0] + weaponWorld[5] * weaponAnchorModel[1]
+        + weaponWorld[6] * weaponAnchorModel[2] + weaponWorld[7],
+      weaponWorld[8] * weaponAnchorModel[0] + weaponWorld[9] * weaponAnchorModel[1]
+        + weaponWorld[10] * weaponAnchorModel[2] + weaponWorld[11] };
+    {
+      const float gripDx = viewModelGripArmsWorld_[0] - viewModelGripWeaponWorld_[0];
+      const float gripDy = viewModelGripArmsWorld_[1] - viewModelGripWeaponWorld_[1];
+      const float gripDz = viewModelGripArmsWorld_[2] - viewModelGripWeaponWorld_[2];
+      viewModelGripResidual_ = std::sqrt(gripDx * gripDx + gripDy * gripDy + gripDz * gripDz);
+    }
     const XMMATRIX weaponWorldMatrix(
       weaponWorld[0], weaponWorld[4], weaponWorld[8], 0.0f,
       weaponWorld[1], weaponWorld[5], weaponWorld[9], 0.0f,
