@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -296,6 +297,12 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
           // The base model can carry a zero-blend sequence stub. Report the
           // blend count of the animation source whose descriptor we sample.
           sequence.blendCount = candidateSequence.blendCount;
+          // Step 1: the grid belongs to the descriptor whose frames we sample,
+          // exactly like the blend count above. A base sequence stub carries no
+          // grid, so dropping these two here is what would make the census read
+          // "no grid" for every player model.
+          sequence.grid = candidateSequence.grid;
+          sequence.weights = candidateSequence.weights;
           // Included descriptors own playback semantics (CStudioHdr::pSeqdesc).
           // A base STUDIO_OVERRIDE stub is not necessarily marked looping.
           // Keep the base index/activity and unrelated flags, but take the
@@ -789,6 +796,216 @@ AnimationSampleResult buildAnimationSkinMatrices(
 
 std::array<float, 12> multiplyTransforms(const std::array<float, 12>& a, const std::array<float, 12>& b) {
   return concatTransforms(a, b);
+}
+
+void animationGridCensus(const AnimationBinding& binding, std::vector<std::string>& out) {
+  const AnimationModel& model = binding.anims;
+  const auto cellName = [&model](std::int16_t cell) -> std::string {
+    if (cell < 0 || static_cast<std::size_t>(cell) >= model.animations.size()) return std::string("-");
+    const std::string& name = model.animations[static_cast<std::size_t>(cell)].name;
+    return name.empty() ? std::string("-") : name;
+  };
+  const auto cellFrames = [&model](std::int16_t cell) -> std::int32_t {
+    if (cell < 0 || static_cast<std::size_t>(cell) >= model.animations.size()) return -1;
+    return model.animations[static_cast<std::size_t>(cell)].frameCount;
+  };
+
+  std::size_t multi = 0;
+  std::size_t nine = 0;
+  std::size_t twelve = 0;
+  std::size_t oneDim = 0;
+  std::size_t other = 0;
+  std::size_t nbMismatch = 0;
+  std::size_t cellsBad = 0;
+  std::size_t gridsValid = 0;
+  std::size_t weightReadable = 0;
+  for (const auto& sequence : model.sequences) {
+    if (sequence.blendCount <= 1) continue;
+    ++multi;
+    const std::int64_t gridCells = static_cast<std::int64_t>(sequence.grid.groupSize[0])
+      * static_cast<std::int64_t>(sequence.grid.groupSize[1]);
+    if (gridCells != sequence.blendCount) ++nbMismatch;
+    if (sequence.grid.cells.size() != static_cast<std::size_t>(sequence.blendCount)) ++cellsBad;
+    if (sequence.grid.valid) ++gridsValid;
+    if (sequence.weights.readable) ++weightReadable;
+    if (sequence.grid.groupSize[0] == 3 && sequence.grid.groupSize[1] == 3) ++nine;
+    else if (sequence.grid.groupSize[0] == 3 && sequence.grid.groupSize[1] == 4) ++twelve;
+    else if (sequence.grid.groupSize[0] == 1 || sequence.grid.groupSize[1] == 1) ++oneDim;
+    else ++other;
+  }
+  // Always present, even for a binding that decodes to no grid at all: a gate
+  // that counts zero grids needs a line to count.
+  {
+    char line[768];
+    std::snprintf(line, sizeof(line),
+      "GRID-SUMMARY model=%s sequences=%zu multi=%zu nine=%zu twelve=%zu oneDim=%zu other=%zu"
+      " nbMismatch=%zu cellsBad=%zu gridsValid=%zu weights=%zu poseParams=%zu",
+      binding.modelPath.c_str(), model.sequences.size(), multi, nine, twelve, oneDim, other,
+      nbMismatch, cellsBad, gridsValid, weightReadable, model.poseParameters.size());
+    out.emplace_back(line);
+  }
+
+  // GRID-CORNERS: the cell matrix in the engine's flattening order, one row per
+  // line-segment, so the names can be checked against the poses the file ships
+  // (a 3x3 move grid reads SW,S,SE | W,Center,E | NW,N,NE). One line per distinct
+  // grid shape: a class carries one move family, one aim family, a few 1D ones.
+  std::vector<std::string> signatures;
+  for (std::size_t i = 0; i < model.sequences.size() && signatures.size() < 3; ++i) {
+    const auto& sequence = model.sequences[i];
+    if (sequence.blendCount <= 1 || !sequence.grid.valid) continue;
+    char signature[160];
+    std::snprintf(signature, sizeof(signature), "%dx%d:%d:%d:%.3f:%.3f:%.3f:%.3f",
+      static_cast<int>(sequence.grid.groupSize[0]), static_cast<int>(sequence.grid.groupSize[1]),
+      static_cast<int>(sequence.grid.paramIndex[0]), static_cast<int>(sequence.grid.paramIndex[1]),
+      static_cast<double>(sequence.grid.paramStart[0]), static_cast<double>(sequence.grid.paramStart[1]),
+      static_cast<double>(sequence.grid.paramEnd[0]), static_cast<double>(sequence.grid.paramEnd[1]));
+    if (std::find(signatures.begin(), signatures.end(), std::string(signature)) != signatures.end()) continue;
+    signatures.emplace_back(signature);
+    const int columns = static_cast<int>(sequence.grid.groupSize[0]);
+    const int rows = static_cast<int>(sequence.grid.groupSize[1]);
+    std::string cellRows;
+    bool complete = true;
+    int printed = 0;
+    for (int row = 0; row < rows && printed < 24; ++row) {
+      if (row != 0) cellRows += '|';
+      for (int column = 0; column < columns && printed < 24; ++column) {
+        if (column != 0) cellRows += ',';
+        const std::size_t cellIndex = static_cast<std::size_t>(row) * static_cast<std::size_t>(columns)
+          + static_cast<std::size_t>(column);
+        if (cellIndex >= sequence.grid.cells.size()) {
+          cellRows += '-';
+          complete = false;
+          continue;
+        }
+        const std::string name = cellName(sequence.grid.cells[cellIndex]);
+        if (name == "-") complete = false;
+        cellRows += name;
+        ++printed;
+      }
+    }
+    char line[2048];
+    std::snprintf(line, sizeof(line),
+      "GRID-CORNERS model=%s seq=%zu label=%s cells=%dx%d param0=%d pos0=%.2f..%.2f"
+      " param1=%d pos1=%.2f..%.2f pass=%d rows=%s",
+      binding.modelPath.c_str(), i, sequence.label.c_str(), columns, rows,
+      static_cast<int>(sequence.grid.paramIndex[0]),
+      static_cast<double>(sequence.grid.paramStart[0]), static_cast<double>(sequence.grid.paramEnd[0]),
+      static_cast<int>(sequence.grid.paramIndex[1]),
+      static_cast<double>(sequence.grid.paramStart[1]), static_cast<double>(sequence.grid.paramEnd[1]),
+      complete ? 1 : 0, cellRows.c_str());
+    out.emplace_back(line);
+  }
+
+  // GRID-FRAMES: the cell frame counts and the cell at the grid centre. Step 2
+  // samples every cell at the same cycle, so cells whose clips have different
+  // lengths (swim swings between 31 and 61 frames) are the cases its phase rule
+  // has to survive; a uniform column means the naive fix is enough there.
+  std::size_t uniform = 0;
+  std::size_t varying = 0;
+  std::size_t centerFlat = 0;
+  std::size_t centerMissing = 0;
+  std::size_t framesShown = 0;
+  for (std::size_t i = 0; i < model.sequences.size(); ++i) {
+    const auto& sequence = model.sequences[i];
+    if (sequence.blendCount <= 1 || sequence.grid.cells.empty()) continue;
+    std::string frames;
+    std::int32_t first = -1;
+    bool isUniform = true;
+    for (std::size_t cell = 0; cell < sequence.grid.cells.size(); ++cell) {
+      const std::int32_t frameCount = cellFrames(sequence.grid.cells[cell]);
+      if (cell == 0) first = frameCount;
+      else if (frameCount != first) isUniform = false;
+      if (!frames.empty()) frames += ',';
+      frames += std::to_string(frameCount);
+    }
+    if (isUniform) ++uniform;
+    else ++varying;
+    const int columns = sequence.grid.groupSize[0] > 0 ? static_cast<int>(sequence.grid.groupSize[0]) : 1;
+    const int rows = sequence.grid.groupSize[1] > 0 ? static_cast<int>(sequence.grid.groupSize[1]) : 1;
+    const std::size_t centerIndex = static_cast<std::size_t>(rows / 2) * static_cast<std::size_t>(columns)
+      + static_cast<std::size_t>(columns / 2);
+    const std::int32_t center = centerIndex < sequence.grid.cells.size()
+      ? cellFrames(sequence.grid.cells[centerIndex]) : -1;
+    if (center < 0) ++centerMissing;
+    else if (center == first) ++centerFlat;
+    if (framesShown < 8 && (framesShown == 0 || !isUniform)) {
+      ++framesShown;
+      char line[1024];
+      std::snprintf(line, sizeof(line), "GRID-FRAMES seq=%zu label=%s frames=%s uniform=%d center=%d",
+        i, sequence.label.c_str(), frames.c_str(), isUniform ? 1 : 0, static_cast<int>(center));
+      out.emplace_back(line);
+    }
+  }
+  {
+    char line[512];
+    std::snprintf(line, sizeof(line),
+      "GRID-FRAMES-SUMMARY model=%s grids=%zu uniform=%zu varying=%zu centerFlat=%zu centerMissing=%zu",
+      binding.modelPath.c_str(), uniform + varying, uniform, varying, centerFlat, centerMissing);
+    out.emplace_back(line);
+  }
+
+  // WEIGHTLIST: the per-bone mask behind each grid. All-ones is the neutral case
+  // and all-zero is the override/placeholder case, so only the mixed patterns are
+  // printed; a mixed pattern is what Step 3 has to respect bone by bone.
+  std::size_t allOnes = 0;
+  std::size_t allZero = 0;
+  std::size_t partial = 0;
+  std::size_t unreadable = 0;
+  std::size_t weightShown = 0;
+  for (std::size_t i = 0; i < model.sequences.size(); ++i) {
+    const auto& sequence = model.sequences[i];
+    if (sequence.blendCount <= 1) continue;
+    const AnimationWeightList& list = sequence.weights;
+    if (!list.readable || list.boneCount == 0) {
+      ++unreadable;
+      continue;
+    }
+    const bool ones = list.zeroCount == 0 && list.minWeight == 1.0f && list.maxWeight == 1.0f
+      && list.sum == static_cast<float>(list.boneCount);
+    const bool zeros = list.zeroCount == list.boneCount;
+    if (ones) ++allOnes;
+    else if (zeros) ++allZero;
+    else ++partial;
+    if (!ones && weightShown < 8) {
+      ++weightShown;
+      char line[512];
+      std::snprintf(line, sizeof(line),
+        "WEIGHTLIST seq=%zu label=%s bones=%zu zero=%zu sum=%.3f min=%.3f max=%.3f",
+        i, sequence.label.c_str(), list.boneCount, list.zeroCount,
+        static_cast<double>(list.sum), static_cast<double>(list.minWeight), static_cast<double>(list.maxWeight));
+      out.emplace_back(line);
+    }
+  }
+  {
+    char line[512];
+    std::snprintf(line, sizeof(line),
+      "WEIGHTLIST-SUMMARY model=%s grids=%zu allOnes=%zu allZero=%zu partial=%zu unreadable=%zu",
+      binding.modelPath.c_str(), multi, allOnes, allZero, partial, unreadable);
+    out.emplace_back(line);
+  }
+
+  // GRID-POSE-PARAMS: the slots the grid axes name, in slot order. The slot that
+  // carries move_x differs by class ((4,5) vs (5,4)), so a reader that hardcodes
+  // a slot index is wrong for half the roster; this line is the evidence.
+  {
+    std::string slots;
+    for (std::size_t i = 0; i < model.poseParameters.size() && i < 8; ++i) {
+      const AnimationPoseParam& param = model.poseParameters[i];
+      if (!slots.empty()) slots += ' ';
+      slots += std::to_string(i);
+      slots += ':';
+      slots += param.name.empty() ? std::string("-") : param.name;
+      char range[96];
+      std::snprintf(range, sizeof(range), "[%.1f..%.1f]",
+        static_cast<double>(param.start), static_cast<double>(param.end));
+      slots += range;
+    }
+    char line[1024];
+    std::snprintf(line, sizeof(line), "GRID-POSE-PARAMS model=%s slots=%zu%s%s",
+      binding.modelPath.c_str(), model.poseParameters.size(),
+      slots.empty() ? "" : " ", slots.c_str());
+    out.emplace_back(line);
+  }
 }
 
 } // namespace tf2::native

@@ -13437,6 +13437,11 @@ bool outlineVertexExtent = false;
                     choice.crouchMoving, choice.crouchMovingLabel.c_str(),
                     choice.flinch, choice.flinchLabel.c_str(), choice.flinchTicks);
                 }
+                // T105-n17 Step 1: the decoded blend grids, once per model. A
+                // reading of the FILE, not of a pose, so it cannot move a hash.
+                std::vector<std::string> gridCensus;
+                tf2::native::animationGridCensus(*binding, gridCensus);
+                for (const auto& gridLine : gridCensus) traceFmt("anim: %s", gridLine.c_str());
               }
               // T105-n17: the clock step runs AFTER the sequence pick, because
               // the idle rate is derived from the idle clip's own duration (one

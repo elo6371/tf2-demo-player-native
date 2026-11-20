@@ -18,6 +18,11 @@ constexpr int kMaxBones = 1024;
 constexpr int kMaxAnims = 8192;
 constexpr int kMaxSequences = 8192;
 constexpr int kMaxIncludes = 64;
+constexpr int kMaxPoseParams = 64;
+constexpr std::size_t kPoseParamStride = 20;
+// A cell count this large is not a grid, it is a corrupt record: the largest
+// real grid in TF2's player animation files is 12 cells (the aim matrix).
+constexpr std::int64_t kMaxGridCells = 4096;
 // A bone chain ends with a record whose bone field is 0xFF; see sampleAnimation.
 constexpr int kAnimationChainTerminator = 0xFF;
 constexpr int kLoopingFlag = 0x0001;
@@ -449,6 +454,34 @@ AnimationStatus decodeAnimationModel(const std::uint8_t* bytes, std::size_t size
     return fail("include model table is outside the file");
   }
 
+  // Pose parameter table (mstudioposeparamdesc_t, 20 bytes: name, flags, start,
+  // end, loop). A model that declares none, or one whose table does not fit,
+  // keeps an empty vector: the grid fields below are still decoded and reported,
+  // and no sample depends on this table yet, so a bad table must not refuse a
+  // model that decodes today.
+  std::int32_t poseParamCount = 0;
+  std::int32_t poseParamIndex = 0;
+  readAt(bytes, size, 300, poseParamCount);
+  readAt(bytes, size, 304, poseParamIndex);
+  if (poseParamCount > 0 && poseParamCount <= kMaxPoseParams
+      && rangeFits(static_cast<std::size_t>(poseParamIndex),
+        static_cast<std::size_t>(poseParamCount), kPoseParamStride, size)) {
+    out.poseParameters.reserve(static_cast<std::size_t>(poseParamCount));
+    for (std::int32_t i = 0; i < poseParamCount; ++i) {
+      const auto offset = static_cast<std::size_t>(poseParamIndex)
+        + static_cast<std::size_t>(i) * kPoseParamStride;
+      std::int32_t nameIndex = 0;
+      AnimationPoseParam param;
+      readAt(bytes, size, offset, nameIndex);
+      readAt(bytes, size, offset + 4, param.flags);
+      readAt(bytes, size, offset + 8, param.start);
+      readAt(bytes, size, offset + 12, param.end);
+      readAt(bytes, size, offset + 16, param.loop);
+      param.name = indexedString(bytes, size, offset, nameIndex);
+      out.poseParameters.push_back(std::move(param));
+    }
+  }
+
   out.bones.reserve(static_cast<std::size_t>(boneCount));
   for (std::int32_t i = 0; i < boneCount; ++i) {
     const auto offset = static_cast<std::size_t>(boneIndex) + static_cast<std::size_t>(i) * kBoneStride;
@@ -513,6 +546,87 @@ AnimationStatus decodeAnimationModel(const std::uint8_t* bytes, std::size_t size
       readAt(bytes, size, animAt, animDesc);
       if (animDesc < 0 || animDesc >= animCount) return fail("sequence animdesc index is outside the animation table");
       sequence.animDesc = animDesc;
+      // The grid behind that first cell. Every field is a read of the record; one
+      // that does not validate sets grid.valid = false and is counted by the
+      // census instead of refusing the model -- the single-cell sample above is
+      // the behaviour every model had before this card, and the picture must not
+      // move because a grid was malformed.
+      readAt(bytes, size, offset + 68, sequence.grid.groupSize[0]);
+      readAt(bytes, size, offset + 72, sequence.grid.groupSize[1]);
+      readAt(bytes, size, offset + 76, sequence.grid.paramIndex[0]);
+      readAt(bytes, size, offset + 80, sequence.grid.paramIndex[1]);
+      readAt(bytes, size, offset + 84, sequence.grid.paramStart[0]);
+      readAt(bytes, size, offset + 88, sequence.grid.paramStart[1]);
+      readAt(bytes, size, offset + 92, sequence.grid.paramEnd[0]);
+      readAt(bytes, size, offset + 96, sequence.grid.paramEnd[1]);
+      const std::int64_t gridColumns = sequence.grid.groupSize[0];
+      const std::int64_t gridRows = sequence.grid.groupSize[1];
+      const std::int64_t gridCells = gridColumns * gridRows;
+      bool gridOk = gridColumns > 0 && gridRows > 0 && gridCells <= kMaxGridCells
+        && gridCells == sequence.blendCount
+        && static_cast<std::size_t>(gridCells) <= (size - animAt) / 2;
+      if (gridOk) {
+        sequence.grid.cells.resize(static_cast<std::size_t>(gridCells));
+        for (std::int64_t cell = 0; cell < gridCells; ++cell) {
+          std::int16_t cellAnimIndex = -1;
+          readAt(bytes, size, animAt + static_cast<std::size_t>(cell) * 2, cellAnimIndex);
+          sequence.grid.cells[static_cast<std::size_t>(cell)] = cellAnimIndex;
+          if (cellAnimIndex < 0 || cellAnimIndex >= animCount) gridOk = false;
+        }
+      }
+      // Each axis that has more than one sample must name a slot the pose
+      // parameter table actually carries; an axis with a single sample does not
+      // need one, and every 1D grid (r_handposes, a_steer_*, ...) stores -1
+      // there. Requiring both axes would mark those seven grids unusable.
+      for (int axis = 0; gridOk && axis < 2; ++axis) {
+        if (sequence.grid.groupSize[axis] <= 1) continue;
+        const std::int32_t slot = sequence.grid.paramIndex[axis];
+        if (slot < 0 || static_cast<std::size_t>(slot) >= out.poseParameters.size()) gridOk = false;
+      }
+      sequence.grid.valid = gridOk;
+    }
+    // Weight list: one float per bone at a record-relative offset (+156). Most
+    // sequences in a player animation file share one all-ones table, so the
+    // summary travels with every sequence and the floats only with the grids
+    // (Step 3 is the first consumer that needs the values).
+    std::int32_t weightPointer = 0;
+    readAt(bytes, size, offset + 156, weightPointer);
+    std::size_t weightAt = 0;
+    const std::size_t boneTotal = out.bones.size();
+    if (weightPointer > 0 && boneTotal > 0
+        && addOffset(offset, static_cast<std::size_t>(weightPointer), size, weightAt)
+        && boneTotal <= (size - weightAt) / sizeof(float)) {
+      bool weightOk = true;
+      float weightSum = 0.0f;
+      float weightMin = (std::numeric_limits<float>::max)();
+      float weightMax = (std::numeric_limits<float>::lowest)();
+      std::size_t weightZeros = 0;
+      for (std::size_t bone = 0; bone < boneTotal && weightOk; ++bone) {
+        float weight = 0.0f;
+        if (!readAt(bytes, size, weightAt + bone * sizeof(float), weight) || !std::isfinite(weight)) {
+          weightOk = false;
+          break;
+        }
+        weightSum += weight;
+        if (weight < weightMin) weightMin = weight;
+        if (weight > weightMax) weightMax = weight;
+        if (weight == 0.0f) ++weightZeros;
+      }
+      if (weightOk) {
+        sequence.weights.readable = true;
+        sequence.weights.offset = weightPointer;
+        sequence.weights.boneCount = boneTotal;
+        sequence.weights.zeroCount = weightZeros;
+        sequence.weights.minWeight = weightMin;
+        sequence.weights.maxWeight = weightMax;
+        sequence.weights.sum = weightSum;
+        if (sequence.blendCount > 1) {
+          sequence.weights.weights.resize(boneTotal);
+          for (std::size_t bone = 0; bone < boneTotal; ++bone) {
+            readAt(bytes, size, weightAt + bone * sizeof(float), sequence.weights.weights[bone]);
+          }
+        }
+      }
     }
     out.sequences.push_back(std::move(sequence));
   }

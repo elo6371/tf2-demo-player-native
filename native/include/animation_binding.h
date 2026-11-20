@@ -80,6 +80,14 @@ struct AnimationBinding {
   std::size_t validBindBones = 0;
 };
 
+// T105-n17 Step 1: the decoded blend grids as assertion lines. Every line is
+// complete and already named ("GRID-SUMMARY model=...", "WEIGHTLIST ...") so a
+// gate can match its first token; the caller supplies the trace prefix. This is a
+// reading of the FILE, never of a pose, so it cannot move what the product draws.
+// A binding with no grid sequences still yields the GRID-SUMMARY line (with
+// nbMismatch=0) rather than printing nothing.
+void animationGridCensus(const AnimationBinding& binding, std::vector<std::string>& out);
+
 // Per-modelPath cache. The point of it is that the render loop must not re-read
 // a VPK per frame: a demo with 24 distinct weapon models would otherwise decode
 // every one of them 60 times a second.
