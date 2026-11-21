@@ -1,0 +1,35 @@
+# bash class-pixels-check.sh -- full stdout of one run, nothing elided.
+#
+# Command, from the worktree root:
+#     bash class-pixels-check.sh
+#
+# Run on the tree this evidence belongs to: commit cfd01bd1 (which is e0e80fa2 plus
+# the documentation and comment edits); the product binary is the one built from that
+# commit, sha256 a052de0875f38a38c5119ded0d17f29619997857fd481960791d46ccb29fd9b1.
+#
+# T62_CLASS_OUT=.scratch/t62-class-pixels, so the gate's own working directory is a
+# copy of the seeds in evidence/t62-matrix/class-pixels/ and this run left the tracked
+# tree untouched. The gate launches the product and takes the host-wide lock for it.
+# It asserts nothing about --lighting: the subject is a demo body in the animation
+# capture chain, which this change does not touch.
+# ------- output follows -------
+=== T62 class pixel chain: one class at a time, framed from its own origin ===
+  demo=D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem
+  ticks=per-target (see targets.txt) speed=8 camera-offset=(-250,0,58)  pitch=4.1 yaw=0.0
+
+--- demo: ent=5 tick=64161 origin=5613.8,-1102.1,-52.1  eye=5363.8,-1102.1,5.9 model=models/player/demo.mdl
+  captures animated=0/textured/64161/74481 off=0/textured/64161/74481  identity=0/entity-id/64161/74481  identity-2=0/entity-id/64161/74481
+  phase identity=maxDeltaCycle=0.838676(1x) identity-2=maxDeltaCycle=0.838676(1x)  animated=maxDeltaCycle=0.838676(1x) off=n/a(no animation drive, see the capture block)
+  sha256 identity=67420d4db610b7c49266640ca6ec5d6d29e2cedb859ac6813638d5abf0eadd9f
+  sha256 identity-2=67420d4db610b7c49266640ca6ec5d6d29e2cedb859ac6813638d5abf0eadd9f
+  sha256 animated=e3980c84f51a767e8b8a3385e8397473108320f403e17080196ac8806397ebfd
+  sha256 off=93a610b520f7166d1d02277f19db573975358731efd424653d5237e2a9ac071e
+  sha256 product=a052de0875f38a38c5119ded0d17f29619997857fd481960791d46ccb29fd9b1
+  OK   the identity capture twice is byte-identical (67420d4db610b7c49266640ca6ec5d6d29e2cedb859ac6813638d5abf0eadd9f) in phase maxDeltaCycle=0.838676
+  entity-id rc=0
+  OK   the judged subject IS a demo body: SUBJECT id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=5337
+  BODY BODY id=95 ent=5 model=models/player/demo.mdl state=moving seq=147 label=run_PRIMARY pixels=5337 differ=4040 share=75.70%
+  OK   demo body has 5337 pixels on screen (>= 200) and moved 75.70%
+
+===========================================================================
+CLASS-PIXELS=PASS

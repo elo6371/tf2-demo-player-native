@@ -1,0 +1,51 @@
+# bash argument-refusal-check.sh -- full stdout of one run, nothing elided.
+#
+# Command, from the worktree root:
+#     bash argument-refusal-check.sh
+#
+# Run on the tree this evidence belongs to: commit cfd01bd1 (which is e0e80fa2 plus
+# the documentation and comment edits); the product binary is the one built from that
+# commit, sha256 a052de0875f38a38c5119ded0d17f29619997857fd481960791d46ccb29fd9b1.
+#
+# The gate launches four captures and therefore takes the host-wide lock at
+# /d/_shared/tf2-hostlock/.lock for each one; the VERIFY-LOCK=ACQUIRED / =RELEASED
+# pairs below are that lock, and each case waited behind other owners before running.
+# Its capture output went to .scratch/gate-transcripts/argument-refusal/ rather than
+# the default .scratch/argument-refusal, so nothing outside .scratch was written.
+# ------- output follows -------
+== refused: a value attached to a switch that takes none
+RUN value-attached: --world-flat=1
+VERIFY-LOCK=ACQUIRED owner=t105-argrefusal pid=73428 dir=/d/_shared/tf2-hostlock/.lock stale_after=3600s
+VERIFY-LOCK=RELEASED dir=/d/_shared/tf2-hostlock/.lock
+  exit=13
+  OK   value-attached exit = 13 (non-zero)
+  OK   value-attached drew no frame
+  reading: 15.6 args: refused switch count=1 first=--world-flat=1
+  OK   value-attached refused count = 1
+  OK   value-attached refused first = --world-flat=1
+== refused: a switch the product does not have
+RUN unknown-switch: --not-a-real-switch
+VERIFY-LOCK=ACQUIRED owner=t105-argrefusal pid=67928 dir=/d/_shared/tf2-hostlock/.lock stale_after=3600s
+VERIFY-LOCK=RELEASED dir=/d/_shared/tf2-hostlock/.lock
+  exit=13
+  OK   unknown-switch exit = 13 (non-zero)
+  OK   unknown-switch drew no frame
+  reading: 13.7 args: refused switch count=1 first=--not-a-real-switch
+  OK   unknown-switch refused first = --not-a-real-switch
+== accepted: the bare switch still selects the mode
+RUN bare-switch: --world-flat
+VERIFY-LOCK=ACQUIRED owner=t105-argrefusal pid=73024 dir=/d/_shared/tf2-hostlock/.lock stale_after=3600s
+VERIFY-LOCK=RELEASED dir=/d/_shared/tf2-hostlock/.lock
+  exit=0
+  OK   bare-switch exit = 0
+  OK   bare-switch wrote a frame
+  reading: 53980.2 gpu: world lighting-control control=$bumpmap2 kind=material-key state=refused declared=1 visible=1 resolved=1 missing=0 materials=1 triangles=8640 requested=0 effective=0 parsed=1 first=COALMINES/BLENDGROUNDTOGRASS_COALMINES resource=materials/Nature/dirtground003_height-ssbump.vtf reason=$bumpmap2 is layer 2's normal map: it is lerped into layer 1's normal by the vertex blend weight, so it is sampled only when --world-material-bump and --world-bump2 are both on; with either off it is refused, not silently replaced by layer 1's; 1/1 of those materials also declare $ssbump, so their second-layer texel is a bumpBasis weight and stays refused even with both switches on (--world-bump2-texture measures the layer with a diagnostic normal map instead)
+== tolerated: a non-switch argument keeps D-23's record-and-continue
+RUN positional: randomword
+VERIFY-LOCK=ACQUIRED owner=t105-argrefusal pid=65408 dir=/d/_shared/tf2-hostlock/.lock stale_after=3600s
+VERIFY-LOCK=RELEASED dir=/d/_shared/tf2-hostlock/.lock
+  exit=0
+  OK   positional exit = 0
+  OK   positional wrote a frame
+
+VERDICT argument-refusal: PASS (unknown '--' switches refuse by name with a non-zero exit; known and positional arguments unchanged)
