@@ -1,0 +1,39 @@
+== HDR-only copy: base commit 390a7c76 vs this branch, same bytes
+-- base 390a7c76 world_material_probe
+{"bsp":"hdr-only-cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"unavailable","lightmapContract":"luxel-index","lightmapToneMap":"none","lightmapSamples":0,"lightmapFaces":0,"lightmapPackedFaces":0,"lightmapLuxelFits":0,"lightmapTriangles":0,"atlas":"0x0","sky":"sky_well_01","skyFaces":690,"staticPropsAvailable":true,"staticPropModels":243,"staticPropInstances":1625,"staticPropsReason":"decoded static-prop v10 records","displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"lightmap.atlas","value":"0x0"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"0"}
+{"reading":"lightmap.facesWithLightmap","value":"0"}
+{"reading":"lightmap.state","value":"unavailable"}
+{"reading":"lightmap.trianglesWithLightUv","value":"0"}
+{"reading":"lightmap.uvAllInRange","value":"false"}
+-- this branch world_material_probe
+{"bsp":"hdr-only-cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":14988,"lightmapPackedFaces":14988,"lightmapLuxelFits":14974,"lightmapTriangles":199922,"atlas":"4096x1331","sky":"sky_well_01","skyFaces":690,"staticPropsAvailable":true,"staticPropModels":243,"staticPropInstances":1625,"staticPropsReason":"decoded static-prop v10 records","displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"lightmap.atlas","value":"4096x1331"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"14988"}
+{"reading":"lightmap.facesWithLightmap","value":"14988"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"199922"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+
+-- the untouched map, both builds (the readings the copy has to match)
+base:
+{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":14988,"lightmapPackedFaces":14988,"lightmapLuxelFits":14974,"lightmapTriangles":199922,"atlas":"4096x1331","sky":"sky_well_01","skyFaces":690,"staticPropsAvailable":true,"staticPropModels":243,"staticPropInstances":1625,"staticPropsReason":"decoded static-prop v10 records","displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"lightmap.atlas","value":"4096x1331"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"14988"}
+{"reading":"lightmap.facesWithLightmap","value":"14988"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"199922"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+this:
+{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":14988,"lightmapPackedFaces":14988,"lightmapLuxelFits":14974,"lightmapTriangles":199922,"atlas":"4096x1331","sky":"sky_well_01","skyFaces":690,"staticPropsAvailable":true,"staticPropModels":243,"staticPropInstances":1625,"staticPropsReason":"decoded static-prop v10 records","displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"lightmap.atlas","value":"4096x1331"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"14988"}
+{"reading":"lightmap.facesWithLightmap","value":"14988"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"199922"}
+{"reading":"lightmap.uvAllInRange","value":"true"}

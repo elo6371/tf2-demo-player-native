@@ -1,0 +1,3 @@
+lump8 (11662840, 11174748) lump53 (22837588, 11174748)
+patched lump8 (0, 0) lump53 (22837588, 11174748)
+wrote D:\TF2_Native_Worktrees\t105-atlas38\.scratch\hdr-only-cp_snakewater_final1.bsp

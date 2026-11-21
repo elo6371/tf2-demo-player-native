@@ -2232,9 +2232,16 @@ bool lightmapTailSelfTest() {
   // T105: the captured listing is printed, not only asserted on. A self-test that
   // says "the log did not name the face" without showing the log makes the reader
   // rebuild the probe to find out what it did say.
+  // T105: two different counters, named apart on purpose.
+  // `lightmapAtlasDroppedFaces` is the shelf-overflow difference: faces that were
+  // counted into lightmapFaceCount and then did not fit a row. A face whose own
+  // record does not survive the lighting-page bounds check is refused before that
+  // counter is ever incremented, so it appears only in the listing's "N refused
+  // face(s)" and in lightmapAtlasReason. Printing the shelf counter as "dropped"
+  // next to a listing that says "1 refused" reads as a self-contradicting test.
   std::cout << "drops-saturated faces=" << dropsMap.lightmapFaceCount
     << " packed=" << dropsMap.lightmapPackedFaces
-    << " dropped=" << dropsMap.lightmapAtlasDroppedFaces
+    << " shelfDropped=" << dropsMap.lightmapAtlasDroppedFaces
     << " atlas=" << dropsMap.lightmapAtlasWidth << "x" << dropsMap.lightmapAtlasHeight
     << " listing=" << (saturatedDrops.second.empty() ? std::string("<empty>") : saturatedDrops.second)
     << '\n';
@@ -2251,8 +2258,10 @@ bool lightmapTailSelfTest() {
   addQuadLuxels(badOffset.lighting);
   BspMap badOffsetMap;
   const auto offsetDrops = captureDrops(badOffset, 4096, badOffsetMap);
-  std::cout << "drops-badoffset packed=" << badOffsetMap.lightmapPackedFaces
-    << " dropped=" << badOffsetMap.lightmapAtlasDroppedFaces
+  std::cout << "drops-badoffset faces=" << badOffsetMap.lightmapFaceCount
+    << " packed=" << badOffsetMap.lightmapPackedFaces
+    << " shelfDropped=" << badOffsetMap.lightmapAtlasDroppedFaces
+    << " atlasReason=" << badOffsetMap.lightmapAtlasReason
     << " listing=" << (offsetDrops.second.empty() ? std::string("<empty>") : offsetDrops.second)
     << '\n';
   const bool dropsIdentifyDataClass = offsetDrops.first

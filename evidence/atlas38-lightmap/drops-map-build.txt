@@ -1,0 +1,3 @@
+lump8 offset 11662840 length 11174748
+patched lump8 length -> 3724916 (divisor 3)
+wrote D:\TF2_Native_Worktrees\t105-atlas38\.scratch\short-light-cp_snakewater_final1.bsp
