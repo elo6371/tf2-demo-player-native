@@ -1,6 +1,12 @@
 #include "demo_header.h"
 #include "demo_tick_audit.h"
+// task-39: rankPropertyCandidates is the entity model's own suffix matcher and
+// ordering, exported so a diagnostic prints what the selection rule would pick
+// instead of a second implementation that can drift from it.
+#include "entity_model.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -10,6 +16,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <set>
 #include <string>
 #include <system_error>
@@ -492,11 +499,140 @@ int runParserBoundsSelfTest() {
       && acceptedPlaybackControl && acceptedPlaybackEdge && rejectedPlaybackAtCap ? 0 : 1;
 }
 
+// task-39 gate: the reading rules a wearable row needs, expressed the way the
+// entity model already expresses them. rankPropertyCandidates is the selection
+// rule's own suffix matcher and ordering, so the slot a row prints is the slot
+// the rule would pick -- a second matcher here could drift from it and the drift
+// would be invisible exactly when the rule is the thing under test. Properties are
+// stored table-qualified ("DT_BaseEntity.m_nModelIndex"), so nothing may be looked
+// up by exact key.
+const tf2::native::EntityPropertyValue* rankedValue(const tf2::native::EntityState& state,
+                                                    const char* suffix, std::string* name) {
+  const std::vector<tf2::native::PropertyCandidate> ranked =
+      tf2::native::rankPropertyCandidates(state, suffix);
+  if (ranked.empty()) return nullptr;
+  const auto found = state.properties.find(ranked.front().name);
+  if (found == state.properties.end()) return nullptr;
+  if (name != nullptr) *name = found->first;
+  return &found->second;
+}
+
+// The Float/Int coercion readIntSlot applies: a prop can arrive as either type and
+// only the type decides which field holds the reading.
+bool rankedInt(const tf2::native::EntityState& state, const char* suffix, std::int64_t& out) {
+  const tf2::native::EntityPropertyValue* value = rankedValue(state, suffix, nullptr);
+  if (value == nullptr) return false;
+  out = value->type == tf2::native::SendPropType::Float
+      ? static_cast<std::int64_t>(value->x) : value->intValue;
+  return true;
+}
+
+// Vector / VectorXY only. VectorXY drops z on the wire, so z is read from the
+// "<base>[2]" sibling the way readVectorProperty does, and the caller is told when
+// that sibling is absent rather than handed a zero dressed up as a reading.
+bool rankedVector(const tf2::native::EntityState& state, const char* suffix, float out[3],
+                  bool* complete) {
+  if (complete != nullptr) *complete = true;
+  const std::vector<tf2::native::PropertyCandidate> ranked =
+      tf2::native::rankPropertyCandidates(state, suffix);
+  for (const tf2::native::PropertyCandidate& candidate : ranked) {
+    const auto found = state.properties.find(candidate.name);
+    if (found == state.properties.end()) continue;
+    const tf2::native::EntityPropertyValue& value = found->second;
+    if (value.type != tf2::native::SendPropType::Vector
+        && value.type != tf2::native::SendPropType::VectorXY) continue;
+    const bool carriesZ = value.type == tf2::native::SendPropType::Vector;
+    out[0] = value.x;
+    out[1] = value.y;
+    out[2] = carriesZ ? value.z : 0.0f;
+    if (!carriesZ) {
+      const std::string scalar = std::string(suffix) + "[2]";
+      std::int64_t fallback = 0;
+      if (!rankedInt(state, scalar.c_str(), fallback)) {
+        if (complete != nullptr) *complete = false;
+      } else {
+        out[2] = static_cast<float>(fallback);
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+// classId -> class name. serverClassSchemas carries an explicit id; the positional
+// serverClassNames array only lines up when the wire order happens to match, so it
+// is not a safe index.
+const std::string* serverClassName(const tf2::native::DemoNetworkSummary& summary,
+                                   std::int32_t classId) {
+  if (classId < 0) return nullptr;
+  const std::uint32_t wanted = static_cast<std::uint32_t>(classId);
+  for (const tf2::native::ServerClassSchema& schema : summary.serverClassSchemas) {
+    if (static_cast<std::uint32_t>(schema.id) == wanted && !schema.name.empty()) return &schema.name;
+  }
+  return nullptr;
+}
+
+// modelprecache lookup, the same bounds test demo_header_strtab.cpp uses: entry 0
+// is the empty slot and the table is indexed by a 16-bit precache index.
+const std::string* precachePath(const tf2::native::DemoNetworkSummary& summary,
+                                std::int64_t index) {
+  if (index < 1 || index > 0xffff) return nullptr;
+  const auto found = summary.modelPrecache.find(static_cast<std::uint16_t>(index));
+  if (found == summary.modelPrecache.end() || found->second.empty()) return nullptr;
+  return &found->second;
+}
+
+// Source CBaseHandle: 11-bit entity index, 10-bit serial. Empty handles are the
+// ones entity_model.cpp:872-928 already refuses as parents, plus 0 (worldspawn is
+// not an owner).
+constexpr std::uint32_t kWearableHandleIndexMask = 0x7FFu;
+constexpr std::uint32_t kWearableInvalidHandle = 0xFFFFFFFFu;
+constexpr std::uint32_t kWearableInvalidHandleFull = 0x1FFFFFu;
+bool wearableHandleIndex(std::int64_t raw, std::uint32_t& index) {
+  const std::uint32_t value = static_cast<std::uint32_t>(raw);
+  if (value == 0 || value == kWearableInvalidHandle || value == kWearableInvalidHandleFull) {
+    return false;
+  }
+  index = value & kWearableHandleIndexMask;
+  return true;
+}
+
+// Case-insensitive substring test: the class-name allow list task-40 derives from
+// this dump must not depend on how this engine happens to spell the case.
+bool containsNoCase(const std::string& haystack, const char* needle) {
+  const std::size_t length = std::strlen(needle);
+  if (length == 0 || haystack.size() < length) return false;
+  for (std::size_t start = 0; start + length <= haystack.size(); ++start) {
+    std::size_t offset = 0;
+    while (offset < length
+           && std::tolower(static_cast<unsigned char>(haystack[start + offset]))
+               == std::tolower(static_cast<unsigned char>(needle[offset]))) {
+      ++offset;
+    }
+    if (offset == length) return true;
+  }
+  return false;
+}
+
+// task-39: the --snapshot spelling of a query status. --snapshot keeps its own
+// inline copy so that switch's bytes cannot move; this copy is for --wearable-scan.
+const wchar_t* snapshotStatusText(tf2::native::EntitySnapshotQueryStatus value) {
+  switch (value) {
+    case tf2::native::EntitySnapshotQueryStatus::Available: return L"available";
+    case tf2::native::EntitySnapshotQueryStatus::Checkpoint: return L"checkpoint";
+    case tf2::native::EntitySnapshotQueryStatus::NoHistory: return L"no-history";
+    case tf2::native::EntitySnapshotQueryStatus::TickBeforeHistory: return L"before-history";
+    case tf2::native::EntitySnapshotQueryStatus::Gap: return L"gap";
+    case tf2::native::EntitySnapshotQueryStatus::DeltaBaseMissing: return L"delta-base-missing";
+  }
+  return L"unknown";
+}
+
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
                   L"       demo_open_probe --userinfo-fixture <file>\n";
     return 2;
   }
@@ -659,6 +795,25 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
 
+  // task-39 gate: --wearable-scan <tick> answers one question with evidence -- can
+  // a cosmetic (hat/badge/backpack) be rebuilt from the recording at all? The tick
+  // is a SERVER tick, resolved through the same snapshot query the product's
+  // entity table comes from, so a field that is missing here is missing in the
+  // product too. Like --snapshot and --props it is gated on --scan, so the
+  // baseline outputs of the other switches cannot move.
+  std::int32_t wearableTick = -1;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--wearable-scan") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0
+        || parsed > std::numeric_limits<std::int32_t>::max()) {
+      std::wcerr << L"invalid wearable tick\n";
+      return 2;
+    }
+    wearableTick = static_cast<std::int32_t>(parsed);
+    firstPath += 2;
+  }
+
   std::vector<std::int32_t> serverTickAts;
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--server-tick-at") {
     const std::wstring list(argv[firstPath + 1]);
@@ -755,7 +910,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -775,6 +930,8 @@ int wmain(int argc, wchar_t** argv) {
     std::string tempDumpText;
     // task-35 evidence: tick-audit rows, empty unless --tick-audit was given.
     std::string tickAuditText;
+    // task-39 evidence: wearable rows, empty unless --wearable-scan was given.
+    std::string wearableDumpText;
     std::size_t eventRows = 0;
     std::size_t eventDupes = 0;
     std::size_t tempRows = 0;
@@ -1324,6 +1481,226 @@ int wmain(int argc, wchar_t** argv) {
             + "\tclass\t-1\tcount\t0\tout_of_range\t1\n";
         }
       }
+      if (wearableTick >= 0) {
+        // task-39 gate. The three questions the gate asks are all about the SAME
+        // tick, so they are answered from a single snapshot: reading once per
+        // question would let the answers disagree with each other, and a gate
+        // that contradicts itself proves nothing.
+        std::vector<tf2::native::EntityState> wearableStates;
+        std::int32_t wearableResolvedTick = wearableTick;
+        const auto wearableStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
+          summary, wearableTick, wearableStates, &wearableResolvedTick);
+        const bool wearableResolved =
+            wearableStatus == tf2::native::EntitySnapshotQueryStatus::Available
+            || wearableStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
+        const long long wearableStale = wearableResolved
+            ? static_cast<long long>(wearableTick) - wearableResolvedTick : -1LL;
+
+        // Histogram over every classId the tick actually carries. Class name comes
+        // from serverClassSchemas matched on .id; classId is a data-dependent-width
+        // index and serverClassNames only lines up positionally by luck.
+        std::map<std::string, std::size_t> histogram;
+        std::size_t liveEntities = 0;
+        for (const tf2::native::EntityState& state : wearableStates) {
+          if (state.classId < 0) continue;
+          ++liveEntities;
+          const std::string* name = serverClassName(summary, state.classId);
+          histogram[name != nullptr ? *name : std::string("<unknown>")] += 1;
+        }
+
+        std::size_t wearableEntities = 0;
+        std::size_t wearableModelIndex = 0;
+        std::size_t wearableModelPath = 0;
+        std::size_t wearableItemDef = 0;
+        std::size_t wearableOwner = 0;
+        std::size_t wearableOwnerLive = 0;
+        std::size_t wearableOwnerPlayer = 0;
+        std::size_t wearableParent = 0;
+        std::size_t wearableAttachment = 0;
+        std::size_t wearableOrigin = 0;
+        std::size_t wearableAngles = 0;
+        // A readable field prints its value; an absent one prints '-'. The same
+        // rule the temps dump uses, and for the same reason: a wearable with no
+        // owner handle and a wearable whose owner handle is 0 must not look alike
+        // to the gate.
+        const auto fieldOf = [](std::int64_t value, bool readable) {
+          return readable ? std::to_string(value) : std::string("-");
+        };
+        for (std::size_t entityIndex = 0; entityIndex < wearableStates.size(); ++entityIndex) {
+          const tf2::native::EntityState& state = wearableStates[entityIndex];
+          if (state.classId < 0) continue;
+          const std::string* className = serverClassName(summary, state.classId);
+          if (className == nullptr || !containsNoCase(*className, "Wearable")) continue;
+          ++wearableEntities;
+          // The slot's reuse counter, read the way demo_header_camera.cpp and
+          // demo_header_track.cpp read it. It is the only identity available: the
+          // wire carries a 10-bit serial on Enter but EntityState does not keep it.
+          const std::uint32_t generation =
+              entityIndex < summary.projectileTrackSlotGeneration.size()
+              ? summary.projectileTrackSlotGeneration[entityIndex] : 0u;
+
+          std::int64_t modelIndex = 0;
+          const bool hasModelIndex = rankedInt(state, "m_nModelIndex", modelIndex);
+          const std::string* modelPath = hasModelIndex ? precachePath(summary, modelIndex) : nullptr;
+          if (hasModelIndex) ++wearableModelIndex;
+          if (modelPath != nullptr) ++wearableModelPath;
+          std::int64_t worldIndex = 0;
+          const bool hasWorldIndex = rankedInt(state, "m_iWorldModelIndex", worldIndex);
+          const std::string* worldPath = hasWorldIndex ? precachePath(summary, worldIndex) : nullptr;
+          std::int64_t itemDef = 0;
+          const bool hasItemDef = rankedInt(state, "m_iItemDefinitionIndex", itemDef);
+          if (hasItemDef) ++wearableItemDef;
+
+          std::int64_t ownerRaw = 0;
+          const bool hasOwner = rankedInt(state, "m_hOwnerEntity", ownerRaw);
+          std::uint32_t ownerIndex = 0;
+          const bool ownerIndexed = hasOwner && wearableHandleIndex(ownerRaw, ownerIndex);
+          const tf2::native::EntityState* ownerState = nullptr;
+          if (ownerIndexed && ownerIndex < wearableStates.size()
+              && wearableStates[ownerIndex].classId >= 0) {
+            ownerState = &wearableStates[ownerIndex];
+          }
+          const std::string* ownerClass =
+              ownerState != nullptr ? serverClassName(summary, ownerState->classId) : nullptr;
+          const bool ownerIsPlayer = ownerClass != nullptr && containsNoCase(*ownerClass, "TFPlayer");
+          if (hasOwner) ++wearableOwner;
+          if (ownerState != nullptr) ++wearableOwnerLive;
+          if (ownerIsPlayer) ++wearableOwnerPlayer;
+
+          // The wire sends this slot as "moveparent", not "m_hMoveParent": the
+          // entity_model parent walk reads BOTH names for exactly that reason
+          // (native/src/entity_model.cpp:885). Reading only the m_h spelling would
+          // have reported every wearable as parentless while the handle was sitting
+          // in the state, which is the kind of false negative a gate cannot afford.
+          std::int64_t moveParent = 0;
+          bool hasMoveParent = rankedInt(state, "m_hMoveParent", moveParent);
+          if (!hasMoveParent) hasMoveParent = rankedInt(state, "moveparent", moveParent);
+          std::uint32_t parentIndex = 0;
+          const bool parentIndexed = hasMoveParent && wearableHandleIndex(moveParent, parentIndex);
+          if (parentIndexed) ++wearableParent;
+          std::int64_t parentAttachment = 0;
+          const bool hasAttachment = rankedInt(state, "m_iParentAttachment", parentAttachment);
+          if (hasAttachment) ++wearableAttachment;
+
+          // Vector only. A VectorXY reading has already lost z on the wire and
+          // rankedVector reports that as incomplete rather than fabricating a zero,
+          // so an origin the engine did not send is printed '-' like any other
+          // absent field instead of as 0,0,0 -- which is a real place on the map.
+          float origin[3] = {0.0f, 0.0f, 0.0f};
+          bool originComplete = false;
+          const bool hasOrigin = rankedVector(state, "m_vecOrigin", origin, &originComplete);
+          if (hasOrigin && originComplete) ++wearableOrigin;
+          float angles[3] = {0.0f, 0.0f, 0.0f};
+          bool anglesComplete = false;
+          const bool hasAngles = rankedVector(state, "m_angRotation", angles, &anglesComplete);
+          if (hasAngles && anglesComplete) ++wearableAngles;
+          char originText[64] = "-";
+          if (hasOrigin && originComplete) {
+            std::snprintf(originText, sizeof(originText), "%.4f,%.4f,%.4f",
+              static_cast<double>(origin[0]), static_cast<double>(origin[1]),
+              static_cast<double>(origin[2]));
+          }
+          char anglesText[64] = "-";
+          if (hasAngles && anglesComplete) {
+            std::snprintf(anglesText, sizeof(anglesText), "%.4f,%.4f,%.4f",
+              static_cast<double>(angles[0]), static_cast<double>(angles[1]),
+              static_cast<double>(angles[2]));
+          }
+
+          // Column order, so the doc and task-40 read the same thing this writes:
+          // wearable tick entity generation class modelIndex modelPath worldModelIndex
+          // worldModelPath itemDef origin angles ownerHandle ownerIndex ownerClass
+          // ownerLive moveParent moveParentIndex parentAttachment
+          std::string row;
+          const auto addField = [&row](const std::string& value) {
+            row += value;
+            row += '\t';
+          };
+          addField("wearable");
+          addField(std::to_string(wearableTick));
+          addField(std::to_string(entityIndex));
+          addField(std::to_string(generation));
+          addField(*className);
+          addField(fieldOf(modelIndex, hasModelIndex));
+          addField(modelPath != nullptr ? *modelPath : std::string("-"));
+          addField(fieldOf(worldIndex, hasWorldIndex));
+          addField(worldPath != nullptr ? *worldPath : std::string("-"));
+          addField(fieldOf(itemDef, hasItemDef));
+          addField(originText);
+          addField(anglesText);
+          addField(fieldOf(ownerRaw, hasOwner));
+          addField(ownerIndexed ? std::to_string(ownerIndex) : std::string("-"));
+          addField(ownerClass != nullptr ? *ownerClass : std::string("-"));
+          addField(ownerState != nullptr ? "1" : "0");
+          addField(fieldOf(moveParent, hasMoveParent));
+          addField(parentIndexed ? std::to_string(parentIndex) : std::string("-"));
+          addField(fieldOf(parentAttachment, hasAttachment));
+          if (!row.empty()) row.pop_back();
+          wearableDumpText += row;
+          wearableDumpText += '\n';
+        }
+
+        for (const auto& entry : histogram) {
+          wearableDumpText += "wearable_class\t";
+          wearableDumpText += std::to_string(wearableTick);
+          wearableDumpText += '\t';
+          wearableDumpText += entry.first;
+          wearableDumpText += '\t';
+          wearableDumpText += std::to_string(entry.second);
+          wearableDumpText += '\n';
+        }
+
+        // An unresolvable tick is not evidence about the recording. Saying FAIL
+        // here would read as "the demos carry no wearables" when it means "this
+        // tick could not be answered", so the gate rows say NO-DATA and the doc has
+        // to re-ask at a tick the history can serve.
+        const bool wearablesPresent = wearableEntities > 0;
+        const bool modelPathsRecoverable = wearableModelPath > 0;
+        const bool ownersResolveToPlayers = wearableOwnerPlayer > 0;
+        const auto gateText = [](bool pass) { return pass ? "PASS" : "FAIL"; };
+        if (!wearableResolved) {
+          wearableDumpText += "wearable_gate\tdata\tNO-DATA\t0\n";
+        } else {
+          wearableDumpText += "wearable_gate\tentities_present\t";
+          wearableDumpText += gateText(wearablesPresent);
+          wearableDumpText += '\t';
+          wearableDumpText += std::to_string(wearableEntities);
+          wearableDumpText += '\n';
+          wearableDumpText += "wearable_gate\tmodel_path\t";
+          wearableDumpText += gateText(modelPathsRecoverable);
+          wearableDumpText += '\t';
+          wearableDumpText += std::to_string(wearableModelPath);
+          wearableDumpText += '/';
+          wearableDumpText += std::to_string(wearableEntities);
+          wearableDumpText += '\n';
+          wearableDumpText += "wearable_gate\towner_player\t";
+          wearableDumpText += gateText(ownersResolveToPlayers);
+          wearableDumpText += '\t';
+          wearableDumpText += std::to_string(wearableOwnerPlayer);
+          wearableDumpText += '/';
+          wearableDumpText += std::to_string(wearableEntities);
+          wearableDumpText += '\n';
+        }
+
+        std::wcout << L" wearable_tick=" << wearableTick
+                   << L" wearable_status=" << snapshotStatusText(wearableStatus)
+                   << L" wearable_resolved_tick=" << wearableResolvedTick
+                   << L" wearable_stale=" << wearableStale
+                   << L" wearable_states=" << wearableStates.size()
+                   << L" wearable_live=" << liveEntities
+                   << L" wearable_classes=" << histogram.size()
+                   << L" wearable_entities=" << wearableEntities
+                   << L" wearable_model_index=" << wearableModelIndex
+                   << L" wearable_model_path=" << wearableModelPath
+                   << L" wearable_itemdef=" << wearableItemDef
+                   << L" wearable_owner=" << wearableOwner
+                   << L" wearable_owner_live=" << wearableOwnerLive
+                   << L" wearable_owner_player=" << wearableOwnerPlayer
+                   << L" wearable_parent=" << wearableParent
+                   << L" wearable_attachment=" << wearableAttachment
+                   << L" wearable_origin=" << wearableOrigin
+                   << L" wearable_angles=" << wearableAngles;
+      }
     }
     std::wcout << L'\n';
     // task-35: audit rows are pure ASCII and go through the narrow stream for
@@ -1334,12 +1711,13 @@ int wmain(int argc, wchar_t** argv) {
       std::cout.flush();
     }
     if (!eventDump.empty() || !userInfoDumpText.empty() || !propsDumpText.empty()
-        || !tempDumpText.empty()) {
+        || !tempDumpText.empty() || !wearableDumpText.empty()) {
       std::wcout.flush();
       std::cout.write(eventDump.data(), static_cast<std::streamsize>(eventDump.size()));
       std::cout.write(userInfoDumpText.data(), static_cast<std::streamsize>(userInfoDumpText.size()));
       std::cout.write(propsDumpText.data(), static_cast<std::streamsize>(propsDumpText.size()));
       std::cout.write(tempDumpText.data(), static_cast<std::streamsize>(tempDumpText.size()));
+      std::cout.write(wearableDumpText.data(), static_cast<std::streamsize>(wearableDumpText.size()));
       std::cout.flush();
     }
   }
