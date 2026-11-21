@@ -313,6 +313,19 @@ bool extractFields(const std::unordered_map<std::string, VmtValue>& root, VmtMat
   material.selfIllum = enabled(scalar(root, "$selfillum"));
   material.translucent = enabled(scalar(root, "$translucent"));
   material.alphaTest = enabled(scalar(root, "$alphatest"));
+  // task-34: the cutout's own threshold. The map VMTs write it as "0.2", ".25"
+  // or "0.37"; a value this reader cannot read as a number in [0,1] leaves
+  // Source's 0.5 in place rather than cutting on a guessed threshold.
+  {
+    const std::string reference = scalar(root, "$alphatestreference");
+    if (!reference.empty()) {
+      char* end = nullptr;
+      const double value = std::strtod(reference.c_str(), &end);
+      if (end != reference.c_str() && *end == '\0' && std::isfinite(value)) {
+        material.alphaTestReference = static_cast<float>(std::min(1.0, std::max(0.0, value)));
+      }
+    }
+  }
   material.noCull = enabled(scalar(root, "$nocull")) || scalar(root, "$cull") == "0";
   material.aboveWater = enabled(scalar(root, "$abovewater"));
   const auto shaderName = lower(material.shader);

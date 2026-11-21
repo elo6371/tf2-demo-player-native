@@ -195,6 +195,11 @@ struct WorldTexture {
   // (worldTileBlit memcpy's four channels per texel, world_tile_atlas.cpp:271).
   bool translucent = false;
   bool alphaTest = false;
+  // task-34: the material's `$alphatestreference` (0.5 when it declares none).
+  // The renderer quantises it into featureMask bits 12..19 per vertex, because
+  // the world pass has no per-material constant -- the same channel the alpha
+  // keys already ride.
+  float alphaTestReference = 0.5f;
   // ---- R2 (2026-11-09): `$basetexturetransform` -------------------------
   // The uv matrix the VMT asks the shader to apply before sampling, parsed by
   // the VMT reader (vmt_material.cpp `parseTextureTransform`). `false` means the
@@ -498,6 +503,7 @@ struct WorldTileReading {
   // silent drop made visible.
   bool translucent = false;
   bool alphaTest = false;
+  float alphaTestReference = 0.5f;
   std::string alphaMode = "opaque";
   std::string alphaReason;
   std::string reason;

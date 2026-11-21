@@ -94,6 +94,12 @@ struct VmtMaterial {
   bool selfIllum = false;
   bool translucent = false;
   bool alphaTest = false;
+  // task-34: `$alphatestreference`, the alpha the cutout compares each texel
+  // against. Source's default is 0.5 when the key is absent -- the number the
+  // shader used to hardcode. cp_process_f12 ships 0.2 on METAL/METALTRUSS001 and
+  // 0.55 on METAL/METALGRATE011A, so one hardcoded value cut the first
+  // material's semi-transparent texels and kept the second's.
+  float alphaTestReference = 0.5f;
   bool noCull = false;
   bool additive = false;
   bool unlit = false;

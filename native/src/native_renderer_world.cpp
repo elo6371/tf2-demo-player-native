@@ -323,6 +323,8 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // that knows both the material's keys and the plan's verdict.
     reading.translucent = textures[index].translucent;
     reading.alphaTest = textures[index].alphaTest;
+    // task-34: the threshold the vertex walk bakes into featureMask bits 12..19.
+    reading.alphaTestReference = textures[index].alphaTestReference;
     if (plan.slots[index].batch < 0) {
       reading.alphaMode = (reading.translucent || reading.alphaTest) ? "refused" : "opaque";
       reading.alphaReason = reading.translucent || reading.alphaTest
@@ -904,7 +906,24 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         // and none were lost winding (see the arm in .scratch/n30-disp).
         const bool alphaCutout = material.alphaTest && worldAlphaTest_;
         if (alphaBlended) mask |= 8;
-        if (alphaCutout) mask |= 16;
+        if (alphaCutout) {
+          mask |= 16;
+          // task-34: the material's own `$alphatestreference` rides the vertex:
+          // bits 12..19 are q = round(reference * 255), bit 20 says a reference
+          // is present at all. When the VMT declares none -- or declares exactly
+          // Source's default 0.5 -- no bit is set and the shader keeps its
+          // literal 0.5, so the frame the old hardcoded test produced is
+          // reproduced bit for bit instead of being re-derived from q/255 (the
+          // sampler is bilinear, so texel alpha is not always a multiple of
+          // 1/255 and 128/255 would not be the same cut as 0.5).
+          // 0.2 is exactly 51/255; the other map values land within 1/255.
+          const float reference = std::isfinite(material.alphaTestReference)
+            ? std::min(1.0f, std::max(0.0f, material.alphaTestReference)) : 0.5f;
+          if (reference != 0.5f) {
+            mask |= 1 << 20;
+            mask |= static_cast<int>(reference * 255.0f + 0.5f) << 12;
+          }
+        }
         a.featureMask = b.featureMask = c.featureMask = static_cast<float>(mask);
         // Counted off what reached the vertex buffer, the same rule the feature
         // counters use: a declared material whose triangle never got here is

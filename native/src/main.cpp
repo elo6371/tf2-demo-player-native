@@ -6944,6 +6944,20 @@ bool outlineVertexExtent = false;
       // no `--world-blend` argument keeps the default (on), which is what every
       // existing gate relies on.
       const bool blendEnabled = worldBlendGiven ? worldBlendRequested : true;
+      // task-34: the A/B control arm. Unset (the product path) means every cutout
+      // material uses the `$alphatestreference` its own VMT declares, 0.5 when it
+      // declares none. Set to a number, every cutout uses that number instead,
+      // which is how the frame the old hardcoded 0.5 produced is reproduced on
+      // this binary byte for byte: the default path's pixels become a measurement
+      // instead of a claim.
+      const float forcedAlphaTestReference = [] {
+        const char* text = std::getenv("TF2_NATIVE_WORLD_ALPHA_TEST_REFERENCE");
+        if (text == nullptr || *text == '\0') return -1.0f;
+        char* end = nullptr;
+        const double parsed = std::strtod(text, &end);
+        if (end == text || *end != '\0' || !std::isfinite(parsed)) return -1.0f;
+        return static_cast<float>(std::min(1.0, std::max(0.0, parsed)));
+      }();
       std::size_t fetchModulateDeclared = 0, fetchModulateResolved = 0, fetchModulateRefused = 0;
       // T27: the three feature layers, each with its own declared/resolved/
       // refused split. `bumpSsBump` is a refusal that is *not* a missing
@@ -7211,13 +7225,19 @@ bool outlineVertexExtent = false;
         // key, printed before the base-texture check so a material refused later
         // still shows what it asked for. Until now the only evidence the parser
         // read `$translucent` was a struct field nothing consumed.
+        // task-34: the cutout threshold this material will carry: the VMT's
+        // `$alphatestreference` when it declares one, Source's 0.5 when it does
+        // not, and the A/B control's value when the env var is set.
+        const float alphaTestReference = forcedAlphaTestReference >= 0.0f
+          ? forcedAlphaTestReference : material.alphaTestReference;
         if (material.translucent || material.alphaTest) {
           ++fetchAlphaDeclared;
           if (material.translucent) ++fetchTranslucentDeclared;
           if (material.alphaTest) ++fetchAlphaTestDeclared;
-          traceFmt("gpu: world alpha material=%s stage=declared translucent=%d alphatest=%d source=%s",
+          traceFmt("gpu: world alpha material=%s stage=declared translucent=%d alphatest=%d source=%s"
+            " reference=%.4f",
             materialName.c_str(), material.translucent ? 1 : 0, material.alphaTest ? 1 : 0,
-            materialPath.c_str());
+            materialPath.c_str(), static_cast<double>(alphaTestReference));
         }
         // T96: the pass-level aggregate WorldMaterialParams carries. It is an
         // OR over the materials, not the per-material truth -- see the field's
@@ -7712,6 +7732,7 @@ bool outlineVertexExtent = false;
           // into featureMask bits 8/16 and reports mode=blended|cutout|refused.
           tiled.translucent = material.translucent;
           tiled.alphaTest = material.alphaTest;
+          tiled.alphaTestReference = alphaTestReference;
           if (material.translucent) ++fetchTranslucentTiled;
           if (material.alphaTest) ++fetchAlphaTestTiled;
           // R2: the uv matrix this material asks for, carried with the tile so the
@@ -10486,9 +10507,10 @@ bool outlineVertexExtent = false;
         // refused carries the reason. A gate that sees stage=declared with no
         // mode=blended line has found the old bug's shape.
         if (row.translucent || row.alphaTest) {
-          traceFmt("gpu: world alpha material=%s stage=consumed mode=%s reason=%s",
+          traceFmt("gpu: world alpha material=%s stage=consumed mode=%s reason=%s reference=%.4f",
             row.material.empty() ? "-" : row.material.c_str(),
-            row.alphaMode.c_str(), row.alphaReason.c_str());
+            row.alphaMode.c_str(), row.alphaReason.c_str(),
+            static_cast<double>(row.alphaTestReference));
         }
       }
     }

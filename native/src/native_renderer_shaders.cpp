@@ -376,6 +376,14 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // Round, never truncate: `feature` is interpolated, so a mask 16 can arrive as
   // 15.9999998 and truncate to 15 -- losing `$alphatest`, gaining detail (black).
   uint featureMask = (uint)(feature.x + 0.5);
+  // task-34: `$alphatestreference`, riding featureMask bits 12..19 as
+  // q = round(reference * 255), with bit 20 saying a reference is present. No
+  // bit means the VMT declared none (or exactly 0.5, Source's default), and the
+  // literal 0.5 below is then the same constant the old code compared against --
+  // so the default path is bit-identical rather than re-derived from 128/255,
+  // which a bilinear sample can land between. 0.2 decodes exactly (51/255).
+  const float alphaTestReference = ((featureMask >> 20) & 1u) != 0u
+    ? float((featureMask >> 12) & 255u) / 255.0f : 0.5f;
   // Map-only unlit/model blend modes. World and player feature masks never set
   // these bits. UnlitTwoTexture multiplies both textures and adds with ONE/ONE;
   // Modulate interpolates from neutral grey through the texture's alpha before
@@ -390,7 +398,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
         materialProxyColor.rgb, materialProxyFlags.y);
       unlitAlpha *= secondTexel.a;
     }
-    if ((featureMask & 16u) != 0u && sampledTexel.a < 0.5) discard;
+    if ((featureMask & 16u) != 0u && sampledTexel.a < alphaTestReference) discard;
     const bool alphaBlend = (featureMask & (8u | 64u)) != 0u;
     return float4(unlitColour, alphaBlend ? unlitAlpha : 1.0);
   }
@@ -610,7 +618,7 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // blended surface writes the texel's own alpha and is drawn by the separate
   // blended sub-batch with SrcAlpha/InvSrcAlpha and depth writes off. Every
   // vertex without bit 8 keeps 1.0, so the opaque frame is unchanged.
-  if ((featureMask & 16u) != 0u && sampledTexel.a < 0.5) discard;
+  if ((featureMask & 16u) != 0u && sampledTexel.a < alphaTestReference) discard;
   const float outputAlpha = (featureMask & 8u) != 0u ? sampledTexel.a : 1.0f;
   // T101: environment fog, on bit 32 (32/64/128 were free) AND on the constant
   // itself. The vertex bit says "this surface is in the fogged set"; the
