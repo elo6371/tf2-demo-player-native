@@ -1,0 +1,13 @@
+# T105 capture pins, produced by .scratch/cap-light36.sh
+# demo: E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
+# tick: 600   flags: --audio-disabled --hidden-window
+#
+# pass 1 is the handover command verbatim (no --lighting switch at all).
+# pass 2 adds --lighting off. They must be the same bytes.
+2ddade356e85dd77b795a7380c254bcb  .scratch/light36-off/pr600.bmp
+2ddade356e85dd77b795a7380c254bcb  .scratch/light36-off-explicit/pr600.bmp
+d927c52639fb10c62a50b3018806a2d3  .scratch/light36-basic/pr600.bmp
+3f39236ee189629f9a5ed42c170a80da  .scratch/light36-trace/pr600.bmp
+
+# the handover pin:
+expected 2ddade356e85dd77b795a7380c254bcb

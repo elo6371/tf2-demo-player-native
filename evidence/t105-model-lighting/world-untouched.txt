@@ -1,0 +1,36 @@
+== whole-frame world-only probes (named after t105-clusters.py findings) ==
+dome           basic changed=     0/ 28000 (0.00%) brighter=     0 darker=     0
+dome           trace changed=     0/ 28000 (0.00%) brighter=     0 darker=     0
+silo-wall      basic changed=  2043/  4096 (49.88%) brighter=     4 darker=  2039
+silo-wall      trace changed=  2055/  4096 (50.17%) brighter=   110 darker=  1945
+left-wall      basic changed=     0/  3600 (0.00%) brighter=     0 darker=     0
+left-wall      trace changed=     0/  3600 (0.00%) brighter=     0 darker=     0
+railings       basic changed=     0/ 19200 (0.00%) brighter=     0 darker=     0
+railings       trace changed=     0/ 19200 (0.00%) brighter=     0 darker=     0
+sky-up         basic changed=     0/ 12000 (0.00%) brighter=     0 darker=     0
+sky-up         trace changed=     0/ 12000 (0.00%) brighter=     0 darker=     0
+
+== crop B (1134,540,72,72) deltas split by entity mask ==
+entity-mask px=2871  changed=2659 brighter=1015 darker=1643
+non-mask    px=2313  changed=0 brighter=0 darker=0
+most darkened entity px (delta,x,y,off,basic):
+   -25.0  (1189,572)  off=133.3 basic=108.3
+   -24.8  (1188,570)  off=117.4 basic=92.7
+   -24.4  (1190,568)  off=137.1 basic=112.7
+   -23.8  (1191,568)  off=134.5 basic=110.7
+   -23.8  (1187,567)  off=139.5 basic=115.7
+   -23.5  (1189,570)  off=121.6 basic=98.1
+most brightened:
+   +61.0  (1191,563)  off=164.1 basic=225.2
+   +62.8  (1179,565)  off=115.7 basic=178.5
+   +64.1  (1190,562)  off=135.3 basic=199.4
+   +64.1  (1179,561)  off=122.4 basic=186.5
+== entity mask population (trace-vs-off > 10 per channel) ==
+OFF entity                   n= 117796 mean=103.92 max= 215.0 clipped=    54 (0.046%)
+BASIC entity                 n= 117796 mean=145.36 max= 255.0 clipped=  2652 (2.251%)
+== everything that is NOT an entity ==
+OFF world                    n= 742988 mean=124.72 max= 215.8 clipped=     0 (0.000%)
+BASIC world                  n= 742988 mean=124.72 max= 215.8 clipped=     0 (0.000%)
+== whole frame ==
+OFF whole                    n= 860784 mean=121.88 max= 215.8 clipped=    54 (0.006%)
+BASIC whole                  n= 860784 mean=127.55 max= 255.0 clipped=  2652 (0.308%)

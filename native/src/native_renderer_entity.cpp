@@ -606,6 +606,33 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       for (int column = 0; column < 4; ++column) gpu.position[row][column] = rows.positionRows[row * 4 + column];
       for (int column = 0; column < 3; ++column) gpu.normal[row][column] = rows.normalRows[row * 3 + column];
     }
+    // T105: the read-only half of the world-space normal claim. These are the
+    // exact rows that reach the GPU above, printed for the instances that are
+    // actually drawn, so "the entity vertex shader rotates a model normal by
+    // this matrix, therefore its pixel shader sees a world normal" is checkable
+    // against numbers instead of being taken from the shader source. The
+    // falsifier is the second instance of the same model at a different angle:
+    // model-space normals would be identical for both, and these rows are not.
+    // Deduped on the printed text and capped, because this runs on every
+    // playback frame long before the capture frame, and a trace that repeats
+    // thousands of identical lines documents nothing. Off by default, so an
+    // ordinary run prints nothing.
+    if (settings_.modelLightingTrace) {
+      char line[512];
+      std::snprintf(line, sizeof(line),
+        "lighting-normal: index=%d key=%s origin=(%.3f,%.3f,%.3f) rows=(%.4f,%.4f,%.4f)(%.4f,%.4f,%.4f)(%.4f,%.4f,%.4f)",
+        instance.entityIndex,
+        instance.cacheKey.empty() ? "(unknown)" : instance.cacheKey.c_str(),
+        instance.origin[0], instance.origin[1], instance.origin[2],
+        rows.normalRows[0], rows.normalRows[1], rows.normalRows[2],
+        rows.normalRows[3], rows.normalRows[4], rows.normalRows[5],
+        rows.normalRows[6], rows.normalRows[7], rows.normalRows[8]);
+      if (modelLightingTraceLines_.size() < 16
+          && modelLightingTraceLines_.insert(std::string(line)).second) {
+        std::printf("%s", line);
+        std::printf("\n");
+      }
+    }
     gpu.color[0] = instance.color[0];
     gpu.color[1] = instance.color[1];
     gpu.color[2] = instance.color[2];

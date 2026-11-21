@@ -1,0 +1,20 @@
+lighting-normal: index=35 key=models/props_gameplay/sign_gameplay01.mdl#3639550127 origin=(-1487.656,-2077.875,-52.594) rows=(-0.7764,-0.6300,-0.0170)(0.6239,-0.7721,0.1207)(-0.0891,0.0831,0.9925)
+lighting-normal: index=251 key=models/props_gameplay/sign_gameplay01.mdl#3639550127 origin=(1504.219,-556.000,155.438) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=256 key=models/props_gameplay/sign_gameplay01.mdl#3639550127 origin=(1503.875,-652.000,155.438) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=258 key=models/props_gameplay/sign_gameplay01.mdl#3639550127 origin=(1504.219,-620.000,155.438) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=482 key=models/props_gameplay/sign_gameplay01.mdl#3639550127 origin=(-1445.781,-2105.531,-54.562) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,0.0000)
+lighting-normal: index=492 key=models/props_gameplay/sign_gameplay01.mdl#3639550127 origin=(1464.000,64.000,441.250) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=498 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(1760.000,1568.000,424.000) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=501 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(-1816.000,-1535.969,-37.500) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=502 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(-1816.000,-1535.969,202.500) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=503 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(-863.969,-2215.969,266.500) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=504 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(-863.969,-2215.969,26.469) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=505 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(-1247.969,-951.969,89.188) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=506 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(-1247.969,-951.969,329.188) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=523 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(1744.000,-304.000,71.000) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=528 key=models/effects/cappoint_hologram.mdl#1602564522 origin=(1271.000,-2509.000,13.000) rows=(0.0000,0.0000,1.0000)(1.0000,0.0000,0.0000)(0.0000,1.0000,-0.0000)
+lighting-normal: index=545 key=models/props_gameplay/sign_gameplay01.mdl#3639550127 origin=(3200.000,1952.000,992.000) rows=(0.9744,0.0079,0.2248)(-0.2249,0.0340,0.9738)(-0.0000,-0.9994,0.0349)
+capture: fov source=settings.worldFov horizontal=90.0000 vertical=73.7398 rule=sourceHorizontalFovToVertical aspect=1.856094 near=0.0006 far=100.0000
+capture: lights enabled=0 sun=1 uploaded=0 declared=204 rejected=0 sunIntensity=1.000 ambientIntensity=0.450
+capture: model-lighting arm=1 trace=1 sunPresent=1 sun=(0.819,-0.574,-0.000) intensity=1.500 sky=(1.314,1.315,1.224) ground=(0.997,0.988,0.906) side=(1.200,1.194,1.101)
+capture: sky drew=1 farplane=1 dedicated=1 sky3d_enabled=0 sky3d_present=1 sky3d_triangles=0 sky3d_drawn=0 cluster=9

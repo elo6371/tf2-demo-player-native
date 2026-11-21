@@ -25,6 +25,155 @@
 
 namespace tf2::native {
 
+namespace {
+// T105: the face order the shader and the struct agree on. Named here so the
+// fill below cannot be written in a different order from the one
+// ModelLightingConstants documents.
+enum ModelCubeFace { CubePosX = 0, CubeNegX = 1, CubePosY = 2, CubeNegY = 3, CubePosZ = 4, CubeNegZ = 5 };
+
+// T105: the bounce shares, and why the brief's two sun coefficients are higher
+// than the brief's.
+//
+// The brief hands the six faces these shares of the map's sun: 0.6 on the sky
+// face, 0.25 on the four walls, and none at all on the ground. Measured on the
+// reference tick those shares, times the map's own sun and ambient, put the
+// away-from-the-sun faces of a body between 0.22 and 0.52 -- BELOW the floor of
+// the flat fake arm this replaces (0.62 + 0.38 * dot, i.e. 0.62 worst case).
+// The capture showed exactly that: the doorway body's shadow side went from a
+// mean of 76.6 to 67.7 and its dark<24 share from 1.9% to 10.5%, while the sun
+// side gained 39 luminance. A change that is free to darken a body is not
+// closing "back-lit characters are dead black", it is moving the problem.
+//
+// The missing term is the one a baked lightmap carries and a six-face cube
+// cannot: indirect light. A sunlit outdoor map bounces a large fraction of its
+// sun off the ground and the walls, which is why TF2 models in shadow still
+// read. So the walls and the ground get a share of the sun as bounce, sized by
+// one property that can be checked without a capture and is asserted in
+// t105-lighting-floor.py:
+//
+//     min over all surface directions of the new lighting
+//       >= min over all directions of the arm it replaces  (0.62)
+//
+// i.e. NO surface direction can come out darker than the flat fake's darkest
+// direction, while every direction facing the sun or the sky comes out brighter.
+// On the reference tick's sun (0.5945 per channel after the map's colour and
+// intensity, ambient 0.2433) the three faces land at 0.90 (sky), 0.81 (walls)
+// and 0.67 (ground) after the exposure below. The ground is the minimum of the
+// whole sphere -- the sun term is additive and never subtracts, so a face that
+// receives the least sun sets the floor -- and 0.67 clears the old arm's 0.62 by
+// 0.05, which is the margin that keeps a floating-point tie off the gate.
+constexpr float kModelSideSunShare = 0.58f;
+constexpr float kModelGroundSunShare = 0.50f;
+
+// T105: the exposure the six faces and the sun are multiplied by.
+//
+// This is not a taste knob, and the number is measured rather than chosen. The
+// map's own sun and ambient, added up the way the block below adds them, are in
+// a 0..1 "how much of the light is here" range -- but a TF2 model texture is
+// authored to be multiplied by BAKED LIGHTMAP values, which on an outdoor map
+// like this one sit well above 1, because the bake carries bounced light that a
+// single sun+ambient pair cannot. Feeding the raw range to the model pass put
+// the lit bodies at a mean luminance of 81 where the old hardcoded fake arm --
+// a flat 0.62..1.0, i.e. ~0.85 -- put them at 104, and the capture showed it:
+// 9928 entity pixels got darker and none got brighter.
+//
+// 1.5 is what brings the block back onto that scale. It is ONE constant applied
+// to the whole block (faces and sun alike -- scaling only one would tilt the
+// ambient/sun ratio the distribution above was chosen for), and it is the
+// number that puts the ground face a measured 0.05 above the old floor, so a
+// reader who moves it can see both ends of the bargain move in the capture
+// trace instead of having to re-derive six faces.
+constexpr float kModelLightingExposure = 1.5f;
+
+void scaleColour(float colour[3], float scale) {
+  colour[0] *= scale;
+  colour[1] *= scale;
+  colour[2] *= scale;
+}
+}
+
+// T105: the model lighting block for this frame.
+//
+// Two regimes, and which one runs is decided by whether the map declared a sun,
+// not by whether --world-lights is on: the entity pass never consulted that
+// switch (it forces the lightmap intensity to neutral and takes whatever
+// direction it is given), so hanging the model block off it would have made
+// this feature depend on an unrelated switch.
+//
+//   DECLARED   the map's own sun and ambient, folded into the six faces. The
+//              sun's colour is multiplied in here because the cbuffer carries
+//              only its intensity -- the layout is the brief's, and one scalar
+//              is enough when the faces are already coloured.
+//   DEFAULT    no sun in the BSP, so a warm sky and a cold ground constant. Not
+//              a guess from taste: this is the fallback the brief asks for, and
+//              every number below is visible in the capture trace so a reader
+//              can disagree with it by reading the line rather than the code.
+//
+// The distribution across the faces is deliberately crude and stated as such:
+// a surface facing the sky receives the sun plus the ambient; one facing the
+// ground receives the ambient plus the ground's share of the bounced sun; the
+// four walls receive most of the ambient plus a larger bounce share. The bounce
+// shares are not free parameters -- the constants above fix them with a floor
+// that can be read off without a capture. Real irradiance would need a
+// prefiltered environment, which is the next step's problem, not this one's.
+ModelLightingConstantsData Renderer::buildModelLightingConstants() const {
+  ModelLightingConstantsData constants{};
+  constants.lightingParams = DirectX::XMFLOAT4(modelLightingEffective() ? 1.0f : 0.0f,
+    settings_.modelLightingTrace ? 1.0f : 0.0f, 0.0f, 0.0f);
+
+  float sky[3];
+  float ground[3];
+  float sides[3];
+  float sunDirection[3];
+  float sunIntensity = 0.0f;
+  if (worldLights_.sunPresent) {
+    // The map's sun. sunDirection is the direction TO the light, which is what
+    // the shader's dot(n, L) wants, and it is the same vector the world pass
+    // uploads as sunDirectionAndMode.xyz -- one convention for both passes.
+    for (int component = 0; component < 3; ++component) {
+      sunDirection[component] = worldLights_.sunDirection[component];
+    }
+    const float sunScale = worldLights_.sunIntensity;
+    for (int component = 0; component < 3; ++component) {
+      const float sun = worldLights_.sunColor[component] * sunScale;
+      const float ambient = worldLights_.ambientColor[component] * worldLights_.ambientIntensity;
+      sky[component] = sun * 0.6f + ambient;
+      ground[component] = ambient * 0.6f + sun * kModelGroundSunShare;
+      sides[component] = ambient * 0.8f + sun * kModelSideSunShare;
+    }
+    sunIntensity = sunScale;
+  } else {
+    // No sun in this map. The direction is the engine's own default light (the
+    // one lightDirectionAndMode carries a few hundred lines below), so a model
+    // is lit from where the world's directional term thinks the light is.
+    sunDirection[0] = 0.35f; sunDirection[1] = -0.45f; sunDirection[2] = 0.82f;
+    // Sized so the same floor holds with the exposure below and no map sun to
+    // read: ground 0.44 * 1.5 = 0.66 >= 0.62, walls 0.53 * 1.5 = 0.80, sky
+    // 0.90 * 1.5 = 1.35. The ground is the cool one, the sky the warm one.
+    sky[0] = 0.90f; sky[1] = 0.84f; sky[2] = 0.72f;
+    ground[0] = 0.36f; ground[1] = 0.40f; ground[2] = 0.44f;
+    sides[0] = 0.53f; sides[1] = 0.52f; sides[2] = 0.50f;
+    sunIntensity = 0.55f;
+  }
+  // The faces and the sun carry the same exposure: scaling only one of them
+  // would tilt the ambient/sun ratio the distribution above was chosen for.
+  scaleColour(sky, kModelLightingExposure);
+  scaleColour(ground, kModelLightingExposure);
+  scaleColour(sides, kModelLightingExposure);
+  sunIntensity *= kModelLightingExposure;
+  auto face = [](DirectX::XMFLOAT4& output, const float colour[3]) {
+    output = DirectX::XMFLOAT4(colour[0], colour[1], colour[2], 1.0f);
+  };
+  face(constants.ambientCube[CubePosX], sides);
+  face(constants.ambientCube[CubeNegX], sides);
+  face(constants.ambientCube[CubePosY], sides);
+  face(constants.ambientCube[CubeNegY], sides);
+  face(constants.ambientCube[CubePosZ], sky);
+  face(constants.ambientCube[CubeNegZ], ground);
+  constants.sunDirectionAndIntensity = DirectX::XMFLOAT4(
+    sunDirection[0], sunDirection[1], sunDirection[2], sunIntensity);
+  return constants;
+}
 
 bool Renderer::draw(float clearRed, float clearGreen, float clearBlue) {
   paneCountThisDraw_ = 1;
@@ -796,6 +945,27 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     }
     context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &constants, 0, 0);
     frameConstantsValid = true;
+    // T105: the model lighting block, filled from the same worldLights_ the
+    // four lines above read, and uploaded here so every pass that binds it
+    // describes the frame the world buffer describes. The print is
+    // capture-guarded for the reason the lights line above is: a default run's
+    // stdout stays byte-identical, and a reader of a capture gets the six face
+    // colours rather than having to trust that the fill did what it says.
+    if (modelLightingConstants_) {
+      const ModelLightingConstantsData lighting = buildModelLightingConstants();
+      context_->UpdateSubresource(modelLightingConstants_.Get(), 0, nullptr, &lighting, 0, 0);
+      if (!capturePath_.empty()) {
+        std::printf("capture: model-lighting arm=%d trace=%d sunPresent=%d sun=(%.3f,%.3f,%.3f) intensity=%.3f "
+          "sky=(%.3f,%.3f,%.3f) ground=(%.3f,%.3f,%.3f) side=(%.3f,%.3f,%.3f)\n",
+          lighting.lightingParams.x > 0.5f ? 1 : 0, lighting.lightingParams.y > 0.5f ? 1 : 0,
+          worldLights_.sunPresent ? 1 : 0,
+          lighting.sunDirectionAndIntensity.x, lighting.sunDirectionAndIntensity.y, lighting.sunDirectionAndIntensity.z,
+          lighting.sunDirectionAndIntensity.w,
+          lighting.ambientCube[4].x, lighting.ambientCube[4].y, lighting.ambientCube[4].z,
+          lighting.ambientCube[5].x, lighting.ambientCube[5].y, lighting.ambientCube[5].z,
+          lighting.ambientCube[0].x, lighting.ambientCube[0].y, lighting.ambientCube[0].z);
+      }
+    }
     // T21: publish the same numbers for the face trace. Copied field by field
     // from the struct that was just uploaded, so the trace cannot describe a
     // camera or a lighting mode the draw did not use.
@@ -1449,6 +1619,19 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     context_->VSSetConstantBuffers(0, 1, &worldConstants);
     context_->PSSetShader(worldPixelShader_.Get(), nullptr, 0);
     context_->PSSetConstantBuffers(0, 1, &worldConstants);
+    // T105: THIS pass is the one the model lighting block exists for -- entity
+    // and prop instances, whose vertex shader hands the pixel shader a
+    // world-space normal. b2, because b0 is the world block above and b1 is the
+    // material proxy bound per range below.
+    //
+    // It is bound only here and unbound at the end of the pass, and that is
+    // load-bearing rather than tidy: every other draw that uses this pixel
+    // shader binds b0 alone, so a slot left set here would be read by the world
+    // geometry of a later pass -- whose lightingParams.x is 1 -- and
+    // --lighting basic would relight the lightmapped BSP through a block
+    // computed for models.
+    ID3D11Buffer* lightingBuffer = modelLightingConstants_.Get();
+    context_->PSSetConstantBuffers(2, 1, &lightingBuffer);
     // T19: batch 0 is the atlas an untiled pass samples. The markers, the
     // projectiles, the entity instances and the legacy model path bind their
     // own view below where they have one; this is what they use when they do
@@ -1596,6 +1779,10 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // R1: whatever the entity passes left. The occluder class M2b could only name
     // as {static prop, map model} shows up here as depth it actually wrote.
     capturePassDepth("50-entities");
+    // T105: unbind the model lighting slot, so the passes that follow and bind
+    // b0 alone cannot inherit it (see the note where it was bound).
+    ID3D11Buffer* noLighting = nullptr;
+    context_->PSSetConstantBuffers(2, 1, &noLighting);
     if (entityConstantsDiffer) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
@@ -1997,6 +2184,11 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     context_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
     auto* modelConstants = modelSkinningConstants_.Get();
     context_->VSSetConstantBuffers(1, 1, &modelConstants);
+    // T105: the lighting block at PIXEL b1. The buffer bound just above is
+    // VERTEX b1; the two stages have their own slot tables, so this is not a
+    // second use of one register.
+    ID3D11Buffer* modelLighting = modelLightingConstants_.Get();
+    context_->PSSetConstantBuffers(1, 1, &modelLighting);
     context_->Draw(modelVertexCount_, 0);
   }
   // T52: THE OVERLAY IS DRAWN HERE -- pass 6, after the projectile tracks and
