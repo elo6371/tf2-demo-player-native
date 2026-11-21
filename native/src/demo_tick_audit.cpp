@@ -140,6 +140,7 @@ void DemoTickAuditCapture::beginPacket(std::int32_t entryTick, std::uint8_t comm
   entryTick_ = entryTick;
   command_ = command;
   packetServerTick_ = serverTickInForce;
+  packetOrdinal_ = packets_.size();
   inPacket_ = true;
   pendingPlayers_.clear();
 }
@@ -424,6 +425,7 @@ void DemoTickAuditCapture::endPacket(const DemoNetworkSummary& summary,
   row.serverTick = serverTick;
   row.gap = gap;
   row.command = command_;
+  row.packetOrdinal = packetOrdinal_;
   row.ownNetTick = ownNetTick;
   packets_.push_back(row);
   settlePending(summary, serverTick, gap);
@@ -465,6 +467,10 @@ DemoTickAuditReport auditDemoTicks(const DemoHeader& header, const DemoIndex& in
   std::int32_t lastOutSequence = 0;
   bool haveDataSequence = false;
   std::size_t sequenceIndex = 0;
+  std::int32_t firstBackwardsTick = 0;
+  std::size_t firstBackwardsPacket = 0;
+  std::int32_t firstGapTick = 0;
+  std::size_t firstGapPacket = 0;
   for (const auto& entry : index.entries) {
     if (entry.command == 1) {
       ++report.signonPackets;
@@ -495,10 +501,20 @@ DemoTickAuditReport auditDemoTicks(const DemoHeader& header, const DemoIndex& in
       if (haveDataSequence) {
         const std::int32_t inDelta = inSequence - lastInSequence;
         const std::int32_t outDelta = outSequence - lastOutSequence;
-        if (inDelta <= 0) ++report.inSequenceBackwards;
-        else if (inDelta > 1) ++report.inSequenceGaps;
-        if (outDelta <= 0) ++report.outSequenceBackwards;
-        else if (outDelta > 1) ++report.outSequenceGaps;
+        if (inDelta <= 0) {
+          if (report.inSequenceBackwards == 0) { firstBackwardsTick = entry.tick; firstBackwardsPacket = packetOrdinal - 1; }
+          ++report.inSequenceBackwards;
+        } else if (inDelta > 1) {
+          if (report.inSequenceGaps == 0 && report.outSequenceGaps == 0) { firstGapTick = entry.tick; firstGapPacket = packetOrdinal - 1; }
+          ++report.inSequenceGaps;
+        }
+        if (outDelta <= 0) {
+          if (report.outSequenceBackwards == 0) { firstBackwardsTick = entry.tick; firstBackwardsPacket = packetOrdinal - 1; }
+          ++report.outSequenceBackwards;
+        } else if (outDelta > 1) {
+          if (report.inSequenceGaps == 0 && report.outSequenceGaps == 0) { firstGapTick = entry.tick; firstGapPacket = packetOrdinal - 1; }
+          ++report.outSequenceGaps;
+        }
       }
       lastInSequence = inSequence;
       lastOutSequence = outSequence;
@@ -512,15 +528,15 @@ DemoTickAuditReport auditDemoTicks(const DemoHeader& header, const DemoIndex& in
         "tick went backwards " + std::to_string(report.tickBackwards) + " times; only the first 8 are listed");
   }
   if (report.inSequenceBackwards > 0) {
-    addIssue(DemoTickAuditLevel::Edited, "in-sequence-backwards", 0, -1, 0,
+    addIssue(DemoTickAuditLevel::Edited, "in-sequence-backwards", firstBackwardsTick, -1, firstBackwardsPacket,
         "in sequence went backwards " + std::to_string(report.inSequenceBackwards) + " times");
   }
   if (report.outSequenceBackwards > 0) {
-    addIssue(DemoTickAuditLevel::Edited, "out-sequence-backwards", 0, -1, 0,
+    addIssue(DemoTickAuditLevel::Edited, "out-sequence-backwards", firstBackwardsTick, -1, firstBackwardsPacket,
         "out sequence went backwards " + std::to_string(report.outSequenceBackwards) + " times");
   }
   if (report.inSequenceGaps > 0 || report.outSequenceGaps > 0) {
-    addIssue(DemoTickAuditLevel::Info, "sequence-gaps", 0, -1, 0,
+    addIssue(DemoTickAuditLevel::Info, "sequence-gaps", firstGapTick, -1, firstGapPacket,
         "in gaps=" + std::to_string(report.inSequenceGaps) + " out gaps="
             + std::to_string(report.outSequenceGaps));
   }
@@ -567,7 +583,7 @@ DemoTickAuditReport auditDemoTicks(const DemoHeader& header, const DemoIndex& in
         ++storedJumpIssues;
         lastIssueTick = row.entryTick;
         addIssue(edited ? DemoTickAuditLevel::Edited : DemoTickAuditLevel::Warning, "clock-jump",
-            row.entryTick, row.serverTick, 0,
+            row.entryTick, row.serverTick, row.packetOrdinal,
             "server clock offset moved by " + std::to_string(magnitude) + " ticks (offset="
                 + std::to_string(offset) + " median=" + std::to_string(median) + ")");
       }
@@ -666,8 +682,8 @@ DemoTickAuditReport auditDemoTicks(const DemoHeader& header, const DemoIndex& in
       std::vector<std::int32_t> ticks;
       for (const auto* hit : pair.second) ticks.push_back(hit->serverTick);
       std::sort(ticks.begin(), ticks.end());
-      for (std::size_t index = 0; index < ticks.size(); ++index) {
-        if (index == 0 || ticks[index] - ticks[index - 1] > episodeWindow) ++episodes;
+      for (std::size_t tickIndex = 0; tickIndex < ticks.size(); ++tickIndex) {
+        if (tickIndex == 0 || ticks[tickIndex] - ticks[tickIndex - 1] > episodeWindow) ++episodes;
       }
       summary.episodes = episodes;
       summary.firstHitTick = firstTick;

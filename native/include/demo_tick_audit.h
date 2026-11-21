@@ -173,6 +173,7 @@ struct DemoTickAuditPacketRow {
   std::int32_t serverTick = 0;  // net_Tick in force for this packet
   std::int32_t gap = 1;         // server ticks since the previous packet, >= 1
   std::uint8_t command = 0;     // 1 = signon, 2 = data
+  std::size_t packetOrdinal = 0; // position among signon/data packets, 0-based
   bool ownNetTick = false;      // the packet carried svc_NetTick itself
 };
 
@@ -245,6 +246,7 @@ class DemoTickAuditCapture {
   std::unordered_map<std::int32_t, std::int32_t> lastAttackTickByPlayer_;
   std::unordered_map<std::int32_t, std::deque<std::int32_t>> minigunWindow_;
 
+  std::size_t packetOrdinal_ = 0;
   std::int32_t entryTick_ = 0;
   std::int32_t packetServerTick_ = 0;
   std::int32_t prevPacketServerTick_ = -1;
