@@ -14098,9 +14098,28 @@ bool outlineVertexExtent = false;
                   request.blendMode = animationBlendMode;
                   request.pose.hasMove = step.speed > 0.0f;
                   request.pose.moveX = normalisedSpeed * static_cast<float>(std::cos(relative));
-                  request.pose.moveY = normalisedSpeed * static_cast<float>(-std::sin(relative));
+                  // T105-n30: the grid's lateral contract is move_y positive = right,
+                  // and right is +sin(viewYaw - heading). The old leading minus made the
+                  // lateral input the exact negation of the direction the body travels:
+                  // a right strafe was fed as a left one, which is what a per-cell
+                  // walk/run pick keys on. The forward component was already correct.
+                  request.pose.moveY = normalisedSpeed * static_cast<float>(std::sin(relative));
                   request.pose.hasAim = hasBodyHeading;
-                  request.pose.aimYaw = static_cast<float>(viewYaw - bodyHeadingDegrees);
+                  // T105-n30: the drawn body's yaw IS viewYaw -- a CTFPlayer never
+                  // networks m_angRotation, so the entity's angles are the view, and
+                  // the mesh is drawn facing where the eyes look. The aim layer's
+                  // horizontal offset is therefore the angle between the view and the
+                  // body as DRAWN, which is zero. The old expression used the velocity
+                  // heading (bodyHeadingDegrees is atan2 of the origin delta), which is
+                  // not a body yaw at all: it injected viewYaw-heading (measured 52 to
+                  // 199 degrees, clamped to +-45) as a permanent torso twist whose size
+                  // depended on which way the player strafed. The axis is right-positive
+                  // while a Source yaw is left-positive, so the offset written against
+                  // the drawn yaw is -(viewYaw - viewYaw): both defects vanish together.
+                  // Step 5 (draw the body at the heading, then aim from it) would make
+                  // this -(viewYaw - bodyHeadingDegrees); that is a separate change and
+                  // is not what is drawn today.
+                  request.pose.aimYaw = 0.0f;
                   request.pose.aimPitch = -instance.transform.angles[0];
                   request.poseBoneMask = true;
                 }
