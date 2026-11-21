@@ -72,11 +72,72 @@ struct BspTriangle {
 
 enum class BspLightmapMode { Unavailable, AverageIntensity, RgbExp32 };
 enum class BspVisMode { Unavailable, ClusterPvs };
+// T105/task-37: which pair of leaf-ambient lumps the map carries, if any.
+// Unavailable is not an edge case: 695094 of the 1629874 leaves in this host's
+// 261-map corpus carry no sample at all, and one shipped map carries neither
+// lump. A caller that cannot tell Unavailable from a black cube lights the
+// model to zero and calls it a reading.
+enum class BspLeafAmbientMode { Unavailable, RgbExp32 };
 
 struct BspCubemapSample { int origin[3] = {}; int size = 0; };
 struct BspPlane { float normal[3] = {}; float dist = 0; };
 struct BspNode { int plane = 0; int child[2] = {}; };
-struct BspLeaf { int cluster = -1; int firstFace = 0; int faceCount = 0; };
+struct BspLeaf {
+  int cluster = -1;
+  int firstFace = 0;
+  int faceCount = 0;
+  // T105/task-37: the leaf's bounding box, read from the same 32-byte lump 10
+  // record (mins at +8, maxs at +14, three int16 each). It is kept because an
+  // ambient sample stores its position as an 0..255 fraction OF THIS BOX: the
+  // three bytes alone are not a location, so without the box the sample record
+  // decodes to a colour but not to a place.
+  short mins[3] = {};
+  short maxs[3] = {};
+};
+
+// T105/task-37: one leaf's slice of LUMP_LEAF_AMBIENT_LIGHTING (56, HDR 55),
+// as the 4-byte dleafambientindex_t record holds it: how many cubes and where
+// the first one starts. The index is a PER-LEAF array, so its length is the
+// leaf count times four or the lump was not usable.
+struct BspLeafAmbientEntry {
+  std::uint32_t firstSample = 0;
+  std::uint32_t sampleCount = 0;
+};
+
+// T105/task-37: one decoded ambient cube. Six directions in the order
+// (+X, -X, +Y, -Y, +Z, -Z) as linear RGB. The SDK header that declares the six
+// slot array (mathlib/compressed_light_cube.h:17-21) does NOT name the
+// directions; the order here was derived from the corpus of 261 shipped maps,
+// where the +Z slot is the brightest of the six on 3279485 of 7868947 cubes
+// (41.7%) and the -Z slot has the lowest mean luminance (three dimmest slots
+// would not separate; -Z separates by 1.9x from +Z). An indoor map lights its
+// ceiling more than its floor, so this is strong corroboration -- not a proof.
+//
+// positionFraction keeps the three bytes as stored (a 0..255 fraction of the
+// OWNING leaf's box, per bspfile.h:857-860) rather than converting here: the
+// box belongs to the leaf, not to the sample, and a conversion done at parse
+// time would need a leaf->box lookup for a record that may be claimed by more
+// than one leaf. BspParser::leafAmbientAtLeaf does the conversion with the box
+// of the leaf actually being asked about.
+struct BspLeafAmbientSample {
+  float positionFraction[3] = {};
+  float color[6][3] = {};
+};
+
+// T105/task-37: the answer to "what is the ambient light here", carrying its
+// own provenance so a caller cannot mistake a fallback for a reading. An
+// available flag of false means there is no cube for this point and the caller
+// must use whatever it used before -- never a zero cube, which reads as "the
+// model is in the dark" when the truth is "this map never shipped the lump".
+struct BspLeafAmbientCube {
+  bool available = false;
+  int leafIndex = -1;      // leaf the point resolved to; -1 if the tree could not answer
+  int cluster = -1;        // that leaf's cluster, for pairing with clusterAt()
+  int sampleCount = 0;     // cubes the leaf carries (0 => nothing to read)
+  int sampleIndex = -1;    // which of them was chosen; -1 if none
+  float position[3] = {};  // the chosen sample's point, map units
+  float color[6][3] = {};  // +X -X +Y -Y +Z -Z, linear RGB
+};
 struct BspStaticProp {
   std::string modelPath;
   float origin[3] = {};
@@ -437,6 +498,40 @@ struct BspMap {
   int visClusterCount = 0;
   std::vector<int> visOffsets;
   std::vector<std::uint8_t> visBits;
+  // T105/task-37: the leaf ambient cube. Two lumps, and the whole point of
+  // parsing them is that a consumer can ask one question -- "what is the
+  // ambient light at this point" -- and get either a cube or an explicit
+  // "no". leafAmbientSamples is the decoded lump 56/55 page (each record is 28
+  // bytes: a six-colour cube then the sample position); leafAmbientEntries is
+  // the per-leaf index from lump 52/51. Both stay empty when the map shipped
+  // neither, which is the state 1 of this host's 261 maps is in.
+  BspLeafAmbientMode leafAmbientMode = BspLeafAmbientMode::Unavailable;
+  // True when the page that was read came from the HDR pair (51/55) because the
+  // LDR pair was absent. Every map on this host's corpus ships the LDR pair, so
+  // this is false on all 260 that have the lumps at all; it exists so a corpus
+  // census can tell "HDR-only compile" from "LDR", which a single mode enum
+  // cannot say without re-reading the lump table.
+  bool leafAmbientHdrPage = false;
+  std::vector<BspLeafAmbientEntry> leafAmbientEntries;
+  std::vector<BspLeafAmbientSample> leafAmbientSamples;
+  // The count the caller actually cares about: leaves that carry at least one
+  // cube. leavesWithAmbient + leavesWithoutAmbient == leaves.size() on any map
+  // whose index lump parsed, so a wrong stride cannot hide as "some leaves are
+  // just dark".
+  std::size_t leavesWithAmbient = 0;
+  std::size_t leavesWithoutAmbient = 0;
+  // Index records whose count/first reached past the data lump (clamped, and
+  // counted -- a record that reads another leaf's cube is worse than a miss),
+  // and data records no leaf claims. Both are 0 on all 260 shipped maps that
+  // carry the lumps, so a non-zero value here means the layout assumption broke.
+  std::size_t leafAmbientRecordsOutOfRange = 0;
+  std::size_t leafAmbientSamplesUnreferenced = 0;
+  // Lookups that resolved to a leaf carrying cubes, and lookups that had to
+  // fall back (no tree, no lump, an empty leaf, an out-of-range sample). The
+  // second number is the one a lighting claim has to quote: it is how often
+  // the feature said nothing rather than something.
+  std::size_t ambientLookupsHit = 0;
+  std::size_t ambientLookupsMissed = 0;
   std::vector<BspPlane> planes;
   std::vector<BspNode> nodes;
   std::vector<BspLeaf> leaves;
@@ -456,6 +551,27 @@ public:
   static bool clusterVisible(const BspMap& map, int fromCluster, int toCluster);
   static int clusterAt(const BspMap& map, float x, float y, float z);
   static int countVisibleClusters(const BspMap& map, int fromCluster);
+  // T105/task-37: the leaf index a point lands in, -1 when the tree cannot
+  // answer. clusterAt() is the sibling this mirrors: same walk, same guards,
+  // same 4096-step ceiling; it returns the leaf's CLUSTER and this returns the
+  // leaf itself. Both exist because a caller that wants the ambient cube needs
+  // the leaf (the index lump is per-leaf), while a caller doing PVS needs the
+  // cluster -- and deriving either one from the other is how they drift.
+  static int leafAt(const BspMap& map, float x, float y, float z);
+  // The cube for a leaf index. No tree walk, so this is also the entry point a
+  // consumer that already has a leaf (a static prop stores leaf INDICES in lump
+  // 35) can use. Returns false and leaves `out` untouched on any miss. A leaf
+  // with several cubes answers with the one nearest its own box centre; the
+  // point-taking overload below answers with the one nearest the point.
+  static bool leafAmbientAtLeaf(BspMap& map, int leafIndex, BspLeafAmbientCube& out);
+  // The cube for a world point: leafAt(), then the same private chooser the
+  // leaf overload uses, but aimed at the caller's point instead of the leaf
+  // centre. Takes a mutable map because every call counts itself in
+  // BspMap::ambientLookups{Hit,Missed} -- the miss count is the number a
+  // lighting claim has to quote, and a counter nobody increments reads as zero
+  // misses.
+  static bool leafAmbientAt(BspMap& map, float x, float y, float z, BspLeafAmbientCube& out);
+  static const char* leafAmbientModeName(BspLeafAmbientMode mode);
 };
 
 } // namespace tf2::native

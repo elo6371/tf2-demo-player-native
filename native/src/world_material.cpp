@@ -1633,6 +1633,13 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
     const auto base = i * 32;
     put16(leafs, base + 4, static_cast<std::uint16_t>(leaf.cluster));
     put16(leafs, base + 20, static_cast<std::uint16_t>(leafFaceBytes.size() / 2));
+    // T105/task-37: mins at +8, maxs at +14 (three int16 each). The ambient sample
+    // position is an 0..255 fraction of THIS box, so a fixture without a box cannot
+    // exercise the position decode at all.
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+      put16(leafs, base + 8 + axis * 2, static_cast<std::uint16_t>(leaf.mins[axis]));
+      put16(leafs, base + 14 + axis * 2, static_cast<std::uint16_t>(leaf.maxs[axis]));
+    }
     put16(leafs, base + 22, static_cast<std::uint16_t>(leaf.faces.size()));
     for (const auto faceIndex : leaf.faces) {
       const auto at = leafFaceBytes.size();
@@ -1712,6 +1719,10 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
   add(7, std::move(faces));
   add(8, fixture.lighting);
   add(53, fixture.lightingHdr);
+  add(51, fixture.leafAmbientIndexHdr);
+  add(52, fixture.leafAmbientIndex);
+  add(55, fixture.leafAmbientLightingHdr);
+  add(56, fixture.leafAmbientLighting);
   add(10, std::move(leafs));
   add(12, std::move(edges));
   add(13, std::move(surfEdges));
@@ -1747,6 +1758,37 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
 // ---------------------------------------------------------------------------
 // Blend layer resolution
 // ---------------------------------------------------------------------------
+std::int32_t appendAmbientSample(std::vector<std::uint8_t>& lighting,
+    const std::uint8_t colors[6][4], std::uint8_t x, std::uint8_t y, std::uint8_t z) {
+  // 28 bytes per sample: six ColorRGBExp32 (rgb mantissa + signed exponent) then
+  // the position as a 0..255 fraction of the leaf box, then a pad byte. The pad is
+  // written explicitly as 0 so a fixture cannot accidentally prove that the parser
+  // ignores bytes it actually reads.
+  const std::int32_t index = static_cast<std::int32_t>(lighting.size() / 28);
+  for (int direction = 0; direction < 6; ++direction) {
+    for (int channel = 0; channel < 4; ++channel) {
+      lighting.push_back(colors[direction][channel]);
+    }
+  }
+  lighting.push_back(x);
+  lighting.push_back(y);
+  lighting.push_back(z);
+  lighting.push_back(0);
+  return index;
+}
+
+void appendAmbientEntry(std::vector<std::uint8_t>& index, std::uint16_t sampleCount,
+    std::uint16_t firstSample) {
+  // The record is (count, first) and NOT a leaf id: the array is indexed by leaf.
+  // A fixture that wrote a leaf id first would still parse, and would describe a
+  // lump layout no shipped map carries -- so the self-test asserts a cube that only
+  // the intended leaf can answer with.
+  index.push_back(static_cast<std::uint8_t>(sampleCount & 0xffu));
+  index.push_back(static_cast<std::uint8_t>(sampleCount >> 8));
+  index.push_back(static_cast<std::uint8_t>(firstSample & 0xffu));
+  index.push_back(static_cast<std::uint8_t>(firstSample >> 8));
+}
+
 bool resampleRgba(const std::vector<std::uint8_t>& source, std::uint32_t width,
     std::uint32_t height, std::uint32_t outWidth, std::uint32_t outHeight,
     std::vector<std::uint8_t>& out) {
