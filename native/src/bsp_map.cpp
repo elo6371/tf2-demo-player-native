@@ -24,7 +24,15 @@ constexpr int kLumpEntities = 0, kLumpTexData = 2, kLumpVertices = 3, kLumpTexIn
   // tonemapped page in lump 8 and the wide-range page in lump 53, and the
   // engine picks per `mat_hdr_level`. Both are indexed by the same
   // `dface_t.lightofs`, so the two are directly comparable luxel for luxel.
-  kLumpLightingHdr = 53;
+  kLumpLightingHdr = 53,
+  // T105/task-37: the leaf ambient cube. Two lumps each, per render path --
+  // the index (a per-leaf count/offset array, 4 bytes an entry) and the data
+  // (28-byte records: a six-colour cube then the sample's position). The
+  // numbers are the SDK's (bspfile.h:343-350) and were confirmed against every
+  // shipped map on this host: index bytes == leafCount * 4 exactly, and data
+  // bytes % 28 == 0 with no sample out of range on all 260 maps that carry them.
+  kLumpLeafAmbientIndexHdr = 51, kLumpLeafAmbientIndex = 52,
+  kLumpLeafAmbientLightingHdr = 55, kLumpLeafAmbientLighting = 56;
 
 template <typename T> T read(const Bytes& b, std::size_t at) {
   T value{}; std::memcpy(&value, b.data() + at, sizeof(T)); return value;
@@ -237,11 +245,25 @@ BspVertex lerpVertex(const BspVertex& a, const BspVertex& b, float t) {
   return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
 }
 
-void writeLuxel(std::uint8_t* dest, const std::uint8_t* sample, std::uint64_t& toneSum, std::size_t& toneCount) {
+// T105/task-37: ColorRGBExp32 -> linear float RGB, and the ONLY spelling of
+// that decode in this file. Two call sites needed it before this task (the
+// lightmap atlas and the T17 HDR tone pass) and each carried its own copy of
+// `mantissa * ldexp(1, exponent) / 255`; the leaf ambient cube is the third.
+// Three copies of an arithmetic identity is three chances for one lighting path
+// to disagree with the others about what a stored byte means, and a disagreement
+// looks like a lighting bug in whichever path the reader did not edit.
+void decodeColorRgbExp32(const std::uint8_t* sample, float rgb[3]) {
   const int exponent = static_cast<int>(static_cast<std::int8_t>(sample[3]));
   const float scale = std::ldexp(1.0f, exponent) / 255.0f;
   for (int channel = 0; channel < 3; ++channel) {
-    const float decoded = static_cast<float>(sample[channel]) * scale;
+    rgb[channel] = static_cast<float>(sample[channel]) * scale;
+  }
+}
+void writeLuxel(std::uint8_t* dest, const std::uint8_t* sample, std::uint64_t& toneSum, std::size_t& toneCount) {
+  float linear[3];
+  decodeColorRgbExp32(sample, linear);
+  for (int channel = 0; channel < 3; ++channel) {
+    const float decoded = linear[channel];
     std::uint8_t byte = 0;
     if (decoded >= 1.0f) byte = 255;
     else if (decoded > 0.0f) byte = static_cast<std::uint8_t>(decoded * 255.0f + 0.5f);
@@ -310,6 +332,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   if (!decodeLump(bytes, table[kLumpStringTable], stringTable)) return fail("BSP string table LZMA decode failed");
   if (vertices.size() % 12 || texInfo.size() % 72 || faces.size() % 56 || edges.size() % 4 || surfEdges.size() % 4 || models.size() % 48 || texData.size() % 32 || stringTable.size() % 4 || models.empty()) return fail("BSP lump layout is invalid");
   Bytes entities, planes, vis, nodes, leafs, leafFaceBytes, dispInfo, dispVerts, cubemapBytes;
+  Bytes leafAmbientIndexLdr, leafAmbientLightingLdr, leafAmbientIndexHdr, leafAmbientLightingHdr;
   tryDecode(bytes, table[0], entities);
   tryDecode(bytes, table[1], planes);
   tryDecode(bytes, table[4], vis);
@@ -319,6 +342,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   tryDecode(bytes, table[26], dispInfo);
   tryDecode(bytes, table[33], dispVerts);
   tryDecode(bytes, table[42], cubemapBytes);
+  // T105/task-37: the leaf ambient cube, both render paths. All four are
+  // OPTIONAL and a missing one is not an error: 1 of the 261 maps on this host
+  // ships neither pair, which is why the mode starts Unavailable instead of a
+  // zero cube that would read as "this map is unlit".
+  tryDecode(bytes, table[kLumpLeafAmbientIndex], leafAmbientIndexLdr);
+  tryDecode(bytes, table[kLumpLeafAmbientLighting], leafAmbientLightingLdr);
+  tryDecode(bytes, table[kLumpLeafAmbientIndexHdr], leafAmbientIndexHdr);
+  tryDecode(bytes, table[kLumpLeafAmbientLightingHdr], leafAmbientLightingHdr);
   parseStaticProps(bytes, table[kLumpGame], map);
   if (!entities.empty()) map.skyName = quotedValue(std::string(entities.begin(), entities.end()), "skyname");
   if (planes.size() % 20 == 0) {
@@ -360,6 +391,15 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       leaf.cluster = read<std::int16_t>(leafs, i * 32 + 4);
       leaf.firstFace = read<std::uint16_t>(leafs, i * 32 + 20);
       leaf.faceCount = read<std::uint16_t>(leafs, i * 32 + 22);
+      // T105/task-37: mins/maxs, three int16 each at +8 and +14. An ambient
+      // sample stores its position as an 0..255 fraction of these, so the box
+      // is what turns three bytes into a place. A leaf whose box is degenerate
+      // (maxs <= mins on an axis) is not rejected: the parser tolerates it and
+      // the sample position collapses to mins, which is still inside the leaf.
+      for (int axis = 0; axis < 3; ++axis) {
+        leaf.mins[axis] = read<std::int16_t>(leafs, i * 32 + 8 + static_cast<std::size_t>(axis) * 2);
+        leaf.maxs[axis] = read<std::int16_t>(leafs, i * 32 + 14 + static_cast<std::size_t>(axis) * 2);
+      }
       map.leaves.push_back(leaf);
       if (leaf.firstFace < 0 || leaf.faceCount < 0) continue;
       for (int face = 0; face < leaf.faceCount; ++face) {
@@ -373,6 +413,71 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           if (!known) clusters.push_back(leaf.cluster);
         }
       }
+    }
+  }
+  // ---- T105/task-37: leaf ambient cube ------------------------------------
+  // Page rule: LDR wins whenever it is present, HDR only when it is the only
+  // page -- the SAME rule the world lightmap uses above (see the T105 comment
+  // on `lightPage`). The brief for this task said "prefer HDR when it exists";
+  // the repo does the opposite for the lightmap, and two lighting paths that
+  // pick opposite pages would light the same leaf out of two different
+  // compiles. No shipped map on this host is HDR-only (0 of 261), so this
+  // branch is unreachable on the corpus and following the brief here would only
+  // create a second rule nothing exercises.
+  {
+    const bool ldrUsable = !leafAmbientIndexLdr.empty() && !leafAmbientLightingLdr.empty();
+    const bool hdrUsable = !leafAmbientIndexHdr.empty() && !leafAmbientLightingHdr.empty();
+    const Bytes* indexPage = ldrUsable ? &leafAmbientIndexLdr : (hdrUsable ? &leafAmbientIndexHdr : nullptr);
+    const Bytes* lightingPage = ldrUsable ? &leafAmbientLightingLdr : (hdrUsable ? &leafAmbientLightingHdr : nullptr);
+    // The index is a PER-LEAF array: entry i belongs to leaf i. A length that is
+    // not exactly leafCount * 4 means the lump is not the one we think it is,
+    // and reading it anyway would hand leaf i another leaf's cube -- a wrong
+    // colour, which is far harder to notice than a missing one.
+    if (indexPage != nullptr && lightingPage != nullptr && !map.leaves.empty()
+        && indexPage->size() == map.leaves.size() * 4 && lightingPage->size() % 28 == 0) {
+      const std::size_t sampleCount = lightingPage->size() / 28;
+      map.leafAmbientEntries.resize(map.leaves.size());
+      map.leafAmbientSamples.reserve(sampleCount);
+      std::vector<bool> claimed(sampleCount, false);
+      for (std::size_t leaf = 0; leaf < map.leaves.size(); ++leaf) {
+        BspLeafAmbientEntry entry;
+        entry.sampleCount = read<std::uint16_t>(*indexPage, leaf * 4);
+        entry.firstSample = read<std::uint16_t>(*indexPage, leaf * 4 + 2);
+        // Clamp to the data lump and COUNT it. A record that overruns would make
+        // the cube walk read past the vector, so the clamp is not optional; the
+        // counter is what stops the clamp from being silent.
+        if (entry.sampleCount > 0
+            && static_cast<std::size_t>(entry.firstSample) + entry.sampleCount > sampleCount) {
+          const auto available = static_cast<std::size_t>(entry.firstSample) < sampleCount
+            ? sampleCount - static_cast<std::size_t>(entry.firstSample) : 0;
+          entry.sampleCount = static_cast<std::uint32_t>(available);
+          ++map.leafAmbientRecordsOutOfRange;
+        }
+        map.leafAmbientEntries[leaf] = entry;
+        if (entry.sampleCount > 0) {
+          ++map.leavesWithAmbient;
+          for (std::uint32_t s = 0; s < entry.sampleCount; ++s) {
+            claimed[static_cast<std::size_t>(entry.firstSample) + s] = true;
+          }
+        } else {
+          ++map.leavesWithoutAmbient;
+        }
+      }
+      for (const bool used : claimed) { if (!used) ++map.leafAmbientSamplesUnreferenced; }
+      map.leafAmbientSamples.resize(sampleCount);
+      for (std::size_t s = 0; s < sampleCount; ++s) {
+        const auto at = s * 28;
+        auto& sample = map.leafAmbientSamples[s];
+        for (int direction = 0; direction < 6; ++direction) {
+          decodeColorRgbExp32(lightingPage->data() + at + static_cast<std::size_t>(direction) * 4,
+            sample.color[direction]);
+        }
+        sample.positionFraction[0] = static_cast<float>(lightingPage->at(at + 24));
+        sample.positionFraction[1] = static_cast<float>(lightingPage->at(at + 25));
+        sample.positionFraction[2] = static_cast<float>(lightingPage->at(at + 26));
+      }
+      map.leafAmbientMode = BspLeafAmbientMode::RgbExp32;
+      map.leafAmbientHdrPage = !ldrUsable;
     }
   }
   map.faceClusterOffsets.reserve(faceClusters.size() + 1);
@@ -1233,10 +1338,10 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
                 const auto sampleAt = static_cast<std::size_t>(lightOffset)
                   + (static_cast<std::size_t>(y) * static_cast<std::size_t>(samplesW)
                     + static_cast<std::size_t>(x)) * 4u;
+                float linear[3];
+                decodeColorRgbExp32(lightingHdr.data() + sampleAt, linear);
                 for (int channel = 0; channel < 3; ++channel) {
-                  const int exponent = static_cast<int>(static_cast<std::int8_t>(lightingHdr[sampleAt + 3]));
-                  const float scale = std::ldexp(1.0f, exponent) / 255.0f;
-                  const float decoded = static_cast<float>(lightingHdr[sampleAt + static_cast<std::size_t>(channel)]) * scale;
+                  const float decoded = linear[channel];
                   faceToneHdrSum += decoded >= 1.0f ? 255.0 : (decoded > 0.0f ? decoded * 255.0 : 0.0);
                 }
               }
@@ -1829,6 +1934,116 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   map.valid = true; return true;
 }
 
+int BspParser::leafAt(const BspMap& map, float x, float y, float z) {
+  // The same walk as clusterAt() above, and deliberately the same code: the two
+  // answers must agree about which leaf a point is in, and the only way to keep
+  // them agreeing is to keep the guards, the side test and the 4096-step
+  // ceiling identical. The difference is the last line -- this returns the leaf,
+  // clusterAt returns that leaf's cluster.
+  if (map.nodes.empty() || map.planes.empty() || map.leaves.empty()) return -1;
+  if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return -1;
+  int node = 0;
+  for (int guard = 0; node >= 0 && guard < 4096; ++guard) {
+    if (static_cast<std::size_t>(node) >= map.nodes.size()) return -1;
+    const auto& current = map.nodes[static_cast<std::size_t>(node)];
+    if (current.plane < 0 || static_cast<std::size_t>(current.plane) >= map.planes.size()) return -1;
+    const auto& plane = map.planes[static_cast<std::size_t>(current.plane)];
+    const float side = x * plane.normal[0] + y * plane.normal[1] + z * plane.normal[2] - plane.dist;
+    node = side >= 0.0f ? current.child[0] : current.child[1];
+  }
+  const int leaf = -node - 1;
+  if (leaf < 0 || static_cast<std::size_t>(leaf) >= map.leaves.size()) return -1;
+  return leaf;
+}
+
+namespace {
+
+// The cube chooser, shared by both public overloads. `target` is the point the
+// answer is for: the leaf box centre for leafAmbientAtLeaf(), the caller's own
+// point for leafAmbientAt(). One chooser and two targets, rather than two
+// choosers -- a caller that resolves through the point variant and a caller that
+// resolves through the leaf variant must not disagree about which cube lies in
+// the same leaf.
+bool pickLeafAmbientCube(BspMap& map, int leafIndex, const float target[3],
+    BspLeafAmbientCube& out) {
+  if (map.leafAmbientMode != BspLeafAmbientMode::RgbExp32) return false;
+  if (leafIndex < 0 || static_cast<std::size_t>(leafIndex) >= map.leafAmbientEntries.size()) return false;
+  if (static_cast<std::size_t>(leafIndex) >= map.leaves.size()) return false;
+  const auto& entry = map.leafAmbientEntries[static_cast<std::size_t>(leafIndex)];
+  if (entry.sampleCount == 0) return false;
+  if (static_cast<std::size_t>(entry.firstSample) + entry.sampleCount > map.leafAmbientSamples.size()) return false;
+  const auto& leaf = map.leaves[static_cast<std::size_t>(leafIndex)];
+  // Choose the cube nearest the target. A leaf with one cube (1498 of the 3286
+  // carrying leaves on cp_badlands) has no choice to make; a full 4x4x4 leaf has
+  // 16, and taking the first would put the whole leaf's light at one corner of
+  // it -- which is why the target is a point and not just "the leaf".
+  int best = -1;
+  float bestDistance = 0.0f;
+  for (std::uint32_t s = 0; s < entry.sampleCount; ++s) {
+    const auto& sample = map.leafAmbientSamples[static_cast<std::size_t>(entry.firstSample) + s];
+    float dx = 0.0f, dy = 0.0f, dz = 0.0f;
+    float difference[3];
+    for (int axis = 0; axis < 3; ++axis) {
+      const float point = static_cast<float>(leaf.mins[axis])
+        + (static_cast<float>(leaf.maxs[axis]) - static_cast<float>(leaf.mins[axis]))
+          * (sample.positionFraction[axis] / 255.0f);
+      difference[axis] = point - target[axis];
+    }
+    dx = difference[0]; dy = difference[1]; dz = difference[2];
+    const float distance = dx * dx + dy * dy + dz * dz;
+    if (best < 0 || distance < bestDistance) { best = static_cast<int>(s); bestDistance = distance; }
+  }
+  if (best < 0) return false;
+  const auto& chosen = map.leafAmbientSamples[static_cast<std::size_t>(entry.firstSample) + static_cast<std::size_t>(best)];
+  out.available = true;
+  out.leafIndex = leafIndex;
+  out.cluster = leaf.cluster;
+  out.sampleCount = static_cast<int>(entry.sampleCount);
+  out.sampleIndex = best;
+  for (int axis = 0; axis < 3; ++axis) {
+    out.position[axis] = static_cast<float>(leaf.mins[axis])
+      + (static_cast<float>(leaf.maxs[axis]) - static_cast<float>(leaf.mins[axis]))
+        * (chosen.positionFraction[axis] / 255.0f);
+  }
+  for (int direction = 0; direction < 6; ++direction) {
+    for (int channel = 0; channel < 3; ++channel) {
+      out.color[direction][channel] = chosen.color[direction][channel];
+    }
+  }
+  return true;
+}
+
+} // namespace
+
+bool BspParser::leafAmbientAtLeaf(BspMap& map, int leafIndex, BspLeafAmbientCube& out) {
+  if (static_cast<std::size_t>(leafIndex) >= map.leaves.size() || leafIndex < 0) return false;
+  const auto& leaf = map.leaves[static_cast<std::size_t>(leafIndex)];
+  const float centre[3] = {
+    0.5f * (static_cast<float>(leaf.mins[0]) + static_cast<float>(leaf.maxs[0])),
+    0.5f * (static_cast<float>(leaf.mins[1]) + static_cast<float>(leaf.maxs[1])),
+    0.5f * (static_cast<float>(leaf.mins[2]) + static_cast<float>(leaf.maxs[2])),
+  };
+  return pickLeafAmbientCube(map, leafIndex, centre, out);
+}
+
+bool BspParser::leafAmbientAt(BspMap& map, float x, float y, float z, BspLeafAmbientCube& out) {
+  const int leaf = leafAt(map, x, y, z);
+  const float point[3] = {x, y, z};
+  if (leaf >= 0 && pickLeafAmbientCube(map, leaf, point, out)) {
+    ++map.ambientLookupsHit;
+    return true;
+  }
+  // Every miss is counted. A counter that only counts hits reads as "the
+  // feature worked every time it was asked", which is exactly the claim a
+  // lighting change must not be able to make for free.
+  ++map.ambientLookupsMissed;
+  return false;
+}
+
+const char* BspParser::leafAmbientModeName(BspLeafAmbientMode mode) {
+  if (mode == BspLeafAmbientMode::RgbExp32) return "source-equivalent";
+  return "unavailable";
+}
 const char* BspParser::lightmapModeName(BspLightmapMode mode) {
   if (mode == BspLightmapMode::RgbExp32) return "source-equivalent";
   if (mode == BspLightmapMode::AverageIntensity) return "average-intensity";

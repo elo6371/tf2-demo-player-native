@@ -1,0 +1,3 @@
+{"map":"cp_cloak.bsp","mode":"unavailable","leaves":696,"entries":0,"samples":0,"leavesWith":0,"leavesWithout":0,"outOfRange":0,"unreferenced":0}
+{"reading":"directionStats","map":"cp_cloak.bsp","cubes":0,"brightest":[0,0,0,0,0,0],"meanLuminance":[0,0,0,0,0,0]}
+{"reading":"leafAmbientLookups","hit":0,"missed":0}
