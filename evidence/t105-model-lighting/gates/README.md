@@ -1,18 +1,31 @@
 # Gate transcripts for this tree
 
-`warn-check.log` is the stdout of `bash tools/warn-check.sh` run from the worktree
-root at commit `e0e80fa2`, i.e. on the exact tree this evidence describes. Exit 0.
-`warn-check-tus.txt` is the list of translation units it compiled, copied from the
-gate's own `.scratch/warn-check/tus.tsv`.
+A transcript in here means the gate actually ran on this tree, and the file is its
+full output: a provenance header saying the command and the commit, then the gate's own
+lines with nothing elided. The tree is `cfd01bd1`, which is `e0e80fa2` plus
+documentation and comment edits; the product binary is
+`a052de0875f38a38c5119ded0d17f29619997857fd481960791d46ccb29fd9b1`.
 
-A transcript in here means the gate actually ran on this tree. A gate that did not run
-has no file, and the report says so in words rather than implying a pass -- see
-`../REPORT.md`, section 'Gates: what was run here, and what was not'.
+| file | gate | verdict |
+|---|---|---|
+| `warn-check.log` + `warn-check-tus.txt` | `bash tools/warn-check.sh` | `WARN-GATE=PASS new=0 fixed=0 same=0`, exit 0, 142 TUs |
+| `argument-refusal.log` | `bash argument-refusal-check.sh` | `VERDICT argument-refusal: PASS`, exit 0 |
+| `class-pixels.log` | `T62_CLASS_OUT=.scratch/t62-class-pixels bash class-pixels-check.sh` | `CLASS-PIXELS=PASS`, exit 0 |
 
-WHY TWO GATES ARE MISSING. `argument-refusal-check.sh` and `class-pixels-check.sh`
-both launch the product, so both take the host-wide lock at
-`/d/_shared/tf2-hostlock/.lock` before capturing (that lock exists so two worktrees
-never capture at once -- a capture is timing-sensitive). Another owner held it
-continuously while this evidence was assembled, and a run that loses the lock exits
-2 with `VERIFY-LOCK=FAIL ...`, which is a retry signal and not a finding. Rather than
-publish that as a result, the two gates are recorded as not run.
+A gate that did not run has no file, and `../REPORT.md` says so in words rather than
+implying a pass -- see its section 'Gates: what was run here'.
+
+TWO DETAILS THAT MATTER WHEN RE-RUNNING THESE. `argument-refusal-check.sh` and
+`class-pixels-check.sh` both launch the product, so each capture takes the host-wide
+lock at `/d/_shared/tf2-hostlock/.lock` (that lock exists so two worktrees never capture
+at once -- a capture is timing-sensitive). Both logs therefore show a
+`VERIFY-LOCK=ACQUIRED` / `VERIFY-LOCK=RELEASED` pair per case, and both gates had to
+queue behind other owners before they could run. A run that loses the lock prints
+`VERIFY-LOCK=FAIL ...` and exits 2; that is a retry signal, not a finding, and it is why
+an earlier attempt at these two produced no transcript.
+
+`class-pixels-check.sh` was pointed at `.scratch/t62-class-pixels` instead of its
+default `evidence/t62-matrix/class-pixels`, so it wrote no tracked file. That directory
+is a copy of the committed seeds (`settings.json`, `targets.txt`, `ui.json`) -- the gate
+reads those seeds rather than inventing them, so the copy has to be seeded or the run
+silently falls back to product defaults.
