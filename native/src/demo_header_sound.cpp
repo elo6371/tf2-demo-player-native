@@ -63,12 +63,17 @@ bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t pac
   // 8 bits on the reliable path and 16 bits otherwise, so it cannot exceed 65535. That is why
   // every corpus demo reports sound_dropped_payload_too_large=0 -- the guard is kept for a wider
   // field, and the reachable budget is the 4096-message one.
-  // What is new is that a message past either budget is recorded as a designed drop
-  // with its reason and is NOT decoded: there is no captured payload to decode, so running the
-  // decoder over it can only manufacture a failure. It used to: the first bit read on an empty
-  // reader incremented decodedSoundEventFailures, which is how 20921 designed drops became
-  // 20923 "decode failures" on pl_upward_f12 (20921 + 2 real).
+  // A message past a budget is recorded as a designed drop with its reason. N21(c) changed what
+  // happens next: a message past the RETENTION budget is still parsed from a scratch buffer and
+  // only the retained copy is dropped, so the decoded event stream covers the whole recording.
+  // Measured on bb841c6d..._matcha: 12402 messages, 8306 of them past the budget, and the old
+  // code stopped at 5292 decoded events spanning ticks 3..21554 of a 10252..64352 packet range --
+  // the first 40% of the demo. The missing 60% was unparsed, not silent.
+  // A message whose payload is too large to read is still skipped whole: there is nothing to
+  // decode, and reading the first bit of an empty reader is what once turned 20921 designed
+  // drops into 20923 "decode failures" on pl_upward_f12 (20921 + 2 real).
   bool captured = false;
+  bool decodable = false;
   if (payloadBits < 64u * 1024u && summary.rawSoundMessages.size() < 4096u) {
     raw.payload.assign((static_cast<std::size_t>(payloadBits) + 7u) / 8u, 0);
     for (std::size_t bit = 0; bit < payloadBits; ++bit) {
@@ -79,10 +84,21 @@ bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t pac
     soundPayload = raw.payload;
     summary.rawSoundMessages.push_back(std::move(raw));
     captured = true;
+    decodable = true;
+  } else if (payloadBits < 64u * 1024u) {
+    // N21(c): over the retention budget, still decoded. The payload is read into the same scratch
+    // vector the decoder reads from; nothing keeps a copy, so the memory the budget guarded is
+    // still bounded by 4096 retained messages.
+    recordDroppedSoundMessage(summary, DemoNetworkSummary::SoundDropReason::MessageCap);
+    soundPayload.assign((static_cast<std::size_t>(payloadBits) + 7u) / 8u, 0);
+    for (std::size_t bit = 0; bit < payloadBits; ++bit) {
+      std::uint32_t value = 0;
+      if (!bits.read(1, value)) return false;
+      soundPayload[bit / 8u] |= static_cast<std::uint8_t>(value << (bit % 8u));
+    }
+    decodable = true;
   } else {
-    recordDroppedSoundMessage(summary,
-        payloadBits >= 64u * 1024u ? DemoNetworkSummary::SoundDropReason::PayloadTooLarge
-                                   : DemoNetworkSummary::SoundDropReason::MessageCap);
+    recordDroppedSoundMessage(summary, DemoNetworkSummary::SoundDropReason::PayloadTooLarge);
     if (!bits.skip(payloadBits)) return false;
   }
   MessageBits soundBits(soundPayload);
@@ -95,9 +111,9 @@ bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t pac
     value = static_cast<std::int32_t>((rawValue & sign) ? (rawValue | (~0u << width)) : rawValue);
     return true;
   };
-  // A dropped message still declares soundCount (it is real network data) but has no payload,
-  // so it is skipped as a whole: zero failures recorded, the drop already counted above.
-  for (std::uint32_t eventIndex = 0; captured && eventIndex < soundCount; ++eventIndex) {
+  // A message skipped whole for payload size still declares soundCount (it is real network data)
+  // but has nothing to parse: zero failures recorded, the drop already counted above.
+  for (std::uint32_t eventIndex = 0; decodable && eventIndex < soundCount; ++eventIndex) {
     DecodedSoundEvent event = summary.soundDeltaStateValid ? summary.soundDeltaState : DecodedSoundEvent{};
     event.tick = packetTick;
     std::uint32_t value = 0;
@@ -155,7 +171,13 @@ bool readSounds(MessageBits& bits, DemoNetworkSummary& summary, std::int32_t pac
     event.valid = event.soundIndex != 0;
     summary.soundDeltaState = event;
     summary.soundDeltaStateValid = true;
-    if (event.valid && summary.decodedSoundEvents.size() < 16384u) summary.decodedSoundEvents.push_back(event);
+    if (event.valid) {
+      // N21(c): the event budget is a memory guard, not a decoding decision. 16384 was below what
+      // one corpus demo declares (matcha: soundEventCount=15942), so the tail was dropped with no
+      // reading. Overflow is counted now rather than inferred, and the budget is 64k events.
+      if (summary.decodedSoundEvents.size() < 65536u) summary.decodedSoundEvents.push_back(event);
+      else ++summary.decodedSoundEventCapDrops;
+    }
   }
   ++summary.soundMessageCount;
   summary.soundEventCount += soundCount;

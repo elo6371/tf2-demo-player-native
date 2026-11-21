@@ -557,11 +557,18 @@ else
     # the well recording two of them are world-kind -- the water_splash events,
     # the only MP3 events in this pinned set that the output path is asked to
     # play, which is why `playedEvents` moves by 2 there and by 0 on the others.
+    #
+    # N21(c) 2026-11-21: the 4096-message retention budget used to stop decoding too, so every
+    # content-map pin on a recording with more than 4096 sound messages was really a pin on the
+    # first 40% of it. The scanner now decodes the whole recording. Only the matcha recording is
+    # present on the re-pinning machine, so only its pins moved (scheduled 5229 -> 15746, played
+    # 3508 -> 10507); the pov and well inputs are absent here and their pins still carry the
+    # pre-N21(c) readings -- re-measure them wherever those recordings exist.
     case "$want_name" in
       autorecord_2026-07-02*)
         pins="scheduled=5323 statusResolved=4075 statusMissingWav=1248 statusUnsupportedFormat=0 resolvedFiltered=511 unresolvedFiltered=0 playedEvents=3564 markerEvents=745 markerEventsResolved=745 kindWeapon=888 kindFootstep=2263 kindUber=14 kindVoice=504 kindAnnouncer=7 kindMusic=0" ;;
       bb841c6d*)
-        pins="scheduled=5229 statusResolved=4145 statusMissingWav=1083 statusInvalidWav=1 statusUnsupportedFormat=0 resolvedFiltered=637 unresolvedFiltered=0 playedEvents=3508 markerEvents=1460 markerEventsResolved=1460 kindWeapon=2953 kindFootstep=5 kindUber=14 kindVoice=633 kindAnnouncer=4 kindMusic=0" ;;
+        pins="scheduled=15746 statusResolved=12376 statusMissingWav=3367 statusInvalidWav=3 statusUnsupportedFormat=0 resolvedFiltered=1869 unresolvedFiltered=2 playedEvents=10507 markerEvents=4336 markerEventsResolved=4334 kindWeapon=8791 kindFootstep=9 kindUber=68 kindVoice=1859 kindAnnouncer=12 kindMusic=0" ;;
       autorecord_2026-07-16*)
         pins="scheduled=4989 statusResolved=4563 statusMissingWav=426 statusUnsupportedFormat=0 resolvedFiltered=190 unresolvedFiltered=0 playedEvents=4373 markerEvents=723 markerEventsResolved=723 kindWeapon=675 kindFootstep=3003 kindUber=7 kindVoice=188 kindAnnouncer=2 kindMusic=0" ;;
       *)
@@ -800,18 +807,25 @@ else
     # although only the coverage accumulator reads them: a pin on a key no
     # identity uses is the only kind the mutation pass can move *alone*, so its
     # presence is what shows the pin table itself is live.
+    #
+    # N21(c) 2026-11-21: the pins on recordings that exceed the 4096-message retention budget were
+    # re-measured after the scanner stopped capping the DECODE at that budget (only the retained
+    # copy is capped now). Measured moves: pd_circus scheduled 4930 -> 26718 (5.4x), manor 4306 ->
+    # 13407, bagel 5669 -> 8334. The soundprecache table pins and the svc: message-count pins did
+    # not move -- neither depends on sound message decoding. The pov recording is absent here, so
+    # its line still carries the pre-N21(c) readings and must be re-measured where it exists.
     case "$want_name" in
       autorecord_2026-10-04*)
         # pd_circus: the music carrier, and the mutation reference recording
         # (first line of corpus-inputs.txt). `svc:tempEntities` is pinned here
         # because no identity reads it -- see the comment above.
-        pins="timeline=4930 build:read=5001 kinds:music=3 kinds:weapon=1072 kinds:world=2355 kinds:voice=272 table:music=15 table:entries=6975 svc:tempEntities=9494 svc:voiceData=0" ;;
+        pins="timeline=26718 build:read=27510 kinds:music=18 kinds:weapon=7870 kinds:world=11847 kinds:voice=1622 table:music=15 table:entries=6975 svc:tempEntities=9494 svc:voiceData=0" ;;
       autorecord_2026-10-02_14-26-03*)
-        pins="timeline=4306 build:read=4878 kinds:music=1 kinds:weapon=1015 kinds:world=1400 kinds:voice=479 table:music=13 table:entries=6792 svc:tempEntities=5608 svc:voiceData=41" ;;
+        pins="timeline=13407 build:read=15728 kinds:music=33 kinds:weapon=3315 kinds:world=4084 kinds:voice=2046 table:music=13 table:entries=6792 svc:tempEntities=5608 svc:voiceData=41" ;;
       autorecord_2026-07-02*)
         pins="timeline=5323 build:read=5563 kinds:music=0 kinds:weapon=888 kinds:world=1647 kinds:voice=504 table:music=13 table:entries=6720 svc:tempEntities=12321 svc:voiceData=0" ;;
       autorecord_2026-10-02_13-20-12*)
-        pins="timeline=5669 build:read=5709 kinds:music=0 kinds:weapon=316 kinds:world=1101 kinds:voice=229 table:music=13 table:entries=6897 svc:tempEntities=3882 svc:voiceData=70" ;;
+        pins="timeline=8334 build:read=8433 kinds:music=0 kinds:weapon=547 kinds:world=2079 kinds:voice=427 table:music=13 table:entries=6897 svc:tempEntities=3882 svc:voiceData=70" ;;
       autorecord_2026-10-12_16-47-40*)
         pins="timeline=4129 build:read=4193 kinds:music=2 kinds:weapon=836 kinds:world=1579 kinds:voice=359 table:music=13 table:entries=6758 svc:tempEntities=2040 svc:voiceData=0" ;;
       *)

@@ -828,6 +828,9 @@ struct DemoNetworkSummary {
   std::size_t rawSoundMessagesDroppedPayloadTooLarge = 0;  // SoundDropReason::PayloadTooLarge
   std::size_t rawSoundMessagesDroppedMessageCap = 0;       // SoundDropReason::MessageCap
   std::vector<DecodedSoundEvent> decodedSoundEvents;
+  // N21(c): decoded events past the 65536-event memory guard. Counted so "the list is complete"
+  // is a reading: before this, the tail past 16384 was dropped with no counter at all.
+  std::size_t decodedSoundEventCapDrops = 0;
   // Decode failures only: messages whose payload *was* captured and whose event block could
   // not be read. A designed drop is counted above and is never decoded, so it can never land
   // here (conflating the two is what made 20921 designed drops read as 20923 failures).

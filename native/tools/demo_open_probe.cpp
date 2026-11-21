@@ -855,6 +855,7 @@ int wmain(int argc, wchar_t** argv) {
                 << L" sound_dropped_payload_too_large=" << summary.rawSoundMessagesDroppedPayloadTooLarge
                 << L" sound_dropped_message_cap=" << summary.rawSoundMessagesDroppedMessageCap
                 << L" sound_decoded=" << summary.decodedSoundEvents.size()
+                << L" sound_decoded_cap_drops=" << summary.decodedSoundEventCapDrops
                 << L" entities=" << summary.packetEntityUpdates
                 << L" entity_failures=" << summary.packetEntityDecodeFailures
                 << L" entity_header_failures=" << summary.entityUpdateHeaderFailures

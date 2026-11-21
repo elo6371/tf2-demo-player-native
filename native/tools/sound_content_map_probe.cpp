@@ -98,19 +98,21 @@ int main(int argc, char** argv) {
   std::string tfRoot;
   std::string mapOutPath;
   std::string tableOutPath;
+  std::string eventsOutPath;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--demo" && i + 1 < argc) { demoPath = argv[++i]; }
     else if (arg == "--tf-root" && i + 1 < argc) { tfRoot = argv[++i]; }
     else if (arg == "--map-out" && i + 1 < argc) { mapOutPath = argv[++i]; }
     else if (arg == "--table-out" && i + 1 < argc) { tableOutPath = argv[++i]; }
+    else if (arg == "--events-out" && i + 1 < argc) { eventsOutPath = argv[++i]; }
     else {
       std::cout << "{\"status\":\"failed\",\"reason\":\"unknown argument: " << arg << "\"}\n";
       return 2;
     }
   }
   if (demoPath.empty()) {
-    std::cout << "{\"status\":\"failed\",\"reason\":\"usage: --demo <path.dem> [--tf-root <dir>] [--map-out <file>] [--table-out <file>]\"}\n";
+    std::cout << "{\"status\":\"failed\",\"reason\":\"usage: --demo <path.dem> [--tf-root <dir>] [--map-out <file>] [--table-out <file>] [--events-out <file>]\"}\n";
     return 2;
   }
   if (tfRoot.empty()) {
@@ -323,6 +325,35 @@ int main(int argc, char** argv) {
           << (answer.path.empty() ? "-" : answer.path) << '\t'
           << event.name << '\t' << answer.detail << '\n';
       ++mapLines;
+    }
+  }
+
+  // ---- the entity dump: one line per DECODED event ------------------------
+  // N21(c) audit. The timeline keeps soundIndex, name and origin but not the
+  // entity that emitted the sound, so "was the recorder's own weapon ever in the
+  // demo's svc_Sounds" is a question the map file cannot answer -- every row of
+  // it has already lost the field. Written from decodedSoundEvents, the pre-
+  // timeline view, so unresolved names are visible here too.
+  std::size_t eventLines = 0;
+  if (!eventsOutPath.empty()) {
+    std::ofstream events(eventsOutPath, std::ios::binary);
+    if (!events) {
+      std::cout << "{\"status\":\"failed\",\"reason\":\"cannot open --events-out file\"}\n";
+      return 2;
+    }
+    events << "# decoded sound events (pre-timeline)\n";
+    events << "# demo=" << std::filesystem::path(demoPath).filename().string() << '\n';
+    events << "# columns: tick\tentity\tindex\tkind\tname\tvolume\tdelay\tx\ty\tz\tflags\tchannel\tambient\tsentence\tvalid\n";
+    for (const auto& event : summary.decodedSoundEvents) {
+      events << event.tick << '\t' << event.entityIndex << '\t' << event.soundIndex << '\t'
+             << tf2::native::soundEventKindName(tf2::native::classifySoundEvent(event.resourceName)) << '\t'
+             << (event.resourceName.empty() ? "-" : event.resourceName) << '\t'
+             << event.volume << '\t' << event.delaySeconds << '\t'
+             << event.origin[0] << '\t' << event.origin[1] << '\t' << event.origin[2] << '\t'
+             << event.flags << '\t' << static_cast<int>(event.channel) << '\t'
+             << (event.ambient ? 1 : 0) << '\t' << (event.sentence ? 1 : 0) << '\t'
+             << (event.valid ? 1 : 0) << '\n';
+      ++eventLines;
     }
   }
 

@@ -11,7 +11,8 @@
 #   only messages whose payload was captured. This script re-reads that split and asserts it.
 #
 #   This is an ACCOUNTING check. A green run does not say "no audio is lost": the 4096-message cap
-#   still drops messages by design, and nothing here measures whether audio plays.
+#   still bounds RETENTION by design (N21(c): the whole recording is decoded from a scratch buffer
+#   and only the retained copy is dropped), and nothing here measures whether audio plays.
 #
 # Usage: bash native/tools/sound_accounting_verify.sh <probe.exe> <demo.dem>
 # Exit:  0 = identities hold, 1 = a named identity failed, 2 = bad usage.
@@ -44,9 +45,12 @@ TOO_LARGE=$(get sound_dropped_payload_too_large)
 MESSAGE_CAP=$(get sound_dropped_message_cap)
 FAILURES=$(get sound_failures)
 DECODED=$(get sound_decoded)
+DECODED_CAP_DROPS=$(get sound_decoded_cap_drops)
 SOUNDS=$(get sounds)
+MATCHES=$(get sound_matches)
+MISSES=$(get sound_misses)
 
-for name in MESSAGES DROPPED TOO_LARGE MESSAGE_CAP FAILURES DECODED SOUNDS; do
+for name in MESSAGES DROPPED TOO_LARGE MESSAGE_CAP FAILURES DECODED SOUNDS MATCHES MISSES; do
   if [ -z "${!name}" ]; then echo "FAIL: missing counter for $name (stale probe binary?)"; exit 1; fi
 done
 
@@ -77,6 +81,13 @@ if [ "$DROPPED" -gt 0 ]; then
   fi
 fi
 
+# I5 every decoded event is either scheduled or rejected. N21(c) made this identity cover the whole
+#    recording (the old decode stopped at the retention budget), so it is now a real check that the
+#    scratch-buffer decode emits nothing the timeline builder cannot account for. The event cap is
+#    counted separately: a non-zero cap-drop means the decoded list itself is truncated.
+check "I5 decoded == matches + misses" "$DECODED" "$((MATCHES + MISSES))"
+check "I6 decoded-event cap drops == 0" "${DECODED_CAP_DROPS:-0}" "0"
+
 if [ "$fail" -ne 0 ]; then echo "[sound-accounting] VERDICT: FAIL"; exit 1; fi
-echo "[sound-accounting] VERDICT: PASS (accounting only; the 4096-message cap still drops messages by design)"
+echo "[sound-accounting] VERDICT: PASS (accounting only; the 4096-message cap still bounds retention, not playback)"
 exit 0
