@@ -9,6 +9,8 @@ Start with the live status and execution documents below; dated measurements ret
 | [HANDOVER-2026-11-21.md](HANDOVER-2026-11-21.md) | Handover report and project introduction: what the project is, what landed, what is still open, how to reproduce every claim |
 | [TASK-LIST-2026-11-20.md](TASK-LIST-2026-11-20.md) | Current unfinished work, assignments, dependencies and acceptance criteria |
 | [REFERENCE-REPOS-2026-11-21.md](REFERENCE-REPOS-2026-11-21.md) | Mandatory external reference repositories: read-before-work rules and the task-to-library table |
+| [LIGHTING-BASIC-2026-11-21.md](LIGHTING-BASIC-2026-11-21.md) | Plan (not started): entity/weapon ambient cube + Half-Lambert, leaf ambient cubes, world-atlas tails; cards task-36/37/38 |
+| [COSMETIC-WEARABLE-2026-11-21.md](COSMETIC-WEARABLE-2026-11-21.md) | Plan (not started): non-effect wearable rendering — probe first, then linkage, model path and bone merge; cards task-39/40/41 |
 | [GEMINI-READONLY-TASKS-2026-11-20.md](GEMINI-READONLY-TASKS-2026-11-20.md) | Gemini read-only task package 2026-11-20 |
 | [PROJECT-EXECUTION-UPDATE-2026-11-18.md](PROJECT-EXECUTION-UPDATE-2026-11-18.md) | Earlier N00–N30 execution order, source references and repository decision |
 | [N-STATUS-2026-11-14.md](N-STATUS-2026-11-14.md) | Per-card N-status: what is measured, what is still open |
