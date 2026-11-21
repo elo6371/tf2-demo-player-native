@@ -70,7 +70,11 @@ P2（提交 `32f78ed9`）把这个问题落成了同帧 A/B 开关 `--viewmodel-
   - A/B（同 build、同 demo、tick 3000、`--audio-device 6`）：`linear` played=485 / inaudible=393 / missing=716；`reference` played=878 / inaudible=0 / missing=323。差额 393 恰是线性版被 2048 u 截断消音的那批事件（485+393=878，716-393=323）；两版 `duplicateTicks` 不同（0 vs 368，帧节奏差异），不影响计数解释，但说明这不是逐帧严格对齐的 A/B。
   - (b) 已实现：`WavLoopInfo`（hasLoop / loopStart / loopEnd 排他、cuePoint、smplLoopCount）解析 RIFF `cue `（count@0、首点 dwSampleOffset）与 `smpl`（numLoops@28、首 loop dwStart@36+8、dwEnd@36+12）；畸形块忽略不拒播，cue-only 回退 loopStart、loopEnd=0；播放层零改动（还没有人消费 loop 区间）。
   - 崩溃记录：本轮 bisect 中的 0xC0000005 与音频无关——残留 `main.cpp.obj` 对上放大后的动画结构体（`AnimationSampleResult` 280→424 字节）砸调用方栈；纯 HEAD 构建同 demo 同 tick 抓帧 rc=0。
-  - 仍未做：(c) POV 开火/挥砍补播（另见 `.scratch/n21c-review/pov-fire-audit.md`：该 demo 只解到 5127/140863 条 `svc_Sounds`、覆盖 tick 0..12187，而录制者的 223 次 player_hurt / 82 次 player_death 全在 13876..304763，不能用它回答"computed-owner 开火无声"）；公式尚未设为默认；未做双耳试听；`level` 仍未解析。
+  - (c) 审计已做（2026-11-21，提交 `a3cfed54`；只改解码口径与探针，未加任何播放行为）：先修掉审计工具自身的截断——`native/src/demo_header_sound.cpp` 的 4096 条保留预算此前同时卡住**解码**，matcha 录音 12402 条 `svc_Sounds` 里 8306 条（67%）在解码前被丢，时间轴只到 tick 21554/64352（前 40%）。现在超保留预算的消息读进临时缓冲照常解码、只是不保留，事件上限 16384→65536 并新增 `decodedSoundEventCapDrops`/`sound_decoded_cap_drops`（本轮 0）。全量后 matcha：decoded 5292→15935、时间轴 15746 条覆盖 tick 2..64360，失败率 2/4096=0.049% 对 6/12402=0.048%（同一水位，非回归）；像素 A/B 仍为 `9681f12c9e672ae896105f7756b3bf5f`、0 UNHANDLED。
+  - (c) 结论：录制者（POV 实体 1）在 15935 条声音里只有 17 条，全是 world/拾取/换弹类（metal 撞击、ammo_pickup、wpn_denyselect、scatter_gun_worldreload、stickybomblauncher_det 等），**一条开火音都没有**；其他玩家的开火音都在（scatter_gun_shoot 899、quake_rpg_fire_remastered 839、scatter_gun_worldreload 794、stickybomblauncher_shoot 637、pistol_shoot 405、rocket_shoot 266）。所以不是预算丢的，是源引擎对本地玩家走客户端预测播放、服务端根本不发这些 sound；补播只能从动画侧合成，放宽预算无用。
+  - (c) 旁证：同一 demo 的 10703 条 game event 里 `weapon_fire` 计数为 **0**（`player_hurt` 2144 条确实带 attacker/weaponid），说明 TF2 dem 里开火声不靠 game event 广播，而是各客户端按武器动画事件播放——补播要挂在动画事件/序列上，不能挂在 game event 上。
+  - (c) 最小方案（未实现，默认关）：在 viewmodel/worldmodel 的序列切换处取「攻击序列首帧」作触发点，按武器 sound script 的 primary fire 名补一条 ScheduledSound（tick=序列切换 tick，origin=eye，volume=1，kind=weapon，标记 `predicted`），只补 POV 实体 1、只补开火/挥砍类，`--audio-pov-fire` 开关默认 off，off 时不进 timeline、不动既有计数；验收=开/关两版的 sound_failures 与 UNHANDLED 不变、开时新增计数可对到动画事件数。
+  - 仍未做：`--audio-pov-fire` 补播实现（依赖动画事件解码，当前 `native/include/animation_decoder.h` 没有事件通道，需先补 AE 解析）；公式尚未设为默认；未做双耳试听；`level` 仍未解析。
 
 ## 4 N12/N19：长片内存与快照上限（采纳为审计）
 
