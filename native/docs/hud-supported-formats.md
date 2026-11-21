@@ -129,8 +129,8 @@ degradation, not a silent one.
 | `visible` | `0`/`1`/`true`/`false`; an invisible panel is **not drawn and owns no pixels**, and a hidden panel's children are hidden with it (visibility is inherited, like Source's). The geometry is still resolved, so a hidden panel is a legal parent for a visible descendant once it is shown |
 | `enabled` | read and reported; this build has no input handling and no VGUI runtime, so a disabled panel is still drawn. Reading it and pretending otherwise would be the kind of half-true support this document exists to avoid |
 | `controlname`, `fieldname` | read, recorded, never dispatched: this build has no VGUI runtime |
-| `labelText` | read and reported; **not rendered** — this build rasterises no font, so the panel is a bordered block. `%Token%` interpolation is not implemented either |
-| `font`, `textAlignment`, `image` | read and reported per panel; **not rendered** (see 2.4) |
+| `labelText` | drawn. `%Health%`, `%Clip%`/`%Clip1%`, `%Team%`, `%Class%` are expanded from the same reader the live readout prints; a token this build has no reading for (`%MaxHealth%`, `%ubercharge%`) is drawn **exactly as the document wrote it** and counted as `unresolved` in the `hud: panels` trace, so a panel never shows a fabricated number. Text uses the built-in 8x8 glyph atlas at scale 2 (scale 1 in a panel shorter than 24 px) and is truncated to the panel's width (counted as `truncated`) |
+| `font`, `textAlignment`, `image` | `textAlignment` "center" centres the label horizontally; any other value keeps the 4 px left margin. `font` is read and ignored (the atlas is fixed), `image` is read and **not rendered** (see 2.4) |
 | every other key | counted in `unknownKeys`; a document's unknown-key count is reported so "we ignored 40 keys" is a reading |
 
 ### 2.3 Coordinates
@@ -157,7 +157,6 @@ the screen, and a panel anchored at `-175` becomes `-350`.
 | `#base` includes | 23 of the 102 corpus documents use one; resolving it means a second document load with its own path-safety question, and a partially-included HUD renders with holes | `unsupported-include`, with the count of directives |
 | fonts and font metrics | needs a rasteriser and Source's scheme lookup | `"font"` read and reported; the panel draws as a block |
 | images and crosshairs | needs the VMT/VTF chain plus VGUI scaling | `"image"` read and reported; the panel draws as a block |
-| `labelText` token expansion | `%Health%` is game state this build would have to fabricate | the raw text is read and reported but **not drawn** (2.2); the panel draws as a block. The only path that draws text is the test-only `--hud-text-test` |
 | animations, `pincorner`, `pin_to_sibling` | a real VGUI layout engine | counted as unknown keys |
 | `.nut` scripts | a Squirrel VM | extensions are refused before the file is read as a layout |
 | `.vpk` HUD archives | the HUD is imported as loose files under a user-chosen folder | a `.vpk` is refused as `unsupported-extension` |

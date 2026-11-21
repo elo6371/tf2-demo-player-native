@@ -330,6 +330,132 @@ void hudApplyTextTest() {
   g_renderer->setHudEnabled(true);
 }
 
+// ---- panel label text -----------------------------------------------------
+//
+// WHAT A PANEL'S labelText BECOMES. The document's own string, with the tokens
+// this build can answer replaced by the value the frame actually carries. The
+// numbers are readPlaybackHud's and the words are the live readout's own tables
+// (hudLiveTeamName / hudLiveClassName), so a panel and the readout cannot say two
+// different things about the same frame.
+//
+// A TOKEN WITH NO VALUE IS LEFT EXACTLY AS THE DOCUMENT WROTE IT, and counted.
+// "%MaxHealth%" printed on the panel is a visible limitation; a substituted
+// number that was never measured would read as data, which is the one failure the
+// rest of this file refuses over and over (see the '?' rules in the readout).
+struct HudPanelValues {
+  std::string health;    // "%Health%"
+  std::string clip;      // "%Clip%" and "%Clip1%" (the same reading, two spellings)
+  std::string team;      // "%Team%"  (RED / BLU, the readout's own words)
+  std::string className; // "%Class%" (the readout's own words)
+};
+HudPanelValues g_hudPanelValues;
+
+// One panel block plus, when the document gave the panel a label, the text that
+// answers it. `drawn` is what hudDrawnRects() counts (Rect primitives only), so
+// the gate's "drawn == visible" rule is unchanged by the text.
+struct HudPanelDraw {
+  std::size_t drawn = 0;
+  std::size_t labelled = 0;
+  std::size_t glyphs = 0;
+  std::size_t truncated = 0;
+  std::size_t unresolved = 0;    // %Tokens% this build had no value for
+  std::size_t unknownPanels = 0; // rect.panel out of range: never expected, counted
+};
+
+std::string hudPanelExpandLabel(const std::string& labelText, std::size_t& unresolved) {
+  std::string out;
+  out.reserve(labelText.size());
+  for (std::size_t index = 0; index < labelText.size();) {
+    if (labelText[index] != '%') { out.push_back(labelText[index++]); continue; }
+    const std::size_t close = labelText.find('%', index + 1);
+    if (close == std::string::npos) { out.append(labelText.substr(index)); break; }
+    const std::string token = labelText.substr(index + 1, close - index - 1);
+    const std::string* value = nullptr;
+    if (token == "Health") value = &g_hudPanelValues.health;
+    else if (token == "Clip" || token == "Clip1") value = &g_hudPanelValues.clip;
+    else if (token == "Team") value = &g_hudPanelValues.team;
+    else if (token == "Class") value = &g_hudPanelValues.className;
+    if (value && !value->empty()) out.append(*value);
+    else { ++unresolved; out.append(labelText, index, close - index + 1); }
+    index = close + 1;
+  }
+  return out;
+}
+
+HudPanelDraw hudPanelPrimitives(std::vector<tf2::native::Renderer::HudPrimitive>& out) {
+  // Colours are per-panel and fixed: the colour is what lets a reviewer name a
+  // block from a screenshot, and a stable palette makes two runs comparable.
+  static const float kPalette[][4] = {
+    {0.16f, 0.35f, 0.55f, 0.72f},
+    {0.20f, 0.50f, 0.28f, 0.72f},
+    {0.55f, 0.35f, 0.14f, 0.72f},
+    {0.45f, 0.20f, 0.45f, 0.72f},
+  };
+  HudPanelDraw draw;
+  const auto& panels = g_hud.layout().panels;
+  std::size_t index = 0;
+  for (const auto& rect : g_hud.rects()) {
+    // Hidden panels keep their geometry but are not drawn; the index is advanced
+    // anyway so a panel's colour depends on the document, not on which of its
+    // siblings happen to be hidden in this frame.
+    if (!rect.valid || !rect.visible) { ++index; continue; }
+    tf2::native::Renderer::HudPrimitive block;
+    block.kind = tf2::native::Renderer::HudPrimitiveKind::Rect;
+    block.x = static_cast<float>(rect.x);
+    block.y = static_cast<float>(rect.y);
+    block.w = static_cast<float>(rect.w);
+    block.h = static_cast<float>(rect.h);
+    const float* colour = kPalette[index % 4u];
+    for (int channel = 0; channel < 4; ++channel) block.colour[channel] = colour[channel];
+    // filled=false keeps the bordered-block look every earlier reading was taken
+    // against; the text below is what the block was always missing.
+    block.filled = false;
+    out.push_back(block);
+    ++draw.drawn;
+    ++index;
+    if (rect.panel >= panels.size()) { ++draw.unknownPanels; continue; }
+    const tf2::native::HudPanel& panel = panels[rect.panel];
+    std::string label = hudPanelExpandLabel(panel.labelText, draw.unresolved);
+    if (label.empty()) continue;
+    // The renderer clips glyphs to the CLIENT, not to the primitive, so a label
+    // wider than its panel would paint outside the rectangle the layout owns --
+    // and outside the union rectangle a capture gate compares pixel for pixel.
+    // Scale down first, then shorten, so a long value stays inside its own block.
+    float scale = rect.h >= 24 ? 2.0f : 1.0f;
+    if (scale > 1.0f && static_cast<int>(label.size()) * 16 + 8 > rect.w) scale = 1.0f;
+    const std::size_t cell = static_cast<std::size_t>(8.0f * scale);
+    const std::size_t room = rect.w > 8 ? (static_cast<std::size_t>(rect.w) - 8) / cell : 0;
+    if (label.size() > room) { label.resize(room); ++draw.truncated; }
+    if (label.empty()) continue;
+    tf2::native::Renderer::HudPrimitive text;
+    text.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
+    text.w = static_cast<float>(label.size() * cell);
+    text.h = static_cast<float>(cell);
+    text.scale = scale;
+    text.colour[0] = 1.0f;
+    text.colour[1] = 1.0f;
+    text.colour[2] = 1.0f;
+    text.colour[3] = 1.0f;
+    // "center" is the one alignment the documents this build has been tested
+    // against use (the fixture's HealthValue is a CExLabel with centre text);
+    // anything else keeps the left margin rather than guessing.
+    int x = rect.x + 4;
+    if (panel.textAlignment == "center") {
+      x = rect.x + (rect.w - static_cast<int>(text.w)) / 2;
+    }
+    int y = rect.y + (rect.h - static_cast<int>(cell)) / 2;
+    if (x < rect.x) x = rect.x;
+    if (y < rect.y) y = rect.y;
+    text.x = static_cast<float>(x);
+    text.y = static_cast<float>(y);
+    text.text = label;
+    out.push_back(text);
+    ++draw.labelled;
+    draw.glyphs += label.size();
+  }
+  return draw;
+}
+
 // Pushes the current layout at the renderer for the window's current client size.
 void hudApplyRects(HWND window) {
   if (!g_renderer) return;
@@ -338,50 +464,29 @@ void hudApplyRects(HWND window) {
   if (!window || !GetClientRect(window, &client)) { client.right = 1280; client.bottom = 720; }
   const float dpiScale = window ? static_cast<float>(GetDpiForWindow(window)) / 96.0f : 1.0f;
   g_hud.layoutFor(client.right, client.bottom, dpiScale);
-  std::vector<tf2::native::Renderer::HudDrawRect> rects;
-  // Colors are per-panel and fixed: this build rasterises no font and no image,
-  // so the colour is the only thing that distinguishes one panel from another
-  // and a stable palette is what lets a reviewer name a block from a screenshot.
-  static const float kPalette[][4] = {
-    {0.16f, 0.35f, 0.55f, 0.72f},
-    {0.20f, 0.50f, 0.28f, 0.72f},
-    {0.55f, 0.35f, 0.14f, 0.72f},
-    {0.45f, 0.20f, 0.45f, 0.72f},
-  };
-  std::size_t index = 0;
-  for (const auto& rect : g_hud.rects()) {
-    // Hidden panels keep their geometry but are not drawn; the index is advanced
-    // anyway so a panel's colour depends on the document, not on which of its
-    // siblings happen to be hidden in this frame.
-    if (!rect.valid || !rect.visible) { ++index; continue; }
-    tf2::native::Renderer::HudDrawRect draw;
-    draw.left = static_cast<float>(rect.x);
-    draw.top = static_cast<float>(rect.y);
-    draw.right = static_cast<float>(rect.x + rect.w);
-    draw.bottom = static_cast<float>(rect.y + rect.h);
-    const float* colour = kPalette[index % 4u];
-    draw.colour[0] = colour[0]; draw.colour[1] = colour[1];
-    draw.colour[2] = colour[2]; draw.colour[3] = colour[3];
-    rects.push_back(draw);
-    ++index;
+  std::vector<tf2::native::Renderer::HudPrimitive> primitives;
+  const HudPanelDraw panels = hudPanelPrimitives(primitives);
+  // A panel's label is a reading like any other: report how many blocks carry
+  // text, how many codepoints that is, and how many tokens this build could not
+  // answer -- and print it when the composition CHANGES, not once per frame,
+  // because the capture path calls this every frame.
+  static std::string lastPanelKey;
+  {
+    std::string key = std::to_string(panels.drawn) + "|" + std::to_string(panels.labelled)
+      + "|" + std::to_string(panels.glyphs) + "|" + std::to_string(panels.truncated)
+      + "|" + std::to_string(panels.unresolved) + "|" + std::to_string(panels.unknownPanels);
+    if (key != lastPanelKey) {
+      lastPanelKey = key;
+      traceFmt("hud: panels drawn=%zu labelled=%zu glyphs=%zu truncated=%zu unresolved=%zu unknown=%zu",
+        panels.drawn, panels.labelled, panels.glyphs, panels.truncated,
+        panels.unresolved, panels.unknownPanels);
+    }
   }
   if (g_hudLiveActive) {
-    // setHudRects() replaces the whole primitive list, so publishing the layout
-    // alone would delete the readout. Build the same Rect primitives it would and
-    // append the readout's text after them: layout blocks underneath, text on top.
-    std::vector<tf2::native::Renderer::HudPrimitive> merged;
-    merged.reserve(rects.size() + g_hudLivePrimitives.size());
-    for (const auto& rect : rects) {
-      tf2::native::Renderer::HudPrimitive primitive;
-      primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Rect;
-      primitive.x = rect.left;
-      primitive.y = rect.top;
-      primitive.w = rect.right - rect.left;
-      primitive.h = rect.bottom - rect.top;
-      for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = rect.colour[channel];
-      primitive.filled = false;
-      merged.push_back(primitive);
-    }
+    // setHudPrimitives() replaces the whole primitive list, so publishing the
+    // layout alone would delete the readout: the panels go underneath, the
+    // readout's text on top.
+    std::vector<tf2::native::Renderer::HudPrimitive> merged = std::move(primitives);
     // Rebuild the three text lines for the CURRENT client width before appending
     // the panel shapes. setHudPrimitives replaces the list, so without this a
     // resize would leave the centred header at its old x until the next reading.
@@ -406,14 +511,14 @@ void hudApplyRects(HWND window) {
       g_hudLiveExtraPrimitives.end());
     g_renderer->setHudPrimitives(merged);
   } else {
-    g_renderer->setHudRects(rects);
+    g_renderer->setHudPrimitives(primitives);
   }
   // The pass draws only when there is something to draw: the user enabled the
   // imported layout AND the document produced rectangles, or the live readout has
   // primitives in the renderer. Both terms are readings, not assumptions -- the
   // trace above prints enabled= and the last hud: live line prints the readout, so
   // "the pass was on" can be checked against the numbers that asked for it.
-  g_renderer->setHudEnabled((g_hud.settings().enabled && !rects.empty()) || g_hudLiveActive);
+  g_renderer->setHudEnabled((g_hud.settings().enabled && panels.drawn > 0) || g_hudLiveActive);
 }
 
 void hudUpdateStatus(HWND window) {
@@ -1369,6 +1474,15 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   if (g_hudTextTest) return;
   hudLiveRegisterSummary();
   ++g_hudLiveCalls;
+  // The imported layout's label tokens are answered from the SAME reader the
+  // readout prints, and they are filled BEFORE the suppression branch below: the
+  // run that photographs an imported layout is exactly the run whose readout is
+  // suppressed, and a panel that fell back to "%Health%" because the readout
+  // happened to be off would be a reading that depended on an unrelated switch.
+  g_hudPanelValues.health = target.healthKnown ? std::to_string(target.health) : std::string();
+  g_hudPanelValues.clip = target.clipKnown ? std::to_string(target.clip) : std::string();
+  g_hudPanelValues.team = target.teamKnown ? hudLiveTeamName(target.team) : std::string();
+  g_hudPanelValues.className = target.classKnown ? hudLiveClassName(target.playerClass) : std::string();
   // The suppression is decided by the run's mode, never by "the last frame drew
   // something": a capture run has exactly one sampled frame, so a readout that was
   // painted on frame N-1 and cleared on frame N would still leave nothing on the
@@ -1378,7 +1492,18 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // suppressing it would leave an evidence run with a blank screen. Every other
   // evidence run keeps the mode rule above. The readout rides along on these
   // runs, which is why only the overview gate passes the flag.
-  const bool suppressed = hudOff || (evidenceRun && !hudLive && !tf2::native::mapOverviewOpen());
+  // E9, 2026-11-21: --hud-minimap is on that same footing. The minimap panel is
+  // the thing a `--hud-minimap` evidence run exists to photograph, and the frame it
+  // draws is pushed ONLY when the switch was passed (main.cpp minimapHudSetFrame),
+  // so minimapHudFramePushed() answers "this run asked for the panel". Before this
+  // term the switch was silently dead in every capture run: the frame was pushed,
+  // then the readout's suppression returned before hudMinimapCompose ever ran, and
+  // the capture came out byte-identical to a run with no --hud-minimap at all
+  // (measured: hd-hudminimap-pg-3000.bmp and hd-pg-3000.bmp, same md5
+  // 9a798a63536660c85c664a726dec672d). The readout rides along, exactly as it does
+  // for --overview-open.
+  const bool suppressed = hudOff || (evidenceRun && !hudLive
+    && !tf2::native::mapOverviewOpen() && !tf2::native::minimapHudFramePushed());
   if (suppressed) {
     if (!g_hudLiveOffReported) {
       g_hudLiveOffReported = true;
@@ -1547,8 +1672,21 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     overview.primitives.begin(), overview.primitives.end());
   primitives.insert(primitives.end(), g_hudLiveExtraPrimitives.begin(),
     g_hudLiveExtraPrimitives.end());
+  // g_hudLivePrimitives stays the READOUT only, so hudApplyRects can prepend the
+  // panels without duplicating them when a resize rebuilds this list.
   g_hudLivePrimitives = primitives;
-  g_renderer->setHudPrimitives(primitives);
+  {
+    // The imported layout rides UNDER the readout. Until this, a republish replaced
+    // the whole list and the panels vanished until the next resize rebuilt them --
+    // an imported HUD that disappears whenever the clock ticks is not a HUD. The
+    // panels are rebuilt here rather than cached because their labels answer from
+    // this frame's values.
+    std::vector<tf2::native::Renderer::HudPrimitive> withPanels;
+    withPanels.reserve(primitives.size() + 8);
+    hudPanelPrimitives(withPanels);
+    withPanels.insert(withPanels.end(), primitives.begin(), primitives.end());
+    g_renderer->setHudPrimitives(withPanels);
+  }
   g_hudLiveActive = true;
   // The pass is enabled by the readout itself: a plain launch has no imported
   // layout, so hudApplyRects' "panels AND enabled" rule would otherwise leave the
