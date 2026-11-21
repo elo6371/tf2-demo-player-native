@@ -1,0 +1,7 @@
+OLD arm: flat-arc=0.508 max-slope-step=0.00332 range=[0.620,1.000]
+NEW arm: flat-arc=0.119 max-slope-step=0.00008 range=[0.810,1.777]
+NOTE the arc is swept from the sun pole to its antipode, so it crosses the terminator once; 0.500 flat means half the arc is one constant value.
+flat-arc   new=0.119 old=0.508 -> PASS
+slope-jump new=0.00008 old=0.00332 -> PASS (44x smaller)
+TERMINATOR=PASS
+terminator_exit=0

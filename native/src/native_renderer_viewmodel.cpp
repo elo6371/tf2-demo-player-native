@@ -734,6 +734,12 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   context_->VSSetConstantBuffers(0, 1, &constantsBuffer);
   context_->PSSetShader(viewModelPixelShader_.Get(), nullptr, 0);
   context_->PSSetConstantBuffers(0, 1, &constantsBuffer);
+  // T105: the model lighting block at PIXEL b1 -- free in this stage, which
+  // bound nothing but b0 until now. A null buffer is the off path: the shader
+  // then reads zeros, lightingParams.x is 0, and the weapon shades with the
+  // hardcoded direction exactly as before.
+  ID3D11Buffer* lightingBuffer = modelLightingConstants_.Get();
+  context_->PSSetConstantBuffers(1, 1, &lightingBuffer);
   context_->PSSetSamplers(0, 1, &sampler_);
   // t4 is always bound, even when it holds no bones: an unbound structured
   // buffer is read as garbage, not as zeros.

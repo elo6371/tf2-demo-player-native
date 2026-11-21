@@ -9,6 +9,7 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <wrl/client.h>
 
@@ -129,6 +130,25 @@ struct RenderSettings {
   // (the rows sampled and the vertices submitted), or the control is decorative.
   enum class TrajectoryQuality { Low, High };
   TrajectoryQuality trajectoryQuality = TrajectoryQuality::High;
+
+  // ---- T105 (2026-11-21): the model lighting switch ------------------------
+  //
+  // DEFAULT OFF, for the same reason the trajectory overlay above is: every
+  // capture and every gate on this tree pins pixels, and a lighting change that
+  // arrived switched on would move all of them at once. Off is also the exact
+  // arithmetic the previous build ran -- the pixel shaders only take the new
+  // branch when the constant says so -- so a default run is byte-identical.
+  //
+  // basic = ambient cube + Half-Lambert sun on models and props. There is no
+  // "advanced" value yet: the enum exists so the flag can grow without the
+  // meaning of the values changing underneath it.
+  enum class ModelLightingMode { Off, Basic };
+  ModelLightingMode modelLighting = ModelLightingMode::Off;
+  // Renders each entity/prop instance's WORLD-space normal as colour instead of
+  // its albedo. It is a diagnostic, not a feature: it is how the claim "the
+  // entity vertex shader hands the pixel shader a world-space normal" is
+  // falsified or confirmed by pixels rather than by reading the shader.
+  bool modelLightingTrace = false;
 
   static RenderSettings fromPreset(QualityPreset preset);
   void normalize();
@@ -903,6 +923,12 @@ struct ViewModelMaterialSampleState {
 
 enum class ModelGpuStatus { NotLoaded, BindPoseOnly, SkinningReady, SkinningMissing, ViewModelUnknown };
 
+// T105: the model lighting block is an internal GPU layout (src/renderer_internal.h
+// owns the definition, beside the other constant-buffer mirrors). This header
+// only needs to name it: buildModelLightingConstants returns it by value, and a
+// declaration may name an incomplete type. Keeping the definition out of the
+// public header is the same split every other constant mirror in this file uses.
+struct ModelLightingConstantsData;
 
 class Renderer {
 public:
@@ -1980,6 +2006,12 @@ private:
   bool writeDepthPlanePgm(const std::wstring& path, const std::vector<float>& plane,
     int width, int height, unsigned long long* bytes);
   void capturePassDepth(const char* name);
+  // T105: the model lighting block as this frame will upload it, and whether
+  // the switches ask for it at all. Both are one implementation each for the
+  // reason the three accessors below are: the buffer and the capture trace must
+  // not be able to describe different lighting.
+  bool modelLightingEffective() const { return settings_.modelLighting == RenderSettings::ModelLightingMode::Basic; }
+  ModelLightingConstantsData buildModelLightingConstants() const;
   // R1b: per-range depth inside 50-entities; see the definition for the window.
   void captureRangeDepth(const char* phase, int rangeIndex, int blended, int materialSlot);
   // T24: the three pass-level lighting controls as the draw will upload them.
@@ -2057,6 +2089,11 @@ private:
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> worldMaterialProxyConstants_;
   Microsoft::WRL::ComPtr<ID3D11Buffer> modelSkinningConstants_;
+  // T105: the model lighting block. One buffer serves all three passes that
+  // bind it (world b2 for entity/prop instances, model b1, viewmodel b1); the
+  // contents are frame constants, so it is written once per frame like the
+  // world buffer next to it.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> modelLightingConstants_;
   UINT worldVertexCount_ = 0;
   // How many of worldVertexCount_ carry a per-face light uv. Kept beside the
   // total so the invariant lightmapped <= total survives a device reset: both
@@ -2298,6 +2335,10 @@ private:
   std::size_t entityModelInstanceRejectedBadMesh_ = 0;
   std::size_t entityModelInstanceRejectedNonFinite_ = 0;
   std::size_t entityModelInstanceRejectedBudget_ = 0;
+  // T105: the distinct lines already printed by --lighting-trace. Kept on the
+  // renderer rather than as a function-static so the cap is per run and so the
+  // set is released with everything else on reset. Bounded by the trace itself.
+  std::unordered_set<std::string> modelLightingTraceLines_;
   std::vector<EntityModelDrawRange> entityModelDrawRanges_;
   double entityModelTimeSeconds_ = 0.0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> entityModelInstanceBuffer_;

@@ -203,6 +203,26 @@ struct ViewModelConstantsData {
   DirectX::XMFLOAT4 selfillumTint;
 };
 static_assert(sizeof(ViewModelConstantsData) == 272, "viewmodel constant buffer size");
+// Mirrors ModelLightingConstants in the world, model and viewmodel pixel
+// shaders field for field -- all three declare the same eight float4s, so one
+// struct and one upload serve every pass that binds it.
+//
+// The cube holds a COLOUR per face, not an intensity: a sky-facing surface on
+// cp_process comes out warm because the map's ambient is warm, and a single
+// scalar would have thrown that away. sunDirectionAndIntensity carries only the
+// directional intensity, because the sun's colour is already folded into the
+// cube by the fill in native_renderer_frame.cpp (the brightest face has the sun
+// in it), which keeps the shader's arithmetic to one multiply-and-add.
+struct ModelLightingConstantsData {
+  DirectX::XMFLOAT4 ambientCube[6];          // +X -X +Y -Y +Z(sky) -Z(ground), rgb
+  DirectX::XMFLOAT4 sunDirectionAndIntensity; // xyz = direction TO the sun, w = intensity
+  // x = 1 when a pixel shader should shade with this block instead of the
+  // hardcoded direction it has always used; y = 1 to draw the normal probe.
+  DirectX::XMFLOAT4 lightingParams;
+};
+static_assert(sizeof(ModelLightingConstantsData) == 128, "model lighting constant buffer size");
+static_assert(offsetof(ModelLightingConstantsData, sunDirectionAndIntensity) == 96, "model lighting sun offset");
+static_assert(offsetof(ModelLightingConstantsData, lightingParams) == 112, "model lighting params offset");
 struct ModelGpuVertex {
   float x, y, z; float r, g, b, a; float u, v; float nx, ny, nz;
   float weights[3]; std::uint8_t boneIndices[3]; std::uint8_t boneCount; std::uint8_t padding[1];

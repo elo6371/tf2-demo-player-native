@@ -823,6 +823,17 @@ bool Renderer::createPipeline() {
   // into the skybox, no sun, no fog). Same reason as the line above for it being
   // a third copy: the world, the box and the skybox are all in one frame.
   if (FAILED(device_->CreateBuffer(&constantsDescription, nullptr, worldSky3dConstants_.GetAddressOf()))) return false;
+  // T105: the model lighting block, 128 bytes -- six ambient-cube faces, the
+  // sun and the switch (see ModelLightingConstantsData). It has its own
+  // description for the same reason the proxy above does: it is NOT the world
+  // layout, and reusing that desc would silently give it a 1280-byte buffer
+  // that the 128-byte struct never fills.
+  D3D11_BUFFER_DESC lightingConstantsDescription{};
+  lightingConstantsDescription.ByteWidth = 128;
+  lightingConstantsDescription.Usage = D3D11_USAGE_DEFAULT;
+  lightingConstantsDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+  if (FAILED(device_->CreateBuffer(&lightingConstantsDescription, nullptr,
+      modelLightingConstants_.GetAddressOf()))) return false;
   // ---- T51: the HUD pass's constants, states and vertex buffer -----------
   //
   // Depth test and depth write are both OFF, and the rasteriser culls nothing:
@@ -1253,6 +1264,7 @@ void Renderer::shutdown() {
   worldConstants_.Reset();
   worldMaterialProxyConstants_.Reset();
   modelSkinningConstants_.Reset();
+  modelLightingConstants_.Reset();
   worldInputLayout_.Reset();
   modelInputLayout_.Reset();
   entityModelInputLayout_.Reset();

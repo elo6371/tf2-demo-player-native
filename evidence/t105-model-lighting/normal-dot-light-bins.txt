@@ -1,0 +1,12 @@
+entity mask pixels=117796 (from trace vs off, box=None)
+normal.L range -1.00 .. 1.00 over 117796 px
+  N.L -1.00..-0.75  n= 1387  off=72.6  base=60.6  delta=-12.1
+  N.L -0.75..-0.50  n= 2364  off=71.3  base=61.8  delta=-9.5
+  N.L -0.50..-0.25  n= 8599  off=116.5  base=104.0  delta=-12.5
+  N.L -0.25..+0.00  n= 3484  off=93.3  base=93.6  delta=+0.3
+  N.L +0.00..+0.25  n=11954  off=99.5  base=112.9  delta=+13.4
+  N.L +0.25..+0.50  n= 6337  off=97.9  base=127.0  delta=+29.1
+  N.L +0.50..+0.75  n=38551  off=105.5  base=152.5  delta=+47.0
+  N.L +0.75..+1.00  n=45120  off=105.7  base=169.3  delta=+63.6
+OFF  entity mean=103.9 p10=67.0 p50=107.1 p90=124.7 dark<16=0.005 dark<32=0.018 dark<48=0.044
+BASE entity mean=145.4 p10=76.7 p50=156.9 p90=182.0 dark<16=0.004 dark<32=0.017 dark<48=0.041

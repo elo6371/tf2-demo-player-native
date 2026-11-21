@@ -1,0 +1,9 @@
+arm=1 sun=(0.500,-0.866,-0.000) intensity=0.900
+faces side=(0.810,0.822,0.903) sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725)
+directions sampled=5872
+OLD arm  min=0.6200 max=1.0000  (floor 0.62)
+NEW arm  min=0.7532 max=1.7805
+NEW floor at n=(-0.285,0.538,-0.793); NEW peak at n=(0.442,-0.897,0.000)
+NEW floor rgb=(0.753,0.762,0.825)
+FLOOR-PRESERVED=PASS BRIGHTER-PEAK=PASS NO-BLACK-CHANNEL=PASS
+floor_exit=0
