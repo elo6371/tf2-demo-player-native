@@ -1,0 +1,19 @@
+# tools/warn-check.sh -- full stdout of one run, nothing elided.
+#
+# Command, from the worktree root:
+#     bash tools/warn-check.sh
+#
+# Run on the tree this evidence belongs to: commit e0e80fa2 plus the documentation and
+# comment edits carried in this commit. No executable code differs between that tree and
+# the committed one (the only source change since e0e80fa2 is a comment in
+# native_renderer_viewmodel.cpp), so the warning reading applies to the commit as made.
+#
+# The gate compiles every translation unit of the targets that carry /W4 with the
+# exact flags CMake recorded (objects land under .scratch/warn-check/objs/, the
+# build tree is not touched), then compares the findings against
+# tools/warn-baseline.tsv. That baseline is empty apart from its own comment
+# header, so PASS here means zero warnings across the whole set.
+#
+# Exit status 0. ------- output follows -------
+WARN-GATE tus=142
+WARN-GATE=PASS new=0 fixed=0 same=0
