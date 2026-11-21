@@ -735,9 +735,11 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
   context_->PSSetShader(viewModelPixelShader_.Get(), nullptr, 0);
   context_->PSSetConstantBuffers(0, 1, &constantsBuffer);
   // T105: the model lighting block at PIXEL b1 -- free in this stage, which
-  // bound nothing but b0 until now. A null buffer is the off path: the shader
-  // then reads zeros, lightingParams.x is 0, and the weapon shades with the
-  // hardcoded direction exactly as before.
+  // bound nothing but b0 until now. The buffer is created once at renderer
+  // init and is never null; what selects the off path is lightingParams.x,
+  // which buildModelLightingConstants() writes as 0 unless the switch is on.
+  // With x = 0 both arms below fall through and the weapon shades with the
+  // hardcoded direction, byte for byte as before.
   ID3D11Buffer* lightingBuffer = modelLightingConstants_.Get();
   context_->PSSetConstantBuffers(1, 1, &lightingBuffer);
   context_->PSSetSamplers(0, 1, &sampler_);

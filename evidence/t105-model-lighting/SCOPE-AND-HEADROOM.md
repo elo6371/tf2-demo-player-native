@@ -44,13 +44,26 @@ pixels are fully white. They are spread over the whole frame (bbox x=110..1192
 y=0..680) in small clusters rather than one hot spot: the densest 64x64 cell holds 513
 of them, the next 290.
 
-This is a real trade and it is stated rather than tuned away: the alternative measured
-on this tick was a block that put 9928 model pixels BELOW the flat fake's floor and none
-above it. The exposure that closes that (1.5, with the bounce shares above) is the one
-where every surface direction clears the old floor; a lower exposure would re-open the
-dark side, and a higher one would blow more highlights. Refining it needs a tone map in
-the model pass, which is lighting Step 2's problem (a prefiltered environment plus a
-curve), not this step's.
+This is a real trade and it is stated rather than tuned away. Two rejected arms are worth
+knowing about, and neither has a BMP kept, so both are recorded as numbers rather than
+frames:
+
+- UNSCALED (exposure 1.0). The block's raw 0..1 range put the lit bodies at mean
+  luminance 81 where the flat fake put them at 104; the capture that showed it counted
+  9928 entity pixels darker and none brighter. This is the measurement recorded in the
+  source comment at `native/src/native_renderer_frame.cpp:75-78`, which is why the
+  exposure is 1.5 and not 1.0.
+- ORIGINAL SHARES (walls 0.25, ground 0.0) at 1.5. Section 3's doorway body went
+  86.0 -> 78.3 with its dark<24 share 1.9% -> 10.5%: the shadow side of the very body
+  the brief asks to fix got darker. That is the reading that raised the shares to
+  0.58/0.50.
+
+`check-lighting-floor.py` is what makes both readable without a capture: given the six
+faces the GPU was actually handed, it sweeps the sphere and prints the arm's minimum
+against the old arm's 0.6200 floor. The shipped arm's minimum is 0.7532 (`floor-gate.txt`).
+A lower exposure would re-open the dark side, and a higher one would blow more
+highlights. Refining it needs a tone map in the model pass, which is lighting Step 2's
+problem (a prefiltered environment plus a curve), not this step's.
 
 ## 3. Where the light lands   (evidence/normal-dot-light-bins.txt, crops.txt)
 
@@ -77,3 +90,13 @@ The bounce shares exist because of the doorway crop: with the brief's original s
 (walls 0.25, ground 0.0) that body went 86.0 -> 78.3 and its dark<24 share 1.9% -> 10.5%.
 No surface direction of the arm that ran before could be darker than 0.62, so a change
 that darkens a shadow side is moving the defect, not closing it.
+
+Reconciling that with the table above: the shipped arm does darken the three back-facing
+N.L bins, by 12.1, 9.5 and 12.5 code values, so the sentence above is not "nothing may
+get darker". The rule the tuning follows is narrower and checkable: no surface direction
+may come out below the old arm's floor of 0.62, and the arm must be brighter than the old
+one over the arc that faces the light. Both hold here -- `check-lighting-floor.py` prints
+the new minimum as 0.7532 against the old 1.0000..0.6200 range, `check-terminator.py`
+prints the sun-facing range rising from 0.620..1.000 to 0.810..1.777 -- while the rejected
+original-share arm put the doorway body's dark side 7.7 code values DOWN and lifted
+nothing, which is what "moving the defect" means here.
