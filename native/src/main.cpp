@@ -719,6 +719,11 @@ std::int32_t g_spectateCameraHiddenEntity = -1;
 // cost of one shared instance list, not a claim that the panes hide independently.
 std::int32_t g_pane1CameraHiddenEntity = -1;
 std::uint32_t g_spectateCameraHiddenInstances = 0;
+// task-30 diagnostic arm: put the observed player body back in the frame WITHOUT
+// moving the camera, so an A/B changes exactly one thing -- whether that body is
+// submitted -- and a pixel difference can be blamed on visibility, not projection.
+// Default off; off means the frame a build without this switch draws, byte for byte.
+bool g_worldShowOwnBody = false;
 
 // N12-A: the demo's eye is the origin PLUS m_vecViewOffset[2].
 //
@@ -1248,6 +1253,38 @@ RelayEye g_sceneRelayEye;
 //
 // Returns false when the row, the origin or the facing cannot be read: the
 // caller then falls back to the orbit rather than guessing a direction.
+// N18-B step 3 (task-30): the relay stands behind the player it follows, and
+// placeSpectatorView() hides that body -- but the relay runs AFTER the candidate
+// list has been filtered, so its hide can only reach the NEXT scene tick, and a
+// paused demo never has one. The pre-filter block has to ask the relay own
+// question without side effects: would it find a pose for this target on this
+// tick? Identity mismatch, missing flags and an out-of-range offset are all
+// fallbacks to the snapshot, not failures; only a snapshot without origin/angles
+// makes the relay give up (the return false below), and hiding a body under an
+// orbit camera would be a body-sized hole in the picture.
+bool relayTargetHasPose(const std::vector<tf2::native::EntityState>& states,
+                        std::int32_t targetIndex,
+                        const tf2::native::DemoNetworkSummary& summary,
+                        std::int32_t sceneServerTick) {
+  if (targetIndex < 0 || static_cast<std::size_t>(targetIndex) >= states.size()) return false;
+  const tf2::native::EntityState& row = states[static_cast<std::size_t>(targetIndex)];
+  CameraEyeStats scratch;  // the counting belongs to the real call
+  const CameraEyeRow lookup = lookupCameraEyeRow(summary, sceneServerTick, scratch);
+  if (lookup.sample != nullptr) {
+    const tf2::native::CameraTickSample& candidate = *lookup.sample;
+    const bool usable =
+      static_cast<std::uint32_t>(candidate.entityIndex) == static_cast<std::uint32_t>(targetIndex)
+      && (candidate.flags & tf2::native::kCameraHasOrigin) != 0
+      && (candidate.flags & tf2::native::kCameraHasAngles) != 0
+      && (candidate.flags & tf2::native::kCameraHasViewOffset) != 0
+      && std::isfinite(candidate.viewOffsetZ) && candidate.viewOffsetZ > 0.0f
+      && candidate.viewOffsetZ <= 300.0f;  // the same bound placeSpectatorView() applies
+    if (usable) return true;
+  }
+  const tf2::native::ModelInstanceTransform transform =
+    tf2::native::EntityModelResolver::extractTransform(row);
+  return transform.hasOrigin && transform.hasAngles;
+}
 bool placeSpectatorView(tf2::native::Renderer& renderer,
                         const std::vector<tf2::native::EntityState>& states,
                         std::int32_t targetIndex,
@@ -1345,7 +1382,10 @@ bool placeSpectatorView(tf2::native::Renderer& renderer,
     outAngles[1] = angles[1];
   }
   // The camera is inside this player's head, so their body must not be submitted.
-  g_spectateCameraHiddenEntity = targetIndex;
+  // The pre-filter block already decided the same thing for this frame; this keeps
+  // the member truthful for later draws, and the diagnostic arm has to win here too
+  // or --world-show-own-body would hide the body one frame later.
+  g_spectateCameraHiddenEntity = g_worldShowOwnBody ? -1 : targetIndex;
   const float dx = eye[0] - g_spectateCameraLastEye[0];
   const float dy = eye[1] - g_spectateCameraLastEye[1];
   const float dz = eye[2] - g_spectateCameraLastEye[2];
@@ -3534,6 +3574,15 @@ bool outlineVertexExtent = false;
   // winding. Same given/requested shape as the sky and vis switches above.
   bool worldCullRequested = true;
   bool worldCullGiven = false;
+  bool worldAlphaTestRequested = true;
+  bool worldAlphaTestGiven = false;
+  // --world-no-alpha-test is the alpha arm of the same attribution the cull flag
+  // serves: a pixel the product frame lacks is either a texel the shader cut or a
+  // triangle the pass never rasterised, and only a frame drawn with the cutout
+  // disabled can say which. task-9 settled all 313 pr600 pixels as cutouts this
+  // way. It is read in the cull branch below rather than in a link of its own --
+  // this chain already sits at MSVC's block-nesting limit (C1061), and one more
+  // link pushed a later diagnostic over it.
   // T11 diagnostic: --world-flat draws the world pass as one flat colour with
   // no texture/lightmap/bump/env sampling, --world-depth draws it as greyscale
   // depth. They separate "the triangle is not there" from "the triangle is
@@ -3618,8 +3667,14 @@ bool outlineVertexExtent = false;
   // Scanned before the argument chain so that chain's nesting depth is unchanged
   // (adding one more else-if there hits C1061 on this compiler).
   bool worldKeepMapWinding = false;
-  for (int keepWindingArg = 1; keepWindingArg < argumentCount; ++keepWindingArg)
+  // Task-9: the displacement reversal is off by default now -- the four-pose
+  // measurement in bsp_map.cpp's verdict comment is why. This switch brings it
+  // back for an A/B; same pre-scan as the flag above, same C1061 reason.
+  bool worldFlipDispWinding = false;
+  for (int keepWindingArg = 1; keepWindingArg < argumentCount; ++keepWindingArg) {
     if (wcscmp(arguments[keepWindingArg], L"--world-keep-map-winding") == 0) worldKeepMapWinding = true;
+    if (wcscmp(arguments[keepWindingArg], L"--world-flip-disp-winding") == 0) worldFlipDispWinding = true;
+  }
   // M4 gate: brush-model classes to draw for one run, on top of the static whitelist.
   // Scanned before the argument chain for the same C1061 reason as the flag above.
   std::vector<std::string> worldExtraStaticClasses;
@@ -4080,8 +4135,16 @@ bool outlineVertexExtent = false;
         worldVisClipRequested = false; worldVisClipGiven = true;
       } else if (wcscmp(arguments[i], L"--world-cull") == 0) {
         worldCullRequested = true; worldCullGiven = true;
-      } else if (wcscmp(arguments[i], L"--no-world-cull") == 0) {
-        worldCullRequested = false; worldCullGiven = true;
+      } else if (wcscmp(arguments[i], L"--no-world-cull") == 0
+                 || wcscmp(arguments[i], L"--world-no-alpha-test") == 0
+                 || wcscmp(arguments[i], L"--world-show-own-body") == 0) {
+        if (wcscmp(arguments[i], L"--world-no-alpha-test") == 0) {
+          worldAlphaTestRequested = false; worldAlphaTestGiven = true;
+        } else if (wcscmp(arguments[i], L"--world-show-own-body") == 0) {
+          g_worldShowOwnBody = true;
+        } else {
+          worldCullRequested = false; worldCullGiven = true;
+        }
       } else if (wcscmp(arguments[i], L"--world-refused-mask") == 0) {
         ++worldRefusedMaskGiven; worldRefusedMask = 1;
       } else if (wcscmp(arguments[i], L"--world-flat") == 0) {
@@ -4757,6 +4820,16 @@ bool outlineVertexExtent = false;
   if (!outlineDepthGiven) {
     outlineDepthMode = persistent.render.outlineDepthTested
       ? tf2::native::OverlayDepthMode::DepthTested : tf2::native::OverlayDepthMode::XRay;
+  }
+  // The world's cutout bit is baked into the vertex buffer when the geometry is
+  // uploaded, so this arm has to be stated once, before the map loads -- beside
+  // the per-frame cull switch it would arrive after every vertex was already
+  // marked. --world-no-alpha-test is for attribution, not for a live toggle.
+  {
+    const bool alphaTestEnabled = worldAlphaTestGiven ? worldAlphaTestRequested : true;
+    renderer.setWorldAlphaTest(alphaTestEnabled);
+    traceFmt("args: world alpha test=%d", alphaTestEnabled ? 1 : 0);
+    traceFmt("args: world show own body=%d", g_worldShowOwnBody ? 1 : 0);
   }
   if (worldDebugViewGiven > 1) ++invalidWorldDebugArgument;
   if (worldRefusedMaskGiven > 1) ++invalidWorldDebugArgument;
@@ -6408,7 +6481,7 @@ bool outlineVertexExtent = false;
     // `map: geometry budget` trace line says so with numbers.
     constexpr std::size_t kWorldTriangleCapacity = 400000;
     tf2::native::BspParser::parse(mapBytes, displayMap, kWorldTriangleCapacity, 4096,
-      worldKeepMapWinding, worldExtraStaticClasses);
+      worldKeepMapWinding, worldFlipDispWinding, worldExtraStaticClasses);
     // T88: the budget as a reading, on the map-load path, so every run -- a
     // probe, a normal window, a --capture-frame -- carries it. state=within with
     // requested <= capacity is the pass; state=truncated names the first face
@@ -6422,8 +6495,8 @@ bool outlineVertexExtent = false;
       displayMap.trianglesDropped > 0 ? "truncated" : "within");
     // W-1 step 2 diagnostic: the reversal rule as a reading, so an A/B capture can
     // prove the flag changed the buffer instead of trusting the pixel diff.
-    traceFmt("map: geometry winding keepMapWinding=%d flipped=%zu misfaced=%zu misfacedDisplaced=%zu",
-      worldKeepMapWinding ? 1 : 0, displayMap.windingFlippedTriangles,
+    traceFmt("map: geometry winding keepMapWinding=%d flipDisp=%d flipped=%zu misfaced=%zu misfacedDisplaced=%zu",
+      worldKeepMapWinding ? 1 : 0, worldFlipDispWinding ? 1 : 0, displayMap.windingFlippedTriangles,
       displayMap.windingMisfacedTriangles, displayMap.windingMisfacedDisplaced);
     // N14/U3a: the minimap's basemap, sampled ONCE here, where the parsed map still
     // lives locally.
@@ -10747,6 +10820,32 @@ bool outlineVertexExtent = false;
     return std::isfinite(sx) && std::isfinite(sy) && std::isfinite(depth);
   };
   // ---- T21: the per-face material chain -----------------------------------
+  // Front-facing as the capture's own rasteriser judges it: the triangle's winding
+  // normal points toward the eye. The screen-space area sign is not a substitute
+  // here. The on-screen path culls with `area > 0` under D3D's default
+  // FrontCounterClockwise = FALSE, but every captured frame goes through a mirrored
+  // projection (native_renderer_frame.cpp:636-640) with the rasteriser's
+  // FrontCounterClockwise flipped to compensate (native_renderer.cpp:756), so the
+  // same sign means the opposite thing in a capture. Measured on pr600 at (323,157):
+  // the cull-on frame is empty, yet the old `area > 0` test selected tri 25231 --
+  // face 7850, winding normal +Y, eye at y = 32.7 on the -Y side, depth 0.9963 --
+  // and rejected the nearer front face 7856 (tri 25245, normal -Y, depth 0.9962).
+  // An eye-side test is invariant under that mirror, which is why both traces use it.
+  const auto windingFacesViewer = [](const tf2::native::BspTriangle& triangle, const float eye[3]) {
+    const float ux = triangle.b.x - triangle.a.x;
+    const float uy = triangle.b.y - triangle.a.y;
+    const float uz = triangle.b.z - triangle.a.z;
+    const float vx = triangle.c.x - triangle.a.x;
+    const float vy = triangle.c.y - triangle.a.y;
+    const float vz = triangle.c.z - triangle.a.z;
+    const float nx = uy * vz - uz * vy;
+    const float ny = uz * vx - ux * vz;
+    const float nz = ux * vy - uy * vx;
+    const float mx = (triangle.a.x + triangle.b.x + triangle.c.x) * (1.0f / 3.0f) - eye[0];
+    const float my = (triangle.a.y + triangle.b.y + triangle.c.y) * (1.0f / 3.0f) - eye[1];
+    const float mz = (triangle.a.z + triangle.b.z + triangle.c.z) * (1.0f / 3.0f) - eye[2];
+    return nx * mx + ny * my + nz * mz > 0.0f;
+  };
   // A material-fetch count says how many materials got a tile. It cannot say
   // whether the tile that covers a wall is the wall's own texture, whether the
   // uv that reaches it is the face's own uv, or whether the pixel on screen is
@@ -10761,6 +10860,15 @@ bool outlineVertexExtent = false;
   const auto traceWorldFaces = [&]() {
     if (!worldFaceTraceRequested) return;
     const auto drawState = renderer.worldMaterialSampleState();
+    // The eye these pixels belong to. Without it the cull test below falls back to
+    // the screen sign, which a capture mirrors.
+    float traceEye[3] = {0.0f, 0.0f, 0.0f};
+    const bool haveTraceEye = renderer.cameraEyeMapWorld(traceEye[0], traceEye[1], traceEye[2]);
+    if (haveTraceEye) {
+      traceFmt("camera: capture eye=%.3f,%.3f,%.3f", traceEye[0], traceEye[1], traceEye[2]);
+    } else {
+      traceFmt("camera: capture eye unavailable reason=camera-not-ready");
+    }
     const auto& tileTable = renderer.worldTileTable();
     std::unordered_map<std::string, const tf2::native::WorldTileReading*> tileByMaterial;
     tileByMaterial.reserve(tileTable.size());
@@ -10890,10 +10998,12 @@ bool outlineVertexExtent = false;
         float ax, ay, az, aw, bx, by, bz, bw, cx, cy, cz, cw;
         if (!project(triangle.a, ax, ay, az, aw) || !project(triangle.b, bx, by, bz, bw)
             || !project(triangle.c, cx, cy, cz, cw)) return;
-        // Front faces are clockwise in D3D's screen space; a back face is not
-        // rasterised when the pass culls, so it cannot be the pixel's owner.
+        // A back face is not rasterised when the pass culls, so it cannot be the
+        // pixel's owner -- but "back" has to be asked in world space: see
+        // windingFacesViewer above, the capture's projection is mirrored.
         const float area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-        if (drawState.worldCullBackfaces && !(area > 0.0f)) return;
+        const bool windFaces = haveTraceEye ? windingFacesViewer(triangle, traceEye) : (area > 0.0f);
+        if (drawState.worldCullBackfaces && !windFaces) return;
         if (std::fabs(area) < 1.0e-6f) return;
         const float w0 = ((by - cy) * (fx - cx) + (cx - bx) * (fy - cy)) / area;
         const float w1 = ((cy - ay) * (fx - cx) + (ax - cx) * (fy - cy)) / area;
@@ -10989,6 +11099,7 @@ bool outlineVertexExtent = false;
       std::string uvText = "-";
       std::string texelText = "-";
       std::string texelAlphaText = "-";
+      bool alphaCut = false;
       std::string blendText = "-";
       std::string albedoText = "-";
       std::string albedoTileText = "-";
@@ -11098,7 +11209,7 @@ bool outlineVertexExtent = false;
           }
           return true;
         };
-        unsigned char texel[4];
+        unsigned char texel[4] = {0u, 0u, 0u, 0u};
         if (haveTexture && sampleBilinearRgba(textureIt->second->rgba, tile->width, tile->height,
               tileU, tileV, texel)) {
           // (the tile buffer is the downscaled texture, so this is the texel
@@ -11108,6 +11219,16 @@ bool outlineVertexExtent = false;
           texelText = texelBuffer;
           texelAlphaText = std::to_string(static_cast<unsigned>(texel[3]));
         }
+        // The product shader's cutout rule, in its own words
+        // (native_renderer_shaders.cpp:393, :613):
+        // `if ((featureMask & 16u) != 0u && sampledTexel.a < 0.5) discard;`.
+        // Bit 16 is this tile's `$alphatest` and 0.5 is the threshold the shader
+        // uses, so a texel below 128 is a pixel the shader throws away and the
+        // frame keeps whatever is behind it -- sky, on cp_process_f12's truss.
+        // Such a pixel is not geometry the cull pass dropped, and saying so is
+        // this field's whole job: mask 07's brush order was blamed for 313 pr600
+        // pixels that are cutouts of METALTRUSS001 (texelA = 0 at every one).
+        alphaCut = tile != nullptr && tile->alphaTest && texel[3] < 128u;
         if (chain.blend && haveTexture) ++blendHits;
         predictAlbedo(tileU, tileV, albedo, &blendText);
         // T21: the rival hypothesis, predicted from the same tile buffer and
@@ -11232,7 +11353,7 @@ bool outlineVertexExtent = false;
         " bufPos=%.3f,%.3f,%.3f bufferPosKnown=%d"
         " mapA=%.3f,%.3f,%.3f box=%.6f,%.3f,%.3f,%.3f,%.3f drawn=%d"
         " bufAll=%.4f,%.4f,%.4f;%.4f,%.4f,%.4f;%.4f,%.4f,%.4f"
-        " mapAll=%.3f,%.3f,%.3f;%.3f,%.3f,%.3f;%.3f,%.3f,%.3f",
+        " mapAll=%.3f,%.3f,%.3f;%.3f,%.3f,%.3f;%.3f,%.3f,%.3f alphaCut=%d",
         px, py, bestTriangle, triangle.material.c_str(),
         chain.vmtPath.empty() ? "-" : chain.vmtPath.c_str(), chain.vmtStore.c_str(),
         chain.vtfPath.empty() ? "-" : chain.vtfPath.c_str(), chain.vtfStore.c_str(),
@@ -11260,7 +11381,7 @@ bool outlineVertexExtent = false;
         bufferPosition[6], bufferPosition[7], bufferPosition[8],
         triangle.a.x, triangle.a.y, triangle.a.z,
         triangle.b.x, triangle.b.y, triangle.b.z,
-        triangle.c.x, triangle.c.y, triangle.c.z);
+        triangle.c.x, triangle.c.y, triangle.c.z, alphaCut ? 1 : 0);
     }
     // Named refusals, weighted by the pvs-visible triangles they cost. The
     // aggregate material-fetch line says `vmtMissing=3`; this says how much of
@@ -11467,11 +11588,10 @@ bool outlineVertexExtent = false;
     // T105: the pose this traced frame was captured at. A facing audit needs
     // the eye that belongs to the pixels; inferring it afterwards is how W-1's
     // "measurement artifact" verdict nearly became a bug report.
-    {
-      float eyeX = 0.0f, eyeY = 0.0f, eyeZ = 0.0f;
-      if (renderer.cameraEyeMapWorld(eyeX, eyeY, eyeZ)) {
-        traceFmt("camera: capture eye=%.3f,%.3f,%.3f", eyeX, eyeY, eyeZ);
-      }
+    float traceEye[3] = {0.0f, 0.0f, 0.0f};
+    const bool haveTraceEye = renderer.cameraEyeMapWorld(traceEye[0], traceEye[1], traceEye[2]);
+    if (haveTraceEye) {
+      traceFmt("camera: capture eye=%.3f,%.3f,%.3f", traceEye[0], traceEye[1], traceEye[2]);
     }
     const auto drawState = renderer.worldMaterialSampleState();
     const bool cullEnabled = drawState.worldCullBackfaces;
@@ -11556,7 +11676,8 @@ bool outlineVertexExtent = false;
         float depth = 0.0f, area = 0.0f;
         if (!covers(triangle, depth, area)) continue;
         if (depth < anyDepth) { anyDepth = depth; anyOrdinal = static_cast<int>(ordinal); }
-        const bool faces = area > 0.0f;
+        // Same mirrored capture as the face trace: see windingFacesViewer.
+        const bool faces = haveTraceEye ? windingFacesViewer(triangle, traceEye) : (area > 0.0f);
         const bool visible = !clipApplied || kept[ordinal] != 0;
         if ((!cullEnabled || faces) && visible && depth < drawnDepth) {
           drawnDepth = depth;
@@ -12587,14 +12708,27 @@ bool outlineVertexExtent = false;
       // (placeSpectatorView). Not in third person and not under --debug-camera:
       // those lenses are outside the player and a diagnostic frame must not lose
       // a body.
-      if (!g_debugCamera
-          && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson
-          && haveObserverView && g_scenePovEye.entityIndex >= 0
-          && g_scenePovEye.offsetApplied) {
-        g_spectateCameraHiddenEntity = static_cast<std::int32_t>(g_scenePovEye.entityIndex);
-      } else {
-        g_spectateCameraHiddenEntity = -1;
+      // task-30 step 2: the frame ACTUAL eye decides whose body can be drawn. The
+      // eye resolves to a player in two ways -- the demo eye (reason=applied above),
+      // or the relay standing behind the director target. The second one is why a
+      // relay frame drew the watched body: the relay sets the same member, but it
+      // runs after the candidate filter. Ask both here, before the filter, and only
+      // when the lens is really inside that player: third person, free look and
+      // --debug-camera keep the body, and an unresolved target clears the member
+      // instead of leaving yesterday hide in place.
+      // --world-show-own-body is the diagnostic arm: same camera matrix, only the
+      // submission of that body changes. Default off = byte-identical frame.
+      std::int32_t observedPlayer = -1;
+      if (!g_debugCamera && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson) {
+        if (haveObserverView && g_scenePovEye.entityIndex >= 0 && g_scenePovEye.offsetApplied) {
+          observedPlayer = static_cast<std::int32_t>(g_scenePovEye.entityIndex);
+        } else if (!g_cameraDemoViewUsable && g_spectateDirector.targetIndex() >= 0
+                   && relayTargetHasPose(currentEntityStates, g_spectateDirector.targetIndex(),
+                                         demoNetworkSummary, g_sceneResolvedServerTick)) {
+          observedPlayer = static_cast<std::int32_t>(g_spectateDirector.targetIndex());
+        }
       }
+      g_spectateCameraHiddenEntity = g_worldShowOwnBody ? -1 : observedPlayer;
       // Printed on every resolved scene tick, beside the eye it explains: the
       // origin, the offset, the final eye, and each source's tick. The negative
       // controls read this line -- offsetZ=0 on a living player means the
@@ -13155,6 +13289,9 @@ bool outlineVertexExtent = false;
         std::size_t stateTraceLines = 0;
         std::size_t blendTraceLines = 0;
         std::size_t poseGridTraceLines = 0;
+        // PHASEC-TEMP (evidence only): env-gated pose check readings. Unset in
+        // every default run, so this block cannot move a product pixel.
+        static const bool poseCheckTrace = std::getenv("TF2_NATIVE_POSECHECK") != nullptr;
         std::size_t frameTraceLines = 0;
         // T61: the draw budget. The renderer accepts 96 instances per update
         // and the resolver appends the player-class bodies AFTER every world
@@ -14086,6 +14223,83 @@ bool outlineVertexExtent = false;
                   sampled.poseMaskGatedBones,
                   sampled.poseMaskIsolatedBones,
                   sampled.poseGridReason.empty() ? "-" : sampled.poseGridReason.c_str());
+              }
+              if (poseCheckTrace) {
+                const auto& pelvisMatrices = sampled.boneModelMatrices;
+                const double pelvisX = pelvisMatrices.empty() ? 0.0
+                  : static_cast<double>(pelvisMatrices[0][3]);
+                const double pelvisY = pelvisMatrices.empty() ? 0.0
+                  : static_cast<double>(pelvisMatrices[0][7]);
+                const double pelvisZ = pelvisMatrices.empty() ? 0.0
+                  : static_cast<double>(pelvisMatrices[0][11]);
+                const double drawPitch = instance.transform.hasAngles
+                  ? static_cast<double>(instance.transform.angles[0]) : 0.0;
+                const double drawYaw = instance.transform.hasAngles
+                  ? static_cast<double>(instance.transform.angles[1]) : 0.0;
+                traceFmt("anim: posecheck tick=%d ent=%d model=%s mode=%s state=%s pitch=%.3f yaw=%.3f cycle=%.6f frame=%d localFrame=%d moveX=%.4f moveY=%.4f aimYaw=%.3f aimPitch=%.3f aimW=%.4f pelvis=%.4f,%.4f,%.4f bones=%zu origin=%.3f,%.3f,%.3f",
+                  static_cast<int>(resolvedSceneTick),
+                  static_cast<int>(instance.entityIndex),
+                  instance.modelPath.c_str(),
+                  request.blendMode == tf2::native::AnimationBlendMode::PoseGrid
+                    ? "posegrid" : "legacy",
+                  ledgerState.c_str(),
+                  drawPitch,
+                  drawYaw,
+                  static_cast<double>(request.cycle),
+                  sampled.frame,
+                  sampled.localFrame,
+                  static_cast<double>(request.pose.moveX),
+                  static_cast<double>(request.pose.moveY),
+                  static_cast<double>(request.pose.aimYaw),
+                  static_cast<double>(request.pose.aimPitch),
+                  static_cast<double>(blendReading.aim),
+                  pelvisX, pelvisY, pelvisZ,
+                  pelvisMatrices.size(),
+                  static_cast<double>(instance.transform.origin[0]),
+                  static_cast<double>(instance.transform.origin[1]),
+                  static_cast<double>(instance.transform.origin[2]));
+                            }
+              {
+                static const bool poseCheckBones =
+                  std::getenv("TF2_NATIVE_POSECHECK2") != nullptr;
+                if (poseCheckBones
+                    && instance.modelPath.find("/player/") != std::string::npos
+                    && !sampled.boneModelMatrices.empty()) {
+                  const auto& bm = sampled.boneModelMatrices;
+                  double lo[3] = {1e30, 1e30, 1e30};
+                  double hi[3] = {-1e30, -1e30, -1e30};
+                  for (const auto& m : bm) {
+                    for (int axis = 0; axis < 3; ++axis) {
+                      const double v = static_cast<double>(m[3 + axis * 4]);
+                      if (v < lo[axis]) lo[axis] = v;
+                      if (v > hi[axis]) hi[axis] = v;
+                    }
+                  }
+                  auto boneAt = [&](std::size_t idx) {
+                    if (idx >= bm.size()) return std::array<double, 3>{0.0, 0.0, 0.0};
+                    return std::array<double, 3>{static_cast<double>(bm[idx][3]),
+                                                 static_cast<double>(bm[idx][7]),
+                                                 static_cast<double>(bm[idx][11])};
+                  };
+                  const auto headPos = boneAt(6);
+                  const auto neckPos = boneAt(5);
+                  const auto hipLPos = boneAt(13);
+                  const auto handLPos = boneAt(19);
+                  const auto handRPos = boneAt(20);
+                  traceFmt("anim: posebones tick=%d ent=%d model=%s mode=%s bones=%zu bbox=(%.3f,%.3f,%.3f)..(%.3f,%.3f,%.3f) head=(%.3f,%.3f,%.3f) neck=(%.3f,%.3f,%.3f) hipL=(%.3f,%.3f,%.3f) handL=(%.3f,%.3f,%.3f) handR=(%.3f,%.3f,%.3f)",
+                    static_cast<int>(resolvedSceneTick),
+                    static_cast<int>(instance.entityIndex),
+                    instance.modelPath.c_str(),
+                    request.blendMode == tf2::native::AnimationBlendMode::PoseGrid
+                      ? "posegrid" : "legacy",
+                    bm.size(),
+                    lo[0], lo[1], lo[2], hi[0], hi[1], hi[2],
+                    headPos[0], headPos[1], headPos[2],
+                    neckPos[0], neckPos[1], neckPos[2],
+                    hipLPos[0], hipLPos[1], hipLPos[2],
+                    handLPos[0], handLPos[1], handLPos[2],
+                    handRPos[0], handRPos[1], handRPos[2]);
+                }
               }
               if (!sampled.bindPose && !sampled.skinMatrices.empty()
                   && entityBindPoseMutation) {

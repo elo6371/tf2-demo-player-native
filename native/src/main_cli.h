@@ -373,6 +373,23 @@ inline const FlagSpec kValueLessFlagTable[] = {
     env.worldTileFillTrace = true;
     return true;
   }},
+  // Task-9: --world-keep-map-winding is parsed by the pre-scan at main.cpp:3621,
+  // because the else-if chain is at MSVC's block-nesting limit and cannot grow an
+  // "else if" for it. Parsed is not claimed: the T105 refusal at main.cpp:4741
+  // rejects any unclaimed "--" switch with exit 13, so the switch that turns the
+  // displacement reversal off could not be used at all -- the run that asks for
+  // "winding as stored" stopped before it drew. This row claims the name; the
+  // pre-scan above still does the parsing, so the handler has nothing left to do.
+  {L"--world-keep-map-winding", FlagArity::Zero, [](CliParseEnv&, LPWSTR*, int, int&) {
+    return true;
+  }},
+  // Task-9: the counterpart of the switch above. The displacement reversal that
+  // the keep switch turns off is now the default, so restoring the old rule needs
+  // its own name; the pre-scan at main.cpp:3622 parses it and this row only claims
+  // it for the T105 refusal, exactly like the row above.
+  {L"--world-flip-disp-winding", FlagArity::Zero, [](CliParseEnv&, LPWSTR*, int, int&) {
+    return true;
+  }},
 };
 
 inline bool dispatchFeatureSwitch(CliParseEnv& env, LPWSTR* arguments, int argumentCount, int& i) {

@@ -1261,6 +1261,12 @@ public:
   // same frame can be drawn culled and unculled and the difference attributed
   // to the winding. Diagnostic only; the product's default stays cull-back.
   void setWorldBackfaceCull(bool enabled) { worldBackfaceCull_ = enabled; }
+  // The alpha-cutout arm. A frame captured with --world-no-alpha-test draws every
+  // texel as if it passed the shader's cutout, so comparing it with the normal
+  // frame separates "the shader discarded this texel" from "the pass never
+  // rasterised this triangle" -- the two explanations a missing pixel can have
+  // (task-9: all 313 pr600 pixels were the first, none the second).
+  void setWorldAlphaTest(bool enabled) { worldAlphaTest_ = enabled; }
   // T11 diagnostic: 0 = textured (the product path), 1 = flat colour only,
   // 2 = depth greyscale. Diagnostic only; the product's default stays 0.
   void setWorldDebugView(int view) { worldDebugView_ = view; }
@@ -2617,6 +2623,8 @@ private:
   bool worldVisDrewIndexed_ = false;
   bool worldVisClipEnabled_ = true;
   bool worldBackfaceCull_ = true;
+  // --world-no-alpha-test clears this; see setWorldAlphaTest.
+  bool worldAlphaTest_ = true;
   int worldDebugView_ = 0;
   bool worldVisClipApplied_ = false;
   std::size_t worldVisDrawnTriangles_ = 0;

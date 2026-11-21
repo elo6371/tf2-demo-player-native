@@ -254,6 +254,7 @@ void writeLuxel(std::uint8_t* dest, const std::uint8_t* sample, std::uint64_t& t
 
 bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     std::size_t triangleLimit, int atlasMaxWidth, bool keepMapWinding,
+    bool flipDisplacementWinding,
     const std::vector<std::string>& extraStaticClasses) {
   map = {}; auto fail = [&](const char* message) { map.error = message; return false; };
   if (bytes.size() < kHeaderSize || read<std::uint32_t>(bytes, 0) != 0x50534256u) return fail("BSP header is invalid");
@@ -1285,11 +1286,28 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         // side-aware outward direction, which is the cell the previous round
         // pinned as `displacedMisfaced=38614` and the cell that holds the
         // top-down view's right half.
-        // Diagnostic (W-1 step 2): keepMapWinding disables the displacement
-        // reversal so a capture can ask whether the map's own grid order is the
-        // one that faces the observer. Brush triangles are never reversed by this
-        // rule, so "displacement only" and "everything" are the same scope here.
-        if (haveFaceOutward && displacement && !keepMapWinding) {
+        // Task-9 verdict: this reversal was measured to be wrong and is now off
+        // by default. `world-disp-param-check.py frames` over four pinned poses
+        // (up0/up1800 on pl_upward_f12, pr600 on cp_process_f12, koth0 on
+        // koth_product_final, 1264x681), reversal on vs off:
+        //   enclosed+crack  up0 3745 -> 3745, up1800 0 -> 0,
+        //                   pr600 16356 -> 16318, koth0 29858 -> 19547
+        //   geometry pixels lost 0 in every pose, gained 38 (pr600) and
+        //                   10460 (koth0) -- nothing left the frame.
+        // The koth0 gain is the pale wedge under the bridge floor: a hole the
+        // reversal opened, by flipping triangles the hardware then culled. The
+        // map's own grid order is the one that faces the observer, which is the
+        // convention brushes already follow; this displacement-only exception was
+        // the one that disagreed with it. --world-flip-disp-winding restores the
+        // old rule for A/B captures; --world-keep-map-winding still forces keep.
+        //
+        // Task-9, brush half: the same reversal was tried on brushes and rejected.
+        // --world-orient-brush-outward flipped 11030 of pr600's 15038 brush triangles
+        // (15038 up0, 10286 koth0) and the frame lost 57442 geometry pixels on pr600
+        // alone (koth0 11491): triangles that face the observer under the map's own
+        // order were turned away from it and the rasteriser culled them. Mask 07's
+        // "brush keeps the map's order" stands; only the displacement cell reverses.
+        if (haveFaceOutward && !keepMapWinding && displacement && flipDisplacementWinding) {
           if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
             std::swap(b, c);
             std::swap(bAlpha, cAlpha);
@@ -1401,6 +1419,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           // weight is still a surface, and drawing it single-layer is the
           // honest degradation.
           std::vector<float> gridAlpha(static_cast<std::size_t>(size) * static_cast<std::size_t>(size), -1.0f);
+          // Task-9: the flat grid, kept beside the displaced one. The cell
+          // validity gate below needs the flat cell as its yardstick (see the
+          // comment there); without it the gate can only compare against an
+          // absolute number, and an absolute number cannot tell "this cell was
+          // always this big" from "this cell was blown up".
+          std::vector<BspVertex> flatGrid(static_cast<std::size_t>(size) * static_cast<std::size_t>(size));
           bool finite = true;
           // T105: the grid is walked the way the engine walks it, not the way it
           // looks laid out on paper. Source addresses the displacement vertices
@@ -1420,6 +1444,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               const float fj = static_cast<float>(j) / static_cast<float>(size - 1);
               const auto flat = lerpVertex(rowLeft, rowRight, fj);
               const auto index = static_cast<std::size_t>(i * size + j);
+              flatGrid[index] = flat;
               const auto vertAt = (static_cast<std::size_t>(vertStart) + index) * 20u;
               const float vx = read<float>(dispVerts, vertAt), vy = read<float>(dispVerts, vertAt + 4), vz = read<float>(dispVerts, vertAt + 8), dist = read<float>(dispVerts, vertAt + 12);
               const float alpha = read<float>(dispVerts, vertAt + 16);
@@ -1432,7 +1457,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           }
           if (!finite) dispFail = kDispNonFinite;
           bool displacementComplete = finite;
-          const auto usable = [](const BspVertex& a, const BspVertex& b, const BspVertex& c) {
+          const auto usable = [](const BspVertex& a, const BspVertex& b, const BspVertex& c, float allowed2) {
             const float abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
             const float acx = c.x - a.x, acy = c.y - a.y, acz = c.z - a.z;
             const float bcx = c.x - b.x, bcy = c.y - b.y, bcz = c.z - b.z;
@@ -1442,7 +1467,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
             const float nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
             const float area2 = nx * nx + ny * ny + nz * nz;
             return std::isfinite(area2) && area2 > 1.0e-8f
-              && ab2 <= 262144.0f && ac2 <= 262144.0f && bc2 <= 262144.0f;
+              && ab2 <= allowed2 && ac2 <= allowed2 && bc2 <= allowed2;
           };
           const auto gridTriangles = static_cast<std::size_t>(size - 1)
             * static_cast<std::size_t>(size - 1) * 2u;
@@ -1486,7 +1511,33 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
               const auto at = [&](int gx, int gy) { return grid[static_cast<std::size_t>(gx * size + gy)]; };
               const auto weightAt = [&](int gx, int gy) { return gridAlpha[static_cast<std::size_t>(gx * size + gy)]; };
               const auto p00 = at(x, y), p10 = at(x + 1, y), p11 = at(x + 1, y + 1), p01 = at(x, y + 1);
-              if (!usable(p00, p10, p11) || !usable(p00, p11, p01)) {
+              // Task-9: 262144 (512 units, squared) was the gate's absolute cap,
+              // and it is not an engine constant. Measured on the two maps whose
+              // displacements it refuses (analysis in .scratch/dispfaces):
+              // pl_upward_f12 face 13279 has quad edges 1055..1792 at power 2,
+              // so its cells are 264..448 units and one cell's diagonal is 519 --
+              // 7 units over the cap. The whole 32-triangle patch was thrown away
+              // and the face fell back to a flat quad for those 7 units.
+              // koth_ashville_final1 faces 4951/4969/4976 are worse: quad edges
+              // 690 x 4176 at power 2, cells of 172 x 1044, so all 16 cells fail
+              // and all three faces are flat.
+              // What the gate has to reject is a cell that a bad height value blew
+              // up, not a cell the map authored large: the cap is therefore
+              // (4x the cell's longest flat edge) squared, with the old absolute
+              // cap kept as the floor so a small cell cannot be stretched 4096
+              // units either.
+              const auto flatEdge2 = [](const BspVertex& p, const BspVertex& q) {
+                const float dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
+                return dx * dx + dy * dy + dz * dz;
+              };
+              const auto f00 = flatGrid[static_cast<std::size_t>(x * size + y)];
+              const auto f10 = flatGrid[static_cast<std::size_t>((x + 1) * size + y)];
+              const auto f11 = flatGrid[static_cast<std::size_t>((x + 1) * size + y + 1)];
+              const auto f01 = flatGrid[static_cast<std::size_t>(x * size + y + 1)];
+              const float flatEdge2Max = std::max(std::max(flatEdge2(f00, f10), flatEdge2(f10, f11)),
+                std::max(flatEdge2(f11, f01), flatEdge2(f01, f00)));
+              const float allowed2 = std::max(262144.0f, 16.0f * flatEdge2Max);
+              if (!usable(p00, p10, p11, allowed2) || !usable(p00, p11, p01, allowed2)) {
                 displacementComplete = false;
                 dispFail = kDispCell;
                 continue;

@@ -896,7 +896,13 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
         // `--world-atlas-no-translucent-rescue` they stay refused and
         // `translucentRefused` counts exactly them.
         const bool alphaBlended = material.translucent;
-        const bool alphaCutout = material.alphaTest;
+        // --world-no-alpha-test clears worldAlphaTest_: the cutout bit is never
+        // raised, so every texel is drawn as if it passed the alpha test. Pixels
+        // that then turn from sky to something are pixels the shader cut; pixels
+        // that stay sky are pixels the pass never rasterised. task-9 used this to
+        // show that all 313 missing pr600 pixels were cutouts of METALTRUSS001
+        // and none were lost winding (see the arm in .scratch/n30-disp).
+        const bool alphaCutout = material.alphaTest && worldAlphaTest_;
         if (alphaBlended) mask |= 8;
         if (alphaCutout) mask |= 16;
         a.featureMask = b.featureMask = c.featureMask = static_cast<float>(mask);
