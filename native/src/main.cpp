@@ -3526,6 +3526,19 @@ bool outlineVertexExtent = false;
   bool worldSky3dGiven = false;
   bool worldSky3dRequested = false;
   bool worldSky3dArgumentRejected = false;
+  // T105: --lighting off|basic, the model/prop lighting arm. Same three-variable
+  // shape again, and here it matters more than for a world switch: "off" is the
+  // arithmetic every pinned capture on this tree was taken with, so a run that
+  // asked for off and got basic would silently move a baseline instead of
+  // failing.
+  bool modelLightingGiven = false;
+  bool modelLightingRequested = false;
+  bool modelLightingArgumentRejected = false;
+  // --lighting-trace: no value. It only means something with the arm on, which
+  // the refusal below enforces -- a trace with the arm off would render the
+  // ordinary frame and could be misread as "the normals are those of the
+  // texture".
+  bool modelLightingTrace = false;
   // Diagnostic: treat the world material as if it declared an env map, so the
   // six-face sampling branch can be run on content that does not ask for it.
   // No installed map's first material declares $envmap -- measured across all
@@ -3927,6 +3940,42 @@ bool outlineVertexExtent = false;
         } else {
           worldSky3dArgumentRejected = true;
         }
+        continue;
+      }
+
+      // T105: --lighting off|basic. The model/prop lighting arm: an ambient
+      // cube plus a Half-Lambert sun on entity and prop instances and on the
+      // viewmodel, instead of the hardcoded direction those three pixel
+      // shaders have always carried. A ladder arm for the reason the switches
+      // above are: the else-if chain is at the compiler's nesting limit.
+      //
+      // Off is the default AND the pinned-capture value, so the arm has no
+      // effect on a frame that did not ask for it -- the pixel shaders take
+      // the new branch only when the uploaded constant says to.
+      if (wcscmp(arguments[i], L"--lighting") == 0) {
+        if (i + 1 < argumentCount) {
+          const wchar_t* value = arguments[i + 1];
+          if (wcscmp(value, L"basic") == 0) {
+            modelLightingRequested = true;
+            modelLightingGiven = true;
+            ++i;
+          } else if (wcscmp(value, L"off") == 0) {
+            modelLightingRequested = false;
+            modelLightingGiven = true;
+            ++i;
+          } else {
+            modelLightingArgumentRejected = true;
+          }
+        } else {
+          modelLightingArgumentRejected = true;
+        }
+        continue;
+      }
+
+      // T105: --lighting-trace. Writes each entity/prop instance's world-space
+      // normal out as colour instead of shading it.
+      if (wcscmp(arguments[i], L"--lighting-trace") == 0) {
+        modelLightingTrace = true;
         continue;
       }
 
@@ -4990,6 +5039,16 @@ bool outlineVertexExtent = false;
   if (worldDynamicLightGiven) persistent.render.dynamicLighting = worldDynamicLightRequested;
   if (worldLightsGiven) persistent.render.worldLights = worldLightsRequested;
   if (worldSky3dGiven) persistent.render.worldSky3d = worldSky3dRequested;
+  // T105: the model lighting switch, and its trace. The trace is stored AFTER
+  // the arm because it only has a meaning with the arm on -- the refusal below
+  // forbids the combination, so this assignment cannot produce a trace of a
+  // frame that was not lit.
+  if (modelLightingGiven) {
+    persistent.render.modelLighting = modelLightingRequested
+      ? tf2::native::RenderSettings::ModelLightingMode::Basic
+      : tf2::native::RenderSettings::ModelLightingMode::Off;
+  }
+  persistent.render.modelLightingTrace = modelLightingTrace;
   if (worldSpecularGiven) persistent.render.specular = worldSpecularRequested;
   if (worldBumpGiven) persistent.render.bumpMapping = worldBumpRequested;
   if (worldMaterialBumpGiven) persistent.render.materialBump = worldMaterialBumpRequested;
@@ -5031,6 +5090,23 @@ bool outlineVertexExtent = false;
     // second draw happens at all, so an unreadable value must not leave the
     // pass quietly on or quietly off.
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-sky-3d; it takes on or off and nothing else.\n");
+    return 13;
+  }
+  if (modelLightingArgumentRejected) {
+    // T105: same rule as the switches above. "off" is the value every pinned
+    // capture on this tree was taken with, so a run whose value could not be
+    // read must fail rather than pick one: picking "off" would make a mistyped
+    // --lighting look like a clean baseline re-run, and picking "basic" would
+    // move a baseline someone else is comparing against.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --lighting; it takes off or basic and nothing else.\n");
+    return 13;
+  }
+  if (persistent.render.modelLightingTrace
+      && persistent.render.modelLighting != tf2::native::RenderSettings::ModelLightingMode::Basic) {
+    // T105: a trace of an unlit frame is a picture of the albedo, not of a
+    // normal, and the two are easy to confuse in a report. Refused rather than
+    // quietly ignored for exactly that reason.
+    OutputDebugStringW(L"TF2 Demo Player: --lighting-trace needs --lighting basic; on its own it would render the ordinary frame.\n");
     return 13;
   }
   if (invalidViewModelEffectArgument) {

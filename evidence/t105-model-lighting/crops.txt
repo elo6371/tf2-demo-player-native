@@ -1,0 +1,33 @@
+# python .scratch/t105-measure.py OFF BASIC REGION CELL  (top-left origin y)
+== region 756,576,72,72
+frames 1264x681 vs 1264x681 region=756,576,72,72 cell=24
+OFF  mean=86.9 min=5.6 max=172.6 dark<24=0.0297 dark<40=0.0905 dark<64=0.4007
+BASE mean=94.3 min=4.6 max=255.0 dark<24=0.0162 dark<40=0.0737 dark<64=0.3081
+cell grid mean luminance (top-left origin):
+OFF  y/x           756    780    804
+  576     115.5   57.9   99.4
+  600      73.6   66.8  101.3
+  624      90.3   61.9  115.3
+BASE y/x           756    780    804
+  576     117.0   62.1  115.0
+  600      76.3   68.6  119.0
+  624      88.7   68.0  133.7
+darkest-200 in OFF: off mean=19.2 base mean=26.2 minDelta=-3.1 maxDelta=+17.5
+pixels brighter=2296 darker=967 same=1921 of 5184
+== region 1134,540,72,72
+frames 1264x681 vs 1264x681 region=1134,540,72,72 cell=24
+OFF  mean=86.0 min=0.0 max=171.2 dark<24=0.0193 dark<40=0.1217 dark<64=0.2994
+BASE mean=86.5 min=0.0 max=225.2 dark<24=0.0361 dark<40=0.1472 dark<64=0.3169
+cell grid mean luminance (top-left origin):
+OFF  y/x          1134   1158   1182
+  540      88.9   75.9  106.0
+  564      50.6   82.7  109.1
+  588      76.6   72.6  111.2
+BASE y/x          1134   1158   1182
+  540      89.2   73.6  108.2
+  564      48.3   89.2  108.1
+  588      75.4   74.6  112.1
+darkest-200 in OFF: off mean=18.8 base mean=17.3 minDelta=-6.0 maxDelta=+13.1
+pixels brighter=762 darker=1175 same=3247 of 5184
+# python bmp-delta-sign.py OFF BASIC (whole frame)
+BMP-SIGN brighter=304167 darker=37941 same=2240244 max_up=114 max_down=43 extent=1264x681x24 status=OK

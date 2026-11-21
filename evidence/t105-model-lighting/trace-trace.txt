@@ -1,0 +1,2 @@
+capture: lights enabled=0 sun=1 uploaded=0 declared=369 rejected=0 sunIntensity=0.600 ambientIntensity=0.500
+capture: model-lighting arm=1 trace=1 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)

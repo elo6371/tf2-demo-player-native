@@ -159,6 +159,17 @@ cbuffer ModelMaterialProxy : register(b1) {
   float4 materialProxyColor;
   float4 materialProxyFlags;
 };
+// T105: the model lighting block. It is bound HERE too because the entity and
+// prop instances -- the meshes this block exists for -- are drawn through this
+// world pixel shader, not through the legacy model one. It sits at b2 and not
+// at b1 (the register the model and viewmodel pixel shaders use) because b1 in
+// this shader is the material proxy above; the CPU binds zeros here for every
+// world-geometry draw, so a lightmapped face keeps the arithmetic it had.
+cbuffer ModelLightingConstants : register(b2) {
+  float4 ambientCube[6];            // +X -X +Y -Y +Z(sky) -Z(ground), rgb colour
+  float4 sunDirectionAndIntensity;  // xyz = direction TO the sun, w = intensity
+  float4 lightingParams;            // x = lighting arm on, y = normal probe
+};
 Texture2D texture0 : register(t0);
 Texture2D modelSecondTexture : register(t11);
 Texture2D bumpTexture : register(t1);
@@ -186,6 +197,23 @@ float3 safeNormalize(float3 value) {
   float lengthSquared = dot(value, value);
   if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
   return value * rsqrt(lengthSquared);
+}
+// T105: the ambient cube + Half-Lambert sun, in the units this pass already
+// uses (0..2). Each of the six face colours is weighted by the SQUARED
+// component of the normal, so the weights sum to 1 for any unit normal and no
+// normal can be lit above the brightest face; the sun term is
+// `saturate(N.L * 0.5 + 0.5)` squared, which is continuous through the
+// terminator instead of clipping to black. `n` reaches this function in WORLD
+// space for the entity and prop draws this block exists for -- the entity
+// vertex shader rotates the bind-pose normal by the instance normal rows.
+float3 modelLightingRgb(float3 normalWorld, float4 cube[6], float4 sun) {
+  float3 n = safeNormalize(normalWorld);
+  float3 ambient = (n.x >= 0.0 ? cube[0].rgb : cube[1].rgb) * (n.x * n.x)
+    + (n.y >= 0.0 ? cube[2].rgb : cube[3].rgb) * (n.y * n.y)
+    + (n.z >= 0.0 ? cube[4].rgb : cube[5].rgb) * (n.z * n.z);
+  float3 sunDirection = safeNormalize(sun.xyz);
+  float halfLambert = saturate(dot(n, sunDirection) * 0.5 + 0.5);
+  return ambient + sun.w * (halfLambert * halfLambert);
 }
 // T27: `$detail`'s TextureCombine, transcribed from
 // common_ps_fxc.h:701-739. The mode comes from `$detailblendmode` and the
@@ -545,7 +573,28 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   float3 lightDirection = safeNormalize(lightDirectionAndMode.xyz);
   float3 lightingRgb = float3(1.0, 1.0, 1.0);
   float lighting = 1.0;
-  if (sunDirectionAndMode.w > 0.5) {
+  // T105: the model lighting arm, and it is the FIRST branch on purpose. With
+  // `--lighting basic` the entity/prop pass is the only thing that binds a
+  // non-zero lightingParams.x, so every other draw falls through to the chain
+  // below untouched and the off path is the same instructions it always was.
+  //
+  // The ambient cube is the classic Valve one: each of the six face colours is
+  // weighted by the SQUARED component of the world normal (so the six weights
+  // sum to 1 for any unit normal) and picked by that component's sign. The
+  // sun term is Half-Lambert -- `f = saturate(N.L * 0.5 + 0.5)`, squared --
+  // which is continuous through the terminator instead of clipping to black,
+  // because a player model has no artist-painted falloff to hide a hard edge.
+  if (lightingParams.x > 0.5) {
+    lightingRgb = modelLightingRgb(n, ambientCube, sunDirectionAndIntensity);
+    lighting = max(lightingRgb.r, max(lightingRgb.g, lightingRgb.b));
+    // --lighting-trace: write the interpolated normal out as colour. The probe
+    // is what proves the vector above is world space: one model drawn at two
+    // yaws cannot show the same picture this way, and a model-space normal
+    // would.
+    if (lightingParams.y > 0.5) {
+      return float4(safeNormalize(n) * 0.5 + 0.5, 1.0);
+    }
+  } else if (sunDirectionAndMode.w > 0.5) {
     lightDirection = safeNormalize(sunDirectionAndMode.xyz);
     // N21: a lightmapped face already carries the map's sun and its sky ambient --
     // the VRAD bake IS those lights, sampled above and multiplied into the albedo
@@ -718,11 +767,44 @@ Output main(Input input) {
 )HLSL";
 
   extern const char modelPixelSource[] = R"HLSL(
+// T105: the same lighting block the world pixel shader carries for entity and
+// prop instances, redeclared here because these are separate compilation units.
+// It sits at b1: this shader bound no pixel constant buffer before, and the
+// model skinning buffer the vertex half uses at b1 is a different stage.
+cbuffer ModelLightingConstants : register(b1) {
+  float4 ambientCube[6];            // +X -X +Y -Y +Z(sky) -Z(ground), rgb colour
+  float4 sunDirectionAndIntensity;  // xyz = direction TO the sun, w = intensity
+  float4 lightingParams;            // x = lighting arm on, y = normal probe
+};
 struct Input { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; };
+float3 safeNormalize(float3 value) {
+  float lengthSquared = dot(value, value);
+  if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
+  return value * rsqrt(lengthSquared);
+}
+float3 modelLightingRgb(float3 normalWorld, float4 cube[6], float4 sun) {
+  float3 n = safeNormalize(normalWorld);
+  float3 ambient = (n.x >= 0.0 ? cube[0].rgb : cube[1].rgb) * (n.x * n.x)
+    + (n.y >= 0.0 ? cube[2].rgb : cube[3].rgb) * (n.y * n.y)
+    + (n.z >= 0.0 ? cube[4].rgb : cube[5].rgb) * (n.z * n.z);
+  float3 sunDirection = safeNormalize(sun.xyz);
+  float halfLambert = saturate(dot(n, sunDirection) * 0.5 + 0.5);
+  return ambient + sun.w * (halfLambert * halfLambert);
+}
 float4 main(Input input) : SV_TARGET {
   float3 normal = normalize(input.normal);
   float diffuse = saturate(dot(normal, normalize(float3(0.35, 0.55, 0.75))));
   float lighting = 0.62 + 0.38 * diffuse;
+  // With the switch off this branch is never taken, so the two lines above and
+  // the return below describe exactly the frame the previous build drew.
+  // The normal here is the MODEL-space one the model vertex shader writes, so
+  // the cube is applied in model space; the entity pass in the world pixel
+  // shader is the pass whose normals are world space, and the trace probe
+  // (lightingParams.y) lives there for that reason.
+  if (lightingParams.x > 0.5) {
+    float3 litRgb = modelLightingRgb(normal, ambientCube, sunDirectionAndIntensity);
+    return float4(input.colour.rgb * litRgb, input.colour.a);
+  }
   return float4(input.colour.rgb * lighting, input.colour.a);
 }
 )HLSL";
@@ -1122,6 +1204,17 @@ cbuffer ViewModelConstants : register(b0) {
   float4 selfillumFeatures;
   float4 selfillumTint;
 };
+// T105: the model lighting block, redeclared per compilation unit. b1 is free
+// in this pixel stage -- the only pixel constant buffer the pass binds is b0.
+// The normals this shader receives are model space (the viewmodel vertex shader
+// writes them unrotated), so the cube and the sun are applied in that space:
+// it is the same space the hardcoded direction below has always lived in, and
+// the drift it introduces is stated in the report rather than hidden.
+cbuffer ModelLightingConstants : register(b1) {
+  float4 ambientCube[6];            // +X -X +Y -Y +Z(sky) -Z(ground), rgb colour
+  float4 sunDirectionAndIntensity;  // xyz = direction TO the sun, w = intensity
+  float4 lightingParams;            // x = lighting arm on, y = normal probe
+};
 Texture2D albedo : register(t0);
 // t1 is the normal map and t2 the selfillum mask. They are separate slots from
 // the albedo on purpose: the T2 rule is that a normal map must never be
@@ -1142,6 +1235,15 @@ float3 safeNormalize(float3 value) {
   float lengthSquared = dot(value, value);
   if (!(lengthSquared > 1e-8) || !(lengthSquared < 1e8)) return float3(0.0, 0.0, 0.0);
   return value * rsqrt(lengthSquared);
+}
+float3 modelLightingRgb(float3 normalWorld, float4 cube[6], float4 sun) {
+  float3 n = safeNormalize(normalWorld);
+  float3 ambient = (n.x >= 0.0 ? cube[0].rgb : cube[1].rgb) * (n.x * n.x)
+    + (n.y >= 0.0 ? cube[2].rgb : cube[3].rgb) * (n.y * n.y)
+    + (n.z >= 0.0 ? cube[4].rgb : cube[5].rgb) * (n.z * n.z);
+  float3 sunDirection = safeNormalize(sun.xyz);
+  float halfLambert = saturate(dot(n, sunDirection) * 0.5 + 0.5);
+  return ambient + sun.w * (halfLambert * halfLambert);
 }
 float4 main(Input input) : SV_TARGET {
   // The world-space-ish normal the pass has always shaded by, kept as the
@@ -1164,8 +1266,12 @@ float4 main(Input input) : SV_TARGET {
     // than dressed up: the branch changes the lighting, which is what makes it
     // falsifiable, but it is not a full TBN transform and the reading says so.
     float3 shadedNormal = safeNormalize(input.viewNormal);
+    // Hoisted out of the block so the lighting arm below can tilt the MODEL
+    // normal by the same perturbation; zero when the material has no map, and
+    // a zero tangent normal leaves the normal exactly as it was.
+    float3 tangentNormal = float3(0.0, 0.0, 0.0);
     if (bumpFeatures.x > 0.5) {
-      float3 tangentNormal = bumpTexture.Sample(albedoSampler, input.uv).xyz * 2.0 - 1.0;
+      tangentNormal = bumpTexture.Sample(albedoSampler, input.uv).xyz * 2.0 - 1.0;
       // The perturbed normal: the interpolated normal tilted by the map. The
       // magnitude is bounded so a garbage normal map cannot flip the surface.
       shadedNormal = safeNormalize(shadedNormal + tangentNormal * 0.5);
@@ -1174,6 +1280,17 @@ float4 main(Input input) : SV_TARGET {
     float3 viewLight = safeNormalize(mul(float4(lightDirection, 0.0), viewMatrix).xyz);
     float bumpDiffuse = saturate(dot(shadedNormal, viewLight));
     float bumpLighting = 0.55 + 0.45 * bumpDiffuse;
+    // The diffuse colour, scalar by default so the switch-off path is the same
+    // multiplication it was. With the switch on the map's ambient cube and sun
+    // replace the hardcoded direction, and the bump perturbation is applied to
+    // that normal in the space the cube lives in -- the map is sampled without
+    // a tangent basis either way, so it is the same approximation it was, and
+    // it still changes the picture with the switch on.
+    float3 diffuseRgb = float3(bumpLighting, bumpLighting, bumpLighting);
+    if (lightingParams.x > 0.5) {
+      float3 bumpedNormal = safeNormalize(normal + tangentNormal * 0.5);
+      diffuseRgb = modelLightingRgb(bumpedNormal, ambientCube, sunDirectionAndIntensity);
+    }
 
     // ---- Phong ---------------------------------------------------------
     // A specular lobe on the same view-space normal, using the half-vector
@@ -1215,10 +1332,13 @@ float4 main(Input input) : SV_TARGET {
       emission = albedoRgb * selfillumTint.rgb * saturate(mask);
     }
 
-    float3 lit = albedoRgb * bumpLighting;
+    float3 lit = albedoRgb * diffuseRgb;
     lit += specular * albedoRgb;
     lit += emission;
     return float4(lit, texel.a * input.colour.a);
+  }
+  if (lightingParams.x > 0.5) {
+    return float4(input.colour.rgb * modelLightingRgb(normal, ambientCube, sunDirectionAndIntensity), input.colour.a);
   }
   return float4(input.colour.rgb * lighting, input.colour.a);
 }
