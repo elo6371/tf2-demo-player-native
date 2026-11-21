@@ -15,39 +15,39 @@
 
 | 参考库 | 星 | 说明 |
 |---|---|---|
-| `https://github.com/OthmanAba/TeamFortress2` | 321 | 2020-04-22 泄露原版，最完整 |
-| `https://github.com/sr2echa/TF2-Source-Code` | 80 | 同一份的镜像 |
-| `https://github.com/lua9520/source-engine-2018-hl2_src` | 324 | 2018 年版泄露 |
-| `https://github.com/NicknineTheEagle/TF2-Base` | 286 | **合法替代**：把老版 TF2 移植到官方开源的 `source-sdk-2013` 上 |
-| `https://github.com/ValveSoftware/source-sdk-2013` | 10140 | Valve 官方开源的同代 Source 引擎与游戏层代码（首选） |
-| `https://github.com/ValveSoftware/Source-1-Games` | — | Source 1 各游戏的游戏层代码（按分支发布） |
-| `https://github.com/ValveSoftware/halflife` | — | HL1 SDK，只作老式粒子/精灵对照 |
+| [OthmanAba/TeamFortress2](https://github.com/OthmanAba/TeamFortress2) | 321 | 2020-04-22 泄露原版，最完整 |
+| [sr2echa/TF2-Source-Code](https://github.com/sr2echa/TF2-Source-Code) | 80 | 同一份的镜像 |
+| [lua9520/source-engine-2018-hl2_src](https://github.com/lua9520/source-engine-2018-hl2_src) | 324 | 2018 年版泄露 |
+| [NicknineTheEagle/TF2-Base](https://github.com/NicknineTheEagle/TF2-Base) | 286 | **合法替代**：把老版 TF2 移植到官方开源的 `source-sdk-2013` 上 |
+| [ValveSoftware/source-sdk-2013](https://github.com/ValveSoftware/source-sdk-2013) | 10140 | Valve 官方开源的同代 Source 引擎与游戏层代码（首选） |
+| [ValveSoftware/Source-1-Games](https://github.com/ValveSoftware/Source-1-Games) | — | Source 1 各游戏的游戏层代码（按分支发布） |
+| [ValveSoftware/halflife](https://github.com/ValveSoftware/halflife) | — | HL1 SDK，只作老式粒子/精灵对照 |
 
 ## 2. Demo 解析与播放（`.dem` 语义）
 
 | 仓库 | 语言 | 说明 |
 |---|---|---|
-| `https://github.com/demostf/parser` | Rust | 事实标准，demo.tf 官网在用 |
-| `https://github.com/demostf/demo.js` | TypeScript | 解析规范的另一份实现，适合对拍字段语义 |
-| `https://github.com/PazerOP/DemoLib2` | C++ | 完整重实现，最接近本仓技术栈 |
-| `https://github.com/Nocrex/tf2-demo-player` | Rust | 播放器语义 |
-| `https://github.com/programmer1o1/demoscope` | Rust | 通用 demo 解析 + 3D 可视化 |
-| `https://github.com/wombo14/tf2-demo-analyser` | Rust | **2026-11-21 新增**，`Nocrex/demo-analysis` 的分叉、基于 `MegaAntiCheat/analysis-template-rust`；**build-4 带 3D 玩家渲染**（release 资产 `Demo-Analysis-with-3D-Player.zip` 17.1 MB / `Demo-Analysis.exe` 20.8 MB，2026-11-11），是本仓"demo → 世界 + 玩家模型渲染"这条路径最直接的对读对象 |
+| [demostf/parser](https://github.com/demostf/parser) | Rust | 事实标准，demo.tf 官网在用 |
+| [demostf/demo.js](https://github.com/demostf/demo.js) | TypeScript | 解析规范的另一份实现，适合对拍字段语义 |
+| [PazerOP/DemoLib2](https://github.com/PazerOP/DemoLib2) | C++ | 完整重实现，最接近本仓技术栈 |
+| [Nocrex/tf2-demo-player](https://github.com/Nocrex/tf2-demo-player) | Rust | 播放器语义 |
+| [programmer1o1/demoscope](https://github.com/programmer1o1/demoscope) | Rust | 通用 demo 解析 + 3D 可视化 |
+| [wombo14/tf2-demo-analyser](https://github.com/wombo14/tf2-demo-analyser) | Rust | **2026-11-21 新增**，`Nocrex/demo-analysis` 的分叉、基于 `MegaAntiCheat/analysis-template-rust`；**build-4 带 3D 玩家渲染**（release 资产 `Demo-Analysis-with-3D-Player.zip` 17.1 MB / `Demo-Analysis.exe` 20.8 MB，2026-11-11），是本仓"demo → 世界 + 玩家模型渲染"这条路径最直接的对读对象 |
 
 ## 3. BSP / 地图解析
 
 | 仓库 | 语言 | 说明 |
 |---|---|---|
-| `https://github.com/Galaco/bsp` | Go | 轻量 BSP 读取，适合核 lump 结构与边界 |
-| `https://github.com/tasbox-org/source-parsers` | C++ | 完整 Source 格式解析，含 BSP/VPK；**位移面（dispinfo/dispvert/power）对读首选** |
-| `https://github.com/pySourceSDK/ValveBSP` | Python | 便于快速比对某个 lump |
+| [Galaco/bsp](https://github.com/Galaco/bsp) | Go | 轻量 BSP 读取，适合核 lump 结构与边界 |
+| [tasbox-org/source-parsers](https://github.com/tasbox-org/source-parsers) | C++ | 完整 Source 格式解析，含 BSP/VPK；**位移面（dispinfo/dispvert/power）对读首选** |
+| [pySourceSDK/ValveBSP](https://github.com/pySourceSDK/ValveBSP) | Python | 便于快速比对某个 lump |
 
 ## 4. 物品 Schema / 本地化（HUD、装备显示）
 
 | 仓库 | 说明 |
 |---|---|
-| `https://github.com/SteamTracking/GameTracking-TF2` | 自动追踪每次更新，schema 与本地化字符串都在 |
-| `https://github.com/tsuza/tf2-item-schema` | 持续更新的 item schema |
+| [SteamTracking/GameTracking-TF2](https://github.com/SteamTracking/GameTracking-TF2) | 自动追踪每次更新，schema 与本地化字符串都在 |
+| [tsuza/tf2-item-schema](https://github.com/tsuza/tf2-item-schema) | 持续更新的 item schema |
 
 ## 5. 任务 → 参考库（当前在办）
 
