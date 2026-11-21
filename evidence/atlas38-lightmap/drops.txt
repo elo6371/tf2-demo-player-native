@@ -1,0 +1,81 @@
+== truncated-lighting copy (lump 8 length / 3), TF2_NATIVE_LM_DROPS=1
+lightmap atlas drops: 8614 refused face(s), 64 listed (atlas 2048 wide, 8614 face(s) carried no usable lightmap and were refused before packing)
+  face 6613 (WOOD/WALL020B) 32x22 luxels: the light offset does not land inside the lighting page
+  face 6614 (WOOD/WALL020B) 23x22 luxels: the light offset does not land inside the lighting page
+  face 6615 (CONCRETE/CONCRETEWALL013B) 7x9 luxels: the light offset does not land inside the lighting page
+  face 6616 (CONCRETE/CONCRETEWALL013B) 8x7 luxels: the light offset does not land inside the lighting page
+  face 6617 (BRICK/BRICKWALL004E) 19x3 luxels: the light offset does not land inside the lighting page
+  face 6618 (WOOD/GRAIN_ELEVATOR_SILO_05) 7x2 luxels: the light offset does not land inside the lighting page
+  face 6619 (CONCRETE/CONCRETEWALL013A) 6x8 luxels: the light offset does not land inside the lighting page
+  face 6620 (WOOD/WALL020B) 17x22 luxels: the light offset does not land inside the lighting page
+  face 6621 (CONCRETE/CONCRETEWALL013B) 13x7 luxels: the light offset does not land inside the lighting page
+  face 6622 (CONCRETE/CONCRETEWALL013B) 8x14 luxels: the light offset does not land inside the lighting page
+  face 6623 (CONCRETE/CONCRETEWALL013A) 7x14 luxels: the light offset does not land inside the lighting page
+  face 6624 (CONCRETE/CONCRETEWALL013A) 8x13 luxels: the light offset does not land inside the lighting page
+  face 6625 (CONCRETE/CONCRETEWALL013A) 8x14 luxels: the light offset does not land inside the lighting page
+  face 6626 (CONCRETE/CONCRETEFLOOR003) 19x3 luxels: the light offset does not land inside the lighting page
+  face 6628 (NATURE/GROUND_04) 19x3 luxels: the light offset does not land inside the lighting page
+  face 6629 (CONCRETE/CONCRETEFLOOR007) 2x3 luxels: the light offset does not land inside the lighting page
+  face 6630 (CONCRETE/CONCRETEFLOOR007) 8x5 luxels: the light offset does not land inside the lighting page
+  face 6631 (CONCRETE/CONCRETEFLOOR007) 15x12 luxels: the light offset does not land inside the lighting page
+  face 6632 (CONCRETE/CONCRETEFLOOR007) 5x5 luxels: the light offset does not land inside the lighting page
+  face 6633 (CONCRETE/CONCRETEFLOOR007) 2x2 luxels: the light offset does not land inside the lighting page
+  face 6634 (CONCRETE/CONCRETEFLOOR007) 3x5 luxels: the light offset does not land inside the lighting page
+  face 6635 (CONCRETE/CONCRETEFLOOR007) 4x4 luxels: the light offset does not land inside the lighting page
+  face 6636 (CONCRETE/CONCRETEFLOOR007) 19x30 luxels: the light offset does not land inside the lighting page
+  face 6637 (CONCRETE/CONCRETEFLOOR007) 19x3 luxels: the light offset does not land inside the lighting page
+  face 6638 (CONCRETE/CONCRETEFLOOR007) 6x5 luxels: the light offset does not land inside the lighting page
+  face 6639 (CONCRETE/CONCRETEFLOOR007) 6x8 luxels: the light offset does not land inside the lighting page
+  face 6640 (WOOD/GRAIN_ELEVATOR_SILO_05) 3x14 luxels: the light offset does not land inside the lighting page
+  face 6642 (WOOD/GRAIN_ELEVATOR_SILO_05) 3x2 luxels: the light offset does not land inside the lighting page
+  face 6643 (CONCRETE/CONCRETEWALL013) 3x8 luxels: the light offset does not land inside the lighting page
+  face 6644 (METAL/WALL012) 3x4 luxels: the light offset does not land inside the lighting page
+  face 6645 (CONCRETE/CONCRETEWALL013B) 2x6 luxels: the light offset does not land inside the lighting page
+  face 6646 (CONCRETE/CONCRETEWALL013B) 2x6 luxels: the light offset does not land inside the lighting page
+  face 6647 (CONCRETE/CONCRETEWALL013B) 3x6 luxels: the light offset does not land inside the lighting page
+  face 6648 (CONCRETE/CONCRETEWALL013B) 3x6 luxels: the light offset does not land inside the lighting page
+  face 6649 (CONCRETE/CONCRETEWALL013B) 2x6 luxels: the light offset does not land inside the lighting page
+  face 6650 (CONCRETE/CONCRETEWALL013B) 2x6 luxels: the light offset does not land inside the lighting page
+  face 6651 (CONCRETE/CONCRETEWALL013B) 8x3 luxels: the light offset does not land inside the lighting page
+  face 6652 (CONCRETE/CONCRETEWALL013B) 8x2 luxels: the light offset does not land inside the lighting page
+  face 6653 (CONCRETE/CONCRETEWALL013B) 8x2 luxels: the light offset does not land inside the lighting page
+  face 6654 (CONCRETE/CONCRETEWALL013B) 8x2 luxels: the light offset does not land inside the lighting page
+  face 6655 (CONCRETE/CONCRETEWALL013B) 8x3 luxels: the light offset does not land inside the lighting page
+  face 6656 (CONCRETE/CONCRETEWALL013B) 8x2 luxels: the light offset does not land inside the lighting page
+  face 6657 (maps/cp_snakewater_final1/glass/glasswindow001a_-692_723_48) 8x6 luxels: the light offset does not land inside the lighting page
+  face 6658 (maps/cp_snakewater_final1/glass/glasswindow001a_-1985_1664_-240) 8x6 luxels: the light offset does not land inside the lighting page
+  face 6659 (CONCRETE/CONCRETEWALL002) 10x8 luxels: the light offset does not land inside the lighting page
+  face 6660 (CONCRETE/CONCRETEWALL002) 8x18 luxels: the light offset does not land inside the lighting page
+  face 6661 (CONCRETE/CONCRETEWALL002) 12x18 luxels: the light offset does not land inside the lighting page
+  face 6662 (CONCRETE/CONCRETEFLOOR007) 3x10 luxels: the light offset does not land inside the lighting page
+  face 6663 (CONCRETE/CONCRETEWALL013A) 3x12 luxels: the light offset does not land inside the lighting page
+  face 6665 (WOOD/GRAIN_ELEVATOR_SILO_05) 12x3 luxels: the light offset does not land inside the lighting page
+  face 6666 (CONCRETE/CONCRETEWALL013A) 3x12 luxels: the light offset does not land inside the lighting page
+  face 6667 (CONCRETE/CONCRETEWALL013) 10x3 luxels: the light offset does not land inside the lighting page
+  face 6669 (WOOD/GRAIN_ELEVATOR_SILO_05) 10x3 luxels: the light offset does not land inside the lighting page
+  face 6670 (WOOD/GRAIN_ELEVATOR_SILO_05) 8x3 luxels: the light offset does not land inside the lighting page
+  face 6672 (CONCRETE/CONCRETEFLOOR007) 3x2 luxels: the light offset does not land inside the lighting page
+  face 6673 (CONCRETE/CONCRETEFLOOR007) 17x26 luxels: the light offset does not land inside the lighting page
+  face 6674 (METAL/METALDOOR001) 3x15 luxels: the light offset does not land inside the lighting page
+  face 6675 (METAL/METALDOOR001) 17x26 luxels: the light offset does not land inside the lighting page
+  face 6676 (WOOD/GRAIN_ELEVATOR_SILO_05) 26x13 luxels: the light offset does not land inside the lighting page
+  face 6677 (METAL/WALL012) 14x4 luxels: the light offset does not land inside the lighting page
+  face 6679 (WOOD/GRAIN_ELEVATOR_SILO_05) 26x2 luxels: the light offset does not land inside the lighting page
+  face 6680 (CONCRETE/CONCRETEWALL013) 26x8 luxels: the light offset does not land inside the lighting page
+  face 6681 (CONCRETE/CONCRETEWALL002) 5x18 luxels: the light offset does not land inside the lighting page
+  face 6682 (CONCRETE/CONCRETEWALL002) 3x17 luxels: the light offset does not land inside the lighting page
+  ... 8550 more not listed
+{"bsp":"short-light-snakewater.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":931229,"lightmapFaces":6374,"lightmapPackedFaces":6374,"lightmapLuxelFits":6374,"lightmapTriangles":21942,"atlas":"2048x993","sky":"sky_well_01","skyFaces":690,"staticPropsAvailable":true,"staticPropModels":243,"staticPropInstances":1625,"staticPropsReason":"decoded static-prop v10 records","displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"cubemap.facesBeyondSix","value":"0"}
+{"reading":"cubemap.facesDecoded","value":"0"}
+{"reading":"cubemap.firstDeclaredFaces","value":"0"}
+
+== eight shipped maps, TF2_NATIVE_LM_DROPS=1 (silent when nothing is refused)
+cp_badlands        lightmap atlas drops: 0 refused face(s), 0 listed (atlas 4096 wide, all 13082 faces fit the 4096-wide atlas)
+cp_dustbowl        lightmap atlas drops: 0 refused face(s), 0 listed (atlas 4096 wide, all 16832 faces fit the 4096-wide atlas)
+cp_gorge           lightmap atlas drops: 0 refused face(s), 0 listed (atlas 2048 wide, all 8018 faces fit the 2048-wide atlas)
+koth_viaduct       lightmap atlas drops: 0 refused face(s), 0 listed (atlas 2048 wide, all 12243 faces fit the 2048-wide atlas)
+pl_badwater        lightmap atlas drops: 0 refused face(s), 0 listed (atlas 2048 wide, all 10100 faces fit the 2048-wide atlas)
+pl_goldrush        lightmap atlas drops: 0 refused face(s), 0 listed (atlas 4096 wide, all 21301 faces fit the 4096-wide atlas)
+ctf_2fort          lightmap atlas drops: 0 refused face(s), 0 listed (atlas 4096 wide, all 14333 faces fit the 4096-wide atlas)
+cp_well            lightmap atlas drops: 0 refused face(s), 0 listed (atlas 4096 wide, all 19843 faces fit the 4096-wide atlas)

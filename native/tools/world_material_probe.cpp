@@ -8,10 +8,12 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <io.h>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -742,6 +744,26 @@ tf2::native::BspFixtureFace lightmapQuad() {
   face.minsV = 0;
   face.samplesW = 1;  // stored as value-1, so the grid is 2x2
   face.samplesH = 1;
+  face.lightOffset = 0;
+  face.style0 = 0;
+  return face;
+}
+
+// T105: the 512x512 lightmap patch the atlas cases are built from -- one face
+// whose own luxel box fills a whole shelf row. Shared by the two self-tests that
+// parse it at different atlas widths, so the fixture and the expectation cannot
+// drift apart.
+tf2::native::BspFixtureFace lightmapBigFace() {
+  tf2::native::BspFixtureFace face;
+  const float corners[4][3] = {{0.0f, 0.0f, 0.0f}, {511.0f, 0.0f, 0.0f},
+    {511.0f, 511.0f, 0.0f}, {0.0f, 511.0f, 0.0f}};
+  for (int index = 0; index < 4; ++index) {
+    for (int axis = 0; axis < 3; ++axis) face.corners[index][axis] = corners[index][axis];
+  }
+  face.minsU = 0;
+  face.minsV = 0;
+  face.samplesW = 511;  // stored as value-1, so the box is 512x512
+  face.samplesH = 511;
   face.lightOffset = 0;
   face.style0 = 0;
   return face;
@@ -1958,24 +1980,9 @@ bool worldDrawSelfTest() {
   // product's 4096 -- one drops a face and names it, the other fits all
   // seventeen and says so. A single parse could not tell a fixed packer from one
   // that never had anything to drop.
-  const auto bigFace = []() {
-    tf2::native::BspFixtureFace face;
-    const float corners[4][3] = {{0.0f, 0.0f, 0.0f}, {511.0f, 0.0f, 0.0f},
-      {511.0f, 511.0f, 0.0f}, {0.0f, 511.0f, 0.0f}};
-    for (int index = 0; index < 4; ++index) {
-      for (int axis = 0; axis < 3; ++axis) face.corners[index][axis] = corners[index][axis];
-    }
-    face.minsU = 0;
-    face.minsV = 0;
-    face.samplesW = 511;  // stored as value-1, so the box is 512x512
-    face.samplesH = 511;
-    face.lightOffset = 0;
-    face.style0 = 0;
-    return face;
-  };
   tf2::native::BspFixture capacity;
   capacity.lighting.assign(512u * 512u * 4u, 0x40);
-  for (int index = 0; index < 17; ++index) capacity.faces.push_back(bigFace());
+  for (int index = 0; index < 17; ++index) capacity.faces.push_back(lightmapBigFace());
   const auto capacityBytes = tf2::native::buildFixtureBsp(capacity);
   BspMap atlasAt2048;
   tf2::native::BspParser::parse(capacityBytes, atlasAt2048, 200000, 2048);
@@ -2015,6 +2022,258 @@ bool worldDrawSelfTest() {
     << ",\"visTruncatedZeroRunRefused\":" << (truncatedZeroRunRefused ? "true" : "false")
     << ",\"atlasFitsAt2048\":" << (atlasReason ? "true" : "false")
     << ",\"atlasGrowsWhenFull\":" << (atlasGrows ? "true" : "false") << "}\n";
+  return ok;
+}
+
+// T105: the three lightmap tails, exercised instead of asserted by hand.
+// ---------------------------------------------------------------------------
+// 1. HDR-only. A BSP whose only lighting page is lump 53 used to parse into
+//    AverageIntensity, because the reader demanded that lump 53 be exactly the
+//    size of lump 8 before it would accept it as a source. The fixture below has
+//    a real lump 53 and no lump 8 at all -- the shape that test refused -- and the
+//    luxel values are chosen so the atlas proves which page was copied from.
+// 2. Clamp ring. The same 2x2 patch parsed with TF2_NATIVE_LM_BORDER off and on.
+//    The atlas must grow by exactly one luxel per side, and every ring luxel must
+//    be a byte-identical copy of the edge luxel it sits beside, because that is
+//    what makes a bilinear tap which lands outside the patch repeat the patch
+//    instead of the next patch.
+// 3. Drop listing. Seventeen 512x512 patches at the 2048 shelf lose one face, and
+//    a face whose own light offset points outside the page loses its light with no
+//    shelf involved. With TF2_NATIVE_LM_DROPS set the parse must name both, with
+//    the face index, the material, the patch size and why -- the listing is read
+//    back here, not merely printed, because a log nobody reads is not a trace.
+bool lightmapTailSelfTest() {
+  using tf2::native::BspFixture;
+  using tf2::native::BspFixtureFace;
+  using tf2::native::BspMap;
+
+  // The env switches are read once per parse, not cached, which is what makes the
+  // on/off pair below two different parses of one fixture in one process.
+  const auto setEnv = [](const char* name, const char* value) { _putenv_s(name, value); };
+  const auto addQuadLuxels = [](std::vector<std::uint8_t>& lighting) {
+    tf2::native::appendLuxel(lighting, 200, 100, 50, 0);
+    tf2::native::appendLuxel(lighting, 10, 20, 30, 1);
+    tf2::native::appendLuxel(lighting, 255, 255, 255, 0);
+    tf2::native::appendLuxel(lighting, 0, 0, 0, 0);
+  };
+  const auto atlasLuxel = [](const BspMap& map, int x, int y) {
+    if (map.lightmapAtlasWidth <= 0 || x < 0 || y < 0) {
+      return std::array<int, 4>{-1, -1, -1, -1};
+    }
+    const std::size_t at = (static_cast<std::size_t>(y)
+      * static_cast<std::size_t>(map.lightmapAtlasWidth)
+      + static_cast<std::size_t>(x)) * 4u;
+    if (at + 3u >= map.lightmapAtlas.size()) {
+      return std::array<int, 4>{-1, -1, -1, -1};
+    }
+    return std::array<int, 4>{static_cast<int>(map.lightmapAtlas[at]),
+      static_cast<int>(map.lightmapAtlas[at + 1]),
+      static_cast<int>(map.lightmapAtlas[at + 2]),
+      static_cast<int>(map.lightmapAtlas[at + 3])};
+  };
+
+  // ---- 1. HDR-only ---------------------------------------------------------
+  BspFixture hdrOnly;
+  hdrOnly.faces.push_back(lightmapQuad());
+  addQuadLuxels(hdrOnly.lightingHdr);
+  BspMap hdrOnlyMap;
+  const bool hdrOnlyParsed = tf2::native::BspParser::parse(
+    tf2::native::buildFixtureBsp(hdrOnly), hdrOnlyMap, 200000, 4096);
+  const bool hdrOnlyPacks = hdrOnlyParsed
+    && hdrOnlyMap.lightmapMode == tf2::native::BspLightmapMode::RgbExp32
+    && hdrOnlyMap.lightmapPackedFaces == 1
+    && hdrOnlyMap.lightmapAtlasWidth > 0
+    && hdrOnlyMap.lightmapAtlasHeight == 2
+    && hdrOnlyMap.hasHdrLightmap
+    && hdrOnlyMap.lightmapSampleCount == 4
+    && hdrOnlyMap.hdrLightmapSampleCount == 4;
+  // The four luxels again, this time out of the atlas: exponent 1 doubles, so
+  // 10/20/30 becomes 20/40/60 and a page copied from the wrong lump cannot read
+  // the same numbers.
+  const bool hdrOnlySource = atlasLuxel(hdrOnlyMap, 0, 0) == std::array<int, 4>{200, 100, 50, 255}
+    && atlasLuxel(hdrOnlyMap, 1, 0) == std::array<int, 4>{20, 40, 60, 255}
+    && atlasLuxel(hdrOnlyMap, 0, 1) == std::array<int, 4>{255, 255, 255, 255}
+    && atlasLuxel(hdrOnlyMap, 1, 1) == std::array<int, 4>{0, 0, 0, 255};
+
+  // A map with neither page must still be told apart from one that has a page: the
+  // tolerance above exists for the HDR-only case, not as a licence to pack lumels
+  // out of nothing.
+  BspFixture noPages;
+  noPages.faces.push_back(lightmapQuad());
+  BspMap noPagesMap;
+  const bool noPageStaysUnavailable = tf2::native::BspParser::parse(
+      tf2::native::buildFixtureBsp(noPages), noPagesMap, 200000, 4096)
+    && noPagesMap.lightmapMode == tf2::native::BspLightmapMode::Unavailable
+    && noPagesMap.lightmapPackedFaces == 0 && noPagesMap.lightmapAtlas.empty();
+
+  // Both pages present: lump 8 stays the source. This is the invariant the
+  // relaxation must not disturb, and it is the reason every shipped map -- which
+  // has both -- keeps byte-identical lightmaps.
+  BspFixture bothPages;
+  bothPages.faces.push_back(lightmapQuad());
+  addQuadLuxels(bothPages.lighting);
+  // Page 53 holds near-black luxels here: if the reader ever preferred it over a
+  // page 8 that exists, the atlas below would show 1/1/1 instead of the numbers
+  // the assertions name.
+  for (int index = 0; index < 4; ++index) {
+    tf2::native::appendLuxel(bothPages.lightingHdr, 1, 1, 1, 0);
+  }
+  BspMap bothPagesMap;
+  const bool ldrWinsWhenBothPresent = tf2::native::BspParser::parse(
+      tf2::native::buildFixtureBsp(bothPages), bothPagesMap, 200000, 4096)
+    && bothPagesMap.lightmapMode == tf2::native::BspLightmapMode::RgbExp32
+    && atlasLuxel(bothPagesMap, 0, 0) == std::array<int, 4>{200, 100, 50, 255}
+    && atlasLuxel(bothPagesMap, 1, 0) == std::array<int, 4>{20, 40, 60, 255};
+
+  // ---- 2. clamp ring -------------------------------------------------------
+  BspFixture ring;
+  ring.faces.push_back(lightmapQuad());
+  addQuadLuxels(ring.lighting);
+  const auto ringBytes = tf2::native::buildFixtureBsp(ring);
+  BspMap ringOff;
+  setEnv("TF2_NATIVE_LM_BORDER", "");
+  const bool ringOffParsed = tf2::native::BspParser::parse(ringBytes, ringOff, 200000, 4096);
+  BspMap ringOn;
+  setEnv("TF2_NATIVE_LM_BORDER", "1");
+  const bool ringOnParsed = tf2::native::BspParser::parse(ringBytes, ringOn, 200000, 4096);
+  setEnv("TF2_NATIVE_LM_BORDER", "");
+  // The chosen width is the packer's, not an argument: a 2x2 patch fits the first
+  // candidate, so both parses keep the historical 2048 and only the HEIGHT moves.
+  // That is the point -- the ring costs rows and nothing else for a small map.
+  const bool ringGrows = ringOffParsed && ringOnParsed
+    && ringOff.lightmapAtlasWidth == 2048 && ringOff.lightmapAtlasHeight == 2
+    && ringOn.lightmapAtlasWidth == 2048 && ringOn.lightmapAtlasHeight == 4
+    && ringOn.lightmapPackedFaces == 1
+    && ringOn.lightmapTriangleCount == ringOff.lightmapTriangleCount;
+  const bool ringClamps = ringOnParsed
+    && atlasLuxel(ringOn, 0, 1) == atlasLuxel(ringOn, 1, 1)
+    && atlasLuxel(ringOn, 3, 1) == atlasLuxel(ringOn, 2, 1)
+    && atlasLuxel(ringOn, 0, 2) == atlasLuxel(ringOn, 1, 2)
+    && atlasLuxel(ringOn, 3, 2) == atlasLuxel(ringOn, 2, 2)
+    && atlasLuxel(ringOn, 1, 0) == atlasLuxel(ringOn, 1, 1)
+    && atlasLuxel(ringOn, 2, 0) == atlasLuxel(ringOn, 2, 1)
+    && atlasLuxel(ringOn, 1, 3) == atlasLuxel(ringOn, 1, 2)
+    && atlasLuxel(ringOn, 2, 3) == atlasLuxel(ringOn, 2, 2)
+    && atlasLuxel(ringOn, 0, 0) == atlasLuxel(ringOn, 1, 1)
+    && atlasLuxel(ringOn, 3, 3) == atlasLuxel(ringOn, 2, 2);
+  const bool ringKeepsBody = ringOnParsed
+    && atlasLuxel(ringOn, 1, 1) == atlasLuxel(ringOff, 0, 0)
+    && atlasLuxel(ringOn, 2, 1) == atlasLuxel(ringOff, 1, 0)
+    && atlasLuxel(ringOn, 1, 2) == atlasLuxel(ringOff, 0, 1)
+    && atlasLuxel(ringOn, 2, 2) == atlasLuxel(ringOff, 1, 1);
+  // The ring is only visible if the uv moved with it, and the move is not a naive
+  // shift in normalized space: the atlas is rescaled to full height after packing
+  // (alv/blv are multiplied by kAtlas/atlasHeight), so a taller atlas makes every
+  // normalized v SMALLER even though the patch sits one row lower. Measured in
+  // TEXELS inside the atlas the relation is exact -- u times the width, and v times
+  // the height, are the packer's own origin+texel -- and the bordered value must be
+  // the unbordered one plus one texel, on both axes, at every corner.
+  const auto firstLightUv = [](const BspMap& map) {
+    std::array<float, 6> uv{-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
+    for (const auto& triangle : map.triangles) {
+      if (!triangle.lightmapped) continue;
+      uv = {triangle.alu, triangle.alv, triangle.blu, triangle.blv,
+        triangle.clu, triangle.clv};
+      break;
+    }
+    return uv;
+  };
+  const auto uvOff = firstLightUv(ringOff);
+  const auto uvOn = firstLightUv(ringOn);
+  const auto texelAt = [](const std::array<float, 6>& uv, int corner, bool vertical,
+      const BspMap& map) {
+    const float value = uv[corner * 2 + (vertical ? 1 : 0)];
+    return value * static_cast<float>(vertical ? map.lightmapAtlasHeight : map.lightmapAtlasWidth);
+  };
+  bool ringShiftsUv = ringOffParsed && ringOnParsed && uvOff[0] > 0.0f;
+  for (int corner = 0; corner < 3 && ringShiftsUv; ++corner) {
+    for (int vertical = 0; vertical < 2; ++vertical) {
+      const float off = texelAt(uvOff, corner, vertical != 0, ringOff);
+      const float on = texelAt(uvOn, corner, vertical != 0, ringOn);
+      if (std::fabs((on - off) - 1.0f) > 1e-3f) ringShiftsUv = false;
+    }
+  }
+
+  // ---- 3. drop listing ----------------------------------------------------
+  // The listing goes to stderr, so it is captured: the process has one standard
+  // error and a self-test that left it pointing at a temporary would swallow every
+  // later failure. _dup/_dup2 restore it before the listings are asserted on.
+  const auto captureDrops = [&setEnv](const BspFixture& fixture, int atlasWidth,
+      BspMap& map) {
+    std::string listing;
+    std::FILE* captured = std::tmpfile();
+    const int saved = captured != nullptr ? _dup(_fileno(stderr)) : -1;
+    if (captured != nullptr) _dup2(_fileno(captured), _fileno(stderr));
+    setEnv("TF2_NATIVE_LM_DROPS", "1");
+    const bool parsed = tf2::native::BspParser::parse(
+      tf2::native::buildFixtureBsp(fixture), map, 200000, atlasWidth);
+    setEnv("TF2_NATIVE_LM_DROPS", "");
+    std::fflush(stderr);
+    if (captured != nullptr) {
+      if (saved >= 0) { _dup2(saved, _fileno(stderr)); _close(saved); }
+      std::rewind(captured);
+      char chunk[512];
+      while (std::fgets(chunk, sizeof(chunk), captured) != nullptr) listing += chunk;
+      std::fclose(captured);
+    }
+    return std::pair<bool, std::string>{parsed, listing};
+  };
+  BspFixture saturated;
+  saturated.lighting.assign(512u * 512u * 4u, 0x40);
+  for (int index = 0; index < 17; ++index) {
+    // Each face names its own material, so the listing's material column is a
+    // reading rather than the same string seventeen times.
+    tf2::native::BspFixtureFace face = lightmapBigFace();
+    face.texDataIndex = index;
+    saturated.faces.push_back(face);
+  }
+  BspMap dropsMap;
+  const auto saturatedDrops = captureDrops(saturated, 2048, dropsMap);
+  // T105: the captured listing is printed, not only asserted on. A self-test that
+  // says "the log did not name the face" without showing the log makes the reader
+  // rebuild the probe to find out what it did say.
+  std::cout << "drops-saturated faces=" << dropsMap.lightmapFaceCount
+    << " packed=" << dropsMap.lightmapPackedFaces
+    << " dropped=" << dropsMap.lightmapAtlasDroppedFaces
+    << " atlas=" << dropsMap.lightmapAtlasWidth << "x" << dropsMap.lightmapAtlasHeight
+    << " listing=" << (saturatedDrops.second.empty() ? std::string("<empty>") : saturatedDrops.second)
+    << '\n';
+  const bool dropsListed = saturatedDrops.first
+    && dropsMap.lightmapAtlasDroppedFaces == 1
+    && saturatedDrops.second.find("lightmap atlas drops: 1 refused face(s), 1 listed") != std::string::npos
+    && saturatedDrops.second.find("face 16 (fixture_mat16) 512x512 luxels: shelf overflow") != std::string::npos;
+  // The class the old counter could never distinguish: nothing about the shelf,
+  // the face's own light offset simply does not land inside the page.
+  BspFixture badOffset;
+  BspFixtureFace bad = lightmapQuad();
+  bad.lightOffset = 4096;
+  badOffset.faces.push_back(bad);
+  addQuadLuxels(badOffset.lighting);
+  BspMap badOffsetMap;
+  const auto offsetDrops = captureDrops(badOffset, 4096, badOffsetMap);
+  std::cout << "drops-badoffset packed=" << badOffsetMap.lightmapPackedFaces
+    << " dropped=" << badOffsetMap.lightmapAtlasDroppedFaces
+    << " listing=" << (offsetDrops.second.empty() ? std::string("<empty>") : offsetDrops.second)
+    << '\n';
+  const bool dropsIdentifyDataClass = offsetDrops.first
+    && badOffsetMap.lightmapPackedFaces == 0
+    && offsetDrops.second.find("face 0 (fixture_mat0) 2x2 luxels: the light offset does not land inside the lighting page") != std::string::npos;
+
+  const bool ok = hdrOnlyPacks && hdrOnlySource && noPageStaysUnavailable
+    && ldrWinsWhenBothPresent && ringGrows && ringClamps && ringKeepsBody
+    && ringShiftsUv && dropsListed && dropsIdentifyDataClass;
+  std::cout << "{\"lightmapTailSelfTest\":" << (ok ? "true" : "false")
+    << ",\"hdrOnlyPacks\":" << (hdrOnlyPacks ? "true" : "false")
+    << ",\"hdrOnlySourceIsHdrPage\":" << (hdrOnlySource ? "true" : "false")
+    << ",\"noLightingPageStaysUnavailable\":" << (noPageStaysUnavailable ? "true" : "false")
+    << ",\"ldrPageWinsWhenBothPresent\":" << (ldrWinsWhenBothPresent ? "true" : "false")
+    << ",\"borderGrowsAtlas\":" << (ringGrows ? "true" : "false")
+    << ",\"borderClampsEdge\":" << (ringClamps ? "true" : "false")
+    << ",\"borderKeepsPatchBody\":" << (ringKeepsBody ? "true" : "false")
+    << ",\"borderShiftsUv\":" << (ringShiftsUv ? "true" : "false")
+    << ",\"dropsListed\":" << (dropsListed ? "true" : "false")
+    << ",\"dropsIdentifyDataClass\":" << (dropsIdentifyDataClass ? "true" : "false")
+    << "}\n";
   return ok;
 }
 
@@ -2218,6 +2477,7 @@ int main(int argc, char** argv) {
     if (!selfTest()) status = 1;
     if (!capabilitySelfTest()) status = 1;
     if (!worldDrawSelfTest()) status = 1;
+    if (!lightmapTailSelfTest()) status = 1;
     if (!staticPropSelfTest()) status = 1;
     if (!legacyVtfThumbnailSelfTest()) status = 1;
     if (!waterSelfTest()) status = 1;

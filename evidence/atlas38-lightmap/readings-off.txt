@@ -1,0 +1,54 @@
+== cp_snakewater_final1
+{"bsp":"cp_snakewater_final1.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":14988,"lightmapPackedFaces":14988,"lightmapLuxelFits":14974,"lightmapTriangles":199922,"atlas":"4096x1331","sky":"sky_well_01","skyFaces":690,"staticPropsAvailable":true,"staticPropModels":243,"staticPropInstances":1625,"staticPropsReason":"decoded static-prop v10 records","displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"lightmap.atlas","value":"4096x1331"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"14988"}
+{"reading":"lightmap.facesWithLightmap","value":"14988"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"199922"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+== pl_upward
+{"bsp":"pl_upward.bsp","valid":true,"error":"","triangles":69117,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":3102860,"lightmapFaces":15032,"lightmapPackedFaces":15032,"lightmapLuxelFits":15032,"lightmapTriangles":69008,"atlas":"4096x1567","sky":"sky_upward","skyFaces":198,"staticPropsAvailable":true,"staticPropModels":234,"staticPropInstances":1244,"staticPropsReason":"decoded static-prop v10 records","displacements":558,"displacementTriangles":18240,"displacementCornerMatches":558,"cubemaps":202,"cubemapMode":"approximate-2d","waterFaces":56,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":1427,"visibleFromCluster0":1}
+{"reading":"lightmap.atlas","value":"4096x1567"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"15032"}
+{"reading":"lightmap.facesWithLightmap","value":"15032"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"69008"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+== cp_process_final
+{"bsp":"cp_process_final.bsp","valid":true,"error":"","triangles":68531,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2461768,"lightmapFaces":13000,"lightmapPackedFaces":13000,"lightmapLuxelFits":13000,"lightmapTriangles":68471,"atlas":"4096x1179","sky":"sky_trainyard_01","skyFaces":361,"staticPropsAvailable":true,"staticPropModels":154,"staticPropInstances":1631,"staticPropsReason":"decoded static-prop v10 records","displacements":578,"displacementTriangles":28864,"displacementCornerMatches":578,"cubemaps":43,"cubemapMode":"approximate-2d","waterFaces":0,"waterSurface":"absent","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":1642,"visibleFromCluster0":250}
+{"reading":"lightmap.atlas","value":"4096x1179"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"13000"}
+{"reading":"lightmap.facesWithLightmap","value":"13000"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"68471"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+== pl_badwater
+{"bsp":"pl_badwater.bsp","valid":true,"error":"","triangles":85991,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2573813,"lightmapFaces":10100,"lightmapPackedFaces":10100,"lightmapLuxelFits":10098,"lightmapTriangles":85961,"atlas":"2048x1620","sky":"sky_hydro_01","skyFaces":589,"staticPropsAvailable":true,"staticPropModels":203,"staticPropInstances":1186,"staticPropsReason":"decoded static-prop v10 records","displacements":739,"displacementTriangles":56192,"displacementCornerMatches":739,"cubemaps":12,"cubemapMode":"approximate-2d","waterFaces":0,"waterSurface":"absent","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":1673,"visibleFromCluster0":1}
+{"reading":"lightmap.atlas","value":"2048x1620"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"10100"}
+{"reading":"lightmap.facesWithLightmap","value":"10100"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"85961"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+== cp_badlands
+{"bsp":"cp_badlands.bsp","valid":true,"error":"","triangles":99503,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2587915,"lightmapFaces":13082,"lightmapPackedFaces":13082,"lightmapLuxelFits":13082,"lightmapTriangles":99697,"atlas":"4096x1162","sky":"sky_badlands_01","skyFaces":480,"staticPropsAvailable":true,"staticPropModels":145,"staticPropInstances":1232,"staticPropsReason":"decoded static-prop v10 records","displacements":1189,"displacementTriangles":60128,"displacementCornerMatches":1189,"cubemaps":225,"cubemapMode":"approximate-2d","waterFaces":0,"waterSurface":"absent","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2326,"visibleFromCluster0":1}
+{"reading":"lightmap.atlas","value":"4096x1162"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"13082"}
+{"reading":"lightmap.facesWithLightmap","value":"13082"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"99449"}
+{"reading":"lightmap.uvAllInRange","value":"true"}
+== koth_viaduct
+{"bsp":"koth_viaduct.bsp","valid":true,"error":"","triangles":57424,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2061491,"lightmapFaces":12243,"lightmapPackedFaces":12243,"lightmapLuxelFits":12240,"lightmapTriangles":57354,"atlas":"2048x1848","sky":"sky_morningsnow_01","skyFaces":419,"staticPropsAvailable":true,"staticPropModels":180,"staticPropInstances":1492,"staticPropsReason":"decoded static-prop v10 records","displacements":338,"displacementTriangles":15040,"displacementCornerMatches":338,"cubemaps":14,"cubemapMode":"approximate-2d","waterFaces":0,"waterSurface":"absent","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":1109,"visibleFromCluster0":137}
+{"reading":"lightmap.atlas","value":"2048x1848"}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"12243"}
+{"reading":"lightmap.facesWithLightmap","value":"12243"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"57354"}
+{"reading":"lightmap.uvAllInRange","value":"true"}

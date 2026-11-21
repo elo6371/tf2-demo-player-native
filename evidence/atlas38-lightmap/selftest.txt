@@ -1,0 +1,13 @@
+{"selfTest":true,"emptyBspRejected":true,"noLightingDefault":true,"lightmapNames":true,"skyPath":true,"visUnavailableOpen":true,"cubemapMode":"approximate-2d","waterReflection":"unavailable","waterRefraction":"unavailable"}
+{"capabilitySelfTest":true,"cubeAxes":true,"cubeNegativeX":true,"cubePositiveY":true,"cubeNegativeY":true,"cubePositiveZ":true,"cubeNegativeZ":true,"cubeDominantAxis":true,"cubeZeroRefused":true,"cubeSamplePath":true,"cubeSuffixes":true,"emptyBspAllUnavailable":true}
+{"worldDrawSelfTest":true,"skyBoxVertices":true,"skyBoxPlanes":true,"skyBoxUvs":true,"skyPartialFallback":true,"skyNoSidesReason":true,"skyDisabledReason":true,"visClipHides":true,"visClipIndices":true,"visClipFollowsCamera":true,"visClipDisabled":true,"visClipNeedsCamera":true,"visClipWithoutPvs":true,"visLongZeroRun":true,"visTruncatedZeroRunRefused":true,"atlasFitsAt2048":true,"atlasGrowsWhenFull":true}
+drops-saturated faces=17 packed=16 dropped=1 atlas=2048x2048 listing=lightmap atlas drops: 1 refused face(s), 1 listed (atlas 2048 wide, 1 of 17 faces did not fit the 2048-wide atlas)
+  face 16 (fixture_mat16) 512x512 luxels: shelf overflow: the next row would cross the atlas bottom
+
+drops-badoffset packed=0 dropped=0 listing=lightmap atlas drops: 1 refused face(s), 1 listed (atlas 2048 wide, 1 face(s) carried no usable lightmap and were refused before packing)
+  face 0 (fixture_mat0) 2x2 luxels: the light offset does not land inside the lighting page
+
+{"lightmapTailSelfTest":true,"hdrOnlyPacks":true,"hdrOnlySourceIsHdrPage":true,"noLightingPageStaysUnavailable":true,"ldrPageWinsWhenBothPresent":true,"borderGrowsAtlas":true,"borderClampsEdge":true,"borderKeepsPatchBody":true,"borderShiftsUv":true,"dropsListed":true,"dropsIdentifyDataClass":true}
+{"staticPropSelfTest":true,"decoded":true,"badVersionRejected":true,"badDictionaryRejected":true,"badModelRejected":true,"badLeavesRejected":true,"badCountRejected":true,"badTransformRejected":true}
+{"legacyVtfThumbnailSelfTest":true,"offsetCorrect":true,"knownRedPixels":true,"truncatedRefused":true,"noThumbnailControl":true}
+{"waterSelfTest":true,"warpBounded":true,"warpFinite":true,"warpMaxDelta":0.02,"warpNanIn":true,"warpNanAmplitude":true,"warpNegativeAmplitude":true,"warpRepeatable":true,"warpPhaseMoves":true,"warpZeroIdentity":true,"waterOffState":true,"waterEmptyState":true,"waterPartialState":true,"waterFallbackState":true,"waterActiveState":true,"waterParams":true,"waterParamsBad":true}

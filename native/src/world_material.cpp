@@ -1711,6 +1711,7 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture) {
   add(6, std::move(texInfo));
   add(7, std::move(faces));
   add(8, fixture.lighting);
+  add(53, fixture.lightingHdr);
   add(10, std::move(leafs));
   add(12, std::move(edges));
   add(13, std::move(surfEdges));

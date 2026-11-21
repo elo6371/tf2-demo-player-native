@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <unordered_map>
@@ -257,6 +258,15 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     bool flipDisplacementWinding,
     const std::vector<std::string>& extraStaticClasses) {
   map = {}; auto fail = [&](const char* message) { map.error = message; return false; };
+  // T105: the switches this reading answers to, read once per parse. Deliberately
+  // not cached in a static: a probe parses the same bytes twice in one process to
+  // compare the two settings, and a static read on the first call would make the
+  // second call answer for the first one's environment.
+  const auto envFlag = [](const char* name) {
+    const char* value = std::getenv(name);
+    return value != nullptr && (std::strcmp(value, "1") == 0
+      || std::strcmp(value, "on") == 0 || std::strcmp(value, "true") == 0);
+  };
   if (bytes.size() < kHeaderSize || read<std::uint32_t>(bytes, 0) != 0x50534256u) return fail("BSP header is invalid");
   map.version = read<std::int32_t>(bytes, 4); map.revision = read<std::int32_t>(bytes, 8 + 64 * 16);
   Lump table[64]{}; for (int i = 0; i < 64; ++i) { table[i].offset = read<std::int32_t>(bytes, 8 + i * 16); table[i].length = read<std::int32_t>(bytes, 8 + i * 16 + 4); }
@@ -266,11 +276,33 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   if (!decodeLump(bytes, table[kLumpTexInfo], texInfo)) return fail("BSP texinfo LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpFaces], faces)) return fail("BSP faces LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpLighting], lighting)) return fail("BSP lighting LZMA decode failed");
-  // T17: optional, and only when its size matches -- a mismatched pair would
-  // index one page with the other's offsets, which is the failure this reading
-  // exists to rule out.
-  const bool hdrLumpUsable = tryDecode(bytes, table[kLumpLightingHdr], lightingHdr)
-    && !lightingHdr.empty() && lightingHdr.size() == lighting.size();
+  // T17: lump 53 is optional -- an LDR-only map has none, so a missing or empty
+  // page is not an error.
+  //
+  // T105: decoded on its own, without the equal-size test that used to gate it.
+  // That test was guarding the per-face COMPARISON below, which indexes lump 53
+  // with the offsets lump 8 supplied: read one page through the other's offsets
+  // and every tone it reports is fiction. It was never a statement about which
+  // page a map may be lit by, and applying it to the decode stranded the one
+  // compile that has no choice -- a map whose lump 8 is empty and whose lump 53
+  // holds the only lighting there is. That map parsed with `lighting` empty, so
+  // no face could be lightmapped and the whole atlas fell back to a single
+  // average colour. The guard now has two halves: a page is usable if it decoded
+  // and is not empty, and the pair is comparable only if the sizes agree.
+  const bool hdrDecoded = tryDecode(bytes, table[kLumpLightingHdr], lightingHdr)
+    && !lightingHdr.empty();
+  // T105: the page every face record is resolved in -- the offsets, the range
+  // test, the luxels written into the atlas, the sample count and the fallback
+  // average all read this one binding instead of lump 8 by name. LDR wins
+  // whenever it is present, which is every shipped map, so for all of them this
+  // is `lighting` and the reading is byte-identical to what it was. The branch
+  // that changes is the one that could not work before: an HDR-only map.
+  const Bytes& lightPage = lighting.empty() ? lightingHdr : lighting;
+  // T17: "this map carries a page comparable to the one in use". A consumer that
+  // divides by its sample count would be describing two different pages if this
+  // were true for a pair of different sizes, which is why the size test lives
+  // here rather than in the decode.
+  const bool hdrLumpUsable = hdrDecoded && lightingHdr.size() == lightPage.size();
   if (!decodeLump(bytes, table[kLumpEdges], edges)) return fail("BSP edges LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpSurfEdges], surfEdges)) return fail("BSP surfedges LZMA decode failed");
   if (!decodeLump(bytes, table[kLumpModels], models)) return fail("BSP models LZMA decode failed");
@@ -830,6 +862,20 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   };
   std::unordered_map<std::int32_t, std::string> names; for (std::size_t i = 0; i < texData.size() / 32; ++i) { const auto id = read<std::int32_t>(texData, i * 32 + 12); if (id >= 0 && static_cast<std::size_t>(id) < stringTable.size() / 4) names[static_cast<std::int32_t>(i)] = readString(stringData, read<std::int32_t>(stringTable, static_cast<std::size_t>(id) * 4)); }
   const auto vertexCount = vertices.size() / 12, edgeCount = edges.size() / 4, surfEdgeCount = surfEdges.size() / 4;
+  // T105: one luxel of clamp border around every packed patch, off unless
+  // TF2_NATIVE_LM_BORDER asks for it. Bilinear filtering reads half a texel past
+  // the patch edge, and the luxel it finds there belongs to the NEXT patch -- a
+  // different surface at a different exposure -- so every patch edge pixel blends
+  // two faces. A replicated border makes the tap past the edge repeat the edge's
+  // own luxel, which is what a clamped sampler does when the patch is its own
+  // texture. Opt-in because it costs (2w + 2h + 4) luxels per patch and therefore
+  // moves atlas heights, and every reading pinned on an atlas height is a reading
+  // this would otherwise be changing for free.
+  const int kBorder = envFlag("TF2_NATIVE_LM_BORDER") ? 1 : 0;
+  // T105: TF2_NATIVE_LM_DROPS lists which faces the packer refused and why. Off by
+  // default: a map with no lighting page refuses every face it has, and a listing
+  // nobody asked for is a listing that buries the run.
+  const bool traceDrops = envFlag("TF2_NATIVE_LM_DROPS");
   // T1 (2026-10-13): the shelf packer used to be hard-coded to 2048 and a face
   // that did not fit was dropped silently. The atlas size is now chosen, and
   // the choice is deliberately conservative: the candidate list starts at the
@@ -860,12 +906,16 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         const auto lightBytes = samplesW > 0 && samplesH > 0 && samplesW <= 512 && samplesH <= 512
           ? static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 4u : 0u;
         if (styles0 == 255 || lightOffset < 0 || lightBytes == 0
-            || static_cast<std::uint64_t>(lightOffset) + lightBytes > lighting.size()) continue;
-        if (samplesW > size || samplesH > size) return false;
-        if (cursorX + samplesW > size) { cursorX = 0; cursorY += rowHeight; rowHeight = 0; }
-        if (cursorY + samplesH > size) return false;
-        cursorX += samplesW;
-        rowHeight = std::max(rowHeight, samplesH);
+            || static_cast<std::uint64_t>(lightOffset) + lightBytes > lightPage.size()) continue;
+        // T105: the dry run packs the same rectangle the real pass packs, border
+        // included -- a planner that measured the patch without its padding would
+        // answer for an atlas two luxels narrower than the one it gets.
+        const int patchW = samplesW + 2 * kBorder, patchH = samplesH + 2 * kBorder;
+        if (patchW > size || patchH > size) return false;
+        if (cursorX + patchW > size) { cursorX = 0; cursorY += rowHeight; rowHeight = 0; }
+        if (cursorY + patchH > size) return false;
+        cursorX += patchW;
+        rowHeight = std::max(rowHeight, patchH);
       }
       return true;
     };
@@ -886,7 +936,17 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   const auto luxelOf = [](const BspVertex& point, float x0, float x1, float x2, float x3, float y0, float y1, float y2, float y3) {
     return std::array<float, 2>{point.x * x0 + point.y * x1 + point.z * x2 + x3, point.x * y0 + point.y * y1 + point.z * y2 + y3};
   };
-  struct PackedLight { bool ok = false; int x = 0, y = 0, samplesW = 0, samplesH = 0, storedW = 0, storedH = 0, minsU = 0, minsV = 0; };
+  struct PackedLight {
+    bool ok = false;
+    // T105: the patch occupies (samplesW + 2*kBorder) x (samplesH + 2*kBorder) at
+    // (padX - kBorder, padY - kBorder); padX/padY are the first REAL luxel of it,
+    // one border in from that corner. The uvs address padX + texel, so a tap that
+    // filters past the edge lands on the replicated ring and nothing else moves:
+    // with the border off padX/padY are the packer's cursor and every uv is the
+    // one it always was.
+    int padX = 0, padY = 0;
+    int samplesW = 0, samplesH = 0, storedW = 0, storedH = 0, minsU = 0, minsV = 0;
+  };
   // T26: the surfedge walk, lifted out of the face loop because two callers now
   // need the same polygon: the world emission below and the sky-face emission
   // that answers "was this empty pixel meant to be sky". Returns false exactly
@@ -911,6 +971,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     }
     return polygon.size() >= 3;
   };
+  // T105: the listing TF2_NATIVE_LM_DROPS prints. Capped at 64 lines: a map
+  // with no lighting page refuses every face it has, and a listing long enough
+  // to bury the run is a listing nobody reads. The count is kept in full so the
+  // cap says how much it hid.
+  std::vector<std::string> lightDropLines;
+  std::size_t lightDropTotal = 0;
   for (std::int32_t faceIndex = 0; faceIndex < allFaceCount; ++faceIndex) {
     if (!faceIsDrawable(faceIndex)) {
       // A refused brush model's faces: counted apart from "invalid" and "nodraw",
@@ -964,7 +1030,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     const auto lightBytes = samplesW > 0 && samplesH > 0 && samplesW <= 512 && samplesH <= 512
       ? static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 4u : 0u;
     const bool hasLightmap = styles0 != 255 && lightOffset >= 0 && lightBytes > 0
-      && static_cast<std::uint64_t>(lightOffset) + lightBytes <= lighting.size();
+      && static_cast<std::uint64_t>(lightOffset) + lightBytes <= lightPage.size();
     std::vector<BspVertex> polygon;
     if (!buildPolygon(firstEdge, count, polygon)) {
       // A sky face whose polygon cannot be built was counted as sky before this
@@ -1074,68 +1140,126 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       if (inside * 2 >= static_cast<int>(polygon.size())) ++map.lightmapLuxelFits;
     }
     PackedLight packed;
-    if (hasLightmap && samplesW <= kAtlas && samplesH <= kAtlas) {
-      if (atlas.empty()) atlas.assign(static_cast<std::size_t>(kAtlas) * kAtlas * 4u, 0);
-      if (cursorX + samplesW > kAtlas) { cursorX = 0; cursorY += rowHeight; rowHeight = 0; }
-      if (cursorY + samplesH <= kAtlas) {
-        packed.ok = true;
-        packed.x = cursorX; packed.y = cursorY;
-        packed.samplesW = samplesW; packed.samplesH = samplesH;
-        packed.storedW = samplesW - 1; packed.storedH = samplesH - 1;
-        packed.minsU = minsU; packed.minsV = minsV;
-        for (int y = 0; y < samplesH; ++y) {
-          for (int x = 0; x < samplesW; ++x) {
-            const auto sampleAt = static_cast<std::size_t>(lightOffset) + (static_cast<std::size_t>(y) * static_cast<std::size_t>(samplesW) + static_cast<std::size_t>(x)) * 4u;
-            const auto destAt = (static_cast<std::size_t>(cursorY + y) * kAtlas + static_cast<std::size_t>(cursorX + x)) * 4u;
-            writeLuxel(atlas.data() + destAt, lighting.data() + sampleAt, toneSum, toneCount);
-          }
-        }
-        cursorX += samplesW;
-        rowHeight = std::max(rowHeight, samplesH);
-        atlasHeight = std::max(atlasHeight, cursorY + samplesH);
-        ++map.lightmapPackedFaces;
-        // T17: the tone of the rectangle this face just wrote, before any uv is
-        // involved. Paired with the triangle histogram in world_geometry_probe
-        // this says whether a dark frame is dark data or a uv reading another
-        // face's rectangle.
-        double faceToneSum = 0.0;
-        for (int y = 0; y < samplesH; ++y) {
-          for (int x = 0; x < samplesW; ++x) {
-            const auto at = (static_cast<std::size_t>(cursorY + y) * kAtlas
-              + static_cast<std::size_t>(packed.x + x)) * 4u;
-            faceToneSum += (static_cast<double>(atlas[at])
-              + static_cast<double>(atlas[at + 1]) + static_cast<double>(atlas[at + 2])) / 3.0;
-          }
-        }
-        const double faceTone = faceToneSum / static_cast<double>(samplesW * samplesH);
-        // T17: the same rectangle, read out of the HDR page instead. Same
-        // offsets, same extents, different exposure -- so a face that is black
-        // in one page and lit in the other is a page choice, not a uv error.
-        double faceToneHdrSum = 0.0;
-        if (hdrLumpUsable) {
+    // T105: named refusals. A face that does not reach the atlas is either a
+    // capacity decision (the shelf had no room) or a fact about the file (the
+    // record's light offset does not land inside the lighting page). The counter
+    // below can only ever report the difference between two totals, so it cannot
+    // say which -- this string and the listing at the end of the parse can.
+    const char* lightDropReason = nullptr;
+    if (!hasLightmap && styles0 != 255) {
+      // T105: three different facts, three different sentences. A map with no
+      // lighting page at all refuses every face for a reason that has nothing to
+      // do with that face's record, and calling it an offset problem would send
+      // a reader to the wrong end of the file.
+      lightDropReason = lightPage.empty()
+        ? "the bsp carries no lighting page (lumps 8 and 53 are both empty)"
+        : (lightBytes == 0
+          ? "the samples box is empty or larger than 512x512"
+          : "the light offset does not land inside the lighting page");
+    }
+    if (hasLightmap) {
+      // T105: the rectangle the packer reserves, border included. Reserved, not
+      // merely drawn: two patches that share an edge must not both claim the
+      // clamp ring between them, or the ring repeats one of them into the other's
+      // filter taps.
+      const int patchW = samplesW + 2 * kBorder, patchH = samplesH + 2 * kBorder;
+      if (patchW > kAtlas || patchH > kAtlas) {
+        lightDropReason = "the patch is wider or taller than the atlas";
+      } else {
+        if (atlas.empty()) atlas.assign(static_cast<std::size_t>(kAtlas) * kAtlas * 4u, 0);
+        if (cursorX + patchW > kAtlas) { cursorX = 0; cursorY += rowHeight; rowHeight = 0; }
+        if (cursorY + patchH > kAtlas) {
+          lightDropReason = "shelf overflow: the next row would cross the atlas bottom";
+        } else {
+          packed.ok = true;
+          packed.padX = cursorX + kBorder; packed.padY = cursorY + kBorder;
+          packed.samplesW = samplesW; packed.samplesH = samplesH;
+          packed.storedW = samplesW - 1; packed.storedH = samplesH - 1;
+          packed.minsU = minsU; packed.minsV = minsV;
           for (int y = 0; y < samplesH; ++y) {
             for (int x = 0; x < samplesW; ++x) {
-              const auto sampleAt = static_cast<std::size_t>(lightOffset)
-                + (static_cast<std::size_t>(y) * static_cast<std::size_t>(samplesW)
-                  + static_cast<std::size_t>(x)) * 4u;
-              for (int channel = 0; channel < 3; ++channel) {
-                const int exponent = static_cast<int>(static_cast<std::int8_t>(lightingHdr[sampleAt + 3]));
-                const float scale = std::ldexp(1.0f, exponent) / 255.0f;
-                const float decoded = static_cast<float>(lightingHdr[sampleAt + static_cast<std::size_t>(channel)]) * scale;
-                faceToneHdrSum += decoded >= 1.0f ? 255.0 : (decoded > 0.0f ? decoded * 255.0 : 0.0);
-              }
+              const auto sampleAt = static_cast<std::size_t>(lightOffset) + (static_cast<std::size_t>(y) * static_cast<std::size_t>(samplesW) + static_cast<std::size_t>(x)) * 4u;
+              const auto destAt = (static_cast<std::size_t>(packed.padY + y) * static_cast<std::size_t>(kAtlas) + static_cast<std::size_t>(packed.padX + x)) * 4u;
+              writeLuxel(atlas.data() + destAt, lightPage.data() + sampleAt, toneSum, toneCount);
             }
           }
-          const double faceToneHdr = faceToneHdrSum / static_cast<double>(samplesW * samplesH * 3);
-          ++map.lightmapHdrFaceToneHistogram[std::min<std::size_t>(7, static_cast<std::size_t>(faceToneHdr / 32.0))];
-          if (faceToneHdr < 24.0) ++map.lightmapHdrFaceToneDark;
-          if (faceToneHdr < 1.0) ++map.lightmapHdrFaceToneZero;
-          map.hdrLightmapToneSum += static_cast<std::uint64_t>(faceToneHdrSum);
-          map.hdrLightmapToneCount += static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 3u;
+          // T105: replicate the edge ring. Written after the body and read back
+          // out of it, so every ring luxel is a copy of a real, already-encoded
+          // luxel -- a clamp, not a guess -- and the tone counters above never see
+          // it, which keeps lightmapIntensity measuring the map's own luxels.
+          if (kBorder > 0) {
+            const auto replicate = [&](int atX, int atY, int fromX, int fromY) {
+              const auto dest = (static_cast<std::size_t>(atY) * static_cast<std::size_t>(kAtlas)
+                + static_cast<std::size_t>(atX)) * 4u;
+              const auto from = (static_cast<std::size_t>(fromY) * static_cast<std::size_t>(kAtlas)
+                + static_cast<std::size_t>(fromX)) * 4u;
+              atlas[dest] = atlas[from]; atlas[dest + 1] = atlas[from + 1];
+              atlas[dest + 2] = atlas[from + 2]; atlas[dest + 3] = atlas[from + 3];
+            };
+            for (int y = 0; y < samplesH; ++y) {
+              replicate(packed.padX - kBorder, packed.padY + y, packed.padX, packed.padY + y);
+              replicate(packed.padX + samplesW, packed.padY + y, packed.padX + samplesW - 1, packed.padY + y);
+            }
+            for (int x = -kBorder; x < samplesW + kBorder; ++x) {
+              replicate(packed.padX + x, packed.padY - kBorder, packed.padX + x, packed.padY);
+              replicate(packed.padX + x, packed.padY + samplesH, packed.padX + x, packed.padY + samplesH - 1);
+            }
+          }
+          cursorX += patchW;
+          rowHeight = std::max(rowHeight, patchH);
+          atlasHeight = std::max(atlasHeight, cursorY + patchH);
+          ++map.lightmapPackedFaces;
+          // T17: the tone of the rectangle this face just wrote, before any uv is
+          // involved. Paired with the triangle histogram in world_geometry_probe
+          // this says whether a dark frame is dark data or a uv reading another
+          // face's rectangle.
+          double faceToneSum = 0.0;
+          for (int y = 0; y < samplesH; ++y) {
+            for (int x = 0; x < samplesW; ++x) {
+              const auto at = (static_cast<std::size_t>(packed.padY + y) * static_cast<std::size_t>(kAtlas)
+                + static_cast<std::size_t>(packed.padX + x)) * 4u;
+              faceToneSum += (static_cast<double>(atlas[at])
+                + static_cast<double>(atlas[at + 1]) + static_cast<double>(atlas[at + 2])) / 3.0;
+            }
+          }
+          const double faceTone = faceToneSum / static_cast<double>(samplesW * samplesH);
+          // T17: the same rectangle, read out of the HDR page instead. Same
+          // offsets, same extents, different exposure -- so a face that is black
+          // in one page and lit in the other is a page choice, not a uv error.
+          double faceToneHdrSum = 0.0;
+          if (hdrLumpUsable) {
+            for (int y = 0; y < samplesH; ++y) {
+              for (int x = 0; x < samplesW; ++x) {
+                const auto sampleAt = static_cast<std::size_t>(lightOffset)
+                  + (static_cast<std::size_t>(y) * static_cast<std::size_t>(samplesW)
+                    + static_cast<std::size_t>(x)) * 4u;
+                for (int channel = 0; channel < 3; ++channel) {
+                  const int exponent = static_cast<int>(static_cast<std::int8_t>(lightingHdr[sampleAt + 3]));
+                  const float scale = std::ldexp(1.0f, exponent) / 255.0f;
+                  const float decoded = static_cast<float>(lightingHdr[sampleAt + static_cast<std::size_t>(channel)]) * scale;
+                  faceToneHdrSum += decoded >= 1.0f ? 255.0 : (decoded > 0.0f ? decoded * 255.0 : 0.0);
+                }
+              }
+            }
+            const double faceToneHdr = faceToneHdrSum / static_cast<double>(samplesW * samplesH * 3);
+            ++map.lightmapHdrFaceToneHistogram[std::min<std::size_t>(7, static_cast<std::size_t>(faceToneHdr / 32.0))];
+            if (faceToneHdr < 24.0) ++map.lightmapHdrFaceToneDark;
+            if (faceToneHdr < 1.0) ++map.lightmapHdrFaceToneZero;
+            map.hdrLightmapToneSum += static_cast<std::uint64_t>(faceToneHdrSum);
+            map.hdrLightmapToneCount += static_cast<std::uint64_t>(samplesW) * static_cast<std::uint64_t>(samplesH) * 3u;
+          }
+          ++map.lightmapFaceToneHistogram[std::min<std::size_t>(7, static_cast<std::size_t>(faceTone / 32.0))];
+          if (faceTone < 24.0) ++map.lightmapFaceToneDark;
+          if (faceTone < 1.0) ++map.lightmapFaceToneZero;
         }
-        ++map.lightmapFaceToneHistogram[std::min<std::size_t>(7, static_cast<std::size_t>(faceTone / 32.0))];
-        if (faceTone < 24.0) ++map.lightmapFaceToneDark;
-        if (faceTone < 1.0) ++map.lightmapFaceToneZero;
+      }
+    }
+    if (lightDropReason != nullptr) {
+      ++lightDropTotal;
+      if (lightDropLines.size() < 64) {
+        lightDropLines.push_back("face " + std::to_string(faceIndex) + " ("
+          + (material.empty() ? std::string("<no material>") : material) + ") "
+          + std::to_string(samplesW) + "x" + std::to_string(samplesH) + " luxels: " + lightDropReason);
       }
     }
     const auto texCoord = [&](const BspVertex& point) { return std::array<float, 2>{point.x * u0 + point.y * u1 + point.z * u2 + u3, point.x * v0 + point.y * v1 + point.z * v2 + v3}; };
@@ -1148,8 +1272,10 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         return (static_cast<float>(origin) + texel) / static_cast<float>(atlasSize);
       };
       return std::array<float, 2>{
-        axis(lux[0], packed.storedW, packed.samplesW, packed.minsU, packed.x, kAtlas),
-        axis(lux[1], packed.storedH, packed.samplesH, packed.minsV, packed.y, kAtlas)};
+        // T105: padX/padY, not x/y -- with a clamp ring the patch's real luxels
+        // start one texel in, and the uv has to start there with them.
+        axis(lux[0], packed.storedW, packed.samplesW, packed.minsU, packed.padX, kAtlas),
+        axis(lux[1], packed.storedH, packed.samplesH, packed.minsV, packed.padY, kAtlas)};
     };
     // T11 third round: the first grid triangle of a displacement face is
     // compared against the polygon's own winding once per face, so a 32x32 grid
@@ -1620,8 +1746,10 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         0.15, 2.0));
     }
   }
-  if (lighting.size() % 4 == 0) map.lightmapSampleCount = lighting.size() / 4u;
-  else if (lighting.size() % 3 == 0) map.lightmapSampleCount = lighting.size() / 3u;
+  // T105: lightPage, so an HDR-only map reports the sample count of the page
+  // that actually lit it instead of reporting zero.
+  if (lightPage.size() % 4 == 0) map.lightmapSampleCount = lightPage.size() / 4u;
+  else if (lightPage.size() % 3 == 0) map.lightmapSampleCount = lightPage.size() / 3u;
   if (map.lightmapPackedFaces > 0 && atlasHeight > 0) {
     if (atlasHeight != kAtlas) {
       const float vScale = static_cast<float>(kAtlas) / static_cast<float>(atlasHeight);
@@ -1637,10 +1765,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     map.lightmapAtlasHeight = atlasHeight;
     map.lightmapAtlas.assign(atlas.begin(), atlas.begin() + static_cast<std::size_t>(atlasHeight) * kAtlas * 4u);
     if (toneCount > 0) map.lightmapIntensity = static_cast<float>(std::clamp((static_cast<double>(toneSum) / static_cast<double>(toneCount)) / 128.0, 0.15, 2.0));
-  } else if (!lighting.empty()) {
+  } else if (!lightPage.empty()) {
+    // T105: lightPage -- an HDR-only map that packs nothing still has a page to
+    // average, and that page is lump 53.
     std::uint64_t sum = 0;
-    for (const auto value : lighting) sum += value;
-    map.lightmapIntensity = static_cast<float>(std::clamp((static_cast<double>(sum) / static_cast<double>(lighting.size())) / 128.0, 0.15, 2.0));
+    for (const auto value : lightPage) sum += value;
+    map.lightmapIntensity = static_cast<float>(std::clamp((static_cast<double>(sum) / static_cast<double>(lightPage.size())) / 128.0, 0.15, 2.0));
     map.lightmapMode = BspLightmapMode::AverageIntensity;
   }
   // What the packer left behind, named. Before this the only trace of a face
@@ -1651,15 +1781,48 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   // are the same reading instead of two.
   map.lightmapAtlasDroppedFaces = map.lightmapFaceCount >= map.lightmapPackedFaces
     ? map.lightmapFaceCount - map.lightmapPackedFaces : 0;
-  if (map.lightmapFaceCount == 0) {
+  // T105: the gap above can only see the shelf. A face whose own record does not
+  // survive hasLightmap is refused before lightmapFaceCount is ever incremented,
+  // so it is invisible to that subtraction -- and a reason sentence built from
+  // the gap alone then says "the bsp declares no lightmap faces" about a bsp that
+  // declares one and refuses it, which sends a reader to the wrong end of the
+  // file. lightDropTotal counts every refusal, shelf or not, so the difference
+  // between the two is exactly the class the counter cannot see. The three
+  // sentences every shipped map is pinned on are emitted unchanged when nothing
+  // was refused early, which is the case for every map in this install.
+  const std::size_t lightRefusedBeforePacking = lightDropTotal > map.lightmapAtlasDroppedFaces
+    ? lightDropTotal - map.lightmapAtlasDroppedFaces : 0;
+  if (map.lightmapFaceCount == 0 && lightRefusedBeforePacking == 0) {
     map.lightmapAtlasReason = "the bsp declares no lightmap faces";
-  } else if (map.lightmapAtlasDroppedFaces == 0) {
+  } else if (map.lightmapAtlasDroppedFaces == 0 && lightRefusedBeforePacking == 0) {
     map.lightmapAtlasReason = "all " + std::to_string(map.lightmapFaceCount) + " faces fit the "
       + std::to_string(kAtlas) + "-wide atlas";
+  } else if (map.lightmapAtlasDroppedFaces == 0) {
+    map.lightmapAtlasReason = std::to_string(lightRefusedBeforePacking)
+      + " face(s) carried no usable lightmap and were refused before packing";
   } else {
     map.lightmapAtlasReason = std::to_string(map.lightmapAtlasDroppedFaces) + " of "
       + std::to_string(map.lightmapFaceCount) + " faces did not fit the "
       + std::to_string(kAtlas) + "-wide atlas";
+    if (lightRefusedBeforePacking > 0) {
+      map.lightmapAtlasReason += ", and " + std::to_string(lightRefusedBeforePacking)
+        + " more carried no usable lightmap";
+    }
+  }
+  // T105: the listing itself. `lightmapAtlasDroppedFaces` is a number and
+  // `lightmapAtlasReason` is a sentence about the shelf, but neither can name a
+  // face -- so a build that loses faces still leaves the owner of the frame
+  // guessing which surface went dark. With the switch set, every refusal is
+  // printed with the face index, its material, its patch size and the reason it
+  // was refused, including the class the counter above cannot see at all: the
+  // face whose own light offset points outside the lighting page.
+  if (traceDrops) {
+    std::fprintf(stderr, "lightmap atlas drops: %zu refused face(s), %zu listed (atlas %d wide, %s)\n",
+      lightDropTotal, lightDropLines.size(), kAtlas, map.lightmapAtlasReason.c_str());
+    for (const auto& line : lightDropLines) std::fprintf(stderr, "  %s\n", line.c_str());
+    if (lightDropTotal > lightDropLines.size()) {
+      std::fprintf(stderr, "  ... %zu more not listed\n", lightDropTotal - lightDropLines.size());
+    }
   }
   map.waterReflection = false;
   map.waterRefraction = false;

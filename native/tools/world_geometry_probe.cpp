@@ -502,7 +502,13 @@ int main(int argc, char** argv) {
                   map.lightmapHdrFaceToneDark, map.lightmapHdrFaceToneZero,
                   static_cast<double>(map.hdrLightmapIntensity), map.hdrLightmapSampleCount);
     } else {
-      std::printf("geometry lightmap-hdr-tone state=absent reason=lump 53 is missing, empty, or not the size of lump 8\n");
+      // T105: the size comparison is no longer what decides whether PAGE 53 may
+      // light the map -- it decides only whether lump 53 can be read luxel for
+      // luxel against the page that did, because both are indexed by the same
+      // dface_t.lightofs. An HDR-only map is packed from lump 53 now and lands in
+      // the branch above; getting here means there is no page 53 to compare, or
+      // page 53 is a different length from the page that was used.
+      std::printf("geometry lightmap-hdr-tone state=absent reason=lump 53 is missing, empty, or a different length from the page that lit the map\n");
     }
     std::vector<std::pair<double, std::string>> ranked;
     for (const auto& entry : tones) {

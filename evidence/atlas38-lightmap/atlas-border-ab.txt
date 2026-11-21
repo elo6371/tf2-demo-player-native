@@ -1,0 +1,40 @@
+== cp_snakewater_final1  border=0
+"atlas":"4096x1331"
+"reading":"lightmap.atlasReason","value":"all 14988 faces fit the 4096-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"14988"
+== cp_snakewater_final1  border=1 (TF2_NATIVE_LM_BORDER=1)
+"atlas":"4096x1670"
+"reading":"lightmap.atlasReason","value":"all 14988 faces fit the 4096-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"14988"
+== pl_upward  border=0
+"atlas":"4096x1567"
+"reading":"lightmap.atlasReason","value":"all 15032 faces fit the 4096-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"15032"
+== pl_upward  border=1 (TF2_NATIVE_LM_BORDER=1)
+"atlas":"4096x1842"
+"reading":"lightmap.atlasReason","value":"all 15032 faces fit the 4096-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"15032"
+== cp_process_final  border=0
+"atlas":"4096x1179"
+"reading":"lightmap.atlasReason","value":"all 13000 faces fit the 4096-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"13000"
+== cp_process_final  border=1 (TF2_NATIVE_LM_BORDER=1)
+"atlas":"4096x1438"
+"reading":"lightmap.atlasReason","value":"all 13000 faces fit the 4096-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"13000"
+== pl_badwater  border=0
+"atlas":"2048x1620"
+"reading":"lightmap.atlasReason","value":"all 10100 faces fit the 2048-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"10100"
+== pl_badwater  border=1 (TF2_NATIVE_LM_BORDER=1)
+"atlas":"2048x2012"
+"reading":"lightmap.atlasReason","value":"all 10100 faces fit the 2048-wide atlas"
+"reading":"lightmap.facesDropped","value":"0"
+"reading":"lightmap.facesPacked","value":"10100"

@@ -803,6 +803,12 @@ struct BspFixture {
   std::vector<BspFixtureFace> faces;
   // Raw RGBExp32 luxel bytes, shared by every face through its lightOffset.
   std::vector<std::uint8_t> lighting;
+  // T105: the HDR page (lump 53), in the same RGBExp32 stride as `lighting`.
+  // Left empty by every fixture that predates it, which is what an LDR map looks
+  // like. A fixture that fills this and leaves `lighting` empty is an HDR-only
+  // map -- the compile whose whole lighting is in lump 53 -- and that is the case
+  // the parser now has to pack instead of falling back to one averaged colour.
+  std::vector<std::uint8_t> lightingHdr;
   std::vector<BspCubemapSample> cubemaps;
   // Files to write into the bsp's pakfile lump (40), as a stored ZIP, read back
   // by bspPakfileEntry. This is where TF2 ships a map's own cubemaps, so a

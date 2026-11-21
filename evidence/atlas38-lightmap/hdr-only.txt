@@ -1,0 +1,7 @@
+== synthetic HDR-only copy of cp_snakewater_final1 (lump 8 header zeroed, lump 53 intact)
+{"bsp":"hdr-only-snakewater.bsp","valid":true,"error":"","triangles":200000,"lightmapMode":"source-equivalent","lightmapContract":"luxel-index","lightmapToneMap":"ldr-clamp","lightmapSamples":2793687,"lightmapFaces":14988,"lightmapPackedFaces":14988,"lightmapLuxelFits":14974,"lightmapTriangles":199922,"atlas":"4096x1331","sky":"sky_well_01","skyFaces":690,"staticPropsAvailable":true,"staticPropModels":243,"staticPropInstances":1625,"staticPropsReason":"decoded static-prop v10 records","displacements":1316,"displacementTriangles":165376,"displacementCornerMatches":1316,"cubemaps":33,"cubemapMode":"approximate-2d","waterFaces":18,"waterSurface":"approximate-warp","waterReflection":"unavailable","waterRefraction":"unavailable","visMode":"cluster-pvs","visClusters":2940,"visibleFromCluster0":384}
+{"reading":"lightmap.facesDropped","value":"0"}
+{"reading":"lightmap.facesPacked","value":"14988"}
+{"reading":"lightmap.state","value":"active"}
+{"reading":"lightmap.trianglesWithLightUv","value":"199922"}
+{"reading":"lightmap.uvAllInRange","value":"true"}

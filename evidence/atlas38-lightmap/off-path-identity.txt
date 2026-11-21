@@ -1,0 +1,48 @@
+# T105 OFF-path identity: HEAD build vs this build, same input
+
+Both sides were built from the same worktree: the HEAD build is `git checkout HEAD --`
+over the five touched files, then `.scratch/atlas38_src/` copied back and rebuilt for
+this side. Every build and every capture ran under the host lock
+(`/d/_shared/tf2-hostlock/hostlock.sh atlas38`).
+
+## 1. world_geometry_probe on pl_odyssey (parse side)
+
+Command (same on both sides):
+
+    native/build-nmake/world_geometry_probe.exe \
+      --tf-root "D:/SteamLibrary/steamapps/common/Team Fortress 2/tf" \
+      --map maps/pl_odyssey.bsp --eye "-2423.6,5566.0,-1280.0" \
+      --ray-down 96 --ray-eye "-2423.6,5566.0,-1280.0" 24
+
+`diff` over every `lightmap` / `status=` line: **GEOMETRY-IDENTICAL-TO-HEAD** (7 lines,
+byte-for-byte). The HEAD measurements, quoted so the pins can be compared:
+
+    geometry lightmap-uv atlas=4096x2358 vertices=315504 unwrittenTexels=0
+    geometry lightmap-tone ... darkTriangles=30020
+    geometry lightmap-face-tone histogram=7227,2797,2095,1860,1250,1031,935,2430 darkFaces=6225 zeroFaces=1231
+    geometry lightmap-hdr-tone histogram=7523,2665,2023,1783,1236,1015,887,2493 darkFaces=6556 zeroFaces=1297 intensity=0.884 samples=11130803
+
+**This install is already off `visual-baseline-check.sh`'s pins at HEAD.** That script
+pins triangles=105310, displaced=46912, degenerate=4871, darkTriangles=29916,
+face-tone darkFaces=6215 zeroFaces=1230, hdr-tone darkFaces=6546 zeroFaces=1296; a HEAD
+build on this machine measures 105700 / 47232 / 4877 / 30020 / 6225 / 1231 / 6556 / 1297.
+That gate cannot arbitrate this change, and its own comment already says a changed
+install must go red. What arbitrates it is the HEAD-vs-this-build diff above, which is
+empty.
+
+## 2. Captured frame, cp_snakewater_final1 demo (draw side)
+
+    gpu: world lightmap status=active intensity=0.427 atlas=1 bump=0 env=0 \
+      vertices=727083 lightmapped=726849 bounds=(-0.90,-0.84,0.10)..(0.90,0.84,1.40) lightmapEnabled=1
+    capture: frame width=1264 height=681 dpi=96
+
+Both builds print those two lines verbatim, and the two BMPs are byte-identical:
+
+    cap-head.bmp    2582406  a5edf32d893ff39303270139f529eafb   (HEAD build)
+    cap-final2.bmp  2582406  a5edf32d893ff39303270139f529eafb   (this build)
+    cmp -> BMP-IDENTICAL-TO-HEAD
+
+Caveat worth knowing when re-running: the product picks a window/DPI size that can
+differ between runs on this host (one run produced 2560x1417). A byte comparison is only
+meaningful when the `capture: frame` line matches; otherwise compare the
+`gpu: world lightmap` numbers and re-capture.
