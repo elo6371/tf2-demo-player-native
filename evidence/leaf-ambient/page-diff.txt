@@ -1,0 +1,4 @@
+{"map": "cp_process_f12.bsp", "leaves": 5654, "identicalLeaves": 885, "differingLeaves": 2589, "onlyLdr": 0, "onlyHdr": 0, "countMismatch": 63, "maxAbsLumDiff": 0.002912062, "meanRelDiff": 0.065174, "nPairs": 40522}
+{"map": "cp_badlands.bsp", "leaves": 5516, "identicalLeaves": 794, "differingLeaves": 2430, "onlyLdr": 0, "onlyHdr": 0, "countMismatch": 62, "maxAbsLumDiff": 0.000765048, "meanRelDiff": 0.054747, "nPairs": 43369}
+{"map": "2koth_abbey.bsp", "leaves": 7375, "identicalLeaves": 4303, "differingLeaves": 208, "onlyLdr": 0, "onlyHdr": 0, "countMismatch": 3, "maxAbsLumDiff": 0.004033659, "meanRelDiff": 0.307518, "nPairs": 3751}
+{"map": "koth_bagel_rc12.bsp", "leaves": 9472, "identicalLeaves": 5930, "differingLeaves": 325, "onlyLdr": 0, "onlyHdr": 0, "countMismatch": 1, "maxAbsLumDiff": 1.9751e-05, "meanRelDiff": 0.005916, "nPairs": 872}

@@ -10,7 +10,7 @@
 # target creation order -- which is the NMAKE build order, and therefore which
 # targets a failed link truncates -- is unchanged as well.
 #
-# Targets defined here: world_material_probe world_geometry_probe material_coverage_probe lighting_semantics_probe world_feature_probe terrain_blend_probe
+# Targets defined here: world_material_probe world_geometry_probe material_coverage_probe lighting_semantics_probe world_feature_probe terrain_blend_probe leaf_ambient_probe
 # T75-BODY-START
 # ---------------------------------------------------------------------------
 # The world material and lighting capability layer. Shared with the product
@@ -59,3 +59,11 @@ add_executable(terrain_blend_probe tools/terrain_blend_probe.cpp )
 target_link_libraries(terrain_blend_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_include_directories(terrain_blend_probe PRIVATE include third_party/lzma)
 set_target_properties(terrain_blend_probe PROPERTIES WIN32_EXECUTABLE OFF)
+# T105/task-37: the leaf ambient cube. Reads lump 52/51 (per-leaf index) and 56/55
+# (28-byte samples) through BspParser, and asks the same three questions of a
+# fixture, a map, a map corpus and a demo tick. No GPU: whether a cube brightens
+# a pixel is a capture's question, not this probe's.
+add_executable(leaf_ambient_probe tools/leaf_ambient_probe.cpp)
+target_link_libraries(leaf_ambient_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
+target_include_directories(leaf_ambient_probe PRIVATE include third_party/lzma)
+set_target_properties(leaf_ambient_probe PROPERTIES WIN32_EXECUTABLE OFF)
