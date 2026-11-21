@@ -6,7 +6,11 @@ Start with the live status and execution documents below; dated measurements ret
 
 | Document | What it holds |
 |---|---|
-| [PROJECT-EXECUTION-UPDATE-2026-11-18.md](PROJECT-EXECUTION-UPDATE-2026-11-18.md) | Latest N00–N30 execution order, architecture queue, source references and repository decision |
+| [HANDOVER-2026-11-21.md](HANDOVER-2026-11-21.md) | Handover report and project introduction: what the project is, what landed, what is still open, how to reproduce every claim |
+| [TASK-LIST-2026-11-20.md](TASK-LIST-2026-11-20.md) | Current unfinished work, assignments, dependencies and acceptance criteria |
+| [REFERENCE-REPOS-2026-11-21.md](REFERENCE-REPOS-2026-11-21.md) | Mandatory external reference repositories: read-before-work rules and the task-to-library table |
+| [GEMINI-READONLY-TASKS-2026-11-20.md](GEMINI-READONLY-TASKS-2026-11-20.md) | Gemini read-only task package 2026-11-20 |
+| [PROJECT-EXECUTION-UPDATE-2026-11-18.md](PROJECT-EXECUTION-UPDATE-2026-11-18.md) | Earlier N00–N30 execution order, source references and repository decision |
 | [N-STATUS-2026-11-14.md](N-STATUS-2026-11-14.md) | Per-card N-status: what is measured, what is still open |
 | [PROJECT-NEXT-TASKS-2026-11-14.md](PROJECT-NEXT-TASKS-2026-11-14.md) | Open task matrix with acceptance criteria |
 | [KNOWN-ISSUES-AND-FIXES.md](KNOWN-ISSUES-AND-FIXES.md) | Verified failure modes and their fixes |
@@ -20,6 +24,8 @@ Start with the live status and execution documents below; dated measurements ret
 The T-round reports live in [reports/](reports/README.md), newest last.
 
 ## All documents (123)
+
+> **2026-11-21 note:** this table has not kept pace. 50+ documents (many dated 2026-11-18 and later, including the six 2026-11-21 reports) are missing from it. The live tables above and [HANDOVER-2026-11-21.md](HANDOVER-2026-11-21.md) are the maintained entry points; regenerate this list before treating it as complete.
 
 | Document | Title |
 |---|---|
