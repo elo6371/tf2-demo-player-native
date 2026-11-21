@@ -495,7 +495,7 @@ int runParserBoundsSelfTest() {
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
                   L"       demo_open_probe --userinfo-fixture <file>\n";
     return 2;
   }
@@ -686,6 +686,24 @@ int wmain(int argc, wchar_t** argv) {
     eventLimit = static_cast<int>(parsed);
     firstPath += 2;
   }
+  // N21(c)/task-29 evidence: --temps <n> dumps the temp-entity events the
+  // decoder retained (16384 cap) together with the shooter and weapon id it
+  // decoded from m_iPlayer / m_iWeaponID. The question it answers is whether
+  // the recorder's own entity is a shooter on the wire at all: a POV-only
+  // sound synthesiser is only honest if its trigger is a recorded event, and
+  // "CTEFireBullets carries the recorder" has to be a reading, not an
+  // assumption. 0 = all rows; the dump itself is printed after the summary.
+  int tempLimit = -1;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--temps") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0 || parsed > std::numeric_limits<int>::max()) {
+      std::wcerr << L"invalid temps limit\n";
+      return 2;
+    }
+    tempLimit = static_cast<int>(parsed);
+    firstPath += 2;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -729,7 +747,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -745,8 +763,11 @@ int wmain(int argc, wchar_t** argv) {
     std::string userInfoDumpText;
     // N12-C step 3 evidence: sorted property-name dump (see --props).
     std::string propsDumpText;
+    // N21(c)/task-29 evidence: temp-entity rows (see --temps).
+    std::string tempDumpText;
     std::size_t eventRows = 0;
     std::size_t eventDupes = 0;
+    std::size_t tempRows = 0;
     tf2::native::DemoHeader header;
     const bool headerOk = tf2::native::parseDemoHeaderFile(path, header);
     tf2::native::DemoIndex index;
@@ -992,6 +1013,37 @@ int wmain(int argc, wchar_t** argv) {
                    << L" camera_rows_before_first_entities=" << cameraRowsBeforeEntities
                    << L" camera_first5_ticks=" << cameraFirst5
                    << L" camera_bytes=" << (summary.cameraTickSamples.size() * sizeof(tf2::native::CameraTickSample));
+      }
+      // N21(c)/task-29 evidence: one row per retained temp-entity event.
+      // Columns: tick, class, player, weaponId, mode, seed, x, y, z. A missing
+      // field prints '-' instead of a zero, so "the wire did not carry it" and
+      // "the wire carried 0" stay distinguishable.
+      if (tempLimit >= 0) {
+        for (const auto& event : summary.tempEntityEvents) {
+          if (tempLimit > 0 && tempRows >= static_cast<std::size_t>(tempLimit)) break;
+          tempDumpText += std::to_string(event.tick);
+          tempDumpText += '\t';
+          tempDumpText += event.className;
+          tempDumpText += '\t';
+          tempDumpText += event.hasPlayer ? std::to_string(event.player) : "-";
+          tempDumpText += '\t';
+          tempDumpText += event.hasWeaponId ? std::to_string(event.weaponId) : "-";
+          tempDumpText += '\t';
+          tempDumpText += event.hasMode ? std::to_string(event.mode) : "-";
+          tempDumpText += '\t';
+          tempDumpText += event.hasSeed ? std::to_string(event.seed) : "-";
+          if (event.hasOrigin) {
+            char position[96] = {};
+            std::snprintf(position, sizeof(position), "\t%.2f\t%.2f\t%.2f",
+              static_cast<double>(event.origin[0]), static_cast<double>(event.origin[1]),
+              static_cast<double>(event.origin[2]));
+            tempDumpText += position;
+          } else {
+            tempDumpText += "\t-\t-\t-";
+          }
+          tempDumpText += '\n';
+          ++tempRows;
+        }
       }
       // N12-C step 2: the track's own row at each requested exact tick. Printed
       // only when --camera-row was given, so every other scan line stays
@@ -1252,11 +1304,13 @@ int wmain(int argc, wchar_t** argv) {
       }
     }
     std::wcout << L'\n';
-    if (!eventDump.empty() || !userInfoDumpText.empty() || !propsDumpText.empty()) {
+    if (!eventDump.empty() || !userInfoDumpText.empty() || !propsDumpText.empty()
+        || !tempDumpText.empty()) {
       std::wcout.flush();
       std::cout.write(eventDump.data(), static_cast<std::streamsize>(eventDump.size()));
       std::cout.write(userInfoDumpText.data(), static_cast<std::streamsize>(userInfoDumpText.size()));
       std::cout.write(propsDumpText.data(), static_cast<std::streamsize>(propsDumpText.size()));
+      std::cout.write(tempDumpText.data(), static_cast<std::streamsize>(tempDumpText.size()));
       std::cout.flush();
     }
   }
