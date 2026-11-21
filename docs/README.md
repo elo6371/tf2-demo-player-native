@@ -6,15 +6,9 @@ Start with the live status and execution documents below; dated measurements ret
 
 | Document | What it holds |
 |---|---|
-| [HANDOVER-2026-11-21.md](HANDOVER-2026-11-21.md) | Handover report and project introduction: what the project is, what landed, what is still open, how to reproduce every claim |
-| [TASK-LIST-2026-11-20.md](TASK-LIST-2026-11-20.md) | Current unfinished work, assignments, dependencies and acceptance criteria |
+| [HANDOVER-2026-11-21.md](HANDOVER-2026-11-21.md) | **Single entry point**: project introduction, handover report (what landed, what is still open, how to reproduce every claim) and the merged 2026-11-21 plans (basic lighting, wearable cosmetics) — the eight superseded plan docs were retired into it |
 | [REFERENCE-REPOS-2026-11-21.md](REFERENCE-REPOS-2026-11-21.md) | Mandatory external reference repositories: read-before-work rules and the task-to-library table |
-| [LIGHTING-BASIC-2026-11-21.md](LIGHTING-BASIC-2026-11-21.md) | Plan (not started): entity/weapon ambient cube + Half-Lambert, leaf ambient cubes, world-atlas tails; cards task-36/37/38 |
-| [COSMETIC-WEARABLE-2026-11-21.md](COSMETIC-WEARABLE-2026-11-21.md) | Plan (not started): non-effect wearable rendering — probe first, then linkage, model path and bone merge; cards task-39/40/41 |
-| [GEMINI-READONLY-TASKS-2026-11-20.md](GEMINI-READONLY-TASKS-2026-11-20.md) | Gemini read-only task package 2026-11-20 |
-| [PROJECT-EXECUTION-UPDATE-2026-11-18.md](PROJECT-EXECUTION-UPDATE-2026-11-18.md) | Earlier N00–N30 execution order, source references and repository decision |
 | [N-STATUS-2026-11-14.md](N-STATUS-2026-11-14.md) | Per-card N-status: what is measured, what is still open |
-| [PROJECT-NEXT-TASKS-2026-11-14.md](PROJECT-NEXT-TASKS-2026-11-14.md) | Open task matrix with acceptance criteria |
 | [KNOWN-ISSUES-AND-FIXES.md](KNOWN-ISSUES-AND-FIXES.md) | Verified failure modes and their fixes |
 | [DEFECT-REGISTER-MASTER-2026-11-14.md](DEFECT-REGISTER-MASTER-2026-11-14.md) | Defect register |
 | [RELEASE-POLICY.md](RELEASE-POLICY.md) | What counts as acceptance |
@@ -119,7 +113,6 @@ The T-round reports live in [reports/](reports/README.md), newest last.
 | [P3B-SOUND-ACCOUNTING-SPLIT-2026-11-16.md](P3B-SOUND-ACCOUNTING-SPLIT-2026-11-16.md) | P3b 声音账务拆分（task B），2026-11-16 |
 | [PHASE-F-REPORT-2026-11-13.md](PHASE-F-REPORT-2026-11-13.md) | Phase F 完整任务报告（2026-11-13） |
 | [PROJECT-EXECUTION-ROADMAP-2026-11-15.md](PROJECT-EXECUTION-ROADMAP-2026-11-15.md) | 项目连续执行路线图与多实例任务包 |
-| [PROJECT-NEXT-TASKS-2026-11-14.md](PROJECT-NEXT-TASKS-2026-11-14.md) | 全项目验收结论与下一阶段任务清单 |
 | [PROJECT-OVERVIEW-2026-11-16.md](PROJECT-OVERVIEW-2026-11-16.md) | TF2 Demo Player Native — 项目总览（2026-11-16） |
 | [PROJECT-ROADMAP-HANDOFF-2026-11-12.md](PROJECT-ROADMAP-HANDOFF-2026-11-12.md) | Project Roadmap and Handoff - 2026-11-12 |
 | [R2-9-NOCULL-CENSUS-2026-11-13.md](R2-9-NOCULL-CENSUS-2026-11-13.md) | R2-9 `$nocull` census on the seven first-release maps |

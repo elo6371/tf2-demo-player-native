@@ -82,4 +82,4 @@ T62_POSEFAMILY_OUT=.scratch/n17-loop/families bash class-pose-family-check.sh
 - 本轮没有合并 `work/n17-anim` 的未提交实现，也没有把其中 `[[STATES]]` / `[[PIXELS]]` 占位结果当 PASS。
 - 当前产品的地图/UI/音频整门与 verify-all 未复跑；历史 exe 的 PASS 不迁移。
 
-下一步按[11-18 连续执行清单](PROJECT-EXECUTION-UPDATE-2026-11-18.md)：接回现有动画分支已验证部分，验证循环边界、固定帧负控、真实姿态参数，再决定默认动画策略。
+下一步按[11-21 交接与计划（单一入口）](HANDOVER-2026-11-21.md)：接回现有动画分支已验证部分，验证循环边界、固定帧负控、真实姿态参数，再决定默认动画策略。
