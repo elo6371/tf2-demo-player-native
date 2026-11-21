@@ -1,6 +1,10 @@
 #include "demo_header.h"
 
 #include "demo_tick_audit.h"
+// task-40: the slot-lifetime capture is defined here, and the two sites below are
+// the only two that advance the per-slot counter. Including it keeps the capture
+// type out of demo_header.h, which only forward declares it.
+#include "wearable_instance.h"
 
 #include <algorithm>
 #include <cctype>
@@ -333,6 +337,12 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
           summary.projectileTrackSlotGeneration.resize(2048u, 0u);
         }
         ++summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)];
+        // task-40: the counter above is the value at the END of the scan. Feeding
+        // the same advance to the capture is what lets a tick inside the
+        // recording be answered with the generation that was live then.
+        recordWearableSlotGeneration(summary.wearableSlotCapture, packetTick,
+                                     static_cast<std::uint32_t>(lastEntity),
+                                     summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)]);
       }
       if (lastEntity >= 0 && lastEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity), -1, true, false, {}, {}});
     } else if (updateType == 2) {
@@ -384,6 +394,10 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
         }
         ++summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)];
         ++summary.projectileTrackSeriesStarted;
+        // task-40: same reason as the Delete hook above -- one entry per advance.
+        recordWearableSlotGeneration(summary.wearableSlotCapture, packetTick,
+                                     static_cast<std::uint32_t>(lastEntity),
+                                     summary.projectileTrackSlotGeneration[static_cast<std::size_t>(lastEntity)]);
       }
       summary.maxActiveEntityCount = std::max(summary.maxActiveEntityCount, summary.activeEntityCount);
       summary.entityStates[static_cast<std::size_t>(lastEntity)] = std::move(candidate);

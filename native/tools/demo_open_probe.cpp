@@ -4,6 +4,12 @@
 // ordering, exported so a diagnostic prints what the selection rule would pick
 // instead of a second implementation that can drift from it.
 #include "entity_model.h"
+// task-40: the wearable table needs the item schema (the path route that answers
+// most of these instances) and the asset root (only to FIND items_game.txt). The
+// probe links tf2_core, so both are already available here.
+#include "asset_root.h"
+#include "item_schema.h"
+#include "wearable_instance.h"
 
 #include <algorithm>
 #include <cctype>
@@ -17,6 +23,7 @@
 #include <iterator>
 #include <limits>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <system_error>
@@ -632,7 +639,7 @@ const wchar_t* snapshotStatusText(tf2::native::EntitySnapshotQueryStatus value) 
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
                   L"       demo_open_probe --userinfo-fixture <file>\n";
     return 2;
   }
@@ -814,6 +821,31 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
 
+  // task-40: the attribution table. Separate from --wearable-scan on purpose --
+  // that dump is pinned by the task-39 gate card and must not move by a byte, so
+  // the new reading gets its own switch, off by default.
+  std::int32_t cosmeticsTick = -1;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--cosmetics-table") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 0
+        || parsed > std::numeric_limits<std::int32_t>::max()) {
+      std::wcerr << L"invalid cosmetics tick\n";
+      return 2;
+    }
+    cosmeticsTick = static_cast<std::int32_t>(parsed);
+    firstPath += 2;
+  }
+
+  // Where items_game.txt lives. Without it the table still runs, reports
+  // no-schema, and every instance that only the schema could answer is counted
+  // as having no path -- it never falls back to guessing one.
+  std::filesystem::path tfRoot;
+  if (firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--tf-root") {
+    tfRoot = std::filesystem::path(argv[firstPath + 1]);
+    firstPath += 2;
+  }
+
   std::vector<std::int32_t> serverTickAts;
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--server-tick-at") {
     const std::wstring list(argv[firstPath + 1]);
@@ -910,7 +942,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -932,6 +964,9 @@ int wmain(int argc, wchar_t** argv) {
     std::string tickAuditText;
     // task-39 evidence: wearable rows, empty unless --wearable-scan was given.
     std::string wearableDumpText;
+    // task-40 evidence: the attribution table, empty unless --cosmetics-table was
+    // given. Kept out of wearableDumpText so the gate-card bytes stay put.
+    std::string cosmeticsTableText;
     std::size_t eventRows = 0;
     std::size_t eventDupes = 0;
     std::size_t tempRows = 0;
@@ -960,12 +995,16 @@ int wmain(int argc, wchar_t** argv) {
                << L" frames=" << header.frames;
     if (scan && indexOk) {
       tf2::native::DemoTickAuditCapture tickAuditCapture;
+      // task-40: the per-slot lifetime capture the attribution table reads. Armed
+      // only when the table was asked for, so every other run records nothing.
+      tf2::native::WearableSlotCapture wearableSlotCapture;
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
       summary.cameraTrackLimits.enabled = cameraTrack;
       // task-35: the capture is opt-in, so without the switch no packet row, sim
       // sample or anim event is recorded and every existing line stays identical.
       if (tickAudit) summary.tickAuditCapture = &tickAuditCapture;
+      if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       if (tickAudit) {
         const tf2::native::DemoTickAuditReport tickAuditReport =
@@ -975,6 +1014,54 @@ int wmain(int argc, wchar_t** argv) {
           tickAuditText += '\n';
         }
       }
+      if (cosmeticsTick >= 0) {
+        // The schema is an OPTIONAL input: it is a game asset, not part of this
+        // repository. Absent it, the table still runs and every instance that only
+        // the schema could answer is counted as pathless -- never guessed.
+        tf2::native::WearableTableRequest request;
+        request.tick = cosmeticsTick;
+        std::unique_ptr<tf2::native::ItemSchema> itemSchema;
+        tf2::native::AssetRoot assets;
+        if (!tfRoot.empty()) {
+          assets = tf2::native::AssetRoot::fromPath(tfRoot);
+        } else {
+          // Same helper the product uses to walk a Steam root, minus the registry
+          // enumeration: a probe given no path should not read the registry.
+          assets = tf2::native::AssetRoot::findInstalled(
+              tf2::native::AssetRoot::steamLibraryCandidates(
+                  {std::filesystem::path(L"C:\\Program Files (x86)\\Steam"),
+                   std::filesystem::path(L"C:\\Program Files\\Steam"),
+                   std::filesystem::path(L"D:\\SteamLibrary")}));
+        }
+        request.assetRootValid = assets.valid();
+        if (assets.valid()) {
+          request.assetRootDescribe = assets.describe();
+          std::string schemaError;
+          itemSchema = tf2::native::ItemSchema::load(
+              assets.tfDirectory / L"scripts/items/items_game.txt", schemaError);
+          if (static_cast<bool>(itemSchema)) {
+            request.schema = itemSchema.get();
+          } else {
+            request.schemaError = schemaError.empty() ? std::string("items_game.txt absent")
+                                                       : schemaError;
+          }
+        } else {
+          request.schemaError = tfRoot.empty() ? std::string("no asset root found; pass --tf-root")
+                                               : std::string("no asset root at --tf-root");
+        }
+        const tf2::native::WearableInstanceTable table =
+            tf2::native::buildWearableInstanceTable(summary, request);
+        const std::wstring tableLines = tf2::native::formatWearableTableLines(table);
+        // formatWearableTableLines widens each byte one-for-one (it is a dump body, not
+        // text that goes through a locale), so narrowing back here is exact. The
+        // implicit iterator-range assign would be a C4244 narrowing warning at /W4.
+        cosmeticsTableText.clear();
+        cosmeticsTableText.reserve(tableLines.size());
+        for (const wchar_t ch : tableLines) {
+          cosmeticsTableText.push_back(static_cast<char>(ch));
+        }
+      }
+
       std::string firstTempClassName;
       for (const auto& serverClass : summary.serverClassSchemas) {
         if (serverClass.id == static_cast<std::uint16_t>(summary.firstTempEntityFailureClass)) {
@@ -1711,13 +1798,14 @@ int wmain(int argc, wchar_t** argv) {
       std::cout.flush();
     }
     if (!eventDump.empty() || !userInfoDumpText.empty() || !propsDumpText.empty()
-        || !tempDumpText.empty() || !wearableDumpText.empty()) {
+        || !tempDumpText.empty() || !wearableDumpText.empty() || !cosmeticsTableText.empty()) {
       std::wcout.flush();
       std::cout.write(eventDump.data(), static_cast<std::streamsize>(eventDump.size()));
       std::cout.write(userInfoDumpText.data(), static_cast<std::streamsize>(userInfoDumpText.size()));
       std::cout.write(propsDumpText.data(), static_cast<std::streamsize>(propsDumpText.size()));
       std::cout.write(tempDumpText.data(), static_cast<std::streamsize>(tempDumpText.size()));
       std::cout.write(wearableDumpText.data(), static_cast<std::streamsize>(wearableDumpText.size()));
+      std::cout.write(cosmeticsTableText.data(), static_cast<std::streamsize>(cosmeticsTableText.size()));
       std::cout.flush();
     }
   }

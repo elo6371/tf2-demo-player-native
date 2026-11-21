@@ -58,6 +58,11 @@ add_library(tf2_core STATIC
   src/vmt_material.cpp
   src/item_schema.cpp
   src/proto_wire.cpp
+  # task-40: wearable attribution. Here rather than in the twelve-source demo-header
+  # contract list because it is a consumer of that contract (snapshot query, slot
+  # generation) and of item_schema, not part of it. Probe and product link tf2_core,
+  # so this compiles exactly once for both.
+  src/wearable_instance.cpp
 
   # Animation.
   src/animation_decoder.cpp

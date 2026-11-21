@@ -652,11 +652,21 @@ struct DemoUserInfoSample {
 // the audit module owns it, and this header must not depend on that module.
 class DemoTickAuditCapture;
 
+// task-40: opt-in per-slot lifetime capture. Same shape and same reason as the
+// audit capture above -- the module owns the type and this header stays clear of
+// it. Null means off, and every hook is then a single pointer test.
+struct WearableSlotCapture;
+
 struct DemoNetworkSummary {
   // Null unless a caller asked for the tick audit. The scan feeds it packet
   // boundaries, m_flSimulationTime writes and CTEPlayerAnimEvents; when null,
   // every hook is a single pointer test.
   DemoTickAuditCapture* tickAuditCapture = nullptr;
+  // task-40: null unless a caller asked for wearable attribution. The two sites
+  // that advance projectileTrackSlotGeneration feed it a (slot, generation) entry
+  // so a tick INSIDE the recording can be answered with the generation that was
+  // live then, instead of the one the slot carries at the end of the scan.
+  WearableSlotCapture* wearableSlotCapture = nullptr;
   std::size_t packetsScanned = 0;
   std::size_t malformedPackets = 0;
   std::size_t unknownMessagePackets = 0;
