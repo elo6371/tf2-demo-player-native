@@ -240,11 +240,19 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   // would feed a capture the summary no longer points at and every hook would be
   // a null test for the rest of the scan.
   DemoTickAuditCapture* const tickAuditCapture = summary.tickAuditCapture;
+  // task-40: same rule again for the wearable slot-lifetime capture. It is a
+  // caller-owned pointer, and it MUST survive this reset for exactly the reason
+  // the audit capture does -- without it the caller arms a capture the scan then
+  // forgets, every Enter/Delete hook is a null test, and the attribution table
+  // reports "generation unknown" for every wearable on a run that asked for the
+  // generations. That failure is silent and looks like a demo with no data.
+  WearableSlotCapture* const wearableSlotCapture = summary.wearableSlotCapture;
   summary = {};
   setParserBudgetRejectReason(nullptr);
   summary.projectileTrackLimits = projectileTrackLimits;
   summary.cameraTrackLimits = cameraTrackLimits;
   summary.tickAuditCapture = tickAuditCapture;
+  summary.wearableSlotCapture = wearableSlotCapture;
   summary.networkProtocol = networkProtocol;
   if (index.entries.empty()) return false;
   summary.entityClassByIndex.assign(2048u, -1);
