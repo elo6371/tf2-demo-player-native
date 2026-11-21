@@ -113,3 +113,61 @@ errors and this change did not touch that list. Nothing was relaxed to make it p
 host at all: both hardcode a demo (`$TF/demos/autorecord_2026-07-02_13-26-46.dem`) that
 does not exist in the installed tf tree, and neither has an override. Their failure is a
 missing prerequisite, not a reading about this change.
+
+## `--lighting basic --model`: what that combination does
+
+The brief did not ask about the standalone `--model` diagnostic path, but its pixel shader
+is the sibling of the viewmodel's, so the combination is stated here instead of being left
+for a reader to trip over. It is out of scope for this card in the sense that nothing was
+tuned for it; what follows is what the code does.
+
+The pass binds `modelPixelShader_` (`native/src/native_renderer_frame.cpp:2179`), which is
+compiled from `modelPixelSource` (`native/src/native_renderer.cpp:266`, created at `:458`),
+and it binds the lighting block at PIXEL b1
+(`native/src/native_renderer_frame.cpp:2187-2191`) -- vertex b1 is a different stage's slot,
+as the comment there says. So `--lighting basic` does light the diagnostic model, with the
+reference tick's amplitudes: that run prints `sun=(0.500,-0.866,-0.000) intensity=0.900`,
+which is the 0.600 sun with `kModelLightingExposure` multiplied in.
+
+`--lighting-trace` does NOT change that frame. The probe arm exists only in the WORLD
+pixel shader's entity/prop branch (`native/src/native_renderer_shaders.cpp:594-596`); the
+model pixel shader's only arm tests `lightingParams.x` (`:804`), exactly as the viewmodel's
+two do (`:1290`, `:1340`). `lightingParams.y` occurs in three places in the whole tree --
+the entity arm at `:594`, a comment at `:803`, and the capture print at
+`native/src/native_renderer_frame.cpp:960` -- so on a `--model` frame the probe flag arrives
+and is ignored. The model is lit through the ambient cube in MODEL space, for the same
+reason as the viewmodel: the model vertex shader does not rotate the normal.
+
+That is asserted from the source above, not from a capture, and the reason is worth
+recording: on tick 600 of the pr600 recording, `--model models/player/demo.mdl` produced
+the same three md5s as the bare demo run (`2ddade35...`, `d927c526...`, `3f39236e...`), so
+no model pixels reached those frames and the pair cannot discriminate either arm. A
+capture that could would need the standalone model framed on its own.
+
+## Tying these pins to a tree
+
+The pins above are md5s of BMPs, and a reader is entitled to ask which commit, built how,
+produced the bytes that made them. The answer is the build-identity sidecar beside the
+executable, `native/build-nmake/tf2_demo_native.identity`, written by
+`native/cmake/write-identity-sidecar.cmake` from the provenance that
+`native/cmake/gen-build-stamp.cmake` records at build time (the `tf2_build_stamp` and
+`tf2_identity` targets in `native/cmake/tf2-version.cmake` and `native/cmake/tf2-identity.cmake`).
+
+It is a build product, not a tracked file: it describes one set of bytes on disk, so
+committing it would be committing a claim about a binary the repository does not carry.
+The fields that matter for a pin:
+
+    sourceTree=<commit>      git HEAD at build time
+    dirty=0 dirtyFiles=0     the worktree at build time
+    sourceContent=<hash>     contentMethod=git-clean-v1: a hash of the tracked inputs the
+                             two executables compile from, so it is equal on any tree with
+                             the same sources and changes when one of them does
+    exeSha256=<hash>         file(SHA256) of the executable as it lies on disk
+    contentBinding=recompiled  the hash was compiled into these bytes, not carried forward
+
+So the chain is: the sidecar names the commit and says the tree was clean; it gives the
+sha256 of the executable that was run; every pin row above names the capture command that
+ran that executable. If the sidecar names a commit other than the one a reader is
+holding, the pins in this directory do not belong to that tree and must be re-taken --
+which is exactly what happened here once, and why the sidecar is quoted rather than
+described.
