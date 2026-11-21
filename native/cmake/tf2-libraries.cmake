@@ -39,6 +39,8 @@ add_library(tf2_core STATIC
   src/demo_header_track.cpp
   # N12-C: the camera tick track (capture, stamp, exact-tick query).
   src/demo_header_camera.cpp
+  # task-35: anomaly tick audit (file clock/sequence + player shot pacing).
+  src/demo_tick_audit.cpp
   src/audio_timeline.cpp
   src/audio_resource.cpp
   src/vpk_archive.cpp

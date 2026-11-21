@@ -1,5 +1,7 @@
 #include "demo_header.h"
 
+#include "demo_tick_audit.h"
+
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -87,6 +89,13 @@ bool readEntityPropUpdates(MessageBits& bits, const SendTableSchema* table, Enti
       changes->push_back(std::move(change));
     }
     state.properties[key] = std::move(value);
+    // task-35: one hook per written property, so the audit sees the same delta
+    // stream the renderer does. The capture filters on the property name; the
+    // pointer test keeps the cost at one branch when no audit was requested.
+    if (summary != nullptr && entityIndex >= 0 && summary->tickAuditCapture != nullptr) {
+      summary->tickAuditCapture->observeEntityProperty(*summary, packetTick, entityIndex,
+          state.classId, prop.name.c_str(), state.properties[key]);
+    }
   }
   return false;
 }

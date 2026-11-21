@@ -142,6 +142,16 @@ bool indexDemoCommands(const std::vector<std::uint8_t>& bytes, const DemoHeader&
     std::size_t payloadSize = 0;
     if (command == 1 || command == 2) {
       if (cursor > bytes.size() || bytes.size() - cursor < kPacketInfo + 12) { index.malformedOffset = commandOffset; index.error = "truncated packet header"; return false; }
+      // task-35: the two int32 between the cmdinfo block and the payload length
+      // are the packet in/out sequence numbers. Kept per packet so the tick audit
+      // can prove a packet stream was not reordered or spliced.
+      std::int32_t inSequence = 0;
+      std::int32_t outSequence = 0;
+      if (!readI32(cursor + kPacketInfo, inSequence) || !readI32(cursor + kPacketInfo + 4, outSequence)) {
+        index.malformedOffset = commandOffset; index.error = "truncated packet sequence"; return false;
+      }
+      index.packetInSequence.push_back(inSequence);
+      index.packetOutSequence.push_back(outSequence);
       cursor += kPacketInfo + 8;
       std::int32_t length = 0;
       if (!readI32(cursor, length) || length < 0) { index.malformedOffset = commandOffset; index.error = "invalid packet length"; return false; }
@@ -259,7 +269,18 @@ bool indexDemoFile(const std::filesystem::path& path, const DemoHeader& header, 
     std::uint64_t payloadOffset = cursor; std::uint64_t payloadSize = 0;
     if (command == 1 || command == 2) {
       if (cursor + packetInfoSize + 12 > fileSize) { index.malformedOffset = static_cast<std::size_t>(commandOffset); index.error = "truncated packet header"; return false; }
-      file.seekg(static_cast<std::streamoff>(packetInfoSize + 8), std::ios::cur); cursor += packetInfoSize + 8;
+      // task-35: mirror indexDemoCommands — the two int32 after the cmdinfo block
+      // are the packet in/out sequence numbers. The streaming index must record
+      // them too, otherwise the tick audit has nothing to compare.
+      file.seekg(static_cast<std::streamoff>(packetInfoSize), std::ios::cur); cursor += packetInfoSize;
+      std::int32_t inSequence = 0;
+      std::int32_t outSequence = 0;
+      if (!readI32Stream(file, inSequence) || !readI32Stream(file, outSequence)) {
+        index.malformedOffset = static_cast<std::size_t>(commandOffset); index.error = "truncated packet sequence"; return false;
+      }
+      index.packetInSequence.push_back(inSequence);
+      index.packetOutSequence.push_back(outSequence);
+      cursor += 8;
       std::int32_t length = 0; if (!readI32Stream(file, length) || length < 0) { index.malformedOffset = static_cast<std::size_t>(commandOffset); index.error = "invalid packet length"; return false; }
       cursor += 4; payloadOffset = cursor; payloadSize = static_cast<std::uint64_t>(length); ++index.packetCount;
     } else if (command == 3 || command == 7) {

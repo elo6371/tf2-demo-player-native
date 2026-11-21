@@ -1,4 +1,5 @@
 #include "demo_header.h"
+#include "demo_tick_audit.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -495,7 +496,7 @@ int runParserBoundsSelfTest() {
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
                   L"       demo_open_probe --userinfo-fixture <file>\n";
     return 2;
   }
@@ -578,6 +579,9 @@ int wmain(int argc, wchar_t** argv) {
   // costs a row per stamped packet (56 B each) and nothing reads it in the
   // product, so like the other dump switches it is off unless asked for.
   bool cameraTrack = false;
+  // task-35: opt-in anomaly tick audit (file-layer clock/sequence integrity and
+  // player-layer doubletap). Diagnostic only; it prints its own tick-audit rows.
+  bool tickAudit = false;
   std::int32_t snapshotTick = -1;
   std::int32_t cameraTick = -1;
   int firstPath = 1;
@@ -594,6 +598,10 @@ int wmain(int argc, wchar_t** argv) {
   }
   if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--camera-track") {
     cameraTrack = true;
+    firstPath += 1;
+  }
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--tick-audit") {
+    tickAudit = true;
     firstPath += 1;
   }
   if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--camera-tick") {
@@ -747,7 +755,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -765,6 +773,8 @@ int wmain(int argc, wchar_t** argv) {
     std::string propsDumpText;
     // N21(c)/task-29 evidence: temp-entity rows (see --temps).
     std::string tempDumpText;
+    // task-35 evidence: tick-audit rows, empty unless --tick-audit was given.
+    std::string tickAuditText;
     std::size_t eventRows = 0;
     std::size_t eventDupes = 0;
     std::size_t tempRows = 0;
@@ -792,10 +802,22 @@ int wmain(int argc, wchar_t** argv) {
                << L" ticks=" << header.ticks
                << L" frames=" << header.frames;
     if (scan && indexOk) {
+      tf2::native::DemoTickAuditCapture tickAuditCapture;
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
       summary.cameraTrackLimits.enabled = cameraTrack;
+      // task-35: the capture is opt-in, so without the switch no packet row, sim
+      // sample or anim event is recorded and every existing line stays identical.
+      if (tickAudit) summary.tickAuditCapture = &tickAuditCapture;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
+      if (tickAudit) {
+        const tf2::native::DemoTickAuditReport tickAuditReport =
+            tf2::native::auditDemoTicks(header, index, &tickAuditCapture);
+        for (const std::string& line : tf2::native::formatDemoTickAuditLines(tickAuditReport)) {
+          tickAuditText += line;
+          tickAuditText += '\n';
+        }
+      }
       std::string firstTempClassName;
       for (const auto& serverClass : summary.serverClassSchemas) {
         if (serverClass.id == static_cast<std::uint16_t>(summary.firstTempEntityFailureClass)) {
@@ -1304,6 +1326,13 @@ int wmain(int argc, wchar_t** argv) {
       }
     }
     std::wcout << L'\n';
+    // task-35: audit rows are pure ASCII and go through the narrow stream for
+    // the same reason the event dumps do -- wcout would re-encode them.
+    if (!tickAuditText.empty()) {
+      std::wcout.flush();
+      std::cout.write(tickAuditText.data(), static_cast<std::streamsize>(tickAuditText.size()));
+      std::cout.flush();
+    }
     if (!eventDump.empty() || !userInfoDumpText.empty() || !propsDumpText.empty()
         || !tempDumpText.empty()) {
       std::wcout.flush();

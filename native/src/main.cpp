@@ -15,6 +15,7 @@
 #include "vmt_material.h"
 #include "bsp_map.h"
 #include "demo_header.h"
+#include "demo_tick_audit.h"
 #include "audio_player.h"
 #include "effects_timeline.h"
 #include "playback_hud.h"
@@ -3618,6 +3619,10 @@ bool outlineVertexExtent = false;
   // Off by default: a per-face trace is a diagnostic, and a normal run's trace
   // should not carry 24 lines nobody asked for.
   bool worldFaceTraceRequested = false;
+  // task-35: opt-in anomaly tick audit. Diagnostic only -- it emits its own
+  // 'tick-audit:' trace rows after the demo scan and touches no gate, no exit
+  // code and no captured frame.
+  bool demoTickAuditRequested = false;
   // N05 step 3: ask the renderer to take the clip-space position out of the
   // vertex stage of the isolated draw. Separate from the face trace because it
   // is a different instrument: the face trace predicts a screen point from the
@@ -3811,6 +3816,7 @@ bool outlineVertexExtent = false;
       // (C1061). Moving them out changes no behaviour: each one only set a flag, and
       // none of them reads another argument.
       if (wcscmp(arguments[i], L"--hidden-window") == 0) { hiddenWindow = true; continue; }
+      if (wcscmp(arguments[i], L"--tick-audit") == 0) { demoTickAuditRequested = true; continue; }
       if (wcscmp(arguments[i], L"--audio-disabled") == 0) { audioDisabled = true; continue; }
       // N21(a2): --audio-spatial takes a word. A bare switch or an unknown one
       // is refused below rather than read as the default, because the point of
@@ -5147,6 +5153,11 @@ bool outlineVertexExtent = false;
   tf2::native::DemoHeader demoHeader;
   tf2::native::DemoIndex demoIndex;
   tf2::native::DemoNetworkSummary demoNetworkSummary;
+  // task-35: the audit capture only exists for a run that asked for it, and the
+  // summary holds it behind a pointer, so an ordinary run records no packet row
+  // and no simulation sample.
+  tf2::native::DemoTickAuditCapture demoTickAuditCapture;
+  if (demoTickAuditRequested) demoNetworkSummary.tickAuditCapture = &demoTickAuditCapture;
   // N12-C step 2: the product's eyes (POV and relay) read the per-tick camera row
   // track, so the product opts in BEFORE the scan below -- scanKnownDemoMessages
   // keeps cameraTrackLimits across its own summary reset, so setting it here is
@@ -5158,6 +5169,13 @@ bool outlineVertexExtent = false;
       tf2::native::indexDemoFile(commandDemo, demoHeader, demoIndex);
       demoNetworkSummary.networkProtocol = demoHeader.networkProtocol;
       tf2::native::scanKnownDemoMessages(commandDemo, demoIndex, demoNetworkSummary);
+      if (demoTickAuditRequested) {
+        const tf2::native::DemoTickAuditReport demoTickAuditReport =
+            tf2::native::auditDemoTicks(demoHeader, demoIndex, &demoTickAuditCapture);
+        for (const std::string& line : tf2::native::formatDemoTickAuditLines(demoTickAuditReport)) {
+          traceFmt("%s", line.c_str());
+        }
+      }
       tf2::native::buildAssetReferenceList(demoNetworkSummary, demoNetworkSummary.assetReferences);
       for (const auto& reference : demoNetworkSummary.assetReferences) {
         const auto candidate = tf2::native::ModelLoader::resolveAssetReference(assets, reference, itemSchema.get());

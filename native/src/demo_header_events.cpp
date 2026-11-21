@@ -1,5 +1,7 @@
 #include "demo_header.h"
 
+#include "demo_tick_audit.h"
+
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -307,6 +309,12 @@ bool readTempEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32
     }
     ++summary.tempEventHeadersDecoded;
     summary.tempPropDecodedCount += eventState.properties.size();
+    // task-35: the audit sees every anim event, including the ones past the
+    // 16384-entry retention cap below -- a truncated vector cannot be used to
+    // prove a 66-tick window is clean.
+    if (summary.tickAuditCapture != nullptr) {
+      summary.tickAuditCapture->observeTempEvent(summary, static_cast<std::int32_t>(lastClassId), eventState);
+    }
     if (summary.tempEntityEvents.size() < 16384u) {
       TempEntityEvent event;
       event.tick = packetTick;

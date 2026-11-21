@@ -28,6 +28,12 @@ struct DemoIndex {
   std::size_t malformedOffset = 0;
   std::string error;
   std::vector<DemoIndexEntry> entries;
+  // task-35: the packet in/out sequence numbers (the two int32 between the
+  // 76-byte cmdinfo block and the payload length). Kept per packet, in file
+  // order, so the tick audit can compare a packet against its predecessor --
+  // a recording that was spliced shows a backwards or missing number here.
+  std::vector<std::int32_t> packetInSequence;
+  std::vector<std::int32_t> packetOutSequence;
 };
 
 struct DemoHeader {
@@ -642,7 +648,15 @@ struct DemoUserInfoSample {
   std::string name;
 };
 
+// task-35: opt-in anomaly tick audit capture. Incomplete type here on purpose:
+// the audit module owns it, and this header must not depend on that module.
+class DemoTickAuditCapture;
+
 struct DemoNetworkSummary {
+  // Null unless a caller asked for the tick audit. The scan feeds it packet
+  // boundaries, m_flSimulationTime writes and CTEPlayerAnimEvents; when null,
+  // every hook is a single pointer test.
+  DemoTickAuditCapture* tickAuditCapture = nullptr;
   std::size_t packetsScanned = 0;
   std::size_t malformedPackets = 0;
   std::size_t unknownMessagePackets = 0;

@@ -1,5 +1,7 @@
 #include "demo_header.h"
 
+#include "demo_tick_audit.h"
+
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -233,10 +235,16 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   // reset that dropped them would report zero rows on the run that asked for
   // them -- which reads exactly like "there was nothing to retain".
   const CameraTrackLimits cameraTrackLimits = summary.cameraTrackLimits;
+  // task-35: the audit capture is a caller-owned pointer, so it survives the reset
+  // for the same reason the retention limits above do. Without this the caller
+  // would feed a capture the summary no longer points at and every hook would be
+  // a null test for the rest of the scan.
+  DemoTickAuditCapture* const tickAuditCapture = summary.tickAuditCapture;
   summary = {};
   setParserBudgetRejectReason(nullptr);
   summary.projectileTrackLimits = projectileTrackLimits;
   summary.cameraTrackLimits = cameraTrackLimits;
+  summary.tickAuditCapture = tickAuditCapture;
   summary.networkProtocol = networkProtocol;
   if (index.entries.empty()) return false;
   summary.entityClassByIndex.assign(2048u, -1);
@@ -296,11 +304,20 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
     // packet that carries no svc_PacketEntities reads the live table instead of
     // inheriting the previous packet's capture.
     resetCameraCaptureForPacket(summary);
+    // task-35: packet boundary for the tick audit. beginPacket runs before the
+    // decode so the capture knows the tick in force; endPacket runs after it so
+    // a packet that carried svc_NetTick stamps the resolved tick.
+    if (summary.tickAuditCapture != nullptr) {
+      summary.tickAuditCapture->beginPacket(entry.tick, entry.command, summary.lastNetworkTick);
+    }
     DemoMessageStreamResult stream;
     const bool streamOk = decodeDemoMessageStream(payload, payload.size() * 8u, entry.tick,
                                                   summary.lastNetworkTick, summary, stream,
                                                   static_cast<std::uint32_t>(entryIndex));
     ++summary.packetsScanned;
+    if (summary.tickAuditCapture != nullptr) {
+      summary.tickAuditCapture->endPacket(summary, stream.finalNetworkTick, stream.sawNetTick);
+    }
     if (!streamOk || !stream.packetValid || !stream.decodedAny) ++summary.malformedPackets;
     if (entry.command == 2) {
       // T63-F1: the row is indexed by PLAYBACK tick, not by packet ordinal.
