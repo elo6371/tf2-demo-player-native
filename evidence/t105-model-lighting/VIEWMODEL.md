@@ -49,7 +49,7 @@ reach:
   both).
 - The viewmodel pixel shader DOES receive the block -- `register(b1)`,
   `native/src/native_renderer_shaders.cpp:1213`, bound at
-  `native/src/native_renderer_viewmodel.cpp:742` -- with `lightingParams.y` set to 1 on a
+  `native/src/native_renderer_viewmodel.cpp:744` -- with `lightingParams.y` set to 1 on a
   trace run, but its only two arms test `lightingParams.x`
   (`native/src/native_renderer_shaders.cpp:1290` and `:1340`). There is no probe arm in
   that shader, so the flag arrives and is ignored.
