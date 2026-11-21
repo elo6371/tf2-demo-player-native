@@ -836,13 +836,29 @@ struct BspFixture {
   // Planes/nodes/leafs. Left empty, clusterAt() cannot answer and every face
   // gets cluster -1, which is the state a fixture uses when it wants the
   // "triangle has no cluster" half of the VIS reading.
-  struct Leaf { std::int16_t cluster = -1; std::vector<std::uint16_t> faces; };
+  struct Leaf {
+    std::int16_t cluster = -1;
+    std::vector<std::uint16_t> faces;
+    // T105/task-37: the leaf's box. An ambient sample stores its position as a
+    // 0..255 fraction of it, so a fixture that wants to test the position decode
+    // has to set a box that is wider than one unit on each axis.
+    std::int16_t mins[3] = {-64, -64, -64};
+    std::int16_t maxs[3] = {64, 64, 64};
+  };
   std::vector<Leaf> leaves;
   // BSP tree for clusterAt(): a single plane splitting on x at `splitX`, with
   // child 0 -> leaf 0 and child 1 -> leaf 1. Enough to make the camera's cluster
   // answerable without a full tree.
   bool withTree = false;
   float splitX = 0.0f;
+  // T105/task-37: the leaf ambient cube, as the four lumps hold it -- 52/56 for
+  // the LDR page and 51/55 for the HDR one. A fixture builds the index with
+  // appendAmbientEntry() and the data with appendAmbientSample(), so the byte
+  // layout the parser reads is the byte layout the test wrote.
+  std::vector<std::uint8_t> leafAmbientIndex;
+  std::vector<std::uint8_t> leafAmbientLighting;
+  std::vector<std::uint8_t> leafAmbientIndexHdr;
+  std::vector<std::uint8_t> leafAmbientLightingHdr;
 };
 
 // Build the BSP bytes. The result is what a real .bsp file would be, so the only
@@ -854,6 +870,17 @@ std::vector<std::uint8_t> buildFixtureBsp(const BspFixture& fixture);
 // to be a known colour uses this and then mutates the byte at that offset.
 std::int32_t appendLuxel(std::vector<std::uint8_t>& lighting, std::uint8_t r, std::uint8_t g,
   std::uint8_t b, std::int8_t exponent);
+
+// T105/task-37: append one 28-byte dleafambientlighting_t -- six ColorRGBExp32
+// cubes in the (+X, -X, +Y, -Y, +Z, -Z) order, then the sample position as a
+// 0..255 fraction of the leaf box, then the pad byte. Returns the sample index
+// it landed at, which is what an index entry needs.
+std::int32_t appendAmbientSample(std::vector<std::uint8_t>& lighting,
+  const std::uint8_t colors[6][4], std::uint8_t x, std::uint8_t y, std::uint8_t z);
+
+// Append one 4-byte dleafambientindex_t (count, first) to an index lump.
+void appendAmbientEntry(std::vector<std::uint8_t>& index, std::uint16_t sampleCount,
+  std::uint16_t firstSample);
 
 // ---------------------------------------------------------------------------
 // Blend layer resolution (T12)
