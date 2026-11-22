@@ -9,6 +9,12 @@ re-derivable only from that tree. The commands are in section 9. Nothing here is
 lighting pins are byte pins, so they must be re-measured on the exe under test -- and
 were (section 5).
 
+The builds cited in this evidence, and how each one's identity was observed, are collected in
+`evidence/BUILDS.md`. This card's pins belong to exe
+`3a3cb9f1ef348fc0fab27db6784ed6c36777f1ce21abef8d21e0a072b54f4b89` (`git-clean-v1` content
+hash `a73f5ff8…`); the baseline column of section 5 is a different, older exe and BUILDS.md
+says which.
+
 ## 1. What the change does
 
 A wearable (hat, badge, campaign item) is a mesh whose geometry is authored in the SAME
@@ -36,9 +42,10 @@ wearable instances: an origin fallback would put every hat on the map origin. So
 The drawn pieces join the **player** draw group and its budget: they are part of the
 player body, not props. Each piece is one `EntityModelDrawInstance` whose bone table was
 appended to the shared per-tick bone buffer and whose instance carries the `boneOffset`
-of that slice (`native/include/native_renderer.h:324-328` documents the per-instance
-`boneOffset`/`boneCount`; `:1075` is `setEntityBoneMatrices`; `:1111` is the 96-instance
-`entityModelInstanceCapacityLimit`). The instance transform is the **body's**: the merged
+of that slice (`native/include/native_renderer.h:362-367` documents the per-instance
+`boneOffset`/`boneCount` and declares them at `:366-367`; `:1168` is
+`setEntityBoneMatrices`; `:1249` is the 96-instance `entityModelInstanceCapacityLimit`).
+The instance transform is the **body's**: the merged
 bone table is already in the body's model space, so placing the piece is the same
 operation as placing the body it rides.
 
@@ -57,18 +64,18 @@ Everything user-visible is in `native/src/main.cpp`; the placement math is in
 
 | what | where |
 | --- | --- |
-| mode enum + default off | `native/src/main.cpp:3415-3416`, set at `:4008`/`:4011` |
-| per-tick draw tables | `native/src/main.cpp:13709` (`cosmeticsByOwner`), `:13733` (`cosmeticSkippedStandalone`) |
-| owner pre-pass + counters | `native/src/main.cpp:13755-13822` |
-| prop-pass cull of an owned piece | `native/src/main.cpp:13846-13854` |
-| body bone matrix slice | `native/src/main.cpp:14739-14742` (`draw.boneOffset`) |
-| merge + per-piece draw (skinned arm) | `native/src/main.cpp:14869-14960` |
-| piece append to the player group | `native/src/main.cpp:15148-15150` (budgeted by `cosmeticBudget`) |
-| reconciliation before the ledger | `native/src/main.cpp:15325-15329` |
-| ledger line | `native/src/main.cpp:15358-15367` |
+| mode enum + default off | `native/src/main.cpp:3415-3416`, set at `:4026`/`:4029` |
+| per-tick draw tables | `native/src/main.cpp:13793` (`cosmeticsByOwner`), `:13796` (`cosmeticOwnedEntities`), `:13817` (`cosmeticSkippedStandalone`) |
+| owner pre-pass + counters | `native/src/main.cpp:13839-13906` |
+| prop-pass cull of an owned piece | `native/src/main.cpp:13930-13940` |
+| body bone matrix slice | `native/src/main.cpp:14827-14831` (`draw.boneOffset`, `draw.boneCount`) |
+| merge + per-piece draw (skinned arm) | `native/src/main.cpp:14957-15053` |
+| piece append to the player group | `native/src/main.cpp:15257-15264` (budgeted by `cosmeticBudget`) |
+| reconciliation before the ledger | `native/src/main.cpp:15428-15445` |
+| ledger line | `native/src/main.cpp:15473-15482` |
 | merge contract | `native/include/wearable_pose.h:69-98` (`WearableBoneMerge`, `buildWearableBoneMatrices`) |
 | merge implementation | `native/src/wearable_pose.cpp` |
-| per-instance bone slice | `native/include/native_renderer.h:324-328`, `:1075` |
+| per-instance bone slice | `native/include/native_renderer.h:362-367`, `:1168` |
 
 The ledger line is the instrument for "every piece is accounted for". It closes two
 identities, both printed on the same line:
@@ -88,7 +95,7 @@ then never reach a draw of its own (no mesh of its own, or dropped by the body b
 Before the reconciliation those pieces were counted NOWHERE, and a reader comparing
 `demand` with `drawn + overBudget + poseUnavailable` would see unexplained arithmetic.
 The reconciliation block attributes exactly that remainder to `poseUnavailable`
-(`native/src/main.cpp:15325-15329`; the comment at `:15320-15324` states the trade). That
+(`native/src/main.cpp:15428-15445`; the comment at `:15429-15439` states the trade). That
 makes `poseUnavailable` a RESIDUAL BUCKET: it holds pieces whose owner pose was missing AND
 pieces whose owner body never drew (no mesh of its own, or dropped by the body budget). It
 is therefore not a pure pose probe; it deliberately conflates the two, because the
@@ -138,10 +145,15 @@ control pair. The file on this branch was produced by that fixed instrument on T
 
 ## 4. Lighting
 
-`--lighting` changes the shading of a drawn piece. The CLI accepts `off|basic` only
-(`native/src/main.cpp:3968-3986`); the brief addendum says `basic|leaf`, which is stale --
-`leaf` exists for the leaf-cube task-37 instance slot and is not a lighting mode. Recorded
-as a finding, not implemented.
+`--lighting` changes the shading of a drawn piece. The CLI takes three values -- `off`,
+`basic` and `leaf` (`native/src/main.cpp:3969-4004`; the `leaf` arm is `:3985-3992`) -- and
+they become two flags at `:5104-5115`: `leaf` is basic PLUS the per-leaf ambient cube of
+task-37 Half B (`native/src/main.cpp:5105-5107`: "Three values, two flags: leaf implies
+basic"), not a third alternative to it; `off` is the only value that turns basic off.
+Anything else is refused with exit 13 (`native/src/main.cpp:5160-5168`). So the brief
+addendum's `basic|leaf` under-reports the switch (it omits `off`) rather than naming a
+value that does not exist. The `leaf` arm is not captured in this card: its pins are
+`docs/LEAF-AMBIENT-GPU-2026-11-22.md` section 7.
 
 Crops:
 
@@ -285,17 +297,21 @@ Reading the table:
   recorded side by side rather than mixed: task-40's probe table
   (`docs/WEARABLE-ATTRIBUTION-2026-11-21.md:25-27`) reports 17 examined / 4 attributed /
   2 renderable for POV 60162, while this product capture reports examined=37, renderable=2,
-  worldRenderable=2. They come from different instruments (probe table vs product frame
-  table), so each number is cited with its source. Both agree on the outcome that matters:
-  2 world renderable rows, both owners out of frame this tick (`noOwnerBody=2`), so nothing
-  can be placed.
+  worldRenderable=2. Both rows are reproduced verbatim, one under the other, in
+  `evidence/cosmetics/instruments.txt`, so the two instruments can be compared without
+  opening two documents and without mixing their columns. They are different instruments
+  (probe table vs product frame table), so each number is cited with its source. Both agree
+  on the outcome that matters: 2 world renderable rows, both owners out of frame this tick
+  (`noOwnerBody=2`), so nothing can be placed.
 - `poseUnavailable` is 0 on every normal capture -- the owner pose was available for every
   piece that got as far as placement. Section 7 forces the other case.
 - `bonesMerged` / `bonesBindPose` (in the raw lines) are the per-piece merge hit rate: e.g.
   stv 67 merged / 15 bind-pose / 0 invalid, rates 0.817 / 0.183. A bone the owner model does
   not name keeps the wearable's own frame and is counted, never guessed.
 
-Raw: `evidence/cosmetics/readings.txt` (stv tick 600, per-piece lines),
+Raw: `evidence/cosmetics/README.md` (which file came from which script, and which four
+numbers this tree cannot reproduce), `evidence/cosmetics/instruments.txt` (the two POV rows
+side by side), `evidence/cosmetics/readings.txt` (stv tick 600, per-piece lines),
 `evidence/cosmetics/demos.txt` (per demo + negative control),
 `evidence/cosmetics/acceptance.txt` (crop instrument), `evidence/cosmetics/identity.txt` and
 `evidence/cosmetics/ledger.txt` (pins), `evidence/cosmetics/weaponattach.txt` (held weapon
@@ -311,6 +327,9 @@ it has no animation pose for a piece to ride. On stv tick 600, same demo:
 
 19 pieces were owned by bodies in this frame; with the pose gone, all 19 are DROPPED and all
 19 are COUNTED `poseUnavailable`; the account still closes (`worldRenderable=20` both sides).
+Neither BMP md5 on this page is re-derivable from a committed file -- the two `.bmp` files
+and the diff tool that produced the px counts were `.scratch/` artifacts; see
+`evidence/cosmetics/README.md`, "Numbers in the card that this tree cannot reproduce".
 The pixel evidence here is weak and is not relied on: `stv-negctl.bmp` differs from
 `basic.bmp` by 13890 px, but it differs from `off.bmp` by 13725 px -- only 165 px more --
 because switching player animation off changes the pose of every body in frame. The
@@ -359,6 +378,10 @@ Build (the only build path used; it is /W4 and links the seven /WX targets):
 
     bash /d/_shared/tf2-hostlock/hostlock.sh <owner> -- bash tools/lockrun.sh <owner> -- bash build-cmake.sh
     # summary: cmake_build_rc=0  errors=0  warnings=0  exe_count=55  header_stamp=written
+    # (that summary line is this build's own echo. The committed /W4 transcript in this
+    #  repository is evidence/t105-model-lighting/gates/warn-check.log, and it was produced
+    #  on a DIFFERENT tree -- cfd01bd1, 142 TUs. See evidence/BUILDS.md for what inherits
+    #  and what does not.)
 
 Pins (stv demo, tick 600, `--audio-disabled --hidden-window`, `AUDIO_DEVICE=6`):
 
@@ -382,19 +405,27 @@ expensive part, so one lock window per group):
 
 The `.scratch/` scripts are scratch instrument code and are deliberately NOT committed (the
 brief forbids committing scratch); the committed artifacts are their outputs under
-`evidence/cosmetics/`. Each script is short and the important command lines are the ones
-spelled out above.
+`evidence/cosmetics/`. `evidence/cosmetics/README.md` maps every file in that directory to
+the script that produced it, and lists the four numbers in this card that the tree cannot
+reproduce (they lived in `.scratch/` BMPs and traces). Each script is short and the important
+command lines are the ones spelled out above.
 
 ## 10. Findings handed to the next agent
 
 - `native/include/wearable_pose.h:102` says the self-test is reachable through
   `demo_open_probe --cosmetics-pose-selftest`. The probe's real flag is
   `--wearable-pose-selftest` (`native/tools/demo_open_probe.cpp:646-649`, dispatch
-  `:730-745`). The header comment is stale; the flag in this document is the real one.
-- `--lighting basic|leaf` in the task-41 addendum is stale; the CLI accepts `off|basic`.
-- `native/src/demo_header_entity.cpp:396-410` clears wearable slots WITHOUT advancing the
-  generation, unlike the delete/enter sites (`:343`, `:398`). Known asymmetry; recorded,
-  deliberately not "fixed" here.
+  `:730-746`). The header comment is stale; the flag in this document is the real one.
+- `--lighting basic|leaf` in the task-41 addendum is incomplete, not wrong: the CLI accepts
+  `off|basic|leaf` (`native/src/main.cpp:3985-3992`, applied `:5104-5115`). `leaf` is basic
+  plus the per-leaf ambient cube, so the addendum's pair names both lit arms and omits only
+  the default. See section 4.
+- `native/src/demo_header_entity.cpp:410-424` -- the removed-entity finish-up loop (it clears
+  `entityClassByIndex`, `entityStates`, decrements `activeEntityCount` and drops history
+  events) -- does NOT advance the slot generation. The advance sites are the Delete arm
+  (`native/src/demo_header_entity.cpp:339` advances, `:343-345` records) and the Enter arm
+  (`:395-396` advances, `:398-400` records). Known asymmetry; recorded, deliberately not
+  "fixed" here.
 - An unmasked non-deterministic trace line reads exactly like a rendering difference. Before
   calling two runs different, check the paused control pair (section 3).
 

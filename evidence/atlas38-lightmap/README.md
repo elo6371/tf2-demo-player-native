@@ -8,6 +8,9 @@
 
 所有文本都是从本机实跑的 probe / 抓帧里抽出来的。重跑命令见文末；这不属于 gate，只解析 BSP，不需要 host lock。
 
+**成文卡片**：这套证据对应的说明页是 [`docs/LIGHTMAP-ATLAS-2026-11-22.md`](../../docs/LIGHTMAP-ATLAS-2026-11-22.md)（做什么、数字出处、「不做什么」、怎么复现）。本文件是它的原始读数目录，两者不重复：卡片引数字，这里放字节。
+其中 `selftest.txt` 的来源 build 见 [`evidence/BUILDS.md`](../BUILDS.md)；`selftest.txt` 里的自测项与会话外单独跑的那份 probe 自检是两回事 —— 后者在 [`evidence/world-material-selftest.txt`](../world-material-selftest.txt)（merged head 上的七组自检，75 个断言全 true；它**不**重算本目录任何 gate 读数）。
+
 | 文件 | 内容 |
 |------|------|
 | `selftest.txt` | `world_material_probe --self-test` 全文：`lightmapTailSelfTest` 十一个子项逐项 true。其中两行 `drops-*` 打的是 `shelfDropped=`（只数 shelf 溢出），与同一行清单里的 `N refused face(s)`（数所有被拒的 face）是**两个不同人群**，见下面「两个计数器」一节 |
@@ -30,7 +33,7 @@
 | `lightmapAtlasDroppedFaces`（probe 打 `shelfDropped=`） | `lightmapFaceCount - lightmapPackedFaces`，即**进了 atlas 排队的 face 里没排下的** | 只有 **shelf 溢出**：patch 比 atlas 宽/高，或下一行会越过 atlas 底边 |
 | 清单里的 `N refused face(s)` 一行（= `lightDropTotal`） | 这次解析里**所有**被拒的 face，不论在哪一步被拒 | shelf 溢出 **+** 在计数之前就被 `hasLightmap` 拒掉的（lighting page 根本就不存在 / samples box 空或超 512x512 / `lightofs` 落在 page 外面） |
 
-为什么后者不进前者：`lightmapFaceCount` 只在 `hasLightmap` 为真的分支里 `++`（`native/src/bsp_map.cpp:1128-1131`），而一个 face 自己的 `lightofs` / samples box 不成立时，它在那之前就被拒了，所以 `lightmapFaceCount - lightmapPackedFaces` 这条减法**永远看不到它**。`lightDropTotal` 在拒绝点无条件 `++`，两者的差就是这一类。`lightmapAtlasReason` 有第四个分支专门说这件事（`N face(s) carried no usable lightmap and were refused before packing`）。
+为什么后者不进前者：`lightmapFaceCount` 只在 `hasLightmap` 为真的分支里 `++`（判定在 `native/src/bsp_map.cpp:1137`，那一次 `++map.lightmapFaceCount;` 在 `:1234-1235`），而一个 face 自己的 `lightofs` / samples box 不成立时，它在那之前就被拒了，所以 `lightmapFaceCount - lightmapPackedFaces` 这条减法**永远看不到它**。`lightDropTotal` 在拒绝点无条件 `++`，两者的差就是这一类。`lightmapAtlasReason` 有第四个分支专门说这件事（`N face(s) carried no usable lightmap and were refused before packing`）。
 
 - **HDR-only**：`hdr-only.txt` 里 `lightmapMode` 是 `source-equivalent` 且 `facesPacked==facesWithLightmap==14988`、atlas 4096x1331，与原图同值 —— 说明照亮这张图的是 lump 53 而不是某条平均。
   **改之前的样子是实测的，不是回忆**：`hdr-only-before-after.txt` 把同一份 `hdr-only-cp_snakewater_final1.bsp` 字节喂给两棵构建 —— base commit `390a7c76` 的 probe 读到 `lightmapMode:"unavailable"`、`lightmapSamples:0`、`lightmapFaces:0`、`atlas:"0x0"`、`lightmap.state:unavailable`、`trianglesWithLightUv:0`、`uvAllInRange:false`、`atlasReason:"the bsp declares no lightmap faces"`；本次分支的 probe 在同一份字节上读到 `source-equivalent` / 2793687 samples / 14988 faces / 4096x1331 / `active` / 199922 / `true`。base 构建在文件末尾对**未改动的原图**读到的值与本次构建完全一致（`source-equivalent` / 4096x1331 / 14988），所以两边的差异只来自这份副本，不来自两棵构建的其它差别。

@@ -10,9 +10,9 @@
 ## 0. 结论
 
 1. **接线是逐实例的，回落也是逐实例的**。玩家、静态道具、地图模型实体走同一个 `resolveLeafCube()`
-   （`native/src/main.cpp:13084`；玩家 :13772 与静态道具 :14930 用 `draw.origin`。
-   地图模型实体 :13179 用矩阵平移 `matrix[3],[7],[11]`——那个 draw 的 origin 故意留在零，
-   见 :13173-13178 的注释），命中后
+   （`native/src/main.cpp:13203`；玩家 :14045 与静态道具 :15349 用 `draw.origin`。
+   地图模型实体 :13298 用矩阵平移 `matrix[3],[7],[11]`——那个 draw 的 origin 故意留在零，
+   见 :13292-13297 的注释），命中后
    18 个通道写进实例记录、由槽表折成一个 `uint` 槽号塞进实例记录的 `gpu.normal[0][3]`
    （`native/src/native_renderer_entity.cpp:656-702`），顶点着色器按 `nointerpolation uint
    ambientSlot : TEXCOORD9` 传下去（`native/src/native_renderer_shaders.cpp:92,129`），像素着色器
@@ -27,8 +27,8 @@
    求和式印在捕获行上（`native/src/native_renderer_frame.cpp:1003`），并在
    `setEntityModelInstances()` 收尾时断言（`native/src/native_renderer_entity.cpp:937-960`），
    不等就打 `[renderer-invariant] leaf-ambient identity ...`、把 `lastError_` 置 `E_UNEXPECTED`。
-   **普通运行**里设备错误策略把它变成 `PostQuitMessage(3)`（`native/src/main.cpp:16509-16533`）；
-   但**捕获帧**走另一条出口（`native/src/main.cpp:16467-16486`）：那里只看装置/深度面有没有写成，
+   **普通运行**里设备错误策略把它变成 `PostQuitMessage(3)`（`native/src/main.cpp:16991-17016`，其中 `:17014` 那一行）；
+   但**捕获帧**走另一条出口（`native/src/main.cpp:16949-16968`）：那里只看帧/装置/深度面有没有写成，
    **不读 `lastError_`**。所以在正好写 BMP 的那一帧触发不变式，进程仍会退出 0、BMP 照样落盘，
    唯一的证据是 stderr 那行与捕获行上的 `identity=MISMATCH`——读捕获日志必须看这两处，不能只看退出码。
 3. **空立方体落在 `withCube`，不落在 `noCubeInLeaf`**。它有一份烘焙、18 个通道全 0，
@@ -54,7 +54,11 @@
    这是**前任的 exe 是旧的**造成的，见 §8，不是本轮的改动。
    `leaf-trace` 逐字节相同，但它是"法线当颜色"的调试视图
    （`native/src/native_renderer_shaders.cpp:623-629`），只能证明几何/法线通路没变，
-   不能证明立方体数据。
+   不能证明立方体数据。这也是 `basic` 与 `leaf` 两个 `--lighting-trace` 捕获 md5 相同
+   （都是 `3f39236e…`）的原因：像素分支在 :621 先算完 `modelLightingRgb`，随后 :627-628 的
+   调试返回直接把画面换成法线色，光照结果根本没进最终颜色——两条 trace 相同并不说明
+   两个光照模式相同，只说明 trace 视图在 `modelLightingRgb` 之后覆盖了它。这条相等只关于 trace
+   视图，与 leaf 立方体数据本身无关——leaf 臂的画面读数归这张卡的 pin 表，不由这条推断。
 7. **验收（同 tick 室内 vs 室外）**：tick 600 打印的 10 个玩家实例里，+Z 面（朝上=能看到多少天光）
    最高 `0.002354`（index 2/7，leaf 2269）与最低 `0.000105`（index 16，leaf 1511）相差
    **22.42 倍**（6 位小数相除就是 22.42；工具早先按更高精度报 22.35，差在第三位）；画面上能对上的两个玩家做 1:1 裁切（同窗口、两臂）：院子里的（室外叶）
@@ -74,10 +78,10 @@
 
 ### 1.1 数据通路（按执行顺序）
 
-1. `resolveLeafCube(x,y,z, draw)`（`native/src/main.cpp:13084`）在**实体自己的位置**上取 leaf
+1. `resolveLeafCube(x,y,z, draw)`（`native/src/main.cpp:13203`）在**实体自己的位置**上取 leaf
    （源码注释的原话是"origin 是实体的，不是眼睛的"——模型在它站的地方被照亮，眼睛可能高出
    一层楼、身在另一个 leaf）；命中后写 `draw.leafAmbient*[18]` 与 `hasLeafCube`。
-   三个调用点：玩家 :13772 与静态道具 :14930 用 `draw.origin`，地图模型实体 :13179 用矩阵平移。
+   三个调用点：玩家 :14045 与静态道具 :15349 用 `draw.origin`，地图模型实体 :13298 用矩阵平移。
 2. `setEntityModelInstances()` 逐实例：命中 → 18 个 float 进槽表（首次出现分配新槽），
    槽号写 `gpu.normal[0][3]`；未命中 → 写哨兵 `kLeafAmbientNoSlot`（-1.0f，
    `native/src/native_renderer_entity.cpp:667`），**不是 0 号槽**（0 号槽是别人的真立方体，
@@ -188,8 +192,9 @@ cp_sunshine    tick 600: slots=162 instances=420 withCube=346 withCubeEmpty=3 no
 
 **投影的诚实说明**：引擎不打印屏幕投影。本轮把 `worldCenter/worldMinZ/worldScale` 与
 `forward` 加进捕获行，就是为了能自己重建（`map→box` 变换是引擎自己的：
-`native/src/native_renderer_camera.cpp:57-59`，相机也在同一 box 空间，Z 朝上：up 在 :685、
-`LookAtLH` 在 :715、投影在 :800，相机那一行打印在 :793-798）。重建结果在
+`native/src/native_renderer_camera.cpp:53-58` 的 `setObserverFocus`；相机也在同一 box 空间，Z 朝上：
+up 在 `native/src/native_renderer_frame.cpp:685`、`LookAtLH` 在 :715、投影在 :800，相机那一行
+打印在 :793-798）。重建结果在
 `evidence/leaf-ambient-gpu/projection-caveat.txt`：10 个实例里只有 3 个落在画面内，
 其中 index 16（门洞士兵）的投影点与实际红色 blob 底边差 55 px，index 5/13（画面底部的两个）
 脚在画面下沿以下 80-230 px——正好解释为什么底部两个被切了腿。但**投影到的是脚（trace 的
@@ -213,11 +218,16 @@ EXE --demo "$PROC" --capture-tick 600 --capture-frame OUT/name.bmp --audio-disab
 | basic | `--lighting basic` | d927c52639fb10c62a50b3018806a2d3 | 同 | 逐字节相同 |
 | leaf | `--lighting leaf` | 83a85fd73d6dabe166bf38042c2f923f | a3f4229c48c054b8b4bf15e5860c3e43 | 0.225% 像素，见 §8 |
 | leaf-trace | `--lighting leaf --lighting-trace` | 3f39236ee189629f9a5ed42c170a80da | 同 | 逐字节相同（调试视图） |
-| leaf-outline | `--lighting leaf --outline on` | 本轮未采 | b4608170e6e7e6fe8262e1c831e94246 | 本轮批处理去掉了 `--outline on`（exe 不认这个参数、只是容忍），所以只有前任基线 |
+| leaf-outline | `--lighting leaf --outline on` | 本轮未采 | b4608170e6e7e6fe8262e1c831e94246 | 本轮批处理没有排这一臂，所以只有前任基线；参数是真的（见下），不是被 exe 忽略 |
 | sunshine-leaf | 第二张地图，leaf+trace | 73550075d26879a40f0241824ce7bbab | 01afa412794b6a1dd83a90b05cb6b099 | 同 §8 的新旧差 |
 
 三个"不带 leaf"的臂逐字节不变，是"新打印/新计数没改渲染"的硬证据；两条 leaf 臂的差异全部
 来自前任 exe 的陈旧（§8）。
+表里 `leaf-outline` 那一臂的第三列写的是"本轮未采"：`--outline` 是这个 exe 真正接受的开关
+（`native/src/main_cli.h:188-204` 的 `--outline on|off` 与 `:205-221` 的 `--outline-depth xray|tested`，
+状态与用法在 `native/src/main.cpp:3230-3234` 有注释，生效在 `:4931-4932`，非法值在
+`:5017-5023` 被拒并 exit 13），只是本轮的批处理没有排这一臂。要补齐就跟上表其它行一样
+跑同一条命令加上 `--outline on`，再和 `b4608170…` 比。
 
 ## 8. 前任的 exe 是旧的（为什么 leaf 会差 0.225%）
 
