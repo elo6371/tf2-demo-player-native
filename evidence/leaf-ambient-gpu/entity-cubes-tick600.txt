@@ -16,5 +16,5 @@ index  leaf   slot  mean     up(+Z)   down(-Z) up/mean  empty
 
 OUTDOOR (brightest up face): index=2 leaf=2269 slot=23 up=0.002354
 INDOOR  (darkest  up face): index=16 leaf=1511 slot=10 up=0.000105
-ratio outdoor/indoor up face = 22.35
+ratio outdoor/indoor up face = 22.42  (0.002354 / 0.000105 = the 6-dp values above; an earlier run printed 22.35 from higher-precision intermediates)
 empty cubes among the printed players: 0

@@ -1,0 +1,78 @@
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=17s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=1 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=27s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=2 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=7s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=3 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=17s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=4 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=27s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=5 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=7s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=6 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=17s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=7 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=27s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=8 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=7s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=9 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=17s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=10 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=27s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=11 rc=2
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=27540 age=7s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=12 rc=2
+VERIFY-LOCK=ACQUIRED owner=leaf37d pid=9676 dir=/d/_shared/tf2-hostlock/.lock stale_after=3600s
+VERIFY-LOCK=ACQUIRED owner=leaf37d pid=39412 dir=/d/TF2_Native_Worktrees/t105-leaf37b/.scratch/verify-all.lock stale_after=900s
+=== touch edited sources (the edit tool preserves mtime; nmake reads mtime) ===
+2026-11-22 09:41:43.192930800 +0800 native/src/native_renderer_frame.cpp
+2026-11-22 09:41:43.192930800 +0800 native/src/native_renderer_entity.cpp
+2026-11-22 09:41:43.192930800 +0800 native/include/native_renderer.h
+=== build tf2_demo_native leaf_ambient_probe ===
+=== build tf2_demo_native leaf_ambient_probe ===
+note: headers newer than native/build-nmake/.headers-stamp appear in the depend files; nmake rebuilds their dependents
+rc=0
+BUILD-RC=0
+BUILD-WARNING-LINES=0
+=== self-test ===
+SELFTEST-RC=0
+SELFTEST-PASSED=34
+SELFTEST-FAILED=0
+{"check":"table.differentCubeNewSlot","ok":true,"detail":"slotOther=1 distinct=2"}
+{"check":"table.slotIsIndexAndSentinelDistinct","ok":true,"detail":"slots=0,1 sentinel=-1"}
+{"summary":"self-test","failures":0}
+PIN name=bare rc=0 md5=2ddade356e85dd77b795a7380c254bcb args=
+capture: lights enabled=0 sun=1 uploaded=0 declared=369 rejected=0 sunIntensity=0.600 ambientIntensity=0.500
+capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+capture: model-lighting arm=0 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
+PIN name=off rc=0 md5=2ddade356e85dd77b795a7380c254bcb args=--lighting off
+capture: lights enabled=0 sun=1 uploaded=0 declared=369 rejected=0 sunIntensity=0.600 ambientIntensity=0.500
+capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+capture: model-lighting arm=0 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
+PIN name=basic rc=0 md5=d927c52639fb10c62a50b3018806a2d3 args=--lighting basic
+capture: lights enabled=0 sun=1 uploaded=0 declared=369 rejected=0 sunIntensity=0.600 ambientIntensity=0.500
+capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
+PIN name=leaf rc=0 md5=83a85fd73d6dabe166bf38042c2f923f args=--lighting leaf
+capture: lights enabled=0 sun=1 uploaded=0 declared=369 rejected=0 sunIntensity=0.600 ambientIntensity=0.500
+capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+PIN name=leaf-trace rc=0 md5=3f39236ee189629f9a5ed42c170a80da args=--lighting leaf --lighting-trace
+capture: lights enabled=0 sun=1 uploaded=0 declared=369 rejected=0 sunIntensity=0.600 ambientIntensity=0.500
+capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+capture: model-lighting arm=1 trace=1 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=10 traceSkipped=396
+=== second map: cp_sunshine, leaf arm + trace ===
+SUN-RC=0
+SUN-MD5=73550075d26879a40f0241824ce7bbab  .scratch/leafgpu/sunshine-leaf.bmp
+capture: lights enabled=0 sun=1 uploaded=0 declared=286 rejected=0 sunIntensity=0.500 ambientIntensity=0.400
+capture: camera eye=(0.5009,-0.4663,1.8469) forward=(0.034943,-0.991077,-0.128632) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-7553.6997,7774.0000) worldMinZ=-14672.7500 worldScale=0.000118
+capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=11 traceSkipped=409
+SUN-TRACE-LEAF-LINES=11
+=== batch done ===
+VERIFY-LOCK=RELEASED dir=/d/TF2_Native_Worktrees/t105-leaf37b/.scratch/verify-all.lock
+VERIFY-LOCK=RELEASED dir=/d/_shared/tf2-hostlock/.lock
