@@ -640,6 +640,47 @@ int runSelfTest() {
         + " sentinel=" + fmt(tf2::native::kLeafAmbientNoSlot));
   }
 
+  // ---- 7.1 the row the shader indexes is the row the CPU packs ---------
+  //
+  // The consumer is `StructuredBuffer<float4> leafAmbientCubeFaces`, read as
+  // six float4 rows per slot (native/src/native_renderer_shaders.cpp:616-618),
+  // so one cube on the CPU must be exactly six float4s or the upload shears:
+  // the shader would take face 1 from floats 4-6 while the source had put it at
+  // 3-5. It was six float3s for one task round, and the same mismatch also ran
+  // the tail of the memcpy past the end of the vector, which is what made the
+  // leaf arm worse than misaligned -- it was irreproducible. Both numbers are
+  // asserted here so a future edit to either side fails a CHECK rather than a
+  // picture, and a picture is the harder failure to read.
+  {
+    tf2::native::LeafAmbientCubeFace row;
+    const std::size_t rowBytes = sizeof(float) * 4;
+    const std::size_t faces = static_cast<std::size_t>(tf2::native::kLeafAmbientFaces);
+    const auto faceSpan = static_cast<std::size_t>(
+      reinterpret_cast<const char*>(&row.rgb[1]) - reinterpret_cast<const char*>(&row.rgb[0]));
+    check("table.rowIsOneFloat4PerFace",
+      sizeof(tf2::native::LeafAmbientCubeFace) == faces * rowBytes
+        && faceSpan == rowBytes && row.rgb[0].size() == std::size_t{4},
+      "sizeof=" + std::to_string(sizeof(tf2::native::LeafAmbientCubeFace))
+        + " faces=" + std::to_string(faces) + " rowBytes=" + std::to_string(rowBytes)
+        + " faceSpan=" + std::to_string(faceSpan));
+    // The fourth lane is padding the shader never reads, so it must not be part
+    // of a cube's identity: two cubes whose decoded colours agree and whose
+    // padding differs are the SAME bake and must share a slot, or the table
+    // would grow a row for a float nobody shades with.
+    tf2::native::LeafAmbientCubeFace packed{};
+    packed.rgb[3][0] = 1.0f;
+    tf2::native::LeafAmbientCubeFace padded = packed;
+    padded.rgb[3][3] = 123.0f;
+    std::vector<tf2::native::LeafAmbientCubeFace> laneDistinct;
+    const std::uint32_t slotPacked = tf2::native::leafAmbientSlotFor(laneDistinct, packed);
+    const std::uint32_t slotPadded = tf2::native::leafAmbientSlotFor(laneDistinct, padded);
+    check("table.paddingLaneIsNotIdentity",
+      slotPacked == slotPadded && laneDistinct.size() == 1,
+      "slotPacked=" + std::to_string(slotPacked)
+        + " slotPadded=" + std::to_string(slotPadded)
+        + " distinct=" + std::to_string(laneDistinct.size()));
+  }
+
   // ---- 8. the slot BUDGET: rows follow distinct cubes, not samples ------
   //
   // The buffer exists so that N instances standing in one room cost ONE row.
