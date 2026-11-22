@@ -1,0 +1,58 @@
+# task-41 on-path acceptance, produced by .scratch/wear41c-accept.sh
+# exe: native/build-nmake/tf2_demo_native.exe sha256 3a3cb9f1ef348fc0fab27db6784ed6c36777f1ce21abef8d21e0a072b54f4b89
+# demo: E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
+# tick: 600    lighting: default (off) for off/basic/ids; basic-lit states --lighting basic
+# --lighting on this CLI takes off|basic only (native/src/main.cpp:3968-3986);
+# the brief addendum quotes basic|leaf; leaf is not a CLI value -- recorded as a finding.
+
+## capture pins
+ids md5=8c1f76addd048a4465fd6496fbe0b16d bytes=2582406
+off md5=2ddade356e85dd77b795a7380c254bcb bytes=2582406
+basic md5=15cbd4a9fc68118f93151fbd311b655b bytes=2582406
+basic-lit md5=b134e36ece59346e0506fc359223733a bytes=2582406
+basic-attach md5=2ae5a843bdb3f734ec12d68f0e251235 bytes=2582406
+
+## counter line, --cosmetics basic (tick 600)
+scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=19 poseUnavailable=0 skippedStandalone=5 noOwnerBody=1 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=67 bonesBindPose=15 bonesInvalid=0 meshSupplied=15 meshRefused=0
+
+## counter line, --lighting basic (tick 600)
+scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=19 poseUnavailable=0 skippedStandalone=5 noOwnerBody=1 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=67 bonesBindPose=15 bonesInvalid=0 meshSupplied=15 meshRefused=0
+
+## cosmetics + held weapon together
+scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=19 poseUnavailable=0 skippedStandalone=5 noOwnerBody=1 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=67 bonesBindPose=15 bonesInvalid=0 meshSupplied=15 meshRefused=0
+scene: weaponAttach on=1 held=10 drawn=10 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=6 firstRefusal=-
+
+## off path at the same tick (must carry NO cosmetics line)
+absent (off path prints no cosmetics ledger line) -- see identity.txt for the byte pin
+
+## the 1:1 crop proof
+  ID_LEDGER player+skinned subjects=12
+  SUBJECT id=70 ent=5 model=models/player/scout.mdl team=3 family=1 state=idle skinBones=78 validBones=78
+  SUBJECT_LINE 73396.0 entity: id=70 ent=5 model=models/player/scout.mdl team=3 family=1 state=idle seq=175 label=stand_PRIMARY skinned=1 origin=686.1,129.5,633.8 frame_tick=600 cycle=0.000000 frame=0/45 localFrame=0 sectionFrames=0 skinBones=78 validBones=78
+  OWNER_ENT 5
+  ID_PIXELS n=5779 bbox=753,561,834,680 w=82 h=120
+  DIFF changed=272 bbox=32,20,91,133 on_body=262 frac_on_body=0.963 frac_within_2px=0.588
+  CROP_FILES off=crop-off.png basic=crop-basic.png lit=crop-basic-lit.png zoom=crop-basic-3x.png
+  CROP=PASS changed=272 on_body=262 frac_on_body=0.963 (diff must sit within 6 px of the body silhouette)
+
+## the pieces the trace merged for this owner (bone-NAME matched)
+48694.6 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48694.6 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48757.2 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48757.2 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48855.2 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48855.2 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48878.0 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48878.1 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48900.3 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48900.3 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48922.1 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48922.1 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48942.9 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48942.9 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48962.5 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48962.5 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+48981.5 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+48981.5 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+49001.0 cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+49001.0 cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1

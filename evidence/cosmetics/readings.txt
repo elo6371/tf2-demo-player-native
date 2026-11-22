@@ -1,0 +1,59 @@
+# task-41 on-path readings, --cosmetics basic, tick 600
+
+## scene: cosmetics
+scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=19 poseUnavailable=0 skippedStandalone=5 noOwnerBody=1 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=67 bonesBindPose=15 bonesInvalid=0 meshSupplied=15 meshRefused=0
+
+## cosmetic: meshSource
+cosmetic: meshSource requested=9348 resolvedFromWorld=9333 uploaded=15 refused=0 retrySkipped=0 unresolvedPath=0
+
+## bone-merge hit rate on this recording
+# One 'cosmetic: class=' line per (class, owner, wearable, model).
+# bones = the wearable's render bones; merged = a bone the OWNER's pose
+# drove (matched by name); bindPose = no owner bone of that name, so the
+# piece stayed in its own authored frame; invalid = unusable inverse bind
+# or a non-finite owner frame, dropped to identity and counted.
+piece_lines=9348
+bones_total=40344 merged=32964 bindPose=7380 invalid=0
+merged_rate=0.8171 bindPose_rate=0.1829
+
+## per piece
+cosmetic: class=CTFPlayer owner=2 wearable=373 model=models/workshop/player/items/soldier/short2014_soldier_fedhair/short2014_soldier_fedhair.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=374 model=models/workshop/player/items/soldier/spr18_private_maggot_muncher/spr18_private_maggot_muncher.mdl bones=6 merged=3 bindPose=3 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=375 model=models/player/items/cyoa_pda/cyoa_pda.mdl bones=2 merged=1 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=376 model=models/workshop/player/items/soldier/dec24_field_fatigues_style1/dec24_field_fatigues_style1.mdl bones=25 merged=25 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=396 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=4 wearable=505 model=models/player/items/medic/archimedes.mdl bones=6 merged=3 bindPose=3 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=4 wearable=511 model=models/player/items/medic/berliners_bucket_helm.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=4 wearable=523 model=models/workshop/player/items/medic/xms2013_ruffled_beard/xms2013_ruffled_beard.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=7 wearable=439 model=models/workshop/player/items/scout/spr18_punks_pomp/spr18_punks_pomp.mdl bones=7 merged=7 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=8 wearable=415 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=9 wearable=491 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=9 wearable=513 model=models/player/items/all_class/stampable_medal.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=1 skinned=1
+cosmetic: class=CTFPlayer owner=10 wearable=431 model=models/player/items/mvm_loot/demo/fob_h_stickybomb_diamond.mdl bones=5 merged=3 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+cosmetic: class=CTFPlayer owner=10 wearable=481 model=models/workshop/player/items/all_class/asiafortress_participant/asiafortress_participant_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=13 wearable=579 model=models/workshop/player/items/demo/dec23_nightcap/dec23_nightcap.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=16 wearable=543 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=16 wearable=551 model=models/workshop/player/items/soldier/beard/beard.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=373 model=models/workshop/player/items/soldier/short2014_soldier_fedhair/short2014_soldier_fedhair.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=374 model=models/workshop/player/items/soldier/spr18_private_maggot_muncher/spr18_private_maggot_muncher.mdl bones=6 merged=3 bindPose=3 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=375 model=models/player/items/cyoa_pda/cyoa_pda.mdl bones=2 merged=1 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=376 model=models/workshop/player/items/soldier/dec24_field_fatigues_style1/dec24_field_fatigues_style1.mdl bones=25 merged=25 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=396 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=4 wearable=505 model=models/player/items/medic/archimedes.mdl bones=6 merged=3 bindPose=3 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=4 wearable=511 model=models/player/items/medic/berliners_bucket_helm.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=4 wearable=523 model=models/workshop/player/items/medic/xms2013_ruffled_beard/xms2013_ruffled_beard.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=5 wearable=392 model=models/workshop/player/items/scout/dec2014_marauders_mask/dec2014_marauders_mask.mdl bones=3 merged=1 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+cosmetic: class=CTFPlayer owner=5 wearable=401 model=models/workshop/player/items/all_class/ozfortress_sixes_regular_first/ozfortress_sixes_regular_first_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=7 wearable=439 model=models/workshop/player/items/scout/spr18_punks_pomp/spr18_punks_pomp.mdl bones=7 merged=7 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=8 wearable=415 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=9 wearable=491 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=9 wearable=513 model=models/player/items/all_class/stampable_medal.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=1 skinned=1
+cosmetic: class=CTFPlayer owner=10 wearable=431 model=models/player/items/mvm_loot/demo/fob_h_stickybomb_diamond.mdl bones=5 merged=3 bindPose=2 invalid=0 reason=merged-partial family=1 skinned=1
+cosmetic: class=CTFPlayer owner=10 wearable=481 model=models/workshop/player/items/all_class/asiafortress_participant/asiafortress_participant_demo.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=13 wearable=579 model=models/workshop/player/items/demo/dec23_nightcap/dec23_nightcap.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=16 wearable=543 model=models/weapons/c_models/c_rocketboots_soldier.mdl bones=5 merged=4 bindPose=1 invalid=0 reason=merged-partial family=0 skinned=1
+cosmetic: class=CTFPlayer owner=16 wearable=551 model=models/workshop/player/items/soldier/beard/beard.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=373 model=models/workshop/player/items/soldier/short2014_soldier_fedhair/short2014_soldier_fedhair.mdl bones=1 merged=1 bindPose=0 invalid=0 reason=merged family=0 skinned=1
+cosmetic: class=CTFPlayer owner=2 wearable=374 model=models/workshop/player/items/soldier/spr18_private_maggot_muncher/spr18_private_maggot_muncher.mdl bones=6 merged=3 bindPose=3 invalid=0 reason=merged-partial family=0 skinned=1

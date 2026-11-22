@@ -39,7 +39,10 @@ add_executable(temp_entities_fixture_probe tools/temp_entities_fixture_probe.cpp
 target_link_libraries(temp_entities_fixture_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 set_target_properties(temp_entities_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
 
-add_executable(demo_open_probe tools/demo_open_probe.cpp )
+# task-41: the wearable fixture suite is linked into the PROBE only, not into
+# tf2_core: it is evidence for a rule, not part of the product's job, and the
+# product should not carry test scaffolding it never calls.
+add_executable(demo_open_probe tools/demo_open_probe.cpp src/wearable_fixture.cpp )
 target_include_directories(demo_open_probe PRIVATE include third_party/lzma)
 target_link_libraries(demo_open_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(demo_open_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})

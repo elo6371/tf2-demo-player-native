@@ -1,0 +1,37 @@
+# task-41 probe suites -- run by .scratch/wear41c-demos.sh inside the host-lock window
+# exe: native/build-nmake/demo_open_probe.exe
+# exe mtime: 2026-11-22T09:36
+
+## --wearable-pose-selftest (stdout, one line per check)
+wearable_pose_selftest	identity-owner-reproduces-bind-frame	PASS
+wearable_pose_selftest	identity-owner-counts-merged	PASS
+wearable_pose_selftest	owner-translation-is-last-column	PASS
+wearable_pose_selftest	matched-by-name-not-index	PASS
+wearable_pose_selftest	unmatched-bone-counted-as-bind-pose	PASS
+wearable_pose_selftest	unmatched-bone-keeps-bind-frame	PASS
+wearable_pose_selftest	partial-merge-reason	PASS
+wearable_pose_selftest	no-owner-pose-refused	PASS
+wearable_pose_selftest	no-owner-pose-reason	PASS
+wearable_pose_selftest	owner-table-size-mismatch-refused	PASS
+wearable_pose_selftest	empty-wearable-refused	PASS
+wearable_pose_selftest	non-finite-owner-frame-dropped	PASS
+wearable_pose_selftest	invalid-inverse-bind-counted	PASS
+wearable_pose_selftest	invalid-inverse-bind-identity	PASS
+wearable_pose_selftest	every-matrix-finite-and-affine	PASS
+wearable_pose_selftest	bone-count-reported	PASS
+## --wearable-pose-selftest (stderr, the gate line)
+wearable_selftest checks=16 failed=0
+
+## --wearable-fixture-suite (stdout)
+wearable_fixture	missing-owner-property	PASS	attribution=no-owner-handle owner=-1 source=none reject=owner-missing renderable=0
+wearable_fixture	invalid-handle-sentinel	PASS	attribution=no-owner-handle owner=-1 source=none reject=owner-missing renderable=0
+wearable_fixture	invalid-handle-past-snapshot	PASS	attribution=empty-slot owner=900 source=none reject=owner-missing renderable=0
+wearable_fixture	owner-is-not-a-player	PASS	attribution=not-player owner=1 source=none reject=owner-not-player renderable=0
+wearable_fixture	deleted-and-reused-slot	PASS	attribution=generation-changed owner=1 source=none reject=broken-attachment renderable=0 generation=1 atEnd=2
+wearable_fixture	missing-model-index	PASS	attribution=attributed owner=1 source=none reject=no-path renderable=0
+wearable_fixture	schema-template-loses-to-literal	PASS	attribution=attributed owner=1 source=schema reject=none renderable=1 path=models/player/items/fixture/hat_literal.mdl
+wearable_fixture	schema-per-class-wins	PASS	attribution=attributed owner=1 source=schema reject=none renderable=1 schemaClass=soldier
+wearable_fixture	schema-empty-falls-to-precache	PASS	attribution=attributed owner=1 source=precache reject=none renderable=1 path=models/player/items/fixture/hat_precache.mdl
+wearable_fixture	no-route-is-no-path	PASS	attribution=attributed owner=1 source=none reject=no-path renderable=0 rejectNoPath=1
+## --wearable-fixture-suite (stderr, the gate line)
+wearable_selftest checks=10 failed=0

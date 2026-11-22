@@ -1,0 +1,23 @@
+# task-41 LEDGER IDENTITY -- produced by .scratch/wear41-ledger.sh
+# demo: E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
+# mode: --start-paused --capture-tick 0 (deterministic frame sequence)
+# masked: the leading seconds clock, and the wall-clock upload time in
+#         'gpu: model N/M slots=S painted=P <T>ms'. Nothing else.
+#
+# exes:
+#   baseline  .scratch/pin/tf2_demo_native.baseline.exe  sha256 8e013c47d612f35c4454d020dff361d03c113f4c4b066bdaf26e2160f2657e5c
+#   new       native/build-nmake/tf2_demo_native.exe  sha256 3a3cb9f1ef348fc0fab27db6784ed6c36777f1ce21abef8d21e0a072b54f4b89
+#             identity a73f5ff84d724a053c0658cfd2556b8dbce6dfa259d33a7dda1d6d66d0c6078b
+#             contentMethod git-clean-v1
+
+column	lines	bmp_md5
+paused-control-a	980	4f0a047a2b0a21dac4a692a19680e220
+paused-control-b	980	4f0a047a2b0a21dac4a692a19680e220
+paused-baseline	980	4f0a047a2b0a21dac4a692a19680e220
+paused-noswitch	980	4f0a047a2b0a21dac4a692a19680e220
+paused-off	980	4f0a047a2b0a21dac4a692a19680e220
+
+control_a_vs_b:      IDENTICAL
+baseline_vs_off:     IDENTICAL
+baseline_vs_noswitch:IDENTICAL
+noswitch_vs_off:     IDENTICAL

@@ -437,6 +437,19 @@ struct WearableTableRequest {
 WearableInstanceTable buildWearableInstanceTable(const DemoNetworkSummary& summary,
                                                  const WearableTableRequest& request);
 
+// The same builder over a snapshot the CALLER already resolved. The product
+// resolves one snapshot per scene update (native/src/main.cpp, the
+// queryEntitySnapshotAtOrBeforeTick call whose resolvedTick drives the whole
+// frame) and must not replay the entity history a second time to answer a
+// question about the same tick: two queries are two answers, and a hat built
+// from a snapshot the bodies were not drawn from would sit on a player who is
+// not there. `resolved` is the caller's own query status collapsed to the only
+// distinction the table needs: did a snapshot actually resolve. `resolvedTick`
+// is the tick it resolved to, which is what the slot generations are read at.
+WearableInstanceTable buildWearableInstanceTableFromStates(
+    const DemoNetworkSummary& summary, const WearableTableRequest& request,
+    const std::vector<EntityState>& states, std::int32_t resolvedTick, bool resolved);
+
 // The table as tab-separated dump lines, one row per instance plus the counter
 // block. Kept beside the builder so the shape a consumer parses cannot drift from
 // the shape the builder produces.

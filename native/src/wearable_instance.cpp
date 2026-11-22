@@ -427,6 +427,18 @@ void resolveWearablePath(const EntityState& state, const EntityState* owner,
 // ----------------------------------------------------------------- the builder
 WearableInstanceTable buildWearableInstanceTable(const DemoNetworkSummary& summary,
                                                  const WearableTableRequest& request) {
+  std::vector<EntityState> states;
+  std::int32_t resolvedTick = request.tick;
+  const EntitySnapshotQueryStatus status =
+      queryEntitySnapshotAtOrBeforeTick(summary, request.tick, states, &resolvedTick);
+  const bool resolved = status == EntitySnapshotQueryStatus::Available
+                        || status == EntitySnapshotQueryStatus::Checkpoint;
+  return buildWearableInstanceTableFromStates(summary, request, states, resolvedTick, resolved);
+}
+
+WearableInstanceTable buildWearableInstanceTableFromStates(
+    const DemoNetworkSummary& summary, const WearableTableRequest& request,
+    const std::vector<EntityState>& states, std::int32_t resolvedTick, bool resolved) {
   WearableInstanceTable table;
   // "Armed" is a reading, not a constant: it says whether the scan this table was
   // built from had a slot-lifetime capture attached. An unarmed table can still
@@ -443,12 +455,7 @@ WearableInstanceTable buildWearableInstanceTable(const DemoNetworkSummary& summa
   // class table are the only things this function trusts without a capture.
   const WearableSlotCapture* capture = summary.wearableSlotCapture;
 
-  std::vector<EntityState> states;
-  std::int32_t resolvedTick = request.tick;
-  const EntitySnapshotQueryStatus status =
-      queryEntitySnapshotAtOrBeforeTick(summary, request.tick, states, &resolvedTick);
-  table.counters.resolved = status == EntitySnapshotQueryStatus::Available
-                            || status == EntitySnapshotQueryStatus::Checkpoint;
+  table.counters.resolved = resolved;
   table.counters.resolvedTick = resolvedTick;
   table.hasSnapshot = table.counters.resolved && !states.empty();
   if (!table.hasSnapshot) return table;
