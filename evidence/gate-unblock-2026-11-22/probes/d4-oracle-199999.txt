@@ -1,0 +1,207 @@
+[D:\TF2_Demo_Player\work\_refs_demostf\src\demo\parser\mod.rs:92:9] &header = Header {
+    demo_type: "HL2DEMO",
+    version: 3,
+    protocol: 24,
+    server: "169.254.162.70:29104",
+    nick: "SpawN",
+    map: "cp_process_f12",
+    game: "tf",
+    duration: 4151.895,
+    ticks: 276793,
+    frames: 273442,
+    signon: 340948,
+}
+packet_entities tick=199999 max_entries=954 delta=Some(ServerTick(259566)) baseline=Second updated_baseline=false entities=19 removed=[EntityId(465)]
+  entity=EntityId(2) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=3
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(516.75)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(318.12317)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(77)
+  entity=EntityId(3) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=11
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 632.0, y: 1070.75 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(573.5)
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(-1.0588226)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(246.3343)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(77)
+      idx= 19 DT_BasePlayer.m_iHealth = Integer(218)
+      idx=735 DT_TFPlayerShared.m_flFirstPrimaryAttack = Float(3894.14)
+      idx=817 DT_BaseAnimating.m_nNewSequenceParity = Integer(6)
+      idx=818 DT_BaseAnimating.m_nResetEventsParity = Integer(6)
+      idx=826 DT_BaseCombatCharacter.m_hActiveWeapon = Integer(1247630)
+      idx=876 DT_TFPlayer.m_hSecondaryLastWeapon = Integer(1247630)
+  entity=EntityId(4) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=5
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 4.75, y: 1163.375 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(547.75)
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(1.7647095)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(75.307915)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(77)
+  entity=EntityId(5) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=5
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: -166.125, y: 1789.625 })
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(8.823532)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(359.6481)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(76)
+      idx= 19 DT_BasePlayer.m_iHealth = Integer(210)
+  entity=EntityId(6) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=4
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(74)
+      idx=595 DT_TFPlayerConditionSource.m_pProvider = Integer(2097151)
+      idx=705 DT_TFPlayerShared.m_nPlayerCond = Integer(8388608)
+      idx=707 DT_TFPlayerShared.m_nNumHealers = Integer(0)
+  entity=EntityId(7) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=8
+      idx=  5 DT_LocalPlayerExclusive.m_nTickBase = Integer(259576)
+      idx=  7 DT_LocalPlayerExclusive.m_vecVelocity[0] = Float(31.899738)
+      idx=  8 DT_LocalPlayerExclusive.m_vecVelocity[1] = Float(30.1235)
+      idx= 10 DT_TFLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1527.3198, y: 2667.0117 })
+      idx= 12 DT_TFLocalPlayerExclusive.m_angEyeAngles[0] = Float(19.411766)
+      idx= 13 DT_TFLocalPlayerExclusive.m_angEyeAngles[1] = Float(266.04105)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(75)
+      idx=833 DT_BasePlayer.m_flMaxspeed = Float(320.0)
+  entity=EntityId(8) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=4
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1689.0, y: 657.5 })
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(8.117653)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(141.81819)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(72)
+  entity=EntityId(9) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=4
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 916.0, y: 2195.375 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(556.875)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(257.24338)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(74)
+  entity=EntityId(10) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=4
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1567.875, y: 2462.75 })
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(239.6481)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(76)
+      idx= 19 DT_BasePlayer.m_iHealth = Integer(195)
+  entity=EntityId(11) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=7
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1308.25, y: 1676.125 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(1017.625)
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(28.588242)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(212.1994)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(72)
+      idx=817 DT_BaseAnimating.m_nNewSequenceParity = Integer(3)
+      idx=818 DT_BaseAnimating.m_nResetEventsParity = Integer(3)
+  entity=EntityId(12) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=6
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 835.625, y: 616.5 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(742.875)
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(10.235298)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(95.71848)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(75)
+      idx= 19 DT_BasePlayer.m_iHealth = Integer(202)
+  entity=EntityId(13) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=3
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: -12.75, y: -164.125 })
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(62.639294)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(76)
+  entity=EntityId(31) class=249 CTFPlayerResource/DT_TFPlayerResource type=Preserve nprops=3
+      idx=615 m_iHealth.003 = Integer(218)
+      idx=617 m_iHealth.005 = Integer(210)
+      idx=624 m_iHealth.012 = Integer(202)
+  entity=EntityId(331) class=320 CTFViewModel/DT_TFViewModel type=Preserve nprops=4
+      idx=  3 DT_BaseViewModel.m_nSequence = Integer(16)
+      idx=  7 DT_BaseViewModel.m_nAnimationParity = Integer(7)
+      idx= 10 DT_BaseViewModel.m_nNewSequenceParity = Integer(7)
+      idx= 11 DT_BaseViewModel.m_nResetEventsParity = Integer(7)
+  entity=EntityId(376) class=118 CSniperDot/DT_SniperDot type=Preserve nprops=2
+      idx=  1 DT_BaseEntity.m_flSimulationTime = Integer(76)
+      idx=  2 DT_BaseEntity.m_vecOrigin = Vector(Vector { x: 863.96875, y: 1538.25, z: 706.84375 })
+  entity=EntityId(388) class=216 CTFGrenadeLauncher/DT_WeaponGrenadeLauncher type=Preserve nprops=2
+      idx=204 DT_BaseEntity.m_fEffects = Integer(161)
+      idx=243 DT_BaseCombatWeapon.m_iState = Integer(1)
+  entity=EntityId(396) class=352 CWeaponMedigun/DT_WeaponMedigun type=Preserve nprops=5
+      idx=192 DT_LocalActiveWeaponData.m_flTimeWeaponIdle = Float(3894.0498)
+      idx=230 DT_BaseAnimating.m_nSequence = Integer(16)
+      idx=261 DT_WeaponMedigun.m_hHealingTarget = Integer(2097151)
+      idx=262 DT_WeaponMedigun.m_bHealing = Integer(0)
+      idx=267 DT_WeaponMedigun.m_hLastHealingTarget = Integer(2097151)
+  entity=EntityId(398) class=242 CTFPipebombLauncher/DT_WeaponPipebombLauncher type=Preserve nprops=3
+      idx=206 DT_BaseEntity.m_fEffects = Integer(129)
+      idx=230 DT_BaseAnimating.m_nSequence = Integer(19)
+      idx=245 DT_BaseCombatWeapon.m_iState = Integer(2)
+  entity=EntityId(480) class=264 CTFProjectile_Rocket/DT_TFProjectile_Rocket type=Preserve nprops=2
+      idx=  2 DT_BaseEntity.m_flSimulationTime = Integer(72)
+      idx=  3 DT_TFBaseRocket.m_vecOrigin = Vector(Vector { x: 1183.0, y: 194.0, z: 617.0 })
+packet_entities tick=199999 max_entries=954 delta=Some(ServerTick(259568)) baseline=Second updated_baseline=false entities=17 removed=[]
+  entity=EntityId(2) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=8
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(512.625)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(319.1789)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(78)
+      idx= 20 DT_BasePlayer.m_fFlags = Integer(131329)
+      idx=706 DT_TFPlayerShared.m_bJumping = Integer(0)
+      idx=710 DT_TFPlayerShared.m_nAirDucked = Integer(0)
+      idx=817 DT_BaseAnimating.m_nNewSequenceParity = Integer(0)
+      idx=818 DT_BaseAnimating.m_nResetEventsParity = Integer(0)
+  entity=EntityId(3) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=10
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 632.0, y: 1070.75 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(573.5)
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(-1.0588226)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(246.3343)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(77)
+      idx=735 DT_TFPlayerShared.m_flFirstPrimaryAttack = Float(3894.14)
+      idx=817 DT_BaseAnimating.m_nNewSequenceParity = Integer(6)
+      idx=818 DT_BaseAnimating.m_nResetEventsParity = Integer(6)
+      idx=826 DT_BaseCombatCharacter.m_hActiveWeapon = Integer(1247630)
+      idx=876 DT_TFPlayer.m_hSecondaryLastWeapon = Integer(1247630)
+  entity=EntityId(4) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=5
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 4.625, y: 1169.375 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(550.0)
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(1.7647095)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(87.62463)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(78)
+  entity=EntityId(5) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=4
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: -166.125, y: 1789.625 })
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(8.823532)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(359.6481)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(76)
+  entity=EntityId(6) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=1
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(75)
+  entity=EntityId(7) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=7
+      idx=  5 DT_LocalPlayerExclusive.m_nTickBase = Integer(259578)
+      idx=  7 DT_LocalPlayerExclusive.m_vecVelocity[0] = Float(117.695)
+      idx=  8 DT_LocalPlayerExclusive.m_vecVelocity[1] = Float(19.579914)
+      idx= 10 DT_TFLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1530.2173, y: 2667.6575 })
+      idx= 12 DT_TFLocalPlayerExclusive.m_angEyeAngles[0] = Float(19.411766)
+      idx= 13 DT_TFLocalPlayerExclusive.m_angEyeAngles[1] = Float(267.44867)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(77)
+  entity=EntityId(8) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=4
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1692.5, y: 656.75 })
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(8.117653)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(139.00293)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(73)
+  entity=EntityId(9) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=5
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 914.375, y: 2201.125 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(553.875)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(257.24338)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(75)
+      idx= 19 DT_BasePlayer.m_iHealth = Integer(133)
+  entity=EntityId(10) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=3
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1569.875, y: 2466.0 })
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(77)
+      idx= 19 DT_BasePlayer.m_iHealth = Integer(195)
+  entity=EntityId(11) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=5
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 1301.875, y: 1671.5 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(1022.375)
+      idx= 16 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[0] = Float(28.588242)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(212.90321)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(73)
+  entity=EntityId(12) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=4
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: 835.0, y: 628.125 })
+      idx= 15 DT_TFNonLocalPlayerExclusive.m_vecOrigin[2] = Float(743.625)
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(97.12611)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(76)
+  entity=EntityId(13) class=247 CTFPlayer/DT_TFPlayer type=Preserve nprops=3
+      idx= 14 DT_TFNonLocalPlayerExclusive.m_vecOrigin = VectorXY(VectorXY { x: -13.5, y: -163.25 })
+      idx= 17 DT_TFNonLocalPlayerExclusive.m_angEyeAngles[1] = Float(62.639294)
+      idx= 18 DT_BaseEntity.m_flSimulationTime = Integer(77)
+  entity=EntityId(31) class=249 CTFPlayerResource/DT_TFPlayerResource type=Preserve nprops=3
+      idx=615 m_iHealth.003 = Integer(218)
+      idx=617 m_iHealth.005 = Integer(210)
+      idx=624 m_iHealth.012 = Integer(202)
+  entity=EntityId(376) class=118 CSniperDot/DT_SniperDot type=Preserve nprops=2
+      idx=  1 DT_BaseEntity.m_flSimulationTime = Integer(77)
+      idx=  2 DT_BaseEntity.m_vecOrigin = Vector(Vector { x: 863.96875, y: 1538.5625, z: 706.875 })
+  entity=EntityId(388) class=216 CTFGrenadeLauncher/DT_WeaponGrenadeLauncher type=Preserve nprops=2
+      idx=204 DT_BaseEntity.m_fEffects = Integer(161)
+      idx=243 DT_BaseCombatWeapon.m_iState = Integer(1)
+  entity=EntityId(398) class=242 CTFPipebombLauncher/DT_WeaponPipebombLauncher type=Preserve nprops=3
+      idx=206 DT_BaseEntity.m_fEffects = Integer(129)
+      idx=230 DT_BaseAnimating.m_nSequence = Integer(19)
+      idx=245 DT_BaseCombatWeapon.m_iState = Integer(2)
+  entity=EntityId(480) class=264 CTFProjectile_Rocket/DT_TFProjectile_Rocket type=Preserve nprops=2
+      idx=  2 DT_BaseEntity.m_flSimulationTime = Integer(73)
+      idx=  3 DT_TFBaseRocket.m_vecOrigin = Vector(Vector { x: 1172.0, y: 181.0, z: 617.0 })

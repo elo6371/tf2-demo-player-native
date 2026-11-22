@@ -1,0 +1,113 @@
+### install-lifecycle-check.sh
+    # exit sequence and adds --hidden-window --audio-disabled; this gate never starts
+    # a product any other way.
+    TF_ROOT="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    REAL_DEMO="$TF_ROOT/demos/autorecord_2026-07-02_13-26-46.dem"
+### install-readiness-check.sh
+    SMOKE="$BUILD/native_install_smoke_probe.exe"
+    CHAIN="$BUILD/vpk_integrity_probe.exe"
+    TF_ROOT="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    REAL_DEMO="$TF_ROOT/demos/autorecord_2026-07-02_13-26-46.dem"
+### lighting-dark-account-check.sh
+    PRODUCT=native/build-nmake/tf2_demo_native.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    MAP=maps/pl_odyssey.bsp
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### lighting-semantics-check.sh
+    PROBE=native/build-nmake/lighting_semantics_probe.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    MAP=maps/pl_odyssey.bsp
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### material-coverage-check.sh
+    DEMO="D:/TF2_Demo_Player/testdata/demos/bb841c6d379ff7c40d0c8baf99f59d8d_matcha-20260927-1347-cp_snakewater_final1.dem"
+    # A frame in which the weapon pass runs as well, so "the atlas did not leak into
+    # the weapon" is a statement about a draw that happened.
+    POV_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### mutate.sh
+    # The P1 cases need a real demo whose entities carry m_nModelIndex and a TF root
+    # to resolve the paths against. POV rather than SourceTV because it scans in
+    # seconds instead of minutes and exercises the same create-table path.
+    POV="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+### quality-audit-check.sh
+    
+    EXE=native/build-nmake/tf2_demo_native.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### slot-freshness-check.sh
+    #   bagel, server tick 129277, entity 1
+    #     LocalPlayerExclusive   written at 129277  -> the rule picks a FRESH slot
+    #     NonLocalPlayerExclusive written at  56148  -> 73129 ticks stale, not chosen
+    #   POV autorecord_2026-07-02_13-26-46, entity 3
+### t21-capture.sh
+    
+    PRODUCT=native/build-nmake/tf2_demo_native.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+    GUARD: 12:  echo "FATAL: cannot create isolated settings directory" >&2; exit 2; }
+### verify-audio.sh
+      fi
+    }
+    
+    DEMO_POV="$TF_DIR/demos/autorecord_2026-07-02_13-26-46.dem"
+### viewmodel-companion-check.sh
+    #   - the model can pose sequence 1 (section 3 reads that from the model itself).
+    # The pin this gate carried before (2026-10-12, 9cfc9139) said distinct=3,
+    # range=1..30 and modelIndex=1032: those were read off
+    # autorecord_2026-07-02_13-26-46.dem (21,856,667 B, sha c8a58501...), which is no
+### viewmodel-presentation-check.sh
+      {
+        echo "# T22 viewmodel presentation gate, run $RUN_TAG"
+        echo "executable_sha256=$FORWARD_EXE_HASH"
+        echo "recording=autorecord_2026-07-02_13-26-46.dem"
+### viewmodel-range-check.sh
+      echo "  OK   $name pinned ($size bytes, ${sha256:0:16}...)"
+      PINNED=$((PINNED + 1))
+      case "$name" in
+        autorecord_2026-07-02_13-26-46.dem) DEMO_POV="$path" ;;
+    GUARD: 6:  exit 1
+### viewmodel-robustness-check.sh
+    done < "$INPUTS"
+    assert_eq "pinned recordings verified" "$PINNED" "1"
+    case "$DEMO" in
+      *autorecord_2026-07-02_13-26-46.dem) pass "the POV recording is the pinned one" ;;
+### visual-baseline-check.sh
+    PROBE=native/build-nmake/world_geometry_probe.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    MAP=maps/pl_odyssey.bsp
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### weapon-material-check.sh
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    # The POV recording viewmodel-animation-check.sh, viewmodel-companion-check.sh and
+    # weapon-body-check.sh all pin, and the one the weapon chain was measured on.
+    POV_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### world-geometry-completeness-capture.sh
+    
+    PRODUCT=native/build-nmake/tf2_demo_native.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### world-geometry-hole-capture.sh
+    # these seams.
+    PRODUCT=${CAPTURE_PRODUCT:-native/build-nmake/tf2_demo_native.exe}
+    TF=${CAPTURE_TF_ROOT:-D:/SteamLibrary/steamapps/common/Team Fortress 2/tf}
+    DEMO=${CAPTURE_DEMO:-${DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}}  # inherit the gate's WORLD_CHECK_DEMO copy
+### world-material-face-check.sh
+    
+    PRODUCT=native/build-nmake/tf2_demo_native.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### world-material-semantics-check.sh
+    PROBE=native/build-nmake/world_feature_probe.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    MAP=maps/pl_odyssey.bsp
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### world-near-clip-check.sh
+    
+    PRODUCT=native/build-nmake/tf2_demo_native.exe
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### evidence/t85/run-weapon-oom.sh
+    set -uo pipefail
+    cd "$(dirname "$0")/../.."
+    TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
+    DEMO="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+    GUARD: 12:  [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 2; }

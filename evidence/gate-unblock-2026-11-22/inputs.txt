@@ -1,0 +1,15 @@
+RUN-UTC 2026-11-22T03:16:51Z
+WORKTREE /d/TF2_Native_Worktrees/t105-gates
+HEAD 050b98e89929a9517b79aee77ec51804bbc2b9b6
+BRANCH task/gate-unblock
+TF2_POV_DEMO=<unset: default>
+TF2_STV_DEMO=<unset: default>
+INPUT-EXISTS 100302450 E:/demo测试/cp_process_f12/POV/autorecord_2026-09-03_21-05-39.dem
+b6ed3f24c4aa46ba22e66f6a38b3da129135f511995448e9109d27b0d4dc14ad  E:/demo测试/cp_process_f12/POV/autorecord_2026-09-03_21-05-39.dem
+INPUT-EXISTS 90995077 E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
+81ceb1afa4c54ad5fdf14201b1f1a9049c183d11aa70c6ed431a69ebf9f73b94  E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
+INPUT-EXISTS 46921111 D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem
+03529698db749e77a1df1c476c1c0cc06847e1173b5366a0602f1e15161b5436  D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem
+INPUT-MISSING D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem
+PROBE 1145344 Nov 22 09:21
+ORACLE 6512685 Oct 6 14:31

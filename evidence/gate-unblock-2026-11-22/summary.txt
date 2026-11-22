@@ -1,0 +1,100 @@
+=== weapon-world-model ===
+  OK   fixture refs = 11
+  OK   fixture known = 10
+  OK   fixture resolved = 6
+  OK   fixture zero = 2
+  OK   fixture unresolved = 1
+  OK   fixture outOfRange = 1
+  OK   fixture onlyWorld = 2
+  OK   fixture fromWorld = 6
+  OK   fixture agrees = 6
+  OK   fixture viewZero = 2
+  OK   fixture differs = 1
+  OK   fixture armsWeapon (the counter the demos must read 0 on) = 1
+  OK   resolved + zero + unresolved + outOfRange = known = 33
+  OK   every one of 32 non-zero world indices named the path
+  OK   no weapon is left naming its first-person arms
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=0 is the unset case)
+  OK   bagel pathFromWorld = 32
+  OK   bagel known = 33
+  OK   bagel zero = 1
+  OK   bagel worldModelRequests = 32
+  OK   bagel onlyWorld = 0
+  OK   resolved + zero + unresolved + outOfRange = known = 21
+  OK   every one of 21 non-zero world indices named the path
+  OK   no weapon is left naming its first-person arms
+  OK   every world index resolved in modelprecache
+  OK   no view/model index conflict (viewZero=0 is the unset case)
+  OK   pov pathFromWorld = 21
+  OK   pov known = 21
+  OK   pov zero = 0
+  OK   pov worldModelRequests = 21
+  OK   pov onlyWorld = 1
+  OK   the two parsers read the same world model index for entity 822
+  OK   the path came from the world route
+  OK   modelprecache[363] is that path
+  OK   no packet in the live window writes the property, so no tick-exact
+WEAPON-WORLD-MODEL=PASS
+
+=== animation-availability ===
+  OK   bagel CTFPlayer present in schema (found) = 1
+  OK   bagel m_nSequence slots = 0
+  OK   bagel m_flCycle slots = 0
+  OK   bagel m_flPlaybackRate slots = 0
+  OK   bagel m_flPoseParameter slots = 0
+  OK   pov CTFPlayer present in schema (found) = 1
+  OK   pov m_nSequence slots = 0
+  OK   pov m_flCycle slots = 0
+  OK   pov m_flPlaybackRate slots = 0
+  OK   pov m_flPoseParameter slots = 0
+  OK   sourcetv CTFPlayer present in schema (found) = 1
+  OK   sourcetv m_nSequence slots = 0
+  OK   sourcetv m_flCycle slots = 0
+  OK   sourcetv m_flPlaybackRate slots = 0
+  OK   sourcetv m_flPoseParameter slots = 0
+  OK   the rule can report presence, so its 'no' for the player is a measurement
+  OK   classesWithSequence = 197
+  OK   classesWithRate = 197
+  OK   classesWithCycle = 195
+  OK   CTFWeaponBase carries m_nSequence (1 slot), so the wiring has a target
+  OK   the oracle flattened CTFPlayer's DT_BaseAnimating block (15 slots)
+  OK   oracle animation-property slots for CTFPlayer = 0
+  OK   the oracle's schema contains CTFPlayer
+ANIMATION-AVAILABILITY=PASS
+
+=== entity-property-lookup ===
+  OK   fixture fallbackScanned = 3
+  OK   fixture classLookups (entities spared a transform) = 1
+  OK   fixture transforms (was 7 before the pre-check) = 6
+  OK   fixture propertyComparisons (was 24 before the pre-check) = 19
+  OK   fixture instanceCount (unchanged by the pre-check) = 6
+  OK   fixture playerFallbacks (unchanged by the pre-check) = 1
+  OK   bagel sweep is cold (every player already has a request) = 0
+  OK   bagel instanceCount (unchanged) = 6
+  FAIL pov sweep is cold (every player already has a request) = 1831, expected 0
+  OK   pov instanceCount (unchanged) = 6
+ENTITY-PROPERTY-LOOKUP=FAIL (assertions_bad=1)
+
+=== observer-focus ===
+  OK   fixture cases = 11
+  OK   fixture withMode = 9
+  OK   fixture modeNonZero = 8
+  OK   fixture hasTarget = 8
+  OK   fixture inRange = 5
+  OK   fixture present = 4
+  OK   fixture missing (slot present, entity gone) = 1
+  OK   fixture outOfRange (index past the snapshot) = 3
+  OK   fixture follows (in-eye + chase only, not the deathcam) = 2
+FATAL: expected 5 observer rows for entity 18, got 1
+
+=== world-geometry-hole ===
+SKIP no recording at D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem (every pin is pl_odyssey at TICK=2000 in it)
+SKIP   the old default path was lost with the user's TF install; pl_odyssey is
+SKIP   outside the supported map set (docs/T85-SUPPORT-SCOPE.md:35,:50), so no other
+SKIP   map's geometry can stand in for these pins: another recording is another pose
+SKIP   on another map
+SKIP   set WORLD_CHECK_DEMO=<path> to run it against a copy of that recording
+SUMMARY checks=0 fail=0 skip=1
+VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)
+

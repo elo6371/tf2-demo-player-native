@@ -1,0 +1,9 @@
+entities in table 12 range 2..13
+player-shaped entities (2..13): 12 [2,3,4,5,6,7,8,9,10,11,12,13]
+ticks 1369 ticks with >=1 mode!=0 1369 of 1369 = 100.0%
+mode!=0 rows per tick: min 2 median 9 max 12
+mode!=0 per-tick histogram {"2":36,"3":17,"4":60,"5":43,"6":84,"7":142,"8":235,"9":318,"10":191,"11":183,"12":60}
+in-eye rows with both origins 1004 targetOrigin===selfOrigin 384 = 38.2%
+sample res=145589 demo=86022 target=2229.25,1314.375,498.75 nearest cam tick=86000 origin=2253.512939,1068.675049,634.643921
+sample delta=-24.262939 245.699951 -135.893921 |per-axis|=24.262939 245.699951 135.893921 3D=281.8232
+in-eye rows sharing that resolved tick: 54

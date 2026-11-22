@@ -1,0 +1,12 @@
+START 09:57:38
+STEP oracle-199999 start 09:57:38
+STEP oracle-199999 done rc=0 09:57:40 bytes=14807
+STEP oracle-stv-100000 start 09:57:40
+STEP oracle-stv-100000 done rc=0 09:57:41 bytes=18376
+STEP props-e2-199999 start 09:57:41
+STEP props-e2-199999 done rc=0 09:59:21 bytes=73201
+STEP of-e2-sweep start 09:59:21
+STEP of-e2-sweep done rc=0 10:01:20 bytes=348490
+STEP of-stv start 10:01:20
+STEP of-stv done rc=0 10:02:01 bytes=5189
+ALLDONE 10:02:01

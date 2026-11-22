@@ -1,0 +1,122 @@
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=30s heartbeat_limit=3600s)
+attempt=1 rc=2 11:05:36
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=10s heartbeat_limit=3600s)
+attempt=2 rc=2 11:05:46
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=20s heartbeat_limit=3600s)
+attempt=3 rc=2 11:05:56
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=30s heartbeat_limit=3600s)
+attempt=4 rc=2 11:06:06
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=10s heartbeat_limit=3600s)
+attempt=5 rc=2 11:06:16
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=20s heartbeat_limit=3600s)
+attempt=6 rc=2 11:06:26
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=30s heartbeat_limit=3600s)
+attempt=7 rc=2 11:06:36
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=11s heartbeat_limit=3600s)
+attempt=8 rc=2 11:06:47
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=21s heartbeat_limit=3600s)
+attempt=9 rc=2 11:06:57
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=0s heartbeat_limit=3600s)
+attempt=10 rc=2 11:07:07
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=10s heartbeat_limit=3600s)
+attempt=11 rc=2 11:07:17
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=20s heartbeat_limit=3600s)
+attempt=12 rc=2 11:07:27
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=0s heartbeat_limit=3600s)
+attempt=13 rc=2 11:07:37
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=10s heartbeat_limit=3600s)
+attempt=14 rc=2 11:07:47
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=21s heartbeat_limit=3600s)
+attempt=15 rc=2 11:07:58
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=1s heartbeat_limit=3600s)
+attempt=16 rc=2 11:08:08
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=11s heartbeat_limit=3600s)
+attempt=17 rc=2 11:08:18
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=21s heartbeat_limit=3600s)
+attempt=18 rc=2 11:08:28
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=1s heartbeat_limit=3600s)
+attempt=19 rc=2 11:08:38
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=11s heartbeat_limit=3600s)
+attempt=20 rc=2 11:08:48
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=21s heartbeat_limit=3600s)
+attempt=21 rc=2 11:08:59
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=2s heartbeat_limit=3600s)
+attempt=22 rc=2 11:09:09
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=12s heartbeat_limit=3600s)
+attempt=23 rc=2 11:09:19
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=22s heartbeat_limit=3600s)
+attempt=24 rc=2 11:09:29
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=2s heartbeat_limit=3600s)
+attempt=25 rc=2 11:09:39
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=12s heartbeat_limit=3600s)
+attempt=26 rc=2 11:09:49
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=22s heartbeat_limit=3600s)
+attempt=27 rc=2 11:09:59
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=2s heartbeat_limit=3600s)
+attempt=28 rc=2 11:10:09
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=13s heartbeat_limit=3600s)
+attempt=29 rc=2 11:10:20
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=23s heartbeat_limit=3600s)
+attempt=30 rc=2 11:10:30
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=3s heartbeat_limit=3600s)
+attempt=31 rc=2 11:10:40
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=13s heartbeat_limit=3600s)
+attempt=32 rc=2 11:10:50
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=23s heartbeat_limit=3600s)
+attempt=33 rc=2 11:11:00
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=3s heartbeat_limit=3600s)
+attempt=34 rc=2 11:11:10
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=13s heartbeat_limit=3600s)
+attempt=35 rc=2 11:11:20
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=23s heartbeat_limit=3600s)
+attempt=36 rc=2 11:11:30
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=3s heartbeat_limit=3600s)
+attempt=37 rc=2 11:11:41
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=14s heartbeat_limit=3600s)
+attempt=38 rc=2 11:11:51
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=24s heartbeat_limit=3600s)
+attempt=39 rc=2 11:12:01
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=4s heartbeat_limit=3600s)
+attempt=40 rc=2 11:12:11
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=14s heartbeat_limit=3600s)
+attempt=41 rc=2 11:12:21
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=24s heartbeat_limit=3600s)
+attempt=42 rc=2 11:12:31
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=4s heartbeat_limit=3600s)
+attempt=43 rc=2 11:12:41
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=14s heartbeat_limit=3600s)
+attempt=44 rc=2 11:12:51
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=24s heartbeat_limit=3600s)
+attempt=45 rc=2 11:13:01
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=4s heartbeat_limit=3600s)
+attempt=46 rc=2 11:13:11
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=15s heartbeat_limit=3600s)
+attempt=47 rc=2 11:13:22
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=25s heartbeat_limit=3600s)
+attempt=48 rc=2 11:13:32
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=5s heartbeat_limit=3600s)
+attempt=49 rc=2 11:13:42
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=15s heartbeat_limit=3600s)
+attempt=50 rc=2 11:13:52
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=25s heartbeat_limit=3600s)
+attempt=51 rc=2 11:14:02
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=5s heartbeat_limit=3600s)
+attempt=52 rc=2 11:14:12
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=15s heartbeat_limit=3600s)
+attempt=53 rc=2 11:14:22
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=25s heartbeat_limit=3600s)
+attempt=54 rc=2 11:14:32
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=5s heartbeat_limit=3600s)
+attempt=55 rc=2 11:14:42
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=15s heartbeat_limit=3600s)
+attempt=56 rc=2 11:14:53
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=lead-merge5 pid=55904 age=26s heartbeat_limit=3600s)
+attempt=57 rc=2 11:15:03
+VERIFY-LOCK=ACQUIRED owner=gatefix2 pid=29024 dir=/d/_shared/tf2-hostlock/.lock stale_after=3600s
+VERIFY-LOCK=ACQUIRED owner=gatefix2 pid=50496 dir=/d/TF2_Native_Worktrees/t105-gates/.scratch/verify-all.lock stale_after=900s
+STV-HIST rc=0
+"resolverTransforms":256 "resolverFallbackScanned":0 "resolverPropertyComparisons":124664 "resolverClassLookups":0 
+"instanceCount":6
+VERIFY-LOCK=RELEASED dir=/d/TF2_Native_Worktrees/t105-gates/.scratch/verify-all.lock
+VERIFY-LOCK=RELEASED dir=/d/_shared/tf2-hostlock/.lock
+attempt=58 rc=0 11:15:47

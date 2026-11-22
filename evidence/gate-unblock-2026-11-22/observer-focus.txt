@@ -1,0 +1,20 @@
+=== 1/4 wiring fixture (synthetic entities, every branch by construction) ===
+observer-focus-fixture cases=11 withMode=9 modeNonZero=8 hasTarget=8 inRange=5 present=4 missing=1 outOfRange=3 follows=2 serial=867
+  OK   fixture cases = 11
+  OK   fixture withMode = 9
+  OK   fixture modeNonZero = 8
+  OK   fixture hasTarget = 8
+  OK   fixture inRange = 5
+  OK   fixture present = 4
+  OK   fixture missing (slot present, entity gone) = 1
+  OK   fixture outOfRange (index past the snapshot) = 3
+  OK   fixture follows (in-eye + chase only, not the deathcam) = 2
+
+=== 2/4 POV -- the recorder's observing life, with the tick each answer came from ===
+observer-focus at tick=51900 status=before-window resolved=0 states=0
+observer-focus at tick=53400 status=before-window resolved=0 states=0
+observer-focus at tick=53976 status=before-window resolved=0 states=0
+observer-focus at tick=54747 status=before-window resolved=0 states=0
+observer-focus at tick=55394 status=before-window resolved=0 states=0
+observer-focus-summary ticks=5 examined=0 emitted=0 withMode=0 modeNonZero=0 follows=0 targetInRange=0 targetPresent=0 targetMissing=0 targetOutOfRange=0
+FATAL: expected 5 observer rows for entity 18, got 1

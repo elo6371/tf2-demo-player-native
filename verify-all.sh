@@ -1442,7 +1442,21 @@ GEOMETRY_OK=$(grep -c '^  PASS ' "$GEOMETRY_LOG" || true)
 # t58-repin: 53 OK / 0 FAIL). Pinned for the same reason as steps 8, 14, 22, 23
 # and 27: a gate that prints PASS while its assertions quietly disappear is not a
 # gate. Re-measure, never copy, when a later wave adds an assertion.
-if [ "$GEOMETRY_RC" -eq 0 ] && grep -q '^PASS: every empty pixel' "$GEOMETRY_LOG" \
+# A gate that cannot look must not report a verdict, and it must not be scored
+# as a FAIL either: the recording every pin in this gate measures (pl_odyssey at
+# TICK=2000) is gone from the user's TF install, and pl_odyssey is outside the
+# supported map set by user decision (docs/T85-SUPPORT-SCOPE.md:35,:50), so there
+# is no legitimate re-pin -- recapturing the 18-frame matrix on a launch map
+# would assert 53 new numbers about a map this project does not support. Since
+# 2026-11-22 the gate prints "SKIP <reason>" and exits 3, and this chain counts
+# it beside the verdict the way WORLD-SKY-GATE is counted below. Before that the
+# skip path exited 0, so this block read the name-check as FAIL.
+if [ "$GEOMETRY_RC" -eq 3 ]; then
+  GEOMETRY_SKIP_REASON=$(grep -m1 '^SKIP ' "$GEOMETRY_LOG" | sed 's/^SKIP //')
+  echo "WORLD-GEOMETRY-CHECK=SKIP ($GEOMETRY_SKIP_REASON)"
+  skip_all=$((skip_all + 1))
+  if [ -n "$skip_names" ]; then skip_names="$skip_names,WORLD-GEOMETRY-CHECK"; else skip_names="WORLD-GEOMETRY-CHECK"; fi
+elif [ "$GEOMETRY_RC" -eq 0 ] && grep -q '^PASS: every empty pixel' "$GEOMETRY_LOG" \
     && [ "$GEOMETRY_OK" = "53" ]; then
   echo "WORLD-GEOMETRY-CHECK=PASS (53 assertions)"
 else

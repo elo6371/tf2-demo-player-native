@@ -75,8 +75,22 @@ TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
 # A POV demo and the SourceTV match demo, so the negative is not a property of
 # one recording. Both are already pinned elsewhere in the chain.
-POV="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
-SOURCETV="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/73.dem"
+# The recording this gate was built on is gone: measured 2026-11-22, there is no
+# file at tf/demos/autorecord_2026-07-02_13-26-46.dem any more (its 21,856,667
+# bytes and sha256 c8a58501... are quoted all over evidence/). The user
+# authorised a substitute -- a Sep-2026 Sniper POV demo of the same shape -- and
+# every POV pin below was re-measured on it: docs/GATE-UNBLOCK-2026-11-22.md.
+# The variable overrides ONLY which bytes are read, so one value relocates every
+# gate that reads this recording (the minimap-hud-check.sh:131 pattern). Unlike
+# that precedent the default is the substitute, not the old path: the old file
+# does not exist on any host, and a default that FATALs is not a default.
+POV="${TF2_POV_DEMO:-E:/demo测试/cp_process_f12/POV/autorecord_2026-09-03_21-05-39.dem}"
+# 73.dem, the SourceTV demo this case was built on, is gone from the install too.
+# The substitute is the SourceTV recording kept beside the substitute POV in the
+# corpus (E:/demo测试/DEMO-INDEX.md) -- a DIFFERENT session from that POV, so only
+# counts that do not depend on the match may be read from this pair; the third
+# recording stays a SourceTV demo rather than becoming a second POV one.
+SOURCETV="${TF2_STV_DEMO:-E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem}"
 OUT="${ANIM_AVAILABILITY_OUT:-evidence/animation-availability}"
 mkdir -p "$OUT"
 

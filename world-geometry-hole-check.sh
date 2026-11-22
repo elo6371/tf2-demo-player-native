@@ -44,7 +44,15 @@
 # Exit:  0 = every assertion held (or, with --mutation, every mutation went red
 #            and every source came back identical);
 #        1 = an assertion failed, or a mutation did not turn the gate red;
-#        2 = a required tool or input is missing.
+#        2 = a required tool is missing (a broken host, not a broken tree);
+#        3 = SKIPPED: the recording this gate measures is absent. The reason is
+#            printed as "SKIP <reason>" on its own line -- the convention
+#            verify-all.sh:239-241 states and world-sky-gate-check.sh:56-57
+#            implements -- so a calling chain counts the skip instead of scoring
+#            it. Until 2026-11-22 this path printed SKIP and exited 0, which
+#            verify-all step 28 could only read as FAIL (no "^PASS:" line and no
+#            53 assertions), i.e. an absent input was scored as a disagreement
+#            about pixels. See docs/GATE-UNBLOCK-2026-11-22.md.
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -69,13 +77,15 @@ DEMO="${WORLD_CHECK_DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}"
 export DEMO
 TICK=2000
 if [ ! -f "$DEMO" ]; then
-  echo "SKIP world-geometry-hole-check: the recording this gate measures is absent"
-  echo "SKIP   wanted: $DEMO"
-  echo "SKIP   every pin (missing 97,453 px / enclosed 4,613 px / the named seam faces) is pl_odyssey at TICK=$TICK in that recording; another recording is another pose on another map"
-  echo "SKIP   set WORLD_CHECK_DEMO=<path> to run it"
+  echo "SKIP no recording at $DEMO (every pin is pl_odyssey at TICK=$TICK in it)"
+  echo "SKIP   the old default path was lost with the user's TF install; pl_odyssey is"
+  echo "SKIP   outside the supported map set (docs/T85-SUPPORT-SCOPE.md:35,:50), so no other"
+  echo "SKIP   map's geometry can stand in for these pins: another recording is another pose"
+  echo "SKIP   on another map"
+  echo "SKIP   set WORLD_CHECK_DEMO=<path> to run it against a copy of that recording"
   echo "SUMMARY checks=0 fail=0 skip=1"
   echo "VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)"
-  exit 0
+  exit 3
 fi
 mkdir -p "$SCRATCH" "$ANA"
 # --- isolated settings (D-22) ----------------------------------------------
