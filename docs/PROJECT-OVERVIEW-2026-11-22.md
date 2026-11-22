@@ -150,11 +150,21 @@ TF2 本体：D:/SteamLibrary/steamapps/common/Team Fortress 2/tf（tf/maps 下 2
 
 ## 7. 验收现状（诚实版）
 
-- **构建**：合并树 /W4 **零警告**，exe sha256 c6bebfcd…，13 次抓帧与 4 个探针自检用的都是这一个可执行文件。
+- **构建**：合并树 /W4 **零警告**，verify6 那次干净构建的 exe sha256 c6bebfcd…，13 次抓帧与 4 个探针自检用的都是这一个可执行文件。
 - **核心引脚**：bare 2ddade35…、basic d927c526…、leaf fa297fb9…（四次一致）全部在 tick 600 复现。
 - **探针自检**：world_material_probe 75 项全真、leaf_ambient_probe 40 项 0 失败、demo_open_probe 16+10 全过。
-- **30 步链**：本轮跑出一批红步，绝大多数**不是**回归，而是这台机器上输入缺失或门禁自身失效（第 5/9 步缺 demo、第 3 步 CRLF 整行匹配、第 7 步 diff 打不开 /dev/fd、第 8 步变异套件在 14:16 之后编译失败）。逐条判定（A 机器漂移 / B 门禁过期 / C 真回归）由只读取证代理给出。
+- **30 步链（2026-11-22 14:01:16–15:35:44，约 94 分钟）**：`VERIFY=FAIL (30 steps, 1 skipped: WORLD-GEOMETRY-CHECK)`，
+  **9 步 PASS / 20 步红 / 1 步部分跳过**（第 28 步几何半 SKIP、天空半 PASS）。逐条归因已完成：
+  **A（机器/环境）15 步、B（门禁过期或门禁脚本缺陷）5 步、C（真回归）只有 1 步——第 26 步**。
+  A 的主体是**变异套件把半编译的旧目标文件留在库里**（`cp -p` 还原把源码 mtime 退到 .obj 之前，nmake 从不重编），
+  其后第 8/10/11/12/15/19/25/27 步读的都是被污染的二进制；其次是这份 POV 录音与 14 份标定 demo 已不在本机。
+  **别把这张成绩单读成“20 处回归”**：全表、证据与要真修的六件事见 docs/CHAIN-RED-ATTRIBUTION-2026-11-22.md。
+- **唯一一条真回归（第 26 步 player animation pixels）**：掩码从提交时的 3156 px 涨到 262681 px（83 倍），
+  同 tick 的 entity-id 帧证明这些像素确实是 entity pass 画的（白 ∪ 红 == 哨兵集合），所以不是哨兵误判，
+  是 entity pass 真的覆盖了 30.5% 画面（`DRAWN` 只有 2）；on/off 差异也因此从 68.00% 摊薄到 2.24%。
+  未查清的是**哪一段 instance range** 覆盖了这 26 万像素。
 - **引脚能证明什么、不能证明什么**：evidence/BUILDS.md 把每个引脚绑到具体提交和出处（sidecar / 门禁打印 / 运行打印），并写明“像素引脚不等于代码正确”。
+- **工作区卫生**：一次 verify-all 运行**永远**会让工作树变脏（176 条，全是重新生成的 evidence；`evidence/final` 还会被第 2 步覆盖）。做“干净”结论前必须先还原或刻意提交。
 
 ## 8. 想看细节去哪
 
@@ -162,3 +172,5 @@ TF2 本体：D:/SteamLibrary/steamapps/common/Team Fortress 2/tf（tf/maps 下 2
 - 六张卡：docs/COSMETICS-2026-11-22.md、docs/LEAF-AMBIENT-2026-11-21.md、docs/LEAF-AMBIENT-GPU-2026-11-22.md、docs/LIGHTMAP-ATLAS-2026-11-22.md、docs/WEARABLE-ATTRIBUTION-2026-11-21.md、docs/WEARABLE-SCAN-2026-11-21.md、docs/GATE-UNBLOCK-2026-11-22.md。
 - 引脚出处：evidence/BUILDS.md。历史引脚：evidence/leaf-ambient-gpu/retired-pins.txt。
 - 踩坑复盘：docs/KNOWN-ISSUES-AND-FIXES.md。
+- 30 步链红步归因（A/B/C 全表 + 唯一一条真回归的证明 + 要真修的六件事）：docs/CHAIN-RED-ATTRIBUTION-2026-11-22.md。
+- 只读取证代理的原始报告：.scratch/reds/REPORT.md（不随仓提交，内容已并入上一份）。
