@@ -50,8 +50,8 @@ cbuffer WorldConstants : register(b0) {
   float4 lightConeParams[16];       // x exponent, y isSpot
 };
 struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float2 lightUv : TEXCOORD1; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; float4 tileRect : TEXCOORD8; };
-struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; float4 tileRect : TEXCOORD8; };
-Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; output.feature = input.feature; output.tangent = input.tangent; output.tileRect = input.tileRect; return output; }
+struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; float3 normal : NORMAL0; float3 worldPosition : TEXCOORD2; float2 lightUv : TEXCOORD3; float blend : TEXCOORD4; float blendModulate : TEXCOORD5; float4 feature : TEXCOORD6; float4 tangent : TEXCOORD7; float4 tileRect : TEXCOORD8; nointerpolation uint ambientSlot : TEXCOORD9; };
+Output main(Input input) { Output output; output.position = mul(float4(input.position, 1.0), mvp); output.colour = input.colour; output.uv = input.uv; output.normal = input.normal; output.worldPosition = input.position; output.lightUv = input.lightUv; output.blend = input.blend; output.blendModulate = input.blendModulate; output.feature = input.feature; output.tangent = input.tangent; output.tileRect = input.tileRect; output.ambientSlot = 0xFFFFFFFFu; return output; }
 )HLSL";
 
   // N05 step 3: the stream output channel.
@@ -89,6 +89,7 @@ struct WorldOutput {
   float4 feature : TEXCOORD6;
   float4 tangent : TEXCOORD7;
   float4 tileRect : TEXCOORD8;
+  nointerpolation uint ambientSlot : TEXCOORD9;
 };
 struct ClipSample {
   float4 position : SV_POSITION;
@@ -102,6 +103,7 @@ struct ClipSample {
   float4 feature : TEXCOORD6;
   float4 tangent : TEXCOORD7;
   float4 tileRect : TEXCOORD8;
+  nointerpolation uint ambientSlot : TEXCOORD9;
 };
 [maxvertexcount(3)]
 void main(triangle WorldOutput input[3], inout TriangleStream<ClipSample> stream) {
@@ -124,6 +126,7 @@ void main(triangle WorldOutput input[3], inout TriangleStream<ClipSample> stream
     sample.feature = input[i].feature;
     sample.tangent = input[i].tangent;
     sample.tileRect = input[i].tileRect;
+    sample.ambientSlot = input[i].ambientSlot;
     stream.Append(sample);
   }
   stream.RestartStrip();
@@ -192,6 +195,15 @@ Texture2D blendModulateTexture : register(t7);
 Texture2D bumpAtlas : register(t8);
 Texture2D bumpAtlas2 : register(t9);
 Texture2D detailAtlas : register(t10);
+// T105/task-37 Half B: the per-leaf ambient cube table. Slot s owns rows
+// [6*s, 6*s+6), one float4 per face in the same (+X,-X,+Y,-Y,+Z,-Z) order the
+// six face colours in b2 above use, so the two cubes are interchangeable
+// arguments to modelLightingRgb() below. t12 is the first register this shader
+// has free -- t0..t11 are all taken by the lines above -- and nothing else in
+// the tree declares t12 or higher. Only the entity/prop pass binds it; every
+// other draw leaves it unset, and every vertex stage that does not resolve a
+// leaf writes the sentinel, so the sample is branched away rather than read.
+StructuredBuffer<float4> leafAmbientCubeFaces : register(t12);
 SamplerState sampler0 : register(s0);
 float3 safeNormalize(float3 value) {
   float lengthSquared = dot(value, value);
@@ -250,7 +262,7 @@ float3 tangentNormal(float3 texel, float3 Ng, float4 tangent) {
   float3 n = decodeNormal(texel);
   return safeNormalize(T * n.x + B * n.y + Ng * n.z);
 }
-float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5, float4 feature : TEXCOORD6, float4 tangent : TEXCOORD7, float4 tileRect : TEXCOORD8) : SV_TARGET {
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0, float3 normal : NORMAL0, float3 worldPosition : TEXCOORD2, float2 lightUv : TEXCOORD3, float blend : TEXCOORD4, float blendModulate : TEXCOORD5, float4 feature : TEXCOORD6, float4 tangent : TEXCOORD7, float4 tileRect : TEXCOORD8, nointerpolation uint ambientSlot : TEXCOORD9) : SV_TARGET {
   // G7: the tiling is resolved here rather than by the uploader. The gradient
   // is taken from the unwrapped uv (times the tile span) and not from the
   // wrapped coordinate, because frac() steps at a tile boundary and a
@@ -585,7 +597,28 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : T
   // which is continuous through the terminator instead of clipping to black,
   // because a player model has no artist-painted falloff to hide a hard edge.
   if (lightingParams.x > 0.5) {
-    lightingRgb = modelLightingRgb(n, ambientCube, sunDirectionAndIntensity);
+    // T105/task-37 Half B: WHICH cube. The six face colours in b2 come from the
+    // map's global lights (task-36); the table at t12 comes from the BSP's own
+    // per-leaf bake for this instance. The default is copied in first and the
+    // table overwrites it only when the vertex stage resolved a leaf, so there
+    // is ONE arithmetic path below and the leaf arm cannot drift from the basic
+    // one -- it can only substitute the cube.
+    //
+    // ambientSlot is nointerpolation: a slot index blended between two vertices
+    // would index a fraction of a cube. 0xFFFFFFFF is the sentinel both the
+    // world and entity vertex shaders write when they have no leaf cube; a real
+    // slot is a small non-negative integer and can never collide with it.
+    float4 leafCube[6];
+    [unroll] for (int ambientFace = 0; ambientFace < 6; ++ambientFace) {
+      leafCube[ambientFace] = ambientCube[ambientFace];
+    }
+    if (ambientSlot != 0xFFFFFFFFu) {
+      const uint ambientBase = ambientSlot * 6u;
+      [unroll] for (int leafFace = 0; leafFace < 6; ++leafFace) {
+        leafCube[leafFace] = leafAmbientCubeFaces[ambientBase + leafFace];
+      }
+    }
+    lightingRgb = modelLightingRgb(n, leafCube, sunDirectionAndIntensity);
     lighting = max(lightingRgb.r, max(lightingRgb.g, lightingRgb.b));
     // --lighting-trace: write the interpolated normal out as colour. The probe
     // is what proves the vector above is world space: one model drawn at two
@@ -1017,6 +1050,21 @@ struct Output {
   // G7 is a world-surface fix, so the entity pass writes zeros and keeps the
   // old untiled sampling.
   float4 tileRect : TEXCOORD8;
+  // T105/task-37 Half B: the same rule again, third time. The world pixel
+  // shader now reads a tenth interpolant -- which leaf cube to shade this
+  // instance with -- and this pass draws through that same pixel shader. It has
+  // to be declared here or the entity stage leaves it undefined, and on this
+  // driver an undefined interpolant reads as 1.0. 1.0 as a slot index is not a
+  // neutral value: it would silently select slot 1 of the leaf table for every
+  // entity and prop in the frame, which is a real cube belonging to some other
+  // part of the map. The sentinel is the neutral write, and it means "fall back
+  // to the b2 global cube", which is exactly what --lighting basic draws.
+  //
+  // The value arrives in the .w of the first normal row: that lane is dead
+  // space in a 128-byte instance record (see EntityModelInstanceGpu in
+  // native/src/renderer_internal.h) and the CPU fills it per instance, so this
+  // costs no stride and no input-layout element.
+  nointerpolation uint ambientSlot : TEXCOORD9;
 };
 Output main(Input input) {
   Output output;
@@ -1068,6 +1116,15 @@ Output main(Input input) {
   output.feature = float4((float)input.boneInfo.w, 0.0, 0.0, 0.0);
   output.tangent = float4(1.0, 0.0, 0.0, 0.0);
   output.tileRect = float4(0.0, 0.0, 0.0, 0.0);
+  // T105/task-37 Half B: the leaf slot rides in the .w of the first normal row,
+  // which is otherwise unused -- the normal is rotated by nrow0.xyz on the line
+  // above and the fourth lane is padding in the 128-byte instance record. The
+  // CALLER writes -1.0 there for an instance with no leaf cube, so the
+  // comparison is against that exact value rather than a cast of a negative
+  // float: HLSL's float-to-uint conversion clamps a negative to 0, and 0 is a
+  // perfectly good slot -- a falling-back instance would have shaded itself
+  // with whatever cube happened to be first in the table.
+  output.ambientSlot = input.nrow0.w < 0.0 ? 0xFFFFFFFFu : (uint)input.nrow0.w;
   return output;
 }
 )HLSL";

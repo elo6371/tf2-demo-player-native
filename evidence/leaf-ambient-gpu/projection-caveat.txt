@@ -1,0 +1,30 @@
+# Can a traced entity be tied to pixels? Attempt, and why the crops above do not rely on it.
+# This round added the world constants to the capture line exactly for this check:
+#   capture: camera eye=... forward=... hflip=1 vfov=73.7398 aspect=1.856094
+#            worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+# The map->box transform is the engine's own, verified in source:
+#   boxX=(x-worldCenterX)*worldScale, boxY=(y-worldCenterY)*worldScale,
+#   boxZ=(z-worldMinZ)*worldScale+0.1        native/src/native_renderer_camera.cpp:57-59
+# and the camera is built in that same box space (Z up):
+#   up=(0,0,1) native/src/native_renderer_frame.cpp:685,
+#   eye=demoEye, target=eye+mapForward*worldScale, XMMatrixLookAtLH at :715,
+#   XMMatrixPerspectiveFovLH(radians(worldVerticalFov), aspect) at :794.
+# .scratch/accept.py rebuilds that projection and prints one line per traced entity:
+#
+# ENT index=4  medic   leaf=504  slot=24 meanLum=0.000880 upLum=0.001838 screen=(474.0,384.5)  in frame
+# ENT index=8  soldier leaf=462  slot=25 meanLum=0.000346 upLum=0.000116 screen=(672.1,376.4)  in frame
+# ENT index=16 soldier leaf=1511 slot=10 meanLum=0.000238 upLum=0.000105 screen=(1123.2,673.2) in frame
+# ENT index=5  scout   leaf=1827 slot=16 meanLum=0.001556 upLum=0.002344 screen=(679.7,909.6)  below frame
+# ENT index=13 demo    leaf=1827 slot=16 meanLum=0.001556 upLum=0.002344 screen=(707.2,770.9)  below frame
+# ENT index=2,7,9,10,15 project behind the camera or outside the frame.
+#
+# What it proves: the transform chain is the engine's, and the two soldiers standing at the
+# bottom edge really are index 5 and 13 (their feet project 80-230 px below the frame edge,
+# which is why the capture cuts their legs) while index 16 is the soldier in the right-hand
+# doorway (projected feet y=673 vs the red blob's bottom y=618, i.e. 55 px apart).
+# What it does NOT prove: a pixel-exact body mask. The entity's drawn pivot is not the map
+# origin (the model rows carry the model-space frame -- native_renderer_entity.cpp:650-662),
+# and the renderer does not print that offset, so the projection of the trace origin lands
+# at the feet, not at the visible torso. The crops in player-crops-stats.txt therefore cut
+# their box around the MEASURED red-uniform blob and quote the cube of the nearest traced
+# player as such, rather than pretending a projection tie the engine does not print.

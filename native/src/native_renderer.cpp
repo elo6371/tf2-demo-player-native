@@ -1214,6 +1214,10 @@ void Renderer::shutdown() {
   entityBoneBuffer_.Reset();
   entityBoneCapacity_ = 0;
   entityBoneMatrixCount_ = 0;
+  leafAmbientCubeView_.Reset();
+  leafAmbientCubeBuffer_.Reset();
+  leafAmbientCubeCapacity_ = 0;
+  leafAmbientSlotCount_ = 0;
   entityModelInstanceCapacity_ = 0;
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;

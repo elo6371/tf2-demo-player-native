@@ -1,0 +1,9 @@
+# pixel differences between captures of the SAME tick (1264x681 = 860784 px)
+# --lighting-trace renders the interpolated normal as colour by design
+# (native/src/native_renderer_shaders.cpp:623-629), so its capture is a debug view,
+# not a lighting view: the cube values are printed before that shader branch runs.
+leaf        vs basic       changed=110448 (12.831%) changed>=16=54182 meanAbs=3.653 max=255
+leaf        vs leaf-trace  changed=117804 (13.686%) changed>=16=117801 meanAbs=18.576 max=255
+basic       vs leaf-trace  changed=117804 (13.686%) changed>=16=117768 meanAbs=18.539 max=255
+bare        vs basic       changed=114616 (13.315%) changed>=16=102176 meanAbs=6.920 max=114
+predecessor leaf (png) vs this round leaf: changed=1934 (0.225%) changed>=16=1934 meanAbs=0.362 max=255

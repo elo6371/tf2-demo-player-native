@@ -1,0 +1,27 @@
+# /W4 build of both targets after touching the edited sources (task-37 half B)
+# source: .scratch/leafgpu/batch-37d.log lines 27-40 -- the batch run whose exe is
+# the one every pin in pins-and-counters.txt was captured with. The build driver
+# prints only rc; capture-batch.sh then counts 'warning' lines in
+# .scratch/build-target.log (grep -ci warning) right after the build.
+# The probe-only rebuild that raised the self-test from 34 to 38 checks is in
+# probe-rebuild.log (PROBE-WARNING-LINES=0); this file covers the two main targets.
+
+=== touch edited sources (the edit tool preserves mtime; nmake reads mtime) ===
+2026-11-22 09:41:43.192930800 +0800 native/src/native_renderer_frame.cpp
+2026-11-22 09:41:43.192930800 +0800 native/src/native_renderer_entity.cpp
+2026-11-22 09:41:43.192930800 +0800 native/include/native_renderer.h
+=== build tf2_demo_native leaf_ambient_probe ===
+=== build tf2_demo_native leaf_ambient_probe ===
+note: headers newer than native/build-nmake/.headers-stamp appear in the depend files; nmake rebuilds their dependents
+rc=0
+BUILD-RC=0
+BUILD-WARNING-LINES=0
+=== self-test ===
+SELFTEST-RC=0
+SELFTEST-PASSED=34
+SELFTEST-FAILED=0
+
+# reading: rc=0 and BUILD-WARNING-LINES=0 for "tf2_demo_native leaf_ambient_probe".
+# The self-test in this batch run reports 34 because the probe exe was still the
+# stale one at that moment; probe-rebuild.log and self-test-38-checks.txt are the
+# rebuilt probe (38 checks, 0 failures).
