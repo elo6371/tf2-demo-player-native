@@ -1,0 +1,33 @@
+# POV 60162: the same demo, the same tick, two instruments, two numbers
+
+Task-40 measured the demo with a probe table; task-41 measured it with a product frame
+table. The two examined counts differ (17 vs 37) and the card
+(`docs/COSMETICS-2026-11-22.md` section 6) refuses to average them, because they are not
+the same instrument. This file puts the two lines one under the other so the disagreement
+is visible in one place.
+
+```
+# task-40 probe table -- docs/WEARABLE-ATTRIBUTION-2026-11-21.md:27
+#   columns: 样本 | 卡面 tick | 实际解析 tick | 陈旧 | examined | attributed | renderable
+pov  60162  59563  599  17  4  3
+
+# task-40's own six-counter line for the same tick,
+# quoted from the same card's section 1 (attribution 4 / path_source 10 2 5 /
+# template 5 0 1 / verdict 3 / draw_path 2 1):
+pov: attribution 4 0 0 0 13 0   path_source 10 2 5 (588‰)   template 5 0 1 (294‰)   verdict 3 13 0 0 0 0 1   draw_path 2 1
+
+# task-41 product frame table -- evidence/cosmetics/demos.txt:23
+scene: cosmetics on=1 examined=37 renderable=2 worldRenderable=2 drawn=0 poseUnavailable=0 skippedStandalone=0 noOwnerBody=2 noMesh=0 overBudget=0 templateRefused=0 reserved=0 demand=0 bonesMerged=0 bonesBindPose=0 bonesInvalid=0 meshSupplied=3 meshRefused=0
+```
+
+Why the examined counts differ: the probe table walks the entity snapshot queue for the
+resolved tick and counts every entity whose class is in the wearable allow-table; the product
+frame table counts the rows the render path itself built during that frame, which includes
+rows the probe's tick resolution never reached and excludes rows outside the frame's candidate
+set. Neither is a superset of the other, which is exactly why the card cites each number with
+its own source instead of quoting one as "the" count.
+
+What the two instruments agree on: `renderable` is 2 in the product table and 3 in the probe
+table, and both tables put the world-path result at 2 (`draw_path 2 1` = 2 world + 1 viewmodel
+in the probe; `worldRenderable=2` in the product line). Both agree that nothing could be
+placed this tick -- the product line says why (`noOwnerBody=2`).

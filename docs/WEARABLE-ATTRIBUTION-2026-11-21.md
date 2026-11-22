@@ -2,9 +2,9 @@
 
 前置：门禁卡 `docs/WEARABLE-SCAN-2026-11-21.md`（task-39）证明了三件事答得出来——实体在、占比可统计、owner 100% 可解析——并且给出对 task-40 的四条硬要求（类名允许表、路径来源必须反转、归属靠 handle + 同 tick 校验、不要用 origin/angles 摆位）。本文是这四条要求的实现、实测与限制。
 
-* 开关：`native/tools/demo_open_probe.cpp` 新增 `--cosmetics-table <tick>` 与 `--tf-root <dir>`（:827-846 解析，两条 usage :642 / :945）。不给出就完全不起作用：`summary.wearableSlotCapture` 是空指针（:1007 才被赋值），`buildWearableInstanceTable` 根本不被调用（:1017）。
-* 源码：`native/include/wearable_instance.h`（448 行）+ `native/src/wearable_instance.cpp`（1017 行），进 `tf2_core`（`native/cmake/tf2-libraries.cmake:65`），探针与产品共用同一份实现。
-* 三条 demo 的实测读数见 §2；三条门禁式检查行（归属 / 路径来源 / 判词）每一族都打印「分项之和 = examined」与 PASS/FAIL（`WearableTableCounters::balanced()`，`native/src/wearable_instance.cpp:661`），所以「某一族漏计一行」是读数而不是推断。
+* 开关：`native/tools/demo_open_probe.cpp` 新增 `--cosmetics-table <tick>` 与 `--tf-root <dir>`（`--wearable-scan` 在 :839-850 解析、`--cosmetics-table` 在 :855-866 解析，两条 usage :646-649 / :973-974 同步）。不给出就完全不起作用：`summary.wearableSlotCapture` 是空指针（:1028 声明，:1035 才被赋值），`buildWearableInstanceTable` 根本不被调用（:1081）。
+* 源码：`native/include/wearable_instance.h`（461 行）+ `native/src/wearable_instance.cpp`（1024 行）——两个数字是 `wc -l` 在本仓库实测（`wc -l native/include/wearable_instance.h native/src/wearable_instance.cpp`），不是估算。两者都进 `tf2_core`（`native/cmake/tf2-libraries.cmake:65`），探针与产品共用同一份实现。
+* 三条 demo 的实测读数见 §2；三条门禁式检查行（归属 / 路径来源 / 判词）每一族都打印「分项之和 = examined」与 PASS/FAIL（`WearableTableCounters::balanced()`，`native/src/wearable_instance.cpp:668`），所以「某一族漏计一行」是读数而不是推断。
 
 ## 0. 结论
 
@@ -81,7 +81,7 @@ wearable_instance  49444 48845 429 1 CTFWearableVM allowed viewmodel attributed 
 | `generation-changed` | 解析 tick 时的代次 ≠ 录像结束时的代次——**槽位在录制过程中换过主人** |
 | `attributed` | 以上都不成立 |
 
-`WearableSlotCapture`（`native/include/wearable_instance.h:99-142`）是所有代次读数的唯一来源。它只在**两个**地方被推进：`native/src/demo_header_entity.cpp:343`（Delete，`++generation` 之后）与 `:398`（Enter，`++projectileTrackSeriesStarted` 之后）。`recordWearableSlotGeneration` 的 null 检查就是开关本体——没开 capture 就是零开销，所以默认路径不会因为这条读数多跑一行。
+`WearableSlotCapture`（`native/include/wearable_instance.h:99-142`）是所有代次读数的唯一来源。它只在**两个**地方被推进：`native/src/demo_header_entity.cpp:343-345`（Delete，紧跟 :339 的 `++projectileTrackSlotGeneration[...]`）与 `:398-400`（Enter，紧跟 :395 的 `++...` 与 :396 的 `++projectileTrackSeriesStarted`）。`recordWearableSlotGeneration` 的 null 检查就是开关本体——没开 capture 就是零开销，所以默认路径不会因为这条读数多跑一行。
 
 **为什么必须这样，而不是按 index 认领**：POV 60162 的 13 个拒绝行给出了教科书式的例子——
 
@@ -97,7 +97,7 @@ wearable_instance  60162 59563 361 1 CTFWearable allowed world generation-change
 
 ## 4. D3 —— 路径来源：反转，以及反转之后必须再修一次
 
-**反转本身**：`resolveWearablePath()`（`native/src/wearable_instance.cpp:295` 起）**先算 schema、再算 precache**，与 handover :312 写的顺序相反。依据是 task-39 §1.2 的分布：332 个实例里只有 30 个（9.0%）的 `m_nModelIndex` 落在 modelprecache 之内，其余 302 个的索引值落在范围外（4294967280 / 4294967292 / 4294967294 / 4294967278 这类哨兵）。`model_loader.cpp:1281-1283` 的 `hasModelPath` 短路和 :1329 的「跳过无路径引用」如果照原样喂给饰品，task-41 会是一片空白——这是门禁卡 :241 的原话。
+**反转本身**：`resolveWearablePath()`（`native/src/wearable_instance.cpp:308` 起）**先算 schema、再算 precache**，与 handover :312 写的顺序相反。依据是 task-39 §1.2 的分布：332 个实例里只有 30 个（9.0%）的 `m_nModelIndex` 落在 modelprecache 之内，其余 302 个的索引值落在范围外（4294967280 / 4294967292 / 4294967294 / 4294967278 这类哨兵）。`model_loader.cpp:1281-1283` 的 `hasModelPath` 短路和 :1329 的「跳过无路径引用」如果照原样喂给饰品，task-41 会是一片空白——这是门禁卡 :241 的原话。
 
 **两条路径都要算，不是赢了才算**：每一行都同时给出 `precacheCandidate` 与 `schemaCandidate`，再用 `routesDisagree` 报告二者是否指向不同文件。只在分出胜负之后再去看败方，会看不见「两条路给出不同答案」这件事本身。
 
@@ -148,7 +148,7 @@ tick, resolvedTick, entityIndex, generation, className, allowed|excluded, drawpa
 `buildWearableInstanceTable(summary, request)`（`native/src/wearable_instance.cpp:428`）做一次查询、产出一张表、三十行计数器。要点：
 
 * **一次查询**：`queryEntitySnapshotAtOrBeforeTick(summary, request.tick, states, &resolvedTick)`——整段 dump 只有这一次查询，所以归属、路径、判词三族来自同一份快照，不可能互相矛盾。这也是 task-39 门禁卡 :5 立下的规矩。
-* **三族各自守「和 = examined」**：归属六桶、路径三桶、判词七桶（renderable + 六个拒绝理由）。`WearableTableCounters::balanced()`（:661）把这三个等式写成代码，dump 里每族打印各自的 PASS/FAIL，末尾再打印整个 `wearable_table` 的 `BALANCED`/`UNBALANCED`。
+* **三族各自守「和 = examined」**：归属六桶、路径三桶、判词七桶（renderable + 六个拒绝理由）。`WearableTableCounters::balanced()`（`native/src/wearable_instance.cpp:668`）把这三个等式写成代码，dump 里每族打印各自的 PASS/FAIL，末尾再打印整个 `wearable_table` 的 `BALANCED`/`UNBALANCED`。
 * **`wearable_table` 行**：tick, resolvedTick, stale, armed, hasSnapshot, schemaLoaded, assetRootValid, rows.size(), balanced——把「表能不能自证」需要的状态一次说完。
 * **`armed` 是独立读数**：`table.armed = summary.wearableSlotCapture != nullptr`。一张没开 capture 的表能说出模型名，却证明不了任何归属（代次全部 unknown），所以这两件事必须分开显示。
 
@@ -162,12 +162,12 @@ tick, resolvedTick, entityIndex, generation, className, allowed|excluded, drawpa
 
 | 位置 | 内容 |
 |---|---|
-| `native/tools/demo_open_probe.cpp:642` / `:945` | 两条 usage 同步加上 `[--cosmetics-table <tick>] [--tf-root <dir>]` |
-| `:827-846` | 解析：`--cosmetics-table` 走 `std::wcstol`，超出 `[0, INT32_MAX]` 直接拒绝；`--tf-root` 接受一个目录 |
-| `:969` | `std::string cosmeticsTableText;` |
-| `:1000` / `:1007` | `WearableSlotCapture wearableSlotCapture;` 与 `if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;` |
-| `:1017-1062` | 仅在开关打开时：装 asset root（`--tf-root` 优先，否则 `AssetRoot::findInstalled(steamLibraryCandidates(...))`）、`ItemSchema::load(<tf>/scripts/items/items_game.txt)`、`buildWearableInstanceTable` → `formatWearableTableLines` → 窄字符 `cosmeticsTableText` |
-| `:1801` / `:1808` | 写回判定与写出列表各加一处 |
+| `native/tools/demo_open_probe.cpp:646-649` / `:973-974` | 两条 usage 同步加上 `[--cosmetics-table <tick>] [--tf-root <dir>]` |
+| `:855-866` | 解析：`--cosmetics-table` 走 `std::wcstol`，超出 `[0, INT32_MAX]` 直接拒绝（:861）；`--wearable-scan` 在 :839-850；`--tf-root` 接受一个目录 |
+| `:997` | `std::string cosmeticsTableText;`（`wearableDumpText` 在 :994） |
+| `:1028` / `:1035` | `WearableSlotCapture wearableSlotCapture;` 与 `if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;` |
+| `:1045-1091` | 仅在开关打开时：装 asset root（`--tf-root` 优先，否则 `AssetRoot::findInstalled(steamLibraryCandidates(...))`）、`ItemSchema::load(<tf>/scripts/items/items_game.txt)`、`buildWearableInstanceTable` → `formatWearableTableLines` → 窄字符 `cosmeticsTableText` |
+| `:1828-1829` / `:1835-1836` | 写回判定与写出列表各加一处 |
 
 **复现**（demo 路径必须是最后一个参数——探针先解析开关、再把剩下的每个 argv 都当 demo 路径，把开关写在 demo 后面会被当成第二个路径）：
 
@@ -205,7 +205,7 @@ tf2_demo_native.exe --demo <stv.dem> --capture-tick 600 --capture-frame out.bmp 
 
 与 handover :177/:270 钉的 `2ddade35…` 一致。**这是本卡最重的加性证据**：`native/src/demo_header.cpp` 与 `native/src/demo_header_entity.cpp` 都被改过（前者加了 capture 指针的保存/恢复，后者加了两次 `recordWearableSlotGeneration` 调用），而产品渲染路径的抓帧结果一字节没动。
 
-构建：`/W4` 零告警，`grep -acE 'warning C|C4[0-9]{3}' .scratch/build-target.log` = 0，`error C` = 0（口径与门禁卡 :169 一致）。
+构建：`/W4` 零告警，`grep -acE 'warning C|C4[0-9]{3}' .scratch/build-target.log` = 0，`error C` = 0（口径与门禁卡 :169 一致）。这条读数出自 `.scratch/` 的构建日志，**没有**提交进仓库，所以它不是可复核的证据；本仓库里唯一被提交的零告警转录是 `evidence/t105-model-lighting/gates/warn-check.log`，而它是在 task-36 的树上（`cfd01bd1`，142 个 TU，exe `a052de08…`）跑的，不是这张卡的树。合并头上的告警状态由交接卡的最终 `/W4` 构建给出，见 `evidence/BUILDS.md`。
 
 ## 8. 已知限制
 
@@ -223,6 +223,6 @@ tf2_demo_native.exe --demo <stv.dem> --capture-tick 600 --capture-frame out.bmp 
 * item schema 数值来自本机游戏安装 `D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/scripts/items/items_game.txt`（游戏资产，不进仓库）。
 * 属性选择规则只有一处：`native/include/entity_model.h:307-320` 的 `rankPropertyCandidates`；本体实现在 `native/src/entity_model.cpp:190-204`。本文的读数全部经由它，没有第二套后缀匹配。
 * 实体快照解析：`native/src/demo_header_entity.cpp:457-520`（`Checkpoint` 分支带出 `resolvedTick`）。
-* 槽位代次的唯一推进点：`native/src/demo_header_entity.cpp:343`（Delete）与 `:398`（Enter）；`native/src/demo_header_entity.cpp:396-410` 的 removed-entity 收尾**不推进代次**——这是既有行为的非对称，本卡没有改它，但记录在此，因为任何按「代次变化 = 生命周期结束」做推导的读者都应知道它。
+* 槽位代次的唯一推进点：`native/src/demo_header_entity.cpp:339`（Delete 自己那一行 `++projectileTrackSlotGeneration[...]`，记录在 :343-345）与 `:395-396`（Enter 的 `++projectileTrackSlotGeneration[...]` 与 `++projectileTrackSeriesStarted`，记录在 :398-400）；`:410-424` 的 removed-entity 收尾循环**不推进代次**——这是既有行为的非对称，本卡没有改它，但记录在此，因为任何按「代次变化 = 生命周期结束」做推导的读者都应知道它。
 * 类名依据：`evidence/animation-availability/oracle-all-classes.txt`（9 个含 `Wearable` 的服务端类）。
 * 前置门禁卡：`docs/WEARABLE-SCAN-2026-11-21.md`。构建与抓帧规矩：`docs/HANDOVER-2026-11-21.md:69-80`。

@@ -1,10 +1,21 @@
 # Gate transcripts for this tree
 
-A transcript in here means the gate actually ran on this tree, and the file is its
-full output: a provenance header saying the command and the commit, then the gate's own
-lines with nothing elided. The tree is `cfd01bd1`, which is `e0e80fa2` plus
-documentation and comment edits; the product binary is
+A transcript in here means the gate actually ran, and the file is its full output: a
+provenance header saying the command and the commit, then the gate's own lines with
+nothing elided. The tree is `cfd01bd1`, which is `e0e80fa2` plus documentation and comment
+edits; the product binary is
 `a052de0875f38a38c5119ded0d17f29619997857fd481960791d46ccb29fd9b1`.
+
+**`warn-check.log` is the task-36 run, and it is the one file in this directory whose tree
+differs from the pins it sits beside.** It was produced in the `t105-light36` worktree --
+`warn-check-tus.txt` lists its 142 translation units with paths rooted at
+`D:/TF2_Native_Worktrees/t105-light36/`, which is the direct evidence of that, not a later
+recollection. So the warning reading belongs to `cfd01bd1` / exe `a052de08…`; the md5 pins
+in `../pins.txt` and `../REPORT.md` belong to the same exe, which is why they travel
+together -- but a reader holding the merged head must not read "WARN-GATE=PASS new=0" as a
+statement about their own tree. The merged head's warning state is recorded by the final
+`/W4` build of that head; `evidence/BUILDS.md` keeps a named row for it and lists every
+build cited by this repository's evidence with how its sha256 was observed.
 
 | file | gate | verdict |
 |---|---|---|

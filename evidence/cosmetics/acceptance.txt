@@ -2,8 +2,10 @@
 # exe: native/build-nmake/tf2_demo_native.exe sha256 3a3cb9f1ef348fc0fab27db6784ed6c36777f1ce21abef8d21e0a072b54f4b89
 # demo: E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
 # tick: 600    lighting: default (off) for off/basic/ids; basic-lit states --lighting basic
-# --lighting on this CLI takes off|basic only (native/src/main.cpp:3968-3986);
-# the brief addendum quotes basic|leaf; leaf is not a CLI value -- recorded as a finding.
+# --lighting on this CLI takes off|basic|leaf (native/src/main.cpp:3969-4004, applied
+# :5104-5115; leaf = basic + the per-leaf ambient cube; bad values are refused with
+# exit 13 at :5160-5168). The brief addendum's basic|leaf omits off. Nothing in this
+# file was captured on the leaf arm.
 
 ## capture pins
 ids md5=8c1f76addd048a4465fd6496fbe0b16d bytes=2582406

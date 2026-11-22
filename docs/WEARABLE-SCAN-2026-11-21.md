@@ -1,9 +1,9 @@
 # 录像饰品（wearable）可还原性门禁（task-39，2026-11-21）
 
-* 开关：`native/tools/demo_open_probe.cpp` 新增 `--wearable-scan <tick>`（:798-815 解析，两条 usage :635 / :913 同步更新）。只在显式给出时采样，默认关闭。
-* 读取规则：复用 `tf2::native::rankPropertyCandidates`（:508-631 的本地 helper），不用第二套后缀匹配——属性和选择规则漂移时，漂移恰好发生在"被测对象本身"上会看不见。属性在状态里是表限定的（`DT_BaseEntity.m_nModelIndex`），所以任何读取都只能后缀匹配，不能按完整键查。
-* 一次查询：整段 dump 只用一次 `queryEntitySnapshotAtOrBeforeTick()`（:1489-1497），三个门禁答案来自同一个快照，不会互相矛盾。
-* 判词例外：tick 落不进实体历史时，探针写 `wearable_gate\tdata\tNO-DATA\t0`，**不写 FAIL**（:1653-1662，:1662 的注释与行）。"这个 tick 答不出来"和"录像里没有饰品"是两件事，混成一个 FAIL 会让门禁读出一个假的否定结论。
+* 开关：`native/tools/demo_open_probe.cpp` 新增 `--wearable-scan <tick>`（:839-850 解析，两条 usage :646 / :973 同步更新）。只在显式给出时采样，默认关闭。
+* 读取规则：复用 `tf2::native::rankPropertyCandidates`（本地 helper 块 :520-640：`:520` rankedValue、`:533` rankedInt、`:544` rankedVector、`:576` serverClassName、`:588` precachePath、`:602` wearableHandleIndex、`:613` containsNoCase、`:630` snapshotStatusText），不用第二套后缀匹配——属性和选择规则漂移时，漂移恰好发生在"被测对象本身"上会看不见。属性在状态里是表限定的（`DT_BaseEntity.m_nModelIndex`），所以任何读取都只能后缀匹配，不能按完整键查。
+* 一次查询：整段 dump 只用一次 `queryEntitySnapshotAtOrBeforeTick()`（实现在 `native/src/demo_header_entity.cpp:457-520`；本 dump 的那一次调用在 `native/tools/demo_open_probe.cpp:1606-1607`），三个门禁答案来自同一个快照，不会互相矛盾。
+* 判词例外：tick 落不进实体历史时，探针写 `wearable_gate\tdata\tNO-DATA\t0`，**不写 FAIL**（`native/tools/demo_open_probe.cpp:1768-1777`：注释 :1768-1771、行 :1777）。"这个 tick 答不出来"和"录像里没有饰品"是两件事，混成一个 FAIL 会让门禁读出一个假的否定结论。
 
 ## 0. 结论
 
@@ -51,7 +51,13 @@ wearable | 169500 | 374 | 1 | CTFWearable | 4294967278 | - | - | - | 30985 | 0.0
 wearable | 169500 | 381 | 57 | CTFWearable | 4294967292 | - | - | - | 133   | 0.0000,0.0000,0.0000 | 0.0000,0.0000,0.0000 | 571401 | 9 | CTFPlayer | 1 | - | - | 0
 ```
 
-`4294967280` = `0xFFFFFFF0`，按有符号 32 位就是 `-16`；`4294967292` = `-4`；`4294967294` = `-2`。解码路径见 `native/src/demo_header_net.cpp:541-556`：`SendPropType::Int` 的 varint 分支（`flags & 32`）用 `static_cast<std::int64_t>(raw)` 但不做符号扩展，所以 wire 上的负值以 32 位无符号形态呈现。无论哪种形态，这些值都不在 `[1, 0xffff]` 里，永远不可能通过 `modelPrecache` 表查到东西——这跟 `precachePath()`（:575-583）的边界判断一致。
+`4294967280` = `0xFFFFFFF0`，按有符号 32 位就是 `-16`；`4294967292` = `-4`；`4294967294` = `-2`。解码路径见 `native/src/demo_header_net.cpp:542-560` 的 `SendPropType::Int` 分支——**三条出口对负值的形态不一样**，不能笼统说成「varint 分支不做符号扩展」：
+
+* varint 且 `flags & 1u` 成立（这一位在网络协议里叫 `SPROP_UNSIGNED`；代码里只写位测试，不写宏名）：`:547` 的 `value.intValue = static_cast<std::int64_t>(raw);` 把 32 位无符号值原样放宽，**不做符号扩展**，负值于是呈现成 `4294967280` 这类 32 位无符号形态。
+* varint 但 `flags & 1u` 不成立：走 `:549-550` 的 zigzag（`sign = static_cast<std::uint32_t>(-static_cast<std::int32_t>(raw & 1u)); value.intValue = static_cast<std::int64_t>((raw >> 1u) ^ sign);`），这一步**本身就是符号扩展**，产出的是负数。
+* 非 varint：`:557`（`width >= 32u`）用 `static_cast<std::int32_t>(raw)` 打印 `-16`；`:558` 的 sub-32 位分支 `raw | (~0u << width)` 在 uint32 空间里补符号位，同样呈现 `4294967280`。
+
+无论哪种形态，这些值都不在 `[1, 0xffff]` 里，永远不可能通过 `modelPrecache` 表查到东西——这跟 `precachePath()`（`native/tools/demo_open_probe.cpp:588-594`）的边界判断一致。
 
 **这值是真实服务器数据、不是解码噪声**：同一实体的 `m_nModelIndex` 在 stv 的 5 个 tick（49444 / 51844 / 54844 / 90000 / 169500）上完全相同（373→4294967280、374→4294967278、381→4294967292、429→553、431→553……）。解码噪声不会逐 tick 稳定复现。
 
@@ -75,11 +81,11 @@ models/player/items/cyoa_pda/cyoa_pda.mdl                             (stv 375/8
 
 332/332 全部解析成功，而且 `wearable_owner_live` == `wearable_owner_player` == `wearable_entities`，也就是 owner handle 指向的实体在同 tick 存在**且**类名是 `CTFPlayer`。例：饰品 373 → owner handle 1599490 → 槽位 2 → `CTFPlayer` live=1。`wearable_owner`（handle 本身存在）也是 332/332。
 
-handle 用 11 位槽掩码（`0x7FF`，:588-598），与 `native/src/entity_model.cpp:140-148` 的 `CBaseHandle` 布局一致；`0` / `0xFFFFFFFF` / `0x1FFFFF` 视为空。
+handle 用 11 位槽掩码（`native/tools/demo_open_probe.cpp:596-601`，掩码 `kWearableHandleIndexMask = 0x7FFu` 在 :599），与 `native/src/entity_model.cpp:140-148` 的 `CBaseHandle` 布局一致；`0` / `0xFFFFFFFF` / `0x1FFFFF` 视为空。
 
 ### 1.4 一条本卡顺手修掉的真 bug（影响列数）
 
-父指针一度读不到：wire 上这一槽叫 `moveparent`（`--props` 输出里 `prop DT_BaseEntity.moveparent int 1599490` 与 `DT_BaseEntity.m_hOwnerEntity int 1599490` 并列），只读 `m_hMoveParent` 会得到"所有饰品都没有父"的假阴性。现已按 `native/src/entity_model.cpp:885` 的做法两个名字都读（:1570-1580），并在行尾多出一列 `moveParentIndex`（19 列）。
+父指针一度读不到：wire 上这一槽叫 `moveparent`（`--props` 输出里 `prop DT_BaseEntity.moveparent int 1599490` 与 `DT_BaseEntity.m_hOwnerEntity int 1599490` 并列），只读 `m_hMoveParent` 会得到"所有饰品都没有父"的假阴性。现已按 `native/src/entity_model.cpp:885` 的做法两个名字都读（`native/tools/demo_open_probe.cpp:1685-1692`：:1685-1690 的注释说明 wire 上叫 `moveparent`，:1691 先读 `m_hMoveParent`、:1692 兜底读 `moveparent`），并在行尾多出一列 `moveParentIndex`（19 列）。
 
 ## 2. 证据
 
@@ -205,7 +211,7 @@ wearable | 100000 | 786 | 98 | CTFWearableVM | 697        | models/player/items/
 |---|---|
 | `demo_open_probe --scan` | 字节不变（见 §2.6，四处 cmp 全 IDENTICAL） |
 | `demo_open_probe --scan --camera-track` | 字节不变 |
-| `demo_open_probe --props` / `--snapshot` / `--events` / `--temps` / `--tick-audit` / `--userinfo*` | 未改动一行；新 helper `snapshotStatusText`（:617-629）是**另抄一份**而不是抽公共函数，就是为了让 `--snapshot` 自己那份 inline 实现一个字节都不动 |
+| `demo_open_probe --props` / `--snapshot` / `--events` / `--temps` / `--tick-audit` / `--userinfo*` | 未改动一行；新 helper `snapshotStatusText`（`native/tools/demo_open_probe.cpp:630-640`）是**另抄一份**而不是抽公共函数，就是为了让 `--snapshot` 自己那份 inline 实现一个字节都不动 |
 | 产品 `tf2_demo_native` | 完全不碰（本卡只改探针，零渲染改动） |
 
 ## 4. 已知限制
@@ -222,16 +228,16 @@ wearable | 100000 | 786 | 98 | CTFWearableVM | 697        | models/player/items/
 
 * 参考仓库（**只读，未复制任何代码**）：OthmanAba/TeamFortress2 的 `econ_entity.cpp` 与 `c_tf_player.cpp`。本文的结论没有一处来自它们——所有数值都是本仓库探针实测。地址见 `docs/REFERENCE-REPOS-2026-11-21.md`（handover :320 记录）。
 * item schema 数值来自本机游戏安装：`D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/scripts/items/items_game.txt`（8,251,383 B）。该文件是游戏资产，不进仓库。
-* 内部锚点：`native/src/demo_header_net.cpp:541-556`（Int 解码与符号）、`native/src/entity_model.cpp:885`（父指针双名读取）、`native/src/entity_model.cpp:140-148`（`CBaseHandle` 布局）、`native/src/demo_header_strtab.cpp:827-832`（precache 查表的规范写法）、`native/include/entity_model.h:306-320`（`rankPropertyCandidates` 是唯一导出的属性选择入口）。
+* 内部锚点：`native/src/demo_header_net.cpp:542-560`（`SendPropType::Int` 解码与符号，三条出口见 §1 第 4 条）、`native/src/entity_model.cpp:885-886`（父指针双名读取）、`native/src/entity_model.cpp:140-148`（`CBaseHandle` 布局，`kEntityHandleIndexBits` 在 :145）、`native/src/demo_header_strtab.cpp:827-832`（precache 查表的规范写法）、`native/include/entity_model.h:307-320`（`rankPropertyCandidates` 是唯一导出的属性选择入口；结构体在 :307-310、声明在 :319-320）。
 
 ## 6. 文件与数据
 
-* 源码：`native/tools/demo_open_probe.cpp`（1725 行，+378 行）
-  * :508-631 helper 块（`rankedValue` / `rankedInt` / `rankedVector` / `serverClassName` / `precachePath` / `wearableHandleIndex` / `containsNoCase` / `snapshotStatusText`）
-  * :798-815 `--wearable-scan` 解析；:635 / :913 两条 usage
-  * :934 `wearableDumpText`
-  * :1484-1703 dump 主体（:1484 开关，:1662 NO-DATA，:1664/1669/1676 三条门禁行，:1685-1702 摘要键）（19 列行 + 直方图 + 三个门禁行 + 宽字符摘要）
-  * :1706-1722 窄字符写回接线（:1714 判定、:1720 写出）
+* 源码：`native/tools/demo_open_probe.cpp`（1841 行；`wc -l` 实测。相对本卡基线 `11c675c7^` 的 `git diff --numstat` 是 `498 4`——不是早前写的 `+378`）
+  * :520-640 helper 块（:520 `rankedValue` / :533 `rankedInt` / :544 `rankedVector` / :576 `serverClassName` / :588 `precachePath` / :602 `wearableHandleIndex` / :613 `containsNoCase` / :630 `snapshotStatusText`）
+  * :839-850 `--wearable-scan` 解析（另一个新开关 `--cosmetics-table` 在 :855-866）；两条 usage 在 :646-649 / :973-974
+  * :994 `wearableDumpText`（同批的 `cosmeticsTableText` 在 :997）
+  * :1599-1818 dump 主体（:1599-1612 开关块与那一次 `queryEntitySnapshotAtOrBeforeTick`，:1777 NO-DATA，:1779-1797 三条门禁行，:1800-1817 摘要键）（19 列行 + 直方图 + 三个门禁行 + 宽字符摘要）
+  * :1828-1838 窄字符写回接线（:1828-1829 判定，:1835 写 `wearableDumpText`、:1836 写 `cosmeticsTableText`）
 * 原始输出（`.scratch/`，未提交）：`pb-{stv,pov,bagel}-<tick>.txt`（19 个）、`pc-wear-{373,429,431,2}.txt`（`--props` 逐属性钻取）、`wearable-phaseA.txt` / `wearable-phaseB.txt` / `wearable-phaseC.txt`（汇总）。
 * 复现脚本：`.scratch/wear-phaseA.sh`、`.scratch/wear-phaseB.sh`、`.scratch/wear-phaseC.sh`、`.scratch/wear-ab.sh`。
 
