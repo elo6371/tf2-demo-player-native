@@ -779,6 +779,23 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
         " rule=sourceHorizontalFovToVertical aspect=%.6f near=%.4f far=%.4f\n",
         worldFovFromCli_ ? "cli.worldFov" : "settings.worldFov",
         settings_.worldFov, worldVerticalFov, aspect, worldNearPlane, worldFarPlane);
+      // T105/task-37 Half B acceptance: the eye and the forward axis this
+      // frame actually used. A leaf trace names a world origin; without
+      // these two vectors that origin maps to no pixel, and "one player
+      // indoors, one outdoors" stays an eyeball claim instead of a crop
+      // that can be checked. Printed on the capture path only, like the
+      // fov line it follows.
+      // The world->box constants ride along because eye/forward are BOX
+      // space while a leaf trace names MAP space: box = ((x - centreX) *
+      // scale, (y - centreY) * scale, (z - minZ) * scale + 0.1). Printing
+      // both ends is what lets a reader project a traced origin onto this
+      // capture instead of guessing which player on screen is which entity.
+      std::printf("capture: camera eye=(%.4f,%.4f,%.4f) forward=(%.6f,%.6f,%.6f)"
+        " hflip=%d vfov=%.4f aspect=%.6f worldCenter=(%.4f,%.4f) worldMinZ=%.4f worldScale=%.6f\n",
+        XMVectorGetX(eye), XMVectorGetY(eye), XMVectorGetZ(eye),
+        frameForward_[0], frameForward_[1], frameForward_[2],
+        horizontalFlipCorrectionEnabled() ? 1 : 0, worldVerticalFov, aspect,
+        worldCenterX_, worldCenterY_, worldMinZ_, worldHorizontalScale_);
     }
     XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(worldVerticalFov), aspect, worldNearPlane, worldFarPlane);
     // The view basis puts game LEFT on screen right (see the proof in
@@ -976,10 +993,23 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // means "not measured" and a zero that means "measured, none found" are
     // different readings, and this line exists so they cannot be confused.
     if (!capturePath_.empty()) {
-      std::printf("capture: leaf-ambient arm=%d slots=%zu withCube=%zu noCubeInLeaf=%zu outsideLeaf=%zu noLump=%zu notAsked=%zu traceTick=%lld tracePrinted=%zu traceSkipped=%zu\n",
+      // instances / requests / identity are the three fields that turn the
+      // five bucket counts into a checkable statement rather than five numbers
+      // a reader has to add up: instances is what the walk accepted (entity +
+      // map-static), requests is the sum of the buckets, and identity is the
+      // verdict the renderer already enforced by setting lastError_. "n/a"
+      // means the arm is on but no update produced these counters -- it is not
+      // a pass, and it is not a zero.
+      std::printf("capture: leaf-ambient arm=%d slots=%zu instances=%zu withCube=%zu "
+        "withCubeEmpty=%zu noCubeInLeaf=%zu outsideLeaf=%zu noLump=%zu notAsked=%zu "
+        "requests=%zu identity=%s "
+        "traceTick=%lld tracePrinted=%zu traceSkipped=%zu\n",
         leafAmbientEffective() ? 1 : 0, leafAmbientSlotCount_,
-        leafAmbientWithCube_, leafAmbientNoCubeInLeaf_, leafAmbientOutsideLeaf_,
-        leafAmbientNoLump_, leafAmbientNotAsked_,
+        entityModelInstanceCount_ + mapStaticPropInstanceCount_,
+        leafAmbientWithCube_, leafAmbientWithCubeEmpty_, leafAmbientNoCubeInLeaf_,
+        leafAmbientOutsideLeaf_,
+        leafAmbientNoLump_, leafAmbientNotAsked_, leafAmbientRequests_,
+        !leafAmbientIdentityChecked_ ? "n/a" : (leafAmbientIdentityOk_ ? "ok" : "MISMATCH"),
         static_cast<long long>(leafAmbientTraceTick_),
         leafAmbientTracePrinted_, leafAmbientTraceSkipped_);
     }

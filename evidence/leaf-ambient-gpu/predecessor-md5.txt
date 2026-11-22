@@ -1,0 +1,7 @@
+2ddade356e85dd77b795a7380c254bcb  .scratch/leafgpu/bare.bmp
+2ddade356e85dd77b795a7380c254bcb  .scratch/leafgpu/off.bmp
+d927c52639fb10c62a50b3018806a2d3  .scratch/leafgpu/basic.bmp
+a3f4229c48c054b8b4bf15e5860c3e43  .scratch/leafgpu/leaf.bmp
+3f39236ee189629f9a5ed42c170a80da  .scratch/leafgpu/leaf-trace.bmp
+b4608170e6e7e6fe8262e1c831e94246  .scratch/leafgpu/leaf-outline.bmp
+01afa412794b6a1dd83a90b05cb6b099  .scratch/leafgpu/sunshine-leaf.bmp

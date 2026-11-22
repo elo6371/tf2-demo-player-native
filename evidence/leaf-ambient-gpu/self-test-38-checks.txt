@@ -1,0 +1,39 @@
+{"check":"fixture.parsed","ok":true,"detail":""}
+{"check":"fixture.mode","ok":true,"detail":"source-equivalent"}
+{"check":"fixture.entries","ok":true,"detail":"entries=2"}
+{"check":"fixture.samples","ok":true,"detail":"samples=4"}
+{"check":"fixture.leavesWith","ok":true,"detail":"with=2 without=0"}
+{"check":"fixture.noOutOfRange","ok":true,"detail":"outOfRange=0 unreferenced=0"}
+{"check":"leafAt.right","ok":true,"detail":"leaf=0"}
+{"check":"leafAt.left","ok":true,"detail":"leaf=1"}
+{"check":"leafAt.agreesWithClusterAt","ok":true,"detail":"clusters=3,7"}
+{"check":"leafAt.refuses","ok":true,"detail":"nan must not resolve to a leaf"}
+{"check":"cube.atLeaf","ok":true,"detail":"available=1 sampleCount=3"}
+{"check":"cube.atLeafPicksCentre","ok":true,"detail":"sampleIndex=2 cube=1,0,0|0,1,0|0,0,1|1,1,1|0.501961,0.25098,0.12549|0.12549,0,0"}
+{"check":"cube.atCornerPicksCorner","ok":true,"detail":"sampleIndex=0 cube=0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647"}
+{"check":"cube.position","ok":true,"detail":"position=0,0,0"}
+{"check":"cube.secondLeaf","ok":true,"detail":"cluster=7 cube=0.784314,0.392157,0.196078|0.784314,0.392157,0.196078|0.784314,0.392157,0.196078|0.784314,0.392157,0.196078|0.784314,0.392157,0.196078|0.784314,0.392157,0.196078"}
+{"check":"empty.oneLeafWithoutCube","ok":true,"detail":"with=1 without=1"}
+{"check":"empty.missReturnsFalse","ok":true,"detail":"false"}
+{"check":"empty.missLeavesCallerValue","ok":true,"detail":"color[0][0]=12345"}
+{"check":"empty.counters","ok":true,"detail":"hit=0 missed=1"}
+{"check":"empty.countersBothWays","ok":true,"detail":"hit=1 missed=1"}
+{"check":"page.ldrOnly","ok":true,"detail":"samples=4"}
+{"check":"page.hdrOnly","ok":true,"detail":"mode=source-equivalent samples=4"}
+{"check":"page.ldrWins","ok":true,"detail":"cube=0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647|0.0392157,0.0784314,0.117647"}
+{"check":"page.none","ok":true,"detail":"mode=unavailable"}
+{"check":"page.noneAccessorRefuses","ok":true,"detail":"missed=1"}
+{"check":"page.shortIndexRefused","ok":true,"detail":"mode=unavailable"}
+{"check":"page.raggedDataRefused","ok":true,"detail":"mode=unavailable"}
+{"check":"page.overrunClampedAndCounted","ok":true,"detail":"outOfRange=1 with=2"}
+{"check":"leaf.emptiedLeafFoundButNoCube","ok":true,"detail":"leaf=0 false"}
+{"check":"leaf.leafAtLeafMissLeavesCallerValue","ok":true,"detail":"available=false leafIndex=-1 color[0][0]=12345 color[5][2]=6789"}
+{"check":"leaf.leafAtDoesNotCount","ok":true,"detail":"hit=0 missed=0"}
+{"check":"table.equalCubesEqualSlots","ok":true,"detail":"slotFirst=0 slotAgain=0 distinctAfterEqual=1"}
+{"check":"table.differentCubeNewSlot","ok":true,"detail":"slotOther=1 distinct=2"}
+{"check":"table.slotIsIndexAndSentinelDistinct","ok":true,"detail":"slots=0,1 sentinel=-1"}
+{"check":"table.sixteenEqualInstancesOneSlot","ok":true,"detail":"lastSlot=0 distinctAfter16=1"}
+{"check":"table.oneMantissaLsbIsANewSlot","ok":true,"detail":"slotLsb=1 distinct=2 delta=-26.0471"}
+{"check":"table.signedZeroIsOneCube","ok":true,"detail":"slotPositiveZero=0 slotNegativeZero=0 distinct=1"}
+{"check":"cube.blackCubeIsAHit","ok":true,"detail":"available=true sampleIndex=0 brightest=0 hit=1 missed=0"}
+{"summary":"self-test","failures":0}

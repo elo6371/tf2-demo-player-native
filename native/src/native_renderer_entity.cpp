@@ -502,7 +502,15 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   leafAmbientOutsideLeaf_ = 0;
   leafAmbientNoLump_ = 0;
   leafAmbientNotAsked_ = 0;
+  leafAmbientWithCubeEmpty_ = 0;
   leafAmbientSlotCount_ = 0;
+  // The identity is also reset here, and `checked` is decided by the ARM, not
+  // by whether the walk below got far enough to sum: an early return (no
+  // device, no instances) must read as a true 0 == 0 identity for an armed
+  // update, and as "n/a" -- not as a verified zero -- for an unarmed one.
+  leafAmbientRequests_ = 0;
+  leafAmbientIdentityChecked_ = leafAmbientEffective();
+  leafAmbientIdentityOk_ = true;
   // The trace account is per update for the same reason: "the gate admitted no
   // instance" and "the gate admitted 12" must not be the same printed number.
   leafAmbientTracePrinted_ = 0;
@@ -669,6 +677,19 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
         ambientSlotIndex = static_cast<int>(leafAmbientSlotFor(leafCubes, face));
         ambientSlotValue = static_cast<float>(ambientSlotIndex);
         ++leafAmbientWithCube_;
+        // The empty-but-present cube: counted as a HIT above (it is one)
+        // and additionally here, so a frame can report how many of its
+        // cube-bearing instances are the black-bake case instead of
+        // leaving that to a map census. Half A's 42.65% is the OTHER case
+        // -- a leaf that stores no sample at all; conflating the two would
+        // make the feature look like a no-op on the leaves it does cover.
+        bool cubeIsEmpty = true;
+        for (int direction = 0; direction < kLeafAmbientFaces && cubeIsEmpty; ++direction) {
+          for (int channel = 0; channel < 3; ++channel) {
+            if (face.rgb[direction][channel] != 0.0f) { cubeIsEmpty = false; break; }
+          }
+        }
+        if (cubeIsEmpty) ++leafAmbientWithCubeEmpty_;
       } else {
         switch (instance.leafCubeAbsence) {
           case EntityLeafCubeAbsence::OutsideLeaf: ++leafAmbientOutsideLeaf_; break;
@@ -905,6 +926,38 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   // paint defect when the paint was mostly there.
   entityModelInstanceCount_ = accepted - staticAccepted;
   mapStaticPropInstanceCount_ = staticAccepted;
+  // T105/task-37 Half B: the counter identity, asserted where both sides are
+  // final. Every instance `accepted` above passed through the leaf block of
+  // this same loop exactly once, so the five buckets must sum to it. This is
+  // not a tolerance: a bucket that lost an instance would draw one model with
+  // the global cube instead of its leaf, which reads as a slightly darker
+  // patch and names no leaf. On a mismatch every term is printed on one line
+  // and lastError_ is set, which the device-error policy turns into a
+  // non-zero exit -- the assertion is not a comment.
+  if (leafAmbientIdentityChecked_) {
+    leafAmbientRequests_ = leafAmbientWithCube_ + leafAmbientNoCubeInLeaf_
+      + leafAmbientOutsideLeaf_ + leafAmbientNoLump_ + leafAmbientNotAsked_;
+    leafAmbientIdentityOk_ = leafAmbientRequests_ == accepted;
+    if (!leafAmbientIdentityOk_) {
+      std::fprintf(stderr,
+        "[renderer-invariant] leaf-ambient counter-identity requests=%zu instances=%zu "
+        "withCube=%zu noCubeInLeaf=%zu outsideLeaf=%zu noLump=%zu notAsked=%zu\n",
+        leafAmbientRequests_, accepted, leafAmbientWithCube_, leafAmbientNoCubeInLeaf_,
+        leafAmbientOutsideLeaf_, leafAmbientNoLump_, leafAmbientNotAsked_);
+      lastError_ = E_UNEXPECTED;
+    }
+    // The black-cube count is a subset of withCube by construction; assert
+    // it instead of leaving the reader to assume it. An all-zero cube that
+    // ended in a miss bucket would be a silent change on exactly the leaves
+    // whose bake is black.
+    if (leafAmbientWithCubeEmpty_ > leafAmbientWithCube_) {
+      std::fprintf(stderr,
+        "[renderer-invariant] leaf-ambient empty-cube-subset withCubeEmpty=%zu withCube=%zu\n",
+        leafAmbientWithCubeEmpty_, leafAmbientWithCube_);
+      leafAmbientIdentityOk_ = false;
+      lastError_ = E_UNEXPECTED;
+    }
+  }
   entityModelInstanceSlotCount_ = packed.size();
   // The cube table last, from the same walk that handed the instances their
   // slots: uploading it anywhere else would let the table and the slot indices

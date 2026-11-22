@@ -1,0 +1,14 @@
+# the two players the capture actually shows, 1:1 crops, same box in both arms
+# located by the red-uniform mask (r>80 and r>1.7*green and r>1.7*blue); the engine
+# prints no screen projection, so the box comes from the measured blob, not from a
+# projection of the trace origin (see projection-caveat.txt for that attempt).
+
+courtyard player (bottom of frame) box=(709, 481, 829, 681)
+  leaf : redFrac=0.0616  redMean=(187.5, 76.7, 64.6)  cropMean=(134.6, 124.7, 110.4)
+  basic: redFrac=0.0529  redMean=(149.9, 54.1, 58.0)  cropMean=(123.1, 110.8, 104.6)
+  leaf-minus-basic crop mean (R,G,B) = [11.48, 13.9, 5.81]
+
+doorway player (right of frame) box=(1052, 481, 1172, 681)
+  leaf : redFrac=0.0618  redMean=(106.7, 41.8, 30.3)  cropMean=(90.4, 76.8, 67.2)
+  basic: redFrac=0.0690  redMean=(118.0, 43.5, 36.6)  cropMean=(92.1, 77.4, 68.6)
+  leaf-minus-basic crop mean (R,G,B) = [-1.67, -0.62, -1.49]

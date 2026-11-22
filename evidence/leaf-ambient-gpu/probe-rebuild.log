@@ -1,0 +1,20 @@
+VERIFY-LOCK=FAIL (another verify-all run owns /d/_shared/tf2-hostlock/.lock: owner=gatefix2 pid=3736 age=82s heartbeat_limit=3600s)
+RETRY owner=leaf37d attempt=1 rc=2
+STALE-LOCK=RECLAIMED owner=gatefix2 pid=3736 age=92s reason=owner-dead dir=/d/_shared/tf2-hostlock/.lock
+VERIFY-LOCK=ACQUIRED owner=leaf37d pid=8032 dir=/d/_shared/tf2-hostlock/.lock stale_after=3600s
+VERIFY-LOCK=ACQUIRED owner=leaf37d pid=32168 dir=/d/TF2_Native_Worktrees/t105-leaf37b/.scratch/verify-all.lock stale_after=900s
+=== build leaf_ambient_probe ===
+rc=0
+PROBE-BUILD-RC=0
+PROBE-WARNING-LINES=0
+PROBE-EXE 2026-11-22 09:57:37.725520100 +0800 871424
+PROBE-COMPILE-LINES=2
+SELFTEST-RC=0
+SELFTEST-PASSED=38
+SELFTEST-FAILED=0
+{"check":"cube.blackCubeIsAHit","ok":true,"detail":"available=true sampleIndex=0 brightest=0 hit=1 missed=0"}
+{"summary":"self-test","failures":0}
+CHECK {"check":"table.equalCubesEqualSlots","ok":true,"detail":"slotFirst=0 slotAgain=0 distinctAfterEqual=1"}
+PROBE-DONE
+VERIFY-LOCK=RELEASED dir=/d/TF2_Native_Worktrees/t105-leaf37b/.scratch/verify-all.lock
+VERIFY-LOCK=RELEASED dir=/d/_shared/tf2-hostlock/.lock

@@ -1,0 +1,9 @@
+ALLSAT bare   all255=0 (0.0000%) any255=44 (0.0051%)
+ALLSAT off    all255=0 (0.0000%) any255=44 (0.0051%)
+ALLSAT basic  all255=801 (0.0931%) any255=2610 (0.3032%)
+ALLSAT leaf   all255=830 (0.0964%) any255=3725 (0.4327%)
+leaf-only-saturated pixels=1954
+basic-only-saturated pixels=839
+mean leaf-basic per channel = -0.445 -0.408 -1.377
+pixels leaf brighter than basic by >=32 = 14502 (1.685%)
+pixels with a 255 channel AND leaf>basic+8 = 2470

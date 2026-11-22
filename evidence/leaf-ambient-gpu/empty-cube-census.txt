@@ -1,0 +1,23 @@
+# empty-cube slice of the BSP leaf ambient bake (Half A corpus dumps, re-counted for Half B)
+# empty = a leaf HAS a bake entry and all 18 channels are zero (black leaf, not a missing bake)
+# command: python .scratch/emptycube.py <dump> evidence/leaf-ambient/demo-cp_process_f12.txt
+
+FILE real-cp_process_f12.txt
+LEAVES-WITH-CUBE 3537
+EMPTY-CUBE-LEAVES 77
+EMPTY-CUBE-FRACTION 0.021770
+EMPTY-CUBE-PERCENT 2.1770
+NONEMPTY 3460
+CUBE-MEAN-LUM p50 0.000544662 p90 0.001777387 max 0.002888414
+DEMO-ENTITIES 96 HIT 76 MISS 20 HIT-EMPTY 0
+MISS-CLASSES {'CWorld': 4, 'CMannVsMachineStats': 4, 'CVoteController': 12}
+
+FILE real-cp_badlands.txt
+LEAVES-WITH-CUBE 3286
+EMPTY-CUBE-LEAVES 71
+EMPTY-CUBE-FRACTION 0.021607
+EMPTY-CUBE-PERCENT 2.1607
+NONEMPTY 3215
+CUBE-MEAN-LUM p50 0.000165420 p90 0.000684551 max 0.001459152
+DEMO-ENTITIES 96 HIT 76 MISS 20 HIT-EMPTY 0
+MISS-CLASSES {'CWorld': 4, 'CMannVsMachineStats': 4, 'CVoteController': 12}

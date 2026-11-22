@@ -1192,6 +1192,11 @@ public:
   // A miss is never a black cube; it is one of these counters and a fall back
   // to the global cube the basic arm already draws with.
   std::size_t leafAmbientWithCube() const { return leafAmbientWithCube_; }
+  // Of the cube hits above, the ones whose bake is all zero. A separate
+  // reading because an all-zero cube and a missing cube look the same on
+  // screen and are opposite facts about the map: the leaf HAS a bake and
+  // the bake is black. This count can never exceed leafAmbientWithCube().
+  std::size_t leafAmbientWithCubeEmpty() const { return leafAmbientWithCubeEmpty_; }
   std::size_t leafAmbientNoCubeInLeaf() const { return leafAmbientNoCubeInLeaf_; }
   std::size_t leafAmbientOutsideLeaf() const { return leafAmbientOutsideLeaf_; }
   std::size_t leafAmbientNoLump() const { return leafAmbientNoLump_; }
@@ -1201,6 +1206,15 @@ public:
   // property.
   std::size_t leafAmbientNotAsked() const { return leafAmbientNotAsked_; }
   std::size_t leafAmbientSlotCount() const { return leafAmbientSlotCount_; }
+  // T105/task-37 Half B: the identity, not a sixth bucket. Every accepted
+  // instance lands in exactly one of the five counts above, so their sum must
+  // EQUAL the instance count the walk accepted -- requests() is that sum and
+  // identityOk() says whether the last update agreed. Printed on the capture
+  // line and enforced in setEntityModelInstances(), because a bucket that ate
+  // an instance would darken one model and name nothing downstream.
+  std::size_t leafAmbientRequests() const { return leafAmbientRequests_; }
+  bool leafAmbientIdentityChecked() const { return leafAmbientIdentityChecked_; }
+  bool leafAmbientIdentityOk() const { return leafAmbientIdentityOk_; }
   std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
   // Instance SLOTS: the same instances counted once per material run, which is
   // what the vertex shader sees per draw range. A separate reading on purpose --
@@ -2525,10 +2539,17 @@ private:
   std::size_t leafAmbientCubeCapacity_ = 0;   // in SLOTS, not elements
   std::size_t leafAmbientSlotCount_ = 0;      // slots uploaded for the last update
   std::size_t leafAmbientWithCube_ = 0;
+  std::size_t leafAmbientWithCubeEmpty_ = 0;
   std::size_t leafAmbientNoCubeInLeaf_ = 0;
   std::size_t leafAmbientOutsideLeaf_ = 0;
   std::size_t leafAmbientNoLump_ = 0;
   std::size_t leafAmbientNotAsked_ = 0;
+  // Sum of the five buckets and whether it matched the accepted walk. Checked
+  // only when the arm is on: in off/basic mode no instance is asked, and a
+  // "not measured" zero must never read as a verified identity.
+  std::size_t leafAmbientRequests_ = 0;
+  bool leafAmbientIdentityChecked_ = false;
+  bool leafAmbientIdentityOk_ = true;
   UINT entityModelVertexCount_ = 0;
   std::size_t entityModelInstanceCount_ = 0;
   std::size_t mapStaticPropInstanceCount_ = 0;
