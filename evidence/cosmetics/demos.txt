@@ -33,7 +33,7 @@ scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=19 pose
 scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=0 poseUnavailable=19 skippedStandalone=5 noOwnerBody=1 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=0 bonesBindPose=0 bonesInvalid=0 meshSupplied=15 meshRefused=0
 normal_drawn=19 negctl_drawn=0 worldRenderable=IDENTICAL
 
-## the closed account, every measured capture
+## the closed account, the four captures this script asserts
 # worldRenderable = noOwnerBody + templateRefused + noMesh
 #                   + drawn + overBudget + poseUnavailable
   bagel-600 ACCOUNT=CLOSED worldRenderable=19 = 4+0+0+15+0+0
