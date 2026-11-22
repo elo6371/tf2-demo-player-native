@@ -39,6 +39,8 @@
 #include "animation_clock.h"
 #include "animation_blend.h"
 #include "item_schema.h"
+#include "wearable_instance.h"
+#include "wearable_pose.h"
 #include "native_ui.h"
 #include "pane_input.h"
 // T70: the request/landing ledger. Pure logic (no Win32/D3D) so the probe
@@ -3402,6 +3404,17 @@ bool outlineVertexExtent = false;
   // or "the two frames differ" measures a default change instead of the attach.
   bool playerWeaponAttachEnabled = false;
   bool playerWeaponAttachArgumentRejected = false;
+  // task-41: third-person cosmetic cosmetics, OFF by default, for the same two
+  // reasons the attach above is off. (1) A drawn cosmetic REPLACES the standalone
+  // instance of the same wearable entity, so switching this on changes the picture
+  // of every dressed player. (2) `off` is the A/B control: it has to be the frame
+  // every existing gate was captured on, so "the two frames differ" measures the
+  // cosmetic and not a default change. The off path draws nothing new, prints no
+  // new ledger line and allocates no bone matrix -- the flag is read at exactly
+  // three sites and every one of them is a test on this enum.
+  enum class CosmeticsMode { Off, Basic };
+  CosmeticsMode cosmeticsMode = CosmeticsMode::Off;
+  bool cosmeticsArgumentRejected = false;
   std::size_t viewModelBoneLimit = 0;   // 0 = upload the whole table
   // Which model the first-person pass draws.
   //
@@ -3994,6 +4007,33 @@ bool outlineVertexExtent = false;
       // normal out as colour instead of shading it.
       if (wcscmp(arguments[i], L"--lighting-trace") == 0) {
         modelLightingTrace = true;
+        continue;
+      }
+
+      // task-41: --cosmetics off|basic. A ladder arm for the reason the blocks
+      // above state: the else-if chain is at the compiler nesting limit (C1061).
+      //
+      // A value is REQUIRED and an unreadable one is REFUSED, not defaulted. `off`
+      // is the value every pinned capture on this tree was taken with, so a run
+      // whose value could not be read must fail rather than pick one: picking
+      // `off` would make a mistyped `--cosmetics basik` look like a clean baseline
+      // re-run, and picking `basic` would move a baseline someone else compares
+      // against.
+      if (wcscmp(arguments[i], L"--cosmetics") == 0) {
+        if (i + 1 < argumentCount) {
+          const wchar_t* value = arguments[i + 1];
+          if (wcscmp(value, L"basic") == 0) {
+            cosmeticsMode = CosmeticsMode::Basic;
+            ++i;
+          } else if (wcscmp(value, L"off") == 0) {
+            cosmeticsMode = CosmeticsMode::Off;
+            ++i;
+          } else {
+            cosmeticsArgumentRejected = true;
+          }
+        } else {
+          cosmeticsArgumentRejected = true;
+        }
         continue;
       }
 
@@ -5126,6 +5166,13 @@ bool outlineVertexExtent = false;
     OutputDebugStringW(L"TF2 Demo Player: invalid --lighting; it takes off, basic or leaf and nothing else.\n");
     return 13;
   }
+  if (cosmeticsArgumentRejected) {
+    // task-41: same rule as the switches above, and it matters more here: this
+    // switch decides whether a second draw happens at all, and a silent fallback
+    // would make an on/off comparison measure nothing.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --cosmetics; it takes off or basic and nothing else.\n");
+    return 13;
+  }
   if (persistent.render.modelLightingTrace
       && persistent.render.modelLighting == tf2::native::RenderSettings::ModelLightingMode::Off) {
     // T105: a trace of an unlit frame is a picture of the albedo, not of a
@@ -5259,6 +5306,16 @@ bool outlineVertexExtent = false;
   // and no simulation sample.
   tf2::native::DemoTickAuditCapture demoTickAuditCapture;
   if (demoTickAuditRequested) demoNetworkSummary.tickAuditCapture = &demoTickAuditCapture;
+  // task-41: the wearable slot-lifetime capture. Armed HERE, before the scan
+  // below, for the same reason the audit capture is: the scan is what records the
+  // Enter/Delete that advance a slot's generation, and scanKnownDemoMessages
+  // preserves the pointer across its own summary reset
+  // (native/src/demo_header.cpp:249). Armed only when the switch asked for it, so
+  // an `off` run allocates nothing and records nothing.
+  tf2::native::WearableSlotCapture wearableSlotCapture;
+  if (cosmeticsMode == CosmeticsMode::Basic) {
+    demoNetworkSummary.wearableSlotCapture = &wearableSlotCapture;
+  }
   // N12-C step 2: the product's eyes (POV and relay) read the per-tick camera row
   // track, so the product opts in BEFORE the scan below -- scanKnownDemoMessages
   // keeps cameraTrackLimits across its own summary reset, so setting it here is
@@ -5718,7 +5775,28 @@ bool outlineVertexExtent = false;
   std::vector<PreparedEntityMesh> attachEntityMeshes;
   // The paths this stage has already asked about, normalised. A model that
   // cannot be prepared is asked about once, not once per frame.
+  // task-41: ONE implementation, TWO owners. The books are per owner because the
+  // weapon ledger's balance equation
+  //   requested == resolvedFromWorld + uploaded + refused + retrySkipped + unresolvedPath
+  // is asserted by gates that must not move when a cosmetic is switched on: a
+  // shared counter would make `--cosmetics basic` change a weapon reading, and the
+  // two populations would then be indistinguishable in the one place a reviewer
+  // asks "what did this stage actually build".
+  struct MeshSupplyBooks {
+    std::size_t requests = 0;
+    std::size_t resolvedFromWorld = 0;
+    std::size_t retrySkipped = 0;
+    std::size_t unresolvedPath = 0;
+    std::size_t supplied = 0;
+    std::size_t refused = 0;
+  };
+  MeshSupplyBooks attachMeshBooks;
+  MeshSupplyBooks cosmeticMeshBooks;
   std::unordered_set<std::string> attachMeshTried;
+  // A cosmetic model and a weapon model are different populations with different
+  // failure modes, so each keeps its own "asked already" set: a path refused for
+  // one must not be silently skipped for the other.
+  std::unordered_set<std::string> cosmeticMeshTried;
   std::size_t attachMeshSupplied = 0;
   std::size_t attachMeshRefused = 0;
   // T85 P0 (lead m01475): the mesh source's COVERAGE books, next to its churn
@@ -5777,12 +5855,27 @@ bool outlineVertexExtent = false;
   // reachable through the VPK, so it is covered by the bone half of the same rule.
   std::unordered_map<std::string, std::vector<tf2::native::ModelAttachment>> entityAttachmentsByCacheKey;
   std::unordered_map<std::string, std::vector<std::string>> entityBoneNamesByCacheKey;
+  // task-41: the wearable side of the bone merge -- each resident model's own
+  // render bones with their inverse binds, in vertex bone-index order. Filled by
+  // rememberEntityRig beside the two tables above (they come from the same
+  // metadata) and erased with them on eviction, so a key that resolves can never
+  // name a rig that was dropped.
+  std::unordered_map<std::string, std::vector<tf2::native::WearableBoneBinding>>
+    entityWearableBindingsByCacheKey;
   const auto rememberEntityRig = [&](const std::string& cacheKey, const tf2::native::ModelMetadata& metadata) {
     std::vector<std::string> boneNames;
     boneNames.reserve(metadata.bones.size());
     for (const auto& bone : metadata.bones) boneNames.push_back(bone.name);
     entityBoneNamesByCacheKey[cacheKey] = std::move(boneNames);
     entityAttachmentsByCacheKey[cacheKey] = metadata.attachments;
+    // task-41: a cosmetic needs the model's OWN inverse binds to place its bones
+    // on the owner's skeleton, and the loader's metadata is gone by the time the
+    // draw loop runs. Kept only when the switch is on: an `off` run must not pay
+    // for a table nothing reads.
+    if (cosmeticsMode == CosmeticsMode::Basic) {
+      entityWearableBindingsByCacheKey[cacheKey] =
+        tf2::native::wearableBoneBindings(metadata.bones);
+    }
   };
   // Drops every path->key mapping whose VALUE is an evicted key, and forgets the
   // attach's trial mark for that path, so the next frame re-resolves, re-builds
@@ -5812,6 +5905,7 @@ bool outlineVertexExtent = false;
       entityPaintedSlotCountByKey.erase(victim);
       entityAttachmentsByCacheKey.erase(victim);
       entityBoneNamesByCacheKey.erase(victim);
+      entityWearableBindingsByCacheKey.erase(victim);
       ++attachMeshResupply;
       traceFmt("budget: eviction key=%s action=unpublish,resupply", victim.c_str());
     }
@@ -6285,15 +6379,23 @@ bool outlineVertexExtent = false;
   //     lambda that does this for the world pass is scoped to a block this code
   //     cannot see (main.cpp:3939-5119), and lifting it would move a world-pass
   //     counter. The resolver is the same one, so the pixels cannot disagree.
-  const auto uploadAttachMesh = [&](PreparedEntityMesh& prepared) -> bool {
+  const auto uploadAttachMesh = [&](PreparedEntityMesh& prepared,
+                                   tf2::native::EntityMeshPriority priority,
+                                   const char* stage) -> bool {
     // T85 P0: a held weapon is the second most important model in the product,
     // so the cache admits it ahead of world props and evicts one of those to make
     // room. The refusal below now only means "the table was full of models that
     // outrank this weapon", which is a budget boundary and not a coin flip.
+    //
+    // task-41: a cosmetic is admitted at the same rank its OWNER's body is
+    // (PlayerBody), because a hat that is evicted by a world prop leaves a
+    // player's head bare while the prop in front of him keeps its mesh. The
+    // priority is a parameter rather than a constant so this stage can say which
+    // population a model belonged to when the table refused it.
     if (!renderer.uploadEntityModelMesh(prepared.cacheKey, prepared.vertices, prepared.runs,
-          tf2::native::EntityMeshPriority::HeldWeapon)) {
-      traceFmt("attach: mesh result=refused stage=upload key=%s lastError=0x%08lX evictions=%zu capacityRefusals=%zu",
-        prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()),
+          priority)) {
+      traceFmt("%s: mesh result=refused stage=upload key=%s lastError=0x%08lX evictions=%zu capacityRefusals=%zu",
+        stage, prepared.cacheKey.c_str(), static_cast<unsigned long>(renderer.lastError()),
         renderer.entityModelMeshEvictions(), renderer.entityModelMeshCapacityRefusals());
       return false;
     }
@@ -6329,28 +6431,37 @@ bool outlineVertexExtent = false;
   };
   // Returns the cache key to draw with, or empty when the model cannot be drawn.
   // Paths the world pass already prepared resolve immediately and cost nothing.
-  const auto supplyAttachMesh = [&](const std::string& modelPath) -> std::string {
+  //
+  // task-41: `books` and `tried` are the CALLER's, so one implementation serves
+  // the held weapon and the cosmetic without either one's counters moving when the
+  // other is switched on. `stage` names the population in the refusal traces --
+  // a reader chasing "the hand is empty" must not have to guess whether the line
+  // was about a gun or a hat.
+  const auto supplyAttachMesh = [&](const std::string& modelPath, MeshSupplyBooks& books,
+                                    std::unordered_set<std::string>& tried,
+                                    tf2::native::EntityMeshPriority priority,
+                                    const char* stage) -> std::string {
     // Every counted exit below is one term of the coverage balance; see the
     // counter block above for why supplied alone is not an answer.
     if (modelPath.empty()) return std::string();
-    ++attachMeshRequests;
+    ++books.requests;
     const auto preparedAlready = entityMeshKeyByPath.find(modelPath);
     if (preparedAlready != entityMeshKeyByPath.end()) {
-      ++attachMeshResolvedFromWorld;
+      ++books.resolvedFromWorld;
       return preparedAlready->second;
     }
     const std::string normalized = tf2::native::normalizeModelPath(modelPath);
     if (normalized.empty()) {
-      ++attachMeshUnresolvedPath;
+      ++books.unresolvedPath;
       return std::string();
     }
     const auto preparedNormalized = entityMeshKeyByNormalizedPath.find(normalized);
     if (preparedNormalized != entityMeshKeyByNormalizedPath.end()) {
-      ++attachMeshResolvedFromWorld;
+      ++books.resolvedFromWorld;
       return preparedNormalized->second;
     }
-    if (!attachMeshTried.insert(normalized).second) {
-      ++attachMeshRetrySkipped;
+    if (!tried.insert(normalized).second) {
+      ++books.retrySkipped;
       return std::string();
     }
     tf2::native::AssetReference reference;
@@ -6360,8 +6471,8 @@ bool outlineVertexExtent = false;
     auto requests = tf2::native::ModelLoader::buildRenderRequests(
       assets, references, itemSchema.get(), nullptr);
     if (requests.empty() || !requests.front().renderable) {
-      ++attachMeshRefused;
-      traceFmt("attach: mesh result=refused stage=resolve path=%s reason=%s", modelPath.c_str(),
+      ++books.refused;
+      traceFmt("%s: mesh result=refused stage=resolve path=%s reason=%s", stage, modelPath.c_str(),
         requests.empty() ? "no request" : requests.front().diagnostic.c_str());
       return std::string();
     }
@@ -6369,8 +6480,8 @@ bool outlineVertexExtent = false;
     std::string meshError;
     if (!tf2::native::ModelLoader::buildBindPoseMeshLod0(request.inspection.metadata, meshError)
         || request.inspection.metadata.bindPoseVertices.size() < 3) {
-      ++attachMeshRefused;
-      traceFmt("attach: mesh result=refused stage=bind-pose path=%s reason=%s", modelPath.c_str(),
+      ++books.refused;
+      traceFmt("%s: mesh result=refused stage=bind-pose path=%s reason=%s", stage, modelPath.c_str(),
         meshError.empty() ? "fewer than three bind-pose vertices" : meshError.c_str());
       return std::string();
     }
@@ -6382,8 +6493,8 @@ bool outlineVertexExtent = false;
     prepared.textureNamesRead = request.inspection.metadata.textureNames.size();
     std::string runsError;
     if (!tf2::native::ModelLoader::buildMaterialRuns(request.inspection.metadata, prepared.runs, runsError)) {
-      ++attachMeshRefused;
-      traceFmt("attach: mesh result=refused stage=runs path=%s reason=%s", modelPath.c_str(),
+      ++books.refused;
+      traceFmt("%s: mesh result=refused stage=runs path=%s reason=%s", stage, modelPath.c_str(),
         runsError.c_str());
       return std::string();
     }
@@ -6404,8 +6515,8 @@ bool outlineVertexExtent = false;
         tf2::native::MaterialSlotResolution resolution;
         if (!tf2::native::resolveMaterialSlot(prepared.skinFamilies, prepared.textureCandidates,
               family, static_cast<std::int32_t>(slot), attachPaintRead, resolution)) {
-          traceFmt("attach: paint result=unresolved path=%s family=%u slot=%u reason=%s",
-            modelPath.c_str(), family, slot, resolution.reason.c_str());
+          traceFmt("%s: paint result=unresolved path=%s family=%u slot=%u reason=%s",
+            stage, modelPath.c_str(), family, slot, resolution.reason.c_str());
           continue;
         }
         PreparedEntityMesh::PaintedSlot paintedSlot;
@@ -6418,8 +6529,8 @@ bool outlineVertexExtent = false;
     }
     const std::string cacheKey = prepared.cacheKey;
     const std::size_t paintedCount = prepared.paintedSlots.size();
-    if (!uploadAttachMesh(prepared)) {
-      ++attachMeshRefused;
+    if (!uploadAttachMesh(prepared, priority, stage)) {
+      ++books.refused;
       return std::string();
     }
     // The upload may have evicted a resident to make room. Settle the path tables
@@ -6445,10 +6556,18 @@ bool outlineVertexExtent = false;
     entityPaintedSlotCountByNormalizedPath[normalized] = static_cast<std::uint32_t>(paintedCount);
     rememberEntityRig(cacheKey, request.inspection.metadata);
     attachEntityMeshes.push_back(std::move(prepared));
-    ++attachMeshSupplied;
-    traceFmt("attach: mesh result=supplied path=%s key=%s verts=%zu runs=%zu painted=%zu supplied=%zu refused=%zu",
-      modelPath.c_str(), cacheKey.c_str(), attachEntityMeshes.back().vertices.size(),
-      attachEntityMeshes.back().runs.size(), paintedCount, attachMeshSupplied, attachMeshRefused);
+    ++books.supplied;
+    // task-41: the WEAPON counters are mirrored from the weapon books only. They
+    // are the numbers the attach ledger prints and the gates read; a cosmetic
+    // supply must not move them, or switching cosmetics on would look like a
+    // change in weapon coverage.
+    if (&books == &attachMeshBooks) {
+      attachMeshSupplied = books.supplied;
+      attachMeshRefused = books.refused;
+    }
+    traceFmt("%s: mesh result=supplied path=%s key=%s verts=%zu runs=%zu painted=%zu supplied=%zu refused=%zu",
+      stage, modelPath.c_str(), cacheKey.c_str(), attachEntityMeshes.back().vertices.size(),
+      attachEntityMeshes.back().runs.size(), paintedCount, books.supplied, books.refused);
     return cacheKey;
   };
   // A device reset drops every entity model mesh in the renderer
@@ -13617,7 +13736,9 @@ bool outlineVertexExtent = false;
             // uploaded here, once, and the reason is written down when it cannot
             // be. An empty hand now means "this model cannot be drawn", not
             // "this model happened to sort past a limit".
-            const std::string weaponCacheKey = supplyAttachMesh(held.lookup.worldModelPath);
+            const std::string weaponCacheKey = supplyAttachMesh(
+                held.lookup.worldModelPath, attachMeshBooks, attachMeshTried,
+                tf2::native::EntityMeshPriority::HeldWeapon, "attach");
             if (weaponCacheKey.empty()) {
               // The weapon has a world model path but that model could not be
               // made drawable: drawing the wrong mesh in the hand is worse than
@@ -13635,6 +13756,13 @@ bool outlineVertexExtent = false;
         // push a player body out of the frame it is the subject of.
         const std::size_t attachBudget = std::min(heldByPlayer.size(), propBudget);
         propBudget -= attachBudget;
+        // task-41: the value the `budget:` ledger line has always reported --
+        // "what was left once the held-weapon instances took their reserved
+        // slots". Cosmetics below take from propBudget too, and without this
+        // snapshot that line would silently start meaning something else the day
+        // a hat was switched on. With cosmetics off the two are equal, so the
+        // line's text does not move.
+        const std::size_t propBudgetAfterAttach = propBudget;
         const std::size_t mapNetworkSubmitted = std::min(
           renderer.mapStaticPropInstanceCapacityLimit, mapNetworkDraws.size());
         const std::size_t staticPropBudget = renderer.mapStaticPropInstanceCapacityLimit - mapNetworkSubmitted;
@@ -13643,6 +13771,140 @@ bool outlineVertexExtent = false;
         std::size_t attachOverBudget = 0;
         std::size_t attachSkippedStandalone = 0;
         std::unordered_set<std::string> attachSignatures;
+        // ------------------------------------------------------------ task-41
+        // COSMETICS: resolve the whole frame's wearables ONCE, before the draw
+        // loop, for the same reason the held-weapon pre-pass runs here: a
+        // cosmetic whose owner is in this frame must not ALSO be drawn standing
+        // where the demo left it, and the cull has to happen before the standalone
+        // instance spends a prop slot.
+        //
+        // The table is built from the snapshot the BODIES were drawn from -- the
+        // caller's own resolved states and resolved tick, not a second query --
+        // so a hat can never be placed from a world the bodies are not in.
+        struct CosmeticDraw {
+          std::int32_t ownerEntityIndex = -1;
+          std::int32_t wearableEntityIndex = -1;
+          std::string cacheKey;
+          std::string modelPath;
+          std::uint32_t skinFamily = 0;
+          std::uint32_t familyCount = 0;
+        };
+        // owner entity -> the cosmetics resolved for it, in table order.
+        std::unordered_map<std::int32_t, std::vector<CosmeticDraw>> cosmeticsByOwner;
+        // Every wearable entity index this stage took ownership of. The standalone
+        // instance of each is culled from the prop pass below.
+        std::unordered_set<std::int32_t> cosmeticOwnedEntities;
+        std::size_t cosmeticExamined = 0;
+        // renderable is the TABLE's count and includes rows task-40 routes to the
+        // view-model pass; worldRenderable is the subset this stage may touch. The
+        // two are printed side by side so the ledger's account stays closed:
+        // worldRenderable = noOwnerBody + templateRefused + noMesh
+        //                   + drawn + overBudget + poseUnavailable.
+        std::size_t cosmeticRenderable = 0;
+        std::size_t cosmeticWorldRenderable = 0;
+        std::size_t cosmeticPoseUnavailable = 0;
+        std::size_t cosmeticNoOwnerBody = 0;
+        std::size_t cosmeticNoMesh = 0;
+        std::size_t cosmeticOverBudget = 0;
+        std::size_t cosmeticDrawn = 0;
+        // How many standalone instances the prop pass gave up because the piece
+        // is riding an owner's skeleton. Mirrors attachSkippedStandalone in the
+        // held-weapon arm: this count is the proof the cull actually fired, and
+        // it is the only way to separate "no hat on the floor" from "no hat at
+        // all". It is deliberately NOT part of the worldRenderable identity --
+        // that identity accounts for the table's rows, this accounts for the
+        // entities the prop pass no longer sees.
+        std::size_t cosmeticSkippedStandalone = 0;
+        // How many of the frame's instance slots the cosmetics may occupy. Set
+        // after the pre-pass, once the frame's demand is known.
+        std::size_t cosmeticBudget = 0;
+        std::size_t cosmeticDemand = 0;
+        std::size_t cosmeticBonesMerged = 0;
+        std::size_t cosmeticBonesBindPose = 0;
+        std::size_t cosmeticBonesInvalid = 0;
+        std::unordered_set<std::string> cosmeticSignatures;
+        // task-41: the TEMPLATE GUARD. task-40 left %s substitution unimplemented,
+        // and its resolveWearablePath refuses to set a path source unless the
+        // winning candidate is free of placeholders -- so no renderable row can
+        // carry one. This is the second check, at the boundary where a string
+        // becomes a file to open: if a template ever arrived here it would be
+        // counted and REFUSED, never handed to the loader, because opening
+        // "ring_%s.mdl" cannot succeed and a silent miss looks like a missing
+        // asset rather than a bug in the table.
+        std::size_t cosmeticTemplateRefused = 0;
+        const auto hasPlaceholder = [](const std::string& value) {
+          return value.find("%s") != std::string::npos
+            || value.find('%') != std::string::npos;
+        };
+        if (cosmeticsMode == CosmeticsMode::Basic && sceneTickResolved) {
+          tf2::native::WearableTableRequest cosmeticRequest;
+          cosmeticRequest.tick = resolvedSceneTick;
+          cosmeticRequest.schema = itemSchema.get();
+          cosmeticRequest.assetRootValid = assets.valid();
+          cosmeticRequest.schemaError = itemSchemaStatus;
+          const tf2::native::WearableInstanceTable cosmeticTable =
+            tf2::native::buildWearableInstanceTableFromStates(
+              demoNetworkSummary, cosmeticRequest, currentEntityStates, resolvedSceneTick, true);
+          cosmeticExamined = cosmeticTable.counters.examined;
+          cosmeticRenderable = cosmeticTable.counters.renderable;
+          cosmeticWorldRenderable = cosmeticTable.counters.drawPathWorld;
+          // Which player bodies are actually in this frame, by entity index. A
+          // cosmetic whose owner is not drawn has no pose to ride, and the honest
+          // answer is to count it, not to place it.
+          std::unordered_set<std::int32_t> drawnBodyEntities;
+          for (const auto& body : drawCandidates) {
+            if (!body.transform.hasOrigin || body.viewModelSkipped) continue;
+            const bool bodyIsPlayer = body.className.find("Player") != std::string::npos
+              || body.className.find("TFPlayer") != std::string::npos
+              || body.playerClassFallback;
+            if (bodyIsPlayer) drawnBodyEntities.insert(static_cast<std::int32_t>(body.entityIndex));
+          }
+          for (const auto& row : cosmeticTable.rows) {
+            if (!row.renderable || row.path != tf2::native::WearableDrawPath::World) continue;
+            const std::int32_t ownerIndex = row.attribution.ownerIndex;
+            if (ownerIndex < 0 || drawnBodyEntities.count(ownerIndex) == 0) {
+              ++cosmeticNoOwnerBody;
+              continue;
+            }
+            if (hasPlaceholder(row.model.path)) {
+              // Unreachable while resolveWearablePath holds; counted so the day it
+              // stops holding is a number in the ledger and not a missing hat.
+              ++cosmeticTemplateRefused;
+              continue;
+            }
+            CosmeticDraw cosmetic;
+            cosmetic.ownerEntityIndex = ownerIndex;
+            cosmetic.wearableEntityIndex = row.entityIndex;
+            cosmetic.modelPath = row.model.path;
+            cosmetic.cacheKey = supplyAttachMesh(
+              cosmetic.modelPath, cosmeticMeshBooks, cosmeticMeshTried,
+              tf2::native::EntityMeshPriority::PlayerBody, "cosmetic");
+            if (cosmetic.cacheKey.empty()) {
+              ++cosmeticNoMesh;
+              continue;
+            }
+            const auto familyCount = entitySkinFamilyCountByKey.find(cosmetic.cacheKey);
+            if (familyCount != entitySkinFamilyCountByKey.end()) {
+              cosmetic.familyCount = familyCount->second;
+            }
+            cosmeticOwnedEntities.insert(row.entityIndex);
+            cosmeticsByOwner[ownerIndex].push_back(std::move(cosmetic));
+          }
+          for (const auto& entry : cosmeticsByOwner) {
+            cosmeticDemand += entry.second.size();
+          }
+          // BUDGET, task-41. A cosmetic joins the PLAYER draw group -- it is part
+          // of a body, not scenery -- but it may never take a slot from a body:
+          // the bodies keep exactly the player budget they had before this feature
+          // existed, and the pieces take what is left of the frame's draw budget
+          // AFTER the held weapons have taken theirs. That is what the props give
+          // up. So the populations lose in a fixed order -- bodies, then weapons,
+          // then cosmetics, then props -- and a body is never dropped in favour of
+          // a hat. A piece that finds no slot is counted in cosmeticOverBudget
+          // rather than silently vanishing.
+          cosmeticBudget = std::min(cosmeticDemand, propBudget);
+          propBudget -= cosmeticBudget;
+        }
         for (const auto& instance : drawCandidates) {
           if (mapNetworkEntities.count(instance.entityIndex)) continue;
           if (!instance.transform.hasOrigin) continue;
@@ -13663,6 +13925,17 @@ bool outlineVertexExtent = false;
             // exists to avoid -- and the reason the skip is decided in the pre-pass
             // rather than after the fact.
             ++attachSkippedStandalone;
+            continue;
+          }
+          if (cosmeticsMode == CosmeticsMode::Basic
+              && cosmeticOwnedEntities.count(static_cast<std::int32_t>(instance.entityIndex))) {
+            // task-41, T83 shape: this wearable is about to ride its owner's
+            // skeleton. Drawing it here as well would put the same hat on the map
+            // origin AND on the player's head in one frame -- and the cull is
+            // decided in the pre-pass rather than after the fact for the same
+            // reason the weapon cull is: a body budget-dropped later must not
+            // leave the piece drawn twice.
+            ++cosmeticSkippedStandalone;
             continue;
           }
           std::string cacheKey = instance.cacheKey;
@@ -14371,6 +14644,27 @@ bool outlineVertexExtent = false;
               && heldByPlayer.count(static_cast<std::int32_t>(instance.entityIndex)) != 0;
             bool attachReady = false;
             tf2::native::EntityModelDrawInstance attachDraw;
+            // task-41: the cosmetic instances this body carries, built inside the
+            // pose block (they need the body's sampled bone frames) and pushed
+            // after the body's own draw below.
+            std::vector<tf2::native::EntityModelDrawInstance> cosmeticDraws;
+            // task-41: a body can be DRAWN and still have no bone table this
+            // instance may ride -- no animation binding at all, bind pose, or the
+            // mutation control that samples the pose and withholds the matrices.
+            // The cosmetics hook only runs on the skinned arm, so the pieces of a
+            // body in any other arm used to disappear with NO counter: drawn=0 and
+            // every other number looking innocent. Counted here instead, so the
+            // ledger's account closes in every arm:
+            //   worldRenderable = noOwnerBody + templateRefused + noMesh
+            //                     + drawn + overBudget + poseUnavailable.
+            const auto notePiecesWithoutOwnerPose = [&]() {
+              if (cosmeticsMode != CosmeticsMode::Basic) return;
+              const auto owned = cosmeticsByOwner.find(
+                static_cast<std::int32_t>(instance.entityIndex));
+              if (owned != cosmeticsByOwner.end()) {
+                cosmeticPoseUnavailable += owned->second.size();
+              }
+            };
             if (binding != nullptr) {
               const auto sampled = tf2::native::buildAnimationSkinMatrices(binding, request);
               ledgerFrame = sampled.frame;
@@ -14530,6 +14824,7 @@ bool outlineVertexExtent = false;
                 // only the matrices are withheld. Nothing is appended to
                 // entityBoneMatrices, so no other instance's offset moves.
                 ++entityBindPoseMutationInstances;
+                notePiecesWithoutOwnerPose();
               } else if (!sampled.bindPose && !sampled.skinMatrices.empty()) {
                 draw.skinningEnabled = true;
                 draw.boneOffset = static_cast<std::uint32_t>(entityBoneMatrices.size());
@@ -14652,6 +14947,110 @@ bool outlineVertexExtent = false;
                   ++animationStats.targetWitnessObservations;
                 }
                 animationStats.lastFrameByEntity[instance.entityIndex] = sampled.frame;
+                // -------------------------------------------- task-41 cosmetics
+                // A cosmetic rides its owner's SKELETON: for every bone of the
+                // wearable model, the owner's frame for the bone of the SAME NAME
+                // replaces the wearable's own. No origin, no angles, no guessed
+                // bone -- measured origin/angles on every wearable instance of this
+                // recording is 0,0,0, so there is no other placement to fall back
+                // to, and placing by them would stand the hat on the map origin.
+                if (cosmeticsMode == CosmeticsMode::Basic) {
+                  const auto ownedCosmetics =
+                    cosmeticsByOwner.find(static_cast<std::int32_t>(instance.entityIndex));
+                  if (ownedCosmetics != cosmeticsByOwner.end()) {
+                    const auto ownerBoneNames = entityBoneNamesByCacheKey.find(cacheKey);
+                    for (const CosmeticDraw& cosmetic : ownedCosmetics->second) {
+                      const auto wearableBindings =
+                        entityWearableBindingsByCacheKey.find(cosmetic.cacheKey);
+                      if (wearableBindings == entityWearableBindingsByCacheKey.end()
+                          || ownerBoneNames == entityBoneNamesByCacheKey.end()) {
+                        // The mesh resolved but its rig table did not: a piece with
+                        // no bones to place is not drawn. Counted, never guessed.
+                        ++cosmeticPoseUnavailable;
+                        continue;
+                      }
+                      const tf2::native::WearableBoneMerge merge =
+                        tf2::native::buildWearableBoneMatrices(
+                          wearableBindings->second, ownerBoneNames->second,
+                          sampled.boneModelMatrices);
+                      if (!merge.ownerPoseAvailable || merge.matrices.empty()) {
+                        // The owner has no usable pose this frame. The piece is
+                        // DROPPED and counted; it is not moved somewhere else.
+                        ++cosmeticPoseUnavailable;
+                        continue;
+                      }
+                      cosmeticBonesMerged += merge.mergedBones;
+                      cosmeticBonesBindPose += merge.bindPoseBones;
+                      cosmeticBonesInvalid += merge.invalidBones;
+                      tf2::native::EntityModelDrawInstance cosmeticDraw;
+                      cosmeticDraw.cacheKey = cosmetic.cacheKey;
+                      cosmeticDraw.entityIndex = cosmetic.wearableEntityIndex;
+                      // The instance transform is the BODY's: the merged bone table
+                      // is already in the body's model space, and the instance rows
+                      // then place that model in the world exactly as they place the
+                      // body it belongs to.
+                      cosmeticDraw.origin[0] = instance.transform.origin[0];
+                      cosmeticDraw.origin[1] = instance.transform.origin[1];
+                      cosmeticDraw.origin[2] = instance.transform.origin[2];
+                      cosmeticDraw.hasAngles = instance.transform.hasAngles;
+                      cosmeticDraw.angles[0] = instance.transform.angles[0];
+                      cosmeticDraw.angles[1] = instance.transform.angles[1];
+                      cosmeticDraw.angles[2] = instance.transform.angles[2];
+                      // The world pass's colour rule, unchanged: a mesh with painted
+                      // slots already carries its colour in the paint family, so
+                      // tinting it again would double-paint the piece.
+                      std::uint32_t cosmeticPainted = 0u;
+                      const auto paintedForKey =
+                        entityPaintedSlotCountByKey.find(cosmetic.cacheKey);
+                      if (paintedForKey != entityPaintedSlotCountByKey.end()) {
+                        cosmeticPainted = paintedForKey->second;
+                      }
+                      if (cosmeticPainted > 0u) {
+                        cosmeticDraw.color[0] = 1.0f; cosmeticDraw.color[1] = 1.0f;
+                        cosmeticDraw.color[2] = 1.0f; cosmeticDraw.color[3] = 1.0f;
+                      } else {
+                        cosmeticDraw.color[0] = draw.color[0];
+                        cosmeticDraw.color[1] = draw.color[1];
+                        cosmeticDraw.color[2] = draw.color[2];
+                        cosmeticDraw.color[3] = draw.color[3];
+                      }
+                      // The piece keeps its OWN paint table, clamped by the same rule
+                      // the body and the held weapon use: asking for a family the
+                      // model does not have is what left instances atlas-painted.
+                      cosmeticDraw.skinFamily = tf2::native::effectiveSkinFamily(
+                        cosmetic.familyCount, requestedSkinFamily);
+                      cosmeticDraw.skinningEnabled = true;
+                      cosmeticDraw.boneOffset =
+                        static_cast<std::uint32_t>(entityBoneMatrices.size());
+                      cosmeticDraw.boneCount =
+                        static_cast<std::uint32_t>(merge.matrices.size());
+                      entityBoneMatrices.insert(entityBoneMatrices.end(),
+                        merge.matrices.begin(), merge.matrices.end());
+                      char cosmeticLine[384];
+                      std::snprintf(cosmeticLine, sizeof(cosmeticLine),
+                        "%s|owner=%d|wear=%d|%s|bones=%zu|merged=%zu|bind=%zu|invalid=%zu",
+                        instance.className.c_str(), static_cast<int>(instance.entityIndex),
+                        static_cast<int>(cosmetic.wearableEntityIndex),
+                        cosmetic.modelPath.c_str(), merge.bones, merge.mergedBones,
+                        merge.bindPoseBones, merge.invalidBones);
+                      if (cosmeticSignatures.insert(cosmeticLine).second) {
+                        // One line per (class, owner entity, wearable entity, model):
+                        // the reading a reviewer uses to check that a piece landed on
+                        // the body it belongs to, and how much of it the owner's pose
+                        // actually drove rather than leaving it in its authored frame.
+                        traceFmt("cosmetic: class=%s owner=%d wearable=%d model=%s "
+                          "bones=%zu merged=%zu bindPose=%zu invalid=%zu reason=%s "
+                          "family=%u skinned=1",
+                          instance.className.c_str(), static_cast<int>(instance.entityIndex),
+                          static_cast<int>(cosmetic.wearableEntityIndex),
+                          cosmetic.modelPath.c_str(), merge.bones, merge.mergedBones,
+                          merge.bindPoseBones, merge.invalidBones, merge.reason,
+                          static_cast<unsigned>(cosmeticDraw.skinFamily));
+                      }
+                      cosmeticDraws.push_back(std::move(cosmeticDraw));
+                    }
+                  }
+                }
                 // T83: L = boneFrame(holdBone) * holdLocal, in model space. The
                 // bone frame is the model-space matrix the pose pass just produced
                 // (bone-local -> model at THIS tick), so composing it with the rig's
@@ -14751,6 +15150,9 @@ bool outlineVertexExtent = false;
                 }
               } else {
                 ++animationStats.instancesBindPose;
+                // A bind-pose body is drawn but has no bone table: its pieces are
+                // dropped AND counted, never placed at the entity origin.
+                notePiecesWithoutOwnerPose();
                 animationStats.lastStatus = tf2::native::animationInputStatusName(sampled.status);
                 animationStats.lastReason = sampled.reason;
                 animationStats.lastModel = instance.modelPath;
@@ -14759,6 +15161,10 @@ bool outlineVertexExtent = false;
               }
             } else {
               ++animationStats.instancesBindPose;
+              // No animation binding for this model: the body is still drawn, in
+              // bind pose. Its pieces have no frame to ride and are dropped AND
+              // counted, never placed at the entity origin.
+              notePiecesWithoutOwnerPose();
               animationStats.lastStatus = tf2::native::animationInputStatusName(animStatus);
               animationStats.lastReason = animReason;
               animationStats.lastModel = instance.modelPath;
@@ -14842,6 +15248,19 @@ bool outlineVertexExtent = false;
               }
             } else if (attachWanted) {
               ++attachPoseMissing;
+            }
+            // task-41: the pieces ride AFTER their body and after its weapon, so
+            // the body keeps the draw index (and the debug entity id) it had before
+            // this feature existed. A piece with no slot left is counted, not
+            // dropped quietly -- an unhatted player and a budget refusal look
+            // identical in a frame, and only the counter tells them apart.
+            for (auto& cosmeticDraw : cosmeticDraws) {
+              if (cosmeticDrawn < cosmeticBudget) {
+                draws.push_back(std::move(cosmeticDraw));
+                ++cosmeticDrawn;
+              } else {
+                ++cosmeticOverBudget;
+              }
             }
           } else if (fallbackMarkers.size() < 32) {
             tf2::native::EntityMarker marker;
@@ -14973,8 +15392,8 @@ bool outlineVertexExtent = false;
         // took their reserved slots. dropped* are entities that HAD a mesh and
         // got no slot -- the frame's visible holes, counted by kind.
         traceFmt("budget: draw capacity=%zu playerBudget=%zu propBudgetAfterAttach=%zu playerDrawn=%zu propDrawn=%zu attachReserved=%zu attachDrawn=%zu droppedPlayers=%zu droppedProps=%zu",
-          kDrawBudget, playerBudget, propBudget, playerDraws, propDraws, attachBudget, attachDrawn,
-          playerDroppedByBudget, propDroppedByBudget);
+          kDrawBudget, playerBudget, propBudgetAfterAttach, playerDraws, propDraws,
+          attachBudget, attachDrawn, playerDroppedByBudget, propDroppedByBudget);
         if (playerWeaponAttachEnabled) {
           // One reading per frame, every count additive: held = players whose body
           // carries a hold point AND whose m_hActiveWeapon resolved to a prepared
@@ -15005,6 +15424,69 @@ bool outlineVertexExtent = false;
           // (The layer-B ledger is printed once per frame at the settle point below,
           // after every upload site and after the instance list -- not here, where it
           // would duplicate the same account from a half-built frame.)
+        }
+        if (cosmeticsMode == CosmeticsMode::Basic) {
+          // task-41 RECONCILIATION. The two identities the ledger promises are
+          // closed here, not hoped for:
+          //   worldRenderable = noOwnerBody + templateRefused + noMesh + demand
+          //   demand          = drawn + overBudget + poseUnavailable
+          // The first holds by construction above (every world-path row either
+          // refuses before the owner check or becomes exactly one CosmeticDraw).
+          // The second needs this sweep: a piece whose owner body was in the
+          // candidate set but which never reached a draw of its own -- no mesh, or
+          // budget-dropped after the pre-pass -- has no owner pose for the same
+          // reason a bind-pose body does not, so it is counted poseUnavailable. A
+          // piece is never left uncounted and never placed at an origin.
+          const std::size_t cosmeticAccounted =
+            cosmeticDrawn + cosmeticOverBudget + cosmeticPoseUnavailable;
+          if (cosmeticDemand > cosmeticAccounted) {
+            cosmeticPoseUnavailable += cosmeticDemand - cosmeticAccounted;
+          }
+        }
+        if (cosmeticsMode == CosmeticsMode::Basic) {
+          // task-41. One reading per frame, every count additive, and the same
+          // vocabulary the weapon attach uses (drawn / poseUnavailable /
+          // overBudget) so a reviewer reads one dialect for both riders.
+          //
+          // examined  = wearable rows the table produced from THIS frame's snapshot
+          // renderable= rows that named an allowed class, an owner and a real path
+          // worldRenderable = those rows minus the ones task-40 routes to the
+          //               VIEW-MODEL pass, which this stage must not join to a world
+          //               body. renderable - worldRenderable is that routed count.
+          // noOwnerBody = the owner body is not in this frame, so there is no pose
+          //               to ride; the piece is dropped, not placed
+          // noMesh    = the model could not be made drawable (counted, never
+          //               substituted -- a placeholder in a hat slot is a lie)
+          // templateRefused = a path still carrying %s reached the boundary; it is
+          //               refused there. Must stay 0.
+          // poseUnavailable = the owner body drew but had no usable pose for it
+          // skippedStandalone = the standalone instance of a piece that IS riding
+          //               an owner was culled from the prop pass (the T83 shape,
+          //               same as attachSkippedStandalone). This is the counter
+          //               that proves a resolved wearable is not ALSO drawn at
+          //               the map origin this frame.
+          // drawn/overBudget = the piece got a slot / ran out of the frame's
+          //               leftover budget (bodies and weapons never give one up)
+          // mergedBones/bindPoseBones/invalidBones = how much of the geometry the
+          //               OWNER's pose actually drove. A piece that is mostly
+          //               bindPose is mostly unposed, and that is a finding.
+          traceFmt("scene: cosmetics on=1 examined=%zu renderable=%zu worldRenderable=%zu "
+            "drawn=%zu poseUnavailable=%zu skippedStandalone=%zu noOwnerBody=%zu noMesh=%zu overBudget=%zu "
+            "templateRefused=%zu reserved=%zu demand=%zu "
+            "bonesMerged=%zu bonesBindPose=%zu bonesInvalid=%zu "
+            "meshSupplied=%zu meshRefused=%zu",
+            cosmeticExamined, cosmeticRenderable, cosmeticWorldRenderable, cosmeticDrawn,
+            cosmeticPoseUnavailable, cosmeticSkippedStandalone, cosmeticNoOwnerBody, cosmeticNoMesh,
+            cosmeticOverBudget, cosmeticTemplateRefused, cosmeticBudget, cosmeticDemand,
+            cosmeticBonesMerged, cosmeticBonesBindPose, cosmeticBonesInvalid,
+            cosmeticMeshBooks.supplied, cosmeticMeshBooks.refused);
+          // The mesh source's own books on their own line, mirroring the weapon
+          // attach's, so the two populations' build counts are never confused.
+          traceFmt("cosmetic: meshSource requested=%zu resolvedFromWorld=%zu uploaded=%zu "
+            "refused=%zu retrySkipped=%zu unresolvedPath=%zu",
+            cosmeticMeshBooks.requests, cosmeticMeshBooks.resolvedFromWorld,
+            cosmeticMeshBooks.supplied, cosmeticMeshBooks.refused,
+            cosmeticMeshBooks.retrySkipped, cosmeticMeshBooks.unresolvedPath);
         }
         renderer.setEntityBoneMatrices(entityBoneMatrices);
         renderer.setEntityModelTime(sceneTickKnown && g_playback.tickRate > 0.0

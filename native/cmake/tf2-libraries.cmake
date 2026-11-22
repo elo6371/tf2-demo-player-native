@@ -63,6 +63,11 @@ add_library(tf2_core STATIC
   # generation) and of item_schema, not part of it. Probe and product link tf2_core,
   # so this compiles exactly once for both.
   src/wearable_instance.cpp
+  # task-41: the bone merge. Same reasoning as wearable_instance.cpp above: it is
+  # a consumer of animation_binding's matrix vocabulary and of model_loader's bone
+  # table, and putting it here means the product and the probe compile one copy of
+  # the arithmetic that decides where a cosmetic sits.
+  src/wearable_pose.cpp
 
   # Animation.
   src/animation_decoder.cpp

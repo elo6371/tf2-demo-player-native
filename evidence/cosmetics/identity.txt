@@ -1,0 +1,26 @@
+# task-41 off-path identity -- produced by .scratch/wear41-readings.sh
+# demo: E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
+# capture tick: 600
+# baseline exe: .scratch/pin/tf2_demo_native.baseline.exe
+#   sha256 8e013c47d612f35c4454d020dff361d03c113f4c4b066bdaf26e2160f2657e5c
+#   (built from 53d6e5de, the merge base, before any task-41 code existed)
+# new exe: native/build-nmake/tf2_demo_native.exe
+#   sha256 3a3cb9f1ef348fc0fab27db6784ed6c36777f1ce21abef8d21e0a072b54f4b89
+#   identity tag: a73f5ff84d724a053c0658cfd2556b8dbce6dfa259d33a7dda1d6d66d0c6078b
+#   contentMethod: git-clean-v1
+
+column	exe	switch	bmp_md5	bmp_bytes
+baseline	.scratch/pin/tf2_demo_native.baseline.exe	(none)	2ddade356e85dd77b795a7380c254bcb	2582406
+no-switch	native/build-nmake/tf2_demo_native.exe	(none)	2ddade356e85dd77b795a7380c254bcb	2582406
+off	native/build-nmake/tf2_demo_native.exe	--cosmetics off	2ddade356e85dd77b795a7380c254bcb	2582406
+basic	native/build-nmake/tf2_demo_native.exe	--cosmetics basic	15cbd4a9fc68118f93151fbd311b655b	2582406
+
+baseline_vs_off: IDENTICAL
+baseline_vs_noswitch: IDENTICAL
+basic_vs_off: DIFFERS
+
+# task-36's model-lighting pin (evidence/t105-model-lighting/pins.txt:9),
+# re-measured on this exe. Same demo, same tick, default cosmetics, the
+# only switch is --lighting basic.
+litbasic_bmp_md5: d927c52639fb10c62a50b3018806a2d3
+litbasic_pin: IDENTICAL (pin d927c52639fb10c62a50b3018806a2d3)

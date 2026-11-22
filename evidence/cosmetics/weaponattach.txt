@@ -1,0 +1,36 @@
+# task-41: --cosmetics off must not disturb the held-weapon arm.
+#
+# Source: .scratch/wear41/ledger-attach-nocos.trace and
+#         .scratch/wear41/ledger-attach-off.trace -- the SAME exe, the
+#         same demo, the same tick, both with --player-weapon-attach on so
+#         the line exists at all. The only variable is --cosmetics off.
+#
+# Why this line and not just the BMP: the cosmetic pre-pass takes its draw
+# slots out of the same budget the held weapons draw from, and it supplies
+# its meshes through the same loader path. A BMP md5 cannot see either of
+# those, because a hat that was refused a slot leaves no pixel behind.
+
+## distinct lines, no cosmetics switch (2)
+scene: weaponAttach on=1 held=10 drawn=10 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=6 firstRefusal=-
+scene: weaponAttach on=1 held=11 drawn=11 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=7 firstRefusal=-
+
+## distinct lines, --cosmetics off (2)
+scene: weaponAttach on=1 held=10 drawn=10 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=6 firstRefusal=-
+scene: weaponAttach on=1 held=11 drawn=11 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=7 firstRefusal=-
+
+## settled (final) line, no cosmetics switch
+scene: weaponAttach on=1 held=10 drawn=10 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=6 firstRefusal=-
+## settled (final) line, --cosmetics off
+scene: weaponAttach on=1 held=10 drawn=10 poseMissing=0 overBudget=0 refused=0 noHoldPoint=0 noWorldMesh=0 skippedStandalone=6 firstRefusal=-
+
+distinct_set: IDENTICAL
+settled_line: IDENTICAL
+
+## multiplicity (recorded, not asserted)
+# Both sides print the same counters; the counts differ only because the
+# number of scene updates before the capture is wall-clock paced.
+#   no cosmetics switch: 553 lines
+#   --cosmetics off:     553 lines
+#   first run reaches its settled counters after an extra held=11 frame;
+#   that frame is the demo's own startup, and it appears on BOTH sides
+#   (held=11 drawn=11 skippedStandalone=7 is in both distinct sets).

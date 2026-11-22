@@ -10,6 +10,10 @@
 #include "asset_root.h"
 #include "item_schema.h"
 #include "wearable_instance.h"
+// task-41: the bone merge and the fixture suite that proves the attribution rules
+// it consumes. Both are linked into this probe only.
+#include "wearable_fixture.h"
+#include "wearable_pose.h"
 
 #include <algorithm>
 #include <cctype>
@@ -640,7 +644,9 @@ const wchar_t* snapshotStatusText(tf2::native::EntitySnapshotQueryStatus value) 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
     std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
-                  L"       demo_open_probe --userinfo-fixture <file>\n";
+                  L"       demo_open_probe --userinfo-fixture <file>\n"
+                  L"       demo_open_probe --wearable-fixture-suite\n"
+                  L"       demo_open_probe --wearable-pose-selftest\n";
     return 2;
   }
   // A synthetic message stream, decoded through the same entry point the demo
@@ -716,6 +722,28 @@ int wmain(int argc, wchar_t** argv) {
   }
   if (std::wstring(argv[1]) == L"--parser-bounds-selftest") {
     return runParserBoundsSelfTest();
+  }
+  // task-41: the five attribution fixtures the card requires, run against the
+  // real table builder, plus the bone-merge self-test. Both print one line per
+  // check and answer with the number of failures, so a gate can use the exit
+  // status without parsing.
+  if (std::wstring(argv[1]) == L"--wearable-fixture-suite"
+      || std::wstring(argv[1]) == L"--wearable-pose-selftest") {
+    std::vector<std::string> report;
+    std::size_t failed = 0;
+    std::size_t ran = 0;
+    if (std::wstring(argv[1]) == L"--wearable-fixture-suite") {
+      failed += tf2::native::runWearableFixtureSuite(report);
+    } else {
+      failed += tf2::native::runWearablePoseSelftest(report);
+    }
+    ran = report.size();
+    for (const std::string& line : report) {
+      std::cout << line << '\n';
+    }
+    std::cout.flush();
+    std::wcerr << L"wearable_selftest checks=" << ran << L" failed=" << failed << L'\n';
+    return failed == 0 ? 0 : 1;
   }
   bool scan = false;
   // --camera-track: opt in to the N12-C per-tick camera row track. Recording it

@@ -1,0 +1,42 @@
+# task-41 counters per demo, produced by .scratch/wear41c-demos.sh
+# exe: native/build-nmake/tf2_demo_native.exe sha256 3a3cb9f1ef348fc0fab27db6784ed6c36777f1ce21abef8d21e0a072b54f4b89
+# lighting: default (off) in every capture below.
+
+## probe suites
+pose_selftest rc=0: wearable_selftest checks=16 failed=0
+  report: 16 checks, all PASS (full text in category 8 / selftests.txt)
+fixture_suite rc=0: wearable_selftest checks=10 failed=0 (report PASS=10 FAIL=0)
+
+## per demo (one settled ledger line each)
+### bagel-600
+bmp_md5: 3305b1d8f0b3951b5e7093a974f7adbd bytes=2582406
+scene: cosmetics on=1 examined=34 renderable=21 worldRenderable=19 drawn=15 poseUnavailable=0 skippedStandalone=3 noOwnerBody=4 noMesh=0 overBudget=0 templateRefused=0 reserved=15 demand=15 bonesMerged=82 bonesBindPose=12 bonesInvalid=0 meshSupplied=12 meshRefused=0
+cosmetic: meshSource requested=5373 resolvedFromWorld=5361 uploaded=12 refused=0 retrySkipped=0 unresolvedPath=0
+
+### bagel-56747
+bmp_md5: 3305b1d8f0b3951b5e7093a974f7adbd bytes=2582406
+scene: cosmetics on=1 examined=40 renderable=25 worldRenderable=22 drawn=19 poseUnavailable=0 skippedStandalone=7 noOwnerBody=3 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=103 bonesBindPose=16 bonesInvalid=0 meshSupplied=18 meshRefused=0
+cosmetic: meshSource requested=498424 resolvedFromWorld=498406 uploaded=18 refused=0 retrySkipped=0 unresolvedPath=0
+
+### pov-60162
+bmp_md5: dffe1665afcd9fc2ce8e43561a4ba4cc bytes=2582406
+scene: cosmetics on=1 examined=37 renderable=2 worldRenderable=2 drawn=0 poseUnavailable=0 skippedStandalone=0 noOwnerBody=2 noMesh=0 overBudget=0 templateRefused=0 reserved=0 demand=0 bonesMerged=0 bonesBindPose=0 bonesInvalid=0 meshSupplied=3 meshRefused=0
+cosmetic: meshSource requested=312 resolvedFromWorld=309 uploaded=3 refused=0 retrySkipped=0 unresolvedPath=0
+
+## negative control: --player-animation off (bind-pose arm)
+# The cosmetics hook lives in the SKINNED arm only. With player animation
+# off a body is still drawn but has no owner pose to ride, so every piece
+# it owns must be dropped and counted -- never placed at the entity origin.
+# normal run (same demo, same tick, .scratch/wear41/ledger-basic.trace):
+scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=19 poseUnavailable=0 skippedStandalone=5 noOwnerBody=1 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=67 bonesBindPose=15 bonesInvalid=0 meshSupplied=15 meshRefused=0
+# negative control:
+scene: cosmetics on=1 examined=36 renderable=21 worldRenderable=20 drawn=0 poseUnavailable=19 skippedStandalone=5 noOwnerBody=1 noMesh=0 overBudget=0 templateRefused=0 reserved=19 demand=19 bonesMerged=0 bonesBindPose=0 bonesInvalid=0 meshSupplied=15 meshRefused=0
+normal_drawn=19 negctl_drawn=0 worldRenderable=IDENTICAL
+
+## the closed account, every measured capture
+# worldRenderable = noOwnerBody + templateRefused + noMesh
+#                   + drawn + overBudget + poseUnavailable
+  bagel-600 ACCOUNT=CLOSED worldRenderable=19 = 4+0+0+15+0+0
+  bagel-56747 ACCOUNT=CLOSED worldRenderable=22 = 3+0+0+19+0+0
+  pov-60162 ACCOUNT=CLOSED worldRenderable=2 = 2+0+0+0+0+0
+  stv-negctl ACCOUNT=CLOSED worldRenderable=20 = 1+0+0+0+0+19
