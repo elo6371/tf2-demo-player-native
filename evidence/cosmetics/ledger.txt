@@ -1,8 +1,12 @@
 # task-41 LEDGER IDENTITY -- produced by .scratch/wear41-ledger.sh
 # demo: E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
 # mode: --start-paused --capture-tick 0 (deterministic frame sequence)
-# masked: the leading seconds clock, and the wall-clock upload time in
-#         'gpu: model N/M slots=S painted=P <T>ms'. Nothing else.
+# masked: three wall-clock fields, each earned by a diff that failed without it:
+#         (1) the leading seconds clock,
+#         (2) the upload time in 'gpu: model N/M slots=S painted=P <T>ms',
+#         (3) the frame time in 'metrics t=<T> tick=... iter=...' -- the one that
+#             made the old control-a/control-b pair differ.
+#         CRLF is also stripped. Nothing else is masked.
 #
 # exes:
 #   baseline  .scratch/pin/tf2_demo_native.baseline.exe  sha256 8e013c47d612f35c4454d020dff361d03c113f4c4b066bdaf26e2160f2657e5c

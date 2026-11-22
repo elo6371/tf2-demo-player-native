@@ -1,9 +1,11 @@
 # Wearable cosmetics drawn on the player body (task-41, 2026-11-22)
 
 Branch `task/wear41-cosmetics`. Base `53d6e5de` (five-branch merge: task-36/38/39/40 landed).
-All numbers in this document were measured on the build this branch produces; the raw
-logs are committed under `evidence/cosmetics/` and the commands that make them are in
-section 9. Nothing here is carried over from a predecessor build: the off-path and
+All numbers in this document were measured on the build this branch produces. What is
+committed is the settled ledger lines plus the four crop PNGs under `evidence/cosmetics/`
+-- NOT the raw traces: the traces (the bagel 56747 one alone is 2,988,564 lines) and the
+`.scratch/` drivers that make them stay in the working tree, so every counter line here is
+re-derivable only from that tree. The commands are in section 9. Nothing here is carried over from a predecessor build: the off-path and
 lighting pins are byte pins, so they must be re-measured on the exe under test -- and
 were (section 5).
 
@@ -85,9 +87,12 @@ supplied and still never drawn: its owner body may be counted in `drawnBodyEntit
 then never reach a draw of its own (no mesh of its own, or dropped by the body budget).
 Before the reconciliation those pieces were counted NOWHERE, and a reader comparing
 `demand` with `drawn + overBudget + poseUnavailable` would see unexplained arithmetic.
-The reconciliation block attributes exactly that remainder to `poseUnavailable` -- which is
-what it is, from the piece's point of view: no owner pose was ever produced for it. It
-touches no rendering state; it only makes the ledger closed.
+The reconciliation block attributes exactly that remainder to `poseUnavailable`
+(`native/src/main.cpp:15325-15329`; the comment at `:15320-15324` states the trade). That
+makes `poseUnavailable` a RESIDUAL BUCKET: it holds pieces whose owner pose was missing AND
+pieces whose owner body never drew (no mesh of its own, or dropped by the body budget). It
+is therefore not a pure pose probe; it deliberately conflates the two, because the
+alternative is an open ledger. It touches no rendering state.
 
 ## 3. The preserved ledger contradiction (cause and fix)
 
@@ -165,24 +170,35 @@ frame (`--world-entity-id`, red byte = entity id exactly, `native/include/entity
     changed=272 px, bbox 32,20,91,133, on_body=262 (0.963 within 6 px of the silhouette,
     0.588 within 2 px)
 
-The pieces the trace resolved for owner 5 are a mask on the head (3 bones: 1 merged by name,
-2 kept in bind pose) and the ozfortress badge (1 bone, merged) -- the crop shows exactly those:
-the mask over the face and a small blue/white piece at the head/neck, present in `basic` and
-absent in `off`; `onpath-basic-3x.png` is the 3x zoom of that band.
+The pieces the trace resolved for owner 5 are a mask (3 bones: 1 merged by name, 2 kept in
+bind pose) and the ozfortress badge (1 bone, merged). The 272 changed pixels are NOT one
+head-shaped blob; recomputed from the committed PNGs they fall in two bands:
+
+    rows 12-40   (face)            px=67
+    rows 112-133 (lower leg/feet)  px=205  cols 32-48   <- 75% of the diff
+
+So the pixel COUNT does not prove the head placement: the `changed>=80 and
+frac_on_body>=0.75` rule is already satisfied by the leg band alone. What shows the mask on
+the head is the committed 3x zoom, `onpath-basic-3x.png` (top 55% of the same crop at
+NEAREST); the mask is visible over the face in the `basic` crop, and the 67 px face band is
+exactly those pixels differing from `off`. The placement claim therefore rests on the
+bone-name merge lines plus the 3x zoom, not on the diff count.
 
 Why this is a placement proof and not merely "some pixels changed":
 
 - the diff sits ON the owner silhouette (0.963 within 6 px; the remainder is the few pixels a
-  mask is allowed to stick out past the body edge), so the piece is where the owner is;
+  piece is allowed to stick out past the body edge), so the changed pixels belong to the
+  owner body and not to the background;
 - a piece placed by origin/angles would be at the entity origin -- task-39 measured that
   triple as 0,0,0, i.e. the map origin, which is nowhere near this 82x120 body box; it would
   not appear in the crop at all;
 - the same trace lines say the merge happened by bone name (`merged=1` on a 1-bone piece,
   `merged=1 bindPose=2` on the 3-bone mask), so the pixels and the bone bookkeeping agree.
 
-The instrument would fail loudly in the other direction: its assertion is `changed >= 80` AND
-`frac_on_body >= 0.75`, so a diff in the background (which is what a wrongly-placed piece
-would produce) is a FAIL, not a pass.
+The instrument still has teeth in the other direction: its assertion is `changed >= 80` AND
+`frac_on_body >= 0.75`, so a diff in the background is a FAIL, not a pass -- and a piece left
+at the map origin would not be inside this crop at all. What the instrument cannot do is tell
+one on-body band from another; that is why the 3x zoom is kept beside it.
 
 ## 5. Pins on this build
 
@@ -215,6 +231,9 @@ The baseline column is the exe built from the merge base `53d6e5de` -- before an
 code existed (`sha256 8e013c47d612f35c4454d020dff361d03c113f4c4b066bdaf26e2160f2657e5c`).
 So `--cosmetics off` is byte-identical to a binary that has no cosmetics code at all: the
 off path is not merely "unchanged by configuration", it is unchanged by the feature.
+Scope of that claim: byte identity is measured on ONE captured frame (tick 600, four passes)
+and on the paused tick-0 ledger run (five columns, 980 masked lines each), not across every
+frame of live playback -- the draw cadence there is wall-clock (section 3).
 
 `evidence/cosmetics/ledger.txt` proves the same thing a second, stricter way (section 3):
 five paused runs, each 980 masked trace lines, every column and every cross-exe comparison
@@ -229,10 +248,13 @@ same tick, same demo, one switch different from the bare pass. Its provenance is
 
 ## 6. Counters per demo
 
-The counters are printed once per frame; `evidence/cosmetics/demos.txt` records one
-settled line per capture. `worldRenderable = noOwnerBody + templateRefused + noMesh + drawn
-+ overBudget + poseUnavailable` is asserted in the script for EVERY capture below
-(`ACCOUNT=CLOSED`), not eyeballed.
+The counters are printed once per frame; `evidence/cosmetics/demos.txt` records one settled
+line per capture. `worldRenderable = noOwnerBody + templateRefused + noMesh + drawn +
+overBudget + poseUnavailable` is asserted (`ACCOUNT=CLOSED`) for FOUR of the five rows below
+-- the four captures `.scratch/wear41c-demos.sh` makes (bagel-600, bagel-56747, pov-60162,
+stv-negctl). The stv normal row is NOT asserted by that script: it is quoted from
+`.scratch/wear41/ledger-basic.trace`, produced by `.scratch/wear41-readings.sh`, i.e. a
+different instrument run of the same exe, demo and tick.
 
 | demo | tick | examined | renderable | worldRenderable | drawn | poseUnavailable | skippedStandalone | noOwnerBody | demand |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -242,6 +264,16 @@ settled line per capture. `worldRenderable = noOwnerBody + templateRefused + noM
 | bagel | 56747 | 40 | 25 | 22 | **19** | **0** | **7** | 3 | 19 |
 | POV | 60162 | 37 | 2 | 2 | **0** | **0** | **0** | 2 | 0 |
 
+A disclosure about these rows:
+
+- **bagel rendered nothing.** Neither bagel run found the map (`map: lookup
+  map=koth_bagel_rc13 store=none selected=- bytes=0 reason=not found in maps, download/maps
+  or a vpk`) and neither drew geometry (geometry capacity 0, static-props 0, sky drew 0).
+  Both bagel BMPs are a uniform clear frame -- one colour (14,18,22), 860784 px, uniq=1 --
+  which is why their md5 lines are identical (`3305b1d8...`). The bagel COUNTERS are still
+  valid, because they are computed from network entity state before any geometry is drawn;
+  the bagel md5 lines are evidence of nothing and are not cited as a pixel pin anywhere.
+
 Reading the table:
 
 - `renderable` > `worldRenderable` on stv/bagel is task-40's view-model routing: those
@@ -249,10 +281,14 @@ Reading the table:
 - `skippedStandalone` is the proof the prop-pass cull fires: 5 pieces on stv, 3 and 7 on
   bagel were removed from the standalone prop pass because they ride an owner. Without this
   counter a duplicate hat at the map origin and a correct hat would look the same.
-- POV 60162 draws 0 pieces and that is the honest answer, not a failure: task-40's
-  attribution on that recording leaves 2 world renderable rows (17 examined, 4 attributed,
-  most of them `generation-changed`), and both of those owners are not in frame this tick
-  (`noOwnerBody=2`). Nothing is drawn because nothing can be placed.
+- POV 60162 draws 0 pieces and that is the honest answer, not a failure. Two instruments are
+  recorded side by side rather than mixed: task-40's probe table
+  (`docs/WEARABLE-ATTRIBUTION-2026-11-21.md:25-27`) reports 17 examined / 4 attributed /
+  2 renderable for POV 60162, while this product capture reports examined=37, renderable=2,
+  worldRenderable=2. They come from different instruments (probe table vs product frame
+  table), so each number is cited with its source. Both agree on the outcome that matters:
+  2 world renderable rows, both owners out of frame this tick (`noOwnerBody=2`), so nothing
+  can be placed.
 - `poseUnavailable` is 0 on every normal capture -- the owner pose was available for every
   piece that got as far as placement. Section 7 forces the other case.
 - `bonesMerged` / `bonesBindPose` (in the raw lines) are the per-piece merge hit rate: e.g.
@@ -275,14 +311,21 @@ it has no animation pose for a piece to ride. On stv tick 600, same demo:
 
 19 pieces were owned by bodies in this frame; with the pose gone, all 19 are DROPPED and all
 19 are COUNTED `poseUnavailable`; the account still closes (`worldRenderable=20` both sides).
-The BMPs differ, so the pieces are not simply invisible in both runs -- they are drawn in one
-and absent in the other. `drawn=0` with `poseUnavailable=0` is exactly the failure the
-accounting hole (section 2) used to produce; this run is the test that it cannot come back.
+The pixel evidence here is weak and is not relied on: `stv-negctl.bmp` differs from
+`basic.bmp` by 13890 px, but it differs from `off.bmp` by 13725 px -- only 165 px more --
+because switching player animation off changes the pose of every body in frame. The
+dropped-piece conclusion therefore comes from the counter A/B, not from the pixels: same
+demo, same tick, same exe, `drawn=19 poseUnavailable=0` vs `drawn=0 poseUnavailable=19`,
+with `worldRenderable=20` on both sides. `drawn=0` with `poseUnavailable=0` is exactly the
+failure the accounting hole (section 2) used to produce; this run is the test that it cannot
+come back.
 
 Before this branch the cosmetics hook lived only in the skinned arm, so a bind-pose body's
 pieces vanished with no counter and the ledger looked innocent -- that was found by review,
 fixed by the `notePiecesWithoutOwnerPose` calls in the bind-pose and no-binding arms, and is
-now measured by this control.
+now measured by this control. In this control the bucket holds exactly the 19 pose-missing
+pieces; in a normal capture it can also absorb pieces whose owner body never drew, so it is a
+residual bucket (section 2), not a pose probe.
 
 ## 8. Fixtures and negative controls
 
