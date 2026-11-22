@@ -34,6 +34,7 @@
 #include "bsp_map.h"
 #include "demo_header.h"
 #include "entity_model.h"
+#include "leaf_ambient_table.h"
 #include "map_lookup.h"
 #include "vpk_archive.h"
 #include "world_material.h"
@@ -531,6 +532,108 @@ int runSelfTest() {
         "outOfRange=" + std::to_string(map.leafAmbientRecordsOutOfRange)
           + " with=" + std::to_string(map.leavesWithAmbient));
     }
+  }
+
+  // ---- 6. the miss contract on the two-step path the renderer uses ---
+  //
+  // The renderer cannot call leafAmbientAt(): it has to tell "outside every
+  // leaf" from "in a leaf that shipped no bake", because those two absences
+  // point at different repairs (a wrong coordinate space versus a map that
+  // never baked that room). So it resolves leafAt() first and then asks
+  // leafAmbientAtLeaf(). That second call must obey the same contract as the
+  // one-shot form: false, and the caller's cube left exactly as it was.
+  // A miss that quietly zeroed the struct would hand the renderer a black
+  // cube it had no way to distinguish from a bake that is genuinely black.
+  {
+    BspFixture fixture = twoLeafFixture();
+    std::vector<std::uint8_t> page, index;
+    addThreePlusOneSamples(fixture, page, index);
+    index[0] = 0;
+    index[1] = 0;
+    fixture.leafAmbientIndex = index;
+    BspMap map;
+    const bool parsed = parseFixture(fixture, map);
+    const int leaf = parsed ? BspParser::leafAt(map, 5.0f, 5.0f, 5.0f) : -1;
+    BspLeafAmbientCube carried;
+    carried.available = false;
+    carried.leafIndex = -1;
+    carried.color[0][0] = 12345.0f;
+    carried.color[5][2] = 6789.0f;
+    const bool inLeaf = leaf >= 0
+      && BspParser::leafAmbientAtLeaf(map, leaf, carried);
+    check("leaf.emptiedLeafFoundButNoCube", leaf >= 0 && !inLeaf,
+      "leaf=" + std::to_string(leaf) + (inLeaf ? " returned a cube" : " false"));
+    check("leaf.leafAtLeafMissLeavesCallerValue", carried.available == false
+      && carried.leafIndex == -1
+      && near(carried.color[0][0], 12345.0f, 1e-3f)
+      && near(carried.color[5][2], 6789.0f, 1e-3f),
+      "available=" + std::string(carried.available ? "true" : "false")
+        + " leafIndex=" + std::to_string(carried.leafIndex)
+        + " color[0][0]=" + fmt(carried.color[0][0])
+        + " color[5][2]=" + fmt(carried.color[5][2]));
+    // leafAt() itself is a pure query: the renderer calls it once per
+    // instance in addition to the lookup, so a query that moved the same
+    // counters the lookup reports would inflate every number downstream.
+    check("leaf.leafAtDoesNotCount", parsed && map.ambientLookupsHit == 0
+      && map.ambientLookupsMissed == 0,
+      "hit=" + std::to_string(map.ambientLookupsHit)
+        + " missed=" + std::to_string(map.ambientLookupsMissed));
+  }
+
+  // ---- 7. the per-frame table: equal cubes get equal slots ------------
+  //
+  // Two instances standing in the same room resolve to the same decoded
+  // sample, so the table must hand them the SAME slot -- otherwise the
+  // buffer grows a row per instance and the per-leaf cube quietly becomes
+  // per-instance data. The comparison is exact on purpose: the cubes come
+  // from one decoded lump, so equality of the floats is the right test and
+  // a tolerance would merge genuinely different readings.
+  {
+    BspFixture fixture = twoLeafFixture();
+    std::vector<std::uint8_t> page, index;
+    addThreePlusOneSamples(fixture, page, index);
+    BspMap map;
+    const bool parsed = parseFixture(fixture, map);
+    // The same leaf asked about twice, exactly as two instances in one room
+    // would ask, then a different leaf.
+    BspLeafAmbientCube first, again, other;
+    const bool okFirst = parsed && BspParser::leafAmbientAt(map, 5.0f, 5.0f, 5.0f, first);
+    const bool okAgain = parsed && BspParser::leafAmbientAt(map, 5.0f, 5.0f, 5.0f, again);
+    const bool okOther = parsed && BspParser::leafAmbientAt(map, -5.0f, 5.0f, 5.0f, other);
+    const auto faceOf = [](const BspLeafAmbientCube& cube) {
+      tf2::native::LeafAmbientCubeFace face;
+      for (int direction = 0; direction < tf2::native::kLeafAmbientFaces; ++direction) {
+        for (int channel = 0; channel < 3; ++channel) {
+          face.rgb[direction][channel] =
+            cube.color[direction][channel] * tf2::native::kLeafAmbientScale;
+        }
+      }
+      return face;
+    };
+    std::vector<tf2::native::LeafAmbientCubeFace> distinct;
+    const std::uint32_t slotFirst = okFirst ? tf2::native::leafAmbientSlotFor(distinct, faceOf(first)) : 99u;
+    const std::uint32_t slotAgain = okAgain ? tf2::native::leafAmbientSlotFor(distinct, faceOf(again)) : 98u;
+    // Read the size BEFORE the third cube goes in. Asking for a different cube
+    // is exactly what makes the table grow, so a size checked after that call
+    // measures the wrong thing and fails a correct table -- which is what this
+    // check did on its first run (distinct=2 while both equal cubes sat on slot
+    // 0). The check was wrong, not the table; the slot numbers already agreed.
+    const std::size_t distinctAfterEqual = distinct.size();
+    const std::uint32_t slotOther = okOther ? tf2::native::leafAmbientSlotFor(distinct, faceOf(other)) : 97u;
+    check("table.equalCubesEqualSlots", okFirst && okAgain && slotFirst == slotAgain
+      && distinctAfterEqual == 1,
+      "slotFirst=" + std::to_string(slotFirst) + " slotAgain=" + std::to_string(slotAgain)
+        + " distinctAfterEqual=" + std::to_string(distinctAfterEqual));
+    check("table.differentCubeNewSlot", okOther && slotOther != slotFirst
+      && distinct.size() == 2,
+      "slotOther=" + std::to_string(slotOther) + " distinct=" + std::to_string(distinct.size()));
+    // Every slot must be a real index into what would be uploaded, and the
+    // sentinel must not collide with any of them.
+    check("table.slotIsIndexAndSentinelDistinct", slotFirst < distinct.size()
+      && slotOther < distinct.size()
+      && tf2::native::kLeafAmbientNoSlot < 0.0f,
+      "slots=" + std::to_string(slotFirst) + "," + std::to_string(slotOther)
+        + " sentinel=" + fmt(tf2::native::kLeafAmbientNoSlot));
   }
 
   const int exitCode = failures == 0 ? 0 : 1;

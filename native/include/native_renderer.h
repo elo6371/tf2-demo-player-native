@@ -26,6 +26,10 @@
 // shared by the world pass, the overlay and the third-person attach, and a
 // refusal now says what it was refused FOR (see entity_mesh_budget.h).
 #include "entity_mesh_budget.h"
+// T105/task-37 Half B: LeafAmbientCubeFace, the CPU-side face table the renderer
+// de-duplicates and uploads. A header of its own so the probe can assert the
+// de-duplication rule without a D3D device (native/tools/leaf_ambient_probe.cpp).
+#include "leaf_ambient_table.h"
 // T53: ProjectileTrackPoint, a three-float POD in a header that includes nothing,
 // so the renderer can take observed positions without including the demo decoder.
 #include "projectile_track_point.h"
@@ -139,10 +143,18 @@ struct RenderSettings {
   // arithmetic the previous build ran -- the pixel shaders only take the new
   // branch when the constant says so -- so a default run is byte-identical.
   //
-  // basic = ambient cube + Half-Lambert sun on models and props. There is no
-  // "advanced" value yet: the enum exists so the flag can grow without the
-  // meaning of the values changing underneath it.
-  enum class ModelLightingMode { Off, Basic };
+  // basic = ambient cube + Half-Lambert sun on models and props.
+  //
+  // leaf (T105/task-37 Half B) = basic, plus the map's own per-leaf baked
+  // ambient cube on entity and prop instances. It is a STRICT SUPERSET on
+  // purpose: the global cube above stays and is what a pixel falls back to when
+  // its instance has no leaf cube, so the difference between basic and leaf is
+  // exactly the leaves that carry a bake and nothing else. A separate value
+  // rather than "basic + a second switch" because basic has a committed pin and
+  // a committed report (evidence/t105-model-lighting/, d927c52639fb10c62a50b30
+  // 18806a2d3); if leaf altered what basic draws, both of those documents would
+  // start describing a frame this build can no longer produce.
+  enum class ModelLightingMode { Off, Basic, Leaf };
   ModelLightingMode modelLighting = ModelLightingMode::Off;
   // Renders each entity/prop instance's WORLD-space normal as colour instead of
   // its albedo. It is a diagnostic, not a feature: it is how the claim "the
@@ -306,6 +318,32 @@ struct EntityMarker {
   float color[4] = {0.2f, 0.9f, 0.35f, 0.0f};
 };
 
+// T105/task-37 Half B: why an instance arrived with no leaf cube. The four
+// answers are kept apart because each one points at a different repair: a point
+// outside every leaf is a caller using the wrong coordinate space, a leaf with
+// no bake is the map's own hole (42.65% of the corpus's 1629874 leaves), a map
+// with no lump at all is a corpus fact (261 maps: 260 LDR, 1 with neither page),
+// and NotAsked is a build site that was never given the map's answer.
+enum class EntityLeafCubeAbsence {
+  NotAsked,
+  OutsideLeaf,
+  LeafWithoutCube,
+  MapWithoutLump,
+};
+
+// The absence as it appears in the trace. Spelled out rather than printed as a
+// number because the whole point of the four values is that a reader of the
+// trace can tell a map property from a defect without opening this header.
+inline const char* leafCubeAbsenceName(EntityLeafCubeAbsence absence) {
+  switch (absence) {
+    case EntityLeafCubeAbsence::OutsideLeaf: return "outsideLeaf";
+    case EntityLeafCubeAbsence::LeafWithoutCube: return "leafWithoutCube";
+    case EntityLeafCubeAbsence::MapWithoutLump: return "mapWithoutLump";
+    case EntityLeafCubeAbsence::NotAsked: return "notAsked";
+  }
+  return "notAsked";
+}
+
 struct EntityModelDrawInstance {
   std::string cacheKey;
   // The entity state index this instance belongs to, or -1 when the caller has
@@ -351,6 +389,44 @@ struct EntityModelDrawInstance {
   // there is none: the m8 failure shape. The two are counted separately so the
   // defect detector is not drowned in the budget's own noise.
   bool budgetDeferred = false;
+
+  // ---- T105/task-37 Half B: this instance's own baked ambient light --------
+  //
+  // Every miss is one of these, and "not asked" is one of them: an instance whose
+  // caller never filled the cube must be visible as unfinished work rather than
+  // counted as a leaf that had no bake.
+  //
+  // Filled by the CALLER, from the map it has in scope, before the list is
+  // handed to setEntityModelInstances(). The renderer never sees a BspMap, and
+  // that is deliberate: everything in this header is map-agnostic, and the one
+  // component that has to know what an ambient cube means is the one holding
+  // the BSP. `hasLeafCube` false is a reading, not a default -- the caller
+  // counts three different reasons for it separately (bsp_map.h's
+  // BspLeafAmbientCube) rather than letting "no light" look like "no data".
+  //
+  // The values are LINEAR radiance as the lump stores them; the scale that maps
+  // them into the renderer's lighting units is applied once, when the slot table
+  // is built, so this field is the map's own data and nothing else.
+  bool hasLeafCube = false;
+  float leafCubeColor[6][3] = {};
+  // Which leaf answered, for the per-instance trace and the absence counters.
+  // -1 when no cube (hasLeafCube false).
+  int leafCubeIndex = -1;
+  // The world point the lookup was made AT, which is not always `origin`: a map
+  // model keeps its outer origin at zero and carries its live translation in
+  // the local matrix, so its leaf is resolved from matrix[3],[7],[11]. Without
+  // this field the trace line for such a model reads "origin=(0,0,0)" beside a
+  // real leaf index, which looks like a lookup in the wrong place. Recorded by
+  // the caller (native/src/main.cpp's resolveLeafCube) whether or not a cube
+  // was found, because the point is what makes a miss checkable.
+  float leafCubePoint[3] = {};
+  // WHICH absence, when hasLeafCube is false. The three are different facts and
+  // the renderer cannot tell them apart on its own -- only the caller holding
+  // the BSP knows whether the point missed every leaf, whether the leaf it hit
+  // shipped no bake, or whether the MAP shipped no leaf-ambient lump at all.
+  // Collapsing them into one number would let a broken lookup hide inside a
+  // map property, so each is carried explicitly and counted separately.
+  EntityLeafCubeAbsence leafCubeAbsence = EntityLeafCubeAbsence::NotAsked;
 };
 
 // Everything the first-person pass needs, in one value. It is deliberately a
@@ -1068,15 +1144,63 @@ public:
     const std::vector<std::uint8_t>& secondRgba = {}, UINT secondWidth = 0, UINT secondHeight = 0,
     const VmtMaterialProxy& proxy = {});
   void setEntityModelTime(double seconds) { entityModelTimeSeconds_ = seconds; }
+  // T105/task-37 Half B: arm the per-instance lighting trace for ONE frame.
+  //
+  // `tick` is the playback tick whose draw the trace should describe (0 turns the
+  // gate off, the pre-existing behaviour). `entities` are the entity indexes the
+  // overlay submitted as silhouettes for that same frame -- the players that are
+  // actually in the picture. An empty set means "no narrowing": every instance of
+  // the gated frame is eligible, which is what the earlier trace did on every
+  // frame. Called before setEntityModelInstances so the counters it resets are
+  // the ones the update fills.
+  void armModelLightingTrace(std::int64_t tick, const std::unordered_set<std::uint16_t>& entities);
+  // Disarm after the frame the trace described has been built, so a long run
+  // cannot accumulate a second capture's worth of lines into the same report.
+  void disarmModelLightingTrace() { modelLightingTraceTick_ = -1; modelLightingTraceEntities_.clear(); }
+  std::int64_t modelLightingTraceTick() const { return modelLightingTraceTick_; }
+  std::size_t leafAmbientTracePrinted() const { return leafAmbientTracePrinted_; }
+  std::size_t leafAmbientTraceSkipped() const { return leafAmbientTraceSkipped_; }
+  std::int64_t leafAmbientTraceTick() const { return leafAmbientTraceTick_; }
   void setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances);
   // The bone matrices every skinned instance indexes into, concatenated. Uploaded
   // once per scene update rather than per draw: a demo can carry 96 instances and
   // a per-draw structured-buffer recreate would dominate the frame.
   void setEntityBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices);
+  // T105/task-37 Half B: the frame's table of distinct baked leaf cubes, six
+  // float4 rows per slot, read by the world pixel shader at t12. Called by
+  // setEntityModelInstances once it has walked the instances, so the table and
+  // the slots the instances carry are always from the same update.
+  void uploadLeafAmbientCubes(const std::vector<LeafAmbientCubeFace>& distinct);
   std::size_t entitySkinnedInstanceCount() const { return entityModelSkinnedInstanceCount_; }
   std::size_t entityBoneMatrixCount() const { return entityBoneMatrixCount_; }
   std::size_t entityModelMeshCount() const { return entityModelMeshes_.size() - mapStaticPropMeshCount(); }
   // Instances DRAWN: one per accepted entity, at most the entity pass's cap.
+  // T105/task-37 Half B: the per-leaf ambient account for the LAST instance
+  // update, three absences counted apart because they mean three different
+  // things and only one of them is a bug in this build:
+  //
+  //   withCube     instances whose caller resolved a leaf bake
+  //   noCubeInLeaf the leaf was found and simply ships no cube (42.65% of the
+  //                leaves in the 261-map corpus -- a fact about the map)
+  //   outsideLeaf  the point resolved to no leaf at all (a fact about the
+  //                entity, e.g. a CWorld at the origin)
+  //
+  // And the fourth, which is about the MAP rather than the entity:
+  //   noLump       the map carries no leaf-ambient lumps (261 maps: 260 LDR
+  //                usable, 0 HDR-only, 1 with neither)
+  //
+  // A miss is never a black cube; it is one of these counters and a fall back
+  // to the global cube the basic arm already draws with.
+  std::size_t leafAmbientWithCube() const { return leafAmbientWithCube_; }
+  std::size_t leafAmbientNoCubeInLeaf() const { return leafAmbientNoCubeInLeaf_; }
+  std::size_t leafAmbientOutsideLeaf() const { return leafAmbientOutsideLeaf_; }
+  std::size_t leafAmbientNoLump() const { return leafAmbientNoLump_; }
+  // The fifth answer, and the one that is always a defect in THIS build: an
+  // instance whose caller never asked the map. It is counted rather than folded
+  // into "no cube in leaf" so a forgotten draw site cannot be read as a map
+  // property.
+  std::size_t leafAmbientNotAsked() const { return leafAmbientNotAsked_; }
+  std::size_t leafAmbientSlotCount() const { return leafAmbientSlotCount_; }
   std::size_t entityModelInstanceCount() const { return entityModelInstanceCount_; }
   // Instance SLOTS: the same instances counted once per material run, which is
   // what the vertex shader sees per draw range. A separate reading on purpose --
@@ -2010,7 +2134,23 @@ private:
   // the switches ask for it at all. Both are one implementation each for the
   // reason the three accessors below are: the buffer and the capture trace must
   // not be able to describe different lighting.
-  bool modelLightingEffective() const { return settings_.modelLighting == RenderSettings::ModelLightingMode::Basic; }
+  //
+  // Both arms are "on" for this accessor: the pixel shader's lighting branch is
+  // the same branch in both, and the leaf arm differs only in WHICH cube the
+  // instance's slot selects. Leaving leaf out here would upload lightingParams.x
+  // = 0 and make --lighting leaf draw basic's arithmetic turned off -- a switch
+  // that reports itself as doing something and cannot change a pixel.
+  bool modelLightingEffective() const {
+    return settings_.modelLighting == RenderSettings::ModelLightingMode::Basic
+      || settings_.modelLighting == RenderSettings::ModelLightingMode::Leaf;
+  }
+  // Whether this frame resolves an instance's cube through the leaf table. One
+  // implementation, read by both the instance upload and the trace, so the slot
+  // the GPU is given and the slot the log prints cannot be two different
+  // answers.
+  bool leafAmbientEffective() const {
+    return settings_.modelLighting == RenderSettings::ModelLightingMode::Leaf;
+  }
   ModelLightingConstantsData buildModelLightingConstants() const;
   // R1b: per-range depth inside 50-entities; see the definition for the window.
   void captureRangeDepth(const char* phase, int rangeIndex, int blended, int materialSlot);
@@ -2339,6 +2479,31 @@ private:
   // renderer rather than as a function-static so the cap is per run and so the
   // set is released with everything else on reset. Bounded by the trace itself.
   std::unordered_set<std::string> modelLightingTraceLines_;
+  // T105/task-37 Half B: WHEN the per-instance lighting trace may print.
+  //
+  // The trace used to print on every playback frame and dedupe on the printed
+  // text, which is what made it useless for a capture: the set filled on the
+  // first few frames of a demo, long before the capture tick, and every seat it
+  // took was a world prop -- so a capture-frame player could never appear, no
+  // matter what cube it carried. The cap then made it worse: 16 lines shared by
+  // two line kinds, filled by props that are identical every frame.
+  //
+  // So the gate moves onto the frame the trace is supposed to describe. Both
+  // fields are set by the caller (main.cpp) on the draw that is about to become
+  // the capture: a tick, 0 = no gate, and the set of silhouette entity indexes
+  // that the overlay pass submitted for that same frame (the players the picture
+  // actually contains, at capture time). A non-empty set narrows the trace to
+  // players; an empty one keeps every instance, so the old behaviour is still
+  // reachable by leaving the gate unset.
+  std::int64_t modelLightingTraceTick_ = -1;
+  std::unordered_set<std::uint16_t> modelLightingTraceEntities_;
+  // What the instance update decided, printed by the capture line: how many
+  // instances the gate admitted to the trace. A tick gate that matches no frame
+  // and a silhouette set that joins nothing both look like "no trace output",
+  // so the number that distinguishes them travels with the frame.
+  std::size_t leafAmbientTracePrinted_ = 0;
+  std::size_t leafAmbientTraceSkipped_ = 0;
+  std::int64_t leafAmbientTraceTick_ = 0;
   std::vector<EntityModelDrawRange> entityModelDrawRanges_;
   double entityModelTimeSeconds_ = 0.0;
   Microsoft::WRL::ComPtr<ID3D11Buffer> entityModelInstanceBuffer_;
@@ -2348,6 +2513,22 @@ private:
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> entityBoneView_;
   std::size_t entityBoneCapacity_ = 0;
   std::size_t entityBoneMatrixCount_ = 0;
+  // T105/task-37 Half B: the de-duplicated leaf ambient cube table, bound to the
+  // world pixel shader at t12 for the entity/prop pass. Six float4 rows per
+  // slot, one row per cube face, so the buffer is a StructuredBuffer<float4> of
+  // 6*slots elements -- the same stride trick the bone buffer above uses for its
+  // four-float4 matrices. Slots are positions in this table and nothing else:
+  // an instance stores only its slot, which is why the instance stride did not
+  // grow for this feature.
+  Microsoft::WRL::ComPtr<ID3D11Buffer> leafAmbientCubeBuffer_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> leafAmbientCubeView_;
+  std::size_t leafAmbientCubeCapacity_ = 0;   // in SLOTS, not elements
+  std::size_t leafAmbientSlotCount_ = 0;      // slots uploaded for the last update
+  std::size_t leafAmbientWithCube_ = 0;
+  std::size_t leafAmbientNoCubeInLeaf_ = 0;
+  std::size_t leafAmbientOutsideLeaf_ = 0;
+  std::size_t leafAmbientNoLump_ = 0;
+  std::size_t leafAmbientNotAsked_ = 0;
   UINT entityModelVertexCount_ = 0;
   std::size_t entityModelInstanceCount_ = 0;
   std::size_t mapStaticPropInstanceCount_ = 0;

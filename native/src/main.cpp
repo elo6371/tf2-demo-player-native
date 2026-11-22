@@ -3533,6 +3533,16 @@ bool outlineVertexExtent = false;
   // failing.
   bool modelLightingGiven = false;
   bool modelLightingRequested = false;
+  // T105/task-37 Half B: the third value. It is a SEPARATE bool rather than a
+  // third state of modelLightingRequested because the two are not alternatives:
+  // leaf is a strict superset of basic (the global cube stays, the per-leaf
+  // override is added on top), so "leaf asked for" has to be able to mean
+  // "basic is still on" at the same time. Folding them into one enum here would
+  // make the apply block below choose between basic and leaf, which is exactly
+  // the mistake the brief rules out: basic has a committed pin and a committed
+  // report, and altering what basic draws would make both of them false
+  // statements about this tree.
+  bool modelLightingLeafRequested = false;
   bool modelLightingArgumentRejected = false;
   // --lighting-trace: no value. It only means something with the arm on, which
   // the refusal below enforces -- a trace with the arm off would render the
@@ -3957,6 +3967,14 @@ bool outlineVertexExtent = false;
           const wchar_t* value = arguments[i + 1];
           if (wcscmp(value, L"basic") == 0) {
             modelLightingRequested = true;
+            modelLightingGiven = true;
+            ++i;
+          } else if (wcscmp(value, L"leaf") == 0) {
+            // Half B: basic PLUS the per-leaf ambient override. Both flags on
+            // purpose -- see the declaration comment above and the apply block
+            // below for why this is not a third alternative to basic.
+            modelLightingRequested = true;
+            modelLightingLeafRequested = true;
             modelLightingGiven = true;
             ++i;
           } else if (wcscmp(value, L"off") == 0) {
@@ -5044,9 +5062,16 @@ bool outlineVertexExtent = false;
   // forbids the combination, so this assignment cannot produce a trace of a
   // frame that was not lit.
   if (modelLightingGiven) {
-    persistent.render.modelLighting = modelLightingRequested
-      ? tf2::native::RenderSettings::ModelLightingMode::Basic
-      : tf2::native::RenderSettings::ModelLightingMode::Off;
+    // Three values, two flags: leaf implies basic (so the global cube, the sun
+    // and every "basic is on" test keep working) and then adds the per-leaf
+    // override on top. off is the only value that turns basic off.
+    if (modelLightingLeafRequested) {
+      persistent.render.modelLighting = tf2::native::RenderSettings::ModelLightingMode::Leaf;
+    } else {
+      persistent.render.modelLighting = modelLightingRequested
+        ? tf2::native::RenderSettings::ModelLightingMode::Basic
+        : tf2::native::RenderSettings::ModelLightingMode::Off;
+    }
   }
   persistent.render.modelLightingTrace = modelLightingTrace;
   if (worldSpecularGiven) persistent.render.specular = worldSpecularRequested;
@@ -5098,11 +5123,11 @@ bool outlineVertexExtent = false;
     // read must fail rather than pick one: picking "off" would make a mistyped
     // --lighting look like a clean baseline re-run, and picking "basic" would
     // move a baseline someone else is comparing against.
-    OutputDebugStringW(L"TF2 Demo Player: invalid --lighting; it takes off or basic and nothing else.\n");
+    OutputDebugStringW(L"TF2 Demo Player: invalid --lighting; it takes off, basic or leaf and nothing else.\n");
     return 13;
   }
   if (persistent.render.modelLightingTrace
-      && persistent.render.modelLighting != tf2::native::RenderSettings::ModelLightingMode::Basic) {
+      && persistent.render.modelLighting == tf2::native::RenderSettings::ModelLightingMode::Off) {
     // T105: a trace of an unlit frame is a picture of the albedo, not of a
     // normal, and the two are easy to confuse in a report. Refused rather than
     // quietly ignored for exactly that reason.
@@ -13036,6 +13061,58 @@ bool outlineVertexExtent = false;
         // Map actors use the current snapshot's model and skin, not a historic
         // asset reference at the same entity slot. Their meshes share the map
         // residency allowance, leaving the player/held-weapon budgets intact.
+        // T105/task-37 Half B: the per-leaf ambient cube for one draw, resolved
+        // here because this is the only place that holds both the draw list and
+        // the BspMap the draws live in. The renderer never sees a BspMap, which
+        // is the point: it takes cubes and slots, not maps and leaves.
+        //
+        // The three absences are resolved in order and recorded apart, because
+        // they are three different facts and only one of them is a defect here:
+        //
+        //   the map shipped no leaf-ambient lumps -> MapWithoutLump
+        //   the point is inside no leaf at all     -> OutsideLeaf
+        //   the leaf it hit ships no cube          -> LeafWithoutCube
+        //
+        // leafAt() is asked FIRST and leafAmbientAtLeaf() second on purpose.
+        // leafAmbientAt() would answer both questions at once but it counts a
+        // hit-or-miss pair of its own, and it cannot tell "no leaf" from "leaf
+        // with no cube" -- it returns the same false for both, so a broken
+        // coordinate space would hide inside a map property. The half-A test
+        // (evidence/leaf-ambient/self-test.txt) pins that leafAmbientAtLeaf
+        // leaves the caller value untouched on a miss, so `out` is only read
+        // when the call returns true.
+        const auto resolveLeafCube = [&displayMap](float x, float y, float z,
+            tf2::native::EntityModelDrawInstance& draw) {
+          draw.hasLeafCube = false;
+          draw.leafCubeIndex = -1;
+          draw.leafCubePoint[0] = x;
+          draw.leafCubePoint[1] = y;
+          draw.leafCubePoint[2] = z;
+          // A map whose leaf-ambient lump is absent has no leaves to be inside
+          // of either, so this answer comes before the leaf lookup rather than
+          // being inferred from its failure.
+          if (displayMap.leafAmbientMode != tf2::native::BspLeafAmbientMode::RgbExp32) {
+            draw.leafCubeAbsence = tf2::native::EntityLeafCubeAbsence::MapWithoutLump;
+            return;
+          }
+          const int leaf = tf2::native::BspParser::leafAt(displayMap, x, y, z);
+          if (leaf < 0) {
+            draw.leafCubeAbsence = tf2::native::EntityLeafCubeAbsence::OutsideLeaf;
+            return;
+          }
+          tf2::native::BspLeafAmbientCube cube;
+          if (!tf2::native::BspParser::leafAmbientAtLeaf(displayMap, leaf, cube)) {
+            draw.leafCubeAbsence = tf2::native::EntityLeafCubeAbsence::LeafWithoutCube;
+            return;
+          }
+          draw.hasLeafCube = true;
+          draw.leafCubeIndex = cube.leafIndex;
+          for (int direction = 0; direction < 6; ++direction) {
+            for (int channel = 0; channel < 3; ++channel) {
+              draw.leafCubeColor[direction][channel] = cube.color[direction][channel];
+            }
+          }
+        };
         std::unordered_set<std::size_t> mapNetworkEntities;
         std::vector<tf2::native::EntityModelDrawInstance> mapNetworkDraws;
         std::size_t mapNetworkHidden = 0, mapNetworkMissing = 0, mapNetworkPoseRefused = 0;
@@ -13093,6 +13170,13 @@ bool outlineVertexExtent = false;
           traceFmt("map: model entity=%zu path=%s skin=%u body=%u origin=%.2f,%.2f,%.2f parent=%lld",
             entity, path.c_str(), draw.skinFamily, draw.body, matrix[3], matrix[7], matrix[11],
             static_cast<long long>(readMapInt(state, "moveparent", -1)));
+          // The leaf lookup takes the matrix's translation, not draw.origin: this
+          // draw keeps origin at zero on purpose (the local matrix already
+          // carries the map-space position) and asking the BSP about [0,0,0]
+          // would resolve every map model to whatever leaf sits at the map
+          // origin -- which is a real leaf, so it would answer with a cube and
+          // look correct.
+          resolveLeafCube(matrix[3], matrix[7], matrix[11], draw);
           mapNetworkDraws.push_back(std::move(draw));
         }
         traceFmt("scene: mapModels observed=%zu submitted=%zu hidden=%zu missingMesh=%zu poseRefused=%zu",
@@ -13682,6 +13766,10 @@ bool outlineVertexExtent = false;
             draw.angles[0] = instance.transform.angles[0];
             draw.angles[1] = instance.transform.angles[1];
             draw.angles[2] = instance.transform.angles[2];
+            // T105/task-37 Half B: the player's own leaf bake. The origin is the
+            // entity's, not the eye's -- a model is lit where it stands, and the
+            // eye can be a view-height above the floor in a different leaf.
+            resolveLeafCube(draw.origin[0], draw.origin[1], draw.origin[2], draw);
             // N17 item 3: the player's bodygroup selector. m_nBody picks which
             // model of each bodypart group to draw; it was read only for map
             // models, so every subgroup of a player body drew at once. The model's
@@ -14589,6 +14677,28 @@ bool outlineVertexExtent = false;
                     attachDraw.angles[0] = instance.transform.angles[0];
                     attachDraw.angles[1] = instance.transform.angles[1];
                     attachDraw.angles[2] = instance.transform.angles[2];
+                    // T105/task-37 Half B: the held weapon is lit by the leaf the
+                    // HAND is in, read from the body's origin, not by a leaf
+                    // lookup of its own -- the weapon's placed position is the
+                    // body origin plus a bone-relative offset, and resolving that
+                    // would need the pose composed here for a cube that is
+                    // almost always the body's own. The body already resolved
+                    // exactly this point above.
+                    attachDraw.leafCubeAbsence = draw.leafCubeAbsence;
+                    attachDraw.hasLeafCube = draw.hasLeafCube;
+                    attachDraw.leafCubeIndex = draw.leafCubeIndex;
+                    // The point travels with the cube: the weapon is lit where
+                    // the body stands, and a reader comparing the two trace
+                    // lines has to see the same coordinates or the "inherited"
+                    // claim is just an assertion.
+                    attachDraw.leafCubePoint[0] = draw.leafCubePoint[0];
+                    attachDraw.leafCubePoint[1] = draw.leafCubePoint[1];
+                    attachDraw.leafCubePoint[2] = draw.leafCubePoint[2];
+                    for (int direction = 0; direction < 6; ++direction) {
+                      for (int channel = 0; channel < 3; ++channel) {
+                        attachDraw.leafCubeColor[direction][channel] = draw.leafCubeColor[direction][channel];
+                      }
+                    }
                     attachDraw.color[0] = draw.color[0];
                     attachDraw.color[1] = draw.color[1];
                     attachDraw.color[2] = draw.color[2];
@@ -14813,6 +14923,11 @@ bool outlineVertexExtent = false;
             draw.origin[axis] = prop.origin[axis];
             draw.angles[axis] = prop.angles[axis];
           }
+          // T105/task-37 Half B: the prop's own leaf. A prop is lit where it
+          // stands, so this is the one site where the cube is most likely to
+          // differ from the global one -- a crate in a doorway is in a
+          // different leaf from the wall beside it.
+          resolveLeafCube(draw.origin[0], draw.origin[1], draw.origin[2], draw);
           draws.push_back(std::move(draw));
           ++staticPropDrawn;
         }
@@ -14895,6 +15010,58 @@ bool outlineVertexExtent = false;
         renderer.setEntityModelTime(sceneTickKnown && g_playback.tickRate > 0.0
           ? static_cast<double>(sceneTick) / g_playback.tickRate : 0.0);
         draws.insert(draws.end(), mapNetworkDraws.begin(), mapNetworkDraws.begin() + mapNetworkSubmitted);
+        // T105/task-37 Half B: the per-instance lighting trace follows the
+        // capture frame, not the first frame that happens to reach this code.
+        //
+        // Before this the trace ran on every playback frame and deduped on the
+        // printed text, so its 16 lines were spent on world props during the
+        // demo's opening frames and a capture-frame player could never appear --
+        // which is why every earlier leaf trace reads as props and nothing else.
+        // The arm below is the same condition the capture itself uses a few
+        // hundred lines further down (armed, tick reached), so the trace and the
+        // written frame are the same iteration's work: the draw list built above
+        // is what the capture draws.
+        //
+        // THE FILTER IS THE PLAYER BODIES AND THEIR HELD WEAPONS, and it is
+        // built here rather than from silhouettes for the reason the previous
+        // version of this comment gave: the overlay pass that produces them runs
+        // after this update. But "no filter" was not the same thing as "the
+        // players will be there". The trace prints in draw order and the draw
+        // list is map models, then props, then items, then bodies -- measured on
+        // cp_process_f12 tick 600, the unfiltered run spent all 16 lines on
+        // ammopack/medkit props (indices 47..244) and never reached a body. The
+        // card asks for one player indoors and one outdoors, so the filter names
+        // exactly what that reading needs and nothing else: every draw whose
+        // entity is a player body, plus every draw that rides on one (the held
+        // weapon inherits its body's cube at the push site below, so a weapon
+        // line and a body line are one leaf read twice, which is worth seeing).
+        //
+        // The set is filled from the same candidate list the draw loop walks and
+        // with the same three-way player test that loop uses, so the filter
+        // cannot disagree with what was drawn.
+        std::unordered_set<std::uint16_t> traceEntities;
+        if (captureArmed && captureTick > 0
+            && static_cast<std::int64_t>(g_playback.tick) >= captureTick) {
+          for (const auto& traceCandidate : drawCandidates) {
+            const bool tracePlayer = traceCandidate.className.find("Player") != std::string::npos
+              || traceCandidate.className.find("TFPlayer") != std::string::npos
+              || traceCandidate.playerClassFallback;
+            if (tracePlayer && traceCandidate.entityIndex >= 0
+                && traceCandidate.entityIndex <= 0xffff) {
+              traceEntities.insert(static_cast<std::uint16_t>(traceCandidate.entityIndex));
+            }
+          }
+          // The held weapons ride in the same set: the attach draw is the body's
+          // leaf read a second time (it copies the body's cube at the push site
+          // below), and printing both is how that claim stays checkable.
+          for (const auto& traceHeld : heldWeaponEntities) {
+            if (traceHeld >= 0 && traceHeld <= 0xffff) {
+              traceEntities.insert(static_cast<std::uint16_t>(traceHeld));
+            }
+          }
+          renderer.armModelLightingTrace(
+            static_cast<std::int64_t>(g_playback.tick), traceEntities);
+        }
         renderer.setEntityModelInstances(draws);
         // T85 P0: LAYER C'S LEDGER. The instance update is the last place an
         // entity can disappear between the draw list and the GPU, and until this
@@ -16056,6 +16223,14 @@ bool outlineVertexExtent = false;
         renderer.setRangeDepthSkip(captureRangeSkip);
         renderer.requestFrameCapture(captureFramePath.wstring(), captureDepthPath.wstring());
         captureArmed = false;
+        // T105/task-37 Half B: the per-instance lighting trace was armed for the
+        // frame above and has already printed by now, so close the gate. Without
+        // this the trace would keep printing on every later frame of the run and
+        // the report would mix instances from frames the capture never showed.
+        traceFmt("lighting-trace: gate closed tick=%d printed=%zu skipped=%zu",
+          static_cast<int>(renderer.leafAmbientTraceTick()),
+          renderer.leafAmbientTracePrinted(), renderer.leafAmbientTraceSkipped());
+        renderer.disarmModelLightingTrace();
         captureRequested = true;
         // T26: which tick the captured frame actually belongs to. The arm fires
         // on the first draw at or after the requested tick, and a run that

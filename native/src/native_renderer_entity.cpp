@@ -8,6 +8,7 @@
 
 #include "entity_model.h"
 #include "hud_font.h"
+#include "leaf_ambient_table.h"
 
 #include <algorithm>
 #include <array>
@@ -463,6 +464,24 @@ bool Renderer::uploadEntityModelTexture(const std::string& cacheKey, std::uint32
   return true;
 }
 
+// T105/task-37 Half B: arm the per-instance trace for exactly one frame.
+//
+// The caller arms this on the same iteration that requests the capture, so the
+// lines describe the frame that gets written rather than whichever frame
+// happened to be drawn first. Two counters travel with the frame so "the gate
+// admitted nothing" cannot be mistaken for "the gate admitted twelve and the
+// cap swallowed them": printed counts the instances that reached the report,
+// skipped counts the ones the entity filter or the 16-line cap turned away.
+void Renderer::armModelLightingTrace(std::int64_t tick,
+  const std::unordered_set<std::uint16_t>& entities) {
+  modelLightingTraceTick_ = tick;
+  modelLightingTraceEntities_ = entities;
+  modelLightingTraceLines_.clear();
+  leafAmbientTracePrinted_ = 0;
+  leafAmbientTraceSkipped_ = 0;
+  leafAmbientTraceTick_ = tick;
+}
+
 void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance>& instances) {
   entityModelVertexCount_ = 0;
   entityModelInstanceCount_ = 0;
@@ -475,6 +494,19 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   entityModelUntexturedRangeCount_ = 0;
   entityModelFirstUntexturedRange_.clear();
   entityModelDrawRanges_.clear();
+  // T105/task-37 Half B: the leaf account is per instance update, like every
+  // other counter above. Not zeroing them here would make the capture line
+  // report every frame's instances added together, which is not a frame reading.
+  leafAmbientWithCube_ = 0;
+  leafAmbientNoCubeInLeaf_ = 0;
+  leafAmbientOutsideLeaf_ = 0;
+  leafAmbientNoLump_ = 0;
+  leafAmbientNotAsked_ = 0;
+  leafAmbientSlotCount_ = 0;
+  // The trace account is per update for the same reason: "the gate admitted no
+  // instance" and "the gate admitted 12" must not be the same printed number.
+  leafAmbientTracePrinted_ = 0;
+  leafAmbientTraceSkipped_ = 0;
   if (!device_ || !context_ || !worldBoundsValid_ || instances.empty() || entityModelMeshes_.empty()) return;
   if (!std::isfinite(worldCenterX_) || !std::isfinite(worldCenterY_) || !std::isfinite(worldMinZ_)
       || !std::isfinite(worldSpanZ_) || !std::isfinite(worldHorizontalScale_)
@@ -503,6 +535,12 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   std::unordered_map<std::string, std::size_t> bucketOf;
   buckets.reserve(8);
   bucketOf.reserve(8);
+  // T105/task-37 Half B: the frame's de-duplicated leaf cube table. Distinct
+  // cubes only -- a row of props in one room resolves to one leaf and must cost
+  // one slot, not one slot per prop. Filled while the instances are walked and
+  // uploaded once, below, so the shader indexes cubes rather than instances.
+  std::vector<LeafAmbientCubeFace> leafCubes;
+  leafCubes.reserve(8);
   std::size_t accepted = 0;
   std::size_t staticAccepted = 0;
   // T85 P0: one frame counter and four refusal counters. Until this change every
@@ -606,6 +644,41 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
       for (int column = 0; column < 4; ++column) gpu.position[row][column] = rows.positionRows[row * 4 + column];
       for (int column = 0; column < 3; ++column) gpu.normal[row][column] = rows.normalRows[row * 3 + column];
     }
+    // T105/task-37 Half B: this instance's baked ambient cube -> one slot in the
+    // frame table. The slot rides in gpu.normal[0][3], the .w of the first normal
+    // row, because that lane is dead: the entity vertex shader reads the row as
+    // input.nrow0.xyz only (native_renderer_shaders.cpp:1059) and nothing else
+    // samples it. It is the only free lane in the instance record -- padding[0]
+    // and padding[1] are both live (boneCount here, material flags below) and the
+    // struct is 128 bytes under static_assert, so the feature cannot grow it.
+    //
+    // A caller that had no cube gets the sentinel, NOT slot 0 and NOT a zero
+    // cube: slot 0 is a real cube somebody else's leaf owns, and a zero cube
+    // reads as "in the dark" when the truth is "no bake here". Which of the
+    // absences it was is counted separately below.
+    float ambientSlotValue = kLeafAmbientNoSlot;
+    int ambientSlotIndex = -1;
+    if (leafAmbientEffective()) {
+      if (instance.hasLeafCube) {
+        LeafAmbientCubeFace face;
+        for (int direction = 0; direction < kLeafAmbientFaces; ++direction) {
+          for (int channel = 0; channel < 3; ++channel) {
+            face.rgb[direction][channel] = instance.leafCubeColor[direction][channel] * kLeafAmbientScale;
+          }
+        }
+        ambientSlotIndex = static_cast<int>(leafAmbientSlotFor(leafCubes, face));
+        ambientSlotValue = static_cast<float>(ambientSlotIndex);
+        ++leafAmbientWithCube_;
+      } else {
+        switch (instance.leafCubeAbsence) {
+          case EntityLeafCubeAbsence::OutsideLeaf: ++leafAmbientOutsideLeaf_; break;
+          case EntityLeafCubeAbsence::LeafWithoutCube: ++leafAmbientNoCubeInLeaf_; break;
+          case EntityLeafCubeAbsence::MapWithoutLump: ++leafAmbientNoLump_; break;
+          case EntityLeafCubeAbsence::NotAsked: default: ++leafAmbientNotAsked_; break;
+        }
+      }
+    }
+    gpu.normal[0][3] = ambientSlotValue;
     // T105: the read-only half of the world-space normal claim. These are the
     // exact rows that reach the GPU above, printed for the instances that are
     // actually drawn, so "the entity vertex shader rotates a model normal by
@@ -617,7 +690,20 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     // playback frame long before the capture frame, and a trace that repeats
     // thousands of identical lines documents nothing. Off by default, so an
     // ordinary run prints nothing.
-    if (settings_.modelLightingTrace) {
+    // T105/task-37 Half B: the gate. Before this, the block below ran on EVERY
+    // playback frame and deduped on the printed text; the 16-line cap then filled
+    // during the first frames of the demo, which is why every earlier leaf trace
+    // is world props and never a capture-frame player. The gate is the capture
+    // frame itself (armed by the caller) narrowed to the player bodies that frame
+    // actually draws, so the lines describe the picture the operator is looking
+    // at instead of the first props the engine happened to submit.
+    const bool traceArmed = settings_.modelLightingTrace && modelLightingTraceTick_ >= 0;
+    const bool traceWanted = traceArmed
+      && (modelLightingTraceEntities_.empty()
+          || (instance.entityIndex >= 0
+              && modelLightingTraceEntities_.count(
+                   static_cast<std::uint16_t>(instance.entityIndex)) != 0));
+    if (traceWanted) {
       char line[512];
       std::snprintf(line, sizeof(line),
         "lighting-normal: index=%d key=%s origin=(%.3f,%.3f,%.3f) rows=(%.4f,%.4f,%.4f)(%.4f,%.4f,%.4f)(%.4f,%.4f,%.4f)",
@@ -631,7 +717,43 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
           && modelLightingTraceLines_.insert(std::string(line)).second) {
         std::printf("%s", line);
         std::printf("\n");
+        // T105/task-37 Half B: the same instance's baked ambient cube, printed
+        // from the SAME trace site as the rows above so the cube and the rows
+        // that carry it are never in doubt about which instance they describe.
+        //   leaf   the BSP leaf the caller resolved, -1 when it resolved none
+        //   slot   the table row the pixel shader will index; -1 is the
+        //          sentinel that falls back to the global cube
+        //   absent why there is no cube, when there is none (four answers,
+        //          counted apart -- see EntityLeafCubeAbsence)
+        //   cube   the six faces AS THE MAP SHIPPED THEM, linear and unscaled,
+        //          in (+X,-X,+Y,-Y,+Z,-Z), so the scale constant can be
+        //          checked against real data rather than taken on trust
+        char leafLine[1024];
+        std::snprintf(leafLine, sizeof(leafLine),
+          "lighting-leaf: index=%d key=%s origin=(%.3f,%.3f,%.3f) point=(%.3f,%.3f,%.3f)"
+          " leaf=%d slot=%d absent=%s"
+          " cube=(%.6f,%.6f,%.6f)(%.6f,%.6f,%.6f)(%.6f,%.6f,%.6f)"
+          "(%.6f,%.6f,%.6f)(%.6f,%.6f,%.6f)(%.6f,%.6f,%.6f)",
+          instance.entityIndex,
+          instance.cacheKey.empty() ? "(unknown)" : instance.cacheKey.c_str(),
+          instance.origin[0], instance.origin[1], instance.origin[2],
+          instance.leafCubePoint[0], instance.leafCubePoint[1], instance.leafCubePoint[2],
+          instance.leafCubeIndex, ambientSlotIndex,
+          leafCubeAbsenceName(instance.leafCubeAbsence),
+          instance.leafCubeColor[0][0], instance.leafCubeColor[0][1], instance.leafCubeColor[0][2],
+          instance.leafCubeColor[1][0], instance.leafCubeColor[1][1], instance.leafCubeColor[1][2],
+          instance.leafCubeColor[2][0], instance.leafCubeColor[2][1], instance.leafCubeColor[2][2],
+          instance.leafCubeColor[3][0], instance.leafCubeColor[3][1], instance.leafCubeColor[3][2],
+          instance.leafCubeColor[4][0], instance.leafCubeColor[4][1], instance.leafCubeColor[4][2],
+          instance.leafCubeColor[5][0], instance.leafCubeColor[5][1], instance.leafCubeColor[5][2]);
+        std::printf("%s", leafLine);
+        std::printf("\n");
+        ++leafAmbientTracePrinted_;
+      } else {
+        ++leafAmbientTraceSkipped_;
       }
+    } else if (traceArmed) {
+      ++leafAmbientTraceSkipped_;
     }
     gpu.color[0] = instance.color[0];
     gpu.color[1] = instance.color[1];
@@ -784,6 +906,11 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   entityModelInstanceCount_ = accepted - staticAccepted;
   mapStaticPropInstanceCount_ = staticAccepted;
   entityModelInstanceSlotCount_ = packed.size();
+  // The cube table last, from the same walk that handed the instances their
+  // slots: uploading it anywhere else would let the table and the slot indices
+  // come from different updates, which is a wrong-colour frame with no symptom
+  // until somebody compares two leaves.
+  uploadLeafAmbientCubes(leafCubes);
 }
 
 void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& boneMatrices) {
@@ -866,6 +993,85 @@ void Renderer::setEntityBoneMatrices(const std::vector<std::array<float, 16>>& b
   std::memcpy(mapped.pData, boneMatrices.data(), boneMatrices.size() * sizeof(std::array<float, 16>));
   context_->Unmap(entityBoneBuffer_.Get(), 0);
   entityBoneMatrixCount_ = boneMatrices.size();
+}
+
+void Renderer::uploadLeafAmbientCubes(const std::vector<LeafAmbientCubeFace>& distinct) {
+  leafAmbientSlotCount_ = 0;
+  if (distinct.empty()) return;
+  if (!device_ || !context_) return;
+  // Same two guarantees the bone table above makes, for the same reasons: a NaN
+  // face would turn a whole model black and name no culprit, and the buffer is
+  // re-created only when the population outgrows it rather than every frame.
+  for (const auto& cube : distinct) {
+    for (const auto& face : cube.rgb) {
+      for (const float channel : face) {
+        if (!std::isfinite(channel)) { lastError_ = E_INVALIDARG; return; }
+      }
+    }
+  }
+  const std::size_t elements = distinct.size() * static_cast<std::size_t>(kLeafAmbientFaces);
+  if (!leafAmbientCubeBuffer_ || leafAmbientCubeCapacity_ < distinct.size()) {
+    D3D11_BUFFER_DESC description{};
+    const auto capacity = std::max(distinct.size(), std::size_t{16});
+    description.ByteWidth = static_cast<UINT>(capacity * kLeafAmbientFaces * sizeof(float) * 4);
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    description.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    // One float4 per element, six elements per cube -- the shape the world pixel
+    // shader's `StructuredBuffer<float4> leafAmbientCubeFaces` indexes. The T62
+    // bug was exactly this pair disagreeing (stride one float4, view sized per
+    // matrix), so both numbers are written from the same expression here.
+    description.StructureByteStride = sizeof(float) * 4;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> replacementBuffer;
+    const HRESULT cubeBufferResult = resourceFaultHit("entity.leafcube.createbuffer")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateBuffer(&description, nullptr, replacementBuffer.GetAddressOf());
+    if (FAILED(cubeBufferResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=entity.leafcube.createbuffer kind=create hresult=0x%08lX slots=%zu\n",
+        static_cast<unsigned long>(cubeBufferResult), distinct.size());
+      std::fflush(stderr);
+      return;
+    }
+    D3D11_SHADER_RESOURCE_VIEW_DESC view{};
+    view.Format = DXGI_FORMAT_UNKNOWN;
+    view.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    view.Buffer.FirstElement = 0;
+    view.Buffer.NumElements = static_cast<UINT>(capacity * kLeafAmbientFaces);
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> replacementView;
+    const HRESULT cubeViewResult = resourceFaultHit("entity.leafcube.createsrv")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateShaderResourceView(replacementBuffer.Get(), &view,
+        replacementView.GetAddressOf());
+    if (FAILED(cubeViewResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=entity.leafcube.createsrv kind=create hresult=0x%08lX slots=%zu\n",
+        static_cast<unsigned long>(cubeViewResult), distinct.size());
+      std::fflush(stderr);
+      return;
+    }
+    leafAmbientCubeBuffer_ = std::move(replacementBuffer);
+    leafAmbientCubeView_ = std::move(replacementView);
+    leafAmbientCubeCapacity_ = capacity;
+  }
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  const HRESULT cubeMapResult = resourceFaultHit("entity.leafcube.map")
+    ? static_cast<HRESULT>(E_OUTOFMEMORY)
+    : context_->Map(leafAmbientCubeBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+  if (FAILED(cubeMapResult)) {
+    ++resourceMapRefusals_;
+    std::fprintf(stderr,
+      "[renderer-resource] refuse surface=entity.leafcube.map kind=map hresult=0x%08lX\n",
+      static_cast<unsigned long>(cubeMapResult));
+    std::fflush(stderr);
+    return;
+  }
+  std::memcpy(mapped.pData, distinct.data(), elements * sizeof(float) * 4);
+  context_->Unmap(leafAmbientCubeBuffer_.Get(), 0);
+  leafAmbientSlotCount_ = distinct.size();
 }
 
 } // namespace tf2::native

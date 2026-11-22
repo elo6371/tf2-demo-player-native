@@ -966,6 +966,23 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
           lighting.ambientCube[0].x, lighting.ambientCube[0].y, lighting.ambientCube[0].z);
       }
     }
+    // T105/task-37 Half B: the per-leaf account for the instance update this
+    // frame draws. Same capture guard as the two lines above, and the same
+    // shape as task-36's "capture: lights ..." line: one line per frame, every
+    // number on it a counter that was actually incremented this update.
+    //
+    // The four absences are printed apart and always, even in off/basic mode
+    // where all of them are zero because no instance was asked -- a zero that
+    // means "not measured" and a zero that means "measured, none found" are
+    // different readings, and this line exists so they cannot be confused.
+    if (!capturePath_.empty()) {
+      std::printf("capture: leaf-ambient arm=%d slots=%zu withCube=%zu noCubeInLeaf=%zu outsideLeaf=%zu noLump=%zu notAsked=%zu traceTick=%lld tracePrinted=%zu traceSkipped=%zu\n",
+        leafAmbientEffective() ? 1 : 0, leafAmbientSlotCount_,
+        leafAmbientWithCube_, leafAmbientNoCubeInLeaf_, leafAmbientOutsideLeaf_,
+        leafAmbientNoLump_, leafAmbientNotAsked_,
+        static_cast<long long>(leafAmbientTraceTick_),
+        leafAmbientTracePrinted_, leafAmbientTraceSkipped_);
+    }
     // T21: publish the same numbers for the face trace. Copied field by field
     // from the struct that was just uploaded, so the trace cannot describe a
     // camera or a lighting mode the draw did not use.
@@ -1649,6 +1666,16 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // draw read garbage, so the slot is always set here, even when empty.
     auto* boneView = entityBoneView_.Get();
     context_->VSSetShaderResources(4, 1, &boneView);
+    // T105/task-37 Half B: t12 is the de-duplicated leaf cube table the world
+    // pixel shader reads when an instance's slot is not the sentinel. Bound
+    // unconditionally, like t4 above, because a slot-bearing draw with no view
+    // bound reads a resource it was never given -- the failure that looks like
+    // a lighting bug and is really an unbound register. When leaf mode is off
+    // the shader never reads it (the b2 branch is gated on lightingParams.x and
+    // then on the slot), and an out-of-bounds read here is not reachable: the
+    // slot is only written by setEntityModelInstances, which also fills it.
+    auto* leafView = leafAmbientCubeView_.Get();
+    context_->PSSetShaderResources(12, 1, &leafView);
     auto* instanceBuffer = entityModelInstanceBuffer_.Get();
     // T62: this pass re-uploads the frame constants for ITS OWN draws, for two
     // reasons, and both live here so the pass has one upload site.
@@ -1783,6 +1810,11 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // b0 alone cannot inherit it (see the note where it was bound).
     ID3D11Buffer* noLighting = nullptr;
     context_->PSSetConstantBuffers(2, 1, &noLighting);
+    // Same reasoning for the leaf cube table at t12: leaving it bound would let
+    // a later pass inherit a table it never asked for, and the register's
+    // contents are per-frame instance data rather than a world texture.
+    ID3D11ShaderResourceView* noLeafView = nullptr;
+    context_->PSSetShaderResources(12, 1, &noLeafView);
     if (entityConstantsDiffer) {
       context_->UpdateSubresource(worldConstants_.Get(), 0, nullptr, &frameConstants, 0, 0);
     }
