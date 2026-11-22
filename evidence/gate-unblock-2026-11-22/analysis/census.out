@@ -1,0 +1,58 @@
+root /d/TF2_Native_Worktrees/t105-gates
+files 27
+### animation-availability-check.sh  path=./animation-availability-check.sh  registered_hits=2
+    79:# file at tf/demos/autorecord_2026-07-02_13-26-46.dem any more (its 21,856,667
+### entity-property-lookup-check.sh  path=./entity-property-lookup-check.sh  registered_hits=3
+    66:# file at tf/demos/autorecord_2026-07-02_13-26-46.dem any more (its 21,856,667
+### run-weapon-oom.sh  path=./evidence/t85/run-weapon-oom.sh  registered_hits=0
+    13:DEMO="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+### install-lifecycle-check.sh  path=./install-lifecycle-check.sh  registered_hits=0
+    144:REAL_DEMO="$TF_ROOT/demos/autorecord_2026-07-02_13-26-46.dem"
+### install-readiness-check.sh  path=./install-readiness-check.sh  registered_hits=0
+    75:REAL_DEMO="$TF_ROOT/demos/autorecord_2026-07-02_13-26-46.dem"
+### lighting-dark-account-check.sh  path=./lighting-dark-account-check.sh  registered_hits=0
+    89:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### lighting-semantics-check.sh  path=./lighting-semantics-check.sh  registered_hits=0
+    81:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### material-coverage-check.sh  path=./material-coverage-check.sh  registered_hits=1
+    127:POV_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### mutate.sh  path=./mutate.sh  registered_hits=6
+    133:POV="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+### observer-focus-check.sh  path=./observer-focus-check.sh  registered_hits=3
+    131:# file at tf/demos/autorecord_2026-07-02_13-26-46.dem any more (its 21,856,667
+### quality-audit-check.sh  path=./quality-audit-check.sh  registered_hits=0
+    66:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### slot-freshness-check.sh  path=./slot-freshness-check.sh  registered_hits=2
+    15:#   POV autorecord_2026-07-02_13-26-46, entity 3
+    54:POV="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### t21-capture.sh  path=./t21-capture.sh  registered_hits=0
+    23:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### verify-audio.sh  path=./verify-audio.sh  registered_hits=0
+    1003:DEMO_POV="$TF_DIR/demos/autorecord_2026-07-02_13-26-46.dem"
+### viewmodel-companion-check.sh  path=./viewmodel-companion-check.sh  registered_hits=3
+    652:# autorecord_2026-07-02_13-26-46.dem (21,856,667 B, sha c8a58501...), which is no
+### viewmodel-presentation-check.sh  path=./viewmodel-presentation-check.sh  registered_hits=0
+    848:    echo "recording=autorecord_2026-07-02_13-26-46.dem"
+### viewmodel-range-check.sh  path=./viewmodel-range-check.sh  registered_hits=0
+    314:    autorecord_2026-07-02_13-26-46.dem) DEMO_POV="$path" ;;
+### viewmodel-robustness-check.sh  path=./viewmodel-robustness-check.sh  registered_hits=0
+    250:  *autorecord_2026-07-02_13-26-46.dem) pass "the POV recording is the pinned one" ;;
+### visual-baseline-check.sh  path=./visual-baseline-check.sh  registered_hits=0
+    122:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### weapon-material-check.sh  path=./weapon-material-check.sh  registered_hits=0
+    86:POV_DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### weapon-world-model-check.sh  path=./weapon-world-model-check.sh  registered_hits=1
+    62:# file at tf/demos/autorecord_2026-07-02_13-26-46.dem any more (its 21,856,667
+    219:# case was written on (autorecord_2026-07-02_13-26-46.dem) is gone from the host.
+### world-geometry-completeness-capture.sh  path=./world-geometry-completeness-capture.sh  registered_hits=0
+    56:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### world-geometry-hole-capture.sh  path=./world-geometry-hole-capture.sh  registered_hits=1
+    96:DEMO=${CAPTURE_DEMO:-${DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}}  # inherit the gate's WORLD_CHECK_DEMO copy
+### world-geometry-hole-check.sh  path=./world-geometry-hole-check.sh  registered_hits=2
+    73:DEMO="${WORLD_CHECK_DEMO:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}"
+### world-material-face-check.sh  path=./world-material-face-check.sh  registered_hits=0
+    74:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### world-material-semantics-check.sh  path=./world-material-semantics-check.sh  registered_hits=0
+    138:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+### world-near-clip-check.sh  path=./world-near-clip-check.sh  registered_hits=0
+    66:DEMO="$TF/demos/autorecord_2026-07-02_13-26-46.dem"

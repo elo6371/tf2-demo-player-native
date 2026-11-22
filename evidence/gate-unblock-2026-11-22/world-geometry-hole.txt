@@ -1,0 +1,8 @@
+SKIP no recording at D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem (every pin is pl_odyssey at TICK=2000 in it)
+SKIP   the old default path was lost with the user's TF install; pl_odyssey is
+SKIP   outside the supported map set (docs/T85-SUPPORT-SCOPE.md:35,:50), so no other
+SKIP   map's geometry can stand in for these pins: another recording is another pose
+SKIP   on another map
+SKIP   set WORLD_CHECK_DEMO=<path> to run it against a copy of that recording
+SUMMARY checks=0 fail=0 skip=1
+VERDICT world-geometry-hole: SKIP (0 assertions ran, 1 gate skipped)

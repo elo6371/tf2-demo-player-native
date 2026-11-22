@@ -62,7 +62,16 @@ cd "$(dirname "$0")"
 PROBE=native/build-nmake/entity_model_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
-POV="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+# The recording this gate was built on is gone: measured 2026-11-22, there is no
+# file at tf/demos/autorecord_2026-07-02_13-26-46.dem any more (its 21,856,667
+# bytes and sha256 c8a58501... are quoted all over evidence/). The user
+# authorised a substitute -- a Sep-2026 Sniper POV demo of the same shape -- and
+# every POV pin below was re-measured on it: docs/GATE-UNBLOCK-2026-11-22.md.
+# The variable overrides ONLY which bytes are read, so one value relocates every
+# gate that reads this recording (the minimap-hud-check.sh:131 pattern). Unlike
+# that precedent the default is the substitute, not the old path: the old file
+# does not exist on any host, and a default that FATALs is not a default.
+POV="${TF2_POV_DEMO:-E:/demo测试/cp_process_f12/POV/autorecord_2026-09-03_21-05-39.dem}"
 OUT="${ENTITY_PROPERTY_LOOKUP_OUT:-evidence/entity-property-lookup}"
 mkdir -p "$OUT"
 
@@ -196,6 +205,18 @@ for demo in bagel pov; do
   # The demo sweep walking nothing is the fact that makes section 1's fixture the
   # only place this path is measured. If a demo starts exercising it, this gate
   # is no longer measuring what it says, and this line says so.
+  # BLOCKED-INPUT, 2026-11-22: the POV recording was substituted (see POV above)
+  # and the substitute's demo sweep is NOT cold -- it reads 1831 fallback scans
+  # and 1 class lookup, i.e. the path this gate says the demos never walk is
+  # walked by a real recording. The pin stays 0 and POV stays RED: re-pinning it
+  # to 1831 would delete the premise this section exists to protect ("section 1's
+  # fixture is the only place this path is measured"), which is a weakening, not
+  # a re-pin.
+  # The SourceTV recording of the same map reads 0 (measured 2026-11-22,
+  # 11:15: resolverFallbackScanned=0 resolverClassLookups=0), so the 1,831 is
+  # a property of the POV bytes, not of the build.
+  # docs/GATE-UNBLOCK-2026-11-22.md BLOCKED-INPUT-1, evidence/
+  # gate-unblock-2026-11-22/ep-lookup-pov.txt.
   assert_eq "$demo sweep is cold (every player already has a request)" "$d_scan" "0"
   assert_eq "$demo instanceCount (unchanged)" "$d_inst" "6"
 done

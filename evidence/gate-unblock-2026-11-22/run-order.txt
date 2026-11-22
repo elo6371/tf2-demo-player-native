@@ -1,0 +1,12 @@
+--- weapon-world-model start 03:16:51Z
+weapon-world-model rc=0 seconds=139
+--- animation-availability start 03:19:10Z
+animation-availability rc=0 seconds=131
+--- entity-property-lookup start 03:21:21Z
+entity-property-lookup rc=1 seconds=118
+--- observer-focus start 03:23:19Z
+observer-focus rc=1 seconds=92
+--- world-geometry-hole start 03:24:51Z
+world-geometry-hole rc=3 seconds=0
+ALLDONE 03:24:52Z
+FINALIZED 03:24:52Z rc=0

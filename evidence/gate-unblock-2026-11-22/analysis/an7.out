@@ -1,0 +1,4 @@
+rows-with-targetOrigin=1004 cams=1384
+geometric hits (eye-above-feet, any time)=66
+distinct rows matched=66, sample: [["180400/9",1],["180600/9",1],["180800/9",1],["181000/9",1],["181200/9",1],["181400/9",1],["181600/9",1],["181800/9",1],["182000/9",1],["182200/9",1]]
+samples: [{"rowTick":180400,"entity":9,"mode":4,"camTick":189400,"dx":-0.77,"dy":32.14,"dz":-0.38},{"rowTick":180600,"entity":9,"mode":4,"camTick":189400,"dx":-0.77,"dy":32.14,"dz":-0.38},{"rowTick":180800,"entity":9,"mode":4,"camTick":189400,"dx":-0.77,"dy":32.14,"dz":-0.38},{"rowTick":181000,"entity":9,"mode":4,"camTick":189400,"dx":-0.77,"dy":32.14,"dz":-0.38},{"rowTick":181200,"entity":9,"mode":4,"camTick":189400,"dx":-0.77,"dy":32.14,"dz":-0.38}]

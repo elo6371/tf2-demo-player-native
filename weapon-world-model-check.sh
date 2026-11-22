@@ -58,7 +58,16 @@ PROBE=native/build-nmake/entity_model_probe.exe
 ORACLE="D:/TF2_Demo_Player_Deliverable/tools/ent-oracle/target/release/ent-oracle.exe"
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
-POV="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+# The recording this gate was built on is gone: measured 2026-11-22, there is no
+# file at tf/demos/autorecord_2026-07-02_13-26-46.dem any more (its 21,856,667
+# bytes and sha256 c8a58501... are quoted all over evidence/). The user
+# authorised a substitute -- a Sep-2026 Sniper POV demo of the same shape -- and
+# every POV pin below was re-measured on it: docs/GATE-UNBLOCK-2026-11-22.md.
+# The variable overrides ONLY which bytes are read, so one value relocates every
+# gate that reads this recording (the minimap-hud-check.sh:131 pattern). Unlike
+# that precedent the default is the substitute, not the old path: the old file
+# does not exist on any host, and a default that FATALs is not a default.
+POV="${TF2_POV_DEMO:-E:/demo测试/cp_process_f12/POV/autorecord_2026-09-03_21-05-39.dem}"
 # mutate.sh m10 runs this script with the defect reintroduced; it redirects the
 # output so the red readings cannot overwrite the fixed-build evidence.
 OUT="${WEAPON_WORLD_MODEL_OUT:-evidence/weapon-world-model}"
@@ -125,8 +134,8 @@ echo "=== 2/3 bagel and POV, end to end ==="
 "$PROBE" --tf-root "$TF" --demo "$POV" --dump-weapon-models --dump-precache "*" \
   > "$OUT/pov.json" 2> "$OUT/pov-dump.txt"
 
-check_demo() { # check_demo <name> <expectedWorldPaths> <expectedKnown> <expectedZero>
-  local name="$1" want_paths="$2" want_known="$3" want_zero="$4" file="$OUT/$1.json"
+check_demo() { # check_demo <name> <worldPaths> <known> <zero> <onlyWorld>
+  local name="$1" want_paths="$2" want_known="$3" want_zero="$4" want_only="$5" file="$OUT/$1.json"
   local known resolved zero unres out_range from_world non_zero only arms_weapon arms_non_weapon
   local agrees view_zero differs with_world request_count
   known=$(jvalue "$file" assetWorldModelKnown)
@@ -194,13 +203,25 @@ check_demo() { # check_demo <name> <expectedWorldPaths> <expectedKnown> <expecte
   assert_eq "$name zero" "$zero" "$want_zero"
   assert_eq "$name worldModelRequests" "$request_count" "$want_paths"
   # onlyWorld is what claim 3b of check-probe-output-additive.sh ties the movement
-  # of asset_model_path_known to; on both probe demos the world route replaces a
-  # path rather than adding one, so this is 0 here and 3 on snakewater.
-  assert_eq "$name onlyWorld" "$only" "0"
+  # of asset_model_path_known to. It is pinned per demo because it counts
+  # references whose only model identity is the world index, and that is a
+  # property of what the recorded players were holding: bagel has none, the POV
+  # substitute has one (entity 395, CTFBonesaw, present=--w, world index 421 ->
+  # c_hippocrates_bust), snakewater has three (382/428/429). The 3b identity
+  # accounts for it either way -- path_known and path_from_precache rise by
+  # exactly that count -- so a non-zero value here is a corpus shape, not a
+  # conflict. A conflict would be weaponViewModelDiffers, asserted separately.
+  assert_eq "$name onlyWorld" "$only" "$want_only"
 }
 
-check_demo bagel 32 33 1
-check_demo pov 69 71 2
+check_demo bagel 32 33 1 0
+# The POV numbers are re-measured on the substitute recording: the Sniper POV this
+# case was written on (autorecord_2026-07-02_13-26-46.dem) is gone from the host.
+# Old pins were 69 paths / 71 known / 2 zero; the substitute holds fewer weapons
+# (yet still routes every non-zero world index through the world route, which is
+# the claim this case makes). docs/GATE-UNBLOCK-2026-11-22.md, evidence/
+# gate-unblock-2026-11-22/.
+check_demo pov 21 21 0 1
 
 echo
 echo "=== 3/3 oracle witness ==="

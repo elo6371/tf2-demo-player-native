@@ -1,0 +1,6 @@
+rows 11461 in-eye w/targetOrigin 1004 any w/targetOrigin 1004 cams 1384
+win=200 targetOrigin-vs-cam: n=1004 med=1580.1 p10=319.2 frac<=50=0.014 frac<=100=0.025 | selfOrigin-vs-cam: n=1004 med=1602.5 p10=319.7 frac<=50=0.012 frac<=100=0.028
+win=400 targetOrigin-vs-cam: n=1004 med=1107.3 p10=205.6 frac<=50=0.025 frac<=100=0.041 | selfOrigin-vs-cam: n=1004 med=1160.1 p10=190.7 frac<=50=0.021 frac<=100=0.046
+win=800 targetOrigin-vs-cam: n=1004 med=798.4 p10=113.9 frac<=50=0.047 frac<=100=0.072 | selfOrigin-vs-cam: n=1004 med=798.4 p10=110.1 frac<=50=0.039 frac<=100=0.079
+win=1600 targetOrigin-vs-cam: n=1004 med=406.5 p10=61.1 frac<=50=0.088 frac<=100=0.133 | selfOrigin-vs-cam: n=1004 med=429.9 p10=73.4 frac<=50=0.076 frac<=100=0.136
+top offsets: [{"off":59867,"n":1004,"med":1156.8,"f50":0.03},{"off":59967,"n":1004,"med":1156.8,"f50":0.03},{"off":60067,"n":1004,"med":1084.3,"f50":0.03},{"off":60167,"n":1004,"med":1084.3,"f50":0.03},{"off":60267,"n":1004,"med":1011,"f50":0.03},{"off":60367,"n":1004,"med":1011,"f50":0.03}]

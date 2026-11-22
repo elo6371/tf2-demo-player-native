@@ -1,0 +1,11 @@
+START 09:50:02
+STEP oracle-pov-200000 start 09:50:02
+STEP oracle-pov-200000 done rc=0 09:50:04 bytes=330
+STEP props-all-200000 start 09:50:04
+STEP props-all-200000 done rc=0 09:51:48 bytes=47335
+STEP props-e1 start 09:51:48
+STEP props-e1 done rc=0 09:53:27 bytes=1081
+STEP props-e18 start 09:53:27
+STEP props-e18 done rc=0 09:55:12 bytes=1081
+STEP of-e1 start 09:55:12
+ALLDONE (d2 truncated: remaining steps target absent entities; superseded by d4)

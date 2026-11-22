@@ -1,0 +1,13 @@
+[D:\TF2_Demo_Player\work\_refs_demostf\src\demo\parser\mod.rs:92:9] &header = Header {
+    demo_type: "HL2DEMO",
+    version: 3,
+    protocol: 24,
+    server: "169.254.162.70:29104",
+    nick: "SpawN",
+    map: "cp_process_f12",
+    game: "tf",
+    duration: 4151.895,
+    ticks: 276793,
+    frames: 273442,
+    signon: 340948,
+}

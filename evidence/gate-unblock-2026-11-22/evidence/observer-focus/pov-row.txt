@@ -1,0 +1,6 @@
+observer-focus at tick=51900 status=before-window resolved=0 states=0
+observer-focus at tick=53400 status=before-window resolved=0 states=0
+observer-focus at tick=53976 status=before-window resolved=0 states=0
+observer-focus at tick=54747 status=before-window resolved=0 states=0
+observer-focus at tick=55394 status=before-window resolved=0 states=0
+observer-focus-summary ticks=5 examined=0 emitted=0 withMode=0 modeNonZero=0 follows=0 targetInRange=0 targetPresent=0 targetMissing=0 targetOutOfRange=0

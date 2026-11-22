@@ -1,0 +1,52 @@
+ENTITY-PROPERTY-LOOKUP, BLOCKED-INPUT-1 -- the numbers behind the red line
+========================================================================
+
+Produced 2026-11-22 11:15 (local) by entity_model_probe --history-stats,
+run from the worktree root behind hostlock.sh gatefix2 + tools/lockrun.sh gatefix2.
+
+1. The substituted POV recording (the gate's POV):
+   E:/demo测试/cp_process_f12/POV/autorecord_2026-09-03_21-05-39.dem
+   100,302,450 B  sha256 b6ed3f24c4aa46ba22e66f6a38b3da129135f511995448e9109d27b0d4dc14ad
+
+   The gate runs the probe without dumps (entity-property-lookup-check.sh:199),
+   so the whole JSON is the reading. Fields that matter here:
+
+     resolverFallbackScanned    1831     <- the red line: pinned 0, expected 0
+     resolverTransforms          218
+     resolverPropertyComparisons 120671
+     resolverClassLookups          1     <- a class lookup the old POV never did
+     instanceCount                 6
+     assetRefs                   436
+     requests                    217
+     worldModelRequests           21
+     assetModelPathFromWorldModel 21
+     weaponViewModelDiffers        0
+     (fixture: fallbackScanned=3 classLookups=1 transforms=6 comparisons=19)
+
+2. The substituted SourceTV recording of the same map (a DIFFERENT session,
+   so only match-independent counts are comparable):
+   E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-20260927-1312-cp_process_f12.dem
+   90,995,077 B  sha256 81ceb1afa4c54ad5fdf14201b1f1a9049c183d11aa70c6ed431a69ebf9f73b94
+
+     resolverFallbackScanned       0     <- the same build, same map, not cold-blocked
+     resolverTransforms          256
+     resolverPropertyComparisons 124664
+     resolverClassLookups          0
+     instanceCount                 6
+     (history: flushes=299 gapDropped=0 archiveTicks=48845..169364 liveTicks=169450,169578,169706)
+
+3. What that pair means.
+   The sweep is not cold on the substitute POV: the fallback resolver scanned
+   1,831 entity-property requests and did one class lookup. The same binary on
+   the same map's SourceTV demo scans 0 and looks up 0 classes, which says the
+   1,831 belongs to the POV bytes (a client-recorded, tick-heavy demo with a
+   local player), not to a build change. That is exactly the situation the gate
+   section describes: section 1's synthetic fixture is the only place this path
+   is measured, and a real recording now walks it too.
+
+   Hence the pin stays 0 and the POV case stays RED (BLOCKED-INPUT-1): re-pinning
+   to 1831 would delete the premise the section exists to protect. Full argument:
+   docs/GATE-UNBLOCK-2026-11-22.md section 3.3 and section 5.
+
+Raw readings kept next to the run: evidence/entity-property-lookup/pov.json,
+and .scratch/stv-hist.json (scratch, untracked) for the STV.

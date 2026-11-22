@@ -1,0 +1,3 @@
+map-model-transform-selftest=PASS sourceZ=1 parentRotation=1 parentHandle=1 missingParent=1 cycle=1 attachmentRefused=1 overflowRefused=1
+map-model-bodygroup-selftest=PASS base=1 models=4 body0=0 body1=1 body4=0 body8=0
+{"ok":true,"selfTest":true,"uniqueRenderable":0,"vpkRenderable":0,"inspections":0,"inspectionCacheHits":0,"scoutVertices":0,"scoutChecksum":0,"scoutKey":"","duplicateStable":true,"instanceCount":0,"playerFallbacks":0}

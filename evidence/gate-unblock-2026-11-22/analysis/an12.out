@@ -1,0 +1,39 @@
+rows 11461 cams 1384 checkpoint rows 11446
+ineye-resolved anchor=res win=100 n=1004 med=399.4 f50=0.137 f100=0.184 f200=0.266
+ineye-resolved anchor=res win=200 n=1004 med=384.0 f50=0.153 f100=0.184 f200=0.282
+ineye-resolved anchor=res win=400 n=1004 med=361.7 f50=0.153 f100=0.184 f200=0.282
+ineye-query anchor=q win=100 n=1004 med=1652.6 f50=0.014 f100=0.021 f200=0.054
+ineye-query anchor=q win=200 n=1004 med=1580.1 f50=0.014 f100=0.025 f200=0.062
+ineye-query anchor=q win=400 n=1004 med=1107.3 f50=0.025 f100=0.041 f200=0.099
+entity2 rows 1133 modes {"1":11,"2":11,"3":1093,"4":18}
+entity2 nonzero {"1":11,"2":11,"3":1093,"4":18}
+entity2 follows=1 rows 18 [
+  {
+    q: 145600,
+    res: 145589,
+    mode: 4,
+    ti: 13,
+    to: [ 2229.25, 1314.375, 498.75 ]
+  },
+  {
+    q: 145800,
+    res: 145589,
+    mode: 4,
+    ti: 13,
+    to: [ 2229.25, 1314.375, 498.75 ]
+  },
+  {
+    q: 146000,
+    res: 145589,
+    mode: 4,
+    ti: 13,
+    to: [ 2229.25, 1314.375, 498.75 ]
+  },
+  {
+    q: 146200,
+    res: 145589,
+    mode: 4,
+    ti: 13,
+    to: [ 2229.25, 1314.375, 498.75 ]
+  }
+]

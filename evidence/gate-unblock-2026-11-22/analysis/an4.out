@@ -1,0 +1,14 @@
+entity: rows / camera-within-80u / mean dist / min / max
+  e2: n=1133 near=1 mean=3303.4 min=77.8 max=9112.3
+  e3: n=981 near=5 mean=3329.4 min=41.7 max=9160.3
+  e4: n=1258 near=1 mean=3348.1 min=52.6 max=9383.2
+  e5: n=1176 near=1 mean=3294.7 min=11.6 max=8132.0
+  e6: n=970 near=0 mean=3256.1 min=84.0 max=7543.4
+  e7: n=114 near=2 mean=2898.4 min=27.1 max=6486.6
+  e8: n=1065 near=1 mean=2891.8 min=48.2 max=7934.1
+  e9: n=922 near=3 mean=2880.3 min=14.2 max=7649.4
+  e10: n=1077 near=1 mean=2820.4 min=25.8 max=9392.5
+  e11: n=937 near=10 mean=3203.4 min=71.7 max=7802.4
+  e12: n=888 near=1 mean=3365.7 min=44.2 max=8167.7
+  e13: n=940 near=0 mean=3585.4 min=93.4 max=9328.1
+follows=1 rows with camera: 1004, within 80u of targetOrigin: 4, median dist=2322.21
