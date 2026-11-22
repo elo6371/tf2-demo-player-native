@@ -87,9 +87,36 @@ constexpr float kLeafAmbientScale = 738.0f;
 // whether the caller had a cube at all. A caller with no cube must still say so
 // -- there is no zero cube in this type, because a zero cube reads as "this
 // model is in the dark" when the truth is "this leaf shipped no bake".
+//
+// SIX float4 ROWS, NOT SIX FLOAT3s (leaf37f). The consumer is
+// `StructuredBuffer<float4> leafAmbientCubeFaces : register(t12)` indexed as six
+// float4 rows per slot (native/src/native_renderer_shaders.cpp:206 and :616-618,
+// reading .rgb of each row at :223-225), so the producer has to be the same six
+// rows with the same stride. It was six float3s -- 72 bytes -- while the upload
+// memcpy'd six float4s -- 96 bytes -- per cube out of it. Two things followed,
+// and both were real: every slot was read through a THREE-FLOAT SHEAR (the
+// shader took face 1 from source floats 4-6 when the source had put face 1 at
+// floats 3-5), and the last third of the upload was read past the end of the
+// vector, so the tail rows of the table were whatever the heap happened to hold
+// -- which is why the leaf arm was not reproducible run to run. The static_assert
+// below is the part that keeps it fixed: the two numbers that must stay equal are
+// now one expression, and this comment is the story of the last time they were
+// not.
+//
+// The fourth lane is padding the shader never reads; leafAmbientSlotFor still
+// compares the three decoded channels only, so widening the row did not change
+// what counts as "the same cube".
 struct LeafAmbientCubeFace {
-  std::array<std::array<float, 3>, kLeafAmbientFaces> rgb{};
+  std::array<std::array<float, 4>, kLeafAmbientFaces> rgb{};
 };
+
+// The upload writes one float4 per face and sizes the row buffer from the same
+// expression (native/src/native_renderer_entity.cpp:1065-1078), so a change to
+// either side that breaks the correspondence has to fail here rather than at the
+// pixels. 6 faces * 4 floats * 4 bytes = 96.
+static_assert(sizeof(LeafAmbientCubeFace) == kLeafAmbientFaces * sizeof(float) * 4,
+  "LeafAmbientCubeFace must be six float4 rows: the shader indexes six float4 rows "
+  "per slot (native/src/native_renderer_shaders.cpp:616-618)");
 
 // Append `cube` to `distinct` unless an equal cube is already there, and
 // return its slot. Equality is exact bit equality of the six faces: the cubes

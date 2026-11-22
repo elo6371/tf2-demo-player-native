@@ -1062,11 +1062,20 @@ void Renderer::uploadLeafAmbientCubes(const std::vector<LeafAmbientCubeFace>& di
       }
     }
   }
-  const std::size_t elements = distinct.size() * static_cast<std::size_t>(kLeafAmbientFaces);
+  // One cube occupies kLeafAmbientFaces float4 rows on the GPU and one
+  // LeafAmbientCubeFace on the CPU. leaf37f was precisely those two disagreeing
+  // -- six float3s on the CPU copied as six float4s into the buffer -- so they
+  // are reconciled once here, by a static_assert, and every length below
+  // (ByteWidth, the view's NumElements, the memcpy) is derived from it rather
+  // than spelling a float count out a second and third time.
+  constexpr std::size_t kCubeBytes =
+    static_cast<std::size_t>(kLeafAmbientFaces) * sizeof(float) * 4;
+  static_assert(sizeof(LeafAmbientCubeFace) == kCubeBytes,
+    "LeafAmbientCubeFace must be six float4 rows: the shader indexes six float4 rows per slot");
   if (!leafAmbientCubeBuffer_ || leafAmbientCubeCapacity_ < distinct.size()) {
     D3D11_BUFFER_DESC description{};
     const auto capacity = std::max(distinct.size(), std::size_t{16});
-    description.ByteWidth = static_cast<UINT>(capacity * kLeafAmbientFaces * sizeof(float) * 4);
+    description.ByteWidth = static_cast<UINT>(capacity * kCubeBytes);
     description.Usage = D3D11_USAGE_DYNAMIC;
     description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -1074,7 +1083,11 @@ void Renderer::uploadLeafAmbientCubes(const std::vector<LeafAmbientCubeFace>& di
     // One float4 per element, six elements per cube -- the shape the world pixel
     // shader's `StructuredBuffer<float4> leafAmbientCubeFaces` indexes. The T62
     // bug was exactly this pair disagreeing (stride one float4, view sized per
-    // matrix), so both numbers are written from the same expression here.
+    // matrix), and leaf37f was the same pair disagreeing between the CPU struct
+    // and this buffer. ByteWidth and the memcpy below are now both written from
+    // kCubeBytes, and NumElements is the same row count expressed in float4
+    // elements -- one cube is kLeafAmbientFaces rows, and kCubeBytes is exactly
+    // kLeafAmbientFaces * sizeof(float) * 4 by the static_assert above.
     description.StructureByteStride = sizeof(float) * 4;
     Microsoft::WRL::ComPtr<ID3D11Buffer> replacementBuffer;
     const HRESULT cubeBufferResult = resourceFaultHit("entity.leafcube.createbuffer")
@@ -1122,7 +1135,11 @@ void Renderer::uploadLeafAmbientCubes(const std::vector<LeafAmbientCubeFace>& di
     std::fflush(stderr);
     return;
   }
-  std::memcpy(mapped.pData, distinct.data(), elements * sizeof(float) * 4);
+  // capacity >= distinct.size(), so this is never longer than the ByteWidth the
+  // buffer was created with; it is also exactly sizeof(LeafAmbientCubeFace) per
+  // cube, which is the invariant leaf37f broke.
+  const std::size_t copyBytes = distinct.size() * kCubeBytes;
+  std::memcpy(mapped.pData, distinct.data(), copyBytes);
   context_->Unmap(leafAmbientCubeBuffer_.Get(), 0);
   leafAmbientSlotCount_ = distinct.size();
 }

@@ -1,0 +1,28 @@
+# leaf37f: every md5 published for a LEAF LIGHTING arm before commit b1293105, retired.
+#
+# Why they are retired, in one sentence: they were all drawn through a sheared slot table
+# (CPU rows were six float3 = 72 bytes, the upload memcpy'd six float4 = 96 bytes per cube and
+# read 3528 bytes past the end of the vector at 147 cubes), so the same exe on the same machine
+# produced different bytes on every run and NO single value was ever a baseline.
+#
+# Keep this list as history. Do not delete it, and do not compare anything after b1293105 to it.
+# The two *-trace pins are NOT retired: the trace branch never reads the table, so those bytes
+# still reproduce (see pins-and-counters.txt).
+
+a3f4229c48c054b8b4bf15e5860c3e43  predecessor leaf           (task-37d, pre-Half-B exe)
+83a85fd73d6dabe166bf38042c2f923f  leaf                      (this tree, before the fix, one draw)
+868f42e7551023ac433d4e73995851de  leaf                      (leaf37f det run 1, three different)
+5e489226ff9aa9956399a3f1a43a6e46  leaf                      (leaf37f det run 2)
+d3823da4d4a7be27c31c76329590ae3a  leaf                      (leaf37f det run 3)
+91867bf76e73547445476587eb3faffe  leaf                      (leaf37f, another worktree build)
+56f8e20ec4adb5f255a6971a2b231d0c  leaf                      (leaf37f, same build, next capture)
+8b0aa34852e1aac68ec03856d1c2199b  leaf                      (leaf37f, same build, next capture)
+b9233d878a06774b81bb99ec5d9bd5f0  leaf                      (lead's merged build 5132fb76, run a)
+33631a4042101506243e3e5748d71c86  leaf                      (lead's merged build 5132fb76, run b)
+01afa412794b6a1dd83a90b05cb6b099  sunshine-leaf             (predecessor, second map)
+73550075d26879a40f0241824ce7bbab  sunshine leaf AS LIGHTING  (this value is still the *trace* pin)
+95d44c79*                         leaf                      (any 95d44c79... value quoted elsewhere)
+
+# Successors (the fix): leaf = fa297fb989bd4e2b3100bbd95cecb666 (5/5 runs),
+# sunshine-leaf = b9ed23d8c865ed7e2a19f6e80f271dc0 (2/2 runs), exe sha256
+# 94375d7f109f4a00e16fc8af9ecebde71f5c97120dde3f209980b2d5634a0478, source commit b1293105.

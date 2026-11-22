@@ -1,9 +1,8 @@
-ALLSAT bare   all255=0 (0.0000%) any255=44 (0.0051%)
-ALLSAT off    all255=0 (0.0000%) any255=44 (0.0051%)
-ALLSAT basic  all255=801 (0.0931%) any255=2610 (0.3032%)
-ALLSAT leaf   all255=830 (0.0964%) any255=3725 (0.4327%)
-leaf-only-saturated pixels=1954
-basic-only-saturated pixels=839
-mean leaf-basic per channel = -0.445 -0.408 -1.377
-pixels leaf brighter than basic by >=32 = 14502 (1.685%)
-pixels with a 255 channel AND leaf>basic+8 = 2470
+# whole-frame statistics of the same tick, post-shear-fix captures
+bare          mean=(127.039,120.051,117.739) all255=0 (0.0000%) any255=44 (0.0051%)
+off           mean=(127.039,120.051,117.739) all255=0 (0.0000%) any255=44 (0.0051%)
+basic         mean=(132.865,125.491,124.201) all255=801 (0.0931%) any255=2610 (0.3032%)
+leaf1         mean=(131.525,124.458,127.519) all255=1179 (0.1370%) any255=5604 (0.6510%)
+leaf-pre-fix  mean=(132.420,125.083,122.824) all255=830 (0.0964%) any255=3725 (0.4327%)
+leaf-minus-basic full-frame mean per channel = -1.340 -1.033 3.318
+leaf-only saturated pixels (any255) = 2994
