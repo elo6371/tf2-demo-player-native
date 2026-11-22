@@ -2,6 +2,9 @@
 # every player instance the trace printed, sorted by measured +Z (up-face) luminance;
 # +Z face = how much sky that leaf can see, so it is the indoor/outdoor measurement.
 # faces are +X,-X,+Y,-Y,+Z,-Z of the leaf cube, in LINEAR radiance
+# these numbers did NOT move when the shear was fixed: the trace branch returns at
+# native/src/native_renderer_shaders.cpp:627-629, before modelLightingRgb reads the cube,
+# and the printed cube is the CPU-side value, not a readback of the GPU table.
 index  leaf   slot  mean     up(+Z)   down(-Z) up/mean  empty 
 2      2269   23    0.001556 0.002354 0.001348 1.512    False 
 7      2269   23    0.001556 0.002354 0.001348 1.512    False 
@@ -16,5 +19,5 @@ index  leaf   slot  mean     up(+Z)   down(-Z) up/mean  empty
 
 OUTDOOR (brightest up face): index=2 leaf=2269 slot=23 up=0.002354
 INDOOR  (darkest  up face): index=16 leaf=1511 slot=10 up=0.000105
-ratio outdoor/indoor up face = 22.42  (0.002354 / 0.000105 = the 6-dp values above; an earlier run printed 22.35 from higher-precision intermediates)
+ratio outdoor/indoor up face = 22.42
 empty cubes among the printed players: 0

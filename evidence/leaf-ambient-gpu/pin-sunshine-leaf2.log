@@ -1,0 +1,6 @@
+capture: fov source=settings.worldFov horizontal=90.0000 vertical=73.7398 rule=sourceHorizontalFovToVertical aspect=1.856094 near=0.0005 far=100.0000
+capture: camera eye=(0.5009,-0.4663,1.8469) forward=(0.034943,-0.991077,-0.128632) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-7553.6997,7774.0000) worldMinZ=-14672.7500 worldScale=0.000118
+capture: lights enabled=0 sun=1 uploaded=0 declared=286 rejected=0 sunIntensity=0.500 ambientIntensity=0.400
+capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.819,-0.574,-0.000) intensity=0.750 sky=(0.738,0.754,0.845) ground=(0.547,0.552,0.592) side=(0.665,0.674,0.737)
+capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+capture: sky drew=1 farplane=1 dedicated=1 sky3d_enabled=0 sky3d_present=1 sky3d_triangles=0 sky3d_drawn=0 cluster=0

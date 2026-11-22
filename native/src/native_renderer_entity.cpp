@@ -1084,8 +1084,10 @@ void Renderer::uploadLeafAmbientCubes(const std::vector<LeafAmbientCubeFace>& di
     // shader's `StructuredBuffer<float4> leafAmbientCubeFaces` indexes. The T62
     // bug was exactly this pair disagreeing (stride one float4, view sized per
     // matrix), and leaf37f was the same pair disagreeing between the CPU struct
-    // and this buffer, so kCubeBytes above is the one expression all three of
-    // ByteWidth, NumElements and the memcpy are written from.
+    // and this buffer. ByteWidth and the memcpy below are now both written from
+    // kCubeBytes, and NumElements is the same row count expressed in float4
+    // elements -- one cube is kLeafAmbientFaces rows, and kCubeBytes is exactly
+    // kLeafAmbientFaces * sizeof(float) * 4 by the static_assert above.
     description.StructureByteStride = sizeof(float) * 4;
     Microsoft::WRL::ComPtr<ID3D11Buffer> replacementBuffer;
     const HRESULT cubeBufferResult = resourceFaultHit("entity.leafcube.createbuffer")

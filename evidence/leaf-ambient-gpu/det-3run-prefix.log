@@ -1,0 +1,39 @@
+# leaf37f: same exe, same command, three consecutive captures per arm (PRE-FIX)
+# exe sha256 d5efd2c814ac39cdd7789b457eb4df524e87fc9756ed9f90bd5fd3d7ac325a9c
+# build = tree e052d983 (before commit b1293105, the shear fix)
+# script .scratch/leaf37f/det-batch.sh; raw logs .scratch/leaf37f/det/
+# everything under hostlock leaf37f + tools/lockrun.sh
+
+## arm-by-arm md5
+basic1       d927c52639fb10c62a50b3018806a2d3
+basic2       d927c52639fb10c62a50b3018806a2d3
+basic3       d927c52639fb10c62a50b3018806a2d3
+leaf1        868f42e7551023ac433d4e73995851de
+leaf2        5e489226ff9aa9956399a3f1a43a6e46
+leaf3        d3823da4d4a7be27c31c76329590ae3a
+leaftrace1   3f39236ee189629f9a5ed42c170a80da
+leaftrace2   3f39236ee189629f9a5ed42c170a80da
+leaftrace3   3f39236ee189629f9a5ed42c170a80da
+
+## distinct md5 per arm
+basic      distinct-md5=1     -> deterministic
+leaf       distinct-md5=3     -> NONDETERMINISTIC, three runs three pictures
+leaftrace  distinct-md5=1     -> deterministic (debug view, never reads the cube table)
+
+## the trace text, pre-fix: byte-identical across the three runs
+trace-lines-1.txt  60af9c52b49d5a086c93f8e87266f9ca  3390 bytes
+trace-lines-2.txt  60af9c52b49d5a086c93f8e87266f9ca  3390 bytes
+trace-lines-3.txt  60af9c52b49d5a086c93f8e87266f9ca  3390 bytes
+normal-lines-1.txt 7ba2d8b30ec324325a078690175b0798  1761 bytes
+normal-lines-2.txt 7ba2d8b30ec324325a078690175b0798  1761 bytes
+normal-lines-3.txt 7ba2d8b30ec324325a078690175b0798  1761 bytes
+
+## leaf arm counters, all three runs identical (aggregates cannot see a permutation)
+capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+
+## what this rules out
+The vertex stage, the instance data and the interpolated normals are byte-stable (the trace text
+is identical AND the trace picture is identical), because the shader's --lighting-trace branch
+returns at native/src/native_renderer_shaders.cpp:627-629 BEFORE the lighting call at :621 and
+therefore never reads leafAmbientCubeFaces. What changes between runs is only the picture the
+lighting branch produces, i.e. which cube each instance ended up reading.

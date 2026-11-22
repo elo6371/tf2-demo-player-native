@@ -1,0 +1,56 @@
+# leaf37f fix batch: build after the row fix, self-test, then the arm captures.
+# Script .scratch/leaf37f/fix-batch.sh (not committed: it is a run script, the committed
+# harness is tools/capture-batch.sh). Everything ran under
+#   bash /d/_shared/tf2-hostlock/hostlock.sh leaf37f -- bash tools/lockrun.sh leaf37f -- <cmd>
+
+## exe identity that produced every capture below
+sha256  94375d7f109f4a00e16fc8af9ecebde71f5c97120dde3f209980b2d5634a0478
+bytes   3434496
+mtime   2026-11-22 13:09:34
+source  commit b1293105 "task-37 leaf37f: six float4 rows per leaf cube, the row the shader indexes"
+        (parent e052d983; 3 files, +88/-5: native/include/leaf_ambient_table.h,
+         native/src/native_renderer_entity.cpp, native/tools/leaf_ambient_probe.cpp)
+
+## build
+touch native/include/leaf_ambient_table.h native/src/native_renderer_entity.cpp native/tools/leaf_ambient_probe.cpp
+bash build-target.sh tf2_demo_native leaf_ambient_probe
+BUILD-RC=0
+BUILD-WARNING-LINES=0        (/W4, no pragma, no suppression; log .scratch/build-target.log)
+
+## self-test: 40 items, 0 failures
+native/build-nmake/leaf_ambient_probe.exe --self-test
+SELFTEST-RC=0
+SELFTEST-PASSED=40
+SELFTEST-FAILED=0
+{"check":"table.rowIsOneFloat4PerFace","ok":true,"detail":"sizeof=96 faces=6 rowBytes=16 faceSpan=16"}
+{"check":"table.paddingLaneIsNotIdentity","ok":true,"detail":"slotPacked=0 slotPadded=0 distinct=1"}
+{"summary":"self-test","failures":0}
+(full transcript: self-test-40-checks.txt)
+
+## captures: one line per run, md5 of the .bmp (1264x681, 2582406 bytes each)
+bare                 md5=2ddade356e85dd77b795a7380c254bcb
+off                  md5=2ddade356e85dd77b795a7380c254bcb
+basic                md5=d927c52639fb10c62a50b3018806a2d3
+leaf1                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf2                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf3                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf4                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf5                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf-trace           md5=3f39236ee189629f9a5ed42c170a80da
+sunshine-leaf        md5=b9ed23d8c865ed7e2a19f6e80f271dc0
+sunshine-leaf2       md5=b9ed23d8c865ed7e2a19f6e80f271dc0
+sunshine-leaf-trace  md5=73550075d26879a40f0241824ce7bbab
+
+LEAF-DISTINCT-MD5=1 of 5 consecutive --lighting leaf runs.
+leaf-trace / bare / off / basic / sunshine-leaf-trace are byte-identical to their pre-fix
+values, which is the evidence that the fix touched only the leaf lighting path.
+
+## counters, identical in all five leaf runs
+capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+
+## sunshine (second map)
+capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+
+## invariant
+No "renderer-invariant" line in any log: the identity assertion
+(native/src/native_renderer_entity.cpp:937-960) never fired.

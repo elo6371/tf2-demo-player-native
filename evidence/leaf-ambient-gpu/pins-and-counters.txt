@@ -1,29 +1,58 @@
 # pins: one capture per run, --capture-tick 600, audio disabled, hidden window
-# predecessor md5 = the .bmp the predecessor's exe left in .scratch (captured 00:48-00:55)
-# new md5 = this round's build (tf2_demo_native.exe 09:42:57, three sources touched before the build)
-bare           md5=2ddade356e85dd77b795a7380c254bcb  predecessor=2ddade356e85dd77b795a7380c254bcb  SAME
-off            md5=2ddade356e85dd77b795a7380c254bcb  predecessor=2ddade356e85dd77b795a7380c254bcb  SAME
-basic          md5=d927c52639fb10c62a50b3018806a2d3  predecessor=d927c52639fb10c62a50b3018806a2d3  SAME
-leaf           md5=83a85fd73d6dabe166bf38042c2f923f  predecessor=a3f4229c48c054b8b4bf15e5860c3e43  DIFFERS
-leaf-trace     md5=3f39236ee189629f9a5ed42c170a80da  predecessor=3f39236ee189629f9a5ed42c170a80da  SAME
-sunshine-leaf  md5=73550075d26879a40f0241824ce7bbab  predecessor=01afa412794b6a1dd83a90b05cb6b099  DIFFERS
+# exe: $(sha256 recorded in leaf37f-fix-batch.log) -- the build of commit b1293105
+bare                 md5=2ddade356e85dd77b795a7380c254bcb  retired-pre-fix=2ddade356e85dd77b795a7380c254bcb
+off                  md5=2ddade356e85dd77b795a7380c254bcb  retired-pre-fix=2ddade356e85dd77b795a7380c254bcb
+basic                md5=d927c52639fb10c62a50b3018806a2d3  retired-pre-fix=d927c52639fb10c62a50b3018806a2d3
+leaf1                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf2                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf3                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf4                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf5                md5=fa297fb989bd4e2b3100bbd95cecb666
+leaf-trace           md5=3f39236ee189629f9a5ed42c170a80da  retired-pre-fix=3f39236ee189629f9a5ed42c170a80da
+sunshine-leaf        md5=b9ed23d8c865ed7e2a19f6e80f271dc0  retired-pre-fix=73550075d26879a40f0241824ce7bbab
+sunshine-leaf2       md5=b9ed23d8c865ed7e2a19f6e80f271dc0
+sunshine-leaf-trace  md5=73550075d26879a40f0241824ce7bbab
 
-# capture lines of the leaf arms (the counters are per completed entity update)
-bare           capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
-bare           capture: model-lighting arm=0 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
-bare           capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
-off            capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
-off            capture: model-lighting arm=0 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
-off            capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
-basic          capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
-basic          capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
-basic          capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
-leaf           capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
-leaf           capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
-leaf           capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
-leaf-trace     capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
-leaf-trace     capture: model-lighting arm=1 trace=1 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
-leaf-trace     capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=10 traceSkipped=396
-sunshine-leaf  capture: camera eye=(0.5009,-0.4663,1.8469) forward=(0.034943,-0.991077,-0.128632) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-7553.6997,7774.0000) worldMinZ=-14672.7500 worldScale=0.000118
-sunshine-leaf  capture: model-lighting arm=1 trace=1 sunPresent=1 sun=(0.819,-0.574,-0.000) intensity=0.750 sky=(0.738,0.754,0.845) ground=(0.547,0.552,0.592) side=(0.665,0.674,0.737)
-sunshine-leaf  capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=11 traceSkipped=409
+# determinism: consecutive captures of the SAME arm with the SAME exe
+leaf         runs=5 distinct-md5=1  fa297fb989bd4e2b3100bbd95cecb666
+leaf-trace   runs=1 distinct-md5=1  3f39236ee189629f9a5ed42c170a80da
+sunshine-leaf runs=2 distinct-md5=1  b9ed23d8c865ed7e2a19f6e80f271dc0
+leaf arm byte-identical across all 5 runs: YES
+
+# capture lines of the leaf arms (counters are per completed entity update)
+bare                 capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+bare                 capture: model-lighting arm=0 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+bare                 capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
+off                  capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+off                  capture: model-lighting arm=0 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+off                  capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
+basic                capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+basic                capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+basic                capture: leaf-ambient arm=0 slots=0 instances=406 withCube=0 withCubeEmpty=0 noCubeInLeaf=0 outsideLeaf=0 noLump=0 notAsked=0 requests=0 identity=n/a traceTick=600 tracePrinted=0 traceSkipped=0
+leaf1                capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+leaf1                capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+leaf1                capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+leaf2                capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+leaf2                capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+leaf2                capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+leaf3                capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+leaf3                capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+leaf3                capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+leaf4                capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+leaf4                capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+leaf4                capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+leaf5                capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+leaf5                capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+leaf5                capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+leaf-trace           capture: camera eye=(0.4953,-0.5005,1.4930) forward=(0.594346,0.803028,0.043585) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-4918.0000,5579.5547) worldMinZ=-14672.7998 worldScale=0.000090
+leaf-trace           capture: model-lighting arm=1 trace=1 sunPresent=1 sun=(0.500,-0.866,-0.000) intensity=0.900 sky=(0.900,0.920,1.038) ground=(0.665,0.672,0.725) side=(0.810,0.822,0.903)
+leaf-trace           capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=10 traceSkipped=396
+sunshine-leaf        capture: camera eye=(0.5009,-0.4663,1.8469) forward=(0.034943,-0.991077,-0.128632) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-7553.6997,7774.0000) worldMinZ=-14672.7500 worldScale=0.000118
+sunshine-leaf        capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.819,-0.574,-0.000) intensity=0.750 sky=(0.738,0.754,0.845) ground=(0.547,0.552,0.592) side=(0.665,0.674,0.737)
+sunshine-leaf        capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+sunshine-leaf2       capture: camera eye=(0.5009,-0.4663,1.8469) forward=(0.034943,-0.991077,-0.128632) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-7553.6997,7774.0000) worldMinZ=-14672.7500 worldScale=0.000118
+sunshine-leaf2       capture: model-lighting arm=1 trace=0 sunPresent=1 sun=(0.819,-0.574,-0.000) intensity=0.750 sky=(0.738,0.754,0.845) ground=(0.547,0.552,0.592) side=(0.665,0.674,0.737)
+sunshine-leaf2       capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+sunshine-leaf-trace  capture: camera eye=(0.5009,-0.4663,1.8469) forward=(0.034943,-0.991077,-0.128632) hflip=1 vfov=73.7398 aspect=1.856094 worldCenter=(-7553.6997,7774.0000) worldMinZ=-14672.7500 worldScale=0.000118
+sunshine-leaf-trace  capture: model-lighting arm=1 trace=1 sunPresent=1 sun=(0.819,-0.574,-0.000) intensity=0.750 sky=(0.738,0.754,0.845) ground=(0.547,0.552,0.592) side=(0.665,0.674,0.737)
+sunshine-leaf-trace  capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=11 traceSkipped=409

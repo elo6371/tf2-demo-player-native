@@ -1,0 +1,62 @@
+# leaf37f rebuild re-verification: a comment-only source edit must not move a pixel
+#
+# Why this file exists. The capture batch recorded in leaf37f-fix-batch.log ran under exe
+# sha256 94375d7f109f4a00e16fc8af9ecebde71f5c97120dde3f209980b2d5634a0478. After that
+# batch the upload comment at native/src/native_renderer_entity.cpp was corrected (it had
+# claimed ByteWidth, NumElements and the memcpy were all written from kCubeBytes; NumElements
+# is in fact still capacity * kLeafAmbientFaces). Correcting a comment forces a rebuild, and
+# the rebuilt exe has a different sha256 even though no code changed:
+#
+#   captures  94375d7f109f4a00e16fc8af9ecebde71f5c97120dde3f209980b2d5634a0478  (3434496 B)
+#   rebuilt   54abaeebdc681d08cf8d6eb2bd80d7ed154bfef6b4cf321251a674b8a13a7bfd  (3434496 B)
+#   source    commit b1293105, "task-37 leaf37f: six float4 rows per leaf cube, the row
+#             the shader indexes" -- both builds are the same source tree
+#
+# Both binaries are the same size; nothing below depends on that, it is just what a rebuild
+# of unchanged code gives. The point of this file is the pixel comparison underneath: every
+# arm was re-captured on the rebuilt exe and every md5 is identical to the one already
+# published in pins-and-counters.txt. So the pin fa297fb9... is not an artifact of one
+# particular link; it is what this source produces.
+#
+# build: bash /d/_shared/tf2-hostlock/hostlock.sh leaf37f -- bash tools/lockrun.sh leaf37f -- \
+#          bash -c 'touch native/src/native_renderer_entity.cpp && bash build-target.sh tf2_demo_native'
+#        BUILD-RC=0, warning lines matching /warning/ in the build log: 0
+
+=== exe under test (rebuilt) ===
+54abaeebdc681d08cf8d6eb2bd80d7ed154bfef6b4cf321251a674b8a13a7bfd  native/build-nmake/tf2_demo_native.exe
+3434496 bytes  2026-11-22 13:32:04
+
+=== cp_process_f12, tick 600, --audio-disabled --hidden-window ===
+PIN basic          d927c52639fb10c62a50b3018806a2d3
+PIN leaf1          fa297fb989bd4e2b3100bbd95cecb666
+PIN leaf2          fa297fb989bd4e2b3100bbd95cecb666
+PIN leaf3          fa297fb989bd4e2b3100bbd95cecb666
+PIN leaf-trace     3f39236ee189629f9a5ed42c170a80da
+
+=== leaf determinism on the rebuilt exe ===
+distinct leaf md5 count: 1
+fa297fb989bd4e2b3100bbd95cecb666
+
+=== counters (leaf1/leaf2/leaf3, identical lines) ===
+capture: leaf-ambient arm=1 slots=147 instances=406 withCube=337 withCubeEmpty=3 noCubeInLeaf=69 outsideLeaf=0 noLump=0 notAsked=0 requests=406 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+
+=== cp_sunshine, tick 600, second map ===
+PIN sunshine-leaf         b9ed23d8c865ed7e2a19f6e80f271dc0
+PIN sunshine-leaf2        b9ed23d8c865ed7e2a19f6e80f271dc0
+PIN sunshine-leaf-trace   73550075d26879a40f0241824ce7bbab
+capture: leaf-ambient arm=1 slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 outsideLeaf=0 noLump=0 notAsked=0 requests=420 identity=ok traceTick=600 tracePrinted=0 traceSkipped=0
+
+=== no renderer-invariant line in any log of either batch ===
+
+=== byte comparison against the 94375d7f... captures (.scratch/leaf37f/fix/) ===
+leaf1..leaf5    fa297fb989bd4e2b3100bbd95cecb666  == rebuilt leaf1..leaf3
+basic           d927c52639fb10c62a50b3018806a2d3  == rebuilt basic
+leaf-trace      3f39236ee189629f9a5ed42c170a80da  == rebuilt leaf-trace
+sunshine-leaf   b9ed23d8c865ed7e2a19f6e80f271dc0  == rebuilt sunshine-leaf / sunshine-leaf2
+sunshine-leaf-trace 73550075d26879a40f0241824ce7bbab  == rebuilt sunshine-leaf-trace
+# 8 captures on the rebuilt exe, 8 identical md5s. The comment edit moved nothing.
+#
+# Note: the fix2 batch's own "sunshine-leaf" row was captured on cp_process_f12 by mistake;
+# the three sunshine rows above come from the separate sun2 run that used the cp_sunshine demo.
+# The mistake is left visible here rather than tidied away, because a mislabelled row in a
+# determinism table is exactly the kind of thing this document is about.
