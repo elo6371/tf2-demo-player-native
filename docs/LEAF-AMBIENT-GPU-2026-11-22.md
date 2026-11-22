@@ -9,8 +9,10 @@
 
 ## 0. 结论
 
-1. **接线是逐实例的，回落也是逐实例的**。静态道具与实体走同一个 `resolveLeafCube()`
-   （`native/src/main.cpp:13084`，实体在 :13772/:14930，道具用矩阵平移在 :13179），命中后
+1. **接线是逐实例的，回落也是逐实例的**。玩家、静态道具、地图模型实体走同一个 `resolveLeafCube()`
+   （`native/src/main.cpp:13084`；玩家 :13772 与静态道具 :14930 用 `draw.origin`。
+   地图模型实体 :13179 用矩阵平移 `matrix[3],[7],[11]`——那个 draw 的 origin 故意留在零，
+   见 :13173-13178 的注释），命中后
    18 个通道写进实例记录、由槽表折成一个 `uint` 槽号塞进实例记录的 `gpu.normal[0][3]`
    （`native/src/native_renderer_entity.cpp:656-702`），顶点着色器按 `nointerpolation uint
    ambientSlot : TEXCOORD9` 传下去（`native/src/native_renderer_shaders.cpp:92,129`），像素着色器
@@ -23,9 +25,12 @@
    notAsked=0 requests=406 identity=ok`；337+69=406。cp_sunshine tick 600：
    `slots=162 instances=420 withCube=346 withCubeEmpty=3 noCubeInLeaf=74 requests=420 identity=ok`。
    求和式印在捕获行上（`native/src/native_renderer_frame.cpp:1003`），并在
-   `setEntityModelInstances()` 收尾时断言（`native/src/native_renderer_entity.cpp:940-957`），
-   不等就打 `[renderer-invariant] leaf-ambient identity ...` 并把 `lastError_` 置
-   `E_UNEXPECTED`（进程致命，不是警告）。
+   `setEntityModelInstances()` 收尾时断言（`native/src/native_renderer_entity.cpp:937-960`），
+   不等就打 `[renderer-invariant] leaf-ambient identity ...`、把 `lastError_` 置 `E_UNEXPECTED`。
+   **普通运行**里设备错误策略把它变成 `PostQuitMessage(3)`（`native/src/main.cpp:16509-16533`）；
+   但**捕获帧**走另一条出口（`native/src/main.cpp:16467-16486`）：那里只看装置/深度面有没有写成，
+   **不读 `lastError_`**。所以在正好写 BMP 的那一帧触发不变式，进程仍会退出 0、BMP 照样落盘，
+   唯一的证据是 stderr 那行与捕获行上的 `identity=MISMATCH`——读捕获日志必须看这两处，不能只看退出码。
 3. **空立方体落在 `withCube`，不落在 `noCubeInLeaf`**。它有一份烘焙、18 个通道全 0，
    语义是"这个 leaf 收不到天光"，与"没有烘焙"是相反的事实。运行时两个地图各 3 个实例属于这类
    （占 withCube 的 3/337、3/346），全语料 2.18%（cp_process_f12：77/3537）与 2.16%
@@ -44,14 +49,15 @@
 6. **引脚**：`bare`/`off`/`basic` 三个捕获与前任 exe 的 md5 逐字节相同
    （`2ddade356e85dd77b795a7380c254bcb` / `2ddade356e85dd77b795a7380c254bcb` /
    `d927c52639fb10c62a50b3018806a2d3`），说明本轮新增的相机/计数打印没有动渲染。
-   `leaf` 与前任差 0.225% 像素（1934 px，meanAbs 0.362，全部落在 (368,110)-(642,273) 这
-   275×164 的火箭模型/栏杆区域）：这是**前任的 exe 是旧的**造成的，见 §8，不是本轮的改动。
+   `leaf` 与前任差 0.225% 像素（1934 px，meanAbs 0.362），而且全部挤在 (368,110)-(642,273)
+   这 275×164 一块（bbox 的复算记录见 `evidence/leaf-ambient-gpu/bbox-diff-run.txt`）。
+   这是**前任的 exe 是旧的**造成的，见 §8，不是本轮的改动。
    `leaf-trace` 逐字节相同，但它是"法线当颜色"的调试视图
    （`native/src/native_renderer_shaders.cpp:623-629`），只能证明几何/法线通路没变，
    不能证明立方体数据。
 7. **验收（同 tick 室内 vs 室外）**：tick 600 打印的 10 个玩家实例里，+Z 面（朝上=能看到多少天光）
    最高 `0.002354`（index 2/7，leaf 2269）与最低 `0.000105`（index 16，leaf 1511）相差
-   **22.35 倍**；画面上能对上的两个玩家做 1:1 裁切（同窗口、两臂）：院子里的（室外叶）
+   **22.42 倍**（6 位小数相除就是 22.42；工具早先按更高精度报 22.35，差在第三位）；画面上能对上的两个玩家做 1:1 裁切（同窗口、两臂）：院子里的（室外叶）
    leaf 比 basic 亮 `(R,G,B)=+11.5/+13.9/+5.8`，门洞里的（室内叶）`-1.7/-0.6/-1.5`（≈0）。
    这是"烘焙确实按实体所在 leaf 走了"的像素证据。
 
@@ -62,23 +68,27 @@
 | 文件 | 改了什么 |
 | --- | --- |
 | `native/include/native_renderer.h` | 新增 `leafAmbientWithCubeEmpty()` / `leafAmbientRequests()` / `leafAmbientIdentityChecked()` / `leafAmbientIdentityOk()` 与对应成员；注释写清"空立方体是 withCube 的子集，永远 ≤ withCube" |
-| `native/src/native_renderer_entity.cpp` | 每次更新重置计数（:502-520）、按 18 通道全 0 计 `withCubeEmpty_`、收尾求和断言（:940-957，两条不变式：`withCubeEmpty ≤ withCube` 与 `sum == accepted`） |
-| `native/src/native_renderer_frame.cpp` | 相机捕获行补 `worldCenter/worldMinZ/worldScale` 与 `forward`（:1002 附近），leaf-ambient 捕获行补 `withCubeEmpty/requests/identity`（:1003） |
+| `native/src/native_renderer_entity.cpp` | 每次更新重置计数（:500-517，随后 :518-521 是提前返回）、按 18 通道全 0 计 `withCubeEmpty_`、收尾求和断言（:937-960，两条不变式：`withCubeEmpty ≤ withCube` 与 `sum == accepted`） |
+| `native/src/native_renderer_frame.cpp` | 相机捕获行补 `worldCenter/worldMinZ/worldScale` 与 `forward`（:793-798），leaf-ambient 捕获行补 `withCubeEmpty/requests/identity`（:1003-1006） |
 | `native/tools/leaf_ambient_probe.cpp` | 自检扩到 38 项：槽表三条 + 空立方体必须是"命中"而不是"未命中"（`cube.blackCubeIsAHit`） |
 
 ### 1.1 数据通路（按执行顺序）
 
-1. `resolveLeafCube(x,y,z, draw)`（`native/src/main.cpp:13084`）在**渲染位置**上取 leaf
-   （不是实体原点所在叶子：模型可能站在两个 leaf 的边界上）；命中后写 `draw.leafAmbient*[18]`
-   与 `hasLeafCube`。位置取自矩阵平移（道具，:13179）或 `draw.origin`（角色，:13772/:14930）。
+1. `resolveLeafCube(x,y,z, draw)`（`native/src/main.cpp:13084`）在**实体自己的位置**上取 leaf
+   （源码注释的原话是"origin 是实体的，不是眼睛的"——模型在它站的地方被照亮，眼睛可能高出
+   一层楼、身在另一个 leaf）；命中后写 `draw.leafAmbient*[18]` 与 `hasLeafCube`。
+   三个调用点：玩家 :13772 与静态道具 :14930 用 `draw.origin`，地图模型实体 :13179 用矩阵平移。
 2. `setEntityModelInstances()` 逐实例：命中 → 18 个 float 进槽表（首次出现分配新槽），
    槽号写 `gpu.normal[0][3]`；未命中 → 写哨兵 `kLeafAmbientNoSlot`（-1.0f，
    `native/src/native_renderer_entity.cpp:667`），**不是 0 号槽**（0 号槽是别人的真立方体，
    0 会被读成"全黑"）。
-3. 槽表整体上传为 `StructuredBuffer`，绑定 t12（`native/src/native_renderer_shaders.cpp:206`）；
-   只有实体/道具 pass 绑它，其它 pass 的根签名不声明 t12（:201-206 的注释）。
-4. 像素着色器：`ambientSlot != 0xFFFFFFFF` 时用该槽六面，否则用 basic 常数
-   （`native/src/native_renderer_shaders.cpp:601-621`）。
+3. 槽表整体上传为 `StructuredBuffer`（着色器侧 `leafAmbientCubeFaces : register(t12)`，
+   `native/src/native_renderer_shaders.cpp:206`）。这棵树**没有根签名**，是直接绑 D3D11 寄存器：
+   实体 pass 之前 `PSSetShaderResources(12, 1, &leafView)`（`native/src/native_renderer_frame.cpp:1699-1708`），
+   这个 pass 一结束就解绑（:1843-1847），免得后面的 pass 继承一张它没要过的表；
+   `native/src/native_renderer_shaders.cpp:198-206` 只是解释这段约定的注释，不是机制。
+4. 像素着色器：先把 `ambientCube[6]` 拷进 `leafCube[6]`，`ambientSlot != 0xFFFFFFFF` 时再用
+   槽里的六面覆盖，然后进同一条 `modelLightingRgb`（`native/src/native_renderer_shaders.cpp:611-621`）。
 
 ## 2. 槽表不变量（为什么它必须是精确相等）
 
@@ -107,7 +117,8 @@ cp_sunshine    tick 600: slots=162 instances=420 withCube=346 withCubeEmpty=3 no
 ```
 
 - `instances` = 这一帧走通的实例数（实体 + 静态道具）；`requests` = 五个桶之和。
-  两者相等才算"一个实例都没被桶吃掉"，否则 `identity=MISMATCH` 且断言失败。
+  两者相等才算"一个实例都没被桶吃掉"，否则 `identity=MISMATCH`、断言往 stderr 打一行并把
+  `lastError_` 置 `E_UNEXPECTED`（普通运行因此退出 3；捕获帧的出口见 §0 第 2 条）。
 - `withCubeEmpty` 是 `withCube` 的**子集**（不是第六个桶），断言保证
   `withCubeEmpty ≤ withCube`；这两个数是"有一份烘焙"与"烘焙是黑的"两个不同事实。
 - 空立方体在**全语料**里的占比（Half A 的 dump 重算，`evidence/leaf-ambient-gpu/empty-cube-census.txt`）：
@@ -163,7 +174,7 @@ cp_sunshine    tick 600: slots=162 instances=420 withCube=346 withCubeEmpty=3 no
 | 8 | 462 | 25 | 0.000346 | 0.000116 | 0.000542 |
 | 16 | 1511 | 10 | 0.000238 | **0.000105** | 0.000359 |
 
-室外/室内 = 0.002354 / 0.000105 = **22.35 倍**。
+室外/室内 = 0.002354 / 0.000105 = **22.42 倍**。
 
 像素证据（`evidence/leaf-ambient-gpu/accept-players-1to1.png`，同一窗口、同 tick、两臂 1:1）：
 
@@ -177,8 +188,8 @@ cp_sunshine    tick 600: slots=162 instances=420 withCube=346 withCubeEmpty=3 no
 
 **投影的诚实说明**：引擎不打印屏幕投影。本轮把 `worldCenter/worldMinZ/worldScale` 与
 `forward` 加进捕获行，就是为了能自己重建（`map→box` 变换是引擎自己的：
-`native/src/native_renderer_camera.cpp:57-59`，相机也在同一 box 空间，Z 朝上，
-`native/src/native_renderer_frame.cpp:685,715,794`）。重建结果在
+`native/src/native_renderer_camera.cpp:57-59`，相机也在同一 box 空间，Z 朝上：up 在 :685、
+`LookAtLH` 在 :715、投影在 :800，相机那一行打印在 :793-798）。重建结果在
 `evidence/leaf-ambient-gpu/projection-caveat.txt`：10 个实例里只有 3 个落在画面内，
 其中 index 16（门洞士兵）的投影点与实际红色 blob 底边差 55 px，index 5/13（画面底部的两个）
 脚在画面下沿以下 80-230 px——正好解释为什么底部两个被切了腿。但**投影到的是脚（trace 的
@@ -202,6 +213,7 @@ EXE --demo "$PROC" --capture-tick 600 --capture-frame OUT/name.bmp --audio-disab
 | basic | `--lighting basic` | d927c52639fb10c62a50b3018806a2d3 | 同 | 逐字节相同 |
 | leaf | `--lighting leaf` | 83a85fd73d6dabe166bf38042c2f923f | a3f4229c48c054b8b4bf15e5860c3e43 | 0.225% 像素，见 §8 |
 | leaf-trace | `--lighting leaf --lighting-trace` | 3f39236ee189629f9a5ed42c170a80da | 同 | 逐字节相同（调试视图） |
+| leaf-outline | `--lighting leaf --outline on` | 本轮未采 | b4608170e6e7e6fe8262e1c831e94246 | 本轮批处理去掉了 `--outline on`（exe 不认这个参数、只是容忍），所以只有前任基线 |
 | sunshine-leaf | 第二张地图，leaf+trace | 73550075d26879a40f0241824ce7bbab | 01afa412794b6a1dd83a90b05cb6b099 | 同 §8 的新旧差 |
 
 三个"不带 leaf"的臂逐字节不变，是"新打印/新计数没改渲染"的硬证据；两条 leaf 臂的差异全部
@@ -209,18 +221,23 @@ EXE --demo "$PROC" --capture-tick 600 --capture-frame OUT/name.bmp --audio-disab
 
 ## 8. 前任的 exe 是旧的（为什么 leaf 会差 0.225%）
 
-本轮第一次构建（09:38 完成）的日志里**只**重编了 `generated/tf2_build_stamp.cpp` 并重链接：
-`tf2_demo_native.exe` 变成 09:37:48，而三份被改过的源文件对应的 `.obj` 仍是 00:43:20/00:43:30。
-实测原因是 `ops_edit_file` 保留 mtime：源文件时间戳（`native_renderer_frame.cpp` 2026-11-21
-23:47:29、`native/include/native_renderer.h` 00:37:18、`native_renderer_entity.cpp` 00:37:24）
-比它们的 `.obj` 更**旧**，nmake 判定无需重编，于是一个"成功"的构建其实链接了旧对象。
+本轮第一次构建（09:38）的日志里**只**重编了 `generated/tf2_build_stamp.cpp` 并重链接，四个被改过的
+源文件一个都没进 exe。实测原因是 `ops_edit_file` 保留 mtime：源文件的时间戳比它们的 `.obj` 更**旧**，
+nmake 判定无需重编，于是一个"成功"的构建其实链接了旧对象。这条链是在 09:38 那次构建里用 `stat` 量的；
+09:42 的重建把 exe 和 `.obj` 都刷新了，所以原始时间戳已不可复算——但同一轮的批处理日志
+`evidence/leaf-ambient-gpu/batch-37d.log` 留下了 touch（09:41:43）与两次构建的原始记录，
+`build-warnings.txt` 是它的构建段节选。
 
-这同时解释了两件事：
+那批没进旧 exe 的改动是什么（git 可查）：`964e0d79`（Half B 本体，12 文件 +1277）里的**逐 leaf
+立方体**部分——槽表、`t12` 的绑定与解绑、像素分支、三个 `resolveLeafCube()` 调用点、探针与捕获行。
+前任 00:29 的 exe 早于这些编辑，所以它拍的 `leaf` 不可能含逐 leaf 替换；它 00:48-00:55 拍的 `leaf`
+与 `sunshine-leaf` 用的都是那个旧 exe。
 
-- 前任在 00:48-00:55 拍的 `leaf`/`sunshine-leaf` 用的是 00:29:05 的 exe，而它自己的源改动
-  在 00:37-00:43 才落盘——那些改动从未进过它拍出来的图。
-- 所以本轮 touch 后重建（`tf2_demo_native.exe` 09:42:57）拍出的 leaf 与前任差 0.225%、
-  且差异集中在一个 275×164 的火箭模型框内，其它三个臂纹丝不动。
+但 0.225% **不是"特性缺失"的证据**：前任 `leaf`（`a3f4229c…`）与本轮 `leaf`（`83a85fd7…`）只差
+0.225%，而 `leaf` 与 `basic` 差 12.831%（`arm-diffs.txt`）——前任的 leaf 画面本来就和 basic 大不同
+（那是 task-36 的全局六面光照臂，00:29 的 exe 里已有），本轮重建只是把它细化。逐 leaf 立方体与
+全局立方体本来就接近（k 按均值匹配定标），所以 Half B 的净像素差只有 0.225%，且集中在一块
+275×164 里，其它三个臂纹丝不动。
 
 教训：**改完源文件必须 touch 再构建**，并且要看构建日志里到底重编了哪几个文件；
 "构建成功"不等于"新代码进了 exe"。从本轮起批处理脚本在构建前统一 touch 四个源文件
@@ -234,8 +251,9 @@ EXE --demo "$PROC" --capture-tick 600 --capture-frame OUT/name.bmp --audio-disab
   两条 trace 捕获逐字节相同只说明几何/法线通路没变。要量光照看 `leaf` 臂。
 - **投影**：见 §6 末段，引擎不打印屏幕投影，重建只能到脚、不能到躯干；裁切按 blob 取窗。
 - **空立方体实例是太阳-only**：环境项为 0，视觉上是"只有太阳"的暗面；这是烘焙的事实，
-  不是缺省值；如果产品上希望空立方体也有一点环境项，那是另一个决定（Half A 的 42.65% 无烘焙
-  leaf 走 basic 常数，这里不改那个规则）。
+  不是缺省值；如果产品上希望空立方体也有一点环境项，那是另一个决定（Half A 的 42.65%
+  无烘焙 leaf 继续走 basic 常数是**继承来的**规则，出处 `native/include/native_renderer.h:324`
+  与 `:1183`，本轮没有重测、也没有改）。
 - **clip 是方向空间的现象**：0.54 的方向均值 >1，但屏幕像素级只有 0.43% 有通道 255；
   如果以后换更亮的太阳/更暗的地图，需要重新量像素级 clip。
 - 没有改光照数学、没有动 Half A 的解析/两页规则/回落计数语义。
@@ -247,7 +265,8 @@ EXE --demo "$PROC" --capture-tick 600 --capture-frame OUT/name.bmp --audio-disab
 touch native/src/native_renderer_frame.cpp native/src/native_renderer_entity.cpp \
       native/include/native_renderer.h native/tools/leaf_ambient_probe.cpp
 bash build-target.sh tf2_demo_native leaf_ambient_probe
-native/build-nmake/leaf_ambient_probe.exe --self-test   # 38 项，failures=0
+native/build-nmake/leaf_ambient_probe.exe --self-test   # 38 项，failures=0（见 probe-rebuild.log；
+#    build-warnings.txt 里那次的 34 是旧探针的读数，不是当前探针）
 
 # 2) 捕获（全在 hostlock + verify-all 锁内，见 tools/lock-retry.sh）
 EXE=native/build-nmake/tf2_demo_native.exe
@@ -256,8 +275,10 @@ PROC="E:/demo测试/cp_process_f12/STV/1338f5de79ea343682c17dd514c980d9_matcha-2
        --audio-disabled --hidden-window --lighting leaf
 # 同样命令换 --lighting off|basic|leaf --lighting-trace；第二张地图把 --demo 换成 SUNSHINE.dem
 
-# 3) 表格与裁切（都在 worktree 根）
-python .scratch/finalize.py     # → pins-and-counters / entity-cubes / player-crops / arm-diffs
-python .scratch/pair.py          # → accept-players-1to1.png
-python .scratch/accept.py        # → 投影重建（projection-caveat.txt 的数字）
+# 3) 表格、裁切、投影（脚本已提交在 evidence/leaf-ambient-gpu/tools/，路径按 worktree 根解析；
+#    读的是第 2 步写进 .scratch/leafgpu/ 的捕获与日志）
+python evidence/leaf-ambient-gpu/tools/make-tables.py        # pins-and-counters / entity-cubes / player-crops / arm-diffs
+python evidence/leaf-ambient-gpu/tools/player-crop-pair.py    # accept-players-1to1.png
+python evidence/leaf-ambient-gpu/tools/projection-accept.py   # 投影重建（projection-caveat.txt 的数字）
+python evidence/leaf-ambient-gpu/tools/arm-cross-diff-bbox.py # bbox-diff-run.txt 的那一行
 ```

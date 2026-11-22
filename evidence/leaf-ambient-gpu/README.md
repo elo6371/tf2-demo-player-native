@@ -9,8 +9,13 @@
 - predecessor-md5.txt —— 前任 exe 留下的 .bmp 的 md5（作引脚基线）
 - pins-and-counters.txt —— 每个捕获的 md5 对照 + camera/model-lighting/leaf-ambient 三条计数行
 - arm-diffs.txt —— 同一 tick 两两捕获的像素差（leaf/basic/leaf-trace/bare，以及前任 leaf 与本轮 leaf）
+- bbox-diff-run.txt —— 前任 leaf 与本轮 leaf 差异的 bbox 复算：命令、两个输入的 md5、逐像素输出
+  （`(368,110)-(642,273)` 275×164）；前任的 BMP 已被覆盖，只剩转存 PNG，所以这是现场记录
 - arms-bare-basic-leaf-leaf-trace.png —— 四臂拼图（目视用）
 - probe-rebuild.log —— touch 探针源后重建 + 38 项自检的日志（证明提交的探针源就是产出证据的那份）
+- build-warnings.txt —— 09:41 那次批处理的构建段（`BUILD-RC=0`、`BUILD-WARNING-LINES=0`）。
+  注意里面的 `SELFTEST-PASSED=34` 是**旧探针**的读数；当前探针是 38 项，见 probe-rebuild.log
+- batch-37d.log —— 09:41 那次批处理的原始日志：touch 四个源、两个目标的构建、五个引脚、第二张地图
 - self-test-38-checks.txt —— `leaf_ambient_probe --self-test` 全部 38 行输出
 
 ## 空立方体与槽表

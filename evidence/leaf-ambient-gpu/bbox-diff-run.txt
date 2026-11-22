@@ -1,0 +1,22 @@
+# bbox of the predecessor-leaf vs this-round-leaf difference (1934 px)
+# command (from the worktree root):
+#   python evidence/leaf-ambient-gpu/tools/arm-cross-diff-bbox.py
+#   (during the round it was run as .scratch/bboxdiff.py; byte-identical file)
+# inputs (both 1264x681 = the capture size):
+#   A  .scratch/leafgpu/leaf-preview.png  md5 9022d9d7affc1b6934b4cbc90fbadaf6
+#      PNG transcode of the PREDECESSOR exe's leaf capture (leaf.png is a byte copy of it).
+#      The predecessor BMP that produced it was a3f4229c48c054b8b4bf15e5860c3e43
+#      (predecessor-md5.txt) and has since been overwritten by this round's capture.
+#   B  .scratch/leafgpu/leaf.bmp          md5 83a85fd73d6dabe166bf38042c2f923f
+#      this round's leaf capture (pin-leaf.log).
+# output (verbatim):
+sizes (1264, 681) (1264, 681)
+changed=1934 bbox=(368,110)-(642,273) 275x164
+# reading: every differing pixel sits in ONE 275x164 box in the upper middle of the
+# frame (the rocket/railing area), which is the locality claim in
+# docs/LEAF-AMBIENT-GPU-2026-11-22.md section 0 item 6 and section 8. If the difference
+# were the per-leaf feature being absent rather than refined, it would be spread over
+# the whole frame at the leaf-vs-basic magnitude (12.831%, 110448 px), not 1934 px.
+# reproducibility: input A needs the predecessor exe, which this branch no longer
+# builds, so this file records the run rather than a from-scratch recompute; input B
+# can be recaptured with the pin commands in section 7 and checked against its md5.

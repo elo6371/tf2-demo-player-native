@@ -77,7 +77,7 @@ if ents:
     o.append("OUTDOOR (brightest up face): index=%d leaf=%d slot=%d up=%.6f" % (top["index"], top["leaf"], top["slot"], top["up"]))
     o.append("INDOOR  (darkest  up face): index=%d leaf=%d slot=%d up=%.6f" % (bot["index"], bot["leaf"], bot["slot"], bot["up"]))
     if bot["up"] > 0:
-        o.append("ratio outdoor/indoor up face = %.2f" % (top["up"] / bot["up"]))
+        o.append("ratio outdoor/indoor up face = %.2f" % (round(top["up"], 6) / round(bot["up"], 6)))
     o.append("empty cubes among the printed players: %d" % sum(1 for e in ents if e["empty"]))
 open(base + "entity-cubes-tick600.txt", "w", encoding="utf-8").write("\n".join(o) + "\n")
 

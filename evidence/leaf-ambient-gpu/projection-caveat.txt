@@ -8,8 +8,10 @@
 # and the camera is built in that same box space (Z up):
 #   up=(0,0,1) native/src/native_renderer_frame.cpp:685,
 #   eye=demoEye, target=eye+mapForward*worldScale, XMMatrixLookAtLH at :715,
-#   XMMatrixPerspectiveFovLH(radians(worldVerticalFov), aspect) at :794.
-# .scratch/accept.py rebuilds that projection and prints one line per traced entity:
+#   XMMatrixPerspectiveFovLH(radians(worldVerticalFov), aspect) at :800
+#   (:794 is the capture printf that carries the same constants to the log).
+# evidence/leaf-ambient-gpu/tools/projection-accept.py (the committed copy of the script that
+# was run as .scratch/accept.py) rebuilds that projection, one line per traced entity:
 #
 # ENT index=4  medic   leaf=504  slot=24 meanLum=0.000880 upLum=0.001838 screen=(474.0,384.5)  in frame
 # ENT index=8  soldier leaf=462  slot=25 meanLum=0.000346 upLum=0.000116 screen=(672.1,376.4)  in frame
