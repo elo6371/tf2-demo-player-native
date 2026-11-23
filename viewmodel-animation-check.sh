@@ -163,6 +163,12 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "VIEWMODEL-ANIMATION=FAIL (another viewmodel-animation-check run owns $LOCK_DIR)"
   exit 2
 fi
+# --mutation also takes the chain's build lock, the path mutate.sh and verify-all.sh
+# share. Acquire it through verify-lock.sh: a bare mkdir leaves a directory with no
+# owner file, which the next vlock correctly reads as stale and reclaims -- the
+# 2026-11-24 race that failed a whole verify-all run three times in a row.
+BUILD_LOCK_DIR=.scratch/verify-all.lock
+. "$(dirname "$0")/verify-lock.sh"
 # --mutation rebuilds the product, so it also takes the chain's build lock (the
 # one mutate.sh and verify-all's build step share) and puts the source back on
 # every exit path. `git checkout --` is the restore mechanism, which is why the
@@ -204,7 +210,7 @@ restore_mutation() {
     rc=1
   fi
   if [ "$BUILD_LOCK_OWNED" -eq 1 ]; then
-    rmdir .scratch/verify-all.lock 2>/dev/null || true
+    vlock_release "$BUILD_LOCK_DIR"
     BUILD_LOCK_OWNED=0
   fi
   MUTATION_ACTIVE=0
@@ -294,8 +300,8 @@ if [ "$MUTATION" -eq 1 ]; then
     exit 2
   fi
   if [ "${VERIFY_ALL_LOCK_HELD:-0}" != "1" ]; then
-    if ! mkdir .scratch/verify-all.lock 2>/dev/null; then
-      echo "VIEWMODEL-ANIMATION=FAIL (a build owns .scratch/verify-all.lock)"
+    if ! vlock_acquire "$BUILD_LOCK_DIR" viewmodel-animation 900; then
+      echo "VIEWMODEL-ANIMATION=FAIL (a build owns $BUILD_LOCK_DIR)"
       exit 2
     fi
     BUILD_LOCK_OWNED=1

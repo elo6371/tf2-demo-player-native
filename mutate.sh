@@ -21,15 +21,21 @@ cd "$(dirname "$0")"
 # environment marker so its step 8 does not try to acquire the lock twice.
 LOCK_DIR=.scratch/verify-all.lock
 LOCK_OWNED=0
+# 2026-11-24: this used to be a bare `mkdir`, which produces a lock directory with no
+# owner/pid/heartbeat files -- the exact shape verify-lock.sh has to treat as stale and
+# reclaim. A mutation run and a verify-all run therefore fought over the directory and
+# each could lose a run to the other's rm -rf/mkdir window. Acquire through verify-lock.sh
+# like every other builder, and release through it too (never a bare rmdir).
+. ./verify-lock.sh
 if [ "${VERIFY_ALL_LOCK_HELD:-0}" != "1" ]; then
-  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  if ! vlock_acquire "$LOCK_DIR" mutate 900; then
     echo "MUTATION-LOCK=FAIL (another build or mutation owns $LOCK_DIR)"
     exit 2
   fi
   LOCK_OWNED=1
   # Keep the lock cleanup installed before the registry exists: a failure while
   # creating the per-run backup directory would otherwise leak the lock.
-  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+  trap 'vlock_release "$LOCK_DIR"' EXIT
 fi
 
 # --- source restore registry (D-58) -----------------------------------------

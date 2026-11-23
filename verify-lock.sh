@@ -148,20 +148,38 @@ vlock_acquire() { # vlock_acquire <dir> <owner> [stale-after-seconds]
   old_owner=$(cat "$d/owner" 2>/dev/null || printf 'unknown')
   old_pid=$(cat "$d/pid" 2>/dev/null || printf '')
   age=$(vlock_age "$d")
+  # vlock_age falls back to the directory mtime. When the directory vanished between
+  # our failed mkdir and that stat -- the bare-holder race fixed below -- the fallback
+  # prints 0 and the age reads as the whole epoch (1.79e9 s). Say "gone" instead of
+  # dressing that up as a measurement.
+  age_display="${age}s"
+  [ -d "$d" ] || age_display=gone
   alive=no
   vlock_lock_alive "$d" && alive=yes
   if [ "$alive" = yes ] && [ "$age" -le "$limit" ] && [ -f "$d/pid" ]; then
-    echo "VERIFY-LOCK=FAIL (another verify-all run owns $d: owner=$old_owner pid=$old_pid age=${age}s heartbeat_limit=${limit}s)"
+    echo "VERIFY-LOCK=FAIL (another verify-all run owns $d: owner=$old_owner pid=$old_pid age=${age_display} heartbeat_limit=${limit}s)"
     return 2
   fi
   if [ "$alive" = yes ]; then reason=heartbeat-timeout
   elif [ -f "$d/pid" ]; then reason=owner-dead
   else reason=no-owner-file
   fi
-  echo "STALE-LOCK=RECLAIMED owner=$old_owner pid=${old_pid:-none} age=${age}s reason=$reason dir=$d"
-  rm -rf "$d"
-  if ! mkdir "$d" 2>/dev/null; then
-    echo "VERIFY-LOCK=FAIL (stale lock was reclaimed but $d came back; another run won the race)"
+  echo "STALE-LOCK=RECLAIMED owner=$old_owner pid=${old_pid:-none} age=${age_display} reason=$reason dir=$d"
+  # 2026-11-24: mutate.sh and viewmodel-animation-check.sh --mutation used to create
+  # this same path with a bare mkdir (no owner file) and remove it with a plain rmdir.
+  # Cycling against this reclaim, the directory reappears between our rm -rf and our
+  # mkdir, which printed "another run won the race" while no other run existed: three
+  # reports in one night, ages of 1.79e9 s. Both scripts now acquire through this
+  # file, so the bare shape should be gone; the retry is the belt and braces, because
+  # reclaim is idempotent and a single lost window must not fail a whole run.
+  local got=0 tries=40
+  for _ in $(seq 1 "$tries"); do
+    rm -rf "$d" 2>/dev/null
+    if mkdir "$d" 2>/dev/null; then got=1; break; fi
+    sleep 0.05
+  done
+  if [ "$got" -ne 1 ]; then
+    echo "VERIFY-LOCK=FAIL (stale lock was reclaimed but $d came back on all $tries attempts; entries=$(ls -A "$d" 2>/dev/null | tr '\n' ' '))"
     return 2
   fi
   vlock_init "$d" "$owner"
