@@ -1701,6 +1701,28 @@ struct HudTimelineTraceState {
   std::size_t viewTurns = 0;
 };
 HudTimelineTraceState g_hudTimelineTrace;
+// A5 (section 9.2, 逐条复查): the review's banner. The view is the machine's, replaced every
+// frame; the overlay is composed in the publish path because the buttons are laid out against
+// the client width. Cached rather than recomposed at click time for the reason the strip is:
+// a resize between the click and the frame must not move the buttons under the pointer.
+tf2::native::TimelineReviewView g_hudTimelineReviewView;
+tf2::native::TimelineReviewOverlay g_hudTimelineReviewOverlay;
+// The review republishes its line on a READING change, not every frame. Its phase clock runs at
+// 60 Hz and the countdown changes once a second, so a line per frame would be 59 identical rows
+// around every readable one -- the same rule the minimap and the strip follow.
+struct HudReviewTraceState {
+  int active = -1;
+  int index = -1;
+  int phase = -1;
+  int countdown = -1;
+  int autoNext = -1;
+  int kind = -1;
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+  std::int32_t savedTick = 0;
+  int clientW = 0;
+};
+HudReviewTraceState g_hudReviewTrace;
 }  // namespace
 
 void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report) {
@@ -1805,6 +1827,19 @@ bool hudTimelineHitTest(int clientX, int clientY, std::int32_t& playbackTick) {
   playbackTick = serverTick - offset;
   if (playbackTick < 0) playbackTick = 0;
   return true;
+}
+
+// A5 (section 9.2, 逐条复查): the machine decides WHEN each item plays and routes its commands
+// through the playback ledger like a key press; the widget only remembers what it drew, so a
+// click can be answered from the geometry the user actually saw.
+void hudSetTimelineReviewView(const tf2::native::TimelineReviewView& view) {
+  g_hudTimelineReviewView = view;
+}
+
+int hudTimelineReviewButtonAt(int clientX, int clientY) {
+  if (!g_hudTimelineReviewOverlay.active) return tf2::native::kTimelineReviewButtonCount;
+  return tf2::native::reviewButtonAt(g_hudTimelineReviewOverlay,
+      static_cast<float>(clientX), static_cast<float>(clientY));
 }
 
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
@@ -2149,6 +2184,63 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
       primitive.maxWidth = shape.w;
     }
     g_hudLiveExtraPrimitives.push_back(std::move(primitive));
+  }
+  // A5 (section 9.2, 逐条复查): the review banner rides OVER the strip, after its shapes so the
+  // bar hides the lane underneath rather than being painted behind it. Composed here and not in
+  // the setter because the five buttons are laid out against the client width, which only this
+  // call knows; converted with the same rules as the strip so the two cannot disagree about what
+  // a Text primitive means.
+  g_hudTimelineReviewOverlay = tf2::native::composeReviewOverlay(g_hudTimelineReviewView,
+      timelineClientW);
+  if (g_hudTimelineReviewOverlay.active) {
+    for (const tf2::native::TimelineHudShape& shape : g_hudTimelineReviewOverlay.primitives) {
+      tf2::native::Renderer::HudPrimitive primitive;
+      const bool isText = shape.kind == tf2::native::TimelineHudShape::Kind::Text;
+      primitive.kind = isText ? tf2::native::Renderer::HudPrimitiveKind::Text
+                              : tf2::native::Renderer::HudPrimitiveKind::Rect;
+      primitive.x = shape.x;
+      primitive.y = shape.y;
+      primitive.w = shape.w;
+      primitive.h = shape.h;
+      for (int channel = 0; channel < 4; ++channel) {
+        primitive.colour[channel] = shape.colour[channel];
+      }
+      primitive.filled = !isText;
+      primitive.text = shape.text;
+      if (isText) {
+        primitive.font = tf2::native::HudTextFont::UiSemiBold;
+        primitive.pixelSize = shape.pixelSize;
+        primitive.maxWidth = shape.w;
+      }
+      g_hudLiveExtraPrimitives.push_back(std::move(primitive));
+    }
+  }
+  {
+    // One reading per change: the countdown decrements once a second and the phase moves a few
+    // times per item, so "every frame" would bury the transitions the gate reads.
+    const tf2::native::TimelineReviewView& view = g_hudTimelineReviewView;
+    const HudReviewTraceState& last = g_hudReviewTrace;
+    const int active = view.active ? 1 : 0;
+    if (last.active != active || last.index != view.index
+        || last.phase != static_cast<int>(view.phase) || last.countdown != view.countdown
+        || last.autoNext != (view.autoNext ? 1 : 0) || last.kind != view.kind
+        || last.startTick != view.startTick || last.endTick != view.endTick
+        || last.savedTick != view.savedTick || last.clientW != timelineClientW) {
+      g_hudReviewTrace.active = active;
+      g_hudReviewTrace.index = view.index;
+      g_hudReviewTrace.phase = static_cast<int>(view.phase);
+      g_hudReviewTrace.countdown = view.countdown;
+      g_hudReviewTrace.autoNext = view.autoNext ? 1 : 0;
+      g_hudReviewTrace.kind = view.kind;
+      g_hudReviewTrace.startTick = view.startTick;
+      g_hudReviewTrace.endTick = view.endTick;
+      g_hudReviewTrace.savedTick = view.savedTick;
+      g_hudReviewTrace.clientW = timelineClientW;
+      for (const std::string& line :
+           tf2::native::formatTimelineReviewLines(view, g_hudTimelineReviewOverlay)) {
+        traceFmt("%s", line.c_str());
+      }
+    }
   }
   primitives.insert(primitives.end(), g_hudLiveExtraPrimitives.begin(),
     g_hudLiveExtraPrimitives.end());

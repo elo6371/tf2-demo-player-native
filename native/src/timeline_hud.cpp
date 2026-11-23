@@ -607,4 +607,425 @@ bool timelineStripTickAt(const TimelineHudStrip& strip, float clientX, float cli
   return true;
 }
 
+// --------------------------------------------------------------- A5 review
+// The review's own colours. They are deliberately the shell's neutrals rather than the
+// strip's: the banner is chrome, and a bar that changes hue per anomaly would compete with
+// the red the lane already spent on "something happened here".
+namespace {
+
+constexpr float kReviewBarColour[4] = {0.06f, 0.07f, 0.10f, 0.94f};
+constexpr float kReviewBarEdgeColour[4] = {0.28f, 0.30f, 0.36f, 0.96f};
+constexpr float kReviewTextColour[4] = {0.91f, 0.92f, 0.95f, 1.0f};
+constexpr float kReviewButtonColour[4] = {0.16f, 0.18f, 0.23f, 0.96f};
+constexpr float kReviewButtonAutoColour[4] = {0.22f, 0.46f, 0.30f, 0.96f};
+constexpr float kReviewButtonExitColour[4] = {0.36f, 0.17f, 0.18f, 0.96f};
+constexpr float kReviewButtonHoldColour[4] = {0.55f, 0.72f, 0.92f, 0.96f};
+
+// The banner sits at the top of the client, above the strip and its layers: 22 px is one
+// 14 px line with 4 px of breathing room top and bottom.
+constexpr float kReviewBarHeight = 22.0f;
+constexpr float kReviewBarTop = 6.0f;
+constexpr float kReviewButtonW = 74.0f;
+constexpr float kReviewButtonH = 16.0f;
+constexpr float kReviewButtonGap = 6.0f;
+constexpr float kReviewTextInset = 8.0f;
+
+const char* reviewButtonName(int index) {
+  switch (index) {
+    case 0: return "PREV";
+    case 1: return "REPLAY";
+    case 2: return "NEXT";
+    case 3: return "AUTO";
+    case 4: return "EXIT";
+    default: return "?";
+  }
+}
+
+TimelineHudShape reviewRect(float x, float y, float w, float h, const float colour[4]) {
+  TimelineHudShape shape;
+  shape.kind = TimelineHudShape::Kind::Rect;
+  shape.x = x;
+  shape.y = y;
+  shape.w = w;
+  shape.h = h;
+  for (int i = 0; i < 4; ++i) shape.colour[i] = colour[i];
+  return shape;
+}
+
+TimelineHudShape reviewText(float x, float y, float w, const std::string& text,
+                            const float colour[4], float pixelSize) {
+  TimelineHudShape shape;
+  shape.kind = TimelineHudShape::Kind::Text;
+  shape.x = x;
+  shape.y = y;
+  shape.w = w;
+  shape.h = pixelSize * 1.4f;
+  shape.pixelSize = pixelSize;
+  for (int i = 0; i < 4; ++i) shape.colour[i] = colour[i];
+  shape.text = text;
+  return shape;
+}
+
+// The banner's left-hand sentence: "第 i / n 条 · 类型 · 玩家 · 数值" from the design, in
+// the product's ASCII vocabulary. The HUD's glyph source is ASCII only (the strip header
+// says so), so a CJK banner would draw boxes; the fields are the design's, in order.
+std::string reviewBannerText(const TimelineReviewView& view) {
+  std::ostringstream out;
+  out << "REVIEW " << (view.index + 1) << " / " << view.count;
+  out << "   ";
+  switch (view.kind) {
+    case 0: out << "STALL"; break;
+    case 1: out << "TELEPORT"; break;
+    case 2: out << "SHARP TURN"; break;
+    default: out << "UNKNOWN"; break;
+  }
+  if (view.entity >= 0) out << "   P" << view.entity;
+  else out << "   P-";
+  out.setf(std::ios::fixed);
+  out.precision(view.kind == 1 ? 0 : (view.kind == 2 ? 1 : 0));
+  out << "   "
+      << (view.kind == 0 ? "ticks " : (view.kind == 1 ? "units " : "deg ")) << view.metric;
+  switch (view.phase) {
+    case TimelineReviewPhase::Slow: out << "   SLOW 0.25x"; break;
+    case TimelineReviewPhase::Countdown: out << "   START IN " << view.countdown; break;
+    case TimelineReviewPhase::Hold: out << "   HOLD"; break;
+    case TimelineReviewPhase::Normal: out << "   PLAY 1x"; break;
+    case TimelineReviewPhase::Wait: out << "   READY"; break;
+    default: break;
+  }
+  return out.str();
+}
+
+} // namespace
+
+const char* timelineReviewPhaseName(TimelineReviewPhase phase) {
+  switch (phase) {
+    case TimelineReviewPhase::Idle: return "idle";
+    case TimelineReviewPhase::Slow: return "slow";
+    case TimelineReviewPhase::Countdown: return "countdown";
+    case TimelineReviewPhase::Hold: return "hold";
+    case TimelineReviewPhase::Normal: return "normal";
+    case TimelineReviewPhase::Wait: return "wait";
+  }
+  return "idle";
+}
+
+void TimelineReviewMachine::setAnomalies(const std::vector<TimelineHudAnomaly>& anomalies,
+                                         std::int32_t axisFirst, std::int32_t axisLast) {
+  axisFirst_ = axisFirst;
+  axisLast_ = axisLast;
+  items_.clear();
+  items_.reserve(anomalies.size());
+  for (const TimelineHudAnomaly& anomaly : anomalies) {
+    // Only what the axis can show: an item outside it would seek to a clamp and hold on a
+    // tick the strip never drew, which reads as a review of nothing.
+    if (anomaly.endTick < axisFirst_ || anomaly.startTick > axisLast_) continue;
+    items_.push_back(anomaly);
+  }
+  view_.count = static_cast<int>(items_.size());
+  if (view_.active) {
+    if (items_.empty()) {
+      stop();
+    } else if (view_.index >= view_.count) {
+      enterItem(view_.count - 1);
+    }
+  }
+}
+
+void TimelineReviewMachine::enterItem(int index) {
+  if (items_.empty()) return;
+  const int count = static_cast<int>(items_.size());
+  index = ((index % count) + count) % count;
+  view_.index = index;
+  const TimelineHudAnomaly& item = items_[static_cast<std::size_t>(index)];
+  view_.kind = item.kind;
+  view_.entity = item.entity;
+  view_.metric = item.metric;
+  view_.startTick = item.startTick;
+  view_.endTick = item.endTick;
+  view_.phase = TimelineReviewPhase::Slow;
+  view_.countdown = 0;
+  view_.phaseSeconds = 0.0;
+  phaseSeconds_ = 0.0;
+  slowArmed_ = false;
+  const std::int32_t seekTick = std::max(axisFirst_, item.startTick - kLeadTicks);
+  TimelineReviewCommand seek;
+  seek.kind = TimelineReviewCommand::Kind::Seek;
+  seek.tick = seekTick;
+  commands_.push_back(seek);
+  TimelineReviewCommand speed;
+  speed.kind = TimelineReviewCommand::Kind::Speed;
+  speed.speed = kSlowSpeed;
+  commands_.push_back(speed);
+  TimelineReviewCommand unpause;
+  unpause.kind = TimelineReviewCommand::Kind::Pause;
+  unpause.paused = false;
+  commands_.push_back(unpause);
+}
+
+void TimelineReviewMachine::start(std::int32_t currentTick) {
+  commands_.clear();
+  view_ = TimelineReviewView();
+  view_.count = static_cast<int>(items_.size());
+  if (items_.empty()) return;
+  view_.active = true;
+  view_.savedTick = currentTick;
+  enterItem(0);
+}
+
+void TimelineReviewMachine::openAt(int index, std::int32_t currentTick) {
+  commands_.clear();
+  if (items_.empty()) {
+    const std::int32_t saved = currentTick;
+    view_ = TimelineReviewView();
+    view_.savedTick = saved;
+    view_.phase = TimelineReviewPhase::Idle;
+    return;
+  }
+  const int count = static_cast<int>(items_.size());
+  index = ((index % count) + count) % count;
+  const int keepCount = count;
+  view_ = TimelineReviewView();
+  view_.active = true;
+  view_.count = keepCount;
+  view_.index = index;
+  view_.savedTick = currentTick;
+  const TimelineHudAnomaly& item = items_[static_cast<std::size_t>(index)];
+  view_.kind = item.kind;
+  view_.entity = item.entity;
+  view_.metric = item.metric;
+  view_.startTick = item.startTick;
+  view_.endTick = item.endTick;
+  view_.phase = TimelineReviewPhase::Wait;
+  view_.countdown = 0;
+  view_.phaseSeconds = 0.0;
+  phaseSeconds_ = 0.0;
+}
+
+void TimelineReviewMachine::stop() {
+  if (!view_.active) return;
+  commands_.clear();
+  TimelineReviewCommand pause;
+  pause.kind = TimelineReviewCommand::Kind::Pause;
+  pause.paused = true;
+  commands_.push_back(pause);
+  TimelineReviewCommand seek;
+  seek.kind = TimelineReviewCommand::Kind::Seek;
+  seek.tick = view_.savedTick;
+  commands_.push_back(seek);
+  const int count = view_.count;
+  const std::int32_t saved = view_.savedTick;
+  view_ = TimelineReviewView();
+  view_.count = count;
+  view_.savedTick = saved;
+  view_.phase = TimelineReviewPhase::Idle;
+}
+
+void TimelineReviewMachine::update(double dt, std::int32_t tick) {
+  if (!view_.active) return;
+  if (dt < 0.0) dt = 0.0;
+  switch (view_.phase) {
+    case TimelineReviewPhase::Slow: {
+      phaseSeconds_ += dt;
+      view_.phaseSeconds = phaseSeconds_;
+      // Arming: the caller applies the seek this phase was opened with on the NEXT frame,
+      // so the first update of a new item still reads the previous item's tick. That tick
+      // is usually already past startTick - 1, and parking on it would skip the whole slow
+      // run and jump item-to-item on the first frame. Trust the cursor only after it has
+      // actually been seen behind the anomaly; the timeout covers an item whose lead is
+      // clipped by the axis' first tick.
+      if (!slowArmed_) slowArmed_ = tick < view_.startTick - 1 || phaseSeconds_ >= kSlowArmTimeoutSeconds;
+      if (slowArmed_ && tick >= view_.startTick - 1) {
+        // Park one tick BEFORE the anomaly: the countdown has to finish on the frame the
+        // viewer is about to step into, not inside it.
+        TimelineReviewCommand seek;
+        seek.kind = TimelineReviewCommand::Kind::Seek;
+        seek.tick = std::max(axisFirst_, view_.startTick - 1);
+        commands_.push_back(seek);
+        TimelineReviewCommand pause;
+        pause.kind = TimelineReviewCommand::Kind::Pause;
+        pause.paused = true;
+        commands_.push_back(pause);
+        view_.phase = TimelineReviewPhase::Countdown;
+        view_.countdown = 3;
+        phaseSeconds_ = 0.0;
+        view_.phaseSeconds = 0.0;
+      }
+      break;
+    }
+    case TimelineReviewPhase::Countdown: {
+      phaseSeconds_ += dt;
+      view_.phaseSeconds = phaseSeconds_;
+      while (phaseSeconds_ >= kCountdownStep && view_.countdown > 0) {
+        phaseSeconds_ -= kCountdownStep;
+        --view_.countdown;
+        if (view_.countdown == 0) {
+          TimelineReviewCommand seek;
+          seek.kind = TimelineReviewCommand::Kind::Seek;
+          seek.tick = view_.startTick;
+          commands_.push_back(seek);
+          TimelineReviewCommand pause;
+          pause.kind = TimelineReviewCommand::Kind::Pause;
+          pause.paused = true;
+          commands_.push_back(pause);
+          view_.phase = TimelineReviewPhase::Hold;
+          phaseSeconds_ = 0.0;
+          view_.phaseSeconds = 0.0;
+          break;
+        }
+      }
+      break;
+    }
+    case TimelineReviewPhase::Hold: {
+      phaseSeconds_ += dt;
+      view_.phaseSeconds = phaseSeconds_;
+      if (phaseSeconds_ >= kHoldSeconds) {
+        TimelineReviewCommand speed;
+        speed.kind = TimelineReviewCommand::Kind::Speed;
+        speed.speed = 1.0;
+        commands_.push_back(speed);
+        TimelineReviewCommand unpause;
+        unpause.kind = TimelineReviewCommand::Kind::Pause;
+        unpause.paused = false;
+        commands_.push_back(unpause);
+        view_.phase = TimelineReviewPhase::Normal;
+        phaseSeconds_ = 0.0;
+        view_.phaseSeconds = 0.0;
+      }
+      break;
+    }
+    case TimelineReviewPhase::Normal: {
+      phaseSeconds_ += dt;
+      view_.phaseSeconds = phaseSeconds_;
+      if (phaseSeconds_ >= kNormalSeconds) {
+        if (view_.autoNext && view_.index + 1 < view_.count) {
+          enterItem(view_.index + 1);
+        } else {
+          TimelineReviewCommand pause;
+          pause.kind = TimelineReviewCommand::Kind::Pause;
+          pause.paused = true;
+          commands_.push_back(pause);
+          view_.phase = TimelineReviewPhase::Wait;
+          phaseSeconds_ = 0.0;
+          view_.phaseSeconds = 0.0;
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void TimelineReviewMachine::step(int direction) {
+  if (!view_.active || view_.count <= 0) return;
+  if (direction == 0) return;
+  enterItem(view_.index + (direction > 0 ? 1 : -1));
+}
+
+void TimelineReviewMachine::replay() {
+  if (!view_.active) return;
+  enterItem(view_.index);
+}
+
+void TimelineReviewMachine::toggleAuto() {
+  view_.autoNext = !view_.autoNext;
+}
+
+std::vector<TimelineReviewCommand> TimelineReviewMachine::takeCommands() {
+  std::vector<TimelineReviewCommand> out;
+  out.swap(commands_);
+  return out;
+}
+
+TimelineReviewView TimelineReviewMachine::view() const {
+  TimelineReviewView out = view_;
+  out.phaseSeconds = phaseSeconds_;
+  return out;
+}
+
+TimelineReviewOverlay composeReviewOverlay(const TimelineReviewView& view, int clientW) {
+  TimelineReviewOverlay overlay;
+  if (!view.active || clientW <= 0) return overlay;
+  overlay.active = true;
+  overlay.x = kMargin;
+  overlay.y = kReviewBarTop;
+  overlay.w = static_cast<float>(clientW) - 2.0f * kMargin;
+  overlay.h = kReviewBarHeight;
+  if (overlay.w < 240.0f) {
+    overlay.active = false;
+    return overlay;
+  }
+  overlay.primitives.push_back(reviewRect(overlay.x, overlay.y, overlay.w, overlay.h,
+                                          kReviewBarColour));
+  overlay.primitives.push_back(reviewRect(overlay.x, overlay.y, overlay.w, 1.0f,
+                                          kReviewBarEdgeColour));
+
+  // The buttons are laid out from the right edge inward so the sentence keeps whatever
+  // width the window has; the sentence is clipped by its own width field, not by a
+  // right-aligned button moving under it.
+  const float buttonY = overlay.y + (overlay.h - kReviewButtonH) * 0.5f;
+  const float firstX = overlay.x + overlay.w - kReviewTextInset
+      - static_cast<float>(kTimelineReviewButtonCount) * kReviewButtonW
+      - static_cast<float>(kTimelineReviewButtonCount - 1) * kReviewButtonGap;
+  for (int index = 0; index < kTimelineReviewButtonCount; ++index) {
+    const float bx = firstX
+        + static_cast<float>(index) * (kReviewButtonW + kReviewButtonGap);
+    const bool autoOn = (index == 3 && view.autoNext);
+    const bool isExit = (index == 4);
+    const bool isHold = (index == 3);
+    const float* colour = kReviewButtonColour;
+    if (autoOn) colour = kReviewButtonAutoColour;
+    else if (isExit) colour = kReviewButtonExitColour;
+    else if (isHold) colour = kReviewButtonHoldColour;
+    TimelineHudShape button = reviewRect(bx, buttonY, kReviewButtonW, kReviewButtonH, colour);
+    overlay.primitives.push_back(button);
+    overlay.buttons.push_back(button);
+    overlay.primitives.push_back(reviewText(
+        bx + 6.0f, buttonY + 1.0f, kReviewButtonW - 8.0f, reviewButtonName(index),
+        kReviewTextColour, 11.0f));
+  }
+  const float textW = firstX - overlay.x - kReviewTextInset * 2.0f;
+  overlay.primitives.push_back(reviewText(overlay.x + kReviewTextInset,
+      overlay.y + (overlay.h - 11.0f * 1.4f) * 0.5f, std::max(1.0f, textW),
+      reviewBannerText(view), kReviewTextColour, 11.0f));
+  return overlay;
+}
+
+int reviewButtonAt(const TimelineReviewOverlay& overlay, float clientX, float clientY) {
+  for (std::size_t index = 0; index < overlay.buttons.size(); ++index) {
+    const TimelineHudShape& button = overlay.buttons[index];
+    if (clientX >= button.x && clientX < button.x + button.w && clientY >= button.y
+        && clientY < button.y + button.h) {
+      return static_cast<int>(index);
+    }
+  }
+  return kTimelineReviewButtonCount;
+}
+
+std::vector<std::string> formatTimelineReviewLines(const TimelineReviewView& view,
+                                                   const TimelineReviewOverlay& overlay) {
+  std::vector<std::string> lines;
+  std::ostringstream head;
+  head << "review active=" << (view.active ? 1 : 0) << " index=" << view.index
+       << " count=" << view.count << " phase=" << timelineReviewPhaseName(view.phase)
+       << " countdown=" << view.countdown << " phaseT=" << std::lround(view.phaseSeconds * 1000.0)
+       << " kind=" << view.kind << " entity=" << view.entity
+       << " metric=" << std::lround(view.metric * 10.0) << " start=" << view.startTick
+       << " end=" << view.endTick << " auto=" << (view.autoNext ? 1 : 0)
+       << " saved=" << view.savedTick << " buttons=" << overlay.buttons.size()
+       << " x=" << std::lround(overlay.x) << " y=" << std::lround(overlay.y)
+       << " w=" << std::lround(overlay.w) << " h=" << std::lround(overlay.h);
+  lines.push_back(head.str());
+  for (std::size_t index = 0; index < overlay.buttons.size(); ++index) {
+    const TimelineHudShape& button = overlay.buttons[index];
+    std::ostringstream out;
+    out << "review-button index=" << index << " label=" << reviewButtonName(static_cast<int>(index))
+        << " x=" << std::lround(button.x) << " y=" << std::lround(button.y)
+        << " w=" << std::lround(button.w) << " h=" << std::lround(button.h);
+    lines.push_back(out.str());
+  }
+  return lines;
+}
+
 } // namespace tf2::native

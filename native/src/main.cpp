@@ -1566,6 +1566,15 @@ bool followPrintKeyEqual(const FollowPrintKey& left, const FollowPrintKey& right
     && left.valid == right.valid && left.state == right.state
     && left.nameKnown == right.nameKnown;
 }
+// A5 (section 9.2, the per-item review): the machine itself lives beside the strip's
+// composer (timeline_hud.h) so the probe drives the same states without a window; here it
+// is only instantiated and ticked. The offset converts a server tick -- which is what an
+// anomaly and the strip's axis are written in -- to the playback tick the ledger moves,
+// the same conversion the playhead uses.
+tf2::native::TimelineReviewMachine g_timelineReview;
+std::int32_t g_timelineReviewOffset = 0;
+bool g_timelineReviewOpenedByArgument = false;
+
 FollowPrintKey g_followPrintKey;
 bool g_followHavePrintKey = false;
 // The counters of design section 5.1, one name each. The reject reasons are
@@ -2784,6 +2793,42 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     if (message == WM_LBUTTONDOWN && g_playback.enabled) {
       const int clickX = static_cast<int>(static_cast<short>(LOWORD(lParam)));
       const int clickY = static_cast<int>(static_cast<short>(HIWORD(lParam)));
+      // A5 (section 9.2, 逐条复查): the banner's five buttons are pressed before the strip
+      // is asked, because they sit above it. A button is consumed here; the strip's own hit
+      // test then never sees a press that belonged to the review.
+      if (g_timelineReview.active()) {
+        const int reviewButton = tf2::native::main_internal::hudTimelineReviewButtonAt(clickX,
+            clickY);
+        if (reviewButton >= 0 && reviewButton < tf2::native::kTimelineReviewButtonCount) {
+          switch (reviewButton) {
+            case 0:
+              g_timelineReview.step(-1);
+              break;
+            case 1:
+              g_timelineReview.replay();
+              break;
+            case 2:
+              g_timelineReview.step(1);
+              break;
+            case 3:
+              g_timelineReview.toggleAuto();
+              break;
+            case 4:
+            default: {
+              const std::int32_t restoreTick = g_timelineReview.restoreTick();
+              g_timelineReview.stop();
+              traceFmt("review: active=0 reason=button-exit restoreServerTick=%d items=%zu",
+                       restoreTick, g_timelineReview.itemCount());
+              break;
+            }
+          }
+          traceFmt("review: button=%d x=%d y=%d index=%d phase=%s auto=%d", reviewButton, clickX,
+                   clickY, g_timelineReview.view().index,
+                   tf2::native::timelineReviewPhaseName(g_timelineReview.view().phase),
+                   g_timelineReview.view().autoNext ? 1 : 0);
+          return 0;
+        }
+      }
       std::int32_t scrubTick = -1;
       if (tf2::native::main_internal::hudTimelineHitTest(clickX, clickY, scrubTick)) {
         tf2::native::PlaybackRequest request;
@@ -3312,6 +3357,30 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       request.fromKeyboard = true;
       request.textFieldFocused = g_textFieldFocused;
       applyPlaybackRequest(request);
+    } else if (wParam == VK_F12) {
+      // A5 (section 9.2, 逐条复查): the design hangs this button above the shell's anomaly
+      // list, and that list is not built yet (9.1's workspace shell is still unbuilt work),
+      // so the review is opened from a key instead. F12 was free: F1-F9 are bookmarks, F9
+      // free fly, F10 back to the player, F11 fullscreen.
+      if (g_timelineReview.active()) {
+        const std::int32_t restoreTick = g_timelineReview.restoreTick();
+        g_timelineReview.stop();
+        traceFmt("review: active=0 reason=key-f12 restoreServerTick=%d items=%zu",
+                 restoreTick, g_timelineReview.itemCount());
+      } else if (g_playback.enabled) {
+        g_timelineReview.start(g_playback.tick + g_timelineReviewOffset);
+        traceFmt("review: active=%d reason=key-f12 index=%d items=%zu savedPlaybackTick=%d",
+                 g_timelineReview.active() ? 1 : 0, 0, g_timelineReview.itemCount(),
+                 static_cast<int>(g_playback.tick));
+      }
+    } else if (wParam == VK_ESCAPE && g_timelineReview.active()) {
+      // A5: Escape leaves the review before it means anything else -- 9.2 says so in the
+      // mouse paragraph ("复查模式下先按 Esc 退出复查"), and it is also what the banner's own
+      // EXIT button does. Coming back means the tick the review started from.
+      const std::int32_t restoreTick = g_timelineReview.restoreTick();
+      g_timelineReview.stop();
+      traceFmt("review: active=0 reason=escape restoreServerTick=%d items=%zu", restoreTick,
+               g_timelineReview.itemCount());
     } else if ((wParam == VK_PRIOR || wParam == VK_NEXT) && g_playback.enabled) {
       // A3b (section 9 line 238): previous/next exception. PgUp/PgDn were name-table
       // only in keybinds.cpp and never bound, so this pair was free. Selecting one opens
@@ -6050,6 +6119,10 @@ bool outlineVertexExtent = false;
             mark.kind = anomaly.kind;
             mark.startTick = anomaly.startTick;
             mark.endTick = anomaly.endTick;
+            // A5: the banner names the player and the measured value, so the review list has
+            // to carry them -- the same two numbers the shell's list shows.
+            mark.entity = anomaly.entity;
+            mark.metric = anomaly.metric;
             timelineAnomalies.push_back(mark);
           }
           for (const tf2::native::UiMotionAnomaly& hint : motionAnalysis.hints) {
@@ -6057,9 +6130,29 @@ bool outlineVertexExtent = false;
             mark.kind = hint.kind;
             mark.startTick = hint.startTick;
             mark.endTick = hint.endTick;
+            mark.entity = hint.entity;
+            mark.metric = hint.metric;
             timelineAnomalies.push_back(mark);
           }
           tf2::native::main_internal::hudSetTimelineAnomalies(timelineAnomalies);
+          // A5 (section 9.2, 逐条复查): the review walks the SAME list the lane drew, on the
+          // same axis, so "item 3" means one thing in the banner and in the blocks. Bounds
+          // are the report's, so the machine drops what the axis cannot show: on snakewater
+          // that is the 19 marks the lane clips into its after= column, which is why the
+          // banner counts 119 while the lane drew 138. Seeks stay inside the axis.
+          g_timelineReviewOffset = matchTimeline.serverToEntryOffset;
+          g_timelineReview.setAnomalies(timelineAnomalies, matchTimeline.firstServerTick,
+                                        matchTimeline.lastServerTick);
+          // A5: --hud-review parks the banner on one item for a capture. Taken here, once,
+          // because this is the one place that knows both the anomaly list and the offset
+          // that turns a server tick into a playback tick.
+          if (g_cliHudReview >= 0 && !g_timelineReviewOpenedByArgument) {
+            g_timelineReviewOpenedByArgument = true;
+            g_timelineReview.openAt(g_cliHudReview, g_playback.tick + g_timelineReviewOffset);
+            traceFmt("review: active=%d reason=argument index=%d items=%zu savedPlaybackTick=%d",
+                     g_timelineReview.active() ? 1 : 0, g_timelineReview.view().index,
+                     g_timelineReview.itemCount(), static_cast<int>(g_playback.tick));
+          }
           // A3b: --hud-timeline-focus opens the per-tick row on one exception. Read after
           // the list is set, because the flag's index means a position in THAT list.
           if (tf2::native::main_internal::g_cliHudTimelineFocus >= 0) {
@@ -13442,6 +13535,37 @@ bool outlineVertexExtent = false;
     // temporary OS stall. The next frame resumes at the current playback rate.
     const double elapsed = std::clamp(measuredElapsed, 0.0, 0.25);
     if (measuredElapsed > 0.25) tickAccumulator = 0.0;
+    // A5 (section 9.2, 逐条复查): the review runs on wall time and the tick the ledger
+    // reports -- NOT inside the "playing" branch below, because half of the review's phases
+    // are parked (the countdown and the one-second hold). Its commands go through
+    // applyPlaybackRequest like any key press, so the ledger never sees a cursor move it did
+    // not order.
+    if (g_timelineReview.active()) {
+      g_timelineReview.update(elapsed, g_playback.tick + g_timelineReviewOffset);
+    }
+    for (const tf2::native::TimelineReviewCommand& reviewCommand : g_timelineReview.takeCommands()) {
+      tf2::native::PlaybackRequest reviewRequest;
+      reviewRequest.source = "review";
+      reviewRequest.fromKeyboard = false;
+      reviewRequest.textFieldFocused = g_textFieldFocused;
+      switch (reviewCommand.kind) {
+        case tf2::native::TimelineReviewCommand::Kind::Seek:
+          reviewRequest.kind = tf2::native::PlaybackRequestKind::Scrub;
+          reviewRequest.tick = reviewCommand.tick - g_timelineReviewOffset;
+          break;
+        case tf2::native::TimelineReviewCommand::Kind::Speed:
+          reviewRequest.kind = tf2::native::PlaybackRequestKind::SetSpeed;
+          reviewRequest.speed = reviewCommand.speed;
+          break;
+        case tf2::native::TimelineReviewCommand::Kind::Pause:
+        default:
+          reviewRequest.kind = tf2::native::PlaybackRequestKind::SetPaused;
+          reviewRequest.paused = reviewCommand.paused;
+          break;
+      }
+      applyPlaybackRequest(reviewRequest);
+    }
+    tf2::native::main_internal::hudSetTimelineReviewView(g_timelineReview.view());
     // AUD-03: the scheduler's master gain follows the settings once per frame,
     // paused or not -- a run that pauses, mutes and resumes must land on the new
     // value instead of the one it started with. Printed only when it moves, so a

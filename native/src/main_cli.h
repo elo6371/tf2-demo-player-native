@@ -95,6 +95,11 @@ inline int g_cliHudTimelineFocus = -1;
 // without driving the spectator. Negative (the default) follows whatever the camera
 // actually follows, which is the product's own behaviour.
 inline int g_cliHudTimelineEntity = -1;
+// A5 (section 9.2, 逐条复查): --hud-review <index> opens the review PARKED on one item
+// before the first frame, without touching the transport. A gate has no keyboard to press
+// F12 with, and a capture that has to be pixel-compared against a control must not let the
+// review move the clock -- which is why this is openAt() and not start().
+inline int g_cliHudReview = -1;
 // --aim-layer-heading view|velocity: what the legacy blend's aim-layer weight is
 // measured against. `velocity` (the default) is today's rule; `view` measures it
 // against the yaw the body is drawn at, i.e. weight 0 -- the conclusion the
@@ -374,6 +379,15 @@ inline const FlagSpec kFeatureFlagTable[] = {
     if (i + 1 >= argumentCount) return false;
     const long parsed = std::wcstol(arguments[++i], nullptr, 10);
     g_cliHudTimelineEntity = parsed < 0 ? -1 : static_cast<int>(parsed);
+    return true;
+  }},
+  {L"--hud-review", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments,
+      int argumentCount, int& i) {
+    // A5: which item the banner is parked on in the first frame. Out of range parks the
+    // banner, the same state as never passing the flag.
+    if (i + 1 >= argumentCount) return false;
+    const long parsed = std::wcstol(arguments[++i], nullptr, 10);
+    g_cliHudReview = parsed < 0 ? -1 : static_cast<int>(parsed);
     return true;
   }},
   {L"--overview-open", FlagArity::Zero, [](CliParseEnv&, LPWSTR*, int, int&) {

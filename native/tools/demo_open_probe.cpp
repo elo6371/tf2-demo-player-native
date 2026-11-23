@@ -1097,6 +1097,16 @@ int wmain(int argc, wchar_t** argv) {
       }
     }
   }
+  // A5 (section 9.2, 逐条复查): --review-check drives the per-item review's state machine
+  // headlessly and prints its transitions. The clock is simulated, so the timings the design
+  // wrote down (0.25x to the start, 3-2-1, one second of hold, two seconds at 1x) become
+  // assertions about the machine rather than about a wall clock that a gate cannot hold still.
+  bool reviewCheck = false;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--review-check") {
+    reviewCheck = true;
+    matchTimeline = true;
+    ++firstPath;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1368,7 +1378,7 @@ int wmain(int argc, wchar_t** argv) {
       tf2::native::MotionDetectReport mdReport;
       // --timeline-hud draws the A3 exception track, which is this same report: one
       // measurement feeds the counts, the per-round attribution and the blocks.
-      if (motionDetect || matchTimeline || timelineHud) {
+      if (motionDetect || matchTimeline || timelineHud || reviewCheck) {
         mdReport = tf2::native::detectMotionAnomalies(
             tickAuditCapture.packetRows(), tickAuditCapture.motionCensus());
       }
@@ -1383,7 +1393,7 @@ int wmain(int argc, wchar_t** argv) {
       // already carry the per-round kill counts. Declared outside the matchTimeline
       // branch because --timeline-hud draws this same report rather than a second one.
       tf2::native::MatchTimelineReport mtReport;
-      if (matchTimeline) {
+      if (matchTimeline || reviewCheck) {
         mtReport = tf2::native::buildMatchTimeline(summary, &mdReport);
         for (const std::string& mtLine : tf2::native::formatMatchTimelineLines(mtReport, matchTimelineKills)) {
           tickAuditText += mtLine;
@@ -1445,6 +1455,203 @@ int wmain(int argc, wchar_t** argv) {
                   << " y=" << std::lround(hit.second)
                   << " tick=" << (inside ? hitTick : -1);
           tickAuditText += hitLine.str();
+          tickAuditText += '\n';
+        }
+      }
+      if (reviewCheck) {
+        // A5 (section 9.2, 逐条复查): the review is a pure state machine, so what it does can be
+        // read out of a run with no window. Two things are checked here: the banner's geometry
+        // (five buttons inside the bar, each answering its own centre, a point off the bar
+        // answering none), and the timing -- driven at 60 Hz with 66.666... ticks a second, the
+        // same arithmetic a playing frame does, so a wrong constant cannot hide behind a wall
+        // clock nobody controls.
+        std::vector<tf2::native::TimelineHudAnomaly> items;
+        items.reserve(mdReport.anomalies.size() + mdReport.hints.size());
+        for (const tf2::native::MotionAnomaly& anomaly : mdReport.anomalies) {
+          items.push_back(tf2::native::TimelineHudAnomaly{static_cast<int>(anomaly.kind),
+              anomaly.startTick, anomaly.endTick, anomaly.entity, anomaly.metric});
+        }
+        for (const tf2::native::MotionAnomaly& hint : mdReport.hints) {
+          items.push_back(tf2::native::TimelineHudAnomaly{static_cast<int>(hint.kind),
+              hint.startTick, hint.endTick, hint.entity, hint.metric});
+        }
+        tf2::native::TimelineReviewMachine review;
+        review.setAnomalies(items, mtReport.firstServerTick, mtReport.lastServerTick);
+        {
+          std::ostringstream head;
+          head << "review-check items=" << items.size() << " valid=" << (mtReport.valid ? 1 : 0)
+               << " axis=" << mtReport.firstServerTick << "," << mtReport.lastServerTick;
+          tickAuditText += head.str();
+          tickAuditText += '\n';
+        }
+        const int reviewClientW = 1280;
+        review.openAt(0, 1000);
+        {
+          const tf2::native::TimelineReviewOverlay overlay = tf2::native::composeReviewOverlay(
+              review.view(), reviewClientW);
+          std::ostringstream line;
+          line << "review-overlay active=" << (overlay.active ? 1 : 0) << " x="
+               << std::lround(overlay.x) << " y=" << std::lround(overlay.y) << " w="
+               << std::lround(overlay.w) << " h=" << std::lround(overlay.h) << " buttons="
+               << overlay.buttons.size() << " primitives=" << overlay.primitives.size();
+          tickAuditText += line.str();
+          tickAuditText += '\n';
+          for (std::size_t buttonIndex = 0; buttonIndex < overlay.buttons.size(); ++buttonIndex) {
+            const tf2::native::TimelineHudShape& button = overlay.buttons[buttonIndex];
+            const int hit = tf2::native::reviewButtonAt(overlay,
+                button.x + button.w * 0.5f, button.y + button.h * 0.5f);
+            std::ostringstream buttonLine;
+            buttonLine << "review-button index=" << buttonIndex << " x=" << std::lround(button.x)
+                       << " y=" << std::lround(button.y) << " w=" << std::lround(button.w)
+                       << " h=" << std::lround(button.h) << " hit=" << hit;
+            tickAuditText += buttonLine.str();
+            tickAuditText += '\n';
+          }
+          // A point above the bar must answer "no button": otherwise a press meant for the
+          // strip underneath would be swallowed by the review.
+          const int above = tf2::native::reviewButtonAt(overlay, overlay.x + overlay.w * 0.5f,
+              overlay.y - 4.0f);
+          const int past = tf2::native::reviewButtonAt(overlay,
+              overlay.x + overlay.w + 4.0f, overlay.y + overlay.h * 0.5f);
+          std::ostringstream missLine;
+          missLine << "review-miss above=" << above << " past=" << past
+                   << " limit=" << tf2::native::kTimelineReviewButtonCount;
+          tickAuditText += missLine.str();
+          tickAuditText += '\n';
+        }
+        review.start(1000);
+        const double dt = 1.0 / 60.0;
+        const double ticksPerSecond = 4000.0 / 60.0;
+        std::int32_t reviewTick = 1000;
+        double reviewSpeed = 1.0;
+        bool reviewPaused = false;
+        double carry = 0.0;
+        std::int64_t secondsMs = 0;
+        std::int64_t phaseStartMs = 0;
+        std::string lastKey;
+        // One pump(): advance the machine the way a frame does, apply what it asked for, and
+        // print the reading whenever it changes. The budget is a guard against a machine that
+        // never parks -- a hang in a probe is a broken gate, not a failing assertion.
+        const auto pump = [&](int maxSteps, bool stopAtWait, int stopIndex) {
+          for (int step = 0; step < maxSteps; ++step) {
+            review.update(dt, reviewTick);
+            for (const tf2::native::TimelineReviewCommand& command : review.takeCommands()) {
+              switch (command.kind) {
+                case tf2::native::TimelineReviewCommand::Kind::Seek:
+                  reviewTick = command.tick;
+                  carry = 0.0;
+                  break;
+                case tf2::native::TimelineReviewCommand::Kind::Speed:
+                  reviewSpeed = command.speed;
+                  break;
+                case tf2::native::TimelineReviewCommand::Kind::Pause:
+                  reviewPaused = command.paused;
+                  break;
+              }
+            }
+            secondsMs += 17;  // 1/60 s, as an integer, so the printed times cannot drift
+            if (!reviewPaused) {
+              carry += ticksPerSecond * reviewSpeed * dt;
+              const std::int32_t whole = static_cast<std::int32_t>(carry);
+              carry -= static_cast<double>(whole);
+              reviewTick += whole;
+            }
+            const tf2::native::TimelineReviewView view = review.view();
+            std::ostringstream key;
+            key << view.index << ':' << static_cast<int>(view.phase) << ':' << view.countdown
+                << ':' << (view.autoNext ? 1 : 0);
+            if (view.active && key.str() != lastKey) {
+              std::ostringstream line;
+              line << "review-step step=" << step << " atMs=" << secondsMs
+                   << " durationMs=" << (secondsMs - phaseStartMs) << " index=" << view.index
+                   << " phase=" << tf2::native::timelineReviewPhaseName(view.phase)
+                   << " countdown=" << view.countdown << " start=" << view.startTick
+                   << " end=" << view.endTick << " tick=" << reviewTick
+                   << " speed=" << reviewSpeed << " paused=" << (reviewPaused ? 1 : 0)
+                   << " auto=" << (view.autoNext ? 1 : 0);
+              tickAuditText += line.str();
+              tickAuditText += '\n';
+              lastKey = key.str();
+              phaseStartMs = secondsMs;
+            }
+            // Both stop conditions are checked AFTER the reading is printed, so the phase the
+            // caller asked about is always in the output.
+            if (view.active && stopAtWait
+                && view.phase == tf2::native::TimelineReviewPhase::Wait) {
+              return;
+            }
+            if (stopIndex >= 0 && view.active && view.index != stopIndex) return;
+          }
+        };
+        pump(1800, true, -1);
+        {
+          const tf2::native::TimelineReviewView view = review.view();
+          std::ostringstream parked;
+          parked << "review-wait index=" << view.index << " phase="
+                 << tf2::native::timelineReviewPhaseName(view.phase) << " tick=" << reviewTick
+                 << " speed=" << reviewSpeed << " paused=" << (reviewPaused ? 1 : 0);
+          tickAuditText += parked.str();
+          tickAuditText += '\n';
+        }
+        // The buttons, on the machine rather than on the overlay: next, then replay, then auto.
+        const int beforeStep = review.view().index;
+        review.step(1);
+        pump(2, false, -1);
+        {
+          const tf2::native::TimelineReviewView view = review.view();
+          std::ostringstream line;
+          line << "review-nav action=next from=" << beforeStep << " index=" << view.index
+               << " phase=" << tf2::native::timelineReviewPhaseName(view.phase);
+          tickAuditText += line.str();
+          tickAuditText += '\n';
+        }
+        const int beforeReplay = review.view().index;
+        review.replay();
+        pump(2, false, -1);
+        {
+          const tf2::native::TimelineReviewView view = review.view();
+          std::ostringstream line;
+          line << "review-nav action=replay from=" << beforeReplay << " index=" << view.index
+               << " phase=" << tf2::native::timelineReviewPhaseName(view.phase);
+          tickAuditText += line.str();
+          tickAuditText += '\n';
+        }
+        review.toggleAuto();
+        {
+          const tf2::native::TimelineReviewView view = review.view();
+          std::ostringstream line;
+          line << "review-nav action=auto index=" << view.index << " auto=" << (view.autoNext ? 1 : 0);
+          tickAuditText += line.str();
+          tickAuditText += '\n';
+        }
+        {
+          const int autoFrom = review.view().index;
+          pump(1800, false, autoFrom);
+          std::ostringstream line;
+          line << "review-auto from=" << autoFrom << " to=" << review.view().index << " ticks="
+               << reviewTick;
+          tickAuditText += line.str();
+          tickAuditText += '\n';
+        }
+        // Escape: the machine does not own the transport, it asks for the restore. The seek it
+        // queues is the same request a scrub makes, so the tick that comes back is the one the
+        // review started from, not the one it ended on.
+        review.stop();
+        for (const tf2::native::TimelineReviewCommand& command : review.takeCommands()) {
+          if (command.kind == tf2::native::TimelineReviewCommand::Kind::Seek) {
+            reviewTick = command.tick;
+          } else if (command.kind == tf2::native::TimelineReviewCommand::Kind::Pause) {
+            reviewPaused = command.paused;
+          }
+        }
+        {
+          const tf2::native::TimelineReviewView view = review.view();
+          std::ostringstream line;
+          line << "review-restore saved=" << view.savedTick << " tick=" << reviewTick
+               << " ok=" << (reviewTick == view.savedTick ? 1 : 0)
+               << " active=" << (view.active ? 1 : 0) << " phase="
+               << tf2::native::timelineReviewPhaseName(view.phase);
+          tickAuditText += line.str();
           tickAuditText += '\n';
         }
       }

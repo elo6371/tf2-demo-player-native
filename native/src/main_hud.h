@@ -100,6 +100,13 @@ bool hudTimelineHitTest(int clientX, int clientY, std::int32_t& playbackTick);
 // same numbers the anomaly detector read, so a red curve bar and an amber hint cannot
 // disagree -- and the entity is who the client follows this frame (-1 when nobody, which
 // draws neither layer). main.cpp copies the census once and pushes the entity per frame.
+// A5 (section 9.2, 逐条复查): the review banner. The state machine and the overlay composer are
+// pure and live in timeline_hud.h -- the probe drives exactly the same ones without a window.
+// These two only remember what was drawn last, which is what a click and a trace answer from.
+void hudSetTimelineReviewView(const tf2::native::TimelineReviewView& view);
+// Which of the banner's five buttons the point is on; kTimelineReviewButtonCount when none.
+int hudTimelineReviewButtonAt(int clientX, int clientY);
+
 void hudSetTimelineMotionCensus(const tf2::native::DemoMotionCensus& census);
 void hudSetTimelineFollowEntity(std::int32_t entity);
 

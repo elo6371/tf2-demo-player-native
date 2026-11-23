@@ -73,6 +73,11 @@ struct TimelineHudAnomaly {
   int kind = 0;
   std::int32_t startTick = 0;
   std::int32_t endTick = 0;
+  // A5: the review banner has to name the player and print the reading the detector
+  // measured, and neither can be recovered from a tick range. -1 / 0 mean "the
+  // detector did not attribute this one to a player", which is every stall.
+  std::int32_t entity = -1;
+  double metric = 0.0;
 };
 
 // Where one anomaly landed on the axis: a block's width is its duration in ticks
@@ -250,5 +255,127 @@ TimelineHudView timelineHudViewFromHistory(const MotionViewHistory& history);
 // One machine-readable line per strip plus one per band, so a gate can assert the
 // geometry without a screenshot. Text is percent-encoded (one line = one record).
 std::vector<std::string> formatTimelineHudLines(const TimelineHudStrip& strip);
+
+// ------------------------------------------------------------------ A5 review
+// Section 9.2's last paragraph, 逐条复查: walk the exception list one item at a
+// time. Each item plays the three seconds before itself at a quarter speed, counts
+// three seconds down while parked on the tick before it, holds one second ON the
+// anomalous tick, then plays two seconds at full speed. The buttons are previous,
+// replay, next, auto-next; Esc leaves and puts the tick back where it was.
+//
+// The machine is pure: it is fed wall seconds and the tick the playback ledger
+// reports, and it answers with commands the caller hands to the ledger. Nothing in
+// it touches Windows, the renderer or the playback object, so the probe drives the
+// same states headlessly and the gate asserts the timings without a screenshot.
+
+enum class TimelineReviewPhase {
+  Idle = 0,       // not reviewing
+  Slow = 1,       // 0.25x, from kLeadTicks before the anomaly to the tick before it
+  Countdown = 2,  // parked on that tick, showing 3 then 2 then 1
+  Hold = 3,       // parked ON the anomaly's first tick, one second
+  Normal = 4,     // 1x for two seconds, starting at that tick
+  Wait = 5,       // the item is over; nothing moves until a button says so
+};
+
+const char* timelineReviewPhaseName(TimelineReviewPhase phase);
+
+// What the machine asks the playback ledger to do. A phase may emit several in one
+// update (seek, then speed, then unpause), and the caller applies them in order.
+struct TimelineReviewCommand {
+  enum class Kind { Seek = 0, Speed = 1, Pause = 2 };
+  Kind kind = Kind::Seek;
+  std::int32_t tick = 0;
+  double speed = 1.0;
+  bool paused = false;
+};
+
+struct TimelineReviewView {
+  bool active = false;
+  int index = -1;
+  int count = 0;
+  TimelineReviewPhase phase = TimelineReviewPhase::Idle;
+  // 3, 2, 1 while counting down; 0 otherwise, so a gate reads the digit off one field.
+  int countdown = 0;
+  double phaseSeconds = 0.0;
+  bool autoNext = false;
+  int kind = -1;
+  std::int32_t entity = -1;
+  double metric = 0.0;
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+  std::int32_t savedTick = 0;  // where Esc will put the playhead back
+};
+
+class TimelineReviewMachine {
+ public:
+  // The slow run's lookback: 1.5 s of demo time at the 66.67 Hz tick rate. That is six
+  // seconds of wall time at 0.25x - a three second lookback would park the viewer in slow
+  // motion for twelve, which reads as a hang rather than as a setup.
+  static constexpr std::int32_t kLeadTicks = 100;
+  static constexpr double kSlowSpeed = 0.25;
+  // The slow phase only trusts the cursor once it has been seen behind the anomaly, and
+  // this is the wall-clock net: an anomaly on the axis' first tick has nothing behind it
+  // to play, so without the net the phase would never park.
+  static constexpr double kSlowArmTimeoutSeconds = 20.0;
+  static constexpr double kCountdownStep = 1.0;
+  static constexpr double kHoldSeconds = 1.0;
+  static constexpr double kNormalSeconds = 2.0;
+
+  // Anomalies in the order the strip drew them; hints travel with them because the
+  // design's list carries both (9.3's table calls the sharp turn a 提示, still a row).
+  void setAnomalies(const std::vector<TimelineHudAnomaly>& anomalies, std::int32_t axisFirst,
+                    std::int32_t axisLast);
+  void start(std::int32_t currentTick);
+  // Open PARKED on item `index`: active, shown in the banner, and with nothing queued, so
+  // the transport is untouched. This is what a caller that only wants the banner uses (a
+  // capture with no keyboard, and later the list's "open here"); start() is the one that
+  // plays, and the difference is exactly the command list.
+  void openAt(int index, std::int32_t currentTick);
+  void stop();
+  // dt is wall seconds; tick is the playback ledger's current server tick.
+  void update(double dt, std::int32_t tick);
+  void step(int direction);  // -1 previous, +1 next (both wrap at the ends)
+  void replay();
+  void toggleAuto();
+  std::vector<TimelineReviewCommand> takeCommands();
+  TimelineReviewView view() const;
+  bool active() const { return view_.active; }
+  std::size_t itemCount() const { return items_.size(); }
+  std::int32_t restoreTick() const { return view_.savedTick; }
+
+ private:
+  void enterItem(int index);
+
+  std::vector<TimelineHudAnomaly> items_;
+  std::int32_t axisFirst_ = 0;
+  std::int32_t axisLast_ = 0;
+  TimelineReviewView view_;
+  double phaseSeconds_ = 0.0;
+  bool slowArmed_ = false;
+  std::vector<TimelineReviewCommand> commands_;
+};
+
+// The banner and its buttons, in client pixels. Buttons come in TimelineReviewButton
+// order so a hit test is a scan, not a table.
+enum class TimelineReviewButton { Prev = 0, Replay = 1, Next = 2, Auto = 3, Exit = 4 };
+constexpr int kTimelineReviewButtonCount = 5;
+
+struct TimelineReviewOverlay {
+  bool active = false;
+  float x = 0.0f;
+  float y = 0.0f;
+  float w = 0.0f;
+  float h = 0.0f;
+  std::vector<TimelineHudShape> primitives;
+  // One entry per button, in TimelineReviewButton order.
+  std::vector<TimelineHudShape> buttons;
+};
+
+TimelineReviewOverlay composeReviewOverlay(const TimelineReviewView& view, int clientW);
+// Which button a client point is over: kTimelineReviewButtonCount when none.
+int reviewButtonAt(const TimelineReviewOverlay& overlay, float clientX, float clientY);
+// The machine-readable review: line the gate reads, plus one per button.
+std::vector<std::string> formatTimelineReviewLines(const TimelineReviewView& view,
+                                                   const TimelineReviewOverlay& overlay);
 
 } // namespace tf2::native

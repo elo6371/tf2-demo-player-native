@@ -17,6 +17,10 @@
 #      arithmetic (a point inside the row answers the tick under it, not a proportional
 #      guess along the axis), the hit test that decides whether a click is a seek at all,
 #      and the product drawing that row when a focus is asked for.
+#   8. A5: the review banner -- the five buttons' hit tests, the 0.25x lead, the 3-2-1
+#      countdown, the hold, the two-second run and the wait, the automatic advance, the
+#      restore on exit, and two captured frames (one with --hud-review, one without)
+#      proving the banner is an overlay: they differ inside the bar and nowhere else.
 set -uo pipefail
 
 cd "$(dirname "$0")" || exit 1
@@ -147,7 +151,7 @@ for name in targets:
     print("%s.%s=%d" % (label, name, counts[name]))
 PYSRC
 
-echo "=== 0/10 build ==="
+echo "=== 0/11 build ==="
 TF2_IDENTITY_ALLOW_UNTRACKED=1 bash build-target.sh demo_open_probe tf2_demo_native > "$OUT/build.log" 2>&1
 assert_eq "build rc" "$?" "0"
 if [ "$fail" != "0" ]; then echo "TIMELINE-HUD=FAIL"; exit 1; fi
@@ -159,7 +163,7 @@ else
   echo "  OK   build log has no diagnostic"
 fi
 
-echo "=== 1/10 the composer on cp_snakewater, default window ==="
+echo "=== 1/11 the composer on cp_snakewater, default window ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO")" > "$OUT/probe.txt" 2>&1
 assert_eq "probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe.txt" > "$OUT/probe.lf" && mv "$OUT/probe.lf" "$OUT/probe.txt"
@@ -240,7 +244,7 @@ else
   fail=1
 fi
 
-echo "=== 2/10 the playhead and a resize ==="
+echo "=== 2/11 the playhead and a resize ==="
 timeout 420 "$PROBE" --scan --timeline-hud --playhead 30000 --client 1600x900 "$(win "$DEMO")" > "$OUT/probe-big.txt" 2>&1
 assert_eq "big probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-big.txt" > "$OUT/probe-big.lf" && mv "$OUT/probe-big.lf" "$OUT/probe-big.txt"
@@ -255,7 +259,7 @@ px=$(lfield "$strip2" playheadX)
 assert_gt "playhead x inside the track" "$px" "$(( $(sfield "$strip2" trackX0) - 1 ))"
 assert_le "playhead x inside the track (right)" "$px" "$(( $(sfield "$strip2" trackX1) + 1 ))"
 
-echo "=== 3/10 the minimap panel keeps the strip from drawing over it ==="
+echo "=== 3/11 the minimap panel keeps the strip from drawing over it ==="
 timeout 420 "$PROBE" --scan --timeline-hud --client 900x600 --avoid 0,430,220,170 "$(win "$DEMO")" > "$OUT/probe-avoid.txt" 2>&1
 assert_eq "avoid probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-avoid.txt" > "$OUT/probe-avoid.lf" && mv "$OUT/probe-avoid.lf" "$OUT/probe-avoid.txt"
@@ -265,7 +269,7 @@ assert_eq "avoid strip visible" "$(sfield "$strip3" visible)" "1"
 assert_gt "strip starts right of the panel" "$(sfield "$strip3" x)" "227"
 assert_le "strip stays inside the client" "$(( $(sfield "$strip3" x) + $(sfield "$strip3" w) ))" "888"
 
-echo "=== 4/10 a second map proves both stripe colours ==="
+echo "=== 4/11 a second map proves both stripe colours ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO2")" > "$OUT/probe-upward.txt" 2>&1
 assert_eq "upward probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-upward.txt" > "$OUT/probe-upward.lf" && mv "$OUT/probe-upward.lf" "$OUT/probe-upward.txt"
@@ -285,7 +289,7 @@ assert_eq "upward lane marks reconcile with the report" \
 assert_gt "upward RED kill ticks" "$(lfield "$stripu" ticksRed)" "0"
 assert_gt "upward BLU kill ticks" "$(lfield "$stripu" ticksBlu)" "0"
 
-echo "=== 5/10 the product draws the strip its analysis measured ==="
+echo "=== 5/11 the product draws the strip its analysis measured ==="
 TF2_NATIVE_TRACE="$(win "$OUT/on.trace")" timeout 600 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
   --settings-file "$(win "$OUT/on.ini")" --ui-settings-file "$(win "$OUT/on-ui.ini")" \
@@ -322,7 +326,7 @@ frameh=$(od -An -tu4 -j22 -N4 "$OUT/on.bmp" | tr -d ' ')
 assert_eq "frame width == client width" "$framew" "$clientw"
 assert_eq "frame height == client height" "$frameh" "$clienth"
 
-echo "=== 6/10 pixels: are the marks in the frame? ==="
+echo "=== 6/11 pixels: are the marks in the frame? ==="
 TF2_NATIVE_TRACE="$(win "$OUT/off.trace")" timeout 600 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
   --settings-file "$(win "$OUT/off.ini")" --ui-settings-file "$(win "$OUT/off-ui.ini")" \
@@ -404,7 +408,7 @@ assert_gt "per-tick row has pixels in the frame" "$on_cells_mark" "0"
 assert_le "control frame has no per-tick row" "$off_cells_mark" "2"
 fi
 
-echo "=== 7/10 A4: the follow-only layers describe the followed player ==="
+echo "=== 7/11 A4: the follow-only layers describe the followed player ==="
 # The numbers are the detector's own: the curve reads census.turnRates, the same vector the
 # amber hints come from, so a red bar and a hint cannot disagree. Entity 12 is a player the
 # recording actually carries; the default probe follows nobody, which is the negative.
@@ -444,7 +448,7 @@ assert_le "the curve band clears the red ticks" \
 assert_eq "the per-tick row did not move" "$(nfield "$viewstrip" cellsY)" "$(nfield "$strip" cellsY)"
 assert_gt "the two layers add primitives" "$(nfield "$viewstrip" shapes)" "$(nfield "$strip" shapes)"
 
-echo "=== 8/10 pixels: the two layers are in the frame ==="
+echo "=== 8/11 pixels: the two layers are in the frame ==="
 if need_number "A4 pixel geometry" "$onlineY$trackX0$span"; then
   pix() { grep "^$1\.$3=" "$2" | cut -d= -f2; }
   presenceY=$((onlineY + 16))
@@ -486,7 +490,7 @@ if need_number "A4 pixel geometry" "$onlineY$trackX0$span"; then
   assert_gt "over-threshold turns borrow the lane red" "$on_over" "40"
 fi
 
-echo "=== 9/10 A3b: the per-tick row and the click arithmetic ==="
+echo "=== 9/11 A3b: the per-tick row and the click arithmetic ==="
 # One focused run answers the row's geometry; a second (same flags, plus --hit) answers
 # the hit test. Both are pure composer calls, so the two runs cannot disagree about layout.
 timeout 420 "$PROBE" --scan --motion-detect --match-timeline --timeline-hud --focus 0 \
@@ -566,7 +570,297 @@ assert_eq "the track's left edge answers the first tick" \
 assert_eq "a point off the strip is not a seek" "$(nfield "$hitoff" inside)" "0"
 assert_eq "a point right of the track is not a seek" "$(nfield "$hitright" inside)" "0"
 
-echo "=== 10/10 determinism ==="
+echo "=== 10/11 A5: the review banner and the drive behind it ==="
+# A5 (section 9.2, 逐条复查): the banner is a mode, not a decoration. What this pins is the
+# whole loop -- the button arithmetic, the lead/countdown/hold/run/wait timings, the
+# automatic advance, the restore on exit -- and then the only thing a trace cannot prove:
+# that the banner is drawn INTO the frame as an overlay. Two captures differ inside the bar
+# and nowhere else, so the strip, the world and the HUD are untouched by it.
+timeout 420 "$PROBE" --scan --motion-detect --match-timeline --review-check "$(win "$DEMO")" \
+  > "$OUT/review.txt" 2>&1
+assert_eq "review probe rc" "$?" "0"
+tr -d "\r" < "$OUT/review.txt" > "$OUT/review.lf" && mv "$OUT/review.lf" "$OUT/review.txt"
+rcheck=$(grep -a "^review-check " "$OUT/review.txt" | tail -1)
+rov=$(grep -a "^review-overlay " "$OUT/review.txt" | tail -1)
+rmiss=$(grep -a "^review-miss " "$OUT/review.txt" | tail -1)
+echo "  ..   $rcheck"
+echo "  ..   $rov"
+echo "  ..   $rmiss"
+assert_eq "the review list is valid" "$(sfield "$rcheck" valid)" "1"
+assert_gt "the review walks a list" "$(nfield "$rcheck" items)" "0"
+assert_eq "the banner is parked" "$(nfield "$rov" active)" "1"
+assert_eq "the banner has five buttons" "$(nfield "$rov" buttons)" "5"
+assert_eq "the banner sits at the composer margin" "$(nfield "$rov" x),$(nfield "$rov" y)" "12,6"
+assert_eq "the banner spans the client" "$(nfield "$rov" w)" "$((1280 - 24))"
+assert_eq "the banner is one text row tall" "$(nfield "$rov" h)" "22"
+assert_gt "the banner composed its primitives" "$(nfield "$rov" primitives)" "6"
+rbuttons=$(grep -a "^review-button " "$OUT/review.txt")
+assert_eq "five button lines" "$(printf '%s\n' "$rbuttons" | grep -ac "^review-button ")" "5"
+btni=0
+while [ "$btni" -lt 5 ]; do
+  btline=$(printf '%s\n' "$rbuttons" | grep -a "^review-button index=$btni " | tail -1)
+  assert_eq "button $btni hit-tests to itself" "$(nfield "$btline" hit)" "$btni"
+  assert_eq "button $btni is 16 px tall" "$(nfield "$btline" h)" "16"
+  btni=$((btni + 1))
+done
+prevbtn=$(printf '%s\n' "$rbuttons" | grep -a "^review-button index=0 " | tail -1)
+exitbtn=$(printf '%s\n' "$rbuttons" | grep -a "^review-button index=4 " | tail -1)
+# 4 gaps of 6 plus 4 buttons of 74 between the first and the last: the row is laid out from
+# the right edge inwards, so this one subtraction pins all five x positions.
+assert_eq "the buttons are laid out right to left" \
+  "$(( $(nfield "$exitbtn" x) - $(nfield "$prevbtn" x) ))" "$((4 * 74 + 4 * 6))"
+assert_eq "exit ends 8 px inside the bar" \
+  "$(( $(nfield "$exitbtn" x) + $(nfield "$exitbtn" w) ))" \
+  "$(( $(nfield "$rov" x) + $(nfield "$rov" w) - 8 ))"
+# A click above the bar, or past the last button, must not be a button -- otherwise the row
+# eats clicks meant for the strip and for the world.
+assert_eq "a click above the bar is never a button" "$(nfield "$rmiss" above)" "$(nfield "$rmiss" limit)"
+assert_eq "a click past the row is never a button" "$(nfield "$rmiss" past)" "$(nfield "$rmiss" limit)"
+rsteps=$(grep -a "^review-step " "$OUT/review.txt")
+firstpass=$(printf '%s\n' "$rsteps" | sed -n '1,/phase=wait/p')
+rorder=$(printf '%s\n' "$firstpass" | sed -n 's/.*phase=\([a-z]*\).*/\1/p' | uniq | tr '\n' ',')
+echo "  ..   phases: $rorder"
+assert_eq "a pass is lead, countdown, hold, run, wait" "$rorder" "slow,countdown,hold,normal,wait,"
+rcountdowns=$(printf '%s\n' "$firstpass" | sed -n 's/.*phase=countdown countdown=\([0-9]*\).*/\1/p' | tr '\n' ',')
+assert_eq "the countdown counts 3, 2, 1" "$rcountdowns" "3,2,1,"
+assert_between() { # <label> <value> <low> <high>
+  if [ "${2:-x}" -ge "$3" ] 2>/dev/null && [ "${2:-x}" -le "$4" ] 2>/dev/null; then
+    echo "  OK   $1 = $2 (in $3..$4)"
+  else
+    echo "  FAIL $1 = ${2:-<none>}, expected $3..$4"
+    fail=1
+  fi
+}
+rslow=$(printf '%s\n' "$firstpass" | grep -a "phase=countdown countdown=3" | tail -1)
+rcd2=$(printf '%s\n' "$firstpass" | grep -a "phase=countdown countdown=2" | tail -1)
+rcd1=$(printf '%s\n' "$firstpass" | grep -a "phase=countdown countdown=1" | tail -1)
+rhold=$(printf '%s\n' "$firstpass" | grep -a "phase=hold" | tail -1)
+rnorm=$(printf '%s\n' "$firstpass" | grep -a "phase=normal" | tail -1)
+rwait=$(printf '%s\n' "$firstpass" | grep -a "phase=wait" | tail -1)
+assert_between "the 0.25x lead is long enough to read" "$(nfield "$rslow" durationMs)" "4000" "9000"
+assert_between "the countdown holds each digit" "$(nfield "$rcd2" durationMs)" "900" "1200"
+assert_between "the last countdown digit holds" "$(nfield "$rcd1" durationMs)" "900" "1200"
+# durationMs on a step line is the time spent in the phase being LEFT, so the hold's length
+# arrives on the normal line and the run's length on the wait line.
+assert_between "the hold sits on the item" "$(nfield "$rnorm" durationMs)" "900" "1200"
+assert_between "the normal run plays two seconds" "$(nfield "$rwait" durationMs)" "1800" "2400"
+# The three readings that ARE the pointing job: parked at 0.25x, sitting ON the item's tick,
+# then released to full speed.
+assert_eq "the lead is slow motion" "$(sfield "$rslow" speed)" "0.25"
+assert_eq "the park is paused" "$(sfield "$rslow" paused)" "1"
+assert_eq "the hold sits on the item's tick" "$(nfield "$rhold" tick)" "$(nfield "$rhold" start)"
+assert_eq "the normal run is full speed" "$(sfield "$rnorm" speed)" "1"
+assert_eq "the normal run is playing" "$(sfield "$rnorm" paused)" "0"
+assert_gt "the wait outlives the item" "$(nfield "$rwait" tick)" "$(nfield "$rwait" end)"
+rnav=$(grep -a "^review-nav " "$OUT/review.txt")
+navnext=$(printf '%s\n' "$rnav" | grep -a "action=next" | tail -1)
+navreplay=$(printf '%s\n' "$rnav" | grep -a "action=replay" | tail -1)
+navauto=$(printf '%s\n' "$rnav" | grep -a "action=auto" | tail -1)
+echo "  ..   $navnext"
+echo "  ..   $navreplay"
+assert_eq "next steps forward one item" "$(nfield "$navnext" index)" "$(( $(nfield "$navnext" from) + 1 ))"
+assert_eq "next restarts from the lead" "$(sfield "$navnext" phase)" "slow"
+assert_eq "replay keeps the item" "$(nfield "$navreplay" index)" "$(nfield "$navreplay" from)"
+assert_eq "replay restarts from the lead" "$(sfield "$navreplay" phase)" "slow"
+assert_eq "the auto toggle turns on" "$(sfield "$navauto" auto)" "1"
+rauto=$(grep -a "^review-auto " "$OUT/review.txt" | tail -1)
+echo "  ..   $rauto"
+assert_eq "auto advances one item" "$(nfield "$rauto" to)" "$(( $(nfield "$rauto" from) + 1 ))"
+assert_gt "auto lands on a real tick" "$(nfield "$rauto" ticks)" "0"
+rrestore=$(grep -a "^review-restore " "$OUT/review.txt" | tail -1)
+echo "  ..   $rrestore"
+# Exit puts playback back on the tick the caller handed to openAt and leaves nothing drawn.
+assert_eq "exit restores playback" "$(nfield "$rrestore" ok)" "1"
+assert_eq "the restored tick is the saved one" "$(nfield "$rrestore" tick)" "$(nfield "$rrestore" saved)"
+assert_eq "exit leaves the review idle" "$(sfield "$rrestore" active)" "0"
+assert_eq "exit returns to the idle phase" "$(sfield "$rrestore" phase)" "idle"
+TF2_NATIVE_TRACE="$(win "$OUT/review.trace")" timeout 600 "$EXE" \
+  --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
+  --settings-file "$(win "$OUT/on.ini")" --ui-settings-file "$(win "$OUT/on-ui.ini")" \
+  --analysis-scan --hud-live --hud-timeline-focus 0 --hud-timeline-entity 12 --hud-review 5 \
+  --capture-tick 1200 --capture-frame "$(win "$OUT/review.bmp")" \
+  > "$OUT/review-run.log" 2>&1
+assert_eq "review capture rc" "$?" "0"
+tr -d "\r" < "$OUT/review.trace" > "$OUT/review.trace.lf"
+# The product's trace lines carry a leading timestamp, so these greps are NOT anchored --
+# unlike the probe's own lines, which are.
+assert_eq "the capture opened the banner once" "$(grep -ac "review active=1 " "$OUT/review.trace.lf")" "1"
+rvarg=$(grep -a "review: active=1 reason=argument " "$OUT/review.trace.lf" | tail -1)
+rvline=$(grep -a "review active=1 " "$OUT/review.trace.lf" | tail -1)
+echo "  ..   $rvarg"
+echo "  ..   $rvline"
+assert_eq "the flag opened the banner on item 5" "$(nfield "$rvarg" index)" "5"
+assert_eq "the banner sits on item 5" "$(nfield "$rvline" index)" "5"
+assert_eq "the banner is waiting on the item" "$(sfield "$rvline" phase)" "wait"
+assert_eq "the product banner spans the client" "$(nfield "$rvline" w)" "$((clientw - 24))"
+assert_eq "the product banner is the composer's bar" \
+  "$(nfield "$rvline" x),$(nfield "$rvline" y),$(nfield "$rvline" h)" "12,6,22"
+assert_eq "the product banner has five buttons" "$(nfield "$rvline" buttons)" "5"
+# The banner walks the marks the lane drew inside the axis. The lane's before/after columns
+# are marks the axis clips, and the machine drops exactly those -- by design, not by bug.
+onlane=$(grep -a "timeline: hud visible=1" "$OUT/on.trace.lf" | tail -1)
+assert_eq "the banner walks the lane's in-axis marks" "$(nfield "$rvline" count)" \
+  "$(( $(nfield "$onlane" anomalies) + $(nfield "$onlane" hints) ))"
+# The control is the SAME run without --hud-review (section 5's frame): it must carry no
+# banner at all, and the idle reading must draw no buttons.
+assert_eq "the control run has no banner" "$(grep -ac "review active=1 " "$OUT/on.trace.lf")" "0"
+ctlidle=$(grep -a "review active=0 " "$OUT/on.trace.lf" | tail -1)
+echo "  ..   $ctlidle"
+assert_eq "the control run draws no buttons" "$(nfield "$ctlidle" buttons)" "0"
+cat > "$OUT/review-pix.py" <<'PYSRC'
+import struct
+import sys
+
+
+def load(path):
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if data[:2] != b"BM":
+        raise SystemExit("%s is not a BMP" % path)
+    offset = struct.unpack_from("<I", data, 10)[0]
+    width, height = struct.unpack_from("<ii", data, 18)
+    bits = struct.unpack_from("<H", data, 28)[0]
+    if bits not in (24, 32):
+        raise SystemExit("%s is %d-bit; this helper reads 24 and 32" % (path, bits))
+    stride = ((width * (bits // 8)) + 3) & ~3
+    return width, abs(height), offset, stride, bits // 8, height > 0, data
+
+
+def pixel(image, x, y):
+    width, height, offset, stride, step, bottom_up, data = image
+    row = (height - 1 - y) if bottom_up else y
+    base = offset + row * stride + x * step
+    return data[base + 2], data[base + 1], data[base]
+
+
+mode = sys.argv[1]
+if mode == "diff":
+    a = load(sys.argv[2])
+    b = load(sys.argv[3])
+    x, y, w, h = (int(v) for v in sys.argv[4:8])
+    total = outside = 0
+    x0 = y0 = 1 << 30
+    x1 = y1 = -1
+    for row in range(min(a[1], b[1])):
+        for col in range(min(a[0], b[0])):
+            ra, ga, ba = pixel(a, col, row)
+            rb, gb, bb = pixel(b, col, row)
+            if abs(ra - rb) + abs(ga - gb) + abs(ba - bb) <= 3:
+                continue
+            total += 1
+            if not (x <= col < x + w and y <= row < y + h):
+                outside += 1
+            if col < x0:
+                x0 = col
+            if col > x1:
+                x1 = col
+            if row < y0:
+                y0 = row
+            if row > y1:
+                y1 = row
+    print("diff.total=%d" % total)
+    print("diff.outside=%d" % outside)
+    print("diff.x0=%d" % (x0 if total else -1))
+    print("diff.x1=%d" % x1)
+    print("diff.y0=%d" % (y0 if total else -1))
+    print("diff.y1=%d" % y1)
+elif mode == "rect":
+    image = load(sys.argv[2])
+    x, y, w, h = (int(v) for v in sys.argv[3:7])
+    count = white = bluish = reddish = 0
+    sr = sg = sb = 0
+    for row in range(y, min(y + h, image[1])):
+        for col in range(x, min(x + w, image[0])):
+            r, g, b = pixel(image, col, row)
+            sr += r
+            sg += g
+            sb += b
+            count += 1
+            if r >= 190 and g >= 190 and b >= 190:
+                white += 1
+            if b > r + 30 and b > g + 10:
+                bluish += 1
+            if r > g + 30 and r > b + 10:
+                reddish += 1
+    if count == 0:
+        raise SystemExit("empty rect")
+    print("rect.count=%d" % count)
+    print("rect.mean_r=%d" % round(sr / count))
+    print("rect.mean_g=%d" % round(sg / count))
+    print("rect.mean_b=%d" % round(sb / count))
+    print("rect.white=%d" % white)
+    print("rect.bluish=%d" % bluish)
+    print("rect.reddish=%d" % reddish)
+else:
+    image = load(sys.argv[2])
+    x, y = int(sys.argv[3]), int(sys.argv[4])
+    r, g, b = pixel(image, x, y)
+    print("at.r=%d" % r)
+    print("at.g=%d" % g)
+    print("at.b=%d" % b)
+PYSRC
+revexists=$([ -s "$OUT/review.bmp" ] && echo 1 || echo 0)
+assert_eq "review frame exists" "$revexists" "1"
+revw=$(od -An -tu4 -j18 -N4 "$OUT/review.bmp" | tr -d ' ')
+assert_eq "the review frame is the control's size" "$revw" "$framew"
+"$PY" "$OUT/review-pix.py" diff "$(win "$OUT/review.bmp")" "$(win "$OUT/on.bmp")" \
+  12 6 "$((clientw - 24))" 22 > "$OUT/review-diff.txt" 2>&1
+sed 's/^/  ..   /' "$OUT/review-diff.txt"
+dnum() { grep "^diff.$1=" "$OUT/review-diff.txt" | cut -d= -f2; }
+# The overlay claim, in one number: every pixel that differs between the two runs is inside
+# the bar. Anything outside would mean opening the banner moved the world, the strip or the
+# HUD -- so this is the assertion the capture exists for.
+assert_eq "the banner is the only difference" "$(dnum outside)" "0"
+assert_gt "the banner changed pixels" "$(dnum total)" "20000"
+assert_eq "the banner starts at the margin" "$(dnum x0)" "12"
+assert_eq "the banner ends at the far margin" "$(dnum x1)" "$((clientw - 13))"
+assert_eq "the banner starts at the top row" "$(dnum y0)" "6"
+assert_eq "the banner ends one row past its height" "$(dnum y1)" "27"
+rsample() { # <label> <x> <y> <w> <h>
+  "$PY" "$OUT/review-pix.py" rect "$(win "$OUT/review.bmp")" "$2" "$3" "$4" "$5" \
+    > "$OUT/review-rect-$1.txt" 2>&1
+  sed "s/^/  ..   $1 /" "$OUT/review-rect-$1.txt"
+}
+rrect() { grep "^rect.$2=" "$OUT/review-rect-$1.txt" | cut -d= -f2; }
+# The bar's own two colours: a 1 px top edge and a translucent body. Both are means over a
+# rect that carries no text, so they are stable to the pixel.
+rsample edge 12 6 "$((clientw - 24))" 1
+assert_between "the bar's top edge" "$(rrect edge mean_r)" "55" "85"
+assert_between "the bar's top edge green" "$(rrect edge mean_g)" "60" "90"
+rsample body 12 7 "$((clientw - 24))" 2
+assert_between "the bar's body is dark" "$(rrect body mean_r)" "10" "22"
+assert_between "the bar's body is dark green" "$(rrect body mean_g)" "12" "26"
+# The buttons are the only saturated colour in the bar, and each states its job by hue: AUTO
+# carries the mode tint, EXIT the destructive one, the three transport buttons stay neutral.
+# The product prints every button's rect with the banner, so these samples read their own
+# geometry instead of re-deriving it: the pixels then confirm what the trace claims.
+rblines=$(grep -a "review-button " "$OUT/review.trace.lf")
+assert_eq "the banner prints five button rects" "$(printf '%s\n' "$rblines" | grep -ac "review-button ")" "5"
+rbtn() { printf '%s\n' "$rblines" | grep -a "review-button index=$1 " | tail -1; }
+rprevbtn=$(rbtn 0)
+rauto_btn=$(rbtn 3)
+rexit_btn=$(rbtn 4)
+echo "  ..   $rauto_btn"
+rsample prev "$(nfield "$rprevbtn" x)" "$(nfield "$rprevbtn" y)" "$(nfield "$rprevbtn" w)" "$(nfield "$rprevbtn" h)"
+rsample auto "$(nfield "$rauto_btn" x)" "$(nfield "$rauto_btn" y)" "$(nfield "$rauto_btn" w)" "$(nfield "$rauto_btn" h)"
+rsample exit "$(nfield "$rexit_btn" x)" "$(nfield "$rexit_btn" y)" "$(nfield "$rexit_btn" w)" "$(nfield "$rexit_btn" h)"
+assert_eq "the fourth button is auto" "$(sfield "$rauto_btn" label)" "AUTO"
+assert_eq "the fifth button is exit" "$(sfield "$rexit_btn" label)" "EXIT"
+assert_eq "exit ends 8 px inside the bar" \
+  "$(( $(nfield "$rexit_btn" x) + $(nfield "$rexit_btn" w) ))" \
+  "$(( $(nfield "$rvline" x) + $(nfield "$rvline" w) - 8 ))"
+assert_le "a transport button stays neutral" "$(rrect prev bluish)" "5"
+assert_le "a transport button is not red" "$(rrect prev reddish)" "5"
+assert_gt "the auto button carries the mode tint" "$(rrect auto bluish)" "300"
+assert_gt "the exit button is red" "$(rrect exit reddish)" "300"
+# The sentence: the bar's near-white pixels against the control's, which has the same HUD
+# behind it but no text. This is the one check that the item is NAMED, not merely boxed.
+rsample band 12 6 "$((clientw - 24))" 22
+"$PY" "$OUT/review-pix.py" rect "$(win "$OUT/on.bmp")" 12 6 "$((clientw - 24))" 22 \
+  > "$OUT/review-rect-ctlband.txt" 2>&1
+ctlband=$(grep "^rect.white=" "$OUT/review-rect-ctlband.txt" | cut -d= -f2)
+assert_gt "the banner writes a sentence" "$(( $(rrect band white) - ctlband ))" "250"
+echo "=== 11/11 determinism ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO")" > "$OUT/probe2.txt" 2>&1
 assert_eq "probe rerun rc" "$?" "0"
 tr -d "\r" < "$OUT/probe2.txt" > "$OUT/probe2.lf" && mv "$OUT/probe2.lf" "$OUT/probe2.txt"
