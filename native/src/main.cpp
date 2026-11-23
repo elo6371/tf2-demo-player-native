@@ -2776,6 +2776,27 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // T54: the panel's splitter. Consumed only when the press landed on the
     // splitter, so ordinary left clicks still reach the default procedure.
     if (tf2::native::logsPanelMouse(window, message, wParam, lParam)) return 0;
+    // A3b (section 9 line 238): a left press on the match timeline is a seek, and on the
+    // per-tick row it is a seek to THAT tick. Checked before the pane and player-click
+    // logic so a press on the strip scrubs instead of switching the watched player, and
+    // only on the PRESS: the transport already pauses on a scrub, and acting on the
+    // release as well would make one click two requests.
+    if (message == WM_LBUTTONDOWN && g_playback.enabled) {
+      const int clickX = static_cast<int>(static_cast<short>(LOWORD(lParam)));
+      const int clickY = static_cast<int>(static_cast<short>(HIWORD(lParam)));
+      std::int32_t scrubTick = -1;
+      if (tf2::native::main_internal::hudTimelineHitTest(clickX, clickY, scrubTick)) {
+        tf2::native::PlaybackRequest request;
+        request.kind = tf2::native::PlaybackRequestKind::Scrub;
+        request.tick = scrubTick;
+        request.source = "hud-timeline";
+        request.textFieldFocused = g_textFieldFocused;
+        applyPlaybackRequest(request);
+        traceFmt("timeline: click x=%d y=%d tick=%d source=hud-timeline", clickX, clickY,
+                 scrubTick);
+        return 0;
+      }
+    }
     // U4 step 3: a left press inside the client selects the pane it landed in.
     // Only a split frame has anything to select, and only the PRESS selects -- a
     // release must not steal the pane from a drag that started elsewhere.
@@ -3291,6 +3312,32 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       request.fromKeyboard = true;
       request.textFieldFocused = g_textFieldFocused;
       applyPlaybackRequest(request);
+    } else if ((wParam == VK_PRIOR || wParam == VK_NEXT) && g_playback.enabled) {
+      // A3b (section 9 line 238): previous/next exception. PgUp/PgDn were name-table
+      // only in keybinds.cpp and never bound, so this pair was free. Selecting one opens
+      // the per-tick row around it and seeks to three seconds before it, so the run-up to
+      // the exception is on screen when it happens.
+      const int direction = wParam == VK_NEXT ? 1 : -1;
+      std::int32_t jumpTick = -1;
+      const int selected = tf2::native::main_internal::hudTimelineStepFocus(direction,
+          g_playback.tick, jumpTick);
+      traceFmt("timeline: focus index=%d direction=%d jump=%d anomalies=%zu", selected,
+          direction, jumpTick, tf2::native::main_internal::hudTimelineAnomalyCount());
+      if (selected >= 0 && jumpTick >= 0) {
+        tf2::native::PlaybackRequest request;
+        request.kind = tf2::native::PlaybackRequestKind::Scrub;
+        request.tick = jumpTick;
+        request.source = direction > 0 ? "key-pagedown" : "key-pageup";
+        request.fromKeyboard = true;
+        request.textFieldFocused = g_textFieldFocused;
+        applyPlaybackRequest(request);
+      }
+    } else if (wParam == VK_ESCAPE
+               && tf2::native::main_internal::hudTimelineFocusIndex() >= 0) {
+      // A3b: Escape puts the row away before it means anything else. Fullscreen's own
+      // Escape is handled earlier, so this arm only ever sees a windowed press.
+      tf2::native::main_internal::hudSetTimelineFocusIndex(-1);
+      traceFmt("timeline: focus index=-1 reason=escape");
     } else if (wParam == VK_LEFT && g_playback.enabled) {
       // T70: SHIFT+LEFT is the one-second jump (67 ticks), not a 66-tick step.
       // The 5-second jump is reachable from the native UI and --camera-script;
@@ -6013,6 +6060,12 @@ bool outlineVertexExtent = false;
             timelineAnomalies.push_back(mark);
           }
           tf2::native::main_internal::hudSetTimelineAnomalies(timelineAnomalies);
+          // A3b: --hud-timeline-focus opens the per-tick row on one exception. Read after
+          // the list is set, because the flag's index means a position in THAT list.
+          if (tf2::native::main_internal::g_cliHudTimelineFocus >= 0) {
+            tf2::native::main_internal::hudSetTimelineFocusIndex(
+                tf2::native::main_internal::g_cliHudTimelineFocus);
+          }
         }
       }
       tf2::native::buildAssetReferenceList(demoNetworkSummary, demoNetworkSummary.assetReferences);

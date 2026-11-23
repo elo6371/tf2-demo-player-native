@@ -86,6 +86,30 @@ struct TimelineHudAnomalyMark {
   bool hint = false;
 };
 
+// A3b (section 9, line 238): the per-tick row. The workspace picks ONE anomaly and
+// the row unfolds the ticks around it -- one cell per tick -- so "which exact tick did
+// it start" is read off a cell instead of estimated from a two-pixel block. Written in
+// server ticks like the lane, because it is the same axis; the caller never converts.
+struct TimelineHudFocus {
+  bool valid = false;
+  int kind = 0;  // same enum as TimelineHudAnomaly::kind: 2 is a hint, not a block
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+  // Section 9's plus-or-minus 20 ticks: the window is this many ticks on either side of the
+  // anomaly's own span, clamped to the axis.
+  std::int32_t halfWindow = 20;
+};
+
+// One tick of the focused window, in client pixels. anomaly/hint say what the cell is,
+// so a gate can ask "the cell for tick N is red" without re-deriving the window.
+struct TimelineHudCell {
+  std::int32_t serverTick = 0;
+  float x = 0.0f;
+  float w = 0.0f;
+  bool anomaly = false;
+  bool hint = false;
+};
+
 struct TimelineHudStrip {
   bool visible = false;
   float x = 0.0f;      // the strip's own rectangle
@@ -117,6 +141,21 @@ struct TimelineHudStrip {
   std::size_t teleports = 0;
   std::vector<TimelineHudBand> bands;
   std::vector<TimelineHudAnomalyMark> marks;
+  // A3b: the per-tick row. Unfocused strips keep focusValid=false and cells=0, which is
+  // every strip the A3 gate photographs, so their geometry is unchanged.
+  bool focusValid = false;
+  int focusKind = 0;
+  std::int32_t focusStartTick = 0;
+  std::int32_t focusEndTick = 0;
+  std::int32_t focusWindowStart = 0;
+  std::int32_t focusWindowEnd = 0;
+  float cellsY = 0.0f;
+  float cellsH = 0.0f;
+  float cellW = 0.0f;
+  std::size_t cells = 0;
+  std::size_t anomalyCells = 0;
+  std::size_t hintCells = 0;
+  std::vector<TimelineHudCell> cellMarks;
   std::vector<TimelineHudShape> primitives;
 };
 
@@ -134,7 +173,16 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
                                       const TimelineHudAvoidRect& avoid = TimelineHudAvoidRect{},
                                       float bottomInset = 0.0f,
                                       const std::vector<TimelineHudAnomaly>& anomalies =
-                                          std::vector<TimelineHudAnomaly>{});
+                                          std::vector<TimelineHudAnomaly>{},
+                                      const TimelineHudFocus& focus = TimelineHudFocus{});
+
+// A3b: where a client point lands on the strip. Inside the per-tick row the answer is
+// that cell's own server tick -- the row is one cell per tick, so a click on a cell is a
+// click on a tick, not a proportional guess. Anywhere else inside the strip it is the
+// axis position under the cursor. False when the strip is hidden or the point is off it,
+// and the caller must then leave the transport alone.
+bool timelineStripTickAt(const TimelineHudStrip& strip, float clientX, float clientY,
+                         std::int32_t& serverTick);
 
 // One machine-readable line per strip plus one per band, so a gate can assert the
 // geometry without a screenshot. Text is percent-encoded (one line = one record).

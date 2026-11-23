@@ -8,18 +8,28 @@ namespace tf2::native {
 namespace {
 
 // Section 9 puts the strip at the bottom of the workspace; these are the strip's own
-// proportions, not the design's type scale. The strip is 56 px tall: 18 for the round
-// labels, 6 for the exception track, 3 for the winner stripe, 8 for the track and the
-// rest for the RED/BLU ticks, which need to read at a glance without being taller than
-// the track itself.
+// proportions, not the design's type scale. The strip is 64 px tall: 18 for the round
+// labels, 6 for the exception track, 3 for the winner stripe, 8 for the track, the rest
+// for the RED/BLU ticks, which need to read at a glance without being taller than the
+// track itself, and 6 at the bottom for A3b's per-tick row. The row could not go in the
+// old bottom slack: the BLU kills already draw there (7 px below the track), so the
+// strip grew by the row's height instead of drawing cells on top of kills.
 constexpr float kMargin = 12.0f;
-constexpr float kStripHeight = 56.0f;
+constexpr float kStripHeight = 64.0f;
 constexpr float kAnomalyLaneTop = 20.0f;
 constexpr float kAnomalyLaneHeight = 6.0f;
 constexpr float kAnomalyHintHeight = 2.0f;
 constexpr float kAnomalyBlockMinWidth = 2.0f;
 constexpr float kTrackTop = 38.0f;
 constexpr float kTrackHeight = 8.0f;
+constexpr float kCellsTop = 56.0f;
+constexpr float kCellsHeight = 6.0f;
+constexpr float kCellGap = 1.0f;
+// A focus window wider than this is drawn as its first ticks rather than as sub-pixel
+// cells: the point of the row is reading a tick, and a cell narrower than a pixel cannot
+// show one. 400 ticks is six seconds at 66.67 tick/s, far wider than any anomaly.
+constexpr std::int32_t kMaxCells = 400;
+constexpr std::size_t kMaxCellLines = 64;
 constexpr float kStripeHeight = 3.0f;
 constexpr float kKillTickHeight = 7.0f;
 constexpr float kPlayheadOvershoot = 5.0f;
@@ -46,6 +56,9 @@ constexpr float kLabelColour[4] = {0.86f, 0.86f, 0.84f, 0.95f};
 constexpr float kAnomalyLaneColour[4] = {0.05f, 0.06f, 0.08f, 0.55f};
 constexpr float kAnomalyBlockColour[4] = {0.94f, 0.26f, 0.22f, 1.0f};
 constexpr float kAnomalyHintColour[4] = {0.72f, 0.58f, 0.34f, 0.90f};
+// A3b: an ordinary tick of the per-tick row. Lighter than the lane's base so the row
+// reads as a ruler under the strip, not as a second lane.
+constexpr float kCellColour[4] = {0.16f, 0.17f, 0.21f, 0.92f};
 
 const float* teamColour(std::int32_t team) {
   if (team == 2) return kTeamRedColour;
@@ -105,7 +118,8 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
                                       std::int32_t playheadPlaybackTick,
                                       const TimelineHudAvoidRect& avoid,
                                       float bottomInset,
-                                      const std::vector<TimelineHudAnomaly>& anomalies) {
+                                      const std::vector<TimelineHudAnomaly>& anomalies,
+                                      const TimelineHudFocus& focus) {
   TimelineHudStrip strip;
   if (!report.valid || report.rounds.empty()) return strip;
   const std::int32_t first = report.firstServerTick;
@@ -152,6 +166,8 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
   strip.trackH = kTrackHeight;
   strip.anomalyLaneY = y + kAnomalyLaneTop;
   strip.anomalyLaneH = kAnomalyLaneHeight;
+  strip.cellsY = y + kCellsTop;
+  strip.cellsH = kCellsHeight;
 
   const float span = static_cast<float>(last - first);
   const float trackW = strip.trackX1 - strip.trackX0;
@@ -261,6 +277,51 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
     }
   }
 
+  // A3b: the per-tick row (section 9 line 238). Only when an anomaly is focused: the row
+  // is a window onto one exception, not a second axis, so a strip nobody focused keeps
+  // exactly the shapes it drew in A3.
+  if (focus.valid && focus.endTick >= first && focus.startTick <= last) {
+    const std::int32_t half = std::max<std::int32_t>(0, focus.halfWindow);
+    std::int32_t windowStart = std::max(first, focus.startTick - half);
+    std::int32_t windowEnd = std::min(last, focus.endTick + half);
+    if (windowEnd - windowStart + 1 > kMaxCells) {
+      windowEnd = windowStart + kMaxCells - 1;
+    }
+    if (windowEnd >= windowStart) {
+      strip.focusValid = true;
+      strip.focusKind = focus.kind;
+      strip.focusStartTick = focus.startTick;
+      strip.focusEndTick = focus.endTick;
+      strip.focusWindowStart = windowStart;
+      strip.focusWindowEnd = windowEnd;
+      const std::int32_t count = windowEnd - windowStart + 1;
+      const float cellW = trackW / static_cast<float>(count);
+      strip.cellW = cellW;
+      // One pixel of gap between cells so a run of anomalous ticks reads as cells rather
+      // than as one wider block; a cell never draws narrower than a pixel.
+      const float cellDrawW = std::max(1.0f, cellW - kCellGap);
+      for (std::int32_t tick = windowStart; tick <= windowEnd; ++tick) {
+        const bool inspan = tick >= focus.startTick && tick <= focus.endTick;
+        TimelineHudCell cell;
+        cell.serverTick = tick;
+        // The row is a ZOOMED ruler, not a second axis mark: the window's ticks are spread
+        // across the whole track, so each cell is legible even when the window is a few
+        // hundredths of a pixel wide on the axis (41 ticks of snakewater are 0.8 px).
+        cell.x = strip.trackX0 + static_cast<float>(tick - windowStart) * cellW;
+        cell.w = cellW;
+        cell.hint = inspan && focus.kind == 2;
+        cell.anomaly = inspan && !cell.hint;
+        if (cell.anomaly) ++strip.anomalyCells;
+        if (cell.hint) ++strip.hintCells;
+        ++strip.cells;
+        addRect(strip, cell.x, strip.cellsY, cellDrawW, kCellsHeight,
+                cell.anomaly ? kAnomalyBlockColour
+                             : (cell.hint ? kAnomalyHintColour : kCellColour));
+        strip.cellMarks.push_back(cell);
+      }
+    }
+  }
+
   // The playhead is the one thing that moves every frame; it is drawn last so it sits
   // over every tick it crosses.
   if (playheadPlaybackTick >= 0) {
@@ -300,7 +361,12 @@ std::vector<std::string> formatTimelineHudLines(const TimelineHudStrip& strip) {
         << " teleports=" << strip.teleports << " hints=" << strip.anomalyHints
         << " before=" << strip.marksBefore << " after=" << strip.marksAfter
         << " laneY=" << std::lround(strip.anomalyLaneY)
-        << " laneH=" << std::lround(strip.anomalyLaneH);
+        << " laneH=" << std::lround(strip.anomalyLaneH)
+        << " focus=" << (strip.focusValid ? 1 : 0) << " focusKind=" << strip.focusKind
+        << " windowStart=" << strip.focusWindowStart << " windowEnd=" << strip.focusWindowEnd
+        << " cells=" << strip.cells << " anomalyCells=" << strip.anomalyCells
+        << " hintCells=" << strip.hintCells << " cellW=" << std::lround(strip.cellW)
+        << " cellsY=" << std::lround(strip.cellsY) << " cellsH=" << std::lround(strip.cellsH);
     lines.push_back(out.str());
   }
   std::size_t printed = 0;
@@ -323,7 +389,45 @@ std::vector<std::string> formatTimelineHudLines(const TimelineHudStrip& strip) {
     lines.push_back(out.str());
     ++printed;
   }
+  printed = 0;
+  for (const TimelineHudCell& cell : strip.cellMarks) {
+    if (printed >= kMaxCellLines) break;
+    std::ostringstream out;
+    out << "timeline-cell tick=" << cell.serverTick
+        << " kind=" << (cell.anomaly ? "anomaly" : (cell.hint ? "hint" : "base"))
+        << " x=" << std::lround(cell.x) << " w=" << std::lround(cell.w);
+    lines.push_back(out.str());
+    ++printed;
+  }
   return lines;
+}
+
+bool timelineStripTickAt(const TimelineHudStrip& strip, float clientX, float clientY,
+                         std::int32_t& serverTick) {
+  if (!strip.visible) return false;
+  if (clientX < strip.trackX0 || clientX > strip.trackX1) return false;
+  if (clientY < strip.y || clientY > strip.y + strip.h) return false;
+  // The per-tick row answers with the cell under the point: one cell is one tick, so this
+  // is the tick the user pointed at, not a proportional estimate of one.
+  if (strip.focusValid && clientY >= strip.cellsY && clientY <= strip.cellsY + strip.cellsH) {
+    for (const TimelineHudCell& cell : strip.cellMarks) {
+      if (clientX >= cell.x && clientX < cell.x + cell.w) {
+        serverTick = cell.serverTick;
+        return true;
+      }
+    }
+    // Past the last cell's right edge, still inside the row: the window's last tick.
+    serverTick = strip.focusWindowEnd;
+    return true;
+  }
+  // Everywhere else the axis answers, with the mapping the marks were drawn by.
+  const float trackW = strip.trackX1 - strip.trackX0;
+  const float span = static_cast<float>(strip.lastServerTick - strip.firstServerTick);
+  if (trackW <= 0.0f || span <= 0.0f) return false;
+  const float ratio = (clientX - strip.trackX0) / trackW;
+  serverTick = strip.firstServerTick + static_cast<std::int32_t>(std::lround(ratio * span));
+  serverTick = std::clamp(serverTick, strip.firstServerTick, strip.lastServerTick);
+  return true;
 }
 
 } // namespace tf2::native

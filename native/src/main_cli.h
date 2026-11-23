@@ -85,6 +85,11 @@ using FlagHandler = bool (*)(CliParseEnv& env, LPWSTR* arguments, int argumentCo
 // placeholder --viewmodel path; the pass is held back on frames whose camera is
 // not standing inside a player (third person, free look, --debug-camera).
 inline bool g_cliFirstPerson = false;
+// A3b (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 9 line 238):
+// --hud-timeline-focus <index> opens the per-tick row on one exception before the first
+// frame. A gate has no pointer to click with, so this is how the row gets photographed;
+// the interactive doors are PgUp/PgDn and a click on a cell.
+inline int g_cliHudTimelineFocus = -1;
 // --aim-layer-heading view|velocity: what the legacy blend's aim-layer weight is
 // measured against. `velocity` (the default) is today's rule; `view` measures it
 // against the yaw the body is drawn at, i.e. weight 0 -- the conclusion the
@@ -344,6 +349,16 @@ inline const FlagSpec kFeatureFlagTable[] = {
     // suppresses it by default so that the pixel gates keep measuring what they
     // were written to measure; this flag is how a gate asks for it.
     env.hudLiveCli = true;
+    return true;
+  }},
+  {L"--hud-timeline-focus", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments,
+      int argumentCount, int& i) {
+    // A3b: which exception the per-tick row is unfolded around, by index in the list the
+    // scan built (blocks first, then hints). Out of range parks the row, which is the
+    // same state as never passing the flag.
+    if (i + 1 >= argumentCount) return false;
+    const long parsed = std::wcstol(arguments[++i], nullptr, 10);
+    g_cliHudTimelineFocus = parsed < 0 ? -1 : static_cast<int>(parsed);
     return true;
   }},
   {L"--overview-open", FlagArity::Zero, [](CliParseEnv&, LPWSTR*, int, int&) {

@@ -79,6 +79,22 @@ void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report);
 // server-tick axis; passed separately because the detector's report and the match
 // report are two products of one pass, not one nested in the other.
 void hudSetTimelineAnomalies(const std::vector<tf2::native::TimelineHudAnomaly>& anomalies);
+// A3b: which exception the per-tick row unfolds. index counts the vector
+// hudSetTimelineAnomalies took, in the order it arrived (blocks then hints); -1 parks
+// the row, which is the state every strip has until something selects an anomaly.
+void hudSetTimelineFocusIndex(int index);
+int hudTimelineFocusIndex();
+std::size_t hudTimelineAnomalyCount();
+// PgUp/PgDn's one step of selection: direction -1 is the previous anomaly on the axis,
+// +1 the next, measured from the playhead (or from the current focus when there is one).
+// Returns the new index, -1 when there is nothing to select, and writes the playback
+// tick to seek to: the anomaly's start minus three seconds (section 9's jump-to-run-up).
+int hudTimelineStepFocus(int direction, std::int32_t playbackTick,
+                         std::int32_t& jumpPlaybackTick);
+// A3b: the strip's input. The point is converted with the strip the LAST frame composed,
+// so a click lands where the pixels are, and the answer is a playback tick -- the caller
+// hands it to the transport as a scrub.
+bool hudTimelineHitTest(int clientX, int clientY, std::int32_t& playbackTick);
 
 // T97: the live readout the frame loop calls once per frame (main.cpp).
 //

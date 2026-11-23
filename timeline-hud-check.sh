@@ -13,6 +13,10 @@
 #   6. pixels: the stripe, the kill ticks above and below the midline and the
 #      playhead really are in the captured frame, and the frame from a run without
 #      --analysis-scan does not carry them. A trace line is not drawing.
+#   7. A3b: the per-tick row around ONE focused exception -- one cell per tick, its
+#      arithmetic (a point inside the row answers the tick under it, not a proportional
+#      guess along the axis), the hit test that decides whether a click is a seek at all,
+#      and the product drawing that row when a focus is asked for.
 set -uo pipefail
 
 cd "$(dirname "$0")" || exit 1
@@ -130,7 +134,7 @@ for name in targets:
     print("%s.%s=%d" % (label, name, counts[name]))
 PYSRC
 
-echo "=== 0/7 build ==="
+echo "=== 0/8 build ==="
 TF2_IDENTITY_ALLOW_UNTRACKED=1 bash build-target.sh demo_open_probe tf2_demo_native > "$OUT/build.log" 2>&1
 assert_eq "build rc" "$?" "0"
 if [ "$fail" != "0" ]; then echo "TIMELINE-HUD=FAIL"; exit 1; fi
@@ -142,7 +146,7 @@ else
   echo "  OK   build log has no diagnostic"
 fi
 
-echo "=== 1/7 the composer on cp_snakewater, default window ==="
+echo "=== 1/8 the composer on cp_snakewater, default window ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO")" > "$OUT/probe.txt" 2>&1
 assert_eq "probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe.txt" > "$OUT/probe.lf" && mv "$OUT/probe.lf" "$OUT/probe.txt"
@@ -156,17 +160,25 @@ strip=$(grep -a "^timeline-hud " "$OUT/probe.txt" | tail -1)
 echo "  ..   $strip"
 assert_eq "strip visible" "$(sfield "$strip" visible)" "1"
 assert_eq "strip x" "$(sfield "$strip" x)" "12"
-assert_eq "strip y" "$(sfield "$strip" y)" "652"
+assert_eq "strip y" "$(sfield "$strip" y)" "644"
 assert_eq "strip w" "$(sfield "$strip" w)" "1256"
-# A3 grew the strip by the exception lane: 12 px of lane above the kill band, so the
-# band keeps its 8 px height and the labels stay on the first 12 px.
-assert_eq "strip h" "$(sfield "$strip" h)" "56"
+# A3 grew the strip by the exception lane (12 px above the kill band, so the band keeps
+# its 8 px height and the labels stay on the first 12 px); A3b grew it again by 8 px for
+# the per-tick row, which could not use the old bottom slack because the BLU kill ticks
+# already draw there. y moves with the height (the strip is anchored to the bottom edge).
+assert_eq "strip h" "$(sfield "$strip" h)" "64"
 assert_eq "track left" "$(sfield "$strip" trackX0)" "18"
 assert_eq "track right" "$(sfield "$strip" trackX1)" "1262"
-assert_eq "track top" "$(sfield "$strip" trackY)" "690"
+assert_eq "track top" "$(sfield "$strip" trackY)" "682"
 assert_eq "track height" "$(sfield "$strip" trackH)" "8"
-assert_eq "exception lane top" "$(sfield "$strip" laneY)" "672"
+assert_eq "exception lane top" "$(sfield "$strip" laneY)" "664"
 assert_eq "exception lane height" "$(sfield "$strip" laneH)" "6"
+# A3b's row exists at a fixed place even when nothing is focused; what changes is what it
+# draws (a base strip with no focus), not where it would draw it.
+assert_eq "per-tick row top" "$(sfield "$strip" cellsY)" "700"
+assert_eq "per-tick row height" "$(sfield "$strip" cellsH)" "6"
+assert_eq "no focus unless asked" "$(nfield "$strip" focus)" "0"
+assert_eq "unfocused row draws no cells" "$(nfield "$strip" cells)" "0"
 # Every block the detector handed over is either drawn or counted as outside the axis,
 # so the four numbers add up to the report's own list.
 anom=$(nfield "$strip" anomalies)
@@ -215,7 +227,7 @@ else
   fail=1
 fi
 
-echo "=== 2/7 the playhead and a resize ==="
+echo "=== 2/8 the playhead and a resize ==="
 timeout 420 "$PROBE" --scan --timeline-hud --playhead 30000 --client 1600x900 "$(win "$DEMO")" > "$OUT/probe-big.txt" 2>&1
 assert_eq "big probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-big.txt" > "$OUT/probe-big.lf" && mv "$OUT/probe-big.lf" "$OUT/probe-big.txt"
@@ -223,14 +235,14 @@ strip2=$(grep -a "^timeline-hud " "$OUT/probe-big.txt" | tail -1)
 echo "  ..   $strip2"
 assert_eq "big strip visible" "$(sfield "$strip2" visible)" "1"
 assert_eq "big strip w" "$(sfield "$strip2" w)" "1576"
-assert_eq "big strip y" "$(sfield "$strip2" y)" "832"
+assert_eq "big strip y" "$(sfield "$strip2" y)" "824"
 assert_eq "big playhead visible" "$(lfield "$strip2" playheadVisible)" "1"
 assert_eq "playhead server tick" "$(lfield "$strip2" playhead)" "$((30000 + offset))"
 px=$(lfield "$strip2" playheadX)
 assert_gt "playhead x inside the track" "$px" "$(( $(sfield "$strip2" trackX0) - 1 ))"
 assert_le "playhead x inside the track (right)" "$px" "$(( $(sfield "$strip2" trackX1) + 1 ))"
 
-echo "=== 3/7 the minimap panel keeps the strip from drawing over it ==="
+echo "=== 3/8 the minimap panel keeps the strip from drawing over it ==="
 timeout 420 "$PROBE" --scan --timeline-hud --client 900x600 --avoid 0,430,220,170 "$(win "$DEMO")" > "$OUT/probe-avoid.txt" 2>&1
 assert_eq "avoid probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-avoid.txt" > "$OUT/probe-avoid.lf" && mv "$OUT/probe-avoid.lf" "$OUT/probe-avoid.txt"
@@ -240,7 +252,7 @@ assert_eq "avoid strip visible" "$(sfield "$strip3" visible)" "1"
 assert_gt "strip starts right of the panel" "$(sfield "$strip3" x)" "227"
 assert_le "strip stays inside the client" "$(( $(sfield "$strip3" x) + $(sfield "$strip3" w) ))" "888"
 
-echo "=== 4/7 a second map proves both stripe colours ==="
+echo "=== 4/8 a second map proves both stripe colours ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO2")" > "$OUT/probe-upward.txt" 2>&1
 assert_eq "upward probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-upward.txt" > "$OUT/probe-upward.lf" && mv "$OUT/probe-upward.lf" "$OUT/probe-upward.txt"
@@ -260,11 +272,12 @@ assert_eq "upward lane marks reconcile with the report" \
 assert_gt "upward RED kill ticks" "$(lfield "$stripu" ticksRed)" "0"
 assert_gt "upward BLU kill ticks" "$(lfield "$stripu" ticksBlu)" "0"
 
-echo "=== 5/7 the product draws the strip its analysis measured ==="
+echo "=== 5/8 the product draws the strip its analysis measured ==="
 TF2_NATIVE_TRACE="$(win "$OUT/on.trace")" timeout 600 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
   --settings-file "$(win "$OUT/on.ini")" --ui-settings-file "$(win "$OUT/on-ui.ini")" \
-  --analysis-scan --hud-live --capture-tick 1200 --capture-frame "$(win "$OUT/on.bmp")" \
+  --analysis-scan --hud-live --hud-timeline-focus 0 \
+  --capture-tick 1200 --capture-frame "$(win "$OUT/on.bmp")" \
   > "$OUT/on.log" 2>&1
 assert_eq "product rc" "$?" "0"
 tr -d "\r" < "$OUT/on.trace" > "$OUT/on.trace.lf"
@@ -279,12 +292,16 @@ assert_eq "product RED ticks == probe" "$(lfield "$online" red)" "$red"
 assert_eq "product BLU ticks == probe" "$(lfield "$online" blu)" "$blu"
 assert_eq "product unknown ticks == probe" "$(lfield "$online" unknown)" "$unknown"
 assert_eq "product strip x" "$(sfield "$online" x)" "12"
-assert_eq "product strip y" "$(sfield "$online" y)" "$((clienth - 68))"
+assert_eq "product strip y" "$(sfield "$online" y)" "$((clienth - 76))"
 assert_eq "product exception blocks == probe" "$(nfield "$online" anomalies)" "$anom"
 assert_eq "product hints == probe" "$(nfield "$online" hints)" "$hints"
 assert_eq "product lane marks reconcile with the report" \
   "$(( $(nfield "$online" anomalies) + $(nfield "$online" hints) + $(nfield "$online" before) + $(nfield "$online" after) ))" \
   "$(( $(nfield "$head" anomalies) + $(nfield "$head" hints) ))"
+# A3b: the run asked for the first exception, so the product must have opened the row.
+assert_eq "product per-tick focus is on" "$(nfield "$online" focus)" "1"
+assert_gt "product draws the per-tick row" "$(nfield "$online" cells)" "0"
+assert_gt "product row has anomalous cells" "$(nfield "$online" anomalyCells)" "0"
 assert_eq "product strip w" "$(sfield "$online" w)" "$((clientw - 24))"
 assert_eq "capture frame exists" "$([ -s "$OUT/on.bmp" ] && echo 1 || echo 0)" "1"
 framew=$(od -An -tu4 -j18 -N4 "$OUT/on.bmp" | tr -d ' ')
@@ -292,7 +309,7 @@ frameh=$(od -An -tu4 -j22 -N4 "$OUT/on.bmp" | tr -d ' ')
 assert_eq "frame width == client width" "$framew" "$clientw"
 assert_eq "frame height == client height" "$frameh" "$clienth"
 
-echo "=== 6/7 pixels: are the marks in the frame? ==="
+echo "=== 6/8 pixels: are the marks in the frame? ==="
 TF2_NATIVE_TRACE="$(win "$OUT/off.trace")" timeout 600 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
   --settings-file "$(win "$OUT/off.ini")" --ui-settings-file "$(win "$OUT/off-ui.ini")" \
@@ -321,19 +338,22 @@ serverTick=$((1200 + offset))
 playheadX=$((trackX0 + (serverTick - first) * (trackX1 - trackX0) / (last - first)))
 echo "  ..   sampling rows around trackY=$trackY, playhead column ~$playheadX, tick $serverTick"
 laneY=$((onlineY + 20))
+cellsY=$((onlineY + 56))
 span=$((trackX1 - trackX0))
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_stripe "$((trackX0)),$((trackY - 3)),$span,3" > "$OUT/on-stripe.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_above "$((trackX0)),$((trackY - 8)),$span,8" > "$OUT/on-above.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_below "$((trackX0)),$((trackY + 9)),$span,12" > "$OUT/on-below.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_playhead "$((playheadX - 3)),$((trackY)),7,$((onlineH - 38))" > "$OUT/on-playhead.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_lane "$((trackX0)),$((laneY)),$span,7" > "$OUT/on-lane.txt" 2>&1
+"$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_cells "$((trackX0)),$((cellsY)),$span,7" > "$OUT/on-cells.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_stripe "$((trackX0)),$((trackY - 3)),$span,3" > "$OUT/off-stripe.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_above "$((trackX0)),$((trackY - 8)),$span,8" > "$OUT/off-above.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_below "$((trackX0)),$((trackY + 9)),$span,12" > "$OUT/off-below.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_playhead "$((playheadX - 3)),$((trackY)),7,$((onlineH - 38))" > "$OUT/off-playhead.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_lane "$((trackX0)),$((laneY)),$span,7" > "$OUT/off-lane.txt" 2>&1
-cat "$OUT"/on-stripe.txt "$OUT"/on-above.txt "$OUT"/on-below.txt "$OUT"/on-playhead.txt "$OUT"/on-lane.txt | sed 's/^/  ..   on  /'
-cat "$OUT"/off-stripe.txt "$OUT"/off-above.txt "$OUT"/off-below.txt "$OUT"/off-playhead.txt "$OUT"/off-lane.txt | sed 's/^/  ..   off /'
+"$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_cells "$((trackX0)),$((cellsY)),$span,7" > "$OUT/off-cells.txt" 2>&1
+cat "$OUT"/on-stripe.txt "$OUT"/on-above.txt "$OUT"/on-below.txt "$OUT"/on-playhead.txt "$OUT"/on-lane.txt "$OUT"/on-cells.txt | sed 's/^/  ..   on  /'
+cat "$OUT"/off-stripe.txt "$OUT"/off-above.txt "$OUT"/off-below.txt "$OUT"/off-playhead.txt "$OUT"/off-lane.txt "$OUT"/off-cells.txt | sed 's/^/  ..   off /'
 pix() { grep "^$1\.$3=" "$2" | cut -d= -f2; }
 on_stripe_red=$(pix on_stripe "$OUT/on-stripe.txt" red)
 on_stripe_blu=$(pix on_stripe "$OUT/on-stripe.txt" blu)
@@ -363,9 +383,95 @@ assert_le "control frame has no playhead" "$off_playhead_white" "2"
 # proves the marks came from the analysis, not from the track's own colours.
 assert_gt "exception blocks have pixels in the lane" "$on_lane_mark" "0"
 assert_le "control frame has no exception blocks" "$off_lane_mark" "2"
+# The per-tick row is the product's own drawing of the focused exception: same colour as
+# the lane's blocks, so a mark pixel here can only come from the row being drawn.
+on_cells_mark=$(pix on_cells "$OUT/on-cells.txt" mark)
+off_cells_mark=$(pix off_cells "$OUT/off-cells.txt" mark)
+assert_gt "per-tick row has pixels in the frame" "$on_cells_mark" "0"
+assert_le "control frame has no per-tick row" "$off_cells_mark" "2"
 fi
 
-echo "=== 7/7 determinism ==="
+echo "=== 7/8 A3b: the per-tick row and the click arithmetic ==="
+# One focused run answers the row's geometry; a second (same flags, plus --hit) answers
+# the hit test. Both are pure composer calls, so the two runs cannot disagree about layout.
+timeout 420 "$PROBE" --scan --motion-detect --match-timeline --timeline-hud --focus 0 \
+  "$(win "$DEMO")" > "$OUT/probe-focus.txt" 2>&1
+assert_eq "focus probe rc" "$?" "0"
+tr -d "\r" < "$OUT/probe-focus.txt" > "$OUT/probe-focus.lf" && mv "$OUT/probe-focus.lf" "$OUT/probe-focus.txt"
+stripf=$(grep -a "^timeline-hud " "$OUT/probe-focus.txt" | tail -1)
+headf=$(grep -a "match-timeline valid=1" "$OUT/probe-focus.txt" | tail -1)
+echo "  ..   $stripf"
+# Focusing the row must not move anything: it is drawn in space the strip already has.
+assert_eq "focused strip y unchanged" "$(nfield "$stripf" y)" "644"
+assert_eq "focused strip h unchanged" "$(nfield "$stripf" h)" "64"
+assert_eq "focused row top unchanged" "$(nfield "$stripf" cellsY)" "700"
+assert_eq "focus is on" "$(nfield "$stripf" focus)" "1"
+anomrow=$(grep -aE "^timeline-anomaly " "$OUT/probe-focus.txt" | head -1)
+anomstart=$(nfield "$anomrow" start)
+anomend=$(nfield "$anomrow" end)
+if need_number "the first anomaly's span" "$anomstart$anomend"; then
+  expected_anom_cells=$((anomend - anomstart + 1))
+  # One cell per tick of the exception itself, and 20 either side (section 9's 前后各
+  # 20 tick). A row that missed a tick or widened the window fails here.
+  assert_eq "one anomalous cell per anomalous tick" \
+    "$(nfield "$stripf" anomalyCells)" "$expected_anom_cells"
+  assert_eq "row spans 20 ticks either side of the exception" \
+    "$(nfield "$stripf" cells)" "$((expected_anom_cells + 40))"
+  cellfirst=$(grep -aE "^timeline-cell " "$OUT/probe-focus.txt" | head -1)
+  assert_eq "row's first cell is 20 ticks before the exception" \
+    "$(nfield "$cellfirst" tick)" "$((anomstart - 20))"
+fi
+cellorder=$(awk '
+  /^timeline-cell / {
+    tick = -1; x = -1
+    for (i = 1; i <= NF; ++i) { split($i, kv, "="); if (kv[1] == "tick") tick = kv[2]; if (kv[1] == "x") x = kv[2] }
+    if (nr > 0 && (tick != last_tick + 1 || x < last_x)) { print "broken at tick " tick; bad = 1 }
+    last_tick = tick; last_x = x; nr++
+  }
+  END { if (nr == 0) { print "no cell rows"; bad = 1 } exit bad ? 1 : 0 }' "$OUT/probe-focus.txt" 2>&1)
+if [ -z "$cellorder" ]; then
+  echo "  OK   cells are one tick apart and left to right"
+else
+  echo "  FAIL cells are one tick apart and left to right"
+  echo "$cellorder" | head -3
+  fail=1
+fi
+# The row is the only shape a focus adds: everything A3 drew is still there, plus one
+# rect per cell. A dropped mark under a focused strip would break this even while the
+# unfocused section above still agreed.
+labelrowsf=$(grep -acE "^timeline-band .* label=1$" "$OUT/probe-focus.txt")
+stripesf=$(grep -acE "^timeline-band .* winTeam=(2|3)( |$)" "$OUT/probe-focus.txt")
+assert_eq "focused shapes == unfocused shapes + cells" \
+  "$(sfield "$stripf" shapes)" \
+  "$((1 + 1 + $(sfield "$stripf" bands) + labelrowsf + stripesf + kills + $(nfield "$stripf" anomalies) + $(nfield "$stripf" hints) + $(nfield "$stripf" cells)))"
+# Hit test: the point on the middle of an anomalous cell must answer that cell's tick --
+# a row that answered with the axis position instead would land ~20 ticks off.
+anomcell=$(grep -aE "^timeline-cell .* kind=anomaly " "$OUT/probe-focus.txt" | head -1)
+cellx=$(nfield "$anomcell" x)
+cellw=$(nfield "$anomcell" w)
+celltick=$(nfield "$anomcell" tick)
+cellcx=$((cellx + cellw / 2))
+trackx0f=$(nfield "$stripf" trackX0)
+trackx1f=$(nfield "$stripf" trackX1)
+timeout 420 "$PROBE" --scan --motion-detect --match-timeline --timeline-hud --focus 0 \
+  --hit "$cellcx,703" --hit "$trackx0f,686" --hit "5,5" \
+  --hit "$((trackx1f + 40)),686" "$(win "$DEMO")" > "$OUT/probe-hit.txt" 2>&1
+assert_eq "hit probe rc" "$?" "0"
+tr -d "\r" < "$OUT/probe-hit.txt" > "$OUT/probe-hit.lf" && mv "$OUT/probe-hit.lf" "$OUT/probe-hit.txt"
+hitcell=$(grep -a "^timeline-hit " "$OUT/probe-hit.txt" | sed -n 1p)
+hitaxis=$(grep -a "^timeline-hit " "$OUT/probe-hit.txt" | sed -n 2p)
+hitoff=$(grep -a "^timeline-hit " "$OUT/probe-hit.txt" | sed -n 3p)
+hitright=$(grep -a "^timeline-hit " "$OUT/probe-hit.txt" | sed -n 4p)
+echo "  ..   $hitcell"
+assert_eq "a point on the row is inside the strip" "$(nfield "$hitcell" inside)" "1"
+assert_eq "a point on the row answers the cell's tick" "$(nfield "$hitcell" tick)" "$celltick"
+assert_eq "a point on the track is still a seek" "$(nfield "$hitaxis" inside)" "1"
+assert_eq "the track's left edge answers the first tick" \
+  "$(nfield "$hitaxis" tick)" "$(nfield "$headf" first)"
+assert_eq "a point off the strip is not a seek" "$(nfield "$hitoff" inside)" "0"
+assert_eq "a point right of the track is not a seek" "$(nfield "$hitright" inside)" "0"
+
+echo "=== 8/8 determinism ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO")" > "$OUT/probe2.txt" 2>&1
 assert_eq "probe rerun rc" "$?" "0"
 tr -d "\r" < "$OUT/probe2.txt" > "$OUT/probe2.lf" && mv "$OUT/probe2.lf" "$OUT/probe2.txt"

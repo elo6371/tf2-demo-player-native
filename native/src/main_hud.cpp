@@ -1666,6 +1666,14 @@ tf2::native::MatchTimelineReport g_hudMatchTimeline;
 // A3: the exception track's marks, from the same scan as the report above. Set by the
 // same call site, so the two revisions move together and a stale lane is impossible.
 std::vector<tf2::native::TimelineHudAnomaly> g_hudTimelineAnomalies;
+// A3b: which of those the per-tick row is unfolded around, and the strip the last frame
+// composed. The hit test measures THAT strip, not a recomputation: a resize between the
+// click and the frame would otherwise move every cell out from under the pointer.
+int g_hudTimelineFocusIndex = -1;
+tf2::native::TimelineHudStrip g_hudTimelineStrip;
+// Section 9 line 238's "jump to three seconds before", in ticks. The recording runs at
+// seconds is 200 ticks -- the same number the design's strip gates use for 3 s.
+constexpr std::int32_t kTimelineFocusLeadTicks = 200;
 std::uint64_t g_hudMatchTimelineRevision = 0;
 // Change-driven trace state, the same rule as the minimap's: geometry only changes on
 // a resize or a reload, so a line per frame would be noise around 60 identical rows.
@@ -1686,7 +1694,87 @@ void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report) {
 
 void hudSetTimelineAnomalies(const std::vector<tf2::native::TimelineHudAnomaly>& anomalies) {
   g_hudTimelineAnomalies = anomalies;
+  // A new list invalidates the selection: the index would otherwise point at a different
+  // anomaly than the one the user picked.
+  g_hudTimelineFocusIndex = -1;
   ++g_hudMatchTimelineRevision;
+}
+
+void hudSetTimelineFocusIndex(int index) {
+  const int next = (index >= 0 && index < static_cast<int>(g_hudTimelineAnomalies.size()))
+      ? index : -1;
+  if (next == g_hudTimelineFocusIndex) return;
+  g_hudTimelineFocusIndex = next;
+  ++g_hudMatchTimelineRevision;
+}
+
+int hudTimelineFocusIndex() {
+  return g_hudTimelineFocusIndex;
+}
+
+std::size_t hudTimelineAnomalyCount() {
+  return g_hudTimelineAnomalies.size();
+}
+
+int hudTimelineStepFocus(int direction, std::int32_t playbackTick,
+                         std::int32_t& jumpPlaybackTick) {
+  jumpPlaybackTick = -1;
+  if (direction == 0 || g_hudTimelineAnomalies.empty()) {
+    hudSetTimelineFocusIndex(-1);
+    return -1;
+  }
+  // "Next" is next on the AXIS, not next in the vector: blocks and hints arrive as two
+  // lists, so the vector is not tick-ordered once a hint precedes a block.
+  std::vector<std::size_t> order(g_hudTimelineAnomalies.size());
+  for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+  std::stable_sort(order.begin(), order.end(), [](std::size_t a, std::size_t b) {
+    return g_hudTimelineAnomalies[a].startTick < g_hudTimelineAnomalies[b].startTick;
+  });
+  // The anchor is the current selection when there is one, otherwise the playhead: with a
+  // row open, PgDn means "the next one after the one I am looking at".
+  const std::int32_t offset = g_hudMatchTimeline.valid ? g_hudMatchTimeline.serverToEntryOffset : 0;
+  std::int32_t cursor = playbackTick + offset;
+  if (g_hudTimelineFocusIndex >= 0
+      && g_hudTimelineFocusIndex < static_cast<int>(g_hudTimelineAnomalies.size())) {
+    cursor = g_hudTimelineAnomalies[static_cast<std::size_t>(g_hudTimelineFocusIndex)].startTick;
+  }
+  int chosen = -1;
+  if (direction > 0) {
+    for (std::size_t i = 0; i < order.size(); ++i) {
+      if (g_hudTimelineAnomalies[order[i]].startTick > cursor) {
+        chosen = static_cast<int>(order[i]);
+        break;
+      }
+    }
+    if (chosen < 0) chosen = static_cast<int>(order.front());  // wrap to the first
+  } else {
+    for (std::size_t i = order.size(); i > 0; --i) {
+      if (g_hudTimelineAnomalies[order[i - 1]].startTick < cursor) {
+        chosen = static_cast<int>(order[i - 1]);
+        break;
+      }
+    }
+    if (chosen < 0) chosen = static_cast<int>(order.back());  // wrap to the last
+  }
+  hudSetTimelineFocusIndex(chosen);
+  std::int32_t seek = g_hudTimelineAnomalies[static_cast<std::size_t>(chosen)].startTick
+      - kTimelineFocusLeadTicks - offset;
+  if (seek < 0) seek = 0;
+  jumpPlaybackTick = seek;
+  return chosen;
+}
+
+bool hudTimelineHitTest(int clientX, int clientY, std::int32_t& playbackTick) {
+  playbackTick = -1;
+  std::int32_t serverTick = 0;
+  if (!tf2::native::timelineStripTickAt(g_hudTimelineStrip, static_cast<float>(clientX),
+                                        static_cast<float>(clientY), serverTick)) {
+    return false;
+  }
+  const std::int32_t offset = g_hudMatchTimeline.valid ? g_hudMatchTimeline.serverToEntryOffset : 0;
+  playbackTick = serverTick - offset;
+  if (playbackTick < 0) playbackTick = 0;
+  return true;
 }
 
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
@@ -1861,9 +1949,21 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
         timelineAvoid.placed = true;
       }
     }
+    // A3b: the row's focus, or an unfocused strip (which draws exactly what A3 did).
+    tf2::native::TimelineHudFocus timelineFocus;
+    if (g_hudTimelineFocusIndex >= 0
+        && g_hudTimelineFocusIndex < static_cast<int>(g_hudTimelineAnomalies.size())) {
+      const tf2::native::TimelineHudAnomaly& focused =
+          g_hudTimelineAnomalies[static_cast<std::size_t>(g_hudTimelineFocusIndex)];
+      timelineFocus.valid = true;
+      timelineFocus.kind = focused.kind;
+      timelineFocus.startTick = focused.startTick;
+      timelineFocus.endTick = focused.endTick;
+    }
     timelineStrip = tf2::native::composeTimelineStrip(g_hudMatchTimeline,
         timelineClientW, timelineClientH, playback.tick, timelineAvoid, 0.0f,
-        g_hudTimelineAnomalies);
+        g_hudTimelineAnomalies, timelineFocus);
+    g_hudTimelineStrip = timelineStrip;
     if (timelineStrip.visible) {
       const HudTimelineTraceState& last = g_hudTimelineTrace;
       if (last.revision != g_hudMatchTimelineRevision || last.clientW != timelineClientW
@@ -1871,7 +1971,8 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
           || last.bands != timelineStrip.bands.size()) {
         traceFmt("timeline: hud visible=1 revision=%llu client=%dx%d rounds=%zu"
           " shapes=%zu red=%zu blu=%zu unknown=%zu anomalies=%zu stalls=%zu"
-          " teleports=%zu hints=%zu x=%d y=%d w=%d h=%d",
+          " teleports=%zu hints=%zu x=%d y=%d w=%d h=%d"
+          " focus=%d cells=%zu anomalyCells=%zu hintCells=%zu cellW=%d cellsY=%d",
           static_cast<unsigned long long>(g_hudMatchTimelineRevision),
           timelineClientW, timelineClientH, timelineStrip.bands.size(),
           timelineStrip.shapes, timelineStrip.ticksRed, timelineStrip.ticksBlu,
@@ -1879,7 +1980,11 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
           timelineStrip.teleports, timelineStrip.anomalyHints,
           static_cast<int>(timelineStrip.x),
           static_cast<int>(timelineStrip.y), static_cast<int>(timelineStrip.w),
-          static_cast<int>(timelineStrip.h));
+          static_cast<int>(timelineStrip.h),
+          timelineStrip.focusValid ? 1 : 0, timelineStrip.cells,
+          timelineStrip.anomalyCells, timelineStrip.hintCells,
+          static_cast<int>(std::lround(timelineStrip.cellW)),
+          static_cast<int>(std::lround(timelineStrip.cellsY)));
         g_hudTimelineTrace.revision = g_hudMatchTimelineRevision;
         g_hudTimelineTrace.clientW = timelineClientW;
         g_hudTimelineTrace.clientH = timelineClientH;

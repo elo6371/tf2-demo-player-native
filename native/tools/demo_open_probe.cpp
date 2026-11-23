@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -33,9 +34,11 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace tf2::native {
@@ -1037,6 +1040,12 @@ int wmain(int argc, wchar_t** argv) {
   int timelineHudWidth = 1280;
   int timelineHudHeight = 720;
   tf2::native::TimelineHudAvoidRect timelineHudAvoid;
+  // A3b: --focus <index> unfolds the per-tick row around one exception (index into the
+  // composed list: the detector's blocks in order, then its hints) and --hit x,y asks what
+  // tick a client point lands on, so the click path is checked as arithmetic rather than
+  // by clicking a window.
+  int timelineHudFocus = -1;
+  std::vector<std::pair<float, float>> timelineHudHits;
   if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--timeline-hud") {
     timelineHud = true;
     matchTimeline = true;
@@ -1052,6 +1061,19 @@ int wmain(int argc, wchar_t** argv) {
         if (std::swscanf(argv[firstPath + 1], L"%dx%d", &w, &h) == 2) {
           timelineHudWidth = w;
           timelineHudHeight = h;
+        }
+        firstPath += 2;
+      } else if (option == L"--focus" && firstPath + 1 < argc) {
+        const long parsed = std::wcstol(argv[firstPath + 1], nullptr, 10);
+        timelineHudFocus = parsed < 0 ? -1 : static_cast<int>(parsed);
+        firstPath += 2;
+      } else if (option == L"--hit" && firstPath + 1 < argc) {
+        // Repeatable: one run can ask several points, so a gate does not pay for a full
+        // scan per question.
+        float hitX = 0.0f;
+        float hitY = 0.0f;
+        if (std::swscanf(argv[firstPath + 1], L"%f,%f", &hitX, &hitY) == 2) {
+          timelineHudHits.emplace_back(hitX, hitY);
         }
         firstPath += 2;
       } else if (option == L"--avoid" && firstPath + 1 < argc) {
@@ -1372,11 +1394,32 @@ int wmain(int argc, wchar_t** argv) {
           timelineAnomalies.push_back(tf2::native::TimelineHudAnomaly{
               static_cast<int>(hint.kind), hint.startTick, hint.endTick});
         }
+        tf2::native::TimelineHudFocus focus;
+        if (timelineHudFocus >= 0
+            && timelineHudFocus < static_cast<int>(timelineAnomalies.size())) {
+          const tf2::native::TimelineHudAnomaly& selected =
+              timelineAnomalies[static_cast<std::size_t>(timelineHudFocus)];
+          focus.valid = true;
+          focus.kind = selected.kind;
+          focus.startTick = selected.startTick;
+          focus.endTick = selected.endTick;
+        }
         const tf2::native::TimelineHudStrip strip = tf2::native::composeTimelineStrip(
             mtReport, timelineHudWidth, timelineHudHeight, timelineHudPlayhead, timelineHudAvoid,
-            0.0f, timelineAnomalies);
+            0.0f, timelineAnomalies, focus);
         for (const std::string& stripLine : tf2::native::formatTimelineHudLines(strip)) {
           tickAuditText += stripLine;
+          tickAuditText += '\n';
+        }
+        for (const std::pair<float, float>& hit : timelineHudHits) {
+          std::int32_t hitTick = 0;
+          const bool inside = tf2::native::timelineStripTickAt(strip, hit.first, hit.second,
+                                                               hitTick);
+          std::ostringstream hitLine;
+          hitLine << "timeline-hit inside=" << (inside ? 1 : 0) << " x=" << std::lround(hit.first)
+                  << " y=" << std::lround(hit.second)
+                  << " tick=" << (inside ? hitTick : -1);
+          tickAuditText += hitLine.str();
           tickAuditText += '\n';
         }
       }
