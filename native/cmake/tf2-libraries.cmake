@@ -42,6 +42,7 @@ add_library(tf2_core STATIC
   # task-35: anomaly tick audit (file clock/sequence + player shot pacing).
   src/demo_tick_audit.cpp
   src/demo_motion_detect.cpp
+  src/demo_match_timeline.cpp
   src/audio_timeline.cpp
   src/audio_resource.cpp
   src/vpk_archive.cpp

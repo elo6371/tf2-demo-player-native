@@ -16,6 +16,7 @@
 #include "bsp_map.h"
 #include "demo_header.h"
 #include "demo_motion_detect.h"
+#include "demo_match_timeline.h"
 #include "demo_tick_audit.h"
 #include "audio_player.h"
 #include "effects_timeline.h"
@@ -5972,6 +5973,20 @@ bool outlineVertexExtent = false;
           traceFmt("analysis: motion anomalies=%zu hints=%zu sceneResets=%zu omitted=%zu",
               motionAnalysis.anomalies.size(), motionAnalysis.hints.size(),
               motionAnalysis.sceneResets, motionAnalysis.teleportsOmitted);
+          // I6 (section 9.2): the per-round timeline the workspace draws. Built from the
+          // same pass as above and printed WITHOUT the kill rows: a long recording has
+          // hundreds of kills, and the round rows already carry their counts. The offset
+          // is what a caller needs to turn a server-tick mark into a playback position.
+          const tf2::native::MatchTimelineReport matchTimeline =
+              tf2::native::buildMatchTimeline(demoNetworkSummary, &motionReport);
+          for (const std::string& line : tf2::native::formatMatchTimelineLines(matchTimeline, false)) {
+            traceFmt("%s", line.c_str());
+          }
+          for (const tf2::native::MatchTimelineRound& round : matchTimeline.rounds) {
+            traceFmt("analysis: round index=%d kills=%zu anomalies=%zu window=%d..%d", round.index,
+                round.kills, round.stalls + round.teleports + round.sharpTurns,
+                round.startServerTick, round.endServerTick);
+          }
         }
       }
       tf2::native::buildAssetReferenceList(demoNetworkSummary, demoNetworkSummary.assetReferences);

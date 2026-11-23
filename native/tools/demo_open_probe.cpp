@@ -1,5 +1,6 @@
 #include "demo_header.h"
 #include "demo_motion_detect.h"
+#include "demo_match_timeline.h"
 #include "demo_tick_audit.h"
 #include "gameplay_effects.h"
 // task-39: rankPropertyCandidates is the entity model's own suffix matcher and
@@ -1009,6 +1010,22 @@ int wmain(int argc, wchar_t** argv) {
     motionDetect = true;
     ++firstPath;
   }
+  // I6 (2026-11-23, section 9.2): --match-timeline prints the per-round timeline the
+  // review workspace draws -- one row per round with its kill/anomaly counts, the
+  // server-to-playback offset every mark needs, and (only when asked) the kills.
+  // It builds on the motion report when one was asked for; on its own it still
+  // reports rounds and kills, with zero anomaly counts. Must follow --motion-detect
+  // like the other modes.
+  bool matchTimeline = false;
+  bool matchTimelineKills = false;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--match-timeline") {
+    matchTimeline = true;
+    ++firstPath;
+    if (firstPath < argc && std::wstring(argv[firstPath]) == L"--kills") {
+      matchTimelineKills = true;
+      ++firstPath;
+    }
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1113,10 +1130,15 @@ int wmain(int argc, wchar_t** argv) {
       summary.cameraTrackLimits.enabled = cameraTrack;
       // task-35: the capture is opt-in, so without the switch no packet row, sim
       // sample or anim event is recorded and every existing line stays identical.
-      if (tickAudit || viewModelCensus || fxCensus || motionCensus || motionDetect) summary.tickAuditCapture = &tickAuditCapture;
+      if (tickAudit || viewModelCensus || fxCensus || motionCensus || motionDetect || matchTimeline) {
+        summary.tickAuditCapture = &tickAuditCapture;
+      }
       if (viewModelCensus) tickAuditCapture.enableViewModelCensus(true);
       if (fxCensus) tickAuditCapture.enableFxCensus(true);
-      if (motionCensus || motionDetect) tickAuditCapture.enableMotionCensus(true);
+      // The timeline counts the anomalies the detector found, so asking for the timeline
+      // implies the detector's input: without the census the rate rows are empty and
+      // every count would read zero while looking authoritative.
+      if (motionCensus || motionDetect || matchTimeline) tickAuditCapture.enableMotionCensus(true);
       if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       if (tickAudit) {
@@ -1267,14 +1289,30 @@ int wmain(int argc, wchar_t** argv) {
         mcSection("turn", mcCensus.turnSamples, mcCensus.turnExcluded, mcCensus.turnLongDt, mcCensus.turnDt,
           mcCensus.turnRates, mcCensus.topTurns, {1, 5, 15, 30, 60, 90, 135}, {30.0, 60.0, 90.0, 135.0});
       }
-      if (motionDetect) {
-        // A2: the census above is the input, so this costs one pass over rows that are
-        // already resident. It never re-scans the demo, which is what keeps the startup
-        // analysis able to show the list immediately after the census finishes.
-        const tf2::native::MotionDetectReport mdReport = tf2::native::detectMotionAnomalies(
+      // A2: the census above is the input, so this costs one pass over rows that are
+      // already resident. It never re-scans the demo, which is what keeps the startup
+      // analysis able to show the list immediately after the census finishes.
+      // I6 keeps the report outside the if so the timeline below can attribute the
+      // anomalies to rounds from the same measurement instead of a second pass.
+      tf2::native::MotionDetectReport mdReport;
+      if (motionDetect || matchTimeline) {
+        mdReport = tf2::native::detectMotionAnomalies(
             tickAuditCapture.packetRows(), tickAuditCapture.motionCensus());
+      }
+      if (motionDetect) {
         for (const std::string& mdLine : tf2::native::formatMotionDetectLines(mdReport)) {
           tickAuditText += mdLine;
+          tickAuditText += '\n';
+        }
+      }
+      if (matchTimeline) {
+        // I6: the per-round timeline. It is printed without kills by default so a
+        // thousand kills do not become a thousand lines; the rounds and the header
+        // already carry the per-round kill counts.
+        const tf2::native::MatchTimelineReport mtReport =
+            tf2::native::buildMatchTimeline(summary, &mdReport);
+        for (const std::string& mtLine : tf2::native::formatMatchTimelineLines(mtReport, matchTimelineKills)) {
+          tickAuditText += mtLine;
           tickAuditText += '\n';
         }
       }
@@ -1998,21 +2036,21 @@ int wmain(int argc, wchar_t** argv) {
           std::size_t hudEntities = 0;
           std::string hudBody;
           if (hudOk) {
-            for (std::size_t index = 0; index < hudStates.size(); ++index) {
-              const tf2::native::EntityState& state = hudStates[index];
+            for (std::size_t hudIndex = 0; hudIndex < hudStates.size(); ++hudIndex) {
+              const tf2::native::EntityState& state = hudStates[hudIndex];
               if (state.classId < 0 || state.properties.empty()) continue;
               const std::string className = hudClassName(state.classId);
               if (className.empty() || !hudClassWanted(className)) continue;
               ++hudEntities;
               std::set<std::string> names;
               for (const auto& entry : state.properties) names.insert(entry.first);
-              hudBody += "hud-entity\ttick\t" + std::to_string(censusTick) + "\tindex\t" + std::to_string(index)
+              hudBody += "hud-entity\ttick\t" + std::to_string(censusTick) + "\tindex\t" + std::to_string(hudIndex)
                 + "\tclass\t" + className + "\tprops\t" + std::to_string(names.size()) + "\n";
               std::size_t printed = 0;
               for (const std::string& name : names) {
                 if (++printed > 600u) {
                   hudBody += "hud-prop\ttick\t" + std::to_string(censusTick) + "\tindex\t"
-                    + std::to_string(index) + "\ttruncated\t" + std::to_string(names.size() - 600u) + "\n";
+                    + std::to_string(hudIndex) + "\ttruncated\t" + std::to_string(names.size() - 600u) + "\n";
                   break;
                 }
                 const auto found = state.properties.find(name);
@@ -2025,7 +2063,7 @@ int wmain(int argc, wchar_t** argv) {
                 char buffer[512];
                 std::snprintf(buffer, sizeof(buffer),
                   "hud-prop\ttick\t%d\tindex\t%zu\t%s\ttype\t%d\tint\t%lld\tx\t%.4f\ty\t%.4f\tz\t%.4f\tstr\t%s\tlastWriteTick\t%d\n",
-                  static_cast<int>(censusTick), index, name.c_str(), static_cast<int>(found->second.type),
+                  static_cast<int>(censusTick), hudIndex, name.c_str(), static_cast<int>(found->second.type),
                   static_cast<long long>(found->second.intValue), static_cast<double>(found->second.x),
                   static_cast<double>(found->second.y), static_cast<double>(found->second.z),
                   text.c_str(), found->second.lastWriteTick);
