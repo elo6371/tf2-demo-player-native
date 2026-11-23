@@ -1,0 +1,11 @@
+# Sources, build definitions and the build scripts are read by tools that care
+# about the byte before the newline (bash fails on CR line endings), so they are
+# checked out with LF on every machine regardless of core.autocrlf.
+/*.sh text eol=lf
+/native/src/** text eol=lf
+/native/include/** text eol=lf
+/native/tools/** text eol=lf
+/native/cmake/** text eol=lf
+/tools/** text eol=lf
+# native/third_party/** carries a binary DLL and keeps its bytes.
+*.dll binary

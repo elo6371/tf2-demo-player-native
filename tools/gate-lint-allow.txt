@@ -1,0 +1,15 @@
+# tools/gate-lint-allow.txt -- exceptions for tools/gate-lint.sh
+# Format: RULE FILE:LINE  reason   (an entry without a reason is ignored)
+# A line number that moves makes the entry STALE-ALLOW and the lint red, on
+# purpose: re-check the exception whenever the code around it changes.
+#
+# Restores of a gate SCRIPT, not of a compiled source: nothing is built from it,
+# so its mtime does not matter.
+cp-p-restore player-model-mutations.sh:258  restores the gate script $GATE, which is interpreted, not compiled
+# Packaging copies of built binaries into fixture app directories, not restores.
+cp-p-restore webview2-loader-check.sh:220  copies the built exe into a fixture app dir; preserving its mtime is the point
+cp-p-restore webview2-loader-check.sh:221  copies the shipped loader dll into a fixture app dir
+cp-p-restore webview2-loader-check.sh:241  copies the built exe into a fixture app dir
+cp-p-restore webview2-loader-check.sh:242  copies the shipped loader dll into a fixture work dir
+cp-p-restore webview2-loader-check.sh:277  copies the previous exe into a fixture app dir
+cp-p-restore webview2-loader-check.sh:278  copies the shipped loader dll into a fixture work dir

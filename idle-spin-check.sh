@@ -52,6 +52,11 @@
 #   would make the next straight run read the defect.
 # Exit: 0 = every assertion held (or, with --mutation, went red).
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 EXE=native/build-nmake/tf2_demo_native.exe
@@ -110,8 +115,16 @@ register_source() { # register_source <path>
   return 0
 }
 restore_entry() { # restore_entry <path> <backup>
-  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
-    echo "RESTORE-OK path=$1"
+  # 2026-11-22: D-101 (outline-check.sh, 2026-11-11) applied here as well. `cp -p`
+  # put the pre-run mtime back, older than the mutated .obj, so the rebuild after
+  # a restore was a no-op and the mutant stayed linked. Restore the content, give
+  # the file a fresh mtime, and leave an already-identical file untouched.
+  if cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1 (already identical)"
+    return 0
+  fi
+  if cp "$2" "$1" && touch "$1" && cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1 (content restored, mtime refreshed)"
     return 0
   fi
   echo "RESTORE-FAIL path=$1"

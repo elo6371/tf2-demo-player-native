@@ -70,7 +70,19 @@ register_source() { # register_source <path>
   return 0
 }
 restore_entry() { # restore_entry <path> <backup>
-  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
+  # 2026-11-22 (docs/CHAIN-RED-ATTRIBUTION-2026-11-22.md section 3.1): the restore
+  # must leave the source NEWER than any object file compiled from the mutated
+  # text. nmake decides by mtime, and `cp -p` used to copy the pre-mutation mtime
+  # back -- older than the mutated .obj -- so the rebuild after a restore was a
+  # no-op and the mutated object stayed linked into every later step of the chain.
+  # Plain cp + touch is the fix. A file that already matches its backup is left
+  # alone (no copy, no touch): that is a case whose patch never applied, or a file
+  # an earlier restore already put back and touched.
+  if cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1"
+    return 0
+  fi
+  if cp "$2" "$1" && touch "$1" && cmp -s "$2" "$1"; then
     echo "RESTORE-OK path=$1"
     return 0
   fi
@@ -130,7 +142,21 @@ PROTO23="D:/TF2_Demo_Player/.scratch/tf2-demo-parser/test_data/protocol23.dem"
 # The P1 cases need a real demo whose entities carry m_nModelIndex and a TF root
 # to resolve the paths against. POV rather than SourceTV because it scans in
 # seconds instead of minutes and exercises the same create-table path.
-POV="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-07-02_13-26-46.dem"
+# 2026-11-22: the 07-02 POV (sha256 c8a58501...) is gone from every host
+# (docs/GATE-UNBLOCK-2026-11-22.md). Same replacement and the same override the
+# four registered gates use. Every POV literal below was re-measured on it; the
+# input guard after the fixed-build readings refuses to run on a missing file,
+# because a missing POV made m7/m8/m10 read "<none>" and m8a read a false RED.
+POV="${TF2_POV_DEMO:-E:/demo测试/cp_process_f12/POV/autorecord_2026-09-03_21-05-39.dem}"
+# m7's three protocol-probe pins on THIS POV, measured 2026-11-22 22:49 with
+# entity_protocol_probe.exe on the cp_process_f12 POV (fixed build): 1213 / 217 /
+# 6723 (the lost 07-02 POV read 1248 / 387 / 6720). 217 agrees with the model
+# probe's requests=217 on the same file, the same pairing the old 387/387 had.
+# A different TF2_POV_DEMO must override all three; an empty value makes m7
+# refuse as MUTATION-UNPINNED instead of comparing against another recording.
+PIN_POV_MODEL_PRECACHE="${PIN_POV_MODEL_PRECACHE-1213}"
+PIN_POV_FROM_PRECACHE="${PIN_POV_FROM_PRECACHE-217}"
+PIN_POV_SOUND_PRECACHE="${PIN_POV_SOUND_PRECACHE-6723}"
 TFROOT="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 PROBE=native/build-nmake/entity_protocol_probe.exe
 FIXPROBE=native/build-nmake/entity_message_fixture_probe.exe
@@ -176,6 +202,30 @@ restore() {
   # and leave the *mutated* program on disk for anything that runs it afterwards
   # (verify-all.sh's frame-capture step is the first such caller).
   rebuild entity_protocol_probe entity_message_fixture_probe presentation_probe entity_model_probe tf2_demo_native || true
+}
+
+# 2026-11-22: every `rebuild ... || continue` and `patch_in ... || { ...; continue; }`
+# inside a case jumps past the end-of-case restore below, so a case whose mutated
+# build failed (m10 hit C4127 under /WX) used to leave its mutation in the source
+# for every following case and leave the objects of the last successful mutated
+# build in the library. The loop now checks at the top of every case, and once
+# after the last one, whether any registered source still differs from its
+# backup, and restores (and rebuilds) before going on.
+registered_dirty() {
+  local i
+  for i in "${!RESTORE_PATHS[@]}"; do
+    cmp -s "${RESTORE_BAKS[$i]}" "${RESTORE_PATHS[$i]}" || return 0
+  done
+  return 1
+}
+restore_catchup() { # restore_catchup <where>
+  registered_dirty || return 0
+  echo "RESTORE-CATCHUP ($1): a case skipped its end-of-case restore; restoring now"
+  rc_all=1
+  if ! restore; then
+    echo "MUTATION-SUITE=FAIL (source restore failed; stopping before the next case)"
+    exit 1
+  fi
 }
 
 value() { grep -oE "$2" "$1" | head -1 | cut -d= -f2; }
@@ -270,6 +320,27 @@ must_move_j() { # must_move_j <label> <file> <json-key> <fixed-value>
   fi
 }
 
+# The JSON reading that must NOT move, compared with the fixed build's own report
+# rather than a literal, so a different TF2_POV_DEMO does not need a second pin.
+must_hold_jf() { # must_hold_jf <label> <file> <json-key> <fixed-file>
+  local label="$1" file="$2" key="$3" fixedfile="$4" got want
+  got="$(jvalue "$file" "$key")"
+  want="$(jvalue "$fixedfile" "$key")"
+  if [ -n "$want" ] && [ "$got" = "$want" ]; then
+    printf 'MUTATION-HOLD  %-56s %s (unchanged)\n' "$label" "$got"
+  else
+    printf 'MUTATION-BROKE %-56s got=%s want=%s\n' "$label" "${got:-<none>}" "${want:-<none>}"
+    rc_all=1
+  fi
+}
+
+# Every redirected gate directory is emptied before the gate runs. A gate that
+# dies early (missing input, build failure) writes nothing, and the previous run's
+# files used to be read as this run's result: m11 on 2026-11-23 printed two REDs
+# from slotfreshness-m11/*.txt dated 2026-11-21 while the gate had only written
+# "FATAL: missing input". Empty first, so a gate that wrote nothing reads <none>.
+fresh_dir() { rm -rf -- "$1"; mkdir -p -- "$1"; }
+
 # A mutation that must turn a silent wrong reading into a loud refusal. The exit
 # status is the assertion that matters: the defect this guards against exited 0
 # while printing a summary that looked entirely reasonable.
@@ -297,6 +368,23 @@ echo "proto23: malformed=$(value "$OUT/proto23.fixed.txt" 'malformed_packets=[0-
 echo "pov:     model_precache=$(value "$OUT/pov.fixed.txt" 'model_precache_entries=[0-9]+') sound_precache=$(value "$OUT/pov.fixed.txt" 'sound_precache_entries=[0-9]+') from_precache=$(value "$OUT/pov.fixed.txt" 'asset_model_path_from_precache=[0-9]+') unresolved=$(value "$OUT/pov.fixed.txt" 'asset_model_index_unresolved=[0-9]+')"
 echo "model:   requests=$(jvalue "$OUT/model.fixed.txt" requests) demoRenderable=$(jvalue "$OUT/model.fixed.txt" demoRenderable)"
 echo "fixture: $(grep -oE 'fixture_failures=[0-9]+' "$OUT/fixture.fixed.txt")"
+# 2026-11-22: INPUT GUARD. A demo the probe cannot open prints header=0 and every
+# reading is absent, so a case reads "<none>" (counted GREEN), a refusal case reads
+# RED for the wrong reason (the m8a shape), and the restored-identical check
+# compares two error lines. Refuse before any case runs.
+input_missing=0
+for f in bagel proto23 pov; do
+  if ! grep -q 'header=1' "$OUT/$f.fixed.txt"; then
+    echo "MUTATION-INPUT-MISSING $f: $(head -c 160 "$OUT/$f.fixed.txt")"; input_missing=1
+  fi
+done
+if ! grep -q '"requests":[0-9]' "$OUT/model.fixed.txt"; then
+  echo "MUTATION-INPUT-MISSING model: $(head -c 160 "$OUT/model.fixed.txt")"; input_missing=1
+fi
+if [ "$input_missing" -ne 0 ]; then
+  echo "MUTATION-SUITE=FAIL (input missing; set TF2_POV_DEMO or restore the recordings)"
+  exit 1
+fi
 echo "recording probe: $(grep -oE '"recording":[a-z]+' "$OUT/recording.fixed.txt")"
 # The fixture self-test is the sharpest witness m10 has, and until this line ran
 # nowhere in the fixed build: it had been red since the T62 axis permutation landed,
@@ -313,6 +401,7 @@ if [ "$selftest_rc" -ne 0 ] || [ "$selftest_ok" -ne 1 ] \
 fi
 
 for case_id in $CASES; do
+  restore_catchup "before $case_id"
   echo
   case "$case_id" in
     m1)
@@ -338,13 +427,14 @@ for case_id in $CASES; do
       # sites are now one line and the count is four, not five. The instancebaseline
       # walk kept its three sites, and those are the ones that carry bagel's
       # 7669-byte entry, so the readings this case asserts are unchanged.
-      echo "--- m2: restore the 1024-byte cap at all four string-table sites"
+      # 2026-11-22: three sites. The `data.read(14, userDataBytes)` walk was folded
+      # into walkStringTablePayload (demo_header_strtab.cpp:56), which create,
+      # update and dem_stringtables all call, so the first site below now caps all
+      # of them; the dead anchor made the case stop at PATTERN NOT FOUND.
+      echo "--- m2: restore the 1024-byte cap at all three string-table sites"
       patch_in "$SRC_STRTAB" \
         '        if (!table.read(14, userBytes)) return false;' \
         '        if (!table.read(14, userBytes) || userBytes > 1024u) return false;' || { rc_all=1; continue; }
-      patch_in "$SRC_STRTAB" \
-        '        if (!data.read(14, userDataBytes)) return false;' \
-        '        if (!data.read(14, userDataBytes) || userDataBytes > 1024u) return false;' || { rc_all=1; continue; }
       patch_in "$SRC_STRTAB" \
         '        if (static_cast<std::size_t>(userBytes) * 8u > bits.remaining()) return false;' \
         '        if (userBytes > 1024u) return false;' || { rc_all=1; continue; }
@@ -442,6 +532,11 @@ for case_id in $CASES; do
       # no entity's m_nModelIndex resolves to a path, and the render request list
       # empties out again.
       echo "--- m7: readCreateStringTable stops retaining modelprecache"
+      if [ -z "$PIN_POV_MODEL_PRECACHE" ] || [ -z "$PIN_POV_FROM_PRECACHE" ] || [ -z "$PIN_POV_SOUND_PRECACHE" ]; then
+        echo "MUTATION-UNPINNED m7: PIN_POV_* not set for $POV (see the pov: line above)"
+        rc_all=1
+        continue
+      fi
       patch_in "$SRC_STRTAB" \
         '  if (name == "soundprecache" || name == "modelprecache") {' \
         '  if (name == "soundprecache") {' || { rc_all=1; continue; }
@@ -449,21 +544,21 @@ for case_id in $CASES; do
       "$PROBE" "$POV" > "$OUT/pov.m7.txt" 2>&1
       "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.m7.txt" 2>&1
       must_move "m7 modelprecache dropped -> model_precache_entries" "$OUT/pov.m7.txt" \
-        'model_precache_entries=[0-9]+' '1248'
+        'model_precache_entries=[0-9]+' "$PIN_POV_MODEL_PRECACHE"
       must_move "m7 modelprecache dropped -> asset_model_path_from_precache" "$OUT/pov.m7.txt" \
-        'asset_model_path_from_precache=[0-9]+' '387'
+        'asset_model_path_from_precache=[0-9]+' "$PIN_POV_FROM_PRECACHE"
       # This is the counter whose whole purpose is to be zero on a healthy demo.
       # With the table gone every in-range index becomes an in-range miss, so
       # this reading is what actually says "the table was doing the work".
       must_move "m7 modelprecache dropped -> asset_model_index_unresolved" "$OUT/pov.m7.txt" \
         'asset_model_index_unresolved=[0-9]+' '0'
       must_move_j "m7 modelprecache dropped -> entity_model_probe requests" "$OUT/model.m7.txt" \
-        requests '387'
+        requests '217'
       # sound_precache_entries must NOT move. P0's acceptance depends on that
       # table decoding identically, and a mutation that moved it would mean the
       # shared entry walk did not preserve the old behaviour.
       must_hold "m7 modelprecache dropped -> sound_precache_entries stays" "$OUT/pov.m7.txt" \
-        'sound_precache_entries=[0-9]+' '6720'
+        'sound_precache_entries=[0-9]+' "$PIN_POV_SOUND_PRECACHE"
       ;;
     m8)
       # Two builds, because the assertion is the difference between them.
@@ -483,10 +578,11 @@ for case_id in $CASES; do
         'network protocol not set'
       # Second: remove the guard as well, which is the shape the defect actually
       # shipped in. The same missing assignment now exits 0 and prints a summary
-      # that looks entirely reasonable -- 673 references and zero render
-      # requests. That silence is why the P1 gap was hard to see in the first
-      # place, and reproducing it is what makes the guard's value measurable
-      # rather than asserted.
+      # that looks entirely reasonable -- the reference count is untouched (436 on
+      # the cp_process POV, 673 on the lost 07-02 one) while render requests read
+      # zero. That silence is why the P1 gap was hard to see in the first place,
+      # and reproducing it is what makes the guard's value measurable rather than
+      # asserted.
       echo "--- m8b: ... and the guard is removed too (the defect's real shape)"
       patch_in "$SRC" \
         '  if (networkProtocol <= 0) return false;
@@ -494,8 +590,17 @@ for case_id in $CASES; do
       rebuild entity_model_probe || continue
       "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.m8b.txt" 2>&1
       m8brc=$?
-      must_move_j "m8b guard gone -> requests collapse" "$OUT/model.m8b.txt" requests '387'
-      must_move_j "m8b guard gone -> assetRefs differ too" "$OUT/model.m8b.txt" assetRefs '675'
+      must_move_j "m8b guard gone -> requests collapse" "$OUT/model.m8b.txt" requests '217'
+      # 2026-11-23: this asserted that assetRefs moves. It does not, and should not:
+      # references come from the precache walk, which the guard never gated (fixed
+      # 436, m8b 436). The reading that moves with requests is demoRenderable
+      # (71 -> 0) -- the references that reach the renderer. And the unchanged
+      # reference count is the defect's disguise, so it is pinned as a HOLD
+      # against the fixed build's own report rather than dropped.
+      must_move_j "m8b guard gone -> demoRenderable collapses" "$OUT/model.m8b.txt" demoRenderable \
+        "$(jvalue "$OUT/model.fixed.txt" demoRenderable)"
+      must_hold_jf "m8b guard gone -> assetRefs look normal (the disguise)" "$OUT/model.m8b.txt" \
+        assetRefs "$OUT/model.fixed.txt"
       if [ "$m8brc" -eq 0 ]; then
         printf 'MUTATION-RED   %-56s exit=0 while reporting a wrong summary\n' \
           "m8b guard gone -> the wrong reading exits 0"
@@ -576,6 +681,7 @@ for case_id in $CASES; do
       # redirected so a red run cannot overwrite the fixed-build evidence. The
       # exit status plus the verdict line is the assertion: the gate must catch
       # the policy, not merely the fixture.
+      fresh_dir "$OUT/historycoverage-m9"
       HISTORY_COVERAGE_OUT="$OUT/historycoverage-m9" bash history-coverage-check.sh \
         > "$OUT/gate.m9.txt" 2>&1
       m9rc=$?
@@ -590,14 +696,17 @@ for case_id in $CASES; do
       # first-person arms composite. The wrong path still resolves to a real
       # asset, so every counter the old acceptance chain measured stays green;
       # the readings that move are the ones this round added, and the gate that
-      # has to catch it is the one this round wrote. `false &&` rather than
-      # deleting the block: the defect being reproduced is "the route was never
-      # there", and an unreachable block leaves the same runtime shape while
-      # keeping the compilers quiet about everything around it.
+      # has to catch it is the one this round wrote. An always-false condition
+      # rather than deleting the block: the defect being reproduced is "the route
+      # was never there", and an unreachable block leaves the same runtime shape.
+      # 2026-11-22: not `false &&` -- tf2_core builds with /W4 /WX and MSVC
+      # reports `false && x` as C4127 (conditional expression is constant), so
+      # the mutated build failed with C2220 and the case was counted BROKE.
+      # `!x && x` is always false but not a constant expression.
       echo "--- m10: world-model route unreachable again (weapons name their arms)"
       patch_in "$SRC_STRTAB" \
         '    if (reference.hasWorldModelIndex) {
-' '    if (false && reference.hasWorldModelIndex) {
+' '    if (!reference.hasWorldModelIndex && reference.hasWorldModelIndex) {
 ' || { rc_all=1; continue; }
       rebuild entity_protocol_probe entity_model_probe || continue
       # The fixture is the sharpest witness: its whole branch table is pinned, so
@@ -619,18 +728,26 @@ for case_id in $CASES; do
       # "read it and ignored it" (the defect's actual shape).
       "$PROBE" "$POV" > "$OUT/pov.m10.txt" 2>&1
       must_move "m10 world route gone -> protocol probe fromWorld" "$OUT/pov.m10.txt" \
-        'asset_model_path_from_world_model=[0-9]+' '69'
+        'asset_model_path_from_world_model=[0-9]+' '21'
       must_move "m10 world route gone -> protocol probe known" "$OUT/pov.m10.txt" \
-        'asset_world_model_index_known=[0-9]+' '71'
-      must_move "m10 world route gone -> view/model compare dies with the block" \
-        "$OUT/pov.m10.txt" 'asset_weapon_view_model_zero=[0-9]+' '2'
+        'asset_world_model_index_known=[0-9]+' '21'
+      # 2026-11-22: BLOCKED-INPUT. On the lost POV this read 2 and the mutation took
+      # it to 0. The cp_process POV reads 0 on the fixed build (GATE-UNBLOCK 3.1:
+      # 21/21/0), so there is nothing for the mutation to move. Kept red rather
+      # than deleted or flipped to must_hold -- either would turn "this recording
+      # cannot witness it" into a pass.
+      printf 'MUTATION-BLOCKED-INPUT %-48s fixed=%s on this POV, nothing to move\n' \
+        "m10 view/model compare dies with the block" \
+        "$(value "$OUT/pov.fixed.txt" 'asset_weapon_view_model_zero=[0-9]+')"
+      rc_all=1
       "$MODELPROBE" --tf-root "$TFROOT" --demo "$POV" > "$OUT/model.m10.txt" 2>&1
       must_move_j "m10 world route gone -> requests leave the world route" \
-        "$OUT/model.m10.txt" worldModelRequests '69'
+        "$OUT/model.m10.txt" worldModelRequests '21'
       must_move_j "m10 world route gone -> weapons name their arms" \
         "$OUT/model.m10.txt" armsWeaponRefs '0'
       # The gate, end to end, with its output redirected so a red run cannot
       # overwrite the fixed-build evidence in evidence/weapon-world-model/.
+      fresh_dir "$OUT/weaponworldmodel-m10"
       WEAPON_WORLD_MODEL_OUT="$OUT/weaponworldmodel-m10" bash weapon-world-model-check.sh \
         > "$OUT/gate.m10.txt" 2>&1
       m10rc=$?
@@ -652,22 +769,59 @@ for case_id in $CASES; do
       echo "--- m11: freshness ignored again (the stale slot wins on rank)"
       patch_in "$MODELSRC" \
         '  if (lastWriteTick != bestTick) return lastWriteTick > bestTick;
-' '  // mutation: the freshness term is removed, rank decides alone
+' '  // mutation: the freshness term is removed, rank decides alone. The casts
+  // keep /W4 /WX building: an unused parameter is C4100 -> C2220, which made
+  // this case BUILD-FAIL instead of a mutation (2026-11-22).
+  (void)lastWriteTick;
+  (void)bestTick;
 ' || { rc_all=1; continue; }
       rebuild entity_model_probe || continue
+      fresh_dir "$OUT/slotfreshness-m11"
       SLOT_FRESHNESS_OUT="$OUT/slotfreshness-m11" bash slot-freshness-check.sh \
         > "$OUT/gate.m11.txt" 2>&1
       m11rc=$?
       must_refuse "m11 freshness ignored -> gate refuses" "$OUT/gate.m11.txt" \
         'SLOT-FRESHNESS=FAIL' "$m11rc"
-      # The reading that has to move is the one that names the defect: on all three
-      # POV queries the pick is a non-freshest slot again, and it is the Local slot
-      # frozen at 51596 that comes back.
-      must_move "m11 freshness ignored -> POV chosenStale" \
-        "$OUT/slotfreshness-m11/pov.txt" 'chosenStale=[0-9]+' '0'
-      must_appear "m11 freshness ignored -> the frozen Local slot is chosen again" \
-        "$OUT/slotfreshness-m11/pov.txt" \
-        'rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin'
+      # 2026-11-23: the fixture is the witness that needs no recording. Its one
+      # shape that only freshness can answer (Local older, NonLocal newer) is taken
+      # by rank again. The counters cannot show it: runSelfTest returns false at
+      # the per-shape `pick.name != *shape.expected` check, BEFORE the
+      # slot-freshness-fixture line is printed (that is why the 11-21 m11 run left
+      # a 0-byte fixture-line.txt). So the witness is the refusal plus where it
+      # happened: the self-test exits 1, the fixture printed just before it
+      # (observer-focus) is still there, and the slot-freshness line is not.
+      "$MODELPROBE" --self-test > "$OUT/model.m11-selftest.json" 2> "$OUT/model.m11-selftest.txt"
+      m11src=$?
+      must_refuse "m11 freshness ignored -> fixture self-test refuses" \
+        "$OUT/model.m11-selftest.json" '"error":"self-test failed"' "$m11src"
+      must_appear "m11 freshness ignored -> fixtures before it still pass" \
+        "$OUT/model.m11-selftest.txt" 'observer-focus-fixture cases='
+      if grep -q '^slot-freshness-fixture' "$OUT/model.m11-selftest.txt"; then
+        printf 'MUTATION-GREEN %-56s %s\n' \
+          "m11 freshness ignored -> the refusal is in the slot fixture" \
+          "slot-freshness-fixture printed, so it did not refuse there"
+        rc_all=1
+      else
+        printf 'MUTATION-RED   %-56s %s\n' \
+          "m11 freshness ignored -> the refusal is in the slot fixture" \
+          "no slot-freshness-fixture line (refused at the shape check)"
+      fi
+      # The reading that names the defect on a real demo: on all three POV queries
+      # the pick is a non-freshest slot again, and it is the Local slot frozen at
+      # 51596 that comes back. Only the lost 07-02 POV carries that shape; while it
+      # is missing the gate says BLOCKED-INPUT and these two stay red here, the
+      # same rule m10 follows -- "this recording cannot witness it" is not a pass.
+      if grep -q '^SLOT-FRESHNESS-POV=BLOCKED-INPUT' "$OUT/gate.m11.txt"; then
+        printf 'MUTATION-BLOCKED-INPUT %-48s %s\n' "m11 POV frozen-slot pick" \
+          "$(sed -n 's/^SLOT-FRESHNESS-POV=BLOCKED-INPUT //p' "$OUT/gate.m11.txt" | head -1)"
+        rc_all=1
+      else
+        must_move "m11 freshness ignored -> POV chosenStale" \
+          "$OUT/slotfreshness-m11/pov.txt" 'chosenStale=[0-9]+' '0'
+        must_appear "m11 freshness ignored -> the frozen Local slot is chosen again" \
+          "$OUT/slotfreshness-m11/pov.txt" \
+          'rank=0 (chosen) name=DT_TFLocalPlayerExclusive.m_vecOrigin'
+      fi
       # Bagel must NOT move: there the rank rule already picks the fresh slot, so a
       # mutation that moved bagel as well would mean the gate is not reading the two
       # demos independently -- and "always prefer NonLocal" would pass it.
@@ -684,9 +838,12 @@ for case_id in $CASES; do
       # instead of one call per model -- so the anchor this case was written
       # against stopped existing and the full chain's step 8 read "PATTERN NOT
       # FOUND" instead of a mutation. The anchor below is the current call in
-      # native/src/main.cpp; hiding it behind a constant false keeps the upload
-      # from happening while leaving the call's arguments, and therefore the
-      # resolution above it, in the binary.
+      # native/src/main.cpp; hiding it behind an always-false condition keeps the
+      # upload from happening while leaving the call's arguments, and therefore
+      # the resolution above it, in the binary.
+      # 2026-11-22: `s.empty() && !s.empty()` rather than `false &&`. main.cpp is
+      # tf2_demo_native, a /WX target, where `false && ...` is C4127 -> C2220 and
+      # the case would be BROKE (same defect as m10).
       #
       # The synthetic half of the gate must NOT move (19 of medic's 21 slots still
       # resolve), because a red there would mean the mutation moved the wrong
@@ -695,9 +852,10 @@ for case_id in $CASES; do
       patch_in "$MAINSRC" \
         '        if (renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
 ' '        // mutation: the resolved texture never reaches the draw
-        if (false && renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
+        if (prepared.cacheKey.empty() && !prepared.cacheKey.empty() && renderer.uploadEntityModelTexture(prepared.cacheKey, painted.materialSlot, painted.skinFamily,
 ' || { rc_all=1; continue; }
       rebuild tf2_demo_native || continue
+      fresh_dir "$OUT/entitymaterial-m12"
       ENTITY_MATERIAL_OUT="$OUT/entitymaterial-m12" bash entity-material-check.sh \
         > "$OUT/gate.m12.txt" 2>&1
       m12rc=$?
@@ -731,9 +889,10 @@ for case_id in $CASES; do
       patch_in "$MODELTOOL" \
         '      if (leaf == "m_nSequence") ++sequence;
 ' '      // mutation: the sweep never matches, so every count reads zero
-      if (false && leaf == "m_nSequence") ++sequence;
+      if (leaf.empty() && !leaf.empty() && leaf == "m_nSequence") ++sequence;
 ' || { rc_all=1; continue; }
       rebuild entity_model_probe || continue
+      fresh_dir "$OUT/animavail-m13"
       ANIM_AVAILABILITY_OUT="$OUT/animavail-m13" bash animation-availability-check.sh \
         > "$OUT/gate.m13.txt" 2>&1
       m13rc=$?
@@ -793,6 +952,7 @@ for case_id in $CASES; do
       # --world-only runs the named world-model section alone: one product launch,
       # one demo load, no pixel fixture to re-pin. Its output is a whole gate
       # report, so it is redirected into the mutation evidence directory.
+      fresh_dir "$OUT/outline-m14"
       OUTLINE_OUT="$OUT/outline-m14" bash outline-check.sh --world-only \
         > "$OUT/gate.m14.txt" 2>&1
       m14rc=$?
@@ -841,6 +1001,7 @@ for case_id in $CASES; do
     exit 1
   fi
 done
+restore_catchup "after the last case"
 
 echo
 echo "=== restored tree: readings must be identical to the fixed build ==="

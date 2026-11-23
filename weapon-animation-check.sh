@@ -123,6 +123,11 @@
 # times against the same frame and trace paths, so two concurrent runs overwrite
 # each other's evidence; killing the wrapper is not enough, because the
 # `timeout`+`tf2_demo_native` grandchildren survive it.
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -367,7 +372,19 @@ register_source() { # register_source <path>
   return 0
 }
 restore_entry() { # restore_entry <path> <backup>
-  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
+  # 2026-11-22 (docs/CHAIN-RED-ATTRIBUTION-2026-11-22.md section 3.1): the restore
+  # must leave the source NEWER than any object file compiled from the mutated
+  # text. nmake decides by mtime, and `cp -p` used to copy the pre-mutation mtime
+  # back -- older than the mutated .obj -- so the rebuild after a restore was a
+  # no-op and the mutated object stayed linked into every later step of the chain.
+  # Plain cp + touch is the fix. A file that already matches its backup is left
+  # alone (no copy, no touch): that is a case whose patch never applied, or a file
+  # an earlier restore already put back and touched.
+  if cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1"
+    return 0
+  fi
+  if cp "$2" "$1" && touch "$1" && cmp -s "$2" "$1"; then
     echo "RESTORE-OK path=$1"
     return 0
   fi
@@ -773,7 +790,28 @@ for tick in "${TICKS[@]}"; do
   echo "tick=$tick rc=$rc bmp=$size"
   assert_eq "capture rc at tick $tick" "$rc" "0"
   line=$(grep "scene: anim " "$TRACE" 2>/dev/null | tail -1)
-  witness=$(grep "scene: animwitness" "$TRACE" 2>/dev/null | tail -1)
+  # 2026-11-22: the witness is the last `animwitness` line whose any= clip has
+  # more than one frame, not simply the last line. On the snakewater demo the
+  # final line is a one-frame clip (scout.mdl seq=212 frame=0/1), whose cursor
+  # can never advance, so section 2's "witness frame advances" could not hold
+  # while the same trace carried 1669 multi-frame witnesses. Choosing by clip
+  # length (the denominator) rather than by the cursor value keeps the assertion
+  # honest: a witness whose cursor stays at 0 is still picked and still goes red.
+  # Pure bash, so no per-line fork and no WinuxCmd shim on the hot path. Falls
+  # back to the last line when no multi-frame witness exists at all.
+  witness=""
+  witness_last=""
+  while IFS= read -r wline; do
+    wline=${wline%$'\r'}
+    [ -n "$wline" ] || continue
+    witness_last=$wline
+    wany=${wline#*animwitness any=}
+    wany=${wany%% target=*}
+    if [[ " $wany" =~ \ frame=[0-9]+/([0-9]+) ]] && [ "${BASH_REMATCH[1]}" -gt 1 ]; then
+      witness=$wline
+    fi
+  done <<< "$(grep "scene: animwitness" "$TRACE" 2>/dev/null)"
+  [ -n "$witness" ] || witness=$witness_last
   ANIM_LINES+=("$line")
   echo "  $line"
   echo "  $witness"

@@ -93,6 +93,11 @@
 # Usage: bash class-pixels-check.sh
 # Exit:  0 = PASS, 1 = FAIL, 2 = a required input is missing (FATAL).
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 OUT=${T62_CLASS_OUT:-evidence/t62-matrix/class-pixels}
@@ -337,8 +342,12 @@ while read -r CLASS ENT TICK ORIGIN_X ORIGIN_Y ORIGIN_Z; do
     # ambiguous: on 2026-11-06 the same demo split on maxDeltaCycle while both
     # censuses carried 96 entity lines, so a census diff alone cannot be the
     # discriminator -- which is why the branch above runs first.
-    census_diff=$(diff <(grep -a 'entity: id=' "$dir/identity.summary" | cut -d' ' -f2-) \
-                       <(grep -a 'entity: id=' "$dir/identity-2.summary" | cut -d' ' -f2-) | head -6)
+    # 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): no process substitution handed to an
+    # external tool -- diff/comm/paste here resolve to the WinuxCmd shim, which cannot
+    # open /dev/fd/N (this MSYS has no /dev/fd). Both sides go through real files.
+    grep -a 'entity: id=' "$dir/identity.summary" | cut -d' ' -f2- > "$ISO_DIR/census-identity.txt"
+    grep -a 'entity: id=' "$dir/identity-2.summary" | cut -d' ' -f2- > "$ISO_DIR/census-identity-2.txt"
+    census_diff=$(diff "$ISO_DIR/census-identity.txt" "$ISO_DIR/census-identity-2.txt" | head -6)
     if [ -n "$census_diff" ]; then
       say_fail "${CLASS}: the two identity captures do not show the same SCENE (identity=$ID_SHA identity-2=$ID2_SHA); the entity census differs, so this is not a rendering difference:"
       printf '%s\n' "$census_diff" | sed 's/^/    /'

@@ -370,9 +370,12 @@ tail -6 "$OUT/1-build.txt"
 # This pin is edited in the release round on purpose: it is the number that says
 # the build produced every target, and it must move with the target list or it
 # starts agreeing with a truncated build.
+# 2026-11-22: 53 -> 55. The build produced 55 executables and native/cmake/
+# declares 55 add_executable() targets; the pin had not moved with the list.
+# The anchors also accept a trailing CR (see step 3).
 if grep -q 'cmake_build_rc=0' "$OUT/1-build.txt" \
-   && grep -q '^errors=0$' "$OUT/1-build.txt" \
-   && grep -q '^exe_count=53$' "$OUT/1-build.txt"; then
+   && grep -qE $'^errors=0\r?$' "$OUT/1-build.txt" \
+   && grep -qE $'^exe_count=55\r?$' "$OUT/1-build.txt"; then
   echo "BUILD=PASS"
 else
   echo "BUILD=FAIL"; rc_all=1
@@ -400,7 +403,10 @@ tail -1 "$OUT/3-fixture.txt"
 # fixture_failures=0 alone would also hold if the probe ran nothing, so the pass
 # count is asserted too. 58 is the current fixture count; adding one is a
 # deliberate edit here.
-if grep -q '^fixture_failures=0$' "$OUT/3-fixture.txt" && [ "$FIXTURES" -eq 58 ]; then
+# 2026-11-22: the fixture probe writes CRLF (Windows text-mode stdout), so a bare
+# `$` anchor never matched and this step was red while the probe said 0 failures.
+# The pattern accepts an optional CR; no pipe through the WinuxCmd tr shim.
+if grep -qE $'^fixture_failures=0\r?$' "$OUT/3-fixture.txt" && [ "$FIXTURES" -eq 58 ]; then
   echo "FIXTURE=PASS ($FIXTURES/58)"
 else
   echo "FIXTURE=FAIL"; rc_all=1
@@ -1339,10 +1345,23 @@ ANIM_PIXEL_OK=$(grep -c '^  OK ' "$OUT/26-animation-pixels.txt" || true)
 # quantity one level below the thing being judged. Step 25 had the same shape
 # and did NOT happen to work: it grepped a token the gate never printed at all
 # (see the note there). Both gates now print `NAME=PASS` and both steps grep it.
-if [ "$ANIM_PIXEL_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-PIXELS=PASS' "$OUT/26-animation-pixels.txt" && [ "$ANIM_PIXEL_OK" = "28" ]; then
-  echo "PLAYER-ANIMATION-PIXELS=PASS (28 assertions)"
+#
+# 2026-11-22: 28 -> 29. Since 8fea2539 (2026-11-12) the entity pass also draws
+# the map's static props (bsp-static), so the coverage mask grew from 3156 px to
+# ~300k px of mostly still scenery and diluted the animation share (66.59% on
+# the 7844 identity-coloured body pixels, 1.83% over the whole mask). The PASS
+# pinned here (4a8aaff7, 2026-11-09) predates that change and was never re-run.
+# base 390a7c76 and head 6bf2a4b3 give byte-identical coverage frames at tick
+# 64161, so this is not a branch regression. t61-pixels.py --identity now reads
+# the pose on the identity-coloured pixels only and adds one assertion: the
+# excluded scenery must stay still (<= 1.0%) when animation is switched off.
+# That added `OK   scenery is still` line is the +1. The total is computed from
+# the 28 of the last full PASS; re-measure it on the next full gate run and
+# correct this pin if the gate's own line count moved for another reason.
+if [ "$ANIM_PIXEL_RC" -eq 0 ] && grep -q 'PLAYER-ANIMATION-PIXELS=PASS' "$OUT/26-animation-pixels.txt" && [ "$ANIM_PIXEL_OK" = "29" ]; then
+  echo "PLAYER-ANIMATION-PIXELS=PASS (29 assertions)"
 else
-  echo "PLAYER-ANIMATION-PIXELS=FAIL (rc=$ANIM_PIXEL_RC ok=$ANIM_PIXEL_OK expected 28)"; rc_all=1
+  echo "PLAYER-ANIMATION-PIXELS=FAIL (rc=$ANIM_PIXEL_RC ok=$ANIM_PIXEL_OK expected 29)"; rc_all=1
 fi
 
 step "27/30 SourceTV relay camera (the death handover runs on the wall clock, and the corpse leaves the set)"

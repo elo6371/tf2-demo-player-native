@@ -9,7 +9,7 @@
 
 **不是**：不是引擎，不跑服务器，不承诺与 Source 像素级一致。导出（MF 选项 C）尚未开工，CI 只有 tier 1。
 
-仓库：git@github.com:elo6371/tf2-demo-player-native.git（公开但**未授予任何许可证**；公开 main 是 work/integrate 的快照，evidence/ 因为一个 GB 的截图没有推）。
+仓库：git@github.com:elo6371/tf2-demo-player-native.git（2026-11-22 起 **GPL-3.0-only**，见根目录 `LICENSE` 与 `THIRD-PARTY-NOTICES.md`；公开 main 是 work/integrate 的快照，evidence/ 因为一个 GB 的截图没有推）。
 
 ## 2. 已实现（能跑、有门禁、有证据）
 
@@ -57,7 +57,7 @@
 
 ### 3.2 做了但不完整
 
-- **武器本体锚点**：现在用 AABB 中心，应为 weapon_bone（native/src/native_renderer_viewmodel.cpp:832-833，而非 :536-538 + :578-579）。
+- **武器本体锚点**（2026-11-22 复核，本条原文已过时）：AABB 中心定位**已经不用了**。现行默认 `--viewmodel-weapon-attach attachment` 把武器自身锚点对到手臂握把（`native_renderer_viewmodel.cpp:886-910`）；`bone` 模式（手臂 `weapon_bone` 世界帧）也已实现（`:911-931`），只是没设为默认（`main.cpp:3457`）。`viewModelWeaponMeshCenter_` 只剩裁剪空间读数在用（`:973`）。剩下的事是**同 tick 跑一组 attachment/bone A/B，比 `gripToHand` 与像素，再决定是否改默认**；改默认会动所有第一人称门禁的像素引脚。
 - **玩家动画**：只有 kIdleNeedles/kMovingNeedles 两个序列（native/src/main.cpp:481-505），没有 9/12 路混合、没有 aimmatrix、没有 LOD1+。
 - **3D 天空盒**：实现但默认关闭，且**没有人签收**（N10 需要第二个正样本、同机位 origin/scale、主世界遮挡、2D/3D 叠放顺序、sky-cluster 负控）。
 - **小地图**：只有七张表内地图有底图和比例，其它地图报 bounds-not-tabulated（例如 cp_snakewater）。

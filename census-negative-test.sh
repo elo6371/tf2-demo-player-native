@@ -113,7 +113,13 @@ else
 fi
 # Informational: with a pinned list this is expected to be 0 -- the reports
 # directory starts clean and only the pinned 24 are copied in.
-EXTRA=$(cd "$NEG/reports" && ls *.txt | sort | comm -13 <(printf '%s\n' "${SAMPLED[@]}") - | wc -l)
+# 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): no process substitution handed to an
+# external tool -- diff/comm/paste here resolve to the WinuxCmd shim, which cannot
+# open /dev/fd/N (this MSYS has no /dev/fd). Both sides go through real files.
+SAMPLED_LIST=$(mktemp)
+printf '%s\n' "${SAMPLED[@]}" > "$SAMPLED_LIST"
+EXTRA=$(cd "$NEG/reports" && ls *.txt | sort | comm -13 "$SAMPLED_LIST" - | wc -l)
+rm -f "$SAMPLED_LIST"
 echo "  extra_reports=$EXTRA (pinned list: expected 0)"
 
 VICTIM=$(ls "$NEG"/reports/autorecord_*.txt | head -1)

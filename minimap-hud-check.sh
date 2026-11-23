@@ -114,6 +114,11 @@
 # printed; it never silently counts as a pass.
 # =============================================================================
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")" || exit 2
 export LC_ALL=C
 
@@ -128,7 +133,18 @@ DEMO="D:/TF2_Demo_Player/testdata/demos/a9630c6557468b24f0b8c2e7dab38ed8_match-2
 # The canonical home of this recording is the user's TF install. The environment
 # variable overrides only where the bytes are read from; the default is unchanged
 # (lead ruling 2026-11-16). No assertion, camera, threshold or section list below changed.
-DEMO_SUNSHINE="${MINIMAP_CHECK_DEMO_SUNSHINE:-$TF/demos/SUNSHINE.dem}"
+# 2026-11-23: SUNSHINE.dem is no longer in the install's demos/ (step 6e of the
+# 11-22 run read "FATAL: missing input"); the same recording lives under
+# E:/demo测试/cp_sunshine/STV/, which is what run-e1-round5-matrix.sh already
+# passes. The override still wins; without one the first copy that exists is used,
+# and identity.txt records which.
+if [ -n "${MINIMAP_CHECK_DEMO_SUNSHINE:-}" ]; then
+  DEMO_SUNSHINE="$MINIMAP_CHECK_DEMO_SUNSHINE"
+elif [ -f "$TF/demos/SUNSHINE.dem" ]; then
+  DEMO_SUNSHINE="$TF/demos/SUNSHINE.dem"
+else
+  DEMO_SUNSHINE="E:/demo测试/cp_sunshine/STV/SUNSHINE.dem"
+fi
 # koth_bagel_rc13 is NOT koth_bagel_rc11: it is a different BSP, its bounds were
 # never measured, and that is A11's whole point.
 DEMO_UNLISTED="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
@@ -136,6 +152,18 @@ DEMO_UNLISTED="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b1
 # nearest cap, so a ring and the viewer dot cannot be confused for one another, and
 # the three arrow dots ahead land on background.
 CAMERA_ARGS="--debug-camera 0 -2048 512 0 33"
+# 2026-11-23: every run pins the outer window. Unpinned, the 11-22 13:09 run got
+# on.bmp at 1264x681 and offbase.bmp at 2560x1417 from the same exe and argv
+# (offbase.trace: "window: created ... client=1264x681 pinned=0", then
+# "capture: frame width=2560 height=1417" -- the hidden window was resized to the
+# monitor's work area between the two lines), so A2/A3/A4 compared two
+# differently sized frames and read "the pixel analyser failed". Ten minutes later
+# the same binary passed. 1280x720 is the size every pixel expectation below was
+# measured at (W-172 = 1092, 25600, 1264x681), pinned here explicitly so the gate
+# no longer depends on whatever the product's default window size is (that is a
+# product decision and may change). Section A0 checks each capture actually came
+# out at the created size.
+WINDOW_ARGS="--window-size 1280x720"
 # The same comma-separated numbers the analyser is handed, so a change to the camera
 # is one edit and the product and the pixel half cannot drift apart.
 EYE_X=0.0
@@ -574,16 +602,42 @@ run_capture() { # run_capture <name> [extra args...]
   [ -n "${ALT_EXE:-}" ] && exe="$ALT_EXE"
   local cam="$CAMERA_ARGS"
   [ -n "${ALT_CAMERA:-}" ] && cam="$ALT_CAMERA"
+  # The pre-patch exe (A10) may predate --window-size and would refuse it (exit 13),
+  # so only the binary under test gets the pin.
+  local win="$WINDOW_ARGS"
+  [ -n "${ALT_EXE:-}" ] && win=""
   TF2_NATIVE_TRACE="$(cygpath -m "$trace")" timeout "$RUN_TIMEOUT" "$exe" \
     --tf-root "$TF" --audio-device "$AUDIO_DEVICE" --audio-disabled --hidden-window \
     --settings-file "$(cygpath -m "$settings")" \
     --ui-settings-file "$(cygpath -m "$uisettings")" \
     --demo "$demo" --capture-frame "$(cygpath -m "$bmp")" \
     --metrics-file "$(cygpath -m "$csv")" \
-    $live $mini $cam "$@" > "$log" 2>&1
+    $win $live $mini $cam "$@" > "$log" 2>&1
   printf -v "RC_$name" '%s' "$?"
   local rcvar="RC_$name"
   echo "RUN $name rc=${!rcvar} trace=$trace bmp=$bmp"
+}
+
+# ---- A0: every frame came out at the size it was created at ----------------
+# The pixel sections compare bitmaps across runs, so a frame that changed size
+# between window creation and capture makes them all fail with one opaque line.
+# This names the run and both sizes instead. Created and captured client sizes
+# are both the product's own readings; nothing here assumes a DPI.
+section_a0() {
+  echo "== A0  every capture is the size its window was created at"
+  local name trace created captured pinned first=""
+  for name in on offbase sunshine yawback unlisted unlisted_off; do
+    trace="$SCRATCH/$name.trace"
+    [ -f "$trace" ] || continue
+    created="$(trace_tail "$trace" "window: created " | sed -n 's/.* client=\([0-9]*x[0-9]*\).*/\1/p')"
+    pinned="$(trace_tail "$trace" "window: created " | sed -n 's/.* pinned=\([0-9]*\).*/\1/p')"
+    captured="$(capture_dims "$trace")"
+    assert_eq "$name: the window size was pinned" "$pinned" 1
+    assert_eq "$name: captured at the created client size" "$captured" "$(val "$created")"
+    if [ -z "$first" ]; then first="$captured"; else
+      assert_eq "$name: same frame size as the first run" "$captured" "$(val "$first")"
+    fi
+  done
 }
 
 # ---- A1: the switch exists and the panel publishes itself ------------------
@@ -1102,6 +1156,7 @@ echo "  out=$OUT"
   echo "demo_secondary=$DEMO_SUNSHINE"
   echo "demo_unlisted=$DEMO_UNLISTED"
   echo "camera_args=$CAMERA_ARGS"
+  echo "window_args=$WINDOW_ARGS"
   echo "camera_args_turned=--debug-camera 0 -2048 512 0 213"
   echo "yaw=$YAW yaw_back=$YAW_BACK"
   echo "sections=$SECTIONS"
@@ -1140,6 +1195,7 @@ if want 11; then
 fi
 
 echo
+section_a0
 section_a1
 section_a2
 section_a3

@@ -59,6 +59,11 @@
 #                                           [--mutation] [--reuse]
 # Exit: 0 = every assertion held; 1 = an assertion failed; 2 = an input is missing.
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 PYTHON_DEFAULT=C:/Users/Administrator/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe

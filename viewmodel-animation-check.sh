@@ -78,6 +78,11 @@
 # `tf2_demo_native` survive as grandchildren -- so a stale lock is cleared
 # deliberately rather than silently overlapped.
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 # ---------------------------------------------------------------------------
@@ -246,6 +251,11 @@ for path in "$EXE" "$PROBE" "$INPUTS" "$TF"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
 done
 
+# 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): mutations below use an always-false
+# condition of the form `!(E) && (E)` instead of `false && E`. Since N23
+# (2026-11-18) tf2_core and tf2_demo_native compile with /W4 /WX, and MSVC reports
+# `false && E` as C4127 -> C2220, so the mutated build failed and the case proved
+# nothing. `!(E) && (E)` is false at run time but not a constant expression.
 # ---------------------------------------------------------------------------
 # --mutation: reintroduce the defect the proof exists to catch
 # ---------------------------------------------------------------------------
@@ -301,12 +311,12 @@ patches = [
    "  if (!entityModelMatches) {",
    "  // MUTATION: the companion proof never fires, so the pass may draw a model\n"
    "  // the entity did not name and measure the entity's sequence against it.\n"
-   "  if (false && !entityModelMatches) {"),
+   "  if (entityModelMatches && !entityModelMatches) {"),
   (sys.argv[2],
    "  } else if (!bestCompanion.empty() && bestNameBound > boundInBase(anims)) {",
    "  // MUTATION: the declared companion is never adopted, so a model whose\n"
    "  // own table is a stub keeps refusing every sequence it cannot pose.\n"
-   "  } else if (false && !bestCompanion.empty() && bestNameBound > boundInBase(anims)) {"),
+   "  } else if (bestCompanion.empty() && !bestCompanion.empty() && bestNameBound > boundInBase(anims)) {"),
 ]
 for path, find, repl in patches:
     raw = io.open(path, 'rb').read()

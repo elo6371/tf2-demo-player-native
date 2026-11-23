@@ -60,6 +60,11 @@
 # Exit:  0 = every assertion held (or every mutation went red); 1 = not.
 
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 # The legacy title prefix contains bytes outside the shell's UTF-8 locale on
 # this Windows build. The gate is checking ASCII HUD markers in that title;
@@ -444,8 +449,16 @@ register_source() { # register_source <path>
   return 0
 }
 restore_entry() { # restore_entry <path> <backup>
-  if cp -p "$2" "$1" && cmp -s "$2" "$1"; then
-    echo "RESTORE-OK path=$1"
+  # 2026-11-22: D-101 (outline-check.sh, 2026-11-11) applied here as well. `cp -p`
+  # put the pre-run mtime back, older than the mutated .obj, so the rebuild after
+  # a restore was a no-op and the mutant stayed linked. Restore the content, give
+  # the file a fresh mtime, and leave an already-identical file untouched.
+  if cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1 (already identical)"
+    return 0
+  fi
+  if cp "$2" "$1" && touch "$1" && cmp -s "$2" "$1"; then
+    echo "RESTORE-OK path=$1 (content restored, mtime refreshed)"
     return 0
   fi
   echo "RESTORE-FAIL path=$1"
@@ -1495,12 +1508,17 @@ T50EOF
   fi
   t50_restore_check native/src/camera_director.cpp || t50mrc=1
 
+  # 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): mutations below use an always-false
+  # condition of the form `!(E) && (E)` instead of `false && E`. Since N23
+  # (2026-11-18) tf2_core and tf2_demo_native compile with /W4 /WX, and MSVC reports
+  # `false && E` as C4127 -> C2220, so the mutated build failed and the case proved
+  # nothing. `!(E) && (E)` is false at run time but not a constant expression.
   echo
   echo "--- T50-M0c: conflict detection accepts a duplicate chord"
   t50_backup native/src/keybinds.cpp || t50mrc=1
   if t50_patch native/src/keybinds.cpp \
       "      if (entry.second.current == chord) {" \
-      "      if (false && entry.second.current == chord) {  // mutation: conflicts accepted"; then
+      "      if (!(entry.second.current == chord) && entry.second.current == chord) {  // mutation: conflicts accepted"; then
     if bash build-target.sh camera_probe > "$T50M/m0c.build" 2>&1; then
       if "$CAMERA_PROBE" > "$T50M/m0c.probe" 2>&1; then
         echo "  MUTATION-CAUGHT=FAIL (T50-M0c: the probe stayed green with conflicts accepted)"; t50mrc=1
@@ -1619,7 +1637,7 @@ T50EOF
   echo
   echo "--- T50-M3: the key table accepts a duplicate chord"
   t50_backup native/src/keybinds.cpp || t50mrc=1
-  if t50_patch native/src/keybinds.cpp "      if (entry.second.current == chord) {" "      if (false && entry.second.current == chord) {  // mutation: conflicts accepted"; then
+  if t50_patch native/src/keybinds.cpp "      if (entry.second.current == chord) {" "      if (!(entry.second.current == chord) && entry.second.current == chord) {  // mutation: conflicts accepted"; then
     if bash build-target.sh tf2_demo_native > "$T50M/m3.build" 2>&1; then
       t50_script_run m3
       m3_conflicts=$(grep -a "camera: keys .* result=conflict" "$T50M/m3.trace" | wc -l || true)

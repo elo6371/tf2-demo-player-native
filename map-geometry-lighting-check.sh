@@ -173,6 +173,11 @@
 #             this run. Say why: --re-pin="fixed the water shading".
 # Exit: 0 = every assertion held; 1 = an assertion failed; 2 = an input is
 #       missing (a camera.txt, a demo, a BSP, a tool).
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -634,7 +639,17 @@ PY
     { echo "$pin_header"; printf "%s\n" "$prev"; cat "$PINS_NOW"; } > "$PINS"
     echo "  RE-PIN moved the reference to this run (reason: ${REPIN_WHY:-unspecified})"
   else
-    pin_diff=$(diff <(grep -a "^frame " "$PINS") <(grep -a "^frame " "$PINS_NOW") | grep -a "^[<>]" | head -6 | paste -sd" " -)
+    # 2026-11-22: real files, not <(...). diff here is the WinuxCmd shim, which
+    # reads /dev/fd/N as 0 bytes: both sides empty -> no diff -> a VACUOUS pass.
+    # An empty reference side is now a difference in its own right.
+    pin_tmp=$(mktemp -d)
+    grep -a "^frame " "$PINS" > "$pin_tmp/ref"
+    grep -a "^frame " "$PINS_NOW" > "$pin_tmp/now"
+    pin_diff=$(diff "$pin_tmp/ref" "$pin_tmp/now" | grep -a "^[<>]" | head -6 | paste -sd" " -)
+    if [ ! -s "$pin_tmp/ref" ] || [ ! -s "$pin_tmp/now" ]; then
+      pin_diff="no frame lines (ref=$(wc -l < "$pin_tmp/ref") now=$(wc -l < "$pin_tmp/now")) ${pin_diff}"
+    fi
+    rm -rf "$pin_tmp"
     if [[ -z $pin_diff ]]; then
       echo "  OK the frames are the pinned picture ($(grep -ac "^frame " "$PINS") frames)"
     else
@@ -907,7 +922,15 @@ PY
         { echo "reference=$(date -u +%Y-%m-%dT%H:%M:%SZ) head=$(git rev-parse --short HEAD 2>/dev/null || echo NA) reason=${REPIN_WHY:-unspecified}"; cat "$CULL_NOW"; } > "$CULL_REF"
         echo "  RE-PIN wrote $CULL_REF"
       else
-        cull_diff=$(diff <(grep -a "^cull " "$CULL_REF") <(grep -a "^cull " "$CULL_NOW") | grep -a "^[<>]" | head -8 | paste -sd" " -)
+        # 2026-11-22: real files, same reason as the frame pin above.
+        cull_tmp=$(mktemp -d)
+        grep -a "^cull " "$CULL_REF" > "$cull_tmp/ref"
+        grep -a "^cull " "$CULL_NOW" > "$cull_tmp/now"
+        cull_diff=$(diff "$cull_tmp/ref" "$cull_tmp/now" | grep -a "^[<>]" | head -8 | paste -sd" " -)
+        if [ ! -s "$cull_tmp/ref" ] || [ ! -s "$cull_tmp/now" ]; then
+          cull_diff="no cull lines (ref=$(wc -l < "$cull_tmp/ref") now=$(wc -l < "$cull_tmp/now")) ${cull_diff}"
+        fi
+        rm -rf "$cull_tmp"
         if [[ -z $cull_diff ]]; then
           echo "  OK the cull kept and removed the same pixels as the pin in $CULL_REF"
         else

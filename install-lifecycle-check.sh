@@ -87,6 +87,11 @@
 #   variable, because a mutation must run the build it just made.
 
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 
 MODE="${1:---forward}"
 OUT_ARG="${2:-}"
@@ -372,8 +377,13 @@ sec "2/15 the package copied into a clean temporary directory"
 PKG="$OUT/clean/pkg"
 rm -rf "$OUT/clean"; mkdir -p "$OUT/clean"
 cp -r "$OUT/stage" "$PKG"
+# 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): no process substitution handed to an
+# external tool -- diff/comm/paste here resolve to the WinuxCmd shim, which cannot
+# open /dev/fd/N (this MSYS has no /dev/fd). Both sides go through real files.
+hashlist "$OUT/stage" "$OUT/clean/stage.sha256.txt"
+hashlist "$PKG" "$OUT/clean/pkg.sha256.txt"
 eq "the copy is the package" \
-  "$(diff -q <(hashlist "$OUT/stage" /dev/stdout) <(hashlist "$PKG" /dev/stdout) >/dev/null 2>&1 && echo same || echo different)" "same"
+  "$(diff -q "$OUT/clean/stage.sha256.txt" "$OUT/clean/pkg.sha256.txt" >/dev/null 2>&1 && echo same || echo different)" "same"
 
 sec "2b/15 clean-room fixture roots for the first-launch and VPK cases"
 # install-lifecycle-fixtures.py was written by T37 and never driven from a gate.

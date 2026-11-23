@@ -170,7 +170,7 @@ fi
 # CR-stripped stream against the CR-preserving file and read `added-lines=DRIFTED`
 # on every line -- a false red produced by the checkout, not by a counter. The
 # comparison is over content, so the line terminator is normalised on both sides.
-sed -E "$NEW_KEY_STRIP" <(tr -d '\r' < "$PRE") > "$TMP/assetrefs.pre.subset"
+tr -d '\r' < "$PRE" | sed -E "$NEW_KEY_STRIP" > "$TMP/assetrefs.pre.subset"
 
 # Claim 3 is a comparison of the current asset_refs= line with the new keys
 # stripped against the pre-change artifact, and both the refresh path and the
@@ -196,6 +196,11 @@ moving_keys_ok() {
     echo "  cannot pair lines: ${current_lines} current vs $(wc -l < "$PRE") frozen, expected ${#DEMOS[@]} each"
     return 1
   fi
+  # 2026-11-22: paste is the WinuxCmd shim too, so its three columns are files.
+  printf '%s\n' "${DEMO_NAMES[@]}" > "$TMP/pair.names"
+  grep -E '^asset_refs=' "$PRE" > "$TMP/pair.old"
+  grep -E '^asset_refs=' "$TMP/added.new" > "$TMP/pair.new"
+  paste -d'|' "$TMP/pair.names" "$TMP/pair.old" "$TMP/pair.new" > "$TMP/pair.joined"
   while IFS='|' read -r name old_line new_line; do
     [ -n "$name" ] || continue
     only=$(printf '%s' "$new_line" | grep -oE "${MOVEMENT_COUNTER}=[0-9]+" | cut -d= -f2)
@@ -213,9 +218,7 @@ moving_keys_ok() {
       fi
       moved=$((moved + delta))
     done
-  done < <(paste -d'|' <(printf '%s\n' "${DEMO_NAMES[@]}") \
-                        <(grep -E '^asset_refs=' "$PRE") \
-                        <(grep -E '^asset_refs=' "$TMP/added.new"))
+  done < "$TMP/pair.joined"
   echo "  moved=$moved paths added by the world route, all accounted for"
   return 0
 }
@@ -309,11 +312,13 @@ echo
 if [ ! -s "$ADDED" ]; then
   echo "added-lines=MISSING $ADDED is absent or empty"
   fail=1
-elif diff -q "$TMP/added.new" <(tr -d '\r' < "$ADDED") >/dev/null; then
+# 2026-11-22: the frozen side is a real file, not <(...): the WinuxCmd diff shim
+# cannot open /dev/fd/N and read it as 0 bytes ("0a1,18"), a false red.
+elif tr -d '\r' < "$ADDED" > "$TMP/frozen.clean" && diff -q "$TMP/added.new" "$TMP/frozen.clean" >/dev/null; then
   echo "added-lines=IDENTICAL ($(wc -l < "$ADDED") lines frozen)"
 else
   echo "added-lines=DRIFTED -- the added lines moved since they were introduced"
-  diff <(tr -d '\r' < "$ADDED") "$TMP/added.new" | head -12
+  diff "$TMP/frozen.clean" "$TMP/added.new" | head -12
   fail=1
 fi
 

@@ -11,6 +11,29 @@
 4. 外部库许可证与本仓不同，**一行代码都不许复制进来**；只许按语义重写。
 5. 每个子任务的 prompt 里必须带上本文件路径，并要求在报告开头写"对读记录"小节。
 
+## 0.1 游戏本体源码：对读顺序与许可边界（2026-11-22 增补）
+
+项目定位：**仅供学习、准备开源**。开源的前提是仓里每一行都归本项目所有，所以本节比第 0 节第 4 条更严格。
+
+| 顺序 | 库 | 用法 | 边界 |
+|---|---|---|---|
+| 1 | `ValveSoftware/source-sdk-2013` | **首选引用对象**。Valve 于 2025-02-18 把 TF2 客户端/服务端游戏代码并入 Source SDK，按非商业许可发布（teamfortress.com 公告与官方 wiki）。路径形如 `src/game/shared/tf/…`、`src/game/client/tf/…` | 可在文档里写库+路径+行号；代码仍不复制（本仓许可证与 SDK 许可证不同） |
+| 2 | `OthmanAba/TeamFortress2` | **特别参考**：2020-04-22 泄露原版，最完整，适合核对官方 SDK 里缺的或改过的行为（路径形如 `tf2_src/game/…`） | 泄露代码**没有任何许可**。只读、只用于理解语义；**不复制、不改写成逐行对应的译文、不把文件或片段放进本仓、evidence/、docs/**。文档里只写"库 + 路径 + 行号 + 一句话语义"，并尽量同时给出第 1 行的对应位置；结论能在官方 SDK 里找到时，以官方 SDK 为引用 |
+| 3 | `NicknineTheEagle/TF2-Base` | 旧版 TF2 移植到 SDK 2013 的结构参照 | 同第 1 行 |
+
+**净室做法**（开源前必须满足）：先读外部实现 → 在 `docs/` 写出语义说明（输入、输出、边界条件、常量的来源）→ 只依据这份说明和本仓自己的读数写代码。提交说明里写"依据 docs/xxx.md 的语义说明实现"，而不是"参照 xxx.cpp"。
+
+**未完成项与对读入口**（行号未对读，开工时补齐；路径以 SDK 为准，泄露版同名文件在 `tf2_src/game/` 下）：
+
+| 本仓缺口 | 对读入口 | 本仓位置 |
+|---|---|---|
+| 玩家动画 9/12 路混合、aimmatrix（PROJECT-OVERVIEW §3.2） | `src/game/shared/tf/tf_playeranimstate.cpp`、`src/game/shared/multiplayer/multiplayer_animstate.cpp` | `native/src/main.cpp:481-505`（kIdleNeedles/kMovingNeedles） |
+| N13 观察者方向（broadcaster / follow / select） | `src/game/client/hltvcamera.cpp`、`src/game/shared/shareddefs.h`（观察者模式枚举） | `placeSpectatorView native/src/main.cpp:1289` |
+| N20 火焰 / 治疗束 / 流血 | `src/game/shared/tf/tf_weapon_flamethrower.cpp`、`src/game/shared/tf/tf_weapon_medigun.cpp`、`src/game/client/tf/c_tf_player.cpp`（流血粒子） | `native/src/pcf_operators.cpp`、`native/src/effects_timeline.cpp` |
+| 武器本体锚点改 weapon_bone | `src/game/client/c_baseanimating.cpp`（attachment / bone merge） | `native/src/native_renderer_viewmodel.cpp:832-833` |
+
+**本仓自身**：2026-11-22 起为 **GPL-3.0-only**（根目录 `LICENSE`、`THIRD-PARTY-NOTICES.md`）。GPL 不改变上表的边界：SDK 的非商业许可与 GPL 不兼容，泄露代码没有任何许可，所以两者都**不得以任何形式进入本仓**；本仓代码只能来自净室重写。
+
 ## 1. 游戏本体源码（语义基准）
 
 | 参考库 | 星 | 说明 |

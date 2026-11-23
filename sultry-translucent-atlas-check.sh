@@ -51,6 +51,11 @@
 # Usage: bash sultry-translucent-atlas-check.sh
 # Exit:  0 = every assertion held, 1 = any failed.
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 PRODUCT=native/build-nmake/tf2_demo_native.exe
@@ -100,6 +105,14 @@ assert_eq() {
 field() { # field <text> <key>
   printf '%s' "$1" | grep -oE "(^| )$2=[^ ]+" | head -1 | cut -d= -f2-
 }
+# iso_line <trace> -> the `gpu: world isolation` reading this gate asserts on.
+# 2026-11-22: native/src/main.cpp emits three lines with that prefix (requested=,
+# indexCount=, and the draw-time one with slot0Binds=/batchDraws=). `head -1` of
+# the bare prefix picked the first of them, which carries none of the asserted
+# keys, so eight assertions read ''. Select the line by the key it must carry.
+iso_line() {
+  grep -ao "gpu: world isolation .*slot0Binds=.*" "$1" | head -1
+}
 
 # capture <dir> <demo> [extra product flags...]
 capture() {
@@ -147,7 +160,7 @@ assert_eq "positive rc" "$RC_POS" "0"
 PLAN_POS=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_POS" | head -1)
 ATLAS_POS=$(grep -ao "gpu: world atlas .*" "$TRACE_POS" | head -1)
 BLEND_POS=$(grep -ao "gpu: world blend enabled=.*" "$TRACE_POS" | head -1)
-ISO_POS=$(grep -ao "gpu: world isolation .*" "$TRACE_POS" | head -1)
+ISO_POS=$(iso_line "$TRACE_POS")
 ALPHA_POS=$(grep -ao "gpu: world alpha frame .*" "$TRACE_POS" | head -1)
 echo "$PLAN_POS" > "$OUT/positive-atlas-plan.txt"
 echo "$ATLAS_POS" > "$OUT/positive-atlas.txt"
@@ -195,7 +208,7 @@ TRACE_NEG="$NEG/points.trace"
 assert_eq "negative rc" "$RC_NEG" "0"
 PLAN_NEG=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_NEG" | head -1)
 ATLAS_NEG=$(grep -ao "gpu: world atlas .*" "$TRACE_NEG" | head -1)
-ISO_NEG=$(grep -ao "gpu: world isolation .*" "$TRACE_NEG" | head -1)
+ISO_NEG=$(iso_line "$TRACE_NEG")
 ALPHA_NEG=$(grep -ao "gpu: world alpha frame .*" "$TRACE_NEG" | head -1)
 echo "$PLAN_NEG" > "$OUT/negative-atlas-plan.txt"
 echo "$ATLAS_NEG" > "$OUT/negative-atlas.txt"
@@ -232,7 +245,7 @@ TRACE_P0="$P0/points.trace"
 assert_eq "P=0 rc" "$RC_P0" "0"
 PLAN_P0=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_P0" | head -1)
 ATLAS_P0=$(grep -ao "gpu: world atlas .*" "$TRACE_P0" | head -1)
-ISO_P0=$(grep -ao "gpu: world isolation .*" "$TRACE_P0" | head -1)
+ISO_P0=$(iso_line "$TRACE_P0")
 ALPHA_P0=$(grep -ao "gpu: world alpha frame .*" "$TRACE_P0" | head -1)
 echo "$PLAN_P0" > "$OUT/p0-atlas-plan.txt"
 echo "$ATLAS_P0" > "$OUT/p0-atlas.txt"
@@ -272,8 +285,8 @@ assert_eq "pixel positive rc" "$RC_PIX_ON" "0"
 assert_eq "pixel negative rc" "$RC_PIX_OFF" "0"
 PLAN_PIX_ON=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_PIX_ON" | head -1)
 PLAN_PIX_OFF=$(grep -ao "gpu: world atlas-plan .*" "$TRACE_PIX_OFF" | head -1)
-ISO_PIX_ON=$(grep -ao "gpu: world isolation .*" "$TRACE_PIX_ON" | head -1)
-ISO_PIX_OFF=$(grep -ao "gpu: world isolation .*" "$TRACE_PIX_OFF" | head -1)
+ISO_PIX_ON=$(iso_line "$TRACE_PIX_ON")
+ISO_PIX_OFF=$(iso_line "$TRACE_PIX_OFF")
 ALPHA_PIX_ON=$(grep -ao "gpu: world alpha frame .*" "$TRACE_PIX_ON" | head -1)
 ALPHA_PIX_OFF=$(grep -ao "gpu: world alpha frame .*" "$TRACE_PIX_OFF" | head -1)
 echo "$PLAN_PIX_ON" > "$OUT/pixel-atlas-plan-on.txt"

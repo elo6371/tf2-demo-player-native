@@ -189,8 +189,11 @@ if [ "$EVIDENCE_BEFORE" = "$EVIDENCE_AFTER" ]; then
   ok=$((ok + 1)); printf '  OK   %-22s nothing under evidence/ moved (tier output stayed in %s)\n' evidence-tree "$OUT"
 else
   bad=$((bad + 1)); printf '  FAIL %-22s this tier wrote into the committed evidence tree:\n' evidence-tree
-  diff <(printf '%s\n' "$EVIDENCE_BEFORE") <(printf '%s\n' "$EVIDENCE_AFTER") \
-    | grep '^[<>]' | sed 's/^/       | /'
+  # 2026-11-22: real files, not <(...) (WinuxCmd diff shim, no /dev/fd).
+  ev_tmp=$(mktemp -d)
+  printf '%s\n' "$EVIDENCE_BEFORE" > "$ev_tmp/before"; printf '%s\n' "$EVIDENCE_AFTER" > "$ev_tmp/after"
+  diff "$ev_tmp/before" "$ev_tmp/after" | grep '^[<>]' | sed 's/^/       | /'
+  rm -rf "$ev_tmp"
 fi
 
 echo

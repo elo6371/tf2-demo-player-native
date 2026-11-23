@@ -49,6 +49,11 @@
 # Exit 0 = every assertion held / every mutation was caught.
 
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 
 MODE="${1:---forward}"
 OUT_ARG="${2:-}"
@@ -457,8 +462,13 @@ eq "relocated root valid" "$(case_valid relocated)" "1"
 hash_list "$INSTALL" > "$OUT/package-hashes-after-runs.txt"
 eq "the product wrote nothing into its install directory" \
   "$(diff -q "$OUT/package-hashes.txt" "$OUT/package-hashes-after-runs.txt" >/dev/null 2>&1 && echo unchanged || echo changed)" "unchanged"
+# 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): no process substitution handed to an
+# external tool -- diff/comm/paste here resolve to the WinuxCmd shim, which cannot
+# open /dev/fd/N (this MSYS has no /dev/fd). Both sides go through real files.
+# $OUT/package-hashes-after-runs.txt is hash_list "$INSTALL", taken just above.
+hash_list "$(case_dir relocated)/install" > "$OUT/package-hashes-relocated.txt"
 eq "the relocated copy is the same package" \
-  "$(diff -q <(hash_list "$INSTALL") <(hash_list "$(case_dir relocated)/install") >/dev/null 2>&1 && echo same || echo different)" "same"
+  "$(diff -q "$OUT/package-hashes-after-runs.txt" "$OUT/package-hashes-relocated.txt" >/dev/null 2>&1 && echo same || echo different)" "same"
 
 sec "9b/13 second cold-start cycle: its own staged package and settings directories"
 # T47: the T43 failure was one run that never reached the connected title, not a
@@ -802,8 +812,13 @@ write_inventory "$MUT/install-m3" "$MUT/m3-package-files.txt"
 M3_LIST="$(cut -f1 "$MUT/m3-package-files.txt")"
 echo "  under M3: package files: $(printf "%s " "$M3_LIST")"
 MUTATIONS=$((MUTATIONS + 1))
-M3_LOST="$(comm -23 <(cut -f1 "$OUT/package-files.txt" | sort) <(cut -f1 "$MUT/m3-package-files.txt" | sort) | tr '\n' ' ')"
-M3_ADDED="$(comm -13 <(cut -f1 "$OUT/package-files.txt" | sort) <(cut -f1 "$MUT/m3-package-files.txt" | sort) | tr '\n' ' ')"
+# 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): no process substitution handed to an
+# external tool -- diff/comm/paste here resolve to the WinuxCmd shim, which cannot
+# open /dev/fd/N (this MSYS has no /dev/fd). Both sides go through real files.
+cut -f1 "$OUT/package-files.txt" | sort > "$MUT/m3-files-before.sorted"
+cut -f1 "$MUT/m3-package-files.txt" | sort > "$MUT/m3-files-after.sorted"
+M3_LOST="$(comm -23 "$MUT/m3-files-before.sorted" "$MUT/m3-files-after.sorted" | tr '\n' ' ')"
+M3_ADDED="$(comm -13 "$MUT/m3-files-before.sorted" "$MUT/m3-files-after.sorted" | tr '\n' ' ')"
 if [ "$M3_LOST" = ".uninstall/payload/native_install_smoke_probe.exe native_install_smoke_probe.exe " ] && [ -z "$M3_ADDED" ]; then
   ok "M3 caught: the package lost both probe copies and nothing else" "$M3_LOST"
 else

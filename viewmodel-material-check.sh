@@ -119,6 +119,11 @@
 # rebuilds, and two concurrent runs would overwrite each other's patches and
 # each other's evidence. mkdir is atomic, so a second caller fails before it
 # builds anything.
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -1417,7 +1422,11 @@ HASHES_AFTER=$(sha256sum native/tools/viewmodel_material_probe.cpp \
 RESTORED=1
 if [ "$HASHES_BEFORE" != "$HASHES_AFTER" ]; then
   echo "  FAIL a mutated source was not restored:"
-  diff <(printf '%s\n' "$HASHES_BEFORE") <(printf '%s\n' "$HASHES_AFTER") | sed 's/^/       | /'
+  # 2026-11-22: real files, not <(...) (WinuxCmd diff shim, no /dev/fd).
+  hs_tmp=$(mktemp -d)
+  printf '%s\n' "$HASHES_BEFORE" > "$hs_tmp/before"; printf '%s\n' "$HASHES_AFTER" > "$hs_tmp/after"
+  diff "$hs_tmp/before" "$hs_tmp/after" | sed 's/^/       | /'
+  rm -rf "$hs_tmp"
   MUTATION_RESULTS+=("restore: SOURCE-NOT-RESTORED")
   RESTORED=0
 fi

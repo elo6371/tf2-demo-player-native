@@ -2,7 +2,7 @@
 
 An experimental Windows-native Team Fortress 2 demo player and renderer built with C++17, Win32, and Direct3D 11.
 
-**Status:** active development; not a release-ready product. This repository is public, but no license is provided, so public visibility does not grant permission to reuse the code.
+**Status:** active development; not a release-ready product. For learning and research. Licensed under the GNU General Public License v3.0 (see [LICENSE](LICENSE) and [License](#license) below).
 
 ## Project status
 
@@ -77,6 +77,16 @@ Focused checks live beside the repository root as `*-check.sh` scripts and build
 - `docs/` — release policy, known issues, gate traps, and the playbook.
 - Root `T*-*.md` files are historical task reports, not current user documentation; start with this README, CHANGELOG.md and `docs/`.
 
+## License
+
+Copyright (C) 2026 elo6371 and contributors.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3 of the License (GPL-3.0-only). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.
+
+Third-party components and what this repository does **not** contain are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). In short: no Team Fortress 2 game files are shipped (the player needs `--tf-root` pointing at your own install), no Valve source code is included, and this project is not affiliated with or endorsed by Valve Corporation.
+
 ## 中文说明
 
-这是一个使用 C++17、Win32 和 Direct3D 11 开发的 Windows 原生 TF2 Demo 播放与渲染实验项目。公开默认分支为 p0-entity-protocol，自 2026-10-30 起包含当前软件（截至 T75 的工作）。构建入口为 `bash build-cmake.sh`（输出 `native/build-nmake/`），验收入口为 `bash verify-all.sh`。地图几何/材质和第三人称人物模型/动作的验收边界见 `docs/` 与 `evidence/` 各报告；仓库公开不代表代码已授予再使用许可，当前没有附带许可证。
+这是一个使用 C++17、Win32 和 Direct3D 11 开发的 Windows 原生 TF2 Demo 播放与渲染实验项目，**仅供学习研究**。公开默认分支为 `main`（`work/integrate` 的快照），开发在 `work/integrate` 上进行。构建入口为 `bash build-cmake.sh`（输出 `native/build-nmake/`），验收入口为 `bash verify-all.sh`。地图几何/材质和第三人称人物模型/动作的验收边界见 `docs/` 与 `evidence/` 各报告。
+
+**许可证**：GPL-3.0（仅第 3 版），全文见 [LICENSE](LICENSE)。本仓不包含任何 TF2 游戏资产（运行时用 `--tf-root` 指向你自己的安装）、不包含任何 Valve 源码（包括 2020 年泄露版），与 Valve 无关联。第三方组件见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；外部参考代码的使用边界见 `docs/REFERENCE-REPOS-2026-11-21.md` §0.1。

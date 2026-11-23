@@ -51,6 +51,11 @@
 # Usage: bash playback-control-check.sh [--mutation]
 # Exit:  0 = every assertion held (and, with --mutation, every mutation red).
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 EXE=native/build-nmake/tf2_demo_native.exe
@@ -458,12 +463,17 @@ PYEOF
     mut_fail=1
   fi
 
+  # 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): mutations below use an always-false
+  # condition of the form `!(E) && (E)` instead of `false && E`. Since N23
+  # (2026-11-18) tf2_core and tf2_demo_native compile with /W4 /WX, and MSVC reports
+  # `false && E` as C4127 -> C2220, so the mutated build failed and the case proved
+  # nothing. `!(E) && (E)` is false at run time but not a constant expression.
   # m3: tick moves are not clamped to [0, endTick].
   echo
   echo "  -- m3: no clamping --"
   if apply_mutation native/src/playback_control.cpp \
       '  if (requestedTick < 0 || requestedTick > endTick_) {' \
-      '  if (false && (requestedTick < 0 || requestedTick > endTick_)) {' m3; then
+      '  if (!(requestedTick < 0 || requestedTick > endTick_) && (requestedTick < 0 || requestedTick > endTick_)) {' m3; then
     if rebuild m3 playback_control_probe; then
       suite_after_mutation m3 check_e E "$OUT/m3-suite.txt" || mut_fail=1
       restore_source native/src/playback_control.cpp || mut_fail=1
@@ -485,7 +495,7 @@ PYEOF
   echo "  -- m4: seek interrupt ignored --"
   if apply_mutation native/src/playback_control.cpp \
       '  if (pending_) {' \
-      '  if (false && pending_) {' m4; then
+      '  if (!pending_ && pending_) {' m4; then
     if rebuild m4 playback_control_probe; then
       suite_after_mutation m4 check_d D "$OUT/m4-suite.txt" || mut_fail=1
       restore_source native/src/playback_control.cpp || mut_fail=1

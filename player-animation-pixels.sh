@@ -38,6 +38,11 @@
 # Usage: bash player-animation-pixels.sh
 # Exit:  0 = PASS, 1 = FAIL, 2 = a required input is missing (FATAL).
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 OUT=${T61_PIXEL_OUT:-evidence/t61-animation/pixels}
@@ -369,7 +374,7 @@ done
 echo
 echo "=== F3/F4: the pixel assertions themselves ==="
 PIXEL_LOG="$OUT/pixel-check.txt"
-"$PY" t61-pixels.py "$OUT/coverage.bmp" "$OUT/animated.bmp" --off "$OUT/off.bmp" > "$PIXEL_LOG" 2>&1
+"$PY" t61-pixels.py "$OUT/coverage.bmp" "$OUT/animated.bmp" --identity "$OUT/identity.bmp" --off "$OUT/off.bmp" > "$PIXEL_LOG" 2>&1
 PIXEL_RC=$?
 sed 's/^/  /' "$PIXEL_LOG"
 if [ "$PIXEL_RC" != "0" ]; then
@@ -377,7 +382,11 @@ if [ "$PIXEL_RC" != "0" ]; then
 fi
 # The tool's own verdict must be present: an empty log would otherwise read as
 # "no FAIL lines", which is the vacuous-pass shape this gate exists to avoid.
-if grep -q '^PIXEL-CHECK=PASS$' "$PIXEL_LOG"; then
+# 2026-11-22: the verdict line is written by python, whose Windows text mode ends
+# it with \r\n. An anchored '^PIXEL-CHECK=PASS$' can never match a line that ends
+# in CR -- this read "did not print PIXEL-CHECK=PASS" while the tool printed it
+# (the same WinuxCmd-grep-over-CRLF shape as verify-all.sh's exe_count pin).
+if grep -qE $'^PIXEL-CHECK=PASS\r?$' "$PIXEL_LOG"; then
   echo "  OK   t61-pixels.py printed PIXEL-CHECK=PASS"
 else
   say_fail "t61-pixels.py did not print PIXEL-CHECK=PASS (a missing verdict is not a pass)"

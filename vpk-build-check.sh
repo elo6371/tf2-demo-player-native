@@ -299,10 +299,15 @@ PY
   must_move "m1 inline wrap" "vpk.reject.inline-offset-wraps" "VPK entry range outside directory archive"
   restore_sources
 
+  # 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): mutations below use an always-false
+  # condition of the form `!(E) && (E)` instead of `false && E`. Since N23
+  # (2026-11-18) tf2_core and tf2_demo_native compile with /W4 /WX, and MSVC reports
+  # `false && E` as C4127 -> C2220, so the mutated build failed and the case proved
+  # nothing. `!(E) && (E)` is false at run time but not a constant expression.
   echo "--- m2: no bound against the data file's real size"
   patch_in native/src/vpk_archive.cpp \
     'if (entry.offset > available || entry.length > available - entry.offset) {' \
-    'if (false && (entry.offset > available || entry.length > available - entry.offset)) {' \
+    'if (!(entry.offset > available || entry.length > available - entry.offset) && (entry.offset > available || entry.length > available - entry.offset)) {' \
     || { fail "m2 patch"; }
   post_build
   run_probe
@@ -332,7 +337,7 @@ PY
   echo "--- m5: the loose store is skipped"
   patch_in native/src/asset_lookup.cpp \
     'if (!looseRoot_.empty()) {' \
-    'if (false && !looseRoot_.empty()) {' \
+    'if (looseRoot_.empty() && !looseRoot_.empty()) {' \
     || { fail "m5 patch"; }
   post_build
   run_probe

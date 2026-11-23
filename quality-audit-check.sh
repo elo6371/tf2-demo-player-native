@@ -59,6 +59,11 @@
 # Usage: bash quality-audit-check.sh [--mutation]
 # Exit:  0 = every assertion held (or, with --mutation, went red and restored).
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 EXE=native/build-nmake/tf2_demo_native.exe
@@ -362,7 +367,11 @@ if [ "$pins_r" = "$pins_a" ]; then
   echo "  OK restored readings reproduce the reference exactly"
 else
   echo "  FAIL restored readings differ from the reference"; fail=1
-  diff <(printf '%s\n' "$pins_a") <(printf '%s\n' "$pins_r") | head -20
+  # 2026-11-22: real files, not <(...) (WinuxCmd diff shim, no /dev/fd).
+  qa_tmp=$(mktemp -d)
+  printf '%s\n' "$pins_a" > "$qa_tmp/a"; printf '%s\n' "$pins_r" > "$qa_tmp/r"
+  diff "$qa_tmp/a" "$qa_tmp/r" | head -20
+  rm -rf "$qa_tmp"
 fi
 assert_eq "restored frame determinism" "$h_r" "$h_a"
 

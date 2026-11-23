@@ -1,0 +1,44 @@
+# publish/manifest.txt -- what the PUBLIC repository contains: the software only.
+#
+# Read by tools/publish-software.sh. Every path tracked at the published commit is
+# tested against the rules below in order; the LAST rule that matches decides
+# (no rule = excluded). `*` matches across directories, so `native/src/*` is the
+# whole subtree.
+#
+# Not published, on purpose (2026-11-22, owner's decision): gate scripts
+# (*-check.sh, verify-*.sh, mutate.sh ...), evidence/, docs/, testdata/ and every
+# .dem file, analysis/, scripts/, tools/ other than the toolchain helper, the
+# playbook, native/tests/ (gate fixtures), native/docs/ except the two user
+# references, and the developer scripts under native/tools/ (*.sh, *_gate.ps1).
+#
+# `overlay <source> <published-name>` publishes a file under another name.
+
+include native/CMakeLists.txt
+include native/CMakePresets.json
+include native/cmake/*
+include native/src/*
+include native/include/*
+include native/third_party/*
+# The probe executables are part of the CMake graph (55 targets), so their
+# sources ship; the developer scripts beside them do not.
+include native/tools/*.cpp
+include native/tools/*.h
+include native/tools/*.hpp
+# tf2-package.cmake installs this one into the package.
+include native/tools/install_smoke_probe.ps1
+include native/docs/cli-arguments.md
+include native/docs/hud-supported-formats.md
+
+# Build entry points and the one helper they source.
+include build-cmake.sh
+include build-target.sh
+include env-msvc.sh
+include tools/tf2-toolchain.sh
+
+include VERSION.txt
+include LICENSE
+include THIRD-PARTY-NOTICES.md
+
+overlay publish/README.md README.md
+overlay publish/gitignore .gitignore
+overlay publish/gitattributes .gitattributes

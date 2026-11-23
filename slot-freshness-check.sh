@@ -51,8 +51,21 @@ cd "$(dirname "$0")"
 PROBE=native/build-nmake/entity_model_probe.exe
 TF="D:/SteamLibrary/steamapps/common/Team Fortress 2/tf"
 BAGEL="D:/TF2_Demo_Player/testdata/demos/4a9bfb9276509d0ec5f5fdc722a95b17_match-20260927-0239-koth_bagel_rc13.dem"
-POV="$TF/demos/autorecord_2026-07-02_13-26-46.dem"
+# 2026-11-23: the 07-02 POV is gone from every host (docs/GATE-UNBLOCK-2026-11-22.md).
+# Every POV literal below (entity 3, ticks 53976/54747/55394, 51596, age 124) is a
+# reading of THAT recording, so this is deliberately not TF2_POV_DEMO: pointing the
+# same pins at another recording would fail for reasons that say nothing about the
+# rule. SLOT_FRESHNESS_POV is only for a restored copy of the same file. With the
+# file missing, the POV half is reported BLOCKED-INPUT and the fixture and bagel
+# halves still run -- the fixture alone is what catches a rule that ignores
+# freshness (freshnessDecided 1 -> 0), so a missing recording no longer hides the
+# whole gate behind one FATAL line.
+POV="${SLOT_FRESHNESS_POV:-$TF/demos/autorecord_2026-07-02_13-26-46.dem}"
 OUT="${SLOT_FRESHNESS_OUT:-evidence/slot-freshness}"
+# Every reading this run writes goes into a fresh directory. A gate that died early
+# used to leave the previous run's pov.txt/bagel.txt behind, and a caller reading
+# them (mutate.sh m11, 2026-11-23) took two-day-old files for this run's result.
+rm -rf -- "$OUT"
 mkdir -p "$OUT"
 
 MUTATION=0
@@ -62,9 +75,14 @@ fail=0
 fails=0
 ok=0
 [ -x "$PROBE" ] || { echo "FATAL: missing binary: $PROBE"; exit 1; }
-for path in "$TF" "$BAGEL" "$POV"; do
+for path in "$TF" "$BAGEL"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 1; }
 done
+POV_BLOCKED=0
+if [ ! -e "$POV" ]; then
+  POV_BLOCKED=1
+  echo "SLOT-FRESHNESS-POV=BLOCKED-INPUT missing: $POV"
+fi
 
 assert_eq() { # assert_eq <label> <actual> <expected>
   if [ "${2:-<none>}" = "$3" ]; then
@@ -110,6 +128,9 @@ assert_eq "fixture tickRoundTrip" "$(field "$FL" tickRoundTrip)" "4"
 
 echo
 echo "=== 2/4 POV entity 3 -- the pick moved to the slot that was still being written ==="
+if [ "$POV_BLOCKED" -eq 1 ]; then
+  echo "  BLOCKED-INPUT section 2 not run (the recording its pins describe is missing)"
+else
 "$PROBE" --tf-root "$TF" --demo "$POV" --prop-candidates-at 53976,54747,55394 \
   --entity 3 --candidate-suffix m_vecOrigin > "$OUT/pov.json" 2> "$OUT/pov.txt"
 cat "$OUT/pov.txt"
@@ -137,6 +158,7 @@ assert_eq "POV chosen slot age at 55394" "$(rank_field "$OUT/pov.txt" 0 age)" "0
 # reading is a correction and not a coincidence.
 assert_eq "POV rival slot" "$(rank_name "$OUT/pov.txt" 1)" "DT_TFLocalPlayerExclusive.m_vecOrigin"
 assert_eq "POV rival slot last write at 55394 (frozen)" "$(rank_field "$OUT/pov.txt" 1 lastWrite)" "51596"
+fi
 
 echo
 echo "=== 3/4 bagel entity 1 -- the same rule, and the reading did not move ==="
@@ -179,17 +201,24 @@ duplicated_suffixes() { # duplicated_suffixes <demo> <tick> <entity>
     | sed 's/^DT_[A-Za-z]*\.//' | sort | uniq -c | awk '$1>1 && $2!="" {print $2}' \
     | sort | paste -sd, -
 }
-POV_DUP=$(duplicated_suffixes "$POV" 55394 3)
 BAGEL_DUP=$(duplicated_suffixes "$BAGEL" 129277 1)
-POV1_DUP=$(duplicated_suffixes "$POV" 55394 1)
-echo "POV entity 3   duplicated: $POV_DUP"
-echo "POV entity 1   duplicated: $POV1_DUP"
 echo "bagel entity 1 duplicated: $BAGEL_DUP"
 EXPECTED_DUP="m_angEyeAngles[0],m_angEyeAngles[1],m_nWaterLevel,m_vecOrigin,m_vecOrigin[2]"
-assert_eq "duplicated properties, POV entity 3" "$POV_DUP" "$EXPECTED_DUP"
-assert_eq "duplicated properties, POV entity 1 (same set, other player)" "$POV1_DUP" "$EXPECTED_DUP"
+if [ "$POV_BLOCKED" -eq 1 ]; then
+  echo "  BLOCKED-INPUT POV entity 1/3 duplicate sets not read"
+  # The model-index check below still has to read something real: bagel's set.
+  POV_DUP="$BAGEL_DUP"
+else
+  POV_DUP=$(duplicated_suffixes "$POV" 55394 3)
+  POV1_DUP=$(duplicated_suffixes "$POV" 55394 1)
+  echo "POV entity 3   duplicated: $POV_DUP"
+  echo "POV entity 1   duplicated: $POV1_DUP"
+  assert_eq "duplicated properties, POV entity 3" "$POV_DUP" "$EXPECTED_DUP"
+  assert_eq "duplicated properties, POV entity 1 (same set, other player)" "$POV1_DUP" "$EXPECTED_DUP"
+fi
 assert_eq "duplicated properties, bagel entity 1 (same set, other demo)" "$BAGEL_DUP" "$EXPECTED_DUP"
 # The one that would make this round a much larger change than it claims to be.
+# (With the POV blocked this reads bagel's set, which the line above pinned.)
 case ",$POV_DUP," in
   *",m_nModelIndex,"*) echo "  FAIL m_nModelIndex is duplicated after all -- model selection is affected"; fail=1; fails=$((fails + 1)) ;;
   *) echo "  OK   m_nModelIndex is not duplicated (model selection is untouched)"; ok=$((ok + 1)) ;;
@@ -201,6 +230,16 @@ if [ "$MUTATION" -eq 1 ]; then
   # assertion. Requiring exactly two red lines is what makes this a per-assertion
   # test: if a demo's chosenStale assertion had stopped reading anything, its
   # perturbation would go unnoticed and the count would come back at one.
+  if [ "$POV_BLOCKED" -eq 1 ]; then
+    # Only the bagel perturbation could be injected. Catching it is necessary but
+    # not the 2/2 this mode promises, so the verdict is neither PASS nor FAIL.
+    if [ "$fails" -eq 1 ]; then
+      echo "MUTATION-CAUGHT=BLOCKED-INPUT (1/1 runnable perturbation caught; the POV one cannot run: $POV)"
+      exit 3
+    fi
+    echo "MUTATION-CAUGHT=FAIL (POV blocked; expected 1 red line from bagel, saw $fails)"
+    exit 1
+  fi
   if [ "$fails" -eq 2 ]; then
     echo "MUTATION-CAUGHT=PASS (2/2 perturbations caught, red_lines=$fails)"
     exit 0
@@ -212,6 +251,12 @@ fi
 # RUN13-VERIFY-ALL/verify-all.log). A freshness case that stopped reading used
 # to read exactly like a green run.
 # Reading taken with: grep -o 'SLOT-FRESHNESS=PASS (assertions_ok=[0-9]*' /d/_shared/EXEC-2026-11-09/RUN13-VERIFY-ALL/verify-all.log | tail -1  ->  assertions_ok=24
+# A failed assertion outranks a missing input: a broken rule must read FAIL even
+# when the POV half could not run (that is how mutate.sh m11 still bites).
+if [ "$fail" -eq 0 ] && [ "$POV_BLOCKED" -eq 1 ]; then
+  echo "SLOT-FRESHNESS=BLOCKED-INPUT (assertions_ok=$ok, fixture and bagel held; POV half not run: $POV)"
+  exit 3
+fi
 if [ "$ok" -lt 20 ]; then
   echo "  FAIL assertions: only $ok assertions ran, below the floor 20 -- a case that stopped reading still passes (D-72)"
   fail=1

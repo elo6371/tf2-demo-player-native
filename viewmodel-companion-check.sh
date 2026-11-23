@@ -69,6 +69,11 @@
 # other's evidence. mkdir is atomic, so a second caller fails before it runs
 # anything.
 set -uo pipefail
+# W1 (2026-11-23): every product launch in this script runs at 1280x720, the size
+# its pixel pins were measured at. The product reads this when --window-size is
+# absent (an explicit --window-size still wins); before W1 1280x720 was simply the
+# default, and W1 moves the default to 1920x1080. tools/window-pin-check.sh checks it.
+export TF2_NATIVE_WINDOW_SIZE="${TF2_NATIVE_WINDOW_SIZE:-1280x720}"
 cd "$(dirname "$0")"
 
 # ---------------------------------------------------------------------------
@@ -106,6 +111,18 @@ PROBE=${PROBE%$'\r'}
 INPUTS=${INPUTS%$'\r'}
 VM_MODEL=${VM_MODEL%$'\r'}
 ENTITY_MODEL=${ENTITY_MODEL%$'\r'}
+
+# The trace path is handed to a native Windows binary, which does not translate
+# MSYS paths: "/d/..." is opened literally and the trace silently never opens,
+# which reads exactly like "the product produced no animation". Convert once.
+# 2026-11-22: this must run before TRACE_PRODUCT_DIR is derived below. It used to
+# sit ~40 lines later, so under `set -u` the relative-path arm (the one
+# verify-all.sh step 24 takes) died with "ROOT: unbound variable" before any
+# assertion ran.
+ROOT=$(cygpath -m "$(pwd)" 2>/dev/null || pwd)
+case "$ROOT" in
+  /[a-zA-Z]/*) echo "FATAL: could not convert '$ROOT' to a Windows path"; exit 2 ;;
+esac
 
 TRACE_DIR="${VIEWMODEL_COMPANION_TRACE_DIR:-evidence/fast/viewmodel-companion}"
 # The product opens TF2_NATIVE_TRACE with _wfopen_s on the literal environment
@@ -153,13 +170,6 @@ for candidate in \
 done
 [ -n "$PY" ] || { echo "FATAL: no python interpreter found for the mutation patcher"; exit 2; }
 
-# The trace path is handed to a native Windows binary, which does not translate
-# MSYS paths: "/d/..." is opened literally and the trace silently never opens,
-# which reads exactly like "the product produced no animation". Convert once.
-ROOT=$(cygpath -m "$(pwd)" 2>/dev/null || pwd)
-case "$ROOT" in
-  /[a-zA-Z]/*) echo "FATAL: could not convert '$ROOT' to a Windows path"; exit 2 ;;
-esac
 for path in "$EXE" "$PROBE" "$INPUTS" "$TF"; do
   [ -e "$path" ] || { echo "FATAL: missing input: $path"; exit 2; }
 done
@@ -1052,6 +1062,11 @@ mutation_case() {
   end_mutation "$name" viewmodel_animation_probe
 }
 
+# 2026-11-22 (docs/GATE-FIXES-2026-11-22.md): mutations below use an always-false
+# condition of the form `!(E) && (E)` instead of `false && E`. Since N23
+# (2026-11-18) tf2_core and tf2_demo_native compile with /W4 /WX, and MSVC reports
+# `false && E` as C4127 -> C2220, so the mutated build failed and the case proved
+# nothing. `!(E) && (E)` is false at run time but not a constant expression.
 # THE CONTROL HAS TO BE A CHECK THE MUTATION CANNOT TOUCH, and the first draft of
 # two of these got that wrong -- measured, not guessed: `mismatch-off` was paired
 # with "the mismatch reading is reported as false" and `range-off` with "an
@@ -1067,22 +1082,22 @@ mutation_case() {
 if [ "$MUTATION" -eq 1 ]; then
   mutation_case mismatch-off native/src/viewmodel.cpp \
     '  if (!entityModelMatches) {' \
-    '  if (false && !entityModelMatches) {   // MUTATION: the proof never fires' \
+    '  if (entityModelMatches && !entityModelMatches) {   // MUTATION: the proof never fires' \
     'a drawn model that is not the entity'\''s own resolves to modelMismatch' \
     'one past the entity'\''s own table resolves to sequenceOutOfRange'
   mutation_case range-off native/src/viewmodel.cpp \
     '  if (static_cast<std::size_t>(input.sequence) >= drawnSequences) {' \
-    '  if (false && static_cast<std::size_t>(input.sequence) >= drawnSequences) {   // MUTATION' \
+    '  if (!(static_cast<std::size_t>(input.sequence) >= drawnSequences) && static_cast<std::size_t>(input.sequence) >= drawnSequences) {   // MUTATION' \
     'one past the entity'\''s own table resolves to sequenceOutOfRange' \
     'a drawn model that is not the entity'\''s own resolves to modelMismatch'
   mutation_case bone-count-off native/src/viewmodel.cpp \
     '  if (sampled.skinMatrices.size() != drawn.bones.size()) {' \
-    '  if (false && sampled.skinMatrices.size() != drawn.bones.size()) {   // MUTATION' \
+    '  if (!(sampled.skinMatrices.size() != drawn.bones.size()) && sampled.skinMatrices.size() != drawn.bones.size()) {   // MUTATION' \
     'a skeleton one bone longer resolves to boneMismatch' \
     'the accepted pose covers the drawn skeleton exactly'
   mutation_case model-index-zero-off native/src/viewmodel.cpp \
     '  if (input.modelIndex == 0) {' \
-    '  if (false && input.modelIndex == 0) {   // MUTATION: zero is not a model' \
+    '  if (!(input.modelIndex == 0) && input.modelIndex == 0) {   // MUTATION: zero is not a model' \
     'm_nModelIndex 0 resolves to missing, not to a model' \
     'the absent model index is named'
 fi
