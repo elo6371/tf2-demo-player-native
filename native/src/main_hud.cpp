@@ -33,6 +33,7 @@
 #include "main_internal.h"
 #include "native_renderer.h"
 #include "native_ui.h"
+#include "timeline_hud.h"
 
 // ---------------------------------------------------------------------------
 // E9 (2026-11-13): the minimap panel's inputs.
@@ -1169,9 +1170,10 @@ constexpr float kMinimapArrowHalf = 1.0f;    // each arrow dot is 2x2 pixels
 constexpr float kMinimapBorderWidth = 2.0f;
 constexpr float kMinimapBackgroundColour[4] = {0.05f, 0.06f, 0.08f, 1.0f};
 constexpr float kMinimapBorderColour[4] = {0.62f, 0.64f, 0.66f, 1.0f};
-constexpr float kMinimapRedColour[4] = {0.90f, 0.20f, 0.18f, 1.0f};
-constexpr float kMinimapBluColour[4] = {0.20f, 0.42f, 0.95f, 1.0f};
-constexpr float kMinimapNeutralColour[4] = {0.92f, 0.90f, 0.85f, 1.0f};
+// The three team colours live in timeline_hud.h as kTeamRedColour / kTeamBluColour /
+// kTeamNeutralColour: the minimap rings and the timeline's kill marks are in the same
+// frame, and a gate reads both, so there is one definition rather than two that agree
+// until someone edits one.
 constexpr float kMinimapViewerColour[4] = {0.10f, 1.00f, 0.30f, 1.0f};
 // The basemap is a line, not a surface: it sits between the background and the
 // border in brightness so the objective rings still win the contrast, and it is
@@ -1214,9 +1216,9 @@ void minimapPushCircle(std::vector<tf2::native::Renderer::HudPrimitive>& into, f
 }
 
 const float* minimapTeamColour(int team) {
-  if (team == 2) return kMinimapRedColour;
-  if (team == 3) return kMinimapBluColour;
-  return kMinimapNeutralColour;
+  if (team == 2) return tf2::native::kTeamRedColour;
+  if (team == 3) return tf2::native::kTeamBluColour;
+  return tf2::native::kTeamNeutralColour;
 }
 
 // Whether a point's ring fits inside the panel with its radius to spare. The HUD
@@ -1653,6 +1655,32 @@ FollowNameInfo hudFollowResolveName(const DemoNetworkSummary& summary,
 //                draws it with mode=interactive.
 //
 // --hud-text-test outranks all three: the T67 probe owns the primitive list.
+// I6 step 2 (2026-11-23): the match timeline strip's report.
+//
+// It arrives as a value from main.cpp's startup analysis, like the minimap frame, so
+// this file never reaches into the scan and the two cannot disagree about which demo
+// the strip describes. The revision is what makes a second scan republish: the strip's
+// key would otherwise be identical and the frame would keep the first match forever.
+namespace {
+tf2::native::MatchTimelineReport g_hudMatchTimeline;
+std::uint64_t g_hudMatchTimelineRevision = 0;
+// Change-driven trace state, the same rule as the minimap's: geometry only changes on
+// a resize or a reload, so a line per frame would be noise around 60 identical rows.
+struct HudTimelineTraceState {
+  std::uint64_t revision = 0;
+  int clientW = 0;
+  int clientH = 0;
+  int visible = -1;
+  std::size_t bands = 0;
+};
+HudTimelineTraceState g_hudTimelineTrace;
+}  // namespace
+
+void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report) {
+  g_hudMatchTimeline = report;
+  ++g_hudMatchTimelineRevision;
+}
+
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     const std::string& mapName,
     const tf2::native::main_internal::PlaybackState& playback,
@@ -1800,6 +1828,54 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     // call is the only place that knows both the panel and the GPU.
     overview = tf2::native::mapOverviewCompose(window, overviewInput, g_renderer);
   }
+  // I6 step 2: the match timeline strip, along the bottom of the client. Composed
+  // from THIS frame's playback tick, so the playhead is where the player is, and it
+  // gives way to the minimap panel when that panel is on screen.
+  int timelineClientW = 1280;
+  int timelineClientH = 720;
+  {
+    RECT client{};
+    if (window != nullptr && GetClientRect(window, &client)) {
+      timelineClientW = static_cast<int>(client.right);
+      timelineClientH = static_cast<int>(client.bottom);
+    }
+  }
+  tf2::native::TimelineHudStrip timelineStrip;
+  if (g_hudMatchTimeline.valid) {
+    tf2::native::TimelineHudAvoidRect timelineAvoid;
+    if (!minimap.primitives.empty()) {
+      const tf2::native::HudPanelRect panel = hudMinimapPanelRect(window);
+      if (panel.placed) {
+        timelineAvoid.x = static_cast<float>(panel.x);
+        timelineAvoid.y = static_cast<float>(panel.y);
+        timelineAvoid.w = static_cast<float>(panel.w);
+        timelineAvoid.h = static_cast<float>(panel.h);
+        timelineAvoid.placed = true;
+      }
+    }
+    timelineStrip = tf2::native::composeTimelineStrip(g_hudMatchTimeline,
+        timelineClientW, timelineClientH, playback.tick, timelineAvoid);
+    if (timelineStrip.visible) {
+      const HudTimelineTraceState& last = g_hudTimelineTrace;
+      if (last.revision != g_hudMatchTimelineRevision || last.clientW != timelineClientW
+          || last.clientH != timelineClientH || last.visible != 1
+          || last.bands != timelineStrip.bands.size()) {
+        traceFmt("timeline: hud visible=1 revision=%llu client=%dx%d rounds=%zu"
+          " shapes=%zu red=%zu blu=%zu unknown=%zu x=%d y=%d w=%d h=%d",
+          static_cast<unsigned long long>(g_hudMatchTimelineRevision),
+          timelineClientW, timelineClientH, timelineStrip.bands.size(),
+          timelineStrip.shapes, timelineStrip.ticksRed, timelineStrip.ticksBlu,
+          timelineStrip.ticksUnknown, static_cast<int>(timelineStrip.x),
+          static_cast<int>(timelineStrip.y), static_cast<int>(timelineStrip.w),
+          static_cast<int>(timelineStrip.h));
+        g_hudTimelineTrace.revision = g_hudMatchTimelineRevision;
+        g_hudTimelineTrace.clientW = timelineClientW;
+        g_hudTimelineTrace.clientH = timelineClientH;
+        g_hudTimelineTrace.visible = 1;
+        g_hudTimelineTrace.bands = timelineStrip.bands.size();
+      }
+    }
+  }
   std::string key = text.time;
   key += '\n';
   key += text.score;
@@ -1818,6 +1894,18 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   if (!overview.signature.empty()) {
     key += '\n';
     key += overview.signature;
+  }
+  // I6: a visible strip makes the playhead part of the frame, so the readout must
+  // republish as it moves. Only a VISIBLE strip joins the key: with no analysis the
+  // key is byte-for-byte the one this file built before the strip existed.
+  if (timelineStrip.visible) {
+    key += '\n';
+    key += "timeline:";
+    key += std::to_string(g_hudMatchTimelineRevision);
+    key += ':';
+    key += std::to_string(timelineStrip.playheadServerTick);
+    key += ':';
+    key += std::to_string(timelineClientW);
   }
   if (key == g_hudLiveLastKey) {
     ++g_hudLiveSkips;
@@ -1864,6 +1952,28 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     minimap.primitives.begin(), minimap.primitives.end());
   g_hudLiveExtraPrimitives.insert(g_hudLiveExtraPrimitives.end(),
     overview.primitives.begin(), overview.primitives.end());
+  // I6: the strip rides with the panels, after them, because it is chrome rather than
+  // part of the readout's three lines. Shapes are converted here, at the one place
+  // that knows both the pure composer and the renderer's primitive.
+  for (const tf2::native::TimelineHudShape& shape : timelineStrip.primitives) {
+    tf2::native::Renderer::HudPrimitive primitive;
+    const bool isText = shape.kind == tf2::native::TimelineHudShape::Kind::Text;
+    primitive.kind = isText ? tf2::native::Renderer::HudPrimitiveKind::Text
+                            : tf2::native::Renderer::HudPrimitiveKind::Rect;
+    primitive.x = shape.x;
+    primitive.y = shape.y;
+    primitive.w = shape.w;
+    primitive.h = shape.h;
+    for (int channel = 0; channel < 4; ++channel) primitive.colour[channel] = shape.colour[channel];
+    primitive.filled = !isText;
+    primitive.text = shape.text;
+    if (isText) {
+      primitive.font = tf2::native::HudTextFont::UiSemiBold;
+      primitive.pixelSize = shape.pixelSize;
+      primitive.maxWidth = shape.w;
+    }
+    g_hudLiveExtraPrimitives.push_back(std::move(primitive));
+  }
   primitives.insert(primitives.end(), g_hudLiveExtraPrimitives.begin(),
     g_hudLiveExtraPrimitives.end());
   // g_hudLivePrimitives stays the READOUT only, so hudApplyRects can prepend the

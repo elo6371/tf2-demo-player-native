@@ -5987,6 +5987,9 @@ bool outlineVertexExtent = false;
                 round.kills, round.stalls + round.teleports + round.sharpTurns,
                 round.startServerTick, round.endServerTick);
           }
+          // I6 step 2: hand the same report to the HUD so the strip is drawn from the
+          // measurement this block just printed, never from a second pass.
+          tf2::native::main_internal::hudSetMatchTimeline(matchTimeline);
         }
       }
       tf2::native::buildAssetReferenceList(demoNetworkSummary, demoNetworkSummary.assetReferences);

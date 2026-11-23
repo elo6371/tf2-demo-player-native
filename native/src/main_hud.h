@@ -29,6 +29,7 @@
 #include <string>
 
 #include "demo_header.h"
+#include "demo_match_timeline.h"
 #include "hud_state.h"
 #include "keybinds.h"
 #include "native_renderer.h"
@@ -69,6 +70,10 @@ std::filesystem::path uiSettingsFilePath(std::string& status);
 void hudApplyTextTest();
 void hudApplyFontTest();
 void hudApplyRects(HWND window);
+// I6 step 2 (2026-11-23): the match timeline strip's input. main.cpp builds the
+// report once, during the startup --analysis-scan, and hands it over as a value; a
+// run that never scanned a match never calls this and the HUD draws no strip.
+void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report);
 
 // T97: the live readout the frame loop calls once per frame (main.cpp).
 //

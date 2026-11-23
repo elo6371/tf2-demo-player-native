@@ -1,6 +1,7 @@
 #include "demo_header.h"
 #include "demo_motion_detect.h"
 #include "demo_match_timeline.h"
+#include "timeline_hud.h"
 #include "demo_tick_audit.h"
 #include "gameplay_effects.h"
 // task-39: rankPropertyCandidates is the entity model's own suffix matcher and
@@ -1026,6 +1027,47 @@ int wmain(int argc, wchar_t** argv) {
       ++firstPath;
     }
   }
+  // I6 step 2: --timeline-hud composes the strip the workspace draws (section 9.2:
+  // per-round bands, the winner's stripe, RED kills above the midline and BLU below)
+  // and prints its geometry. It implies --match-timeline, because the strip is that
+  // report drawn. --playhead <playbackTick> places the playhead; --client <WxH> and
+  // --avoid <x,y,w,h> let a gate exercise the placement branches without a window.
+  bool timelineHud = false;
+  std::int32_t timelineHudPlayhead = -1;
+  int timelineHudWidth = 1280;
+  int timelineHudHeight = 720;
+  tf2::native::TimelineHudAvoidRect timelineHudAvoid;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--timeline-hud") {
+    timelineHud = true;
+    matchTimeline = true;
+    ++firstPath;
+    while (firstPath < argc) {
+      const std::wstring option(argv[firstPath]);
+      if (option == L"--playhead" && firstPath + 1 < argc) {
+        timelineHudPlayhead = static_cast<std::int32_t>(std::wcstol(argv[firstPath + 1], nullptr, 10));
+        firstPath += 2;
+      } else if (option == L"--client" && firstPath + 1 < argc) {
+        int w = 0;
+        int h = 0;
+        if (std::swscanf(argv[firstPath + 1], L"%dx%d", &w, &h) == 2) {
+          timelineHudWidth = w;
+          timelineHudHeight = h;
+        }
+        firstPath += 2;
+      } else if (option == L"--avoid" && firstPath + 1 < argc) {
+        float ax = 0.0f;
+        float ay = 0.0f;
+        float aw = 0.0f;
+        float ah = 0.0f;
+        if (std::swscanf(argv[firstPath + 1], L"%f,%f,%f,%f", &ax, &ay, &aw, &ah) == 4) {
+          timelineHudAvoid = tf2::native::TimelineHudAvoidRect{ax, ay, aw, ah, true};
+        }
+        firstPath += 2;
+      } else {
+        break;
+      }
+    }
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1305,14 +1347,23 @@ int wmain(int argc, wchar_t** argv) {
           tickAuditText += '\n';
         }
       }
+      // I6: the per-round timeline. It is printed without kills by default so a
+      // thousand kills do not become a thousand lines; the rounds and the header
+      // already carry the per-round kill counts. Declared outside the matchTimeline
+      // branch because --timeline-hud draws this same report rather than a second one.
+      tf2::native::MatchTimelineReport mtReport;
       if (matchTimeline) {
-        // I6: the per-round timeline. It is printed without kills by default so a
-        // thousand kills do not become a thousand lines; the rounds and the header
-        // already carry the per-round kill counts.
-        const tf2::native::MatchTimelineReport mtReport =
-            tf2::native::buildMatchTimeline(summary, &mdReport);
+        mtReport = tf2::native::buildMatchTimeline(summary, &mdReport);
         for (const std::string& mtLine : tf2::native::formatMatchTimelineLines(mtReport, matchTimelineKills)) {
           tickAuditText += mtLine;
+          tickAuditText += '\n';
+        }
+      }
+      if (timelineHud) {
+        const tf2::native::TimelineHudStrip strip = tf2::native::composeTimelineStrip(
+            mtReport, timelineHudWidth, timelineHudHeight, timelineHudPlayhead, timelineHudAvoid);
+        for (const std::string& stripLine : tf2::native::formatTimelineHudLines(strip)) {
+          tickAuditText += stripLine;
           tickAuditText += '\n';
         }
       }

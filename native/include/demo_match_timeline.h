@@ -57,6 +57,11 @@ struct MatchTimelineRound {
   std::int32_t index = 0;
   std::int32_t startServerTick = 0;
   std::int32_t winServerTick = 0;
+  // The winner as teamplay_round_win reported it: 2 = RED, 3 = BLU, -1 = the round
+  // reported no win (still being played, or the recording ended inside it). Section 9
+  // draws the band's top edge in the winner's colour, so this is a read of the event
+  // the server sent, never an inference from who was left alive.
+  std::int32_t winTeam = -1;
   std::int32_t endServerTick = 0;
   bool closed = false;            // a following round started
   std::size_t kills = 0;
@@ -72,6 +77,10 @@ struct MatchTimelineReport {
   std::int32_t lastServerTick = 0;
   std::size_t roundStarts = 0;
   std::size_t roundWins = 0;
+  // How many rounds ended with a known winner. roundWins counts the EVENTS (a demo can
+  // replay the panel), so it can exceed the number of rounds; this counts the rounds
+  // whose top stripe can actually be coloured.
+  std::size_t roundsWithWinTeam = 0;
   std::size_t killCount = 0;
   std::size_t killsOutsideRounds = 0;
   // anomalies are the detector's real findings (stalls + teleports, already capped by

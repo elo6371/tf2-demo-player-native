@@ -267,8 +267,20 @@ if [ "$VERIFY_BUILD" -eq 1 ]; then
 fi
 
 # ---- 5. commit in the publish clone -------------------------------------------
+# The clone is only the base for one commit on main, so it is fetched SHALLOW and from
+# main alone: a full clone of this remote is ~170 MB of history for five branches, and on
+# 2026-11-23 two runs died at "fetch-pack: unexpected disconnect ... early EOF" after ~55
+# minutes, having transferred nothing that the commit below needed. Depth 1 still fetches
+# main's whole tree (which the checkout below needs) and the push is a plain fast-forward
+# whose parent the remote already has. PUBLISH_CLONE_DEPTH=0 restores the full clone.
 if [ ! -d "$CLONE/.git" ]; then
-  git clone -q --no-checkout "$REMOTE_URL" "$CLONE" || { echo "PUBLISH=FAIL (clone)"; exit 2; }
+  CLONE_DEPTH="${PUBLISH_CLONE_DEPTH:-1}"
+  if [ "$CLONE_DEPTH" = "0" ]; then
+    git clone -q --no-checkout "$REMOTE_URL" "$CLONE" || { echo "PUBLISH=FAIL (clone)"; exit 2; }
+  else
+    git clone -q --no-checkout --depth "$CLONE_DEPTH" --single-branch --branch main \
+      "$REMOTE_URL" "$CLONE" || { echo "PUBLISH=FAIL (clone)"; exit 2; }
+  fi
 fi
 git -C "$CLONE" fetch -q --prune origin || { echo "PUBLISH=FAIL (fetch)"; exit 2; }
 REMOTE_MAIN=$(git -C "$CLONE" rev-parse --verify -q origin/main || true)

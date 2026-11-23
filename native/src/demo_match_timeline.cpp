@@ -134,6 +134,15 @@ MatchTimelineReport buildMatchTimeline(const DemoNetworkSummary& summary,
       // The first win of a round wins: a demo can replay the panel event.
       if (owner < report.rounds.size() && report.rounds[owner].winServerTick == 0) {
         report.rounds[owner].winServerTick = event.tick;
+        // The winner's team, straight off the event. "team" is what teamplay_round_win
+        // carries; the fallback name is only a guard against a decoder that spells it
+        // differently, and an unreadable team leaves the stripe grey (never a side).
+        std::int32_t team = eventFieldInt(event, "team");
+        if (team != 2 && team != 3) team = eventFieldInt(event, "winteam");
+        if (team == 2 || team == 3) {
+          report.rounds[owner].winTeam = team;
+          ++report.roundsWithWinTeam;
+        }
       }
     }
   }
@@ -245,7 +254,8 @@ std::vector<std::string> formatMatchTimelineLines(const MatchTimelineReport& rep
     out << "match-timeline valid=1 offset=" << report.serverToEntryOffset
         << " first=" << report.firstServerTick << " last=" << report.lastServerTick
         << " rounds=" << report.rounds.size() << " starts=" << report.roundStarts
-        << " wins=" << report.roundWins << " kills=" << report.killCount
+        << " wins=" << report.roundWins << " winsWithTeam=" << report.roundsWithWinTeam
+        << " kills=" << report.killCount
         << " outsideKills=" << report.killsOutsideRounds
         << " anomalies=" << report.anomalyCount
         << " outsideAnomalies=" << report.anomaliesOutsideRounds
@@ -261,7 +271,8 @@ std::vector<std::string> formatMatchTimelineLines(const MatchTimelineReport& rep
     std::ostringstream out;
     out << "match-round index=" << round.index << " start=" << round.startServerTick
         << " win=" << round.winServerTick << " end=" << round.endServerTick
-        << " closed=" << (round.closed ? 1 : 0) << " kills=" << round.kills
+        << " winTeam=" << round.winTeam << " closed=" << (round.closed ? 1 : 0)
+        << " kills=" << round.kills
         << " stalls=" << round.stalls << " teleports=" << round.teleports
         << " sharpTurns=" << round.sharpTurns;
     lines.push_back(out.str());
