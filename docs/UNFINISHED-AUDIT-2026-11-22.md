@@ -137,6 +137,7 @@ bash build-identity-check.sh
 **(b) 总览准确。**
 
 **(c) 最小下一步**：先不碰 MF。新开关 `--capture-sequence <dir> <startTick> <count>`（ladder arm），复用 `--capture-tick` 已有的"tick hold"（`main.cpp:12648-12652`）按 tick 逐帧落 BMP：每帧把 `captureTick` 前进 1 并重新 arm。产物喂给已有的 `mf_export_probe --encode-from-disk`。默认不传即不进入，现有 `--capture-frame` 路径不变。第二步才把 SinkWriter 移进产品（新文件 `native/src/export_mf.cpp`，git add，`tf2-product.cmake` 加 `mfplat/mfreadwrite/mfuuid`）。
+  - **2026-11-23 第一步已落地**：`--capture-sequence` 在 `native/src/main.cpp`（解析 `parseCaptureSequenceSwitch`，文件 `frame_%03lld.bmp`，上一帧落盘后才武装下一 tick，最后一帧才走一次性退出分支，中途丢帧 exit 16）。门禁 `capture-sequence-check.sh` → `CAPTURE-SEQUENCE=PASS`：8 帧 2,582,406 B、trace tick 连续 1200…1207、两次运行 8 帧 sha256 全同、四种拒绝 rc=13、一次性抓帧路径 0 条 sequence 行。**第二步（SinkWriter 进产品）仍完全未做**；`mf_export_probe --encode-from-disk` 还要求目录里有 `audio.wav`（产品序列只写图），且它按 `frame_%03d.bmp` 读、帧数写死 60。
 
 **(d) 验证**：`bash native/tools/mf_export_probe.sh` + `bash native/tools/mf_export_verify.sh <mf_export_probe.exe> <work-dir>`；产品不变用 md5 pin。序列确定性：同参数跑两次，所有 BMP sha256 逐个相同。
 
@@ -215,6 +216,11 @@ git status --porcelain -- native/
 
 **(a) 代码现状**：开关 `--world-sky-3d on|off` ladder arm `native/src/main.cpp:3945-3967`，默认 `native/include/native_renderer.h:93` `worldSky3d = false`，应用 `main.cpp:5099`；状态组装 `:9519-9533`（只在 `--world-geometry` 为 All 时启用）；trace `:9571`；上传只取天空簇三角形 `native/src/native_renderer_world.cpp:238-242`、`:1038-1042`、`:1107-1120`；绘制常量 `native/src/native_renderer_frame.cpp:1159-1198`——**`fogParams` 全 0（`:1192`）即关雾**、光照方向硬编码（`:1187`）。`sky_camera` 解析只取 origin/scale（`native/src/bsp_map.cpp:766-777`，结构 `native/include/bsp_map.h:237-242`），没有 `fogenable/fogcolor/fogstart/fogend`。只有天空簇内的世界面，天空盒里的 static prop 是否绘制：**未核实**。
 - 签收缺项（`docs/WORLD-SKY3D-2026-11-18.md` §7/§7.1）：只有 pl_upward_f12 一张图、无 Source 参考帧、无逐像素归因、2D/3D 叠放顺序未测、无独立 skybox 雾、cluster 无断言。
+- **2026-11-23 实测（T105 接手 AI）：“0 顶点”不是 pass 坏了，是那两帧/那张图没有天空。** 三组读数：
+  1. cp_snakewater，`--world-sky-3d on`：`sky3d: enabled=1 present=1 scale=16.0 cluster=2643 vertices=0 triangles=0 batches=0 source=bsp`。新增的 census 行（`native/src/main.cpp`，`renderer.setWorldSky3d(sky3d)` 之后，只在 `sky3d.enabled && sky3d.present` 时跑）给出 `sameCluster=0 near2048=0 nearest=3533.4`：距 sky_camera origin 最近的三角形都在 3533 单位外，**这张图根本没有 3D 天空盒几何**，任何选择器都选不出东西。
+  2. pl_upward_f12，`--world-sky-3d on`，capture tick 1200：`vertices=5103 triangles=1701 batches=2`，census `sameCluster=1701`、`near512=305`、`nearest=284.8` —— 上传是正常的。但那一帧是出生点室内近景（`--debug-camera` 之外的默认位），**画面里没有天空**，所以 on/off 逐字节相同。
+  3. pl_upward_f12 同一 tick，加 `--debug-camera 0 0 1500 -10 0`（原点上方 1500、抬头 10°、朝 sky_camera 的 +x 方向）：on/off 两帧 **相差 16,269 字节**（1920x1080 帧）。**这条 pass 确实在画。**
+  结论：选择器（簇号）没问题，无需改成 area；欠的是验收本身（第二张图、雾、人工签收）。新门禁 `world-sky3d-check.sh` 把“默认帧不变 + on 帧有几何 + on 帧与默认帧不同”钉成可复跑的读数。
 
 **(b) 准确。**
 

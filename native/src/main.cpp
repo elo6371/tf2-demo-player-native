@@ -3390,6 +3390,60 @@ static bool parseCaptureRangeDepthSwitch(const std::wstring& switchName,
   return true;
 }
 
+// N27 (2026-11-23): "--capture-sequence <dir> <startTick> <count>". Same reason as
+// the range family above for living out here: the argument chain in wWinMain is at
+// the compiler's block-nesting limit (C1061 was hit again while adding this), and
+// a switch parsed by a helper costs no nesting there. The numbers are parsed with
+// the same strictness as --capture-tick: a malformed value returns false so the
+// caller refuses (exit 13) instead of guessing a tick or a length.
+static bool parseCaptureSequenceSwitch(wchar_t** arguments, int argumentCount, int* index,
+    std::filesystem::path* dir, std::int64_t* startTick, std::int64_t* count) {
+  if (*index + 3 >= argumentCount) return false;
+  const std::wstring sequenceDir = arguments[*index + 1];
+  if (sequenceDir.empty()) return false;
+  wchar_t* tickEnd = nullptr;
+  wchar_t* countEnd = nullptr;
+  const long long sequenceStart = std::wcstoll(arguments[*index + 2], &tickEnd, 10);
+  const long long sequenceCount = std::wcstoll(arguments[*index + 3], &countEnd, 10);
+  if (!tickEnd || *tickEnd != L'\0' || sequenceStart < 0) return false;
+  if (!countEnd || *countEnd != L'\0' || sequenceCount <= 0) return false;
+  *index += 3;
+  *dir = sequenceDir;
+  *startTick = static_cast<std::int64_t>(sequenceStart);
+  *count = static_cast<std::int64_t>(sequenceCount);
+  return true;
+}
+
+// N27: one branch of the argument chain covers --capture-tick and
+// --capture-sequence (see the call site), and both are parsed here. Returns false
+// when the switch was malformed; the caller reads the rejection flags it was given.
+static bool parseCaptureTickSwitch(const std::wstring& switchName, wchar_t** arguments,
+    int argumentCount, int* index, std::int64_t* captureTick, bool* tickRejected,
+    std::filesystem::path* sequenceDir, std::int64_t* sequenceStart,
+    std::int64_t* sequenceCount, bool* sequenceRejected) {
+  if (switchName == L"--capture-sequence") {
+    if (!parseCaptureSequenceSwitch(arguments, argumentCount, index, sequenceDir,
+          sequenceStart, sequenceCount)) {
+      *sequenceRejected = true;
+      return false;
+    }
+    return true;
+  }
+  if (*index + 1 >= argumentCount) {
+    *tickRejected = true;
+    return false;
+  }
+  wchar_t* end = nullptr;
+  const long long parsed = std::wcstoll(arguments[*index + 1], &end, 10);
+  if (!end || *end != L'\0' || parsed < 0) {
+    *tickRejected = true;
+    return false;
+  }
+  *captureTick = static_cast<std::int64_t>(parsed);
+  ++*index;
+  return true;
+}
+
 int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand) {
   openTrace();
   // Keep the render surface in physical pixels on mixed-DPI desktop setups.
@@ -3682,6 +3736,17 @@ int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
+  // N27 (2026-11-23): "--capture-sequence <dir> <startTick> <count>" writes one
+  // BMP per CONSECUTIVE tick. It reuses the T27 tick hold below: after a frame is
+  // requested the playback cursor is pinned to that tick, the capture lands on the
+  // following frame, and only then is the next tick armed -- so the sequence is
+  // exact ticks and does not depend on machine load. The output is what
+  // mf_export_probe --encode-from-disk encodes.
+  std::filesystem::path captureSequenceDir;
+  std::int64_t captureSequenceStartTick = -1;
+  std::int64_t captureSequenceCount = 0;
+  std::int64_t captureSequenceIndex = 0;
+  bool captureSequenceRejected = false;
   // T50 acceptance driver: a file of camera steps, executed in order. Empty in
   // every ordinary run, which is why the default product path never sees it.
   std::filesystem::path cameraScriptPath;
@@ -5291,13 +5356,18 @@ bool outlineVertexExtent = false;
                  &captureRangeDepthPrefix, captureRangeWindow, &captureRangeSkip)) {
           captureRangeRejected = true;
         }
-      } else if (wcscmp(arguments[i], L"--capture-tick") == 0 && i + 1 < argumentCount) {
-        wchar_t* end = nullptr;
-        const long long parsed = std::wcstoll(arguments[++i], &end, 10);
-        if (end && *end == L'\0' && parsed >= 0) captureTick = static_cast<std::int64_t>(parsed);
-        else captureTickRejected = true;
-      } else if (wcscmp(arguments[i], L"--capture-tick") == 0) {
-        captureTickRejected = true;
+      } else if (wcscmp(arguments[i], L"--capture-tick") == 0
+                 || wcscmp(arguments[i], L"--capture-sequence") == 0) {
+        // T27's --capture-tick and N27's --capture-sequence are the same question
+        // asked about one tick and about a run of them, so they share ONE branch.
+        // That is not tidiness: this chain is at MSVC's block-nesting limit
+        // (C1061 was hit for real adding the sequence), and folding the two old
+        // --capture-tick branches into this one makes the chain one level shallower
+        // than it was before N27. The parsing itself lives in a helper for the same
+        // reason -- a branch body here has no depth to spare either.
+        parseCaptureTickSwitch(arguments[i], arguments, argumentCount, &i, &captureTick,
+          &captureTickRejected, &captureSequenceDir, &captureSequenceStartTick,
+          &captureSequenceCount, &captureSequenceRejected);
       } else {
         // D-23: recorded, not rejected. The default run still ignores it, which
         // is the behaviour every existing gate was written against.
@@ -5490,6 +5560,22 @@ bool outlineVertexExtent = false;
   if (captureRangeRejected) {
     OutputDebugStringW(L"TF2 Demo Player: invalid --capture-range-depth family; it needs a prefix "
       L"and a --capture-frame (the window is x,y,width,height, the skip a drawn-range index).\n");
+    return 13;
+  }
+  if (!captureSequenceDir.empty() && !captureFramePath.empty()) {
+    // N27: one armed tick can only write one picture. Mixing the sequence with a
+    // single-frame capture would make the product decide which one wins, so it is
+    // a refusal instead of a priority rule.
+    captureSequenceRejected = true;
+  }
+  if (!captureSequenceDir.empty() && captureTick > 0) {
+    // Same reason: --capture-tick names one tick and the sequence names all of
+    // them from <startTick>. Two answers to the same question is a refusal.
+    captureSequenceRejected = true;
+  }
+  if (captureSequenceRejected) {
+    OutputDebugStringW(L"TF2 Demo Player: invalid --capture-sequence; it needs <dir> <startTick> <count> "
+      L"and cannot be combined with --capture-frame or --capture-tick.\n");
     return 13;
   }
   if (cameraScriptRejected) {
@@ -10076,6 +10162,48 @@ bool outlineVertexExtent = false;
             displayMap.skyCamera.origin[1], displayMap.skyCamera.origin[2])
         : -1;
       renderer.setWorldSky3d(sky3d);
+      // T105 acceptance census (2026-11-23): "enabled=1 present=1 cluster=N
+      // vertices=0" is what the first real --world-sky-3d run printed on
+      // snakewater, so the pass is switched on and has nothing to draw. The
+      // cluster the upload filters on comes from the leaf that holds the
+      // sky_camera origin; if the sky brushes are in other leaves of the same
+      // area, that filter can never match, and the difference between the two
+      // explanations (wrong cluster vs nothing near the camera) is measurable
+      // here rather than guessable: count the triangles the filter would keep
+      // and the triangles that are simply near the origin.
+      if (sky3d.enabled && sky3d.present) {
+        std::size_t sameCluster = 0;
+        std::size_t nearOrigin = 0;
+        std::size_t unknownCluster = 0;
+        std::size_t near128 = 0;
+        std::size_t near512 = 0;
+        std::size_t near2048 = 0;
+        double nearest = -1.0;
+        const double originX = static_cast<double>(sky3d.origin[0]);
+        const double originY = static_cast<double>(sky3d.origin[1]);
+        const double originZ = static_cast<double>(sky3d.origin[2]);
+        for (const tf2::native::BspTriangle& triangle : displayMap.triangles) {
+          if (triangle.cluster == sky3d.cluster) ++sameCluster;
+          if (triangle.cluster < 0) ++unknownCluster;
+          const double cx = (static_cast<double>(triangle.a.x) + static_cast<double>(triangle.b.x)
+            + static_cast<double>(triangle.c.x)) / 3.0;
+          const double cy = (static_cast<double>(triangle.a.y) + static_cast<double>(triangle.b.y)
+            + static_cast<double>(triangle.c.y)) / 3.0;
+          const double cz = (static_cast<double>(triangle.a.z) + static_cast<double>(triangle.b.z)
+            + static_cast<double>(triangle.c.z)) / 3.0;
+          const double dx = cx - originX, dy = cy - originY, dz = cz - originZ;
+          const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+          if (distance <= 8192.0) ++nearOrigin;
+          if (distance <= 2048.0) ++near2048;
+          if (distance <= 512.0) ++near512;
+          if (distance <= 128.0) ++near128;
+          if (nearest < 0.0 || distance < nearest) nearest = distance;
+        }
+        traceFmt("sky3d: census cluster=%d sameCluster=%zu nearOrigin8192=%zu unknownCluster=%zu"
+          " near128=%zu near512=%zu near2048=%zu nearest=%.1f triangles=%zu origin=%.1f,%.1f,%.1f",
+          sky3d.cluster, sameCluster, nearOrigin, unknownCluster, near128, near512, near2048,
+          nearest, displayMap.triangles.size(), originX, originY, originZ);
+      }
     }
     if (worldGeometry == WorldGeometryFilter::None) {
       // Nothing is uploaded, so no world vertex buffer exists and the world
@@ -13097,6 +13225,35 @@ bool outlineVertexExtent = false;
   // `--capture-frame` is a one-shot diagnostic: arm it, wait until playback has
   // reached the requested tick, write one frame, then leave through the exit
   // code. A gate therefore never has to guess when to kill the process.
+  //
+  // N27 (2026-11-23): the sequence is the same mechanism repeated. It starts at
+  // <startTick>, and every capture re-arms the next tick once the frame it wrote
+  // has landed (see the re-arm block in the draw loop). The directory is created
+  // here so a typo is a refusal (exit 13) rather than a run that reads as a
+  // missing capture later.
+  bool captureSequenceFailed = false;
+  if (!captureSequenceDir.empty()) {
+    std::error_code sequenceDirError;
+    std::filesystem::create_directories(captureSequenceDir, sequenceDirError);
+    if (sequenceDirError) {
+      // Named sequenceMessage, not message: wWinMain already has a local named message
+      // and /W4 + /WX makes a shadowed declaration a build failure (C4456).
+      std::wstring sequenceMessage = L"TF2 Demo Player: cannot create the --capture-sequence directory: ";
+      sequenceMessage += captureSequenceDir.wstring();
+      sequenceMessage += L"\n";
+      OutputDebugStringW(sequenceMessage.c_str());
+      return 13;
+    }
+    captureTick = captureSequenceStartTick;
+    captureFramePath = captureSequenceDir / L"frame_000000.bmp";
+    // The path itself is not traced: std::filesystem::path::string() is
+    // locale-dependent and a trace line must not be able to throw on a non-ASCII
+    // directory name. The per-frame lines carry the tick, which is what a reader
+    // needs to line the frames up with the demo.
+    traceFmt("capture: sequence start start=%lld count=%lld",
+      static_cast<long long>(captureSequenceStartTick),
+      static_cast<long long>(captureSequenceCount));
+  }
   bool captureArmed = !captureFramePath.empty();
   bool captureRequested = false;
   // T61.1 review 2, P1: set when the id view could not give every drawn body its
@@ -17371,8 +17528,22 @@ bool outlineVertexExtent = false;
         renderer.setRangeDepthWindow(captureRangeWindow[0], captureRangeWindow[1],
           captureRangeWindow[2], captureRangeWindow[3]);
         renderer.setRangeDepthSkip(captureRangeSkip);
+        // N27: frames are numbered from zero, not named after their tick, because
+        // that is the name mf_export_probe reads ("frame_%03d.bmp"). The tick of
+        // each frame is traced on the line below instead.
+        if (!captureSequenceDir.empty()) {
+          wchar_t sequenceName[32] = {};
+          swprintf_s(sequenceName, L"frame_%03lld.bmp",
+            static_cast<long long>(captureSequenceIndex));
+          captureFramePath = captureSequenceDir / sequenceName;
+        }
         renderer.requestFrameCapture(captureFramePath.wstring(), captureDepthPath.wstring());
         captureArmed = false;
+        if (!captureSequenceDir.empty()) {
+          traceFmt("capture: sequence frame index=%lld tick=%d",
+            static_cast<long long>(captureSequenceIndex), static_cast<int>(g_playback.tick));
+          ++captureSequenceIndex;
+        }
         // T105/task-37 Half B: the per-instance lighting trace was armed for the
         // frame above and has already printed by now, so close the gate. Without
         // this the trace would keep printing on every later frame of the run and
@@ -17381,7 +17552,9 @@ bool outlineVertexExtent = false;
           static_cast<int>(renderer.leafAmbientTraceTick()),
           renderer.leafAmbientTracePrinted(), renderer.leafAmbientTraceSkipped());
         renderer.disarmModelLightingTrace();
-        captureRequested = true;
+        // N27: only the LAST sequence frame takes the one-shot exit path; the ones
+        // before it must leave the loop running so the next tick can be armed.
+        captureRequested = captureSequenceDir.empty() || captureSequenceIndex >= captureSequenceCount;
         // T26: which tick the captured frame actually belongs to. The arm fires
         // on the first draw at or after the requested tick, and a run that
         // skips a tick captures a LATER camera than its neighbours -- measured:
@@ -17626,7 +17799,33 @@ bool outlineVertexExtent = false;
       if (captureRequested) traceWorldHoles();
       traceFmt("draw: end frames=%llu pending=%d", static_cast<unsigned long long>(renderedFrames),
         renderer.frameCapturePending() ? 1 : 0);
+      // N27: the renderer writes a requested frame on the FOLLOWING draw, so the
+      // next tick is armed only once the pending one has landed -- arming earlier
+      // would overwrite the request. The hold at the top of the loop then pins the
+      // cursor onto the armed tick, which is what makes the sequence consecutive
+      // regardless of how many ticks a loaded machine draws per frame.
+      if (!captureSequenceDir.empty() && !captureArmed && g_renderer
+          && !captureSequenceFailed && captureSequenceIndex < captureSequenceCount
+          && !renderer.frameCapturePending()) {
+        if (captureSequenceIndex > 0 && !renderer.lastFrameCaptureSucceeded()) {
+          // A missing frame in the middle is a failed sequence, not a gap: the
+          // encoder downstream would silently repeat or drop a tick.
+          captureSequenceFailed = true;
+          traceFmt("capture: sequence failed index=%lld",
+            static_cast<long long>(captureSequenceIndex - 1));
+          PostQuitMessage(16);
+          continue;
+        }
+        captureTick = captureSequenceStartTick + captureSequenceIndex;
+        captureArmed = true;
+      }
       if (captureRequested && !renderer.frameCapturePending()) {
+        if (!captureSequenceDir.empty()) {
+          traceFmt("capture: sequence done written=%lld count=%lld ok=%d",
+            static_cast<long long>(captureSequenceIndex),
+            static_cast<long long>(captureSequenceCount),
+            renderer.lastFrameCaptureSucceeded() ? 1 : 0);
+        }
         // T61.1 review 2, P1: an id frame whose bodies could not all be named is
         // not a reading, so it leaves through its own code instead of 0 or 16.
         // 17 is unused: 0 success, 2/3/4 device loss, 13 argument refusals,
