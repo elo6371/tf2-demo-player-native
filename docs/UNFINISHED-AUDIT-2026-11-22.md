@@ -315,7 +315,13 @@ bash tools/lockrun.sh world -- bash world-geometry-hole-check.sh
 
 **(c) 最小下一步**：探针先行——`native/tools/brush_entity_probe.cpp` 加 `--demo <dem> --tick N`：列出 modelprecache 中 `*N` 形式的模型、对应的 demo 实体类名与该 tick 的 origin/angles，和 `brushModelsRefused` 求交（"哪些被拒的 brush 在录像里有实体且在动"）。产品第二步：开关 `--world-dynamic-brush on|off` 默认 off，把命中的 brush 模型面单独建一个 VB，按实体变换每帧画。
 
-**(d) 验证**：`native/tools/brush_entity_probe.cpp`；默认帧 md5 不变；正样本需人跑 pl_upward_f12 直道/弯道/暂停/seek 四帧。
+   **2026-11-23 实测：探针这一步做完了，答案是「录像根本答不了这个问题」**。`brush_entity_probe` 在仓库留的 6 份录像上（pl_upward_f12、cp_sunshine、cp_process_f12 POV、koth_bagel_rc11、koth_bagel_rc13、cp_snakewater_final1）全是 `candidates=0 verdict=no-brush-entities`：TF2 的 brush 实体**不通过网络流传 `*N` 模型号**（客户端用的是 BSP 里按 dmodel 索引的顶点），所以 demo 侧连一个候选实体都没有，探针无法回答哪些被拒的 brush 在动。这条负面结论本身就是答案，门禁把它钉住了。
+
+   于是改读产品自己的账（`gpu: world brush model refused …`，一行一个被拒模型）。pl_upward_f12 / capture tick 1200：`total=173 drawn=100 skippedMoving=73 skippedUnknown=0 facesDrawn=1182 facesSkipped=476 brushFaces=1658`。按类直方图：`func_door 14`（会动，拒得对），其余 **59 个是根本不会动的类** —— `func_nobuild 17`、`trigger_multiple 10`、`func_respawnroomvisualizer 8`、`func_regenerate 8`、`func_respawnroom 4`、`func_physbox_multiplayer 4`、`trigger_hurt 3`、`func_nogrenades 2`、`trigger_once 1`、`trigger_capture_area 1`、`dispenser_touch_trigger 1`。也就是说「白名单拒画」在 pl_upward 上除了 14 个门之外，还把 476 个面里的绝大部分一并拒了；其中真正肉眼可见的是 `func_respawnroomvisualizer` 与 `func_physbox_multiplayer`（`func_nobuild`/`trigger_*`/`func_respawnroom` 本身是 nodraw/clip）。
+
+   **这一条不动白名单**：把静态类加进去会给每张图每帧多画这些面，是所有者看得见的渲染变化，不是探针能自己决定的事；本轮的交付是把它变成可测量的数字和门禁 `brush-entity-check.sh`（`BRUSH-ENTITY=PASS`，断言账目自洽：refused 行数 == skippedMoving+skippedUnknown、drawn+refused == total、facesDrawn+facesSkipped == brushFaces，并且要求 `func_door > 0`（拒画有正当理由）同时 `func_door 之外 > 0`（拒画确实过宽），直方图打在日志里）。
+
+**(d) 验证**：`native/tools/brush_entity_probe.cpp` + `brush-entity-check.sh`（2026-11-23 起，探针 + 账目自洽 + 类别直方图，`BRUSH-ENTITY=PASS`）；默认帧 md5 不变；正样本需人跑 pl_upward_f12 直道/弯道/暂停/seek 四帧。
 
 **(f) 参考**：source-sdk-2013 `src/game/server/trains.cpp`（func_tracktrain 沿 path_track 移动并网络化 origin/angles）、`src/game/server/team_train_watcher.cpp`（推车进度与轨道）、`src/game/client/c_baseentity.cpp`（`*N` brush 模型按实体变换绘制）。行号未核实。
 
@@ -361,7 +367,7 @@ AUDIO_DEVICE=6 bash tools/lockrun.sh audio -- bash verify-audio.sh
 | 10 | 动画：先查第 26 步回归，再 `--aim-layer-heading` | M | 否（回归归因要跑） | 中（player-animation 门禁本就红） | 10：基线不稳前不要动动画 |
 | 11 | ~~N16 `--pane-layout pip`~~ **已完成（2026-11-23）**：`PaneLayout` 枚举 + 按布局区分的 R8、pane 1 右下角 3/10 内嵌、`pane-pip-check.sh` | M | 是 | 低–中（自检规则需按布局区分） | 11：且需新增 pane-split 门禁 |
 | 12 | N27 `--capture-sequence`（先不接 MF） | M | 是 | 低（默认不进入） | 12：解决"帧集合依赖负载"后再做编码 |
-| 13 | N09 探针：被拒 brush ∩ 录像实体 | S–M | 是 | 无（只改探针） | 13：产品侧动态 brush 是 M–L |
+| 13 | ~~N09 探针：被拒 brush ∩ 录像实体~~ **2026-11-23 已跑完（结果是负面的：录像不传 *N，改由账目+直方图回答，`brush-entity-check.sh`）** | S–M | 是 | 无（只改探针） | 13：产品侧动态 brush 是 M–L，白名单是否放宽要所有者决定 |
 | 14 | HUD 面板贴图图集 | M–L | 是 | 中（与 overview 共用唯一图像槽） | 14 |
 | 15 | N13 broadcaster（hltv_chase → director） | M | 是 | 低（默认关） | 15：取决于第 2 项是否证明数据存在 |
 | 16 | N20 治疗束 / 火焰 / 流血绘制 | L | 是 | 中 | 16：治疗束可先于粒子单独做 |
