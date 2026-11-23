@@ -1671,6 +1671,17 @@ std::vector<tf2::native::TimelineHudAnomaly> g_hudTimelineAnomalies;
 // click and the frame would otherwise move every cell out from under the pointer.
 int g_hudTimelineFocusIndex = -1;
 tf2::native::TimelineHudStrip g_hudTimelineStrip;
+// A4: the census the scan produced, and the entity the client follows right now. The
+// history the strip draws is derived from these two on demand: deriving it inside the
+// scan would need a second scan to look at a different player, and following a spectator
+// means switching target without rescanning. Revision is bumped by both setters so the
+// derivation runs once per change, never per frame.
+tf2::native::DemoMotionCensus g_hudTimelineCensus;
+bool g_hudTimelineCensusValid = false;
+std::uint64_t g_hudTimelineCensusRevision = 0;
+std::int32_t g_hudTimelineFollowEntity = -1;
+tf2::native::MotionViewHistory g_hudTimelineView;
+std::uint64_t g_hudTimelineViewRevision = 0;
 // Section 9 line 238's "jump to three seconds before", in ticks. The recording runs at
 // seconds is 200 ticks -- the same number the design's strip gates use for 3 s.
 constexpr std::int32_t kTimelineFocusLeadTicks = 200;
@@ -1683,6 +1694,11 @@ struct HudTimelineTraceState {
   int clientH = 0;
   int visible = -1;
   std::size_t bands = 0;
+  // A4: the follow layers change without any geometry change (the spectator switches
+  // player, or the census arrives), so they are part of what makes a reading republish.
+  int viewEntity = -2;
+  std::size_t presenceRuns = 0;
+  std::size_t viewTurns = 0;
 };
 HudTimelineTraceState g_hudTimelineTrace;
 }  // namespace
@@ -1698,6 +1714,20 @@ void hudSetTimelineAnomalies(const std::vector<tf2::native::TimelineHudAnomaly>&
   // anomaly than the one the user picked.
   g_hudTimelineFocusIndex = -1;
   ++g_hudMatchTimelineRevision;
+}
+
+void hudSetTimelineMotionCensus(const tf2::native::DemoMotionCensus& census) {
+  g_hudTimelineCensus = census;
+  g_hudTimelineCensusValid = true;
+  // A new census invalidates the derived view, not the selection: the anomaly list came
+  // from its own setter and that one already cleared the focus.
+  ++g_hudTimelineCensusRevision;
+}
+
+void hudSetTimelineFollowEntity(std::int32_t entity) {
+  if (entity == g_hudTimelineFollowEntity) return;
+  g_hudTimelineFollowEntity = entity;
+  ++g_hudTimelineCensusRevision;
 }
 
 void hudSetTimelineFocusIndex(int index) {
@@ -1960,36 +1990,65 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
       timelineFocus.startTick = focused.startTick;
       timelineFocus.endTick = focused.endTick;
     }
+    // A4: the follow-only layers. The view is derived from the census for the entity
+    // followed THIS frame, and only redone when the census or the entity changed: the
+    // derivation walks every tick of the recording.
+    tf2::native::TimelineHudView timelineView;
+    if (g_hudTimelineCensusValid && g_hudTimelineFollowEntity >= 0
+        && g_hudMatchTimeline.valid
+        && g_hudMatchTimeline.lastServerTick > g_hudMatchTimeline.firstServerTick) {
+      if (g_hudTimelineViewRevision != g_hudTimelineCensusRevision
+          || g_hudTimelineView.entity != g_hudTimelineFollowEntity) {
+        g_hudTimelineView = tf2::native::buildMotionViewHistory(g_hudTimelineCensus,
+            g_hudTimelineFollowEntity, g_hudMatchTimeline.firstServerTick,
+            g_hudMatchTimeline.lastServerTick);
+        g_hudTimelineViewRevision = g_hudTimelineCensusRevision;
+      }
+      timelineView = tf2::native::timelineHudViewFromHistory(g_hudTimelineView);
+    }
     timelineStrip = tf2::native::composeTimelineStrip(g_hudMatchTimeline,
         timelineClientW, timelineClientH, playback.tick, timelineAvoid, 0.0f,
-        g_hudTimelineAnomalies, timelineFocus);
+        g_hudTimelineAnomalies, timelineFocus, timelineView);
     g_hudTimelineStrip = timelineStrip;
     if (timelineStrip.visible) {
       const HudTimelineTraceState& last = g_hudTimelineTrace;
       if (last.revision != g_hudMatchTimelineRevision || last.clientW != timelineClientW
           || last.clientH != timelineClientH || last.visible != 1
-          || last.bands != timelineStrip.bands.size()) {
+          || last.bands != timelineStrip.bands.size()
+          || last.viewEntity != timelineStrip.viewEntity
+          || last.presenceRuns != timelineStrip.presenceRuns
+          || last.viewTurns != timelineStrip.viewTurns) {
         traceFmt("timeline: hud visible=1 revision=%llu client=%dx%d rounds=%zu"
           " shapes=%zu red=%zu blu=%zu unknown=%zu anomalies=%zu stalls=%zu"
-          " teleports=%zu hints=%zu x=%d y=%d w=%d h=%d"
-          " focus=%d cells=%zu anomalyCells=%zu hintCells=%zu cellW=%d cellsY=%d",
+          " teleports=%zu hints=%zu before=%zu after=%zu x=%d y=%d w=%d h=%d"
+          " focus=%d cells=%zu anomalyCells=%zu hintCells=%zu cellW=%d cellsY=%d"
+          " view=%d viewEntity=%d presenceRuns=%zu presenceAlive=%zu presenceDead=%zu"
+          " turns=%zu turnsOver=%zu maxDeg=%d",
           static_cast<unsigned long long>(g_hudMatchTimelineRevision),
           timelineClientW, timelineClientH, timelineStrip.bands.size(),
           timelineStrip.shapes, timelineStrip.ticksRed, timelineStrip.ticksBlu,
           timelineStrip.ticksUnknown, timelineStrip.anomalyBlocks, timelineStrip.stalls,
           timelineStrip.teleports, timelineStrip.anomalyHints,
+          timelineStrip.marksBefore, timelineStrip.marksAfter,
           static_cast<int>(timelineStrip.x),
           static_cast<int>(timelineStrip.y), static_cast<int>(timelineStrip.w),
           static_cast<int>(timelineStrip.h),
           timelineStrip.focusValid ? 1 : 0, timelineStrip.cells,
           timelineStrip.anomalyCells, timelineStrip.hintCells,
           static_cast<int>(std::lround(timelineStrip.cellW)),
-          static_cast<int>(std::lround(timelineStrip.cellsY)));
+          static_cast<int>(std::lround(timelineStrip.cellsY)),
+          timelineStrip.viewValid ? 1 : 0, timelineStrip.viewEntity,
+          timelineStrip.presenceRuns, timelineStrip.presenceAlive,
+          timelineStrip.presenceDead, timelineStrip.viewTurns, timelineStrip.viewTurnsOver,
+          static_cast<int>(std::lround(timelineStrip.viewMaxDegrees)));
         g_hudTimelineTrace.revision = g_hudMatchTimelineRevision;
         g_hudTimelineTrace.clientW = timelineClientW;
         g_hudTimelineTrace.clientH = timelineClientH;
         g_hudTimelineTrace.visible = 1;
         g_hudTimelineTrace.bands = timelineStrip.bands.size();
+        g_hudTimelineTrace.viewEntity = timelineStrip.viewEntity;
+        g_hudTimelineTrace.presenceRuns = timelineStrip.presenceRuns;
+        g_hudTimelineTrace.viewTurns = timelineStrip.viewTurns;
       }
     }
   }

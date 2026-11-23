@@ -606,6 +606,11 @@ constexpr std::int32_t kMotionOpenBucket = std::numeric_limits<std::int32_t>::ma
 constexpr std::int32_t kMotionDtBounds[] = {1, 2, 4, 8, 32};
 constexpr std::size_t kMotionTopKeep = 64;
 constexpr std::uint32_t kCondTeleportedBit = 1u << 6;  // TF_COND_TELEPORTED
+// A4 caps. 4096 spans is ~4096 packets of presence for one player: a POV recording that
+// alternates a player in and out of view for an hour still fits, and a recording that
+// exceeds it loses only the tail (counted in spansCapped, never silently).
+constexpr std::size_t kMaxPlayerSpans = 4096;
+constexpr std::size_t kMaxLifeEdges = 65536;
 
 std::int32_t motionDtBucket(std::int32_t dt) {
   for (const std::int32_t bound : kMotionDtBounds) {
@@ -650,9 +655,23 @@ void DemoTickAuditCapture::observeMotionProperty(const DemoNetworkSummary& summa
   const bool condBits = std::strcmp(propName, "_condition_bits") == 0;
   if (!xy && !z && !pitch && !yaw && !life && !team && !playerClass && !cond && !condBits) return;
   if (!isPlayerClass(classNameForClassId(summary, classId))) return;
+  // A4: every accepted write is presence, including the ones that carry no motion (a
+  // life, team or class change still means the recording had this player at this tick).
+  notePlayerWrite(entityIndex, serverTick);
   MotionState& state = motionState_[entityIndex];
   if (life) {
-    if (state.haveLife && state.life != value.intValue) state.lifeTick = serverTick;
+    if (!state.haveLife || state.life != value.intValue) {
+      if (motionCensus_.lifeEdges.size() < kMaxLifeEdges) {
+        DemoMotionLifeEdge edge;
+        edge.tick = serverTick;
+        edge.entity = entityIndex;
+        edge.life = value.intValue;
+        motionCensus_.lifeEdges.push_back(edge);
+      } else {
+        ++motionCensus_.lifeEdgesDropped;
+      }
+      if (state.haveLife) state.lifeTick = serverTick;
+    }
     state.life = value.intValue;
     state.haveLife = true;
     return;
@@ -700,6 +719,31 @@ void DemoTickAuditCapture::observeMotionProperty(const DemoNetworkSummary& summa
     state.pyaw = value.x;
     state.pendAng = true;
   }
+}
+
+// A4: one entry per property write the motion hook accepts, i.e. per tick this player
+// entity had data. Consecutive writes extend the open span; anything further opens a new
+// one. The write order is the demo's packet order, which is not strictly tick order (a
+// delta packet may carry a later tick than its predecessor only), so a tick at or before
+// the open span's last simply extends it rather than moving the cursor backwards.
+void DemoTickAuditCapture::notePlayerWrite(std::int32_t entity, std::int32_t tick) {
+  if (!motionCensusEnabled_ || entity < 0 || tick < 0) return;
+  std::vector<DemoTickSpan>& spans = motionCensus_.playerSpans[entity];
+  if (!spans.empty()) {
+    DemoTickSpan& open = spans.back();
+    if (tick <= open.last + 1) {
+      if (tick > open.last) open.last = tick;
+      return;
+    }
+  }
+  if (spans.size() >= kMaxPlayerSpans) {
+    ++motionCensus_.spansCapped;
+    return;
+  }
+  DemoTickSpan span;
+  span.first = tick;
+  span.last = tick;
+  spans.push_back(span);
 }
 
 void DemoTickAuditCapture::settleMotion() {

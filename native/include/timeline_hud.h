@@ -110,6 +110,40 @@ struct TimelineHudCell {
   bool hint = false;
 };
 
+// A4 (section 9.2 items 1 and 3): the two layers that exist only while the workspace
+// follows a player. They are written in SERVER ticks like the lane and the row, so the
+// caller never converts; only this file maps them onto the axis.
+//
+// A presence run is a stretch of the axis with one answer: state 1 = the recording had
+// data and he was alive, 2 = data and he was dead, 0 = no data (drawn as nothing -- an
+// empty bar under a POV recording is the honest reading of "he had left its view").
+struct TimelineHudPresenceRun {
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+  int state = 0;
+};
+
+// One turn the recording measured, at the tick it ended on: degrees per server tick, and
+// whether it is over the sharp-turn threshold (which is also what makes a hint amber on
+// the exception lane, so the red bars and the amber marks agree by construction).
+struct TimelineHudTurnPoint {
+  std::int32_t tick = 0;
+  double degrees = 0.0;
+  bool over = false;
+};
+
+struct TimelineHudView {
+  bool valid = false;
+  std::int32_t entity = -1;
+  std::vector<TimelineHudPresenceRun> presence;
+  std::vector<TimelineHudTurnPoint> turns;
+  std::size_t turnsOver = 0;
+  double maxDegrees = 0.0;
+  std::size_t aliveTicks = 0;
+  std::size_t deadTicks = 0;
+  std::size_t noDataTicks = 0;
+};
+
 struct TimelineHudStrip {
   bool visible = false;
   float x = 0.0f;      // the strip's own rectangle
@@ -156,6 +190,25 @@ struct TimelineHudStrip {
   std::size_t anomalyCells = 0;
   std::size_t hintCells = 0;
   std::vector<TimelineHudCell> cellMarks;
+  // A4: what the follow-only layers actually drew. Kept so the trace can print the runs
+  // and turns a gate reads, exactly like cellMarks does for A3b's row.
+  std::vector<TimelineHudPresenceRun> presenceMarks;
+  std::vector<TimelineHudTurnPoint> turnMarks;
+  // A4: what the follow-only layers drew. Unfollowed strips keep viewValid=false, so
+  // every strip A3's gate photographs draws exactly what it did before.
+  bool viewValid = false;
+  std::int32_t viewEntity = -1;
+  float presenceY = 0.0f;
+  float presenceH = 0.0f;
+  float curveY = 0.0f;
+  float curveH = 0.0f;
+  float curveThresholdY = 0.0f;
+  std::size_t presenceRuns = 0;
+  std::size_t presenceAlive = 0;
+  std::size_t presenceDead = 0;
+  std::size_t viewTurns = 0;
+  std::size_t viewTurnsOver = 0;
+  float viewMaxDegrees = 0.0f;
   std::vector<TimelineHudShape> primitives;
 };
 
@@ -167,6 +220,9 @@ struct TimelineHudStrip {
 // anomalies: the A3 exception track, already on the server-tick axis. Empty draws the
 // lane with no marks, so a run that never scanned keeps the same geometry as one that
 // did -- a gate can tell "no anomalies" from "no track" instead of guessing.
+// view: the A4 follow-only layers (presence bar, turn-rate curve). Invalid = nobody is
+// followed, which is the state every strip A3's gate photographs is in, so those frames
+// gain no pixels from A4 and keep their shape counts.
 TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
                                       int clientW, int clientH,
                                       std::int32_t playheadPlaybackTick,
@@ -174,7 +230,8 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
                                       float bottomInset = 0.0f,
                                       const std::vector<TimelineHudAnomaly>& anomalies =
                                           std::vector<TimelineHudAnomaly>{},
-                                      const TimelineHudFocus& focus = TimelineHudFocus{});
+                                      const TimelineHudFocus& focus = TimelineHudFocus{},
+                                      const TimelineHudView& view = TimelineHudView{});
 
 // A3b: where a client point lands on the strip. Inside the per-tick row the answer is
 // that cell's own server tick -- the row is one cell per tick, so a click on a cell is a
@@ -183,6 +240,12 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
 // and the caller must then leave the transport alone.
 bool timelineStripTickAt(const TimelineHudStrip& strip, float clientX, float clientY,
                          std::int32_t& serverTick);
+
+// A4: converts the scan's per-entity motion history into what the strip draws. Lives
+// here so the product's HUD and the probe's trace build the layers from ONE conversion
+// instead of two copies that could disagree about a state or a tick.
+struct MotionViewHistory;
+TimelineHudView timelineHudViewFromHistory(const MotionViewHistory& history);
 
 // One machine-readable line per strip plus one per band, so a gate can assert the
 // geometry without a screenshot. Text is percent-encoded (one line = one record).

@@ -97,6 +97,55 @@ struct MotionDetectReport {
 MotionDetectReport detectMotionAnomalies(const std::vector<DemoTickAuditPacketRow>& packets,
     const DemoMotionCensus& census, const MotionDetectThresholds& thresholds = {});
 
+// A4 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 9.2 items 1 and 3): the two
+// layers that exist only while the workspace follows a player.
+//
+// Presence answers "was there data for this player at this tick, and did it say he was
+// alive": the census's write spans are the data, the life edges turn them into alive or
+// dead, and the gaps between spans stay NoData -- a POV recording has no image of a
+// player who left its view, and drawing him alive there would be an invention.
+//
+// The turns are the census's own counted turn steps for one entity, i.e. the same
+// per-tick degrees the sharp-turn detector reads, so the curve under the timeline and
+// the amber hints on it can never disagree about what a flick is.
+enum class MotionViewPresenceState { NoData = 0, Alive = 1, Dead = 2 };
+
+struct MotionViewPresence {
+  std::int32_t startTick = 0;  // inclusive
+  std::int32_t endTick = 0;    // inclusive
+  MotionViewPresenceState state = MotionViewPresenceState::NoData;
+};
+
+struct MotionViewTurn {
+  std::int32_t tick = 0;
+  double degrees = 0.0;  // per server tick
+  bool overThreshold = false;
+};
+
+struct MotionViewHistory {
+  bool valid = false;
+  std::int32_t entity = -1;
+  std::int32_t firstTick = 0;
+  std::int32_t lastTick = 0;
+  std::int32_t lastWriteTick = -1;
+  std::size_t writeSpans = 0;
+  std::vector<MotionViewPresence> presence;  // merged runs, cover [firstTick, lastTick]
+  std::vector<MotionViewTurn> turns;
+  std::size_t aliveTicks = 0;
+  std::size_t deadTicks = 0;
+  std::size_t noDataTicks = 0;
+  std::size_t turnsOverThreshold = 0;
+  double maxDegrees = 0.0;
+};
+
+// One pass over the census, no demo and no packets: the two inputs are already resident
+// after the startup scan. firstTick/lastTick are the axis the caller draws on (the match
+// timeline's server ticks), so runs are clipped to it rather than to the entity's own
+// first write.
+MotionViewHistory buildMotionViewHistory(const DemoMotionCensus& census,
+    std::int32_t entity, std::int32_t firstTick, std::int32_t lastTick,
+    const MotionDetectThresholds& thresholds = {});
+
 // One line per header/anomaly/hint, ASCII, stable field order -- the same contract
 // the other --scan emitters keep so a gate can grep them.
 std::vector<std::string> formatMotionDetectLines(const MotionDetectReport& report);

@@ -6066,6 +6066,12 @@ bool outlineVertexExtent = false;
             tf2::native::main_internal::hudSetTimelineFocusIndex(
                 tf2::native::main_internal::g_cliHudTimelineFocus);
           }
+          // A4 (section 9.2 items 1 and 3): the follow-only layers read the census this
+          // pass just filled, not a second scan. Copied as a value so the strip keeps
+          // describing this demo after the capture is gone, and so a spectator switching
+          // player re-derives instead of rescanning.
+          tf2::native::main_internal::hudSetTimelineMotionCensus(
+              demoTickAuditCapture.motionCensus());
         }
       }
       tf2::native::buildAssetReferenceList(demoNetworkSummary, demoNetworkSummary.assetReferences);
@@ -17600,6 +17606,20 @@ bool outlineVertexExtent = false;
         : (reusePose ? minimapPoseYaw : 0.0f);
       minimapFrame.tick = g_playback.tick;
       tf2::native::minimapHudSetFrame(minimapFrame);
+    }
+    // A4 (section 9.2 items 1 and 3): who the two follow-only layers describe, pushed
+    // once per frame so switching player switches the bar and the curve. The CLI pin wins
+    // over the camera's own target so a gate can photograph a named player; with neither,
+    // -1 draws neither layer -- a strip must never claim "alive" for a player nobody is
+    // following.
+    {
+      std::int32_t timelineEntity = -1;
+      if (tf2::native::main_internal::g_cliHudTimelineEntity >= 0) {
+        timelineEntity = tf2::native::main_internal::g_cliHudTimelineEntity;
+      } else if (g_spectateDirector.focusValid()) {
+        timelineEntity = static_cast<std::int32_t>(g_spectateDirector.targetIndex());
+      }
+      tf2::native::main_internal::hudSetTimelineFollowEntity(timelineEntity);
     }
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
       demoHeader.mapName,

@@ -297,6 +297,24 @@ struct DemoMotionRate {
   // requiring a second pass.
   std::int32_t tick = 0;
 };
+// A4 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 9.2 items 1 and 3): the
+// presence bar and the turn-rate curve need per-entity HISTORY, and everything above is
+// a distribution. The census keeps two sparse forms of it. The span list is the ticks a
+// player entity was written on, merged while the recording is read: consecutive writes
+// extend the last span, a gap opens a new one, so a POV recording that lost a player out
+// of its view keeps that hole instead of pretending the player stood still. The life
+// edges are every m_lifeState change, which is what turns "there is data here" into
+// "he was alive" or "he was dead". Both are recorded only for player classes, the same
+// gate the motion steps use, so the census does not grow with projectiles and items.
+struct DemoTickSpan {
+  std::int32_t first = 0;
+  std::int32_t last = 0;
+};
+struct DemoMotionLifeEdge {
+  std::int32_t tick = 0;
+  std::int32_t entity = -1;
+  std::int64_t life = 0;  // m_lifeState at this tick: 0 alive, the rest dead or dying
+};
 struct DemoMotionCensus {
   std::int32_t guardTicks = 66;
   std::int32_t rateMaxDt = 4;
@@ -312,6 +330,13 @@ struct DemoMotionCensus {
   std::vector<DemoMotionRate> turnRates;
   std::vector<DemoMotionSample> topMoves;      // largest per-tick steps, excluded ones included
   std::vector<DemoMotionSample> topTurns;
+  // A4: see DemoTickSpan above. Capped per entity (see notePlayerWrite) so a recording
+  // that flickers one entity thousands of times cannot grow this without bound; the cap
+  // is reported rather than silently dropping the tail.
+  std::map<std::int32_t, std::vector<DemoTickSpan>> playerSpans;
+  std::vector<DemoMotionLifeEdge> lifeEdges;  // in tick order, capped
+  std::size_t lifeEdgesDropped = 0;
+  std::size_t spansCapped = 0;
 };
 
 class DemoTickAuditCapture {
@@ -416,6 +441,7 @@ class DemoTickAuditCapture {
       std::int32_t entityIndex, std::int32_t classId, const char* propName,
       const EntityPropertyValue& value);
   void settleMotion();
+  void notePlayerWrite(std::int32_t entity, std::int32_t tick);
   void recordMotion(bool turn, std::int32_t entity, std::int32_t tick, std::int32_t dt,
       double amount, const MotionState& state);
   bool motionCensusEnabled_ = false;

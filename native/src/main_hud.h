@@ -29,6 +29,7 @@
 #include <string>
 
 #include "demo_header.h"
+#include "demo_tick_audit.h"
 #include "demo_match_timeline.h"
 #include "timeline_hud.h"
 #include "hud_state.h"
@@ -95,6 +96,12 @@ int hudTimelineStepFocus(int direction, std::int32_t playbackTick,
 // so a click lands where the pixels are, and the answer is a playback tick -- the caller
 // hands it to the transport as a scrub.
 bool hudTimelineHitTest(int clientX, int clientY, std::int32_t& playbackTick);
+// A4: the follow-only layers' inputs. The census is the scan's own motion census -- the
+// same numbers the anomaly detector read, so a red curve bar and an amber hint cannot
+// disagree -- and the entity is who the client follows this frame (-1 when nobody, which
+// draws neither layer). main.cpp copies the census once and pushes the entity per frame.
+void hudSetTimelineMotionCensus(const tf2::native::DemoMotionCensus& census);
+void hudSetTimelineFollowEntity(std::int32_t entity);
 
 // T97: the live readout the frame loop calls once per frame (main.cpp).
 //

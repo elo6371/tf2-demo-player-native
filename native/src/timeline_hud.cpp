@@ -8,21 +8,24 @@ namespace tf2::native {
 namespace {
 
 // Section 9 puts the strip at the bottom of the workspace; these are the strip's own
-// proportions, not the design's type scale. The strip is 64 px tall: 18 for the round
-// labels, 6 for the exception track, 3 for the winner stripe, 8 for the track, the rest
-// for the RED/BLU ticks, which need to read at a glance without being taller than the
-// track itself, and 6 at the bottom for A3b's per-tick row. The row could not go in the
-// old bottom slack: the BLU kills already draw there (7 px below the track), so the
-// strip grew by the row's height instead of drawing cells on top of kills.
+// proportions, not the design's type scale. The strip is 76 px tall, top to bottom: 16
+// for the round labels, 4 for A4's presence bar, 6 for the exception track, 12 for A4's
+// turn-rate curve, 5 of air, 7 for the RED kill ticks, 8 for the track (the winner stripe
+// covers its top 3), 7 for the BLU ticks, 6 for A3b's per-tick row under a 3 px gap, and
+// 2 px of slack at the bottom edge. Both of the last two layers grew the strip instead of
+// sharing rows: the row could not use the old bottom slack because the BLU kills already
+// draw there, and the curve cannot use the 12 px the exception lane left free because the
+// RED ticks draw through those rows -- a bar over the threshold and a RED kill would be the
+// same red in the same band.
 constexpr float kMargin = 12.0f;
-constexpr float kStripHeight = 64.0f;
+constexpr float kStripHeight = 76.0f;
 constexpr float kAnomalyLaneTop = 20.0f;
 constexpr float kAnomalyLaneHeight = 6.0f;
 constexpr float kAnomalyHintHeight = 2.0f;
 constexpr float kAnomalyBlockMinWidth = 2.0f;
-constexpr float kTrackTop = 38.0f;
+constexpr float kTrackTop = 50.0f;
 constexpr float kTrackHeight = 8.0f;
-constexpr float kCellsTop = 56.0f;
+constexpr float kCellsTop = 68.0f;
 constexpr float kCellsHeight = 6.0f;
 constexpr float kCellGap = 1.0f;
 // A focus window wider than this is drawn as its first ticks rather than as sub-pixel
@@ -30,6 +33,27 @@ constexpr float kCellGap = 1.0f;
 // show one. 400 ticks is six seconds at 66.67 tick/s, far wider than any anomaly.
 constexpr std::int32_t kMaxCells = 400;
 constexpr std::size_t kMaxCellLines = 64;
+// A4 traces: presence runs are few (one per write span, a couple per player), turns can be
+// one per written tick, so the turn rows are capped as well and the totals are on the
+// main line.
+constexpr std::size_t kMaxPresenceLines = 64;
+constexpr std::size_t kMaxTurnLines = 200;
+// A4 (section 9.2 items 1 and 3): the follow-only layers. The presence bar takes the 4 px
+// between the round labels and the exception lane, which A3 left empty. The curve takes a
+// 12 px band of its own; that band is part of the strip's growth, not of the gap A3 left,
+// because the 5 rows free above the RED ticks were not a band anyone could read a spike in.
+constexpr float kPresenceTop = 16.0f;
+constexpr float kPresenceHeight = 4.0f;
+constexpr float kCurveTop = 26.0f;
+constexpr float kCurveHeight = 12.0f;
+// The curve's scale, not the threshold: the band's top is 220 degrees per tick (~1.6x the
+// 135-degree sharp-turn threshold), which puts the threshold line at 61% and lets a flick
+// cross it while a 20-degree drift stays a couple of pixels tall.
+constexpr float kCurveTopDegrees = 220.0f;
+constexpr float kCurveThresholdDegrees = 135.0f;
+// A turn is one tick wide on the axis; drawing it 1 px keeps a flick a spike and not a
+// smear, and two flicks a few ticks apart stay two spikes.
+constexpr float kCurveBarWidth = 1.0f;
 constexpr float kStripeHeight = 3.0f;
 constexpr float kKillTickHeight = 7.0f;
 constexpr float kPlayheadOvershoot = 5.0f;
@@ -59,6 +83,18 @@ constexpr float kAnomalyHintColour[4] = {0.72f, 0.58f, 0.34f, 0.90f};
 // A3b: an ordinary tick of the per-tick row. Lighter than the lane's base so the row
 // reads as a ruler under the strip, not as a second lane.
 constexpr float kCellColour[4] = {0.16f, 0.17f, 0.21f, 0.92f};
+// A4: green is "the recording says he was alive", grey "it says he was dead". Neither is
+// a team colour: this bar is about the data, not about a side, the same rule the
+// exception lane keeps.
+constexpr float kPresenceAliveColour[4] = {0.30f, 0.72f, 0.40f, 0.95f};
+constexpr float kPresenceDeadColour[4] = {0.44f, 0.45f, 0.49f, 0.95f};
+// Opaque, unlike the band and lane bases: the panel under the strip is translucent, so a
+// translucent mark takes its colour from whatever game pixel sits behind it. Measured on
+// the first version, the 0.55-alpha threshold line matched a single colour on 23 of its
+// 1,240 columns -- a reference line that changes colour along its own length reads as
+// noise and cannot be gated. Both of these marks are information drawn over the view.
+constexpr float kCurveColour[4] = {0.42f, 0.52f, 0.68f, 1.0f};
+constexpr float kCurveThresholdColour[4] = {0.60f, 0.58f, 0.52f, 1.0f};
 
 const float* teamColour(std::int32_t team) {
   if (team == 2) return kTeamRedColour;
@@ -119,7 +155,8 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
                                       const TimelineHudAvoidRect& avoid,
                                       float bottomInset,
                                       const std::vector<TimelineHudAnomaly>& anomalies,
-                                      const TimelineHudFocus& focus) {
+                                      const TimelineHudFocus& focus,
+                                      const TimelineHudView& view) {
   TimelineHudStrip strip;
   if (!report.valid || report.rounds.empty()) return strip;
   const std::int32_t first = report.firstServerTick;
@@ -168,6 +205,14 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
   strip.anomalyLaneH = kAnomalyLaneHeight;
   strip.cellsY = y + kCellsTop;
   strip.cellsH = kCellsHeight;
+  strip.presenceY = y + kPresenceTop;
+  strip.presenceH = kPresenceHeight;
+  strip.curveY = y + kCurveTop;
+  strip.curveH = kCurveHeight;
+  // The threshold line's own y: the reference the bars are read against, so a gate can
+  // assert it without recomputing the scale.
+  strip.curveThresholdY =
+      strip.curveY + kCurveHeight * (1.0f - kCurveThresholdDegrees / kCurveTopDegrees);
 
   const float span = static_cast<float>(last - first);
   const float trackW = strip.trackX1 - strip.trackX0;
@@ -322,6 +367,82 @@ TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
     }
   }
 
+  // A4 (section 9.2 items 1 and 3): the two follow-only layers. Both are drawn from the
+  // followed player's own data, and both are skipped wholesale when nobody is followed:
+  // an empty band would claim "no sharp turns / not in the recording", which is not what
+  // a spectator view with no follow says.
+  if (view.valid && span > 0.0f) {
+    strip.viewValid = true;
+    strip.viewEntity = view.entity;
+
+    // 3) the presence bar: the player's write spans tinted by m_lifeState at the time. A gap between
+    // spans is real information in a POV recording -- the engine does not write an entity
+    // nobody can see -- so gaps stay empty rather than guessed at.
+    for (const TimelineHudPresenceRun& run : view.presence) {
+      if (run.state == 0) continue;
+      if (run.endTick < first || run.startTick > last) continue;
+      const std::int32_t start = std::max(run.startTick, first);
+      const std::int32_t end = std::min(std::max(run.endTick, start), last);
+      const float runX = tickToX(start);
+      // A run covers its ticks inclusively: take the next tick's edge so a one-tick run is
+      // still a visible sliver instead of a zero-width rect, and let the axis end cap it.
+      const float runEndX = end < last ? tickToX(end + 1) : strip.trackX1;
+      float runW = runEndX - runX;
+      if (runW < 1.0f) runW = 1.0f;
+      if (runX + runW > strip.trackX1) runW = strip.trackX1 - runX;
+      if (runW <= 0.0f) continue;
+      addRect(strip, runX, strip.presenceY, runW, kPresenceHeight,
+              run.state == 1 ? kPresenceAliveColour : kPresenceDeadColour);
+      strip.presenceMarks.push_back(run);
+      ++strip.presenceRuns;
+      if (run.state == 1) {
+        ++strip.presenceAlive;
+      } else {
+        ++strip.presenceDead;
+      }
+    }
+
+    // 1) the view turn-rate curve. The threshold line is drawn first so the bars sit over
+    // it, and a bar over the threshold borrows the exception lane's red: the same colour
+    // means the same word across the strip.
+    addRect(strip, strip.trackX0, strip.curveThresholdY, trackW, 1.0f, kCurveThresholdColour);
+    const float curveBase = strip.curveY + kCurveHeight;
+    // The axis is ~1200 px wide but a recording has tens of ticks per pixel, so the curve
+    // is a per-column MAXIMUM and not one bar per tick: the tallest tick in a column is
+    // what the eye reads, and one primitive per tick would be ~64k quads for 1200 visible
+    // pixels. Counted totals stay per tick, so the trace still says how much data there is.
+    const int columns = static_cast<int>(trackW);
+    if (columns > 0) {
+      std::vector<float> columnDegrees(static_cast<std::size_t>(columns), -1.0f);
+      std::vector<unsigned char> columnOver(static_cast<std::size_t>(columns), 0);
+      for (const TimelineHudTurnPoint& turn : view.turns) {
+        if (turn.tick < first || turn.tick > last) continue;
+        const int column = std::clamp(
+            static_cast<int>(tickToX(turn.tick) - strip.trackX0), 0, columns - 1);
+        float& peak = columnDegrees[static_cast<std::size_t>(column)];
+        if (static_cast<float>(turn.degrees) > peak) peak = static_cast<float>(turn.degrees);
+        // Red follows the detector's own flag, not a second threshold: the curve must not
+        // disagree with the hints the same scan produced.
+        if (turn.over) columnOver[static_cast<std::size_t>(column)] = 1;
+        // Only the first rows are kept for the trace; the totals below are the real count.
+        if (strip.turnMarks.size() < kMaxTurnLines) strip.turnMarks.push_back(turn);
+        ++strip.viewTurns;
+        if (turn.over) ++strip.viewTurnsOver;
+      }
+      for (int column = 0; column < columns; ++column) {
+        const float degrees = columnDegrees[static_cast<std::size_t>(column)];
+        if (degrees < 0.0f) continue;
+        const float barH = std::max(1.0f,
+            std::clamp(degrees / kCurveTopDegrees, 0.0f, 1.0f) * kCurveHeight);
+        addRect(strip, strip.trackX0 + static_cast<float>(column), curveBase - barH,
+                kCurveBarWidth, barH,
+                columnOver[static_cast<std::size_t>(column)] ? kAnomalyBlockColour
+                                                             : kCurveColour);
+      }
+    }
+    strip.viewMaxDegrees = static_cast<float>(view.maxDegrees);
+  }
+
   // The playhead is the one thing that moves every frame; it is drawn last so it sits
   // over every tick it crosses.
   if (playheadPlaybackTick >= 0) {
@@ -366,7 +487,16 @@ std::vector<std::string> formatTimelineHudLines(const TimelineHudStrip& strip) {
         << " windowStart=" << strip.focusWindowStart << " windowEnd=" << strip.focusWindowEnd
         << " cells=" << strip.cells << " anomalyCells=" << strip.anomalyCells
         << " hintCells=" << strip.hintCells << " cellW=" << std::lround(strip.cellW)
-        << " cellsY=" << std::lround(strip.cellsY) << " cellsH=" << std::lround(strip.cellsH);
+        << " cellsY=" << std::lround(strip.cellsY) << " cellsH=" << std::lround(strip.cellsH)
+        << " view=" << (strip.viewValid ? 1 : 0) << " viewEntity=" << strip.viewEntity
+        << " presenceY=" << std::lround(strip.presenceY)
+        << " presenceH=" << std::lround(strip.presenceH)
+        << " curveY=" << std::lround(strip.curveY) << " curveH=" << std::lround(strip.curveH)
+        << " curveThresholdY=" << std::lround(strip.curveThresholdY)
+        << " presenceRuns=" << strip.presenceRuns << " presenceAlive=" << strip.presenceAlive
+        << " presenceDead=" << strip.presenceDead << " turns=" << strip.viewTurns
+        << " turnsOver=" << strip.viewTurnsOver
+        << " maxDeg=" << std::lround(strip.viewMaxDegrees);
     lines.push_back(out.str());
   }
   std::size_t printed = 0;
@@ -399,7 +529,54 @@ std::vector<std::string> formatTimelineHudLines(const TimelineHudStrip& strip) {
     lines.push_back(out.str());
     ++printed;
   }
+  printed = 0;
+  for (const TimelineHudPresenceRun& run : strip.presenceMarks) {
+    if (printed >= kMaxPresenceLines) break;
+    std::ostringstream out;
+    out << "timeline-presence run=" << (printed + 1) << " state=" << run.state
+        << " start=" << run.startTick << " end=" << run.endTick;
+    lines.push_back(out.str());
+    ++printed;
+  }
+  printed = 0;
+  for (const TimelineHudTurnPoint& turn : strip.turnMarks) {
+    if (printed >= kMaxTurnLines) break;
+    std::ostringstream out;
+    out << "timeline-turn tick=" << turn.tick << " deg=" << std::lround(turn.degrees)
+        << " over=" << (turn.over ? 1 : 0);
+    lines.push_back(out.str());
+    ++printed;
+  }
   return lines;
+}
+
+TimelineHudView timelineHudViewFromHistory(const MotionViewHistory& history) {
+  TimelineHudView view;
+  if (!history.valid) return view;
+  view.valid = true;
+  view.entity = history.entity;
+  view.presence.reserve(history.presence.size());
+  for (const MotionViewPresence& run : history.presence) {
+    TimelineHudPresenceRun out;
+    out.startTick = run.startTick;
+    out.endTick = run.endTick;
+    out.state = static_cast<int>(run.state);
+    view.presence.push_back(out);
+  }
+  view.turns.reserve(history.turns.size());
+  for (const MotionViewTurn& turn : history.turns) {
+    TimelineHudTurnPoint out;
+    out.tick = turn.tick;
+    out.degrees = turn.degrees;
+    out.over = turn.overThreshold;
+    view.turns.push_back(out);
+  }
+  view.turnsOver = history.turnsOverThreshold;
+  view.maxDegrees = history.maxDegrees;
+  view.aliveTicks = history.aliveTicks;
+  view.deadTicks = history.deadTicks;
+  view.noDataTicks = history.noDataTicks;
+  return view;
 }
 
 bool timelineStripTickAt(const TimelineHudStrip& strip, float clientX, float clientY,

@@ -90,6 +90,11 @@ inline bool g_cliFirstPerson = false;
 // frame. A gate has no pointer to click with, so this is how the row gets photographed;
 // the interactive doors are PgUp/PgDn and a click on a cell.
 inline int g_cliHudTimelineFocus = -1;
+// A4 (section 9.2 items 1 and 3): --hud-timeline-entity <id> pins the player the presence
+// bar and the turn-rate curve describe, so a gate can photograph one player's layers
+// without driving the spectator. Negative (the default) follows whatever the camera
+// actually follows, which is the product's own behaviour.
+inline int g_cliHudTimelineEntity = -1;
 // --aim-layer-heading view|velocity: what the legacy blend's aim-layer weight is
 // measured against. `velocity` (the default) is today's rule; `view` measures it
 // against the yaw the body is drawn at, i.e. weight 0 -- the conclusion the
@@ -359,6 +364,16 @@ inline const FlagSpec kFeatureFlagTable[] = {
     if (i + 1 >= argumentCount) return false;
     const long parsed = std::wcstol(arguments[++i], nullptr, 10);
     g_cliHudTimelineFocus = parsed < 0 ? -1 : static_cast<int>(parsed);
+    return true;
+  }},
+  {L"--hud-timeline-entity", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments,
+      int argumentCount, int& i) {
+    // A4: which player the follow-only layers describe. Painting one player's bar and
+    // curve is how a gate gets a reading out of a run whose spectator never settles on
+    // that player; a negative id means "follow the camera", the default.
+    if (i + 1 >= argumentCount) return false;
+    const long parsed = std::wcstol(arguments[++i], nullptr, 10);
+    g_cliHudTimelineEntity = parsed < 0 ? -1 : static_cast<int>(parsed);
     return true;
   }},
   {L"--overview-open", FlagArity::Zero, [](CliParseEnv&, LPWSTR*, int, int&) {

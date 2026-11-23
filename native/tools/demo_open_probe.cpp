@@ -1046,6 +1046,9 @@ int wmain(int argc, wchar_t** argv) {
   // by clicking a window.
   int timelineHudFocus = -1;
   std::vector<std::pair<float, float>> timelineHudHits;
+  // A4: --timeline-view <entity> asks for the follow-only layers of one player, which is
+  // how a gate photographs a presence bar and a turn curve without a spectator to follow.
+  int timelineHudViewEntity = -1;
   if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--timeline-hud") {
     timelineHud = true;
     matchTimeline = true;
@@ -1062,6 +1065,10 @@ int wmain(int argc, wchar_t** argv) {
           timelineHudWidth = w;
           timelineHudHeight = h;
         }
+        firstPath += 2;
+      } else if (option == L"--timeline-view" && firstPath + 1 < argc) {
+        const long parsed = std::wcstol(argv[firstPath + 1], nullptr, 10);
+        timelineHudViewEntity = parsed < 0 ? -1 : static_cast<int>(parsed);
         firstPath += 2;
       } else if (option == L"--focus" && firstPath + 1 < argc) {
         const long parsed = std::wcstol(argv[firstPath + 1], nullptr, 10);
@@ -1404,9 +1411,27 @@ int wmain(int argc, wchar_t** argv) {
           focus.startTick = selected.startTick;
           focus.endTick = selected.endTick;
         }
+        // A4: the follow-only layers, built from the census this same run already filled
+        // -- the numbers are the detector's own, so a red curve bar and an amber hint can
+        // never disagree.
+        tf2::native::TimelineHudView view;
+        if (timelineHudViewEntity >= 0 && mtReport.valid) {
+          view = tf2::native::timelineHudViewFromHistory(
+              tf2::native::buildMotionViewHistory(tickAuditCapture.motionCensus(),
+                  timelineHudViewEntity, mtReport.firstServerTick, mtReport.lastServerTick));
+          std::ostringstream viewLine;
+          viewLine << "timeline-view entity=" << timelineHudViewEntity
+                   << " valid=" << (view.valid ? 1 : 0)
+                   << " presence=" << view.presence.size() << " turns=" << view.turns.size()
+                   << " turnsOver=" << view.turnsOver << " aliveTicks=" << view.aliveTicks
+                   << " deadTicks=" << view.deadTicks << " noDataTicks=" << view.noDataTicks
+                   << " maxDeg=" << std::lround(view.maxDegrees);
+          tickAuditText += viewLine.str();
+          tickAuditText += '\n';
+        }
         const tf2::native::TimelineHudStrip strip = tf2::native::composeTimelineStrip(
             mtReport, timelineHudWidth, timelineHudHeight, timelineHudPlayhead, timelineHudAvoid,
-            0.0f, timelineAnomalies, focus);
+            0.0f, timelineAnomalies, focus, view);
         for (const std::string& stripLine : tf2::native::formatTimelineHudLines(strip)) {
           tickAuditText += stripLine;
           tickAuditText += '\n';

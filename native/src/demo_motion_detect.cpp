@@ -212,4 +212,129 @@ std::vector<std::string> formatMotionDetectLines(const MotionDetectReport& repor
   return lines;
 }
 
+MotionViewHistory buildMotionViewHistory(const DemoMotionCensus& census,
+    std::int32_t entity, std::int32_t firstTick, std::int32_t lastTick,
+    const MotionDetectThresholds& thresholds) {
+  MotionViewHistory history;
+  history.entity = entity;
+  history.firstTick = firstTick;
+  history.lastTick = lastTick;
+  if (entity < 0 || lastTick < firstTick) return history;
+  // A span walk is linear, but the walk below is per tick because the presence bar needs
+  // a state for every tick of the axis. A recording that spans more than this is not a
+  // match the timeline draws anyway (the strip hides under kMinTickSpan only at the other
+  // end), so the guard keeps a corrupt header from turning into a 4-billion-iteration
+  // loop.
+  const std::int64_t span = static_cast<std::int64_t>(lastTick) - static_cast<std::int64_t>(firstTick);
+  if (span > 8000000) return history;
+  history.valid = true;
+
+  const auto found = census.playerSpans.find(entity);
+  const std::vector<DemoTickSpan> empty;
+  const std::vector<DemoTickSpan>& spans = found == census.playerSpans.end() ? empty : found->second;
+  history.writeSpans = spans.size();
+  if (!spans.empty()) history.lastWriteTick = spans.back().last;
+  // The bar must not stripe: a player standing still for one tick writes nothing, and TF2
+  // omits unchanged props, so raw spans fragment into thousands of slivers. Writes closer
+  // together than this are one stretch of presence; a longer hole means the recording lost
+  // the player (out of view, or dead).
+  constexpr std::int32_t kPresenceWindowGap = 66;
+  std::vector<DemoTickSpan> windows;
+  for (const DemoTickSpan& write : spans) {
+    if (!windows.empty() && write.first - windows.back().last <= kPresenceWindowGap) {
+      if (write.last > windows.back().last) windows.back().last = write.last;
+      continue;
+    }
+    windows.push_back(write);
+  }
+
+  // The entity's life edges, in tick order. The census keeps them interleaved across
+  // entities, so this gathers the ones that belong to the followed player; a match has
+  // a few hundred of them at most.
+  std::vector<const DemoMotionLifeEdge*> edges;
+  for (const DemoMotionLifeEdge& edge : census.lifeEdges) {
+    if (edge.entity == entity) edges.push_back(&edge);
+  }
+
+  std::size_t spanIndex = 0;
+  std::size_t edgeIndex = 0;
+  bool dead = false;
+  // Which span the last data-bearing tick belonged to: a new span means a new instance.
+  std::size_t lastDataSpan = static_cast<std::size_t>(-1);
+  MotionViewPresenceState state = MotionViewPresenceState::NoData;
+  const auto push = [&history](MotionViewPresenceState runState, std::int32_t start,
+                               std::int32_t end) {
+    if (runState == MotionViewPresenceState::NoData) {
+      history.noDataTicks += static_cast<std::size_t>(end - start + 1);
+      return;  // a no-data run is a hole: nothing is drawn, so nothing is kept
+    }
+    if (runState == MotionViewPresenceState::Alive) {
+      history.aliveTicks += static_cast<std::size_t>(end - start + 1);
+    } else {
+      history.deadTicks += static_cast<std::size_t>(end - start + 1);
+    }
+    if (!history.presence.empty() && history.presence.back().state == runState
+        && history.presence.back().endTick + 1 == start) {
+      history.presence.back().endTick = end;
+      return;
+    }
+    MotionViewPresence run;
+    run.startTick = start;
+    run.endTick = end;
+    run.state = runState;
+    history.presence.push_back(run);
+  };
+
+  std::int32_t runStart = firstTick;
+  for (std::int32_t tick = firstTick; tick <= lastTick; ++tick) {
+    while (spanIndex < windows.size() && windows[spanIndex].last < tick) ++spanIndex;
+    const bool haveData = spanIndex < windows.size() && windows[spanIndex].first <= tick;
+    if (haveData && spanIndex != lastDataSpan) {
+      // A fresh write burst after a hole is a new entity instance. A life edge only ends the
+      // instance it happened in, and TF2 sends the respawn as a create packet whose baseline
+      // never reaches this hook, so without this reset one death would paint the rest of the
+      // match grey.
+      lastDataSpan = spanIndex;
+      dead = false;
+    }
+    while (edgeIndex < edges.size() && edges[edgeIndex]->tick <= tick) {
+      dead = edges[edgeIndex]->life != 0;
+      ++edgeIndex;
+    }
+    MotionViewPresenceState next = MotionViewPresenceState::NoData;
+    if (haveData) {
+      next = dead ? MotionViewPresenceState::Dead : MotionViewPresenceState::Alive;
+    } else if (dead) {
+      // No writes after an observed death: the instance is gone and no respawn has shown up
+      // yet, so the hole is dead time rather than missing data. The next write burst starts
+      // a new instance and clears this.
+      next = MotionViewPresenceState::Dead;
+    }
+    if (next != state) {
+      if (tick > runStart) push(state, runStart, tick - 1);
+      state = next;
+      runStart = tick;
+    }
+  }
+  push(state, runStart, lastTick);
+
+  // The turns: the census kept every counted turn step (dt <= rateMaxDt, not within the
+  // respawn guard), each stamped with the tick it ended on. A tick with no entry had no
+  // recorded turn, which draws as the curve's baseline rather than as missing data --
+  // the presence bar above it is what says whether the recording was looking.
+  history.turns.reserve(census.turnRates.size() / 8);
+  for (const DemoMotionRate& rate : census.turnRates) {
+    if (rate.entity != entity) continue;
+    if (rate.tick < firstTick || rate.tick > lastTick) continue;
+    MotionViewTurn turn;
+    turn.tick = rate.tick;
+    turn.degrees = static_cast<double>(rate.perTick);
+    turn.overThreshold = turn.degrees > thresholds.sharpTurnDegPerTick;
+    if (turn.overThreshold) ++history.turnsOverThreshold;
+    if (turn.degrees > history.maxDegrees) history.maxDegrees = turn.degrees;
+    history.turns.push_back(turn);
+  }
+  return history;
+}
+
 }  // namespace tf2::native
