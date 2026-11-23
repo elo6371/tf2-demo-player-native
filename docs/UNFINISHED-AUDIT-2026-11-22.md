@@ -226,6 +226,8 @@ git status --porcelain -- native/
 
 **(c) 最小下一步**：`BspSkyCamera` 加 4 个雾字段，`bsp_map.cpp:766-777` 解析；`native_renderer_frame.cpp:1192-1194` 在 `worldSky3d_` 带雾时填入（只在 `--world-sky-3d on` 生效；为了 A/B 再加 `--world-sky-3d-fog on|off`，默认 off，使 on 帧也可与旧 on 帧逐字节比）。另在 trace `main.cpp:9571` 后加一行 `sky3d: fog enable=… start=… end=…`。默认 off 的帧完全不经过这些分支。
 
+   **2026-11-23 落地（比上面这版更小，且不新增解析代码）**：雾字段不往 `BspSkyCamera` 里加。`env_fog_controller` 的 start/end/maxdensity/colour 早就由 `native/src/bsp_map.cpp:562-588,617-632` 解析进 `displayMap.fog`，产品也已经把它做成 `renderer.setWorldFog()` 的 world fog（`native/src/main.cpp:10050-10082`）；3D 天空盒的顶点是 world 顶点的**拷贝**（`native/src/native_renderer_world.cpp:1038-1043` 在 `vertices.push_back(a)` 之后才 push 进 sky3d 列表），所以只要 world pass 打了雾，这些拷贝上**已经**带着 shader 的雾位（bit 32），缺的只是 sky3d pass 自己的 `fogParams.w`。因此新增的是：`WorldSky3dState/WorldSky3dUploadState` 各一个 `bool fog`；`native_renderer_frame.cpp` 里 sky3d 的 `fogParams/fogColor/fogScale` 由 `worldSky3d_.fog && worldFog_.enabled` 决定（关时仍是 `(0,0,0,0)`，默认帧逐字节不变）；`native_renderer_world.cpp` 的 sky3d 拷贝循环在开关开时补 bit 32；开关本身是无值开关 `--world-sky-3d-fog`（默认 off，等价于 `on|off` 里的 off，A/B 不需要再写一次 on），在 else-if 长链**之前**消费掉（`main.cpp` 那条链已在 C1061 上限）；装配处问的是 `renderer.worldFogState().fog.enabled` 而不是开关本身，所以被拒的 `--world-fog` 永远不会把天空也弄成有雾；trace 加 `sky3d: fog requested=… enabled=… reason=…`（三种 reason：默认关 / world fog 关 / sky3d pass 关）。门禁 `world-sky3d-fog-check.sh` → `WORLD-SKY3D-FOG=PASS`（控制帧、开雾帧、重复帧逐字节一致、以及"要雾但 world fog 被拒"的 guard 帧）。仍未做：第二张图的同机位正样本 + 人工签收（要人跑）。
+
 **(d) 验证**：`world-sky-gate-check.sh`（不含 `--world-sky-3d`，默认帧须不变）、`world_geometry_probe`（解析读数）。签收所需的第二张正样本与同机位对照必须由人跑产品抓帧。
 ```bash
 bash tools/lockrun.sh sky -- bash build-target.sh tf2_core tf2_demo_native world_geometry_probe
@@ -352,7 +354,7 @@ AUDIO_DEVICE=6 bash tools/lockrun.sh audio -- bash verify-audio.sh
 | 3 | 小地图 `--hud-minimap-bounds bsp`（地板包围盒） | S | 是 | 低（默认 table，A11 不变） | 3：数据已在内存、纯函数可进 /WX 的 minimap_probe 自检 |
 | 4 | DPI：小地图面板避开状态栏 `--hud-panel-avoid-status` | S | 是 | 低（默认关，A3 不变） | 4：一处函数，native_ui_probe/hud_probe 可断言 |
 | 5 | N13 `--follow-sticky` | S–M | 是 | 低（默认关；spectate-check 不变） | 5：只动 followReconcile 与交接点 |
-| 6 | 3D 天空盒雾 `--world-sky-3d-fog`（+ trace） | S | 是 | 低（仅 sky3d on 下生效） | 6：签收所需的第二图正样本仍要人抓帧 |
+| 6 | ~~3D 天空盒雾 `--world-sky-3d-fog`（+ trace）~~ **2026-11-23 已落地**（`world-sky3d-fog-check.sh` → PASS） | S | 是 | 低（仅 sky3d on 下生效） | 6：签收所需的第二图正样本仍要人抓帧 |
 | 7 | CI tier1b（7 个 /WX 目标 + 纯逻辑探针 + warn-check） | S | 是 | 无（不碰 pin） | 7：远端结果要推分支后才能看 |
 | 8 | 世界残差重测（94 px / fallback / 849,919） | S | **否**（本身就是跑） | 无 | 8：可能直接关掉三条旧账 |
 | 9 | 音频 `--audio-device-recover` | M | 是 | 低（默认关） | 9：注入 backend 可单测；热插拔与听感需人 |

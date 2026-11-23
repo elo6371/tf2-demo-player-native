@@ -1003,6 +1003,7 @@ WorldSky3dUploadState Renderer::worldSky3dState() const {
   state.present = worldSky3d_.present;
   state.scale = worldSky3d_.scale;
   state.cluster = worldSky3d_.cluster;
+  state.fog = worldSky3d_.fog;
   state.vertexCount = static_cast<std::size_t>(worldSky3dVertexCount_);
   state.triangleCount = worldSky3dTriangleCount_;
   state.batches = worldSky3dBatches_.size();

@@ -4067,6 +4067,11 @@ bool outlineVertexExtent = false;
   bool worldSky3dGiven = false;
   bool worldSky3dRequested = false;
   bool worldSky3dArgumentRejected = false;
+  // I5 (2026-11-23): the 3D skybox's fog. A valueless switch, like --world-fog, and
+  // meaningful only together with it: the sky copies the world's fog numbers rather
+  // than carrying its own, because a map has one env_fog_controller and the sky is
+  // the same atmosphere seen from a camera moved into a fake distance.
+  bool worldSky3dFogGiven = false;
   // T105: --lighting off|basic, the model/prop lighting arm. Same three-variable
   // shape again, and here it matters more than for a world switch: "off" is the
   // arithmetic every pinned capture on this tree was taken with, so a run that
@@ -4406,6 +4411,9 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--start-paused") == 0) { startPaused = true; continue; }
       if (wcscmp(arguments[i], L"--vsync") == 0) { persistent.render.vsync = true; continue; }
       if (wcscmp(arguments[i], L"--no-vsync") == 0) { persistent.render.vsync = false; continue; }
+      // I5: consumed before the ladder for the C1061 reason above -- it only sets a
+      // flag and reads no argument.
+      if (wcscmp(arguments[i], L"--world-sky-3d-fog") == 0) { worldSky3dFogGiven = true; continue; }
       // T105: --window-size is honoured before this loop runs -- it is pre-scanned
       // above CreateWindowExW (main.cpp:3169-3197) because the window has to exist
       // with that rect, and a WxH that will not parse or is out of range has
@@ -10161,6 +10169,12 @@ bool outlineVertexExtent = false;
         ? tf2::native::BspParser::clusterAt(displayMap, displayMap.skyCamera.origin[0],
             displayMap.skyCamera.origin[1], displayMap.skyCamera.origin[2])
         : -1;
+      // I5: the sky's fog is the world's, and only when both switches are on. Asked
+      // of the renderer rather than of the switch, because --world-fog can still have
+      // been refused (filtered geometry, a map without env_fog_controller, fogenable
+      // 0) and a sky fogging itself against numbers no surface uses would be a second
+      // picture of a flag rather than of the map.
+      sky3d.fog = worldSky3dFogGiven && renderer.worldFogState().fog.enabled;
       renderer.setWorldSky3d(sky3d);
       // T105 acceptance census (2026-11-23): "enabled=1 present=1 cluster=N
       // vertices=0" is what the first real --world-sky-3d run printed on
@@ -10247,6 +10261,16 @@ bool outlineVertexExtent = false;
         sky3dState.enabled ? 1 : 0, sky3dState.present ? 1 : 0,
         static_cast<double>(sky3dState.scale), sky3dState.cluster,
         sky3dState.vertexCount, sky3dState.triangleCount, sky3dState.batches);
+      {
+        const bool worldFogActive = renderer.worldFogState().fog.enabled;
+        const std::string sky3dFogReason = !worldSky3dFogGiven
+          ? "default off; --world-sky-3d-fog turns it on"
+          : (!worldFogActive
+              ? "the world fog is off, so the sky has no fog to copy"
+              : (sky3dState.enabled ? "" : "the 3D skybox pass is off"));
+        traceFmt("sky3d: fog requested=%d enabled=%d reason=%s",
+          worldSky3dFogGiven ? 1 : 0, sky3dState.fog ? 1 : 0, sky3dFogReason.c_str());
+      }
     }
     // T101: the fog reading, after the upload so verticesFogged is the number the
     // buffer actually carries. featureMaskFogBit=32 is printed as a constant on

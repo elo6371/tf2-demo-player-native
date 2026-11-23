@@ -1036,6 +1036,16 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     // is the same key the index buffer uses, recorded so the draw can bind that
     // batch's own atlas and feature views.
     if (sky3dCluster >= 0 && triangle.cluster == sky3dCluster) {
+      // I5: --world-sky-3d-fog. The world's own vertices get the fog bit when the
+      // world pass is fogged, but an explicit sky-fog request has to be able to mark
+      // the sky on its own terms, and this loop is the only place the sky's copy is
+      // written. Mutating a/b/c here is safe: they were pushed into the world buffer
+      // above, and what is being marked is this copy alone.
+      if (worldSky3d_.fog) {
+        a.featureMask = static_cast<float>(static_cast<int>(a.featureMask) | 32);
+        b.featureMask = static_cast<float>(static_cast<int>(b.featureMask) | 32);
+        c.featureMask = static_cast<float>(static_cast<int>(c.featureMask) | 32);
+      }
       sky3dVertices.push_back(a);
       sky3dVertices.push_back(b);
       sky3dVertices.push_back(c);

@@ -687,6 +687,10 @@ struct WorldSky3dState {
   float origin[3] = {0.0f, 0.0f, 0.0f};    // map space
   float scale = 16.0f;                     // sky_camera's scale: 1/scale of world size
   int cluster = -1;
+  // I5 (2026-11-23): the sky draws with the world's fog, when --world-sky-3d-fog
+  // is given and the world pass is itself fogged. Read at upload time, because it
+  // decides a vertex bit as well as the constants.
+  bool fog = false;
 };
 
 // T105: one draw of the sky geometry. A world batch binds one atlas and one set
@@ -707,6 +711,7 @@ struct WorldSky3dUploadState {
   bool present = false;
   float scale = 16.0f;
   int cluster = -1;
+  bool fog = false;                        // the pass uploaded fogged constants
   std::size_t vertexCount = 0;
   std::size_t triangleCount = 0;
   std::size_t batches = 0;

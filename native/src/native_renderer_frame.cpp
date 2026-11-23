@@ -1222,9 +1222,31 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
       sky3dConstants.materialFeatures = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
       sky3dConstants.lightmapFeatures = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.0f);
       sky3dConstants.envFeatures = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-      sky3dConstants.fogParams = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-      sky3dConstants.fogColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-      sky3dConstants.fogScale = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
+      // I5 (2026-11-23): the sky gets the SAME fog the world has, and only when
+      // --world-sky-3d-fog was given and the world pass is fogged. The vertex half
+      // of the condition is already in the buffer (the sky's vertices are copies of
+      // the world's own, native_renderer_world.cpp, and they carry the fog bit when
+      // the world pass is fogged); what was missing was the pass-level half: the
+      // shader's fogged arm needs fogParams.w > 0.5 as well as the vertex bit. The
+      // disabled branch keeps the (0,0,0,0)/(1,1,1,0) sentinels, so an unfogged sky
+      // is bit-identical to the frame before this existed.
+      //
+      // The scale is the world's own box-to-map conversion, for the same reason the
+      // world uses it: fog distance is measured in MAP units, and the skybox's
+      // brushes stand in fake map positions around sky_camera -- which is the metric
+      // the game fogs them in too.
+      const float sky3dFogBoxToMap = (std::isfinite(worldHorizontalScale_) && worldHorizontalScale_ > 0.0f)
+        ? 1.0f / worldHorizontalScale_ : 1.0f;
+      const bool sky3dFog = worldSky3d_.fog && worldFog_.enabled;
+      sky3dConstants.fogParams = sky3dFog
+        ? XMFLOAT4(worldFog_.start, worldFog_.end, worldFog_.maxDensity, 1.0f)
+        : XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+      sky3dConstants.fogColor = sky3dFog
+        ? XMFLOAT4(worldFog_.color[0], worldFog_.color[1], worldFog_.color[2], 1.0f)
+        : XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+      sky3dConstants.fogScale = sky3dFog
+        ? XMFLOAT4(sky3dFogBoxToMap, sky3dFogBoxToMap, sky3dFogBoxToMap, 0.0f)
+        : XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
       sky3dConstants.sunDirectionAndMode = XMFLOAT4(0.0f, 0.0f, 1.0f, 0.0f);
       sky3dConstants.lightCountAndParams = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
       context_->UpdateSubresource(worldSky3dConstants_.Get(), 0, nullptr, &sky3dConstants, 0, 0);
