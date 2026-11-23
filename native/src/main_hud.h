@@ -1,0 +1,179 @@
+#pragma once
+
+// T76 (2026-10-29): declarations for the T51 HUD product layer that used to sit
+// inside main.cpp's anonymous namespace (main.cpp:1728-2112 before the move).
+//
+// WHAT MOVED: the three HUD state objects (g_hud, g_hudTextTest,
+// g_hudTraceEnabled), the hotkey lookup hudActionForKey, the folder picker, the
+// layout discovery, hudPublishTrace -- which prints every hud: line the gates
+// read -- and the hudApply*/hudUpdate*/hudImport*/hudToggle*/hudReset* helpers.
+//
+// WHAT DID NOT MOVE: registerKeybinds and isTextFieldFocused stay in main.cpp on
+// purpose. hud-check.sh's mutation-3 deletes the first registerDefault line out
+// of native/src/main.cpp by exact text, and the key table is shared with T50's
+// camera actions (contract 1.2), so the table and its loader stay where the
+// gates and the other callers already look for them.
+//
+// The state objects have external linkage (defined in main_hud.cpp) because
+// main.cpp -- the argument scan and windowProc -- writes and reads the same
+// objects; the HUD control handles stay defined in main.cpp and are only
+// declared here.
+//
+// Not a public header: nothing in it is exported, no other target includes it,
+// and no gate parses it.
+
+#include <Windows.h>
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+
+#include "demo_header.h"
+#include "demo_tick_audit.h"
+#include "demo_match_timeline.h"
+#include "gameplay_effects.h"
+#include "timeline_hud.h"
+#include "hud_state.h"
+#include "keybinds.h"
+#include "native_renderer.h"
+#include "playback_hud.h"
+#include "playback_state.h"
+
+namespace tf2::native::main_internal {
+
+// ---------------------------------------------------------------- HUD state
+extern tf2::native::HudState g_hud;
+extern bool g_hudTextTest;
+// F0 (2026-11-23): --hud-font-test owns the primitive list while it runs.
+extern bool g_hudFontTest;
+extern bool g_hudTraceEnabled;
+
+// Owned by main.cpp: the tray controls the HUD page writes readings into, and
+// the renderer the layout is pushed at.
+extern HWND g_uiHudPreview;
+extern HWND g_uiHudScale;
+extern HWND g_uiHudStatus;
+extern tf2::native::Renderer* g_renderer;
+
+// Owned by main.cpp (see above): the one hotkey table.
+extern tf2::native::KeyBindTable g_keybinds;
+
+// ---------------------------------------------------------------- HUD logic
+std::string hudActionForKey(WPARAM key);
+bool chooseHudFolder(HWND owner, std::filesystem::path& result);
+std::string discoverHudLayout(const std::filesystem::path& root, std::string& detail);
+
+// Prints the hud: settings/layout/rects/refuse/draw lines the gates read. A
+// reading is printed even when the answer is "nothing happened".
+void hudPublishTrace(HWND window);
+
+// Where [hud] is persisted: the same ui.ini native_ui.cpp computes.
+std::filesystem::path uiSettingsFilePath(std::string& status);
+
+void hudApplyTextTest();
+void hudApplyFontTest();
+void hudApplyRects(HWND window);
+// I6 step 2 (2026-11-23): the match timeline strip's input. main.cpp builds the
+// report once, during the startup --analysis-scan, and hands it over as a value; a
+// run that never scanned a match never calls this and the HUD draws no strip.
+void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report);
+// A3 (section 9): the exception track's marks for the strip above. Same scan, same
+// server-tick axis; passed separately because the detector's report and the match
+// report are two products of one pass, not one nested in the other.
+void hudSetTimelineAnomalies(const std::vector<tf2::native::TimelineHudAnomaly>& anomalies);
+// A3b: which exception the per-tick row unfolds. index counts the vector
+// hudSetTimelineAnomalies took, in the order it arrived (blocks then hints); -1 parks
+// the row, which is the state every strip has until something selects an anomaly.
+void hudSetTimelineFocusIndex(int index);
+int hudTimelineFocusIndex();
+std::size_t hudTimelineAnomalyCount();
+// PgUp/PgDn's one step of selection: direction -1 is the previous anomaly on the axis,
+// +1 the next, measured from the playhead (or from the current focus when there is one).
+// Returns the new index, -1 when there is nothing to select, and writes the playback
+// tick to seek to: the anomaly's start minus three seconds (section 9's jump-to-run-up).
+int hudTimelineStepFocus(int direction, std::int32_t playbackTick,
+                         std::int32_t& jumpPlaybackTick);
+// A3b: the strip's input. The point is converted with the strip the LAST frame composed,
+// so a click lands where the pixels are, and the answer is a playback tick -- the caller
+// hands it to the transport as a scrub.
+bool hudTimelineHitTest(int clientX, int clientY, std::int32_t& playbackTick);
+// A4: the follow-only layers' inputs. The census is the scan's own motion census -- the
+// same numbers the anomaly detector read, so a red curve bar and an amber hint cannot
+// disagree -- and the entity is who the client follows this frame (-1 when nobody, which
+// draws neither layer). main.cpp copies the census once and pushes the entity per frame.
+// A5 (section 9.2, 逐条复查): the review banner. The state machine and the overlay composer are
+// pure and live in timeline_hud.h -- the probe drives exactly the same ones without a window.
+// These two only remember what was drawn last, which is what a click and a trace answer from.
+void hudSetTimelineReviewView(const tf2::native::TimelineReviewView& view);
+// Which of the banner's five buttons the point is on; kTimelineReviewButtonCount when none.
+int hudTimelineReviewButtonAt(int clientX, int clientY);
+
+void hudSetTimelineMotionCensus(const tf2::native::DemoMotionCensus& census);
+void hudSetTimelineFollowEntity(std::int32_t entity);
+
+// T97: the live readout the frame loop calls once per frame (main.cpp).
+//
+// The four arguments are the frame's own state, handed over rather than reached for
+// through globals: the transport, the viewed entity's readout, the entity array and
+// the network summary are all main() locals except g_playback, and a function that
+// quietly read a stale copy of any of them would publish numbers from another frame.
+//
+// The function rebuilds the primitive list ONLY when the text changes; every other
+// frame compares four strings and returns. That comparison is what keeps the cost of
+// "a readout on every frame" off the per-frame path, and g_hudLiveSkips is the
+// counter that makes it visible instead of assumed.
+// evidenceRun: this process was started with --capture-frame, i.e. it is producing
+// a frame that a gate will compare against a committed pin. hudOff / hudLive are
+// the two documented switches. Passed in rather than read from the command line a
+// second time: a substring search for "--hud-off" also matches a path operand that
+// happens to contain it, and an unregistered flag is invisible to --strict-args.
+// mapName: the demo's own map (DemoHeader::mapName), which is what selects the
+// overview panel's base image and bounds row -- the panel and the demo cannot
+// disagree about which map is being watched.
+// relayEntity: the entity the spectate relay is watching this frame
+// (SpectateDirector::targetIndex(), -1 when it has no answer), and relayValid
+// (focusValid()). T126: the readout's name is the watched player's, and these
+// two are how the decision reaches this file without reaching for a global. The
+// pair is passed even when invalid so the fallback to the demo's view entity is
+// a reading the trace can publish, not a rescue a reader has to infer.
+void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
+  const std::string& mapName,
+  const tf2::native::main_internal::PlaybackState& playback,
+  const tf2::native::PlaybackHudState& target,
+  const std::vector<tf2::native::EntityState>& states,
+  const tf2::native::DemoNetworkSummary& summary,
+  std::int32_t relayEntity, bool relayValid);
+// H1 (2026-11-23, UI shell design section 7): the broadcast overlay. main.cpp sets
+// the switch and hands over the frame's own gameplay-FX reading (it owns both the
+// parsed flags and g_gameplayFxReading); the overlay is composed inside
+// hudApplyLive from the same rows the overview reads. Declared here so the frame
+// loop never reaches into main_hud.cpp's file-scope state.
+void hudSetBroadcast(bool enabled);
+bool hudBroadcastEnabled();
+void hudSetBroadcastFx(const tf2::native::GameplayFxReading* reading);
+void hudUpdateStatus(HWND window);
+void hudImportInteractive(HWND window);
+void hudTogglePreview(HWND window);
+void hudResetToDefault(HWND window);
+
+// N13 step 1 (2026-11-15): the follow trace line's name fields.
+//
+// The player a follow command pinned is normally also the player the HUD readout
+// is watching, and that readout's name is ALREADY resolved by hudLiveResolveName
+// (main_hud.cpp). This is a thin accessor over that same function -- not a second
+// resolver -- so the readout and the follow line can never disagree about what
+// entity 5 is called. The reason token is passed through verbatim, which is what
+// lets a gate grep the readout's own vocabulary out of the follow line.
+struct FollowNameInfo {
+  bool known = false;
+  std::string display;
+  // "userinfo" when the name came out of the demo's user-info table, "none" when
+  // it did not. Printed so nameKnown=1 with an empty name can never be read as a
+  // resolved name.
+  std::string source;
+  std::string reason;
+};
+FollowNameInfo hudFollowResolveName(const tf2::native::DemoNetworkSummary& summary,
+  std::int32_t entityIndex, std::int32_t playbackTick);
+
+}  // namespace tf2::native::main_internal

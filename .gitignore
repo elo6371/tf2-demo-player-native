@@ -1,0 +1,15 @@
+# Build output and generated files
+native/build/
+native/build-nmake/
+native/generated/
+# Build logs written by build-cmake.sh / build-target.sh
+evidence/
+.scratch/
+.build-*.log
+# Python caches
+__pycache__/
+*.pyc
+# Never commit demos or game content to this repository
+*.dem
+*.bsp
+*.vpk
