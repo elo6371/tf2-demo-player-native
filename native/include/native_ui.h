@@ -251,6 +251,49 @@ struct UiMotionAnalysis {
   std::vector<UiMotionAnomaly> hints;      // sharp turns, tick order
 };
 
+// I3b (2026-11-24, design section 9.1): the analysis screen's result list.
+//
+// WHY A PROJECTION AND NOT A SECOND ANALYSIS
+//   The detector already returns anomalies with a tick range and the entity each one
+//   belongs to. The list is that data plus the two decisions the screen makes and the
+//   detector must not: where a click lands (kResultSeekLeadTicks before the anomaly
+//   starts) and whether the row also switches who the camera follows -- a teleport or
+//   a sharp turn happened TO somebody, a stall belongs to the recording. Keeping both
+//   here means the product and the probe agree on the arithmetic instead of each
+//   re-deriving it, and an out-of-range click is refused rather than clamped.
+constexpr std::int32_t kResultSeekLeadTicks = 200;  // 3 s at 66 tick/s
+
+struct UiResultRow {
+  int index = 0;                    // 0-based position in the list; the click payload
+  int kind = 0;                     // 0 stall, 1 teleport, 2 sharpTurn
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+  std::int32_t durationTicks = 0;
+  std::int32_t entity = -1;
+  double metric = 0.0;
+  std::int32_t seekTick = 0;        // where a click lands (never negative)
+  bool switchesPlayer = false;      // teleport or sharp turn: follow that entity
+};
+
+const char* uiMotionAnomalyKindName(int kind);
+// startTick - kResultSeekLeadTicks, clamped at zero: a row that starts before tick
+// 200 lands on tick 0 rather than on a negative tick the transport would refuse.
+std::int32_t analysisResultSeekTick(std::int32_t startTick);
+// One list, sorted by start tick: a hint that happens before an anomaly is listed
+// before it, because the screen draws a timeline and not two lists. Index is assigned
+// after the sort, so a click's payload is the row's visible position.
+std::vector<UiResultRow> buildResultRows(const UiMotionAnalysis& analysis);
+// "result: row index=2 start=12000 end=12040 ticks=40 seconds=0.6 kind=teleport entity=13 seek=11800"
+std::string formatResultRowLine(const UiResultRow& row, std::int32_t tickRate);
+
+struct UiResultActivation {
+  bool valid = false;
+  UiResultRow row;
+};
+// An out-of-range index is refused, not clamped: a click that addresses nothing must
+// not silently jump to the first row.
+UiResultActivation activateResultRow(const std::vector<UiResultRow>& rows, std::size_t index);
+
 struct UiSnapshot {
   UiScreen screen = UiScreen::Opening;
   std::filesystem::path demoPath;

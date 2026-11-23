@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cwctype>
 #include <cmath>
+#include <cstdio>
 #include <utility>
 
 namespace tf2::native {
@@ -719,6 +720,81 @@ UiHudLayoutPlan planHudLayout(const UiLayoutPlan& base, int clientWidth,
   }
   return plan;
 }
+const char* uiMotionAnomalyKindName(int kind) {
+  switch (kind) {
+    case 0: return "stall";
+    case 1: return "teleport";
+    case 2: return "sharp-turn";
+    default: return "unknown";
+  }
+}
+
+std::int32_t analysisResultSeekTick(std::int32_t startTick) {
+  const std::int32_t seekTick = startTick - kResultSeekLeadTicks;
+  return seekTick > 0 ? seekTick : 0;
+}
+
+namespace {
+
+UiResultRow resultRowFromAnomaly(const UiMotionAnomaly& anomaly) {
+  UiResultRow row;
+  row.kind = anomaly.kind;
+  row.startTick = anomaly.startTick;
+  row.endTick = anomaly.endTick;
+  row.durationTicks = anomaly.durationTicks;
+  row.entity = anomaly.entity;
+  row.metric = anomaly.metric;
+  row.seekTick = analysisResultSeekTick(anomaly.startTick);
+  row.switchesPlayer = anomaly.kind == 1 || anomaly.kind == 2;
+  return row;
+}
+
+}  // namespace
+
+std::vector<UiResultRow> buildResultRows(const UiMotionAnalysis& analysis) {
+  std::vector<UiResultRow> rows;
+  if (!analysis.valid) return rows;
+  rows.reserve(analysis.anomalies.size() + analysis.hints.size());
+  for (const UiMotionAnomaly& anomaly : analysis.anomalies) {
+    rows.push_back(resultRowFromAnomaly(anomaly));
+  }
+  for (const UiMotionAnomaly& hint : analysis.hints) {
+    rows.push_back(resultRowFromAnomaly(hint));
+  }
+  // Stable so equal start ticks keep the detector's order (anomaly before hint).
+  std::stable_sort(rows.begin(), rows.end(), [](const UiResultRow& left, const UiResultRow& right) {
+    return left.startTick < right.startTick;
+  });
+  for (std::size_t index = 0; index < rows.size(); ++index) {
+    rows[index].index = static_cast<int>(index);
+  }
+  return rows;
+}
+
+std::string formatResultRowLine(const UiResultRow& row, std::int32_t tickRate) {
+  const double seconds = tickRate > 0
+      ? static_cast<double>(row.durationTicks) / static_cast<double>(tickRate) : 0.0;
+  char secondsText[16];
+  std::snprintf(secondsText, sizeof(secondsText), "%.1f", seconds);
+  std::string line = "result: row index=" + std::to_string(row.index);
+  line += " start=" + std::to_string(row.startTick);
+  line += " end=" + std::to_string(row.endTick);
+  line += " ticks=" + std::to_string(row.durationTicks);
+  line += " seconds=" + std::string(secondsText);
+  line += " kind=" + std::string(uiMotionAnomalyKindName(row.kind));
+  line += " entity=" + std::to_string(row.entity);
+  line += " seek=" + std::to_string(row.seekTick);
+  return line;
+}
+
+UiResultActivation activateResultRow(const std::vector<UiResultRow>& rows, std::size_t index) {
+  UiResultActivation activation;
+  if (index >= rows.size()) return activation;
+  activation.valid = true;
+  activation.row = rows[index];
+  return activation;
+}
+
 std::string composePlaybackHudLine(const PlaybackHudLine& fields) {
   auto squash = [](std::string value) {
     for (char& character : value) {

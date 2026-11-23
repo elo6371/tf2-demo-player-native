@@ -4317,6 +4317,9 @@ bool outlineVertexExtent = false;
   // old cost unless they ask, because the gate demos are large and their runners assert
   // on how long a load takes.
   bool analysisScanRequested = false;
+  // I3b (design section 9.1): a scripted click on the analysis screen's result list.
+  // 0-based, matching UiResultRow::index; -1 means no click was asked for.
+  int resultsSelectCli = -1;
   // N05 step 3: ask the renderer to take the clip-space position out of the
   // vertex stage of the isolated draw. Separate from the face trace because it
   // is a different instrument: the face trace predicts a screen point from the
@@ -4513,6 +4516,13 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--hidden-window") == 0) { hiddenWindow = true; continue; }
       if (wcscmp(arguments[i], L"--tick-audit") == 0) { demoTickAuditRequested = true; continue; }
       if (wcscmp(arguments[i], L"--analysis-scan") == 0) { analysisScanRequested = true; continue; }
+      // I3b: --results-select <index> acts as if the user clicked that row on the
+      // analysis screen. A row index nobody can click is answered in the trace
+      // ("refused"), not silently ignored, so a typo cannot look like a no-op.
+      if (wcscmp(arguments[i], L"--results-select") == 0) {
+        if (i + 1 < argumentCount) resultsSelectCli = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
+        continue;
+      }
       if (wcscmp(arguments[i], L"--audio-disabled") == 0) { audioDisabled = true; continue; }
       // N21(a2): --audio-spatial takes a word. A bare switch or an unknown one
       // is refused below rather than read as the default, because the point of
@@ -6045,6 +6055,12 @@ bool outlineVertexExtent = false;
   // what makes the rows exist. Cost on the POV sample: 300,642 rows x 56 B =
   // 16.8 MB, capped at maxSamples (400k rows / 22.4 MB).
   demoNetworkSummary.cameraTrackLimits.enabled = true;
+  // I3b (design section 9.1): the rows the analysis screen draws, kept past the scan so
+  // --results-select can address them. Empty until a scan ran.
+  std::vector<tf2::native::UiResultRow> analysisResultRows;
+  // The queued click. It waits for the frame loop because a seek request is refused
+  // until the demo session is bound; applying it here would spend it on a refusal.
+  int resultsSelectPending = resultsSelectCli;
   if (!commandDemo.empty()) {
     if (tf2::native::parseDemoHeaderFile(commandDemo, demoHeader)) {
       tf2::native::indexDemoFile(commandDemo, demoHeader, demoIndex);
@@ -6093,6 +6109,18 @@ bool outlineVertexExtent = false;
           traceFmt("analysis: motion anomalies=%zu hints=%zu sceneResets=%zu omitted=%zu",
               motionAnalysis.anomalies.size(), motionAnalysis.hints.size(),
               motionAnalysis.sceneResets, motionAnalysis.teleportsOmitted);
+          // I3b (design section 9.1): the result list, built once from the report the
+          // lines above were printed from. Printed here because a scripted run cannot
+          // click a list: --results-select addresses these same rows, and the trace is
+          // the only place the rows can be read back.
+          analysisResultRows = tf2::native::buildResultRows(motionAnalysis);
+          constexpr std::size_t kResultRowsPrinted = 24;
+          for (std::size_t row = 0;
+               row < analysisResultRows.size() && row < kResultRowsPrinted; ++row) {
+            traceFmt("%s", tf2::native::formatResultRowLine(analysisResultRows[row], 66).c_str());
+          }
+          traceFmt("analysis: results rows=%zu printed=%zu", analysisResultRows.size(),
+              (std::min)(analysisResultRows.size(), kResultRowsPrinted));
           // I6 (section 9.2): the per-round timeline the workspace draws. Built from the
           // same pass as above and printed WITHOUT the kill rows: a long recording has
           // hundreds of kills, and the round rows already carry their counts. The offset
@@ -17763,6 +17791,47 @@ bool outlineVertexExtent = false;
     tf2::native::main_internal::hudSetBroadcast(hudBroadcastCli);
     tf2::native::main_internal::hudSetBroadcastFx(
       g_gameplayFxReadingValid ? &g_gameplayFxReading : nullptr);
+    // I3b (design sections 9.1/9.4): a click on one result row lands the workspace three
+    // seconds before that anomaly and plays. Queued rather than applied where the rows
+    // are built, because a seek request is refused until the session is bound. The
+    // trace reports what the request API answered, not what this code intended.
+    if (resultsSelectPending >= 0) {
+      const tf2::native::UiResultActivation activation = tf2::native::activateResultRow(
+          analysisResultRows, static_cast<std::size_t>(resultsSelectPending));
+      if (activation.valid) {
+        tf2::native::PlaybackRequest seek;
+        seek.kind = tf2::native::PlaybackRequestKind::JumpTicks;
+        seek.tick = activation.row.seekTick;
+        seek.source = "results";
+        const tf2::native::PlaybackResult seekResult = applyPlaybackRequest(seek);
+        tf2::native::PlaybackRequest resume;
+        resume.kind = tf2::native::PlaybackRequestKind::SetPaused;
+        resume.paused = false;
+        resume.source = "results";
+        const tf2::native::PlaybackResult resumeResult = applyPlaybackRequest(resume);
+        const bool seekAccepted =
+            seekResult.status == tf2::native::PlaybackRequestStatus::Applied
+            || seekResult.status == tf2::native::PlaybackRequestStatus::SameTick;
+        const bool resumeAccepted =
+            resumeResult.status == tf2::native::PlaybackRequestStatus::Applied;
+        if (activation.row.switchesPlayer && activation.row.entity >= 0) {
+          // Rules 4 and 5 in spectate_target.h: a manual pick applies the same frame
+          // and wins over the recording's own director -- that is what "switch to that
+          // player" means for a teleport or a sharp turn.
+          g_spectateManualTarget = activation.row.entity;
+        }
+        traceFmt("analysis: results click index=%d start=%d seek=%d kind=%s entity=%d switch=%d seeked=%d playing=%d tick=%d",
+            activation.row.index, static_cast<int>(activation.row.startTick),
+            static_cast<int>(activation.row.seekTick),
+            tf2::native::uiMotionAnomalyKindName(activation.row.kind),
+            static_cast<int>(activation.row.entity), activation.row.switchesPlayer ? 1 : 0,
+            seekAccepted ? 1 : 0, resumeAccepted ? 1 : 0, static_cast<int>(g_playback.tick));
+      } else {
+        traceFmt("analysis: results click index=%d refused rows=%zu", resultsSelectPending,
+            analysisResultRows.size());
+      }
+      resultsSelectPending = -1;
+    }
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
       demoHeader.mapName,
       g_playback, hudState, currentEntityStates, demoNetworkSummary,
