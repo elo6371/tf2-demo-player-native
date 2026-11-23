@@ -644,7 +644,7 @@ const wchar_t* snapshotStatusText(tf2::native::EntitySnapshotQueryStatus value) 
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
                   L"       demo_open_probe --userinfo-fixture <file>\n"
                   L"       demo_open_probe --wearable-fixture-suite\n"
                   L"       demo_open_probe --wearable-pose-selftest\n";
@@ -960,6 +960,33 @@ int wmain(int argc, wchar_t** argv) {
     fxCensus = true;
     ++firstPath;
   }
+  // H0 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 7): --hud-census
+  // <serverTick[,serverTick...]> dumps, from the snapshot at each tick, every
+  // property of the entities a broadcast HUD reads -- player resource (health,
+  // class, respawn), objective resource (control points), train watcher (payload),
+  // teams (score, name), round timer, game rules. The fullscreen HUD is written
+  // against the names this prints, not against guessed ones. Must follow
+  // --fx-census and precede --userinfo.
+  std::vector<std::int32_t> hudCensusTicks;
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--hud-census") {
+    const std::wstring list = argv[firstPath + 1];
+    std::size_t start = 0;
+    while (start <= list.size()) {
+      const std::size_t comma = list.find(L',', start);
+      const std::wstring part = list.substr(start, comma == std::wstring::npos ? std::wstring::npos : comma - start);
+      wchar_t* end = nullptr;
+      const long parsed = std::wcstol(part.c_str(), &end, 10);
+      if (part.empty() || end == part.c_str() || *end != L'\0' || parsed < 0
+          || parsed > std::numeric_limits<std::int32_t>::max()) {
+        std::wcerr << L"invalid hud census tick\n";
+        return 2;
+      }
+      hudCensusTicks.push_back(static_cast<std::int32_t>(parsed));
+      if (comma == std::wstring::npos) break;
+      start = comma + 1;
+    }
+    firstPath += 2;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1003,7 +1030,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -1761,6 +1788,82 @@ int wmain(int argc, wchar_t** argv) {
         } else {
           propsDumpText += "props\tentity\t" + std::to_string(propsEntity)
             + "\tclass\t-1\tcount\t0\tout_of_range\t1\n";
+        }
+      }
+      if (!hudCensusTicks.empty()) {
+        // H0: which classes carry the broadcast HUD's inputs. Matched by schema
+        // name (the class id differs between builds), and by substring for the two
+        // families whose exact name is the question (control points, payload).
+        const auto hudClassWanted = [](const std::string& name) {
+          static const char* const kExact[] = {"CTFPlayerResource", "CTFObjectiveResource",
+            "CTeamTrainWatcher", "CTFTeam", "CTeamRoundTimer", "CTFGameRulesProxy",
+            "CTeamplayRoundBasedRulesProxy", "CTeamControlPointMaster", "CTeamControlPoint",
+            "CFuncTrackTrain", "CTFTeamSpawn"};
+          for (const char* exact : kExact) if (name == exact) return true;
+          return name.find("ControlPoint") != std::string::npos || name.find("Train") != std::string::npos
+            || name.find("Objective") != std::string::npos || name.find("Payload") != std::string::npos;
+        };
+        const auto hudClassName = [&summary](std::int32_t classId) -> std::string {
+          if (classId < 0) return std::string();
+          const auto index = static_cast<std::size_t>(classId);
+          if (index < summary.serverClassNames.size() && !summary.serverClassNames[index].empty()) {
+            return summary.serverClassNames[index];
+          }
+          for (const auto& schema : summary.serverClassSchemas) {
+            if (schema.id == index) return schema.name;
+          }
+          return std::string();
+        };
+        for (const std::int32_t censusTick : hudCensusTicks) {
+          std::vector<tf2::native::EntityState> hudStates;
+          std::int32_t hudResolved = censusTick;
+          const auto hudStatus = tf2::native::queryEntitySnapshotAtOrBeforeTick(
+            summary, censusTick, hudStates, &hudResolved);
+          const bool hudOk = hudStatus == tf2::native::EntitySnapshotQueryStatus::Available
+            || hudStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
+          std::size_t hudEntities = 0;
+          std::string hudBody;
+          if (hudOk) {
+            for (std::size_t index = 0; index < hudStates.size(); ++index) {
+              const tf2::native::EntityState& state = hudStates[index];
+              if (state.classId < 0 || state.properties.empty()) continue;
+              const std::string className = hudClassName(state.classId);
+              if (className.empty() || !hudClassWanted(className)) continue;
+              ++hudEntities;
+              std::set<std::string> names;
+              for (const auto& entry : state.properties) names.insert(entry.first);
+              hudBody += "hud-entity\ttick\t" + std::to_string(censusTick) + "\tindex\t" + std::to_string(index)
+                + "\tclass\t" + className + "\tprops\t" + std::to_string(names.size()) + "\n";
+              std::size_t printed = 0;
+              for (const std::string& name : names) {
+                if (++printed > 600u) {
+                  hudBody += "hud-prop\ttick\t" + std::to_string(censusTick) + "\tindex\t"
+                    + std::to_string(index) + "\ttruncated\t" + std::to_string(names.size() - 600u) + "\n";
+                  break;
+                }
+                const auto found = state.properties.find(name);
+                if (found == state.properties.end()) continue;
+                std::string text = found->second.stringValue;
+                for (char& character : text) {
+                  if (character == '\t' || character == '\n' || character == '\r') character = ' ';
+                }
+                if (text.size() > 64u) text.resize(64u);
+                char buffer[512];
+                std::snprintf(buffer, sizeof(buffer),
+                  "hud-prop\ttick\t%d\tindex\t%zu\t%s\ttype\t%d\tint\t%lld\tx\t%.4f\ty\t%.4f\tz\t%.4f\tstr\t%s\tlastWriteTick\t%d\n",
+                  static_cast<int>(censusTick), index, name.c_str(), static_cast<int>(found->second.type),
+                  static_cast<long long>(found->second.intValue), static_cast<double>(found->second.x),
+                  static_cast<double>(found->second.y), static_cast<double>(found->second.z),
+                  text.c_str(), found->second.lastWriteTick);
+                hudBody += buffer;
+              }
+            }
+          }
+          propsDumpText += "hud-census\ttick\t" + std::to_string(censusTick)
+            + "\tstatus\t" + (hudOk ? "resolved" : "unresolved")
+            + "\tresolvedTick\t" + std::to_string(hudOk ? hudResolved : -1)
+            + "\tentities\t" + std::to_string(hudEntities) + "\n";
+          propsDumpText += hudBody;
         }
       }
       if (wearableTick >= 0) {
