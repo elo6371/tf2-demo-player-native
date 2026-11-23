@@ -16,7 +16,7 @@
 #     "cl.exe: not found" / CMAKE_MT-NOTFOUND.
 # Evidence that the exported environment is byte-identical to HEAD's env-msvc.sh:
 # docs/INST1-E3B-TOOLCHAIN-ENTRY-2026-11-15.md and
-# D:/_shared/EXEC-2026-11-15/INST1/E3b-entry-out/env-diff.sh.
+# the E3b entry experiment's env-diff.sh (work-tree external; not shipped).
 #
 # Residual shell state (NOT environment -- never exported, so child processes do
 # not see it): TF2_TOOLCHAIN_RC and TF2_TC_MSVC_ROOT/VER, TF2_TC_SDK_ROOT/VER, the

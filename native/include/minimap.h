@@ -188,7 +188,7 @@ class MinimapPanel {
 // not a row the BSP exposes: BspMap carries no entity list at all (native/include/
 // bsp_map.h stops at brush-model counters and fog), so at load time there is
 // nothing to read a control point's origin from. The numbers are transcribed from
-// the T135 measurement (D:/_shared/EXEC-2026-11-13/E/minimap/MINIMAP-DATA-REPORT.md,
+// the T135 measurement (its MINIMAP-DATA-REPORT.md; work-tree external, not shipped,
 // section 2 "recommended bounds" and section 3 control-point origins).
 //
 // A MAP THAT IS NOT LISTED DRAWS NOTHING. An unknown map rendered as an empty panel
@@ -422,7 +422,7 @@ struct MinimapFloorTriangle {
   // interchangeable with the face they came from: N14's two thresholds (minimum
   // face area, z band of the face) are properties of the FACE, and applying them
   // per triangle instead moved every one of the seven maps' rect counts (no map
-  // matched: D:/_shared/EXEC-2026-11-15/u3a/tri_vs_poly.py versus
+  // matched: the u3a tri_vs_poly.py oracle versus
   // face_grouped.py, which matches all seven). The id is carried so the basemap
   // can group before it measures; it is an opaque key here, not an index.
   std::int32_t face = -1;

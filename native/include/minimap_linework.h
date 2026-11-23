@@ -89,7 +89,7 @@ struct MinimapLinework {
 //
 //   * the minimum-area cutoff. The oracle's 1024 u2 test is applied to a face's
 //     polygon. Triangulating first and then testing each triangle instead made
-//     all seven maps disagree with the oracle (D:/_shared/EXEC-2026-11-15/u3a/
+//     all seven maps disagree with the oracle (the u3a oracle's
 //     tri_vs_poly.py: 0/7 exact), while judging the FACE and then filling the
 //     triangles inside it reproduced all seven (face_grouped.py and, from
 //     triangles only, dedup_face.py: 7/7 exact).

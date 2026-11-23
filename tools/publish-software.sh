@@ -10,7 +10,9 @@
 #   2. exports them into .scratch/publish/tree and applies the overlays
 #      (public README, .gitignore, .gitattributes);
 #   3. refuses the export if it holds a demo, game content, a capture, an archive,
-#      a file over 2 MB, a credential-shaped string, or a forbidden directory;
+#      a file over 2 MB (one documented exception: the vendored WebView2 header,
+#      which is the whole COM API in one file and is required to build), a
+#      credential-shaped string, or a forbidden directory;
 #   4. --verify-build: builds the export on its own in a throw-away repository;
 #   5. makes ONE commit in a separate clone of origin (.scratch/publish/clone),
 #      on top of origin/main (default) or as a new root (--fresh-history);
@@ -197,6 +199,19 @@ echo "--- by top-level directory ---"
 # ---- 3. checks -----------------------------------------------------------------
 fail=0
 bad() { echo "  FAIL $*"; fail=1; }
+# The 2 MB rule exists to keep game content and captures out of the public tree.
+# A vendored SDK header is neither: it is source the build needs, and it is named
+# in full here so the rule stays "nothing over 2 MB" for every other file. The one
+# entry below is the WebView2 COM API in a single header (2.55 MB), which
+# logstf_webview.cpp compiles against; it has been in the public tree since
+# snapshot-2026-11-18, so excluding it would break the export's build without
+# hiding anything.
+oversizeExempt() {
+  case "$1" in
+    native/third_party/webview2/include/WebView2.h) return 0 ;;
+  esac
+  return 1
+}
 cd "$TREE" || exit 2
 find . -type f > "$WORK/tree-files.txt"
 while IFS= read -r f; do
@@ -211,7 +226,13 @@ while IFS= read -r f; do
       bad "forbidden directory: $f" ;;
   esac
   size=$(wc -c < "$f" | tr -d ' ')
-  if [ "$size" -gt 2097152 ]; then bad "larger than 2 MB ($size bytes): $f"; fi
+  if [ "$size" -gt 2097152 ]; then
+    if oversizeExempt "$f"; then
+      echo "  note: over 2 MB but exempt (vendored SDK header, required to build): $f ($size bytes)"
+    else
+      bad "larger than 2 MB ($size bytes): $f"
+    fi
+  fi
 done < "$WORK/tree-files.txt"
 if grep -rIlE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}' . > "$WORK/secrets.txt" 2>/dev/null; then
   while IFS= read -r f; do bad "credential-shaped string in $f"; done < "$WORK/secrets.txt"

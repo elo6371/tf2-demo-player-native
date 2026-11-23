@@ -73,7 +73,6 @@ private:
 std::filesystem::path findDemo() {
   const std::filesystem::path candidates[] = {
     L"D:/SteamLibrary/steamapps/common/Team Fortress 2/tf/demos/autorecord_2026-09-30_23-06-57.dem",
-    L"C:/Users/Administrator/Downloads/0f55b29be497e7ba673a1a888b252a78_matcha-20260808-1349-pl_upward_f12.dem",
   };
   for (const auto& path : candidates) if (std::filesystem::exists(path)) return path;
   return {};
