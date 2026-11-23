@@ -84,7 +84,7 @@ director, the director never asks the demo half.
 |---|---|---|---|
 | `--spectate-target <int>` | `main.cpp:3336-3348` (guard 0..2047, else `g_spectateArgumentRejected`) | one manual pick at a known entity index | no reason on rejection; no serial; no unfollow |
 | `--spectate-pause-at` / `--spectate-pause-seconds` / `--spectate-show-corpses` | `:3349-3371` | gate-only behaviours | not user commands |
-| F9 `camera.freeFly` / F10 `camera.resetToPlayer` / F11 `camera.resetView` | `native/src/keybinds.cpp:392-403` -> `handleCameraAction` `main.cpp:199-246` | mode toggle, 'back to the player', view reset | no notion of a followed player |
+| F9 `camera.freeFly` / F10 `camera.resetToPlayer` / F11→Home `camera.resetView`（I2 2026-11-23 起 F11 = 全屏） | `native/src/keybinds.cpp:392-403` -> `handleCameraAction` `main.cpp:199-246` | mode toggle, 'back to the player', view reset | no notion of a followed player |
 | UI buttons | `main.cpp:1598-1606` (ids `kUiFreeFly` / `kUiResetToPlayer` / `kUiResetView`) | same as keys | same |
 | `--camera-script` step driver | `main.cpp:13145-13150`, `native/src/camera_script.cpp` | scripted frames for gates | not a selection API |
 

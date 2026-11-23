@@ -180,6 +180,11 @@ bool windowFullscreen();
 bool setWindowFullscreen(HWND window, bool wanted, bool sizePinned, const char* source);
 // Re-cover the monitor after a dpi or display-mode change; no-op when windowed.
 void fullscreenRefit(HWND window, const char* reason);
+// I2 (2026-11-23): F11 toggles fullscreen. This is the one call both the window
+// procedure and the camera script's `fullscreen` step use, so the key and the
+// gate cannot disagree about what the key does. source is the stable trace word
+// ("f11", "script"); returns true when the window ends in the requested state.
+bool toggleProductFullscreen(const char* source);
 // --fullscreen-selftest N: N enter/exit cycles, each checked against the monitor
 // rect and against the rect, client size, style, zoom and visibility the window
 // had before the first one. One trace line; returns true on status=pass.

@@ -263,6 +263,20 @@ bool runCameraScriptStep() {
     return ok(std::string(g_cameraDirector.freeFly() ? "on" : "off")
       + " mode=" + tf2::native::cameraModeName(g_cameraMode.mode()));
   }
+  // I2 (2026-11-23): F11's effect, scriptable. The step drives the same call the
+  // key does, so a gate can prove fullscreen enter, exit and the pinned-size
+  // refusal without synthesising a keystroke -- the same reason `switch-player`
+  // exists. It reports the state it LEFT the product in, not the one it asked for.
+  if (step.command == "fullscreen") {
+    const std::string want = step.args.empty() ? std::string("toggle") : step.args[0];
+    if (want != "on" && want != "off" && want != "toggle") return fail("bad-argument");
+    const bool before = windowFullscreen();
+    const bool wanted = want == "toggle" ? !before : (want == "on");
+    if (wanted != before) toggleProductFullscreen("script");
+    const bool after = windowFullscreen();
+    if (after != wanted) return fail("refused");
+    return ok(after ? std::string("fullscreen") : std::string("windowed"));
+  }
   // I1 (2026-11-23): the mouse click's player switch, scriptable so a gate can
   // drive it without synthesising input. Same function the click calls.
   if (step.command == "switch-player") {

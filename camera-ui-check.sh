@@ -1020,7 +1020,7 @@ director
 # 4. Three named bookmarks, each saved from a distinct camera.
 pause
 frames 3
-bind camera.resetView Alt+F11
+bind camera.resetView Alt+Home
 frames 2
 snapshot mark-base
 save 1 tower
@@ -1066,11 +1066,13 @@ frames 1
 # 7. Key table: conflict refused, unbound dispatches nothing, reset restores.
 conflict camera.resetView F9
 conflict camera.freeFly Ctrl+Shift+F1
-bind camera.resetView Alt+F11
+bind camera.resetView Alt+Home
 unbind camera.resetView
+# I2: Home is reset-view's default now, so this is the unbound press.
+key 36
 key 122
 reset-keys
-key 122
+key 36
 director
 # 8. Text-field focus: every bound action is suppressed while a field is focused.
 focus-text on
@@ -1208,10 +1210,14 @@ else
   # (d) the key table.
   conflicts=$(grep -a "camera: keys .* result=conflict" "$T50_TRACE" | wc -l)
   assert_eq "T50 two conflicting binds were refused" "$conflicts" "2"
-  unbound=$(grep -a "camera: keys vk=122 .*result=unbound" "$T50_TRACE" | wc -l)
+  unbound=$(grep -a "camera: keys vk=36 .*result=unbound" "$T50_TRACE" | wc -l)
   assert_eq "T50 an unbound key dispatched nothing" "$unbound" "1"
-  restored=$(grep -a "camera: keys vk=122 .*result=ok" "$T50_TRACE" | wc -l)
+  restored=$(grep -a "camera: keys vk=36 .*result=ok" "$T50_TRACE" | wc -l)
   assert_eq "T50 restore-defaults re-armed the key" "$restored" "1"
+  # I2 (2026-11-23): F11 left the key table when it became the fullscreen key, so
+  # every press of it must be unbound -- no compiled default may name it any more.
+  f11rows=$(grep -a "camera: keys vk=122 .*result=" "$T50_TRACE" | grep -a -v "result=unbound" | wc -l)
+  assert_eq "T50 F11 is no longer a camera key" "$f11rows" "0"
   suppressed=$(grep -a "camera: keys .*result=suppressed-by-focus" "$T50_TRACE" | wc -l)
   assert_eq "T50 a focused text field suppressed two bound keys" "$suppressed" "2"
   # The final director line carries the counters. Every paused frame must be
@@ -1239,14 +1245,14 @@ else
     "$(cat "$T50_TRACE" 2>/dev/null)" "keys: bind action=camera.bookmark.save1 chord=Ctrl+F1"
   # After reset-keys every camera action holds its compiled default again, so
   # the LAST `keys: bind` line for each action must be the default chord. The
-  # Alt+F11 rebind and the unbind both happened earlier in the same run, so a
+  # Alt+Home rebind and the unbind both happened earlier in the same run, so a
   # table that stopped updating would show one of them instead.
   tail_f9="$(grep -a "keys: bind action=camera.freeFly " "$T50_TRACE" | tail -1)"
   assert_contains "T50 restore-defaults is visible in the exported table" \
     "$tail_f9" "chord=F9"
-  tail_f11="$(grep -a "keys: bind action=camera.resetView " "$T50_TRACE" | tail -1)"
+  tail_home="$(grep -a "keys: bind action=camera.resetView " "$T50_TRACE" | tail -1)"
   assert_contains "T50 the rebound action came back to its default" \
-    "$tail_f11" "chord=F11"
+    "$tail_home" "chord=Home"
   # The table summary must agree: 27 actions, and the conflict count is a
   # number (the two refusals the script provoked), not a constant.
   keys_table="$(grep -a "keys: table " "$T50_TRACE" | tail -1)"

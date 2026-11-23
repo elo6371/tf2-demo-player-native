@@ -48,13 +48,13 @@
 | | 倒放 | `SetReverse`（`key-r`） | R |
 | | 减速 / 加速（0.125×–8×） | `SetSpeed`（`key-minus` / `key-plus`） | − / + |
 | | 音量 − / + 、静音 | AUD-03 | [ / ] 、Ctrl+M |
-| 视图 | 全屏 | `ToggleFullscreen`（**要新实现**，见 §3） | **Alt+Enter**（新增） |
+| 视图 | 全屏 | `ToggleFullscreen`（S1 实现，I2 起由 F11 触发） | **F11**（新增；Alt+Enter 保留作别名） |
 | | 显示 HUD / HUD 预览 / 重置 HUD | `hud.toggle` / `hud.preview` / `hud.reset` | H / Ctrl+P / Ctrl+Shift+H |
 | | 小地图（总览） | `hud.overview` | M |
 | | 队伍轮廓（透视） | 叠加层开关 `Outline` | F12 |
 | | 分屏、玩家面板 | `--pane-split`、新 | 新增 Tab（玩家面板） |
 | 镜头 | 第一 → 第三 → 自由（循环；双击直接到自由） | `CameraModeController` | Space |
-| | 自由飞行 / 回到玩家 / 重置视角 | `camera.freeFly` / `camera.resetToPlayer` / `camera.resetView` | F9 / F10 / F11 |
+| | 自由飞行 / 回到玩家 / 重置视角 | `camera.freeFly` / `camera.resetToPlayer` / `camera.resetView` | F9 / F10 / Home（I2 起；F11 挪给全屏） |
 | | 书签 1–8：跳转 / 保存 / 删除 | `camera.bookmark.jump/save/delete<n>` | F1–F8 / Ctrl+F1–F8 / Ctrl+Shift+F1–F8 |
 | | 跟随… / 死亡后跟到复活 | `--follow`、`--follow-sticky` | 玩家面板里点选 |
 | 特效 | 总开关；治疗束 / 火焰 / Uber / 暴击 / 第一人称发光 | `--gameplay-fx`、`--gameplay-fx-parts` | — |
@@ -64,7 +64,7 @@
 原则：每个菜单项都调用**已有的** `UiCommand`、`PlaybackRequest` 或按键动作，不新增第二条执行路径；菜单项右侧显示的快捷键从按键表实时读取（`[keys]` 改绑后菜单跟着变），不写死。命令行开关和菜单改的是同一个状态，所以门禁用开关测到的，就是菜单点出来的效果。
 
 **上一版预览里的按键写错了**（R=回到玩家、F=自由飞行、1–9=书签、F11=全屏），以本表为准。
-F11 已是"重置视角"（`keybinds.cpp:401`），所以全屏用 **Alt+Enter**——Windows 和游戏的通用习惯，也不动任何已有绑定和按键门禁。
+全屏键在 I2（2026-11-23）按用户要求改成 **F11**：`camera.resetView` 的默认键从 F11 挪到 Home（`native/src/keybinds.cpp` 默认表），F11 不进按键表、在窗口过程里先于按键表处理，这样旧 `settings.ini` 里残留的 `camera.resetView=F11` 也不会把全屏键抢走；Alt+Enter 保留作别名。
 
 ## 3. 全屏模式叠加层
 
@@ -77,7 +77,7 @@ F11 已是"重置视角"（`keybinds.cpp:401`），所以全屏用 **Alt+Enter**
 | 跟随提示 | 右下，镜头模式切换上方 | 跟随状态 | 一直 |
 | 播放条 | 底部 96px：进度条（Uber / 击杀标记）、5 个按钮、时间、速度 | D3D 自绘，点击在窗口过程判定 | 鼠标移动后出现，静止 2 秒淡出；暂停时常驻 |
 
-- 进入：Alt+Enter、工具栏"全屏"、视图菜单。退出：Alt+Enter、Esc。
+- 进入：F11、Alt+Enter、工具栏"全屏"、视图菜单。退出：F11、Alt+Enter、Esc。（I2 2026-11-23：F11 进；Alt+Enter 保留作别名。）
 - Alt+Enter 走 `WM_SYSKEYDOWN`（现在窗口过程不处理它，交给 DefWindowProc 会响一声）。DXGI 默认也会抢 Alt+Enter 去切独占全屏：代码里没有调用 `MakeWindowAssociation`，所以要加 `DXGI_MWA_NO_ALT_ENTER`，全屏一律走无边框窗口，不用独占模式（不改显示模式、Alt+Tab 不黑屏）。
 - 双击画面进全屏：现在窗口类没有 `CS_DBLCLKS`，加上会把第二次单击变成 `WM_LBUTTONDBLCLK`，可能影响已有的拖动和点击处理，所以只在 `--ui-shell on` 下加。
 - Esc 现在没有绑定任何动作，全屏时用它退出不冲突。
@@ -88,7 +88,7 @@ F11 已是"重置视角"（`keybinds.cpp:401`），所以全屏用 **Alt+Enter**
 
 | 步 | 内容 | 默认 | 验证 |
 |---|---|---|---|
-| S1 | 真正的全屏：无边框铺满显示器，退出还原；`ToggleFullscreen` 接上；`DXGI_MWA_NO_ALT_ENTER` | Alt+Enter 才触发 | 新探针：切换 10 次窗口矩形和样式回到原值；不切换时默认帧逐字节不变 |
+| S1 | 真正的全屏：无边框铺满显示器，退出还原；`ToggleFullscreen` 接上；`DXGI_MWA_NO_ALT_ENTER` | Alt+Enter 才触发（I2 起 F11 也触发，且 F11 是主键） | 新探针：切换 10 次窗口矩形和样式回到原值；不切换时默认帧逐字节不变 |
 | S2 | `planShellLayout` + 菜单栏 + 工具栏 + 状态栏，`--ui-shell on` | 关 | 排版自检：各 DPI（100/125/150/200%）× 各窗口尺寸，零重叠、全部在客户区内（沿用 `planUiLayout` 的检查办法）；关时 `camera-ui-check.sh` 原样通过 |
 
 > **S1 状态（2026-11-23）**：补丁在 `_shared/s1-fullscreen-2026-11-23/`（基于 P4），未编译，验证脚本 `run-s1-check.sh`。顺手修了 F10：它只发 `WM_SYSKEYDOWN`，所以默认绑定"回到玩家"在真实键盘上从未生效。**遗留**：带 Alt 的自定义绑定同样只进 `WM_SYSKEYDOWN`，仍到不了按键表；S2 加真菜单栏后 F10 按 Windows 惯例会激活菜单，需要决定 F10 归谁（建议：回到玩家改到别的键，F10 还给菜单）。

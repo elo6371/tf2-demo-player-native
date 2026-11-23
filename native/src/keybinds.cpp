@@ -388,7 +388,11 @@ bool KeyBindTable::saveToSettings(const std::filesystem::path& file) const {
 // a camera preset, Ctrl+F1..F8 saved one, Ctrl+Shift+F1..F8 cleared one. Moving
 // them into the table is what turns "the product has keys" into "the product has
 // bindings a user can see and change"; a gate pins that the move kept the
-// meanings. F9/F10/F11 are new and deliberately outside the old preset range.
+// meanings. F9/F10 are new and deliberately outside the old preset range. F11 is
+// deliberately NOT in this table: the window procedure gives it to borderless
+// fullscreen (I2, 2026-11-23), so reset-view moved to Home with it -- a table
+// entry would shadow the key that every Windows user already expects to mean
+// "fullscreen" and there would be no visible clue why the key did nothing.
 KeyBindTable defaultKeyBindings() {
   KeyBindTable table;
   for (std::size_t slot = 1; slot <= 8; ++slot) {
@@ -398,7 +402,7 @@ KeyBindTable defaultKeyBindings() {
   }
   table.registerDefault(camera_actions::kFreeFly, parseChord("F9"));
   table.registerDefault(camera_actions::kResetToPlayer, parseChord("F10"));
-  table.registerDefault(camera_actions::kResetView, parseChord("F11"));
+  table.registerDefault(camera_actions::kResetView, parseChord("Home"));
   return table;
 }
 

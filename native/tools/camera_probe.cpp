@@ -351,7 +351,7 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
   check(table.actionKey(camera_actions::kFreeFly) == parseChord("F9"), "free-fly defaults to F9");
   check(table.actionKey(camera_actions::kResetToPlayer) == parseChord("F10"),
     "reset-to-player defaults to F10");
-  check(table.actionKey(camera_actions::kResetView) == parseChord("F11"), "reset-view defaults to F11");
+  check(table.actionKey(camera_actions::kResetView) == parseChord("Home"), "reset-view defaults to Home (F11 is fullscreen)");
   check(table.actionKey(camera_actions::jumpBookmark(1)) == parseChord("F1"),
     "the jump keys keep the legacy preset positions (F1..F8)");
   check(table.actionKey(camera_actions::saveBookmark(1)) == parseChord("Ctrl+F1"),
@@ -373,7 +373,7 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
     "the refused action has no conflicts of its own");
   check(!table.set(camera_actions::kResetView, parseChord("F9")),
     "a second collision on the same key is also refused");
-  check(table.set(camera_actions::kResetView, parseChord("Alt+F11")),
+  check(table.set(camera_actions::kResetView, parseChord("Alt+Home")),
     "a free key is accepted");
   check(table.conflictsFor(camera_actions::kResetView).empty(), "the new binding has no conflict");
   check(!table.set("camera.notAnAction", parseChord("F12")), "an unregistered action is refused");
@@ -429,10 +429,10 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
   // --- missing bindings --------------------------------------------------
   table.unbind(camera_actions::kResetView);
   check(table.unbound(camera_actions::kResetView), "an unbound action reads as unbound");
-  const KeyDispatch missing = table.dispatch(parseChord("Alt+F11"));
+  const KeyDispatch missing = table.dispatch(parseChord("Alt+Home"));
   check(missing.result == KeyDispatchResult::Unbound && missing.action.empty(),
     "dispatching a released key reports unbound, never a fallback action");
-  check(table.actionForKey(parseChord("Alt+F11")) == nullptr,
+  check(table.actionForKey(parseChord("Alt+Home")) == nullptr,
     "a released key resolves to no action");
   readings.set("keyUnboundDispatch", 1u);
 
@@ -454,7 +454,7 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
   check(table.unbound(camera_actions::kResetView), "resetAction leaves another action alone");
   table.resetAll();
   check(!table.unbound(camera_actions::kResetView), "resetAll restores the unbound action too");
-  check(table.actionKey(camera_actions::kResetView) == parseChord("F11"),
+  check(table.actionKey(camera_actions::kResetView) == parseChord("Home"),
     "resetAll restores the compiled defaults");
   table.unbindAll();
   std::uint32_t allUnbound = 0;
@@ -476,7 +476,7 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
     "a rebind survives the file");
   check(reloaded.unbound(camera_actions::kResetToPlayer),
     "an explicit unbind survives the file (it is not restored to the default)");
-  check(reloaded.actionKey(camera_actions::kResetView) == parseChord("F11"),
+  check(reloaded.actionKey(camera_actions::kResetView) == parseChord("Home"),
     "an action absent from the file keeps its default");
   const auto firstRead = reloaded.actions().size();
   check(reloaded.saveToSettings(settingsFile), "the reloaded table saves");
@@ -501,7 +501,7 @@ void checkKeybinds(Readings& readings, const std::filesystem::path& settingsFile
   check(dup.loadFromSettings(duplicate), "a file with a duplicate loads");
   check(dup.actionKey(camera_actions::kFreeFly) == parseChord("Alt+F5"),
     "the first line of the duplicate pair is accepted");
-  check(dup.actionKey(camera_actions::kResetView) == parseChord("F11"),
+  check(dup.actionKey(camera_actions::kResetView) == parseChord("Home"),
     "the second action keeps its default instead of sharing the key");
   check(dup.conflictsFor(camera_actions::kFreeFly).empty(),
     "the accepted action owns the key alone");

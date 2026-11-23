@@ -2619,6 +2619,44 @@ bool requestPlayerSwitch(bool next, const char* source, std::string* reasonOut) 
 }
 }  // namespace tf2::native::main_internal
 
+// --window-size pins the OUTER window rect for the whole run. The flag is
+// pre-scanned in wWinMain before the window exists, so the DPI handler below can
+// refuse the system-suggested rect instead of resizing a frame a gate hashes.
+// W1: TF2_NATIVE_WINDOW_SIZE pins it the same way when the flag is absent.
+// I2 (2026-11-23): it moved to file scope so toggleProductFullscreen() below --
+// which needs it to report the same refusal setWindowFullscreen() applies -- can
+// read it. A static inside the anonymous namespace that follows would also be
+// visible from global scope, but not from a definition that sits ABOVE it.
+static bool g_windowSizePinned = false;
+
+// I2 (2026-11-23): F11 toggles borderless fullscreen, and the camera script's
+// 'fullscreen' step drives the SAME function so a gate can prove what the key
+// does without synthesising input. windowFullscreen()/setWindowFullscreen()
+// (src/main_ui.cpp) stay the one implementation, so the refusal cases -- a pinned
+// --window-size, no monitor, no placement -- are reported exactly once, from there.
+// This has to be a plain file-scope block and NOT a nested definition inside the
+// anonymous namespace below: writing 'namespace tf2::native::main_internal {'
+// inside an anonymous namespace declares a NEW inner tf2::native, and every
+// unqualified name in the rest of that block then resolves against the empty inner
+// one (C2039 on logsPanelLayout, paneForClientX, UiCommand, ...).
+static HWND g_productWindow = nullptr;
+
+namespace tf2::native::main_internal {
+
+bool toggleProductFullscreen(const char* source) {
+  if (!g_productWindow) return false;
+  const bool wanted = !windowFullscreen();
+  const bool applied = setWindowFullscreen(g_productWindow, wanted, g_windowSizePinned, source);
+  // The reading the gate pins: what was asked, whether it happened, and the state
+  // the product is in now. A refused toggle and a toggle that happened stay
+  // different lines even though both leave the window in the same place.
+  traceFmt("window: fullscreen toggle source=%s wanted=%d applied=%d fullscreen=%d",
+    source ? source : "-", wanted ? 1 : 0, applied ? 1 : 0, windowFullscreen() ? 1 : 0);
+  return applied;
+}
+
+}  // namespace tf2::native::main_internal
+
 namespace {
 
 
@@ -2638,12 +2676,6 @@ bool isTextFieldFocused() {
 // T76 (2026-10-29): hudActionForKey, chooseHudFolder, discoverHudLayout,
 // hudPublishTrace, uiSettingsFilePath and the hud* window/renderer helpers
 // moved to src/main_hud.cpp.
-
-// --window-size pins the OUTER window rect for the whole run. The flag is
-// pre-scanned in wWinMain before the window exists, so the DPI handler below can
-// refuse the system-suggested rect instead of resizing a frame a gate hashes.
-// W1: TF2_NATIVE_WINDOW_SIZE pins it the same way when the flag is absent.
-static bool g_windowSizePinned = false;
 
 // I1 (2026-11-23): click detection for the two mouse buttons. A click is a press
 // and a release no more than kMouseClickSlopPixels apart (either axis) and no more
@@ -2987,8 +3019,10 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
   case WM_SYSKEYDOWN:
     // S1 (2026-11-23): Alt+Enter toggles borderless fullscreen. Alt chords arrive
     // as WM_SYSKEYDOWN, never as WM_KEYDOWN; bit 29 is the Alt context, bit 30 the
-    // repeat flag (a held Alt+Enter toggles once). F11 is not used: it is the
-    // shipped default for camera.resetView (keybinds.cpp:401).
+    // repeat flag (a held Alt+Enter toggles once). F11 is not handled here: the
+    // WM_KEYDOWN arm below gives it fullscreen (I2, 2026-11-23), which is what a
+    // Windows user expects, and reset-view moved off F11 to Home with it
+    // (keybinds.cpp:401). Alt+Enter stays as the alias.
     if (wParam == VK_RETURN && (lParam & (1u << 29)) != 0u) {
       if ((lParam & (1u << 30)) == 0u) {
         setWindowFullscreen(window, !windowFullscreen(), g_windowSizePinned, "alt-enter");
@@ -3023,13 +3057,22 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // about repeats, not about which chord the key was part of.
     if ((lParam & (1u << 30)) != 0u
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == 'M' || wParam == 'H'
-            || wParam == VK_HOME || wParam == VK_END || wParam == VK_F12
+            || wParam == VK_HOME || wParam == VK_END || wParam == VK_F11 || wParam == VK_F12
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
     // S1: Esc leaves fullscreen. Checked before the key table on purpose: while
     // fullscreen, Esc is the way out even if a user bound it to something else.
     // Windowed, Esc falls through unchanged (it has no default binding).
     if (wParam == VK_ESCAPE && windowFullscreen()) {
       setWindowFullscreen(window, false, g_windowSizePinned, "escape");
+      return 0;
+    }
+    // I2 (2026-11-23): F11 toggles borderless fullscreen. Deliberately before the
+    // key table (like Esc): F11 used to be camera.resetView's shipped default, and a
+    // settings.ini written by an older build still binds it there. If the table won
+    // this key, that stale file would silently turn the fullscreen key into a camera
+    // reset with no visible clue -- so the key wins and the table never sees it.
+    if (wParam == VK_F11) {
+      tf2::native::main_internal::toggleProductFullscreen("f11");
       return 0;
     }
     // T51: the shared hotkey table (contract 1.2) gets the first look.
@@ -3435,6 +3478,7 @@ int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand
     WS_OVERLAPPEDWINDOW, windowX, windowY, windowWidth, windowHeight,
     nullptr, nullptr, processInstance, nullptr);
   if (!window) return 11;
+  g_productWindow = window;
   {
     RECT createdClient{};
     GetClientRect(window, &createdClient);
