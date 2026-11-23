@@ -1337,7 +1337,9 @@ int wmain(int argc, wchar_t** argv) {
       // I6 keeps the report outside the if so the timeline below can attribute the
       // anomalies to rounds from the same measurement instead of a second pass.
       tf2::native::MotionDetectReport mdReport;
-      if (motionDetect || matchTimeline) {
+      // --timeline-hud draws the A3 exception track, which is this same report: one
+      // measurement feeds the counts, the per-round attribution and the blocks.
+      if (motionDetect || matchTimeline || timelineHud) {
         mdReport = tf2::native::detectMotionAnomalies(
             tickAuditCapture.packetRows(), tickAuditCapture.motionCensus());
       }
@@ -1360,8 +1362,19 @@ int wmain(int argc, wchar_t** argv) {
         }
       }
       if (timelineHud) {
+        std::vector<tf2::native::TimelineHudAnomaly> timelineAnomalies;
+        timelineAnomalies.reserve(mdReport.anomalies.size() + mdReport.hints.size());
+        for (const tf2::native::MotionAnomaly& anomaly : mdReport.anomalies) {
+          timelineAnomalies.push_back(tf2::native::TimelineHudAnomaly{
+              static_cast<int>(anomaly.kind), anomaly.startTick, anomaly.endTick});
+        }
+        for (const tf2::native::MotionAnomaly& hint : mdReport.hints) {
+          timelineAnomalies.push_back(tf2::native::TimelineHudAnomaly{
+              static_cast<int>(hint.kind), hint.startTick, hint.endTick});
+        }
         const tf2::native::TimelineHudStrip strip = tf2::native::composeTimelineStrip(
-            mtReport, timelineHudWidth, timelineHudHeight, timelineHudPlayhead, timelineHudAvoid);
+            mtReport, timelineHudWidth, timelineHudHeight, timelineHudPlayhead, timelineHudAvoid,
+            0.0f, timelineAnomalies);
         for (const std::string& stripLine : tf2::native::formatTimelineHudLines(strip)) {
           tickAuditText += stripLine;
           tickAuditText += '\n';

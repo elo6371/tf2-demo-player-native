@@ -1663,6 +1663,9 @@ FollowNameInfo hudFollowResolveName(const DemoNetworkSummary& summary,
 // key would otherwise be identical and the frame would keep the first match forever.
 namespace {
 tf2::native::MatchTimelineReport g_hudMatchTimeline;
+// A3: the exception track's marks, from the same scan as the report above. Set by the
+// same call site, so the two revisions move together and a stale lane is impossible.
+std::vector<tf2::native::TimelineHudAnomaly> g_hudTimelineAnomalies;
 std::uint64_t g_hudMatchTimelineRevision = 0;
 // Change-driven trace state, the same rule as the minimap's: geometry only changes on
 // a resize or a reload, so a line per frame would be noise around 60 identical rows.
@@ -1678,6 +1681,11 @@ HudTimelineTraceState g_hudTimelineTrace;
 
 void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report) {
   g_hudMatchTimeline = report;
+  ++g_hudMatchTimelineRevision;
+}
+
+void hudSetTimelineAnomalies(const std::vector<tf2::native::TimelineHudAnomaly>& anomalies) {
+  g_hudTimelineAnomalies = anomalies;
   ++g_hudMatchTimelineRevision;
 }
 
@@ -1854,18 +1862,22 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
       }
     }
     timelineStrip = tf2::native::composeTimelineStrip(g_hudMatchTimeline,
-        timelineClientW, timelineClientH, playback.tick, timelineAvoid);
+        timelineClientW, timelineClientH, playback.tick, timelineAvoid, 0.0f,
+        g_hudTimelineAnomalies);
     if (timelineStrip.visible) {
       const HudTimelineTraceState& last = g_hudTimelineTrace;
       if (last.revision != g_hudMatchTimelineRevision || last.clientW != timelineClientW
           || last.clientH != timelineClientH || last.visible != 1
           || last.bands != timelineStrip.bands.size()) {
         traceFmt("timeline: hud visible=1 revision=%llu client=%dx%d rounds=%zu"
-          " shapes=%zu red=%zu blu=%zu unknown=%zu x=%d y=%d w=%d h=%d",
+          " shapes=%zu red=%zu blu=%zu unknown=%zu anomalies=%zu stalls=%zu"
+          " teleports=%zu hints=%zu x=%d y=%d w=%d h=%d",
           static_cast<unsigned long long>(g_hudMatchTimelineRevision),
           timelineClientW, timelineClientH, timelineStrip.bands.size(),
           timelineStrip.shapes, timelineStrip.ticksRed, timelineStrip.ticksBlu,
-          timelineStrip.ticksUnknown, static_cast<int>(timelineStrip.x),
+          timelineStrip.ticksUnknown, timelineStrip.anomalyBlocks, timelineStrip.stalls,
+          timelineStrip.teleports, timelineStrip.anomalyHints,
+          static_cast<int>(timelineStrip.x),
           static_cast<int>(timelineStrip.y), static_cast<int>(timelineStrip.w),
           static_cast<int>(timelineStrip.h));
         g_hudTimelineTrace.revision = g_hudMatchTimelineRevision;

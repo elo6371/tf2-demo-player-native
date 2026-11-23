@@ -5,7 +5,9 @@
 //
 // Section 9 line 229 asks for: one background band per round, the band's top edge in
 // the winner's colour (grey while the round is still running), and kill marks with RED
-// kills drawn above the midline and BLU kills below it. (The Chinese source text is
+// kills drawn above the midline and BLU kills below it. Section 9 line 237 adds the
+// exception track above it: red blocks whose width is how many ticks the anomaly
+// lasted. (The Chinese source text is
 // left in the design document: a C4819 warning on this machine's code page is a build
 // diagnostic, and the gate treats one as a failure.)
 // The data layer (demo_match_timeline.h) already puts rounds, kills and anomaly
@@ -63,6 +65,27 @@ struct TimelineHudBand {
   bool labelPlaced = false;
 };
 
+// A3 (section 9): one anomaly on the exception track. The product's detector reports in
+// server ticks (demo_motion_detect.h), and so does the strip's axis, so no conversion is
+// done here. kind matches MotionAnomalyKind: 0 stall, 1 teleport, 2 sharp turn (a hint,
+// drawn thin rather than as a block).
+struct TimelineHudAnomaly {
+  int kind = 0;
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+};
+
+// Where one anomaly landed on the axis: a block's width is its duration in ticks
+// (section 9: the red block's width is the number of ticks it lasted).
+struct TimelineHudAnomalyMark {
+  int kind = 0;
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+  float x = 0.0f;
+  float w = 0.0f;
+  bool hint = false;
+};
+
 struct TimelineHudStrip {
   bool visible = false;
   float x = 0.0f;      // the strip's own rectangle
@@ -81,7 +104,19 @@ struct TimelineHudStrip {
   std::size_t ticksRed = 0;
   std::size_t ticksBlu = 0;
   std::size_t ticksUnknown = 0;
+  float anomalyLaneY = 0.0f;  // the exception track: between the labels and the kills
+  float anomalyLaneH = 0.0f;
+  std::size_t anomalyBlocks = 0;
+  // Marks the axis could not show because they lie outside [first, last]. Counted, not
+  // silently dropped: a gate reconciles blocks + hints + before + after against the
+  // detector's list, so a mark that vanishes anywhere shows up as an arithmetic miss.
+  std::size_t marksBefore = 0;
+  std::size_t marksAfter = 0;  // stalls + teleports, drawn as red blocks
+  std::size_t anomalyHints = 0;   // sharp turns, drawn as thin marks
+  std::size_t stalls = 0;
+  std::size_t teleports = 0;
   std::vector<TimelineHudBand> bands;
+  std::vector<TimelineHudAnomalyMark> marks;
   std::vector<TimelineHudShape> primitives;
 };
 
@@ -90,11 +125,16 @@ struct TimelineHudStrip {
 // axis with the report's own offset, so the caller never does that arithmetic.
 // bottomInset: how much of the bottom edge is someone else's (a taskbar-like band the
 // shell already reserves); 0 places the strip at the safe margin.
+// anomalies: the A3 exception track, already on the server-tick axis. Empty draws the
+// lane with no marks, so a run that never scanned keeps the same geometry as one that
+// did -- a gate can tell "no anomalies" from "no track" instead of guessing.
 TimelineHudStrip composeTimelineStrip(const MatchTimelineReport& report,
                                       int clientW, int clientH,
                                       std::int32_t playheadPlaybackTick,
                                       const TimelineHudAvoidRect& avoid = TimelineHudAvoidRect{},
-                                      float bottomInset = 0.0f);
+                                      float bottomInset = 0.0f,
+                                      const std::vector<TimelineHudAnomaly>& anomalies =
+                                          std::vector<TimelineHudAnomaly>{});
 
 // One machine-readable line per strip plus one per band, so a gate can assert the
 // geometry without a screenshot. Text is percent-encoded (one line = one record).

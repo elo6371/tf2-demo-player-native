@@ -5990,6 +5990,29 @@ bool outlineVertexExtent = false;
           // I6 step 2: hand the same report to the HUD so the strip is drawn from the
           // measurement this block just printed, never from a second pass.
           tf2::native::main_internal::hudSetMatchTimeline(matchTimeline);
+          // A3 (section 9.2, the exception track): the same anomalies the shell above was
+          // given, in the strip's own type. One scan, three products -- the shell's list,
+          // the round counts, and the blocks under the track -- so a reader can never see a
+          // red block that the count line does not account for. Empty when nothing was
+          // detected: the lane still draws its base rect, which is the honest reading of
+          // "scanned, found none".
+          std::vector<tf2::native::TimelineHudAnomaly> timelineAnomalies;
+          timelineAnomalies.reserve(motionAnalysis.anomalies.size() + motionAnalysis.hints.size());
+          for (const tf2::native::UiMotionAnomaly& anomaly : motionAnalysis.anomalies) {
+            tf2::native::TimelineHudAnomaly mark;
+            mark.kind = anomaly.kind;
+            mark.startTick = anomaly.startTick;
+            mark.endTick = anomaly.endTick;
+            timelineAnomalies.push_back(mark);
+          }
+          for (const tf2::native::UiMotionAnomaly& hint : motionAnalysis.hints) {
+            tf2::native::TimelineHudAnomaly mark;
+            mark.kind = hint.kind;
+            mark.startTick = hint.startTick;
+            mark.endTick = hint.endTick;
+            timelineAnomalies.push_back(mark);
+          }
+          tf2::native::main_internal::hudSetTimelineAnomalies(timelineAnomalies);
         }
       }
       tf2::native::buildAssetReferenceList(demoNetworkSummary, demoNetworkSummary.assetReferences);

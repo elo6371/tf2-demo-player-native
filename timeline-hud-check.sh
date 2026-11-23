@@ -107,6 +107,7 @@ targets = {
     "red":   (230, 51, 46),
     "blu":   (51, 107, 242),
     "white": (250, 250, 245),
+    "mark":  (240, 66, 56),   # the A3 exception block (kAnomalyBlockColour)
 }
 tol = 10
 data, offset, width, height, stride, bottom_up = load(sys.argv[1])
@@ -155,13 +156,28 @@ strip=$(grep -a "^timeline-hud " "$OUT/probe.txt" | tail -1)
 echo "  ..   $strip"
 assert_eq "strip visible" "$(sfield "$strip" visible)" "1"
 assert_eq "strip x" "$(sfield "$strip" x)" "12"
-assert_eq "strip y" "$(sfield "$strip" y)" "664"
+assert_eq "strip y" "$(sfield "$strip" y)" "652"
 assert_eq "strip w" "$(sfield "$strip" w)" "1256"
-assert_eq "strip h" "$(sfield "$strip" h)" "44"
+# A3 grew the strip by the exception lane: 12 px of lane above the kill band, so the
+# band keeps its 8 px height and the labels stay on the first 12 px.
+assert_eq "strip h" "$(sfield "$strip" h)" "56"
 assert_eq "track left" "$(sfield "$strip" trackX0)" "18"
 assert_eq "track right" "$(sfield "$strip" trackX1)" "1262"
-assert_eq "track top" "$(sfield "$strip" trackY)" "681"
+assert_eq "track top" "$(sfield "$strip" trackY)" "690"
 assert_eq "track height" "$(sfield "$strip" trackH)" "8"
+assert_eq "exception lane top" "$(sfield "$strip" laneY)" "672"
+assert_eq "exception lane height" "$(sfield "$strip" laneH)" "6"
+# Every block the detector handed over is either drawn or counted as outside the axis,
+# so the four numbers add up to the report's own list.
+anom=$(nfield "$strip" anomalies)
+hints=$(nfield "$strip" hints)
+before=$(nfield "$strip" before)
+after=$(nfield "$strip" after)
+assert_gt "exception blocks" "$anom" "0"
+assert_eq "blocks split into stalls and teleports" \
+  "$(( $(nfield "$strip" stalls) + $(nfield "$strip" teleports) ))" "$anom"
+assert_eq "lane marks reconcile with the report" "$((anom + hints + before + after))" \
+  "$(( $(nfield "$head" anomalies) + $(nfield "$head" hints) ))"
 assert_eq "bands == rounds" "$(sfield "$strip" bands)" "$rounds"
 red=$(lfield "$strip" ticksRed)
 blu=$(lfield "$strip" ticksBlu)
@@ -175,8 +191,9 @@ assert_eq "no playhead unless asked" "$(lfield "$strip" playheadVisible)" "0"
 # fell off the strip would break this even while every count above still agreed.
 labelrows=$(grep -acE "^timeline-band .* label=1$" "$OUT/probe.txt")
 stripes=$(grep -acE "^timeline-band .* winTeam=(2|3)( |$)" "$OUT/probe.txt")
-assert_eq "shapes == track + bands + labels + stripes + kills" "$(sfield "$strip" shapes)" \
-  "$((1 + $(sfield "$strip" bands) + labelrows + stripes + kills))"
+assert_eq "shapes == track + lane + bands + labels + stripes + kills + marks" \
+  "$(sfield "$strip" shapes)" \
+  "$((1 + 1 + $(sfield "$strip" bands) + labelrows + stripes + kills + $(nfield "$strip" anomalies) + $(nfield "$strip" hints)))"
 bandrows=$(grep -acE "^timeline-band index=" "$OUT/probe.txt")
 assert_eq "one band row per band" "$bandrows" "$rounds"
 bad_team=$(grep -aE "^timeline-band " "$OUT/probe.txt" | grep -avcE " winTeam=(2|3|-1)( |$)")
@@ -206,7 +223,7 @@ strip2=$(grep -a "^timeline-hud " "$OUT/probe-big.txt" | tail -1)
 echo "  ..   $strip2"
 assert_eq "big strip visible" "$(sfield "$strip2" visible)" "1"
 assert_eq "big strip w" "$(sfield "$strip2" w)" "1576"
-assert_eq "big strip y" "$(sfield "$strip2" y)" "844"
+assert_eq "big strip y" "$(sfield "$strip2" y)" "832"
 assert_eq "big playhead visible" "$(lfield "$strip2" playheadVisible)" "1"
 assert_eq "playhead server tick" "$(lfield "$strip2" playhead)" "$((30000 + offset))"
 px=$(lfield "$strip2" playheadX)
@@ -236,6 +253,10 @@ blu_bands=$(grep -acE "^timeline-band .*winTeam=3" "$OUT/probe-upward.txt")
 assert_gt "rounds won by RED" "$red_bands" "0"
 assert_gt "rounds won by BLU" "$blu_bands" "0"
 assert_eq "bands == RED + BLU + unknown" "$((red_bands + blu_bands + $(grep -acE "^timeline-band .*winTeam=-1" "$OUT/probe-upward.txt")))" "$(sfield "$stripu" bands)"
+assert_gt "upward exception blocks" "$(nfield "$stripu" anomalies)" "0"
+assert_eq "upward lane marks reconcile with the report" \
+  "$(( $(nfield "$stripu" anomalies) + $(nfield "$stripu" hints) + $(nfield "$stripu" before) + $(nfield "$stripu" after) ))" \
+  "$(( $(nfield "$head2" anomalies) + $(nfield "$head2" hints) ))"
 assert_gt "upward RED kill ticks" "$(lfield "$stripu" ticksRed)" "0"
 assert_gt "upward BLU kill ticks" "$(lfield "$stripu" ticksBlu)" "0"
 
@@ -258,7 +279,12 @@ assert_eq "product RED ticks == probe" "$(lfield "$online" red)" "$red"
 assert_eq "product BLU ticks == probe" "$(lfield "$online" blu)" "$blu"
 assert_eq "product unknown ticks == probe" "$(lfield "$online" unknown)" "$unknown"
 assert_eq "product strip x" "$(sfield "$online" x)" "12"
-assert_eq "product strip y" "$(sfield "$online" y)" "$((clienth - 56))"
+assert_eq "product strip y" "$(sfield "$online" y)" "$((clienth - 68))"
+assert_eq "product exception blocks == probe" "$(nfield "$online" anomalies)" "$anom"
+assert_eq "product hints == probe" "$(nfield "$online" hints)" "$hints"
+assert_eq "product lane marks reconcile with the report" \
+  "$(( $(nfield "$online" anomalies) + $(nfield "$online" hints) + $(nfield "$online" before) + $(nfield "$online" after) ))" \
+  "$(( $(nfield "$head" anomalies) + $(nfield "$head" hints) ))"
 assert_eq "product strip w" "$(sfield "$online" w)" "$((clientw - 24))"
 assert_eq "capture frame exists" "$([ -s "$OUT/on.bmp" ] && echo 1 || echo 0)" "1"
 framew=$(od -An -tu4 -j18 -N4 "$OUT/on.bmp" | tr -d ' ')
@@ -285,7 +311,7 @@ first=$(nfield "$head" first)
 last=$(nfield "$head" last)
 if need_number "product strip geometry" "$onlineY$onlineX$onlineW$onlineH" \
    && need_number "report tick window" "$first$last"; then
-  trackY=$((onlineY + 17))
+  trackY=$((onlineY + 38))
   trackX0=$((onlineX + 6))
   trackX1=$((onlineX + onlineW - 6))
 # The strip's own playhead column is not in the product trace line (only the probe
@@ -294,17 +320,20 @@ if need_number "product strip geometry" "$onlineY$onlineX$onlineW$onlineH" \
 serverTick=$((1200 + offset))
 playheadX=$((trackX0 + (serverTick - first) * (trackX1 - trackX0) / (last - first)))
 echo "  ..   sampling rows around trackY=$trackY, playhead column ~$playheadX, tick $serverTick"
+laneY=$((onlineY + 20))
 span=$((trackX1 - trackX0))
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_stripe "$((trackX0)),$((trackY - 3)),$span,3" > "$OUT/on-stripe.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_above "$((trackX0)),$((trackY - 8)),$span,8" > "$OUT/on-above.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_below "$((trackX0)),$((trackY + 9)),$span,12" > "$OUT/on-below.txt" 2>&1
-"$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_playhead "$((playheadX - 3)),$((trackY)),7,$((onlineH - 17))" > "$OUT/on-playhead.txt" 2>&1
+"$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_playhead "$((playheadX - 3)),$((trackY)),7,$((onlineH - 38))" > "$OUT/on-playhead.txt" 2>&1
+"$PY" "$ANALYZER" "$(win "$OUT/on.bmp")" on_lane "$((trackX0)),$((laneY)),$span,7" > "$OUT/on-lane.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_stripe "$((trackX0)),$((trackY - 3)),$span,3" > "$OUT/off-stripe.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_above "$((trackX0)),$((trackY - 8)),$span,8" > "$OUT/off-above.txt" 2>&1
 "$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_below "$((trackX0)),$((trackY + 9)),$span,12" > "$OUT/off-below.txt" 2>&1
-"$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_playhead "$((playheadX - 3)),$((trackY)),7,$((onlineH - 17))" > "$OUT/off-playhead.txt" 2>&1
-cat "$OUT"/on-stripe.txt "$OUT"/on-above.txt "$OUT"/on-below.txt "$OUT"/on-playhead.txt | sed 's/^/  ..   on  /'
-cat "$OUT"/off-stripe.txt "$OUT"/off-above.txt "$OUT"/off-below.txt "$OUT"/off-playhead.txt | sed 's/^/  ..   off /'
+"$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_playhead "$((playheadX - 3)),$((trackY)),7,$((onlineH - 38))" > "$OUT/off-playhead.txt" 2>&1
+"$PY" "$ANALYZER" "$(win "$OUT/off.bmp")" off_lane "$((trackX0)),$((laneY)),$span,7" > "$OUT/off-lane.txt" 2>&1
+cat "$OUT"/on-stripe.txt "$OUT"/on-above.txt "$OUT"/on-below.txt "$OUT"/on-playhead.txt "$OUT"/on-lane.txt | sed 's/^/  ..   on  /'
+cat "$OUT"/off-stripe.txt "$OUT"/off-above.txt "$OUT"/off-below.txt "$OUT"/off-playhead.txt "$OUT"/off-lane.txt | sed 's/^/  ..   off /'
 pix() { grep "^$1\.$3=" "$2" | cut -d= -f2; }
 on_stripe_red=$(pix on_stripe "$OUT/on-stripe.txt" red)
 on_stripe_blu=$(pix on_stripe "$OUT/on-stripe.txt" blu)
@@ -315,6 +344,8 @@ on_below_blu=$(pix on_below "$OUT/on-below.txt" blu)
 off_below_blu=$(pix off_below "$OUT/off-below.txt" blu)
 on_playhead_white=$(pix on_playhead "$OUT/on-playhead.txt" white)
 off_playhead_white=$(pix off_playhead "$OUT/off-playhead.txt" white)
+on_lane_mark=$(pix on_lane "$OUT/on-lane.txt" mark)
+off_lane_mark=$(pix off_lane "$OUT/off-lane.txt" mark)
 # snakewater is 5-0 BLU, so every band's winner stripe is BLU: at least one per band.
 assert_gt "BLU stripe pixels (one per band minimum)" "$on_stripe_blu" "$rounds"
 assert_le "control frame has no BLU stripe" "$off_stripe_blu" "2"
@@ -327,6 +358,11 @@ assert_gt "BLU kill marks below the midline" "$on_below_blu" "16"
 assert_le "control frame has no BLU kill marks" "$off_below_blu" "2"
 assert_gt "playhead is white at its column" "$on_playhead_white" "4"
 assert_le "control frame has no playhead" "$off_playhead_white" "2"
+# The exception lane is the one part of the strip the control run cannot have: the
+# scan is off, so there is no lane base and no block. A block pixel here therefore
+# proves the marks came from the analysis, not from the track's own colours.
+assert_gt "exception blocks have pixels in the lane" "$on_lane_mark" "0"
+assert_le "control frame has no exception blocks" "$off_lane_mark" "2"
 fi
 
 echo "=== 7/7 determinism ==="

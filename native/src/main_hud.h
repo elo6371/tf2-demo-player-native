@@ -30,6 +30,7 @@
 
 #include "demo_header.h"
 #include "demo_match_timeline.h"
+#include "timeline_hud.h"
 #include "hud_state.h"
 #include "keybinds.h"
 #include "native_renderer.h"
@@ -74,6 +75,10 @@ void hudApplyRects(HWND window);
 // report once, during the startup --analysis-scan, and hands it over as a value; a
 // run that never scanned a match never calls this and the HUD draws no strip.
 void hudSetMatchTimeline(const tf2::native::MatchTimelineReport& report);
+// A3 (section 9): the exception track's marks for the strip above. Same scan, same
+// server-tick axis; passed separately because the detector's report and the match
+// report are two products of one pass, not one nested in the other.
+void hudSetTimelineAnomalies(const std::vector<tf2::native::TimelineHudAnomaly>& anomalies);
 
 // T97: the live readout the frame loop calls once per frame (main.cpp).
 //
