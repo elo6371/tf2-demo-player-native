@@ -31,6 +31,7 @@
 #include "demo_header.h"
 #include "demo_tick_audit.h"
 #include "demo_match_timeline.h"
+#include "gameplay_effects.h"
 #include "timeline_hud.h"
 #include "hud_state.h"
 #include "keybinds.h"
@@ -142,6 +143,14 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   const std::vector<tf2::native::EntityState>& states,
   const tf2::native::DemoNetworkSummary& summary,
   std::int32_t relayEntity, bool relayValid);
+// H1 (2026-11-23, UI shell design section 7): the broadcast overlay. main.cpp sets
+// the switch and hands over the frame's own gameplay-FX reading (it owns both the
+// parsed flags and g_gameplayFxReading); the overlay is composed inside
+// hudApplyLive from the same rows the overview reads. Declared here so the frame
+// loop never reaches into main_hud.cpp's file-scope state.
+void hudSetBroadcast(bool enabled);
+bool hudBroadcastEnabled();
+void hudSetBroadcastFx(const tf2::native::GameplayFxReading* reading);
 void hudUpdateStatus(HWND window);
 void hudImportInteractive(HWND window);
 void hudTogglePreview(HWND window);

@@ -60,6 +60,7 @@ struct CliParseEnv {
   bool& hudOffCli;
   bool& hudLiveCli;
   bool& hudMinimapCli;
+  bool& hudBroadcastCli;
   bool& hudResetRequested;
   bool& hudApplyRequested;
   bool& hudTextTest;
@@ -430,6 +431,16 @@ inline const FlagSpec kFeatureFlagTable[] = {
   }},
   {L"--hud-minimap", FlagArity::Zero, [](CliParseEnv& env, LPWSTR*, int, int&) {
     env.hudMinimapCli = true;
+    return true;
+  }},
+  // H1 (2026-11-23, UI shell design section 7): --hud-broadcast draws the spectator
+  // overlay -- the top bar with both scores and the round clock, the two rosters with
+  // class, health and Medic Gun charge, and the followed player's box -- and publishes
+  // its geometry and every placed row as `broadcast:` trace lines. Off in every run
+  // that does not pass it, which is every run the existing pixel gates make, so a
+  // launch without the switch stays byte-identical.
+  {L"--hud-broadcast", FlagArity::Zero, [](CliParseEnv& env, LPWSTR*, int, int&) {
+    env.hudBroadcastCli = true;
     return true;
   }},
   // 2026-11-22: where an untabulated map's minimap rectangle comes from.

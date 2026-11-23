@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "broadcast_hud.h"
+#include "gameplay_effects.h"
 #include "hud_import.h"
 #include "hud_state.h"
 #include "hud_panel.h"
@@ -1842,6 +1844,26 @@ int hudTimelineReviewButtonAt(int clientX, int clientY) {
       static_cast<float>(clientX), static_cast<float>(clientY));
 }
 
+// H1 (2026-11-23, UI shell design section 7): the broadcast overlay's switch and
+// its gameplay-FX input.
+//
+// The switch is process-wide like --hud-minimap's: the request arrives from
+// main.cpp's parsed flags and the frame that draws it runs here. The FX pointer is
+// the frame's own GameplayFxReading (main.cpp g_gameplayFxReading), handed over
+// rather than recomputed -- the overlay must show the charge the world pass is
+// already drawing beams for, and a second readGameplayFx call would be a second
+// answer to the same question in the same frame.
+namespace {
+bool g_hudBroadcast = false;
+const tf2::native::GameplayFxReading* g_hudBroadcastFx = nullptr;
+}  // namespace
+
+void hudSetBroadcast(bool enabled) { g_hudBroadcast = enabled; }
+bool hudBroadcastEnabled() { return g_hudBroadcast; }
+void hudSetBroadcastFx(const tf2::native::GameplayFxReading* reading) {
+  g_hudBroadcastFx = reading;
+}
+
 void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     const std::string& mapName,
     const tf2::native::main_internal::PlaybackState& playback,
@@ -1885,8 +1907,12 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   // (measured: hd-hudminimap-pg-3000.bmp and hd-pg-3000.bmp, same md5
   // 9a798a63536660c85c664a726dec672d). The readout rides along, exactly as it does
   // for --overview-open.
+  // H1 (2026-11-23): --hud-broadcast sits on that same footing. The overlay is the
+  // thing such a run exists to photograph; suppressing it would leave a gate
+  // comparing an empty screen against an empty screen.
   const bool suppressed = hudOff || (evidenceRun && !hudLive
-    && !tf2::native::mapOverviewOpen() && !tf2::native::minimapHudFramePushed());
+    && !tf2::native::mapOverviewOpen() && !tf2::native::minimapHudFramePushed()
+    && !g_hudBroadcast);
   if (suppressed) {
     if (!g_hudLiveOffReported) {
       g_hudLiveOffReported = true;
@@ -2001,6 +2027,50 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
       timelineClientH = static_cast<int>(client.bottom);
     }
   }
+  // H1 (2026-11-23, UI shell design section 7): the broadcast overlay. Composed
+  // from THIS frame's overview rows -- mapOverviewBuildInput is the one reader of
+  // player state -- and from the live readout's scores and clock, so the overlay
+  // and the readout cannot disagree about a number. Never composed unless the
+  // switch asked for it: a plain launch pays nothing and stays byte-identical.
+  tf2::native::BroadcastHudDraw broadcast;
+  if (g_hudBroadcast) {
+    tf2::native::BroadcastHudInput broadcastInput;
+    broadcastInput.clientWidth = timelineClientW;
+    broadcastInput.clientHeight = timelineClientH;
+    broadcastInput.mapName = mapName;
+    broadcastInput.live.roundTimerKnown = reading.roundTimerKnown;
+    broadcastInput.live.roundTimerSeconds = reading.roundTimerSeconds;
+    broadcastInput.live.roundTimerPaused = reading.roundTimerPaused;
+    broadcastInput.live.redKnown = reading.redKnown;
+    broadcastInput.live.red = reading.red;
+    broadcastInput.live.bluKnown = reading.bluKnown;
+    broadcastInput.live.blu = reading.blu;
+    broadcastInput.players = tf2::native::mapOverviewBuildInput(states, summary, mapName,
+      timelineClientW, timelineClientH, playback.tick, playback.tickRate).players;
+    if (g_hudBroadcastFx != nullptr) {
+      broadcastInput.mediguns.reserve(g_hudBroadcastFx->mediguns.size());
+      for (const tf2::native::FxMedigun& gun : g_hudBroadcastFx->mediguns) {
+        tf2::native::BroadcastHudMedigun entry;
+        entry.entity = gun.entity;
+        entry.owner = gun.owner;
+        entry.target = gun.target;
+        entry.chargeRelease = gun.chargeRelease;
+        entry.chargeKnown = gun.hasChargeLevel;
+        entry.chargeLevel = gun.chargeLevel;
+        entry.kind = static_cast<int>(gun.kind);
+        broadcastInput.mediguns.push_back(entry);
+      }
+    }
+    // The followed player: the relay's answer when it has one, else the demo's
+    // view entity the name block above resolved -- the same fallback the readout
+    // uses, so the box and the name line cannot name different players.
+    broadcastInput.observedEntity = relayUsable ? relayEntity : name.entity;
+    broadcastInput.observedName = name.display;
+    broadcastInput.observedNameKnown = name.known;
+    broadcastInput.serverTick = playback.tick;
+    broadcastInput.tickRate = playback.tickRate;
+    broadcast = tf2::native::broadcastHudCompose(broadcastInput);
+  }
   tf2::native::TimelineHudStrip timelineStrip;
   if (g_hudMatchTimeline.valid) {
     tf2::native::TimelineHudAvoidRect timelineAvoid;
@@ -2106,6 +2176,13 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     key += '\n';
     key += overview.signature;
   }
+  // H1: the overlay's signature carries its scores, clock, roster and charges, so a
+  // health tick or a charge percent republishes and a still frame does not.
+  if (broadcast.active && !broadcast.signature.empty()) {
+    key += '\n';
+    key += "broadcast:";
+    key += broadcast.signature;
+  }
   // I6: a visible strip makes the playhead part of the frame, so the readout must
   // republish as it moves. Only a VISIBLE strip joins the key: with no analysis the
   // key is byte-for-byte the one this file built before the strip existed.
@@ -2133,6 +2210,11 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   std::vector<tf2::native::Renderer::HudPrimitive> primitives;
   std::size_t glyphs = 0;
   float widest = 0.0f;
+  // H1: while the broadcast overlay is visible its bar occupies the centred header
+  // the readout's three lines use, so the text is measured (the trace still
+  // publishes its glyph count) but not published: the overlay replaces the readout
+  // rather than stacking on top of it.
+  const bool readoutTextVisible = !(broadcast.active && broadcast.visible);
   for (std::size_t index = 0; index < 3; ++index) {
     tf2::native::Renderer::HudPrimitive primitive;
     primitive.kind = tf2::native::Renderer::HudPrimitiveKind::Text;
@@ -2151,7 +2233,7 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     primitive.text = lines[index];
     glyphs += lines[index].size();
     if (primitive.w > widest) widest = primitive.w;
-    primitives.push_back(primitive);
+    if (readoutTextVisible) primitives.push_back(primitive);
   }
   // E9: the panel's shapes ride in the same list, after the text. hudApplyRects
   // rebuilds this list on every resize from g_hudLivePrimitives, so a window
@@ -2163,6 +2245,10 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     minimap.primitives.begin(), minimap.primitives.end());
   g_hudLiveExtraPrimitives.insert(g_hudLiveExtraPrimitives.end(),
     overview.primitives.begin(), overview.primitives.end());
+  // H1: the broadcast overlay rides above the panels it summarises and below the
+  // timeline strip, so the strip's chrome stays legible over a roster row.
+  g_hudLiveExtraPrimitives.insert(g_hudLiveExtraPrimitives.end(),
+    broadcast.primitives.begin(), broadcast.primitives.end());
   // I6: the strip rides with the panels, after them, because it is chrome rather than
   // part of the readout's three lines. Shapes are converted here, at the one place
   // that knows both the pure composer and the renderer's primitive.
@@ -2240,6 +2326,13 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
            tf2::native::formatTimelineReviewLines(view, g_hudTimelineReviewOverlay)) {
         traceFmt("%s", line.c_str());
       }
+    }
+  }
+  // H1: the overlay's own lines, change-driven by the publish key above. They come
+  // after the review lines because they are the last thing drawn under the strip.
+  if (broadcast.active) {
+    for (const std::string& line : tf2::native::formatBroadcastHudLines(broadcast)) {
+      traceFmt("%s", line.c_str());
     }
   }
   primitives.insert(primitives.end(), g_hudLiveExtraPrimitives.begin(),

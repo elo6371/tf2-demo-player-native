@@ -3850,6 +3850,9 @@ int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand
   // E9: --hud-minimap. Off in every run that does not pass it, which is every run
   // the pixel gates make: the panel is a new thing to draw, so it must be asked for.
   bool hudMinimapCli = false;
+  // H1 (2026-11-23, UI shell design section 7): --hud-broadcast. Same rule: the
+  // overlay is new pixels, so a run asks for them or gets none.
+  bool hudBroadcastCli = false;
   std::filesystem::path dumpEntityMaterialsPath;
   std::int64_t captureTick = 0;
   bool captureTickRejected = false;
@@ -4468,6 +4471,7 @@ bool outlineVertexExtent = false;
       hudOffCli,
       hudLiveCli,
       hudMinimapCli,
+      hudBroadcastCli,
       hudResetRequested,
       hudApplyRequested,
       g_hudTextTest,
@@ -17745,6 +17749,14 @@ bool outlineVertexExtent = false;
       }
       tf2::native::main_internal::hudSetTimelineFollowEntity(timelineEntity);
     }
+    // H1 (2026-11-23, UI shell design section 7): the broadcast overlay's two
+    // inputs, pushed once per frame. The FX pointer is THIS frame's gameplay reading
+    // -- the same object the world pass consumed -- or null when the recording gave
+    // no reading at all, in which case the overlay draws its rows without charge
+    // numbers instead of inventing zeroes.
+    tf2::native::main_internal::hudSetBroadcast(hudBroadcastCli);
+    tf2::native::main_internal::hudSetBroadcastFx(
+      g_gameplayFxReadingValid ? &g_gameplayFxReading : nullptr);
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
       demoHeader.mapName,
       g_playback, hudState, currentEntityStates, demoNetworkSummary,

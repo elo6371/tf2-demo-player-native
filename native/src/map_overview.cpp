@@ -1096,6 +1096,34 @@ void mapOverviewTrace(const OverviewDraw& draw) {
     draw.circlePrimitives, g_hiddenEntity);
 }
 
+// ---------------------------------------------------------------- class chip
+// The decode itself is resolveClassIcon's (:211-305); this only copies its cells
+// out in a type a header can name. No chain is built here that the overview would
+// not have built anyway: the same g_classIcons cache answers both screens.
+bool mapOverviewClassChip(std::int32_t cls, std::vector<OverviewClassChip>& out) {
+  out.clear();
+  if (cls < 1 || cls > 9) return false;
+  resolveClassIcon(cls);
+  const ClassIcon& icon = g_classIcons[static_cast<std::size_t>(cls)];
+  if (!icon.resolved) return false;
+  out.reserve(icon.cells.size());
+  for (const MosaicCell& cell : icon.cells) {
+    OverviewClassChip chip;
+    chip.x = cell.x;
+    chip.y = cell.y;
+    chip.w = cell.w;
+    chip.h = cell.h;
+    chip.rgb = cell.rgb;
+    out.push_back(chip);
+  }
+  return !out.empty();
+}
+
+const char* mapOverviewClassChipReason(std::int32_t cls) {
+  if (cls < 1 || cls > 9) return "no-such-class";
+  return g_classIcons[static_cast<std::size_t>(cls)].reason.c_str();
+}
+
 // ---------------------------------------------------------------- state
 bool mapOverviewOpen() { return g_open; }
 void mapOverviewSetOpen(bool open) { g_open = open; }

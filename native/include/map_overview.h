@@ -191,4 +191,19 @@ OverviewDraw mapOverviewCompose(HWND window, const OverviewInput& input,
 // pixels alone could not distinguish 'wrong mapping' from 'no players'.
 void mapOverviewTrace(const OverviewDraw& draw);
 
+// H1 (2026-11-23): the broadcast HUD draws the SAME class chip this screen
+// decodes, so this hands over the cell runs instead of letting a second module
+// open the VPK chain and decode the same VTF again. False means this install has
+// no icon for the class (mapOverviewClassChipReason says why), and the caller
+// draws its own letter instead.
+struct OverviewClassChip {
+  int x = 0;
+  int y = 0;
+  int w = 1;
+  int h = 1;
+  std::uint32_t rgb = 0;
+};
+bool mapOverviewClassChip(std::int32_t cls, std::vector<OverviewClassChip>& out);
+const char* mapOverviewClassChipReason(std::int32_t cls);
+
 }  // namespace tf2::native

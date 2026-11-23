@@ -21,6 +21,10 @@
 #      countdown, the hold, the two-second run and the wait, the automatic advance, the
 #      restore on exit, and two captured frames (one with --hud-review, one without)
 #      proving the banner is an overlay: they differ inside the bar and nowhere else.
+#   9. H1: the broadcast overlay -- both scores and the round clock in a centred bar, a
+#      roster per team with the medic first and a health bar per row, the followed player's
+#      box -- and two captures proving that the overlay is painted and is the only thing
+#      a run changes.
 set -uo pipefail
 
 cd "$(dirname "$0")" || exit 1
@@ -151,7 +155,7 @@ for name in targets:
     print("%s.%s=%d" % (label, name, counts[name]))
 PYSRC
 
-echo "=== 0/11 build ==="
+echo "=== 0/12 build ==="
 TF2_IDENTITY_ALLOW_UNTRACKED=1 bash build-target.sh demo_open_probe tf2_demo_native > "$OUT/build.log" 2>&1
 assert_eq "build rc" "$?" "0"
 if [ "$fail" != "0" ]; then echo "TIMELINE-HUD=FAIL"; exit 1; fi
@@ -163,7 +167,7 @@ else
   echo "  OK   build log has no diagnostic"
 fi
 
-echo "=== 1/11 the composer on cp_snakewater, default window ==="
+echo "=== 1/12 the composer on cp_snakewater, default window ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO")" > "$OUT/probe.txt" 2>&1
 assert_eq "probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe.txt" > "$OUT/probe.lf" && mv "$OUT/probe.lf" "$OUT/probe.txt"
@@ -244,7 +248,7 @@ else
   fail=1
 fi
 
-echo "=== 2/11 the playhead and a resize ==="
+echo "=== 2/12 the playhead and a resize ==="
 timeout 420 "$PROBE" --scan --timeline-hud --playhead 30000 --client 1600x900 "$(win "$DEMO")" > "$OUT/probe-big.txt" 2>&1
 assert_eq "big probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-big.txt" > "$OUT/probe-big.lf" && mv "$OUT/probe-big.lf" "$OUT/probe-big.txt"
@@ -259,7 +263,7 @@ px=$(lfield "$strip2" playheadX)
 assert_gt "playhead x inside the track" "$px" "$(( $(sfield "$strip2" trackX0) - 1 ))"
 assert_le "playhead x inside the track (right)" "$px" "$(( $(sfield "$strip2" trackX1) + 1 ))"
 
-echo "=== 3/11 the minimap panel keeps the strip from drawing over it ==="
+echo "=== 3/12 the minimap panel keeps the strip from drawing over it ==="
 timeout 420 "$PROBE" --scan --timeline-hud --client 900x600 --avoid 0,430,220,170 "$(win "$DEMO")" > "$OUT/probe-avoid.txt" 2>&1
 assert_eq "avoid probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-avoid.txt" > "$OUT/probe-avoid.lf" && mv "$OUT/probe-avoid.lf" "$OUT/probe-avoid.txt"
@@ -269,7 +273,7 @@ assert_eq "avoid strip visible" "$(sfield "$strip3" visible)" "1"
 assert_gt "strip starts right of the panel" "$(sfield "$strip3" x)" "227"
 assert_le "strip stays inside the client" "$(( $(sfield "$strip3" x) + $(sfield "$strip3" w) ))" "888"
 
-echo "=== 4/11 a second map proves both stripe colours ==="
+echo "=== 4/12 a second map proves both stripe colours ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO2")" > "$OUT/probe-upward.txt" 2>&1
 assert_eq "upward probe rc" "$?" "0"
 tr -d "\r" < "$OUT/probe-upward.txt" > "$OUT/probe-upward.lf" && mv "$OUT/probe-upward.lf" "$OUT/probe-upward.txt"
@@ -289,7 +293,7 @@ assert_eq "upward lane marks reconcile with the report" \
 assert_gt "upward RED kill ticks" "$(lfield "$stripu" ticksRed)" "0"
 assert_gt "upward BLU kill ticks" "$(lfield "$stripu" ticksBlu)" "0"
 
-echo "=== 5/11 the product draws the strip its analysis measured ==="
+echo "=== 5/12 the product draws the strip its analysis measured ==="
 TF2_NATIVE_TRACE="$(win "$OUT/on.trace")" timeout 600 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
   --settings-file "$(win "$OUT/on.ini")" --ui-settings-file "$(win "$OUT/on-ui.ini")" \
@@ -326,7 +330,7 @@ frameh=$(od -An -tu4 -j22 -N4 "$OUT/on.bmp" | tr -d ' ')
 assert_eq "frame width == client width" "$framew" "$clientw"
 assert_eq "frame height == client height" "$frameh" "$clienth"
 
-echo "=== 6/11 pixels: are the marks in the frame? ==="
+echo "=== 6/12 pixels: are the marks in the frame? ==="
 TF2_NATIVE_TRACE="$(win "$OUT/off.trace")" timeout 600 "$EXE" \
   --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
   --settings-file "$(win "$OUT/off.ini")" --ui-settings-file "$(win "$OUT/off-ui.ini")" \
@@ -408,7 +412,7 @@ assert_gt "per-tick row has pixels in the frame" "$on_cells_mark" "0"
 assert_le "control frame has no per-tick row" "$off_cells_mark" "2"
 fi
 
-echo "=== 7/11 A4: the follow-only layers describe the followed player ==="
+echo "=== 7/12 A4: the follow-only layers describe the followed player ==="
 # The numbers are the detector's own: the curve reads census.turnRates, the same vector the
 # amber hints come from, so a red bar and a hint cannot disagree. Entity 12 is a player the
 # recording actually carries; the default probe follows nobody, which is the negative.
@@ -448,7 +452,7 @@ assert_le "the curve band clears the red ticks" \
 assert_eq "the per-tick row did not move" "$(nfield "$viewstrip" cellsY)" "$(nfield "$strip" cellsY)"
 assert_gt "the two layers add primitives" "$(nfield "$viewstrip" shapes)" "$(nfield "$strip" shapes)"
 
-echo "=== 8/11 pixels: the two layers are in the frame ==="
+echo "=== 8/12 pixels: the two layers are in the frame ==="
 if need_number "A4 pixel geometry" "$onlineY$trackX0$span"; then
   pix() { grep "^$1\.$3=" "$2" | cut -d= -f2; }
   presenceY=$((onlineY + 16))
@@ -490,7 +494,7 @@ if need_number "A4 pixel geometry" "$onlineY$trackX0$span"; then
   assert_gt "over-threshold turns borrow the lane red" "$on_over" "40"
 fi
 
-echo "=== 9/11 A3b: the per-tick row and the click arithmetic ==="
+echo "=== 9/12 A3b: the per-tick row and the click arithmetic ==="
 # One focused run answers the row's geometry; a second (same flags, plus --hit) answers
 # the hit test. Both are pure composer calls, so the two runs cannot disagree about layout.
 timeout 420 "$PROBE" --scan --motion-detect --match-timeline --timeline-hud --focus 0 \
@@ -570,7 +574,7 @@ assert_eq "the track's left edge answers the first tick" \
 assert_eq "a point off the strip is not a seek" "$(nfield "$hitoff" inside)" "0"
 assert_eq "a point right of the track is not a seek" "$(nfield "$hitright" inside)" "0"
 
-echo "=== 10/11 A5: the review banner and the drive behind it ==="
+echo "=== 10/12 A5: the review banner and the drive behind it ==="
 # A5 (section 9.2, 逐条复查): the banner is a mode, not a decoration. What this pins is the
 # whole loop -- the button arithmetic, the lead/countdown/hold/run/wait timings, the
 # automatic advance, the restore on exit -- and then the only thing a trace cannot prove:
@@ -860,7 +864,246 @@ rsample band 12 6 "$((clientw - 24))" 22
   > "$OUT/review-rect-ctlband.txt" 2>&1
 ctlband=$(grep "^rect.white=" "$OUT/review-rect-ctlband.txt" | cut -d= -f2)
 assert_gt "the banner writes a sentence" "$(( $(rrect band white) - ctlband ))" "250"
-echo "=== 11/11 determinism ==="
+echo "=== 11/12 H1: the broadcast overlay ==="
+# H1 (section 7 of docs/UI-SHELL-DESIGN-2026-11-22.md): the overlay a broadcast picture has
+# to state -- both scores and the round clock in one bar, a roster per team with a health bar
+# on every row and the medic first because the charge is what a spectator watches, and the
+# followed player's box -- plus the only thing a trace cannot prove: that it is painted, and
+# that a run WITHOUT the switch changes nothing. The control is the same run, same tick,
+# same flags, minus --hud-broadcast.
+TF2_NATIVE_TRACE="$(win "$OUT/broadcast.trace")" timeout 600 "$EXE" \
+  --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
+  --settings-file "$(win "$OUT/broadcast.ini")" --ui-settings-file "$(win "$OUT/broadcast-ui.ini")" \
+  --analysis-scan --hud-live --hud-broadcast \
+  --capture-tick 1200 --capture-frame "$(win "$OUT/broadcast.bmp")" \
+  > "$OUT/broadcast-run.log" 2>&1
+assert_eq "broadcast capture rc" "$?" "0"
+tr -d "\r" < "$OUT/broadcast.trace" > "$OUT/broadcast.trace.lf"
+bhud=$(grep -a "broadcast: hud active=1 " "$OUT/broadcast.trace.lf" | tail -1)
+bobs=$(grep -a "broadcast: observe " "$OUT/broadcast.trace.lf" | tail -1)
+# The trace carries one block per publish and the rows change with the tick, so the
+# arithmetic below reads the LAST block -- the numbers the captured frame was drawn from.
+# Counting the whole file would count every publish (this run publishes 57 times).
+assert_gt "the overlay places a roster" "$(nfield "$bhud" rows)" "0"
+brows=$(grep -a "broadcast: row " "$OUT/broadcast.trace.lf" | tail -"$(nfield "$bhud" rows)")
+echo "  ..   $bhud"
+echo "  ..   $bobs"
+assert_eq "the switch turns the overlay on" "$(nfield "$bhud" active)" "1"
+assert_eq "the overlay draws" "$(nfield "$bhud" visible)" "1"
+assert_eq "the overlay is ready" "$(sfield "$bhud" reason)" "ready"
+bsum() { # <line> <field> <index within the comma list>
+  printf '%s\n' "$1" | grep -oE "(^| )$2=[0-9,-]+" | tail -1 | sed 's/^ //' | cut -d= -f2 | cut -d, -f"$3"
+}
+bclientw=$(printf '%s\n' "$bhud" | grep -oE "client=[0-9]+x[0-9]+" | cut -d= -f2 | cut -dx -f1)
+bclienth=$(printf '%s\n' "$bhud" | grep -oE "client=[0-9]+x[0-9]+" | cut -d= -f2 | cut -dx -f2)
+assert_eq "the overlay measures the control's client" "$bclientw" "$clientw"
+barx=$(bsum "$bhud" bar 1); bary=$(bsum "$bhud" bar 2)
+barw=$(bsum "$bhud" bar 3); barh=$(bsum "$bhud" bar 4)
+hintx=$(bsum "$bhud" hint 1); hinty=$(bsum "$bhud" hint 2)
+hintw=$(bsum "$bhud" hint 3); hinth=$(bsum "$bhud" hint 4)
+blux=$(bsum "$bhud" columns 1); redx=$(bsum "$bhud" columns 2)
+rowh=$(bsum "$bhud" row 1); rowgap=$(bsum "$bhud" row 2)
+colw=$(nfield "$(printf '%s\n' "$brows" | head -1)" w)
+# The bar is centred on the client and the hint hangs under it: the two things a director
+# looks at first are placed from the frame, not from a magic pair of numbers.
+bcentre=$(( 2 * barx + barw - bclientw ))
+[ "$bcentre" -lt 0 ] && bcentre=$(( -bcentre ))
+assert_le "the score bar is centred" "$bcentre" "2"
+assert_gt "the hint sits under the bar" "$hinty" "$(( bary + barh - 1 ))"
+assert_le "the hint does not float away from it" "$hinty" "$(( bary + barh + 12 ))"
+# The two rosters hold the same margin: the columns are a pair, like the minimap's.
+assert_eq "the rosters share a margin" "$(( bclientw - redx - colw ))" "$blux"
+# Roster arithmetic: every player who made a row printed one, every row got exactly one class
+# chip or its letter fallback, and both columns open with their medic.
+assert_eq "the rows are the two rosters" "$(nfield "$bhud" rows)" \
+  "$(( $(nfield "$bhud" blu) + $(nfield "$bhud" red) ))"
+assert_eq "every placed row prints a line" "$(printf '%s\n' "$brows" | grep -ac "broadcast: row ")" \
+  "$(nfield "$bhud" rows)"
+assert_eq "the class chips account for every row" \
+  "$(( $(nfield "$bhud" chips) + $(nfield "$bhud" chipFallbacks) ))" "$(nfield "$bhud" rows)"
+assert_eq "each column opens with its medic" "$(nfield "$bhud" medic)" "2"
+bbluefirst=$(printf '%s\n' "$brows" | grep -a "team=3 " | head -1)
+bredfirst=$(printf '%s\n' "$brows" | grep -a "team=2 " | head -1)
+assert_eq "the blue column starts with a medic" "$(nfield "$bbluefirst" medic)" "1"
+assert_eq "the red column starts with a medic" "$(nfield "$bredfirst" medic)" "1"
+assert_eq "the medics are those two first rows" \
+  "$(printf '%s\n' "$brows" | grep -ac "medic=1 ")" "2"
+# Row geometry: one pitch apart, all one width, and nothing straddles the two sides.
+assert_eq "the rows share one width" \
+  "$(printf '%s\n' "$brows" | grep -ac "w=$colw ")" "$(nfield "$bhud" rows)"
+assert_eq "the blue column stays on the left" \
+  "$(printf '%s\n' "$brows" | grep -a "team=3 " | grep -avc " x=$blux ")" "0"
+assert_eq "the red column stays on the right" \
+  "$(printf '%s\n' "$brows" | grep -a "team=2 " | grep -avc " x=$redx ")" "0"
+# Rows are stacked, not piled: the second row starts exactly one pitch under the first.
+bblue2=$(printf '%s\n' "$brows" | grep -a "team=3 " | sed -n 2p)
+assert_eq "rows are one pitch apart" \
+  "$(( $(nfield "$bblue2" y) - $(nfield "$bbluefirst" y) ))" "$(( rowh + rowgap ))"
+# The followed player's box: bottom centre, below the rosters, inside the frame.
+bobsx=$(nfield "$bobs" x); bobsy=$(nfield "$bobs" y)
+obsw=$(nfield "$bobs" w); obsh=$(nfield "$bobs" h)
+assert_gt "the box names a player" "$(nfield "$bobs" entity)" "0"
+obscentre=$(( 2 * bobsx + obsw - bclientw ))
+[ "$obscentre" -lt 0 ] && obscentre=$(( -obscentre ))
+assert_le "the box is centred" "$obscentre" "2"
+blast=$(printf '%s\n' "$brows" | tail -1)
+assert_gt "the box sits under the rosters" "$bobsy" "$(( $(nfield "$blast" y) + rowh ))"
+assert_le "the box stays in the frame" "$(( bobsy + obsh ))" "$bclienth"
+# The control: the same run without the switch must publish nothing and paint nothing.
+TF2_NATIVE_TRACE="$(win "$OUT/broadcast-control.trace")" timeout 600 "$EXE" \
+  --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
+  --settings-file "$(win "$OUT/broadcast-control.ini")" \
+  --ui-settings-file "$(win "$OUT/broadcast-control-ui.ini")" \
+  --analysis-scan --hud-live \
+  --capture-tick 1200 --capture-frame "$(win "$OUT/broadcast-control.bmp")" \
+  > "$OUT/broadcast-control-run.log" 2>&1
+assert_eq "broadcast control rc" "$?" "0"
+tr -d "\r" < "$OUT/broadcast-control.trace" > "$OUT/broadcast-control.trace.lf"
+assert_eq "a run without the switch publishes no overlay" \
+  "$(grep -ac "broadcast: " "$OUT/broadcast-control.trace.lf")" "0"
+cat > "$OUT/broadcast-pix.py" <<'PYSRC'
+import struct
+import sys
+
+
+def load(path):
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if data[:2] != b"BM":
+        raise SystemExit("%s is not a BMP" % path)
+    offset = struct.unpack_from("<I", data, 10)[0]
+    width, height = struct.unpack_from("<ii", data, 18)
+    bits = struct.unpack_from("<H", data, 28)[0]
+    if bits not in (24, 32):
+        raise SystemExit("%s is %d-bit; this helper reads 24 and 32" % (path, bits))
+    stride = ((width * (bits // 8)) + 3) & ~3
+    return width, abs(height), offset, stride, bits // 8, height > 0, data
+
+
+def pixel(image, x, y):
+    width, height, offset, stride, step, bottom_up, data = image
+    row = (height - 1 - y) if bottom_up else y
+    base = offset + row * stride + x * step
+    return data[base + 2], data[base + 1], data[base]
+
+
+def inside(rects, col, row):
+    for x, y, w, h in rects:
+        if x <= col < x + w and y <= row < y + h:
+            return True
+    return False
+
+
+mode = sys.argv[1]
+if mode == "diff":
+    a = load(sys.argv[2])
+    b = load(sys.argv[3])
+    rects = []
+    for token in sys.argv[4:]:
+        x, y, w, h = (int(v) for v in token.split(","))
+        rects.append((x, y, w, h))
+    total = outside = 0
+    x0 = y0 = 1 << 30
+    x1 = y1 = -1
+    for row in range(min(a[1], b[1])):
+        for col in range(min(a[0], b[0])):
+            ra, ga, ba = pixel(a, col, row)
+            rb, gb, bb = pixel(b, col, row)
+            if abs(ra - rb) + abs(ga - gb) + abs(ba - bb) <= 3:
+                continue
+            total += 1
+            if not inside(rects, col, row):
+                outside += 1
+            if col < x0:
+                x0 = col
+            if col > x1:
+                x1 = col
+            if row < y0:
+                y0 = row
+            if row > y1:
+                y1 = row
+    print("diff.total=%d" % total)
+    print("diff.outside=%d" % outside)
+    print("diff.x0=%d" % (x0 if total else -1))
+    print("diff.x1=%d" % x1)
+    print("diff.y0=%d" % (y0 if total else -1))
+    print("diff.y1=%d" % y1)
+else:
+    image = load(sys.argv[2])
+    x, y, w, h = (int(v) for v in sys.argv[3:7])
+    count = white = bluish = reddish = greenish = 0
+    for row in range(y, min(y + h, image[1])):
+        for col in range(x, min(x + w, image[0])):
+            r, g, b = pixel(image, col, row)
+            count += 1
+            if r >= 190 and g >= 190 and b >= 190:
+                white += 1
+            if b > r + 30 and b > g + 10:
+                bluish += 1
+            if r > g + 30 and r > b + 10:
+                reddish += 1
+            if g > r + 25 and g > b + 15:
+                greenish += 1
+    if count == 0:
+        raise SystemExit("empty rect")
+    print("rect.count=%d" % count)
+    print("rect.white=%d" % white)
+    print("rect.bluish=%d" % bluish)
+    print("rect.reddish=%d" % reddish)
+    print("rect.greenish=%d" % greenish)
+PYSRC
+bimg=$(win "$OUT/broadcast.bmp")
+bctl=$(win "$OUT/broadcast-control.bmp")
+# Every row of every column, both corridors, the hint and the box: the union of the rects
+# the overlay ITSELF printed. A pixel outside this union would mean the overlay moved the
+# world, the strip or the game's own HUD -- so outside=0 is the claim the pair exists for.
+"$PY" "$OUT/broadcast-pix.py" diff "$bimg" "$bctl" \
+  "$barx,$bary,$barw,$barh" "$hintx,$hinty,$hintw,$hinth" \
+  "$blux,$(nfield "$bbluefirst" y),$colw,$(( $(nfield "$blast" y) + rowh - $(nfield "$bbluefirst" y) ))" \
+  "$redx,$(nfield "$bredfirst" y),$colw,$(( $(nfield "$blast" y) + rowh - $(nfield "$bredfirst" y) ))" \
+  "$bobsx,$bobsy,$obsw,$obsh" > "$OUT/broadcast-diff.txt" 2>&1
+sed 's/^/  ..   /' "$OUT/broadcast-diff.txt"
+bdnum() { grep "^diff.$1=" "$OUT/broadcast-diff.txt" | cut -d= -f2; }
+assert_eq "the overlay is the only difference" "$(bdnum outside)" "0"
+assert_gt "the overlay painted" "$(bdnum total)" "20000"
+assert_eq "the overlay starts at the blue column" "$(bdnum x0)" "$blux"
+assert_eq "the overlay ends at the red column's edge" "$(bdnum x1)" "$(( redx + colw - 1 ))"
+assert_eq "the overlay starts at the bar" "$(bdnum y0)" "$bary"
+assert_eq "the overlay ends at the followed player's box" "$(bdnum y1)" "$(( bobsy + obsh - 1 ))"
+bsample() { # <label> <x> <y> <w> <h>
+  "$PY" "$OUT/broadcast-pix.py" rect "$bimg" "$2" "$3" "$4" "$5" > "$OUT/broadcast-rect-$1.txt" 2>&1
+  sed "s/^/  ..   $1 /" "$OUT/broadcast-rect-$1.txt"
+}
+brect() { grep "^rect.$2=" "$OUT/broadcast-rect-$1.txt" | cut -d= -f2; }
+# The bar's team chips are the only saturated colour up there, one per side: that is the
+# picture stating which half is which without reading a word.
+bsample bluchip "$(( barx + 10 ))" "$(( bary + 4 ))" "22" "$(( barh - 8 ))"
+bsample redchip "$(( barx + barw - 32 ))" "$(( bary + 4 ))" "22" "$(( barh - 8 ))"
+assert_gt "the blue chip is blue" "$(brect bluchip bluish)" "30"
+assert_le "the blue chip is not red" "$(brect bluchip reddish)" "4"
+assert_gt "the red chip is red" "$(brect redchip reddish)" "30"
+assert_le "the red chip is not blue" "$(brect redchip bluish)" "4"
+# The clock is the one field in the bar that is always legible: white glyphs between the
+# two scores, and a hint line under the bar naming what is being watched.
+bsample clock "$(( barx + barw / 2 - 30 ))" "$(( bary + 4 ))" "60" "$(( barh - 8 ))"
+assert_gt "the clock is written" "$(brect clock white)" "40"
+bsample hint "$(( hintx + hintw / 2 - 75 ))" "$(( hinty - 2 ))" "150" "14"
+assert_gt "the hint names the map" "$(brect hint white)" "80"
+# The bar under a full-health row is green and covers its row; the bar under a damaged row
+# is orange and stops where the health stops. Two samples, two colours, one width claim.
+bfull=$(printf '%s\n' "$brows" | grep -a "fraction=1.000 " | grep -a "low=0 " | head -1)
+blow=$(printf '%s\n' "$brows" | grep -a "low=1 " | head -1)
+assert_gt "a row is at full health" "$(nfield "$bfull" health)" "0"
+bsample full "$(( $(nfield "$bfull" x) + 15 ))" "$(( $(nfield "$bfull" y) + rowh - 6 ))" \
+  "$(( colw - 27 ))" "4"
+bsample low "$(( $(nfield "$blow" x) + 15 ))" "$(( $(nfield "$blow" y) + rowh - 6 ))" \
+  "$(( colw - 27 ))" "4"
+assert_gt "a full row's bar is green" "$(brect full greenish)" "150"
+assert_gt "a damaged row's bar is orange" "$(brect low reddish)" "40"
+# The followed player's box: a name is written in it, so the caption is not an empty plate.
+bsample observe "$(( bobsx + 12 ))" "$(( bobsy + 3 ))" "$(( obsw - 24 ))" "14"
+assert_gt "the box names its player" "$(brect observe white)" "40"
+echo "=== 12/12 determinism ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO")" > "$OUT/probe2.txt" 2>&1
 assert_eq "probe rerun rc" "$?" "0"
 tr -d "\r" < "$OUT/probe2.txt" > "$OUT/probe2.lf" && mv "$OUT/probe2.lf" "$OUT/probe2.txt"

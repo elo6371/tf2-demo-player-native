@@ -105,6 +105,11 @@ add_executable(tf2_demo_native WIN32
   # image affine, and takes the affine from map_basemap.cpp instead of restating
   # demos.tf's mapview.js formula in a second place.
   src/map_overview.cpp
+  # H1 (2026-11-23, UI shell design section 7): the broadcast HUD -- the spectator
+  # overlay composed from the overview's own rows and the live readout's scores and
+  # clock. In the product for the same reason map_overview.cpp is: its inputs live in
+  # TUs that link d3d11/dwrite, and the gate drives the same compose the product draws.
+  src/broadcast_hud.cpp
   # E11: the demos.tf basemap package reader (boundaries.json + PNG decode) and
   # the product's only image decoder, WIC. PNG because that is what the package
   # ships; WIC because it is part of Windows, so the product gains no library.
