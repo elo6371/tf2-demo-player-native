@@ -105,3 +105,60 @@ jobs:
           name: tier1-evidence
           path: evidence/fast
           if-no-files-found: warn
+
+  # tier1b (2026-11-22, docs/WORKPLAN-2026-11-22.md P1/P5): what tier 1 does not
+  # cover yet, still without assets, a GPU or an audio device.
+  #   * gate-lint: the static guard against the three gate defects found across
+  #     16 scripts on 2026-11-22 (cp -p restores, `false &&` mutants under /WX,
+  #     process substitution into the WinuxCmd shims). Seconds, no build.
+  #   * the seven /WX targets, so "zero warnings on the strict targets" is checked
+  #     on a machine that is not the developer's.
+  #   * minimap_probe's two pure self-tests (projection, and the floor-derived
+  #     bounds behind --hud-minimap-bounds bsp).
+  # tools/warn-check.sh is deliberately NOT here yet: its baseline records sites
+  # with the developer's absolute paths, so on a runner it would compare nothing.
+  # A separate job, so a tier1b red never hides a tier-1 verdict and vice versa.
+  strict:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gate lint
+        run: bash tools/gate-lint.sh
+
+      - name: toolchain
+        run: bash tools/tf2-toolchain.sh
+
+      - name: strict targets
+        # TF2_WX_DEFAULT_TARGETS in native/CMakeLists.txt, plus minimap_probe for
+        # the self-tests below.
+        run: |
+          set -uo pipefail
+          bash build-target.sh tf2_core tf2_demo_native entity_protocol_probe \
+            entity_message_fixture_probe hud_probe minimap_probe review_workspace_probe
+
+      - name: minimap self-tests
+        run: |
+          set -uo pipefail
+          native/build-nmake/minimap_probe.exe --minimap-test > minimap-test.txt
+          echo "minimap-test rc=$?"
+          native/build-nmake/minimap_probe.exe --floor-bounds-test | tee floor-bounds.txt
+          grep -q 'floor-bounds verdict=PASS' floor-bounds.txt
+
+      - name: upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier1b-logs
+          path: |
+            .scratch/*.log
+            minimap-test.txt
+            floor-bounds.txt
+          if-no-files-found: warn

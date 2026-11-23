@@ -756,6 +756,18 @@ struct DemoNetworkSummary {
   std::size_t tempParticleEffectFieldHits = 0;
   std::size_t tempExplosionFieldHits = 0;
   std::size_t tempPlayerAnimEventFieldHits = 0;
+  // N20 step 0 (2026-11-22): tempEntityEvents keeps at most kTempEntityRetentionCap
+  // rows. Every decoded event past the cap used to vanish without a count, so a
+  // reader could not tell "the demo had no more effects" from "the decoder stopped
+  // keeping them" (68133 decoded vs 16384 kept on the N20 sample). Both numbers
+  // below count EVERY decoded event, kept or not.
+  static constexpr std::size_t kTempEntityRetentionCap = 16384u;
+  std::size_t tempEntityEventsDroppedCap = 0;
+  // Decoded temp events by server class name (including ones past the cap). This
+  // is the census N20 needs before drawing anything: which effect classes the wire
+  // actually carries (CTETFParticleEffect names, CTETFBlood, ...). Read only by
+  // demo_open_probe --temp-census; the product does not consult it.
+  std::unordered_map<std::string, std::size_t> tempClassCensus;
   std::vector<TempEntityEvent> tempEntityEvents;
   std::vector<ProjectileTimelineEvent> projectileTimeline;
   std::vector<AssetReference> assetReferences;

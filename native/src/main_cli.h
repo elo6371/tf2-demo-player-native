@@ -6,6 +6,7 @@
 // Header-only in B1 to keep the patch within 2 files and avoid CMake churn.
 
 #include "animation_binding.h"
+#include "minimap.h"
 #include "native_renderer.h"
 #include "settings_store.h"
 
@@ -336,6 +337,22 @@ inline const FlagSpec kFeatureFlagTable[] = {
   {L"--hud-minimap", FlagArity::Zero, [](CliParseEnv& env, LPWSTR*, int, int&) {
     env.hudMinimapCli = true;
     return true;
+  }},
+  // 2026-11-22: where an untabulated map's minimap rectangle comes from.
+  // `table` (the default, also when the switch is absent) keeps the 7-row table
+  // as the only source, so every existing run is byte-identical; `bsp` derives a
+  // rectangle from the floor geometry for maps the table lacks (no control
+  // points). Any other value is refused rather than guessed.
+  {L"--hud-minimap-bounds", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    // The value is checked before it is consumed: a refused value leaves the
+    // switch itself unclaimed, so D-23 records it and --strict-args refuses it.
+    const std::wstring value = arguments[i + 1];
+    if (value == L"table") { tf2::native::minimapHudSetBoundsFromFloor(false); ++i; return true; }
+    if (value == L"bsp") { tf2::native::minimapHudSetBoundsFromFloor(true); ++i; return true; }
+    std::fprintf(stderr, "--hud-minimap-bounds: expected table or bsp\n");
+    std::fflush(stderr);
+    return false;
   }},
   {L"--hud-reset", FlagArity::Zero, [](CliParseEnv& env, LPWSTR*, int, int&) {
     env.hudResetRequested = true;

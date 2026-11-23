@@ -1578,6 +1578,18 @@ std::uint32_t g_followArgumentRejected = 0;
 // index-out-of-range, no-slot, not-observable, is-observer, dead, no-candidates,
 // no-pov-eye -- followRejectBucket()'s order, which the summary repeats.
 std::uint32_t g_followRejectByBucket[7] = {0, 0, 0, 0, 0, 0, 0};
+// N13 step 2a (2026-11-22): --follow-sticky. Without it (the default) a pin that
+// dies is released for good, exactly as before. With it, the death still releases
+// the pin -- the director's "the dead are not drawn" rule is not overridden -- but
+// the entity is remembered, and the first frame that sees the SAME entity alive
+// and observable again re-pins it through the ordinary one-shot pick path. Any new
+// follow command, unfollow, or the slot disappearing forgets it. Every line below
+// is reached only when g_followSticky is true, so a run without the switch prints
+// the same follow: lines and frames as before.
+bool g_followSticky = false;
+bool g_followStickyAwaitRespawn = false;
+std::int32_t g_followStickyEntity = -1;
+std::uint32_t g_followStickyRepins = 0;
 
 // N13 step 1: the two --follow-* flags, consumed BEFORE the argument ladder for the
 // reason the flags above it already give: that ladder sits at MSVC's block-nesting
@@ -1637,6 +1649,12 @@ bool followConsumeArgument(LPWSTR* arguments, int argumentCount, int& i) {
     } else {
       ++g_followArgumentRejected;
     }
+    return true;
+  }
+  if (wcscmp(arguments[i], L"--follow-sticky") == 0) {
+    // Value-less on purpose: either the pin is re-acquired after a respawn or it
+    // is not, and a value would suggest a middle setting.
+    g_followSticky = true;
     return true;
   }
   return false;
@@ -1958,6 +1976,9 @@ bool handlePane1FollowAction(tf2::native::FollowAction action, std::int32_t enti
 void followReconcile(const std::vector<tf2::native::SpectateSlot>& slots, bool snapshotReady) {
   using tf2::native::FollowState;
   if (!g_followTarget.valid) {
+    // Unfollow / back-to-pov / never followed: nothing to re-acquire.
+    g_followStickyAwaitRespawn = false;
+    g_followStickyEntity = -1;
     g_followState = FollowState::Unset;
     return;
   }
@@ -1968,13 +1989,21 @@ void followReconcile(const std::vector<tf2::native::SpectateSlot>& slots, bool s
     return;
   }
   const std::int32_t index = g_followTarget.entityIndex;
+  // A remembered entity that is no longer the one this pin names was replaced by
+  // a later command; that command, not the memory, decides what is followed.
+  if (g_followStickyAwaitRespawn && g_followStickyEntity != index) {
+    g_followStickyAwaitRespawn = false;
+    g_followStickyEntity = -1;
+  }
   if (index < 0 || static_cast<std::size_t>(index) >= slots.size()) {
+    g_followStickyAwaitRespawn = false;
     g_followTarget.pinned = false;
     g_followState = FollowState::GoneIndexOutOfRange;
     return;
   }
   const tf2::native::SpectateSlot* slot = followSlotAt(slots, index);
   if (slot == nullptr) {
+    g_followStickyAwaitRespawn = false;
     g_followTarget.pinned = false;
     g_followState = FollowState::GoneNoSlot;
     return;
@@ -1983,16 +2012,19 @@ void followReconcile(const std::vector<tf2::native::SpectateSlot>& slots, bool s
   // branch is coded and unreachable in this step, which the report says out loud.
   const std::uint32_t serial = followSlotSerial(*slot);
   if (g_followTarget.serial != 0 && serial != 0 && serial != g_followTarget.serial) {
+    g_followStickyAwaitRespawn = false;
     g_followTarget.pinned = false;
     g_followState = FollowState::GoneIndexReused;
     return;
   }
   if (slot->isPlayer && slot->hasTeam && slot->team < 2) {
+    g_followStickyAwaitRespawn = false;
     g_followTarget.pinned = false;
     g_followState = FollowState::Observer;
     return;
   }
   if (!slot->isPlayer || !tf2::native::slotObservable(*slot)) {
+    g_followStickyAwaitRespawn = false;
     g_followTarget.pinned = false;
     g_followState = FollowState::GoneNotObservable;
     return;
@@ -2001,9 +2033,27 @@ void followReconcile(const std::vector<tf2::native::SpectateSlot>& slots, bool s
     // A pin that dies is a different reading from a pin that was never alive: the
     // counter is what says "your player died" instead of "your command was wrong".
     if (g_followTarget.pinned) ++g_followPinnedDeaths;
+    if (g_followSticky && g_followTarget.pinned) {
+      g_followStickyAwaitRespawn = true;
+      g_followStickyEntity = index;
+    }
     g_followTarget.pinned = false;
     g_followState = FollowState::Dead;
     return;
+  }
+  if (g_followStickyAwaitRespawn && !g_followTarget.pinned) {
+    // The remembered entity is alive and observable again: re-pin it through the
+    // same one-shot hand-off a select uses (adopted at the pickManual site later
+    // in this frame), never by writing the director's decision directly.
+    g_followStickyAwaitRespawn = false;
+    g_followStickyEntity = -1;
+    g_followTarget.pinned = true;
+    g_followTarget.source = tf2::native::SpectateSource::Manual;
+    g_followPendingEntity = index;
+    ++g_followStickyRepins;
+    traceFmt("follow: sticky repin entity=%d repins=%u deaths=%u",
+      static_cast<int>(index), static_cast<unsigned>(g_followStickyRepins),
+      static_cast<unsigned>(g_followPinnedDeaths));
   }
   g_followState = FollowState::Ok;
 }

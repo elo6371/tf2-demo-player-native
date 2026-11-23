@@ -36,6 +36,7 @@
 //   No renderer types, no <d3d11.h>, no window handles: this header must stay
 //   buildable by a console probe on a machine with no device.
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -442,5 +443,101 @@ std::size_t minimapHudFloorGeometryRevision();
 // The geometry as pushed, read-only. The HUD builds its rectangles from this once
 // per panel size and never mutates it across a publish.
 const std::vector<MinimapFloorTriangle>& minimapHudFloorGeometryRef();
+
+// ============================================================================
+// 2026-11-22: bounds for a map that is NOT in kMinimapMaps, derived from the
+// floor geometry main.cpp already pushes (sky and tool faces are rejected there).
+//
+// Off by default: `--hud-minimap-bounds table` (the default) keeps every
+// untabulated map at reason=bounds-not-tabulated and byte-identical (gate A11).
+// `--hud-minimap-bounds bsp` lets this derived rectangle stand in for a missing
+// row. Control points are NOT derived: pointCount stays 0, because the table is
+// the only place their positions were measured (the demo's
+// CTFObjectiveResource position array is the planned second source).
+//
+// The rectangle is the area-weighted trimFraction / (1 - trimFraction)
+// quantiles of the triangle centroids on each axis, widened by marginFraction
+// of the extent (at least kMinimapDerivedMinMargin units). Area weighting is
+// what keeps a few small far-away faces -- a 3D-skybox island that slipped
+// through, an out-of-bounds prop ledge -- from stretching the panel: they carry
+// almost no floor area. Centroids sit half a triangle inside the true edge,
+// which the margin covers.
+// ============================================================================
+inline constexpr float kMinimapDerivedMinMargin = 128.0f;
+
+struct MinimapDerivedBounds {
+  float minX = 0.0f;
+  float minY = 0.0f;
+  float maxX = 0.0f;
+  float maxY = 0.0f;
+  std::size_t triangles = 0;   // input triangles with a positive xy area
+  double area = 0.0;           // their total xy area, world units^2
+  bool valid = false;
+};
+
+namespace minimap_detail {
+struct WeightedValue {
+  float value = 0.0f;
+  double weight = 0.0;
+};
+// Sorts `values` and returns the values at the low and high weight fractions.
+inline void weightedQuantiles(std::vector<WeightedValue>& values, double total,
+                              double lowFraction, float& low, float& high) {
+  std::sort(values.begin(), values.end(),
+    [](const WeightedValue& a, const WeightedValue& b) { return a.value < b.value; });
+  const double lowTarget = lowFraction * total;
+  const double highTarget = (1.0 - lowFraction) * total;
+  low = values.front().value;
+  high = values.back().value;
+  double running = 0.0;
+  bool lowSet = false;
+  for (const WeightedValue& entry : values) {
+    running += entry.weight;
+    if (!lowSet && running >= lowTarget) { low = entry.value; lowSet = true; }
+    if (running >= highTarget) { high = entry.value; break; }
+  }
+}
+}  // namespace minimap_detail
+
+inline MinimapDerivedBounds minimapBoundsFromFloor(
+    const std::vector<MinimapFloorTriangle>& triangles,
+    double trimFraction = 0.005, float marginFraction = 0.04f) {
+  MinimapDerivedBounds result;
+  std::vector<minimap_detail::WeightedValue> xs;
+  std::vector<minimap_detail::WeightedValue> ys;
+  xs.reserve(triangles.size());
+  ys.reserve(triangles.size());
+  for (const MinimapFloorTriangle& t : triangles) {
+    const double ux = static_cast<double>(t.bx) - static_cast<double>(t.ax);
+    const double uy = static_cast<double>(t.by) - static_cast<double>(t.ay);
+    const double vx = static_cast<double>(t.cx) - static_cast<double>(t.ax);
+    const double vy = static_cast<double>(t.cy) - static_cast<double>(t.ay);
+    const double area = 0.5 * std::fabs(ux * vy - vx * uy);
+    if (!std::isfinite(area) || !(area > 0.0)) continue;
+    xs.push_back({(t.ax + t.bx + t.cx) / 3.0f, area});
+    ys.push_back({(t.ay + t.by + t.cy) / 3.0f, area});
+    result.area += area;
+  }
+  result.triangles = xs.size();
+  if (result.triangles < 3 || !(result.area > 0.0)) return result;
+  float lowX = 0.0f, highX = 0.0f, lowY = 0.0f, highY = 0.0f;
+  minimap_detail::weightedQuantiles(xs, result.area, trimFraction, lowX, highX);
+  minimap_detail::weightedQuantiles(ys, result.area, trimFraction, lowY, highY);
+  const float marginX = std::max(kMinimapDerivedMinMargin, (highX - lowX) * marginFraction);
+  const float marginY = std::max(kMinimapDerivedMinMargin, (highY - lowY) * marginFraction);
+  result.minX = lowX - marginX;
+  result.maxX = highX + marginX;
+  result.minY = lowY - marginY;
+  result.maxY = highY + marginY;
+  result.valid = std::isfinite(result.minX) && std::isfinite(result.maxX)
+    && std::isfinite(result.minY) && std::isfinite(result.maxY)
+    && result.maxX > result.minX && result.maxY > result.minY;
+  return result;
+}
+
+// The switch above, set once from the command line (main_cli.h). Implemented in
+// main_hud.cpp beside the other minimap state.
+void minimapHudSetBoundsFromFloor(bool enabled);
+bool minimapHudBoundsFromFloor();
 
 }  // namespace tf2::native

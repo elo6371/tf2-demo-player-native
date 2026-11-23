@@ -927,6 +927,17 @@ int wmain(int argc, wchar_t** argv) {
     tempLimit = static_cast<int>(parsed);
     firstPath += 2;
   }
+  // N20 step 0 (2026-11-22): --temp-census prints the retention account
+  // (`temp-retention decoded= kept= dropped_cap= cap=`) and one
+  // `temp-class <count> <name>` row per decoded server class, most frequent
+  // first. It answers "which effect classes does the wire carry, and how many
+  // did the 16384-row cap throw away" before anything is drawn. Printed only
+  // when asked, so every other scan line stays byte-identical.
+  bool tempCensus = false;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--temp-census") {
+    tempCensus = true;
+    ++firstPath;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1337,6 +1348,29 @@ int wmain(int argc, wchar_t** argv) {
           }
           tempDumpText += '\n';
           ++tempRows;
+        }
+      }
+      if (tempCensus) {
+        std::size_t decoded = 0;
+        std::vector<std::pair<std::string, std::size_t>> classes(
+          summary.tempClassCensus.begin(), summary.tempClassCensus.end());
+        for (const auto& entry : classes) decoded += entry.second;
+        // Most frequent first; equal counts by name, so the order is a reading
+        // and not hash-table iteration order.
+        std::sort(classes.begin(), classes.end(),
+          [](const std::pair<std::string, std::size_t>& a, const std::pair<std::string, std::size_t>& b) {
+            if (a.second != b.second) return a.second > b.second;
+            return a.first < b.first;
+          });
+        tempDumpText += "temp-retention decoded=" + std::to_string(decoded)
+          + " kept=" + std::to_string(summary.tempEntityEvents.size())
+          + " dropped_cap=" + std::to_string(summary.tempEntityEventsDroppedCap)
+          + " cap=" + std::to_string(tf2::native::DemoNetworkSummary::kTempEntityRetentionCap)
+          + " classes=" + std::to_string(classes.size())
+          + " balanced=" + ((decoded == summary.tempEntityEvents.size() + summary.tempEntityEventsDroppedCap) ? "1" : "0")
+          + '\n';
+        for (const auto& entry : classes) {
+          tempDumpText += "temp-class " + std::to_string(entry.second) + ' ' + entry.first + '\n';
         }
       }
       // N12-C step 2: the track's own row at each requested exact tick. Printed

@@ -79,6 +79,16 @@ const std::vector<MinimapFloorTriangle>& minimapHudFloorGeometryRef() {
   return g_minimapFloorGeometry;
 }
 
+// 2026-11-22: --hud-minimap-bounds table|bsp. false (table) is the default and
+// keeps an untabulated map at bounds-not-tabulated, byte-identical to before.
+namespace {
+bool g_minimapBoundsFromFloor = false;
+}  // namespace
+
+void minimapHudSetBoundsFromFloor(bool enabled) { g_minimapBoundsFromFloor = enabled; }
+
+bool minimapHudBoundsFromFloor() { return g_minimapBoundsFromFloor; }
+
 }  // namespace tf2::native
 
 namespace tf2::native::main_internal {
@@ -1210,6 +1220,46 @@ const tf2::native::MinimapLinework& hudMinimapLineworkFor(
   return cache.linework;
 }
 
+// 2026-11-22: the stand-in row for an untabulated map under
+// --hud-minimap-bounds bsp. Rebuilt only when the geometry revision or the map
+// changes; the trace line is printed once per rebuild so a run says where its
+// rectangle came from. The row's map pointer refers to the cache's own string.
+struct MinimapDerivedRowCache {
+  bool built = false;
+  bool valid = false;
+  std::size_t revision = 0;
+  std::string map;
+  tf2::native::MinimapMapRow row;
+};
+MinimapDerivedRowCache g_minimapDerivedRow;
+
+const tf2::native::MinimapMapRow* hudMinimapDerivedRow(const std::string& mapName) {
+  const std::size_t revision = tf2::native::minimapHudFloorGeometryRevision();
+  if (revision == 0) return nullptr;
+  MinimapDerivedRowCache& cache = g_minimapDerivedRow;
+  const std::string name = tf2::native::minimapNormalizeMapName(mapName);
+  if (!cache.built || cache.revision != revision || cache.map != name) {
+    const tf2::native::MinimapDerivedBounds derived =
+      tf2::native::minimapBoundsFromFloor(tf2::native::minimapHudFloorGeometryRef());
+    cache.built = true;
+    cache.revision = revision;
+    cache.map = name;
+    cache.valid = derived.valid;
+    cache.row = tf2::native::MinimapMapRow{};
+    cache.row.map = cache.map.c_str();
+    cache.row.minX = derived.minX;
+    cache.row.minY = derived.minY;
+    cache.row.maxX = derived.maxX;
+    cache.row.maxY = derived.maxY;
+    traceFmt("minimap: bounds source=floor map=%s valid=%d triangles=%zu area=%.0f"
+      " min=%.1f,%.1f max=%.1f,%.1f cps=0",
+      name.c_str(), derived.valid ? 1 : 0, derived.triangles, derived.area,
+      static_cast<double>(derived.minX), static_cast<double>(derived.minY),
+      static_cast<double>(derived.maxX), static_cast<double>(derived.maxY));
+  }
+  return cache.valid ? &cache.row : nullptr;
+}
+
 HudMinimapDraw hudMinimapCompose(HWND window) {
   HudMinimapDraw draw;
   if (!tf2::native::minimapHudFramePushed()) return draw;
@@ -1227,6 +1277,16 @@ HudMinimapDraw hudMinimapCompose(HWND window) {
   draw.signature += frame.valid ? "camera" : "held";
 
   draw.row = tf2::native::minimapFindMapRow(frame.mapName);
+  if (draw.row == nullptr && tf2::native::minimapHudBoundsFromFloor()) {
+    // Opt-in only. A table row always wins, so a tabulated map draws exactly as
+    // before under either setting.
+    draw.row = hudMinimapDerivedRow(frame.mapName);
+    if (draw.row == nullptr) {
+      draw.reason = "bounds-not-derivable";
+      return draw;
+    }
+    draw.signature += "|floor";
+  }
   if (draw.row == nullptr) {
     draw.reason = "bounds-not-tabulated";
     return draw;

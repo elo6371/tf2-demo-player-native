@@ -79,9 +79,88 @@ float roundTripErrorPx(const MinimapBounds& bounds,
   return std::sqrt(dx * dx + dy * dy);
 }
 
+// 2026-11-22: --floor-bounds-test, the self-test of minimapBoundsFromFloor (the
+// rectangle --hud-minimap-bounds bsp uses for an untabulated map). A separate
+// mode so --minimap-test's pinned output does not move by a byte.
+//
+// Synthetic floor: a 4096 x 4096 square of 64-unit cells (2 triangles each),
+// plus one tiny far-away triangle standing in for a skybox island. The expected
+// rectangle is derived by hand: centroids span ~21..4075, the 0.5 % area trim
+// moves each end in by about 20 units, and the margin is max(128, 4 % of the
+// extent) ~= 162, so each edge lands within a few hundred units outside the
+// square and the island at 100000 is trimmed away.
+void pushCell(std::vector<tf2::native::MinimapFloorTriangle>& out, float x0, float y0, float size) {
+  tf2::native::MinimapFloorTriangle a;
+  a.ax = x0;        a.ay = y0;        a.az = 0.0f;
+  a.bx = x0 + size; a.by = y0;        a.bz = 0.0f;
+  a.cx = x0 + size; a.cy = y0 + size; a.cz = 0.0f;
+  tf2::native::MinimapFloorTriangle b;
+  b.ax = x0;        b.ay = y0;        b.az = 0.0f;
+  b.bx = x0 + size; b.by = y0 + size; b.bz = 0.0f;
+  b.cx = x0;        b.cy = y0 + size; b.cz = 0.0f;
+  out.push_back(a);
+  out.push_back(b);
+}
+
+int runFloorBoundsTest() {
+  int checks = 0;
+  int failed = 0;
+  const auto expect = [&checks, &failed](const char* label, bool held) {
+    ++checks;
+    if (!held) ++failed;
+    std::printf("minimap: floor-bounds check=%s %s\n", label, held ? "OK" : "FAIL");
+  };
+
+  std::vector<tf2::native::MinimapFloorTriangle> floor;
+  for (int row = 0; row < 64; ++row) {
+    for (int column = 0; column < 64; ++column) {
+      pushCell(floor, static_cast<float>(column) * 64.0f, static_cast<float>(row) * 64.0f, 64.0f);
+    }
+  }
+  const tf2::native::MinimapDerivedBounds square = tf2::native::minimapBoundsFromFloor(floor);
+  std::printf("minimap: floor-bounds case=square valid=%d triangles=%zu min=%.3f,%.3f max=%.3f,%.3f\n",
+    square.valid ? 1 : 0, square.triangles, static_cast<double>(square.minX),
+    static_cast<double>(square.minY), static_cast<double>(square.maxX), static_cast<double>(square.maxY));
+  expect("square-valid", square.valid);
+  expect("square-triangles", square.triangles == 8192u);
+  expect("square-minX", square.minX < 0.0f && square.minX > -300.0f);
+  expect("square-minY", square.minY < 0.0f && square.minY > -300.0f);
+  expect("square-maxX", square.maxX > 4096.0f && square.maxX < 4400.0f);
+  expect("square-maxY", square.maxY > 4096.0f && square.maxY < 4400.0f);
+
+  // The island: area 0.5 at (100000, 100000). It must not stretch the panel.
+  std::vector<tf2::native::MinimapFloorTriangle> withIsland = floor;
+  tf2::native::MinimapFloorTriangle island;
+  island.ax = 100000.0f; island.ay = 100000.0f;
+  island.bx = 100001.0f; island.by = 100000.0f;
+  island.cx = 100000.0f; island.cy = 100001.0f;
+  withIsland.push_back(island);
+  const tf2::native::MinimapDerivedBounds trimmed = tf2::native::minimapBoundsFromFloor(withIsland);
+  std::printf("minimap: floor-bounds case=island valid=%d triangles=%zu max=%.3f,%.3f\n",
+    trimmed.valid ? 1 : 0, trimmed.triangles, static_cast<double>(trimmed.maxX),
+    static_cast<double>(trimmed.maxY));
+  expect("island-counted", trimmed.triangles == 8193u);
+  expect("island-trimmed", trimmed.valid && trimmed.maxX < 5000.0f && trimmed.maxY < 5000.0f);
+
+  // Degenerate inputs are refused, never turned into a default rectangle.
+  const tf2::native::MinimapDerivedBounds empty =
+    tf2::native::minimapBoundsFromFloor(std::vector<tf2::native::MinimapFloorTriangle>{});
+  expect("empty-refused", !empty.valid && empty.triangles == 0u);
+  std::vector<tf2::native::MinimapFloorTriangle> flat(4);   // zero-area triangles
+  const tf2::native::MinimapDerivedBounds zero = tf2::native::minimapBoundsFromFloor(flat);
+  expect("zero-area-refused", !zero.valid && zero.triangles == 0u);
+
+  std::printf("minimap: floor-bounds verdict=%s checks=%d failed=%d\n",
+    failed == 0 ? "PASS" : "FAIL", checks, failed);
+  return failed == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (argc == 2 && std::string(argv[1]) == "--floor-bounds-test") {
+    return runFloorBoundsTest();
+  }
   if (argc != 2 || std::string(argv[1]) != "--minimap-test") {
     std::fprintf(stderr, "usage: minimap_probe --minimap-test\n");
     return 2;

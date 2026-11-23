@@ -315,7 +315,10 @@ bool readTempEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32
     if (summary.tickAuditCapture != nullptr) {
       summary.tickAuditCapture->observeTempEvent(summary, static_cast<std::int32_t>(lastClassId), eventState);
     }
-    if (summary.tempEntityEvents.size() < 16384u) {
+    // N20 step 0: counted before the retention decision, so the census and the
+    // dropped count describe the wire, not the vector.
+    ++summary.tempClassCensus[eventClassName.empty() ? std::string("<unknown-class>") : eventClassName];
+    if (summary.tempEntityEvents.size() < DemoNetworkSummary::kTempEntityRetentionCap) {
       TempEntityEvent event;
       event.tick = packetTick;
       event.className = std::move(eventClassName);
@@ -334,6 +337,8 @@ bool readTempEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int32
         summary.projectileTimeline.push_back(std::move(timeline));
       }
       summary.tempEntityEvents.push_back(std::move(event));
+    } else {
+      ++summary.tempEntityEventsDroppedCap;
     }
   }
   if (bits.remaining() > 0) { /* payload was already consumed bit-for-bit */ }
