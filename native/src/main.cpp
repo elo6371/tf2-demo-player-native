@@ -15,6 +15,7 @@
 #include "vmt_material.h"
 #include "bsp_map.h"
 #include "demo_header.h"
+#include "demo_motion_detect.h"
 #include "demo_tick_audit.h"
 #include "audio_player.h"
 #include "effects_timeline.h"
@@ -4096,6 +4097,11 @@ bool outlineVertexExtent = false;
   // 'tick-audit:' trace rows after the demo scan and touches no gate, no exit
   // code and no captured frame.
   bool demoTickAuditRequested = false;
+  // I3 (2026-11-23): forces the analysis scan on a scripted run. An interactive run
+  // scans by default (see analysisScanEnabled at the load site); scripted runs keep the
+  // old cost unless they ask, because the gate demos are large and their runners assert
+  // on how long a load takes.
+  bool analysisScanRequested = false;
   // N05 step 3: ask the renderer to take the clip-space position out of the
   // vertex stage of the isolated draw. Separate from the face trace because it
   // is a different instrument: the face trace predicts a screen point from the
@@ -4290,6 +4296,7 @@ bool outlineVertexExtent = false;
       // none of them reads another argument.
       if (wcscmp(arguments[i], L"--hidden-window") == 0) { hiddenWindow = true; continue; }
       if (wcscmp(arguments[i], L"--tick-audit") == 0) { demoTickAuditRequested = true; continue; }
+      if (wcscmp(arguments[i], L"--analysis-scan") == 0) { analysisScanRequested = true; continue; }
       if (wcscmp(arguments[i], L"--audio-disabled") == 0) { audioDisabled = true; continue; }
       // N21(a2): --audio-spatial takes a word. A bare switch or an unknown one
       // is refused below rather than read as the default, because the point of
@@ -5753,7 +5760,18 @@ bool outlineVertexExtent = false;
   // summary holds it behind a pointer, so an ordinary run records no packet row
   // and no simulation sample.
   tf2::native::DemoTickAuditCapture demoTickAuditCapture;
-  if (demoTickAuditRequested) demoNetworkSummary.tickAuditCapture = &demoTickAuditCapture;
+  // I3 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 9.4): the analysis screen's
+  // result list reads the same per-tick entity samples the --tick-audit run records, so
+  // the capture is armed here -- before the scan below, which is what records them. An
+  // interactive launch pays for it because that is the screen it will show; a scripted
+  // run (camera script, hidden window, capture tick) does not unless it passes
+  // --analysis-scan, so every existing runner keeps its old load time.
+  const bool analysisScanEnabled = analysisScanRequested
+      || (cameraScriptPath.empty() && !hiddenWindow && captureTick <= 0);
+  if (demoTickAuditRequested || analysisScanEnabled) {
+    demoNetworkSummary.tickAuditCapture = &demoTickAuditCapture;
+    if (analysisScanEnabled) demoTickAuditCapture.enableMotionCensus(true);
+  }
   // task-41: the wearable slot-lifetime capture. Armed HERE, before the scan
   // below, for the same reason the audit capture is: the scan is what records the
   // Enter/Delete that advance a slot's generation, and scanKnownDemoMessages
@@ -5775,11 +5793,49 @@ bool outlineVertexExtent = false;
       tf2::native::indexDemoFile(commandDemo, demoHeader, demoIndex);
       demoNetworkSummary.networkProtocol = demoHeader.networkProtocol;
       tf2::native::scanKnownDemoMessages(commandDemo, demoIndex, demoNetworkSummary);
-      if (demoTickAuditRequested) {
+      if (demoTickAuditRequested || analysisScanEnabled) {
         const tf2::native::DemoTickAuditReport demoTickAuditReport =
             tf2::native::auditDemoTicks(demoHeader, demoIndex, &demoTickAuditCapture);
-        for (const std::string& line : tf2::native::formatDemoTickAuditLines(demoTickAuditReport)) {
-          traceFmt("%s", line.c_str());
+        if (demoTickAuditRequested) {
+          for (const std::string& line : tf2::native::formatDemoTickAuditLines(demoTickAuditReport)) {
+            traceFmt("%s", line.c_str());
+          }
+        }
+        if (analysisScanEnabled) {
+          const tf2::native::MotionDetectReport motionReport = tf2::native::detectMotionAnomalies(
+              demoTickAuditCapture.packetRows(), demoTickAuditCapture.motionCensus());
+          for (const std::string& line : tf2::native::formatMotionDetectLines(motionReport)) {
+            traceFmt("%s", line.c_str());
+          }
+          // The shell renders what the product measured: converted once here so the UI
+          // library keeps no dependency on the audit internals.
+          tf2::native::UiMotionAnalysis motionAnalysis;
+          motionAnalysis.valid = true;
+          motionAnalysis.stalls = motionReport.stalls;
+          motionAnalysis.teleports = motionReport.teleports;
+          motionAnalysis.sharpTurns = motionReport.sharpTurns;
+          motionAnalysis.sceneResets = motionReport.sceneResets;
+          motionAnalysis.teleportsOmitted = motionReport.teleportsOmitted;
+          const auto convert = [](const tf2::native::MotionAnomaly& anomaly) {
+            tf2::native::UiMotionAnomaly out;
+            out.kind = static_cast<int>(anomaly.kind);
+            out.startTick = anomaly.startTick;
+            out.endTick = anomaly.endTick;
+            out.durationTicks = anomaly.durationTicks;
+            out.entity = anomaly.entity;
+            out.metric = anomaly.metric;
+            return out;
+          };
+          for (const tf2::native::MotionAnomaly& anomaly : motionReport.anomalies) {
+            motionAnalysis.anomalies.push_back(convert(anomaly));
+          }
+          for (const tf2::native::MotionAnomaly& hint : motionReport.hints) {
+            motionAnalysis.hints.push_back(convert(hint));
+          }
+          nativeUi.setMotionAnalysis(motionAnalysis);
+          traceFmt("analysis: motion anomalies=%zu hints=%zu sceneResets=%zu omitted=%zu",
+              motionAnalysis.anomalies.size(), motionAnalysis.hints.size(),
+              motionAnalysis.sceneResets, motionAnalysis.teleportsOmitted);
         }
       }
       tf2::native::buildAssetReferenceList(demoNetworkSummary, demoNetworkSummary.assetReferences);

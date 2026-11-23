@@ -226,6 +226,31 @@ struct UiSettings {
   std::vector<std::filesystem::path> recentDemos;
 };
 
+// I3 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 9.4 A2/A3): what the
+// analysis screen shows about the recording itself. The detector lives in
+// demo_motion_detect.h and produces this; the UI library deliberately does not include
+// that header -- the product converts, so the shell keeps no dependency on the audit
+// internals and a probe can build a report by hand.
+struct UiMotionAnomaly {
+  int kind = 0;  // 0 stall, 1 teleport, 2 sharpTurn (matches MotionAnomalyKind)
+  std::int32_t startTick = 0;
+  std::int32_t endTick = 0;
+  std::int32_t durationTicks = 0;
+  std::int32_t entity = -1;
+  double metric = 0.0;
+};
+
+struct UiMotionAnalysis {
+  bool valid = false;  // false until a scan ran; the screen then says why it is empty
+  std::size_t stalls = 0;
+  std::size_t teleports = 0;
+  std::size_t sharpTurns = 0;
+  std::size_t sceneResets = 0;
+  std::size_t teleportsOmitted = 0;
+  std::vector<UiMotionAnomaly> anomalies;  // stalls + teleports, tick order
+  std::vector<UiMotionAnomaly> hints;      // sharp turns, tick order
+};
+
 struct UiSnapshot {
   UiScreen screen = UiScreen::Opening;
   std::filesystem::path demoPath;
@@ -251,6 +276,7 @@ struct UiSnapshot {
   bool exportAvailable = false;
   ImportStatus importStatus = ImportStatus::Idle;
   unsigned importProgress = 0;
+  UiMotionAnalysis motionAnalysis;
   unsigned dpi = 96;
   unsigned clientWidth = 1280;
   unsigned clientHeight = 720;
@@ -302,6 +328,9 @@ public:
   bool saveSettings() const;
   void setDisplayMetrics(unsigned dpi, unsigned clientWidth, unsigned clientHeight,
       bool fullscreen);
+  // I3: the analysis screen's numbers. Set once per load by the product, which owns the
+  // scan; the shell only renders it, so the UI never decides what counts as an anomaly.
+  void setMotionAnalysis(const UiMotionAnalysis& analysis);
 
   UiSnapshot snapshot() const;
 
@@ -337,6 +366,7 @@ private:
   bool tfRootAvailable_ = false;
   std::uint32_t missingResourceCount_ = 0;
   std::string error_;
+  UiMotionAnalysis motionAnalysis_{};
   ImportStatus importStatus_ = ImportStatus::Idle;
   std::atomic<unsigned> importProgress_{0};
   std::atomic<bool> cancelImportRequested_{false};

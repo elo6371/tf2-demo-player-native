@@ -158,6 +158,10 @@ void NativeUiController::setDisplayMetrics(unsigned dpi, unsigned clientWidth,
   fullscreen_ = fullscreen;
 }
 
+void NativeUiController::setMotionAnalysis(const UiMotionAnalysis& analysis) {
+  motionAnalysis_ = analysis;
+}
+
 void NativeUiController::setTfRoot(const std::filesystem::path& root) {
   settings_.tfRoot = root;
   refreshResourceState();
@@ -473,6 +477,7 @@ UiSnapshot NativeUiController::snapshot() const {
   result.dpiScale = static_cast<float>(dpi_) / 96.0f;
   result.recentDemos = settings_.recentDemos;
   result.tfRoot = settings_.tfRoot;
+  result.motionAnalysis = motionAnalysis_;
   return result;
 }
 

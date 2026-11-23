@@ -212,7 +212,14 @@ bool updateNativeUiControls(HWND window) {
       + L" | " + std::wstring(state.recordingType.begin(), state.recordingType.end())
       + L" | ticks=" + std::to_wstring(state.ticks)
       + L" | BSP=" + (state.bspAvailable ? L"ready" : L"missing")
-      + L" | missing=" + std::to_wstring(state.missingResourceCount);
+      + L" | missing=" + std::to_wstring(state.missingResourceCount)
+      // I3: the motion numbers belong on this line rather than in a new control:
+      // planUiLayout's rectangles are pinned by camera-ui-check, so the analysis screen
+      // reports what it measured here until the 9.2 chrome replaces the whole shell.
+      + L" | motion stall=" + std::to_wstring(state.motionAnalysis.stalls)
+      + L" teleport=" + std::to_wstring(state.motionAnalysis.teleports)
+      + L" turn=" + std::to_wstring(state.motionAnalysis.sharpTurns)
+      + (state.motionAnalysis.valid ? L"" : L" (not scanned)");
   } else if (player) {
     status = L"Player: tick " + std::to_wstring(state.tick) + L"/" + std::to_wstring(state.ticks)
       + (state.playing ? L" | playing" : L" | paused")
