@@ -304,7 +304,17 @@ if [ "$FRESH" -eq 0 ] && git -C "$CLONE" diff --cached --quiet; then
 else
   echo "--- change against origin/main ---"
   git -C "$CLONE" diff --cached --shortstat
-  git -C "$CLONE" -c core.autocrlf=false commit -q -F - <<MSG
+  # The clone is a fresh repository and this machine has no GLOBAL user.email, so a
+  # bare commit dies with "Author identity unknown" -- on 2026-11-23 that failure was
+  # not checked and the run went on to print PUBLISH=PASS having pushed nothing. The
+  # identity is taken from the development repository and falls back to the identity
+  # every commit in the public history already carries.
+  IDENT_NAME=$(git -C "$REPO" config user.name 2>/dev/null || true)
+  IDENT_EMAIL=$(git -C "$REPO" config user.email 2>/dev/null || true)
+  [ -n "$IDENT_NAME" ] || IDENT_NAME="Ada"
+  [ -n "$IDENT_EMAIL" ] || IDENT_EMAIL="ada@local"
+  git -C "$CLONE" -c core.autocrlf=false -c user.name="$IDENT_NAME" -c user.email="$IDENT_EMAIL" \
+    commit -q -F - <<MSG || { echo "PUBLISH=FAIL (commit)"; exit 2; }
 Publish software from $(git rev-parse --short=12 "$SHA")
 
 Software only: the player's sources, build definitions, the build scripts,
@@ -313,6 +323,10 @@ publish/manifest.txt of the development tree; no demos, game content,
 evidence, gate scripts or development documents.
 MSG
   echo "local publish commit: $(git -C "$CLONE" log --oneline -1)"
+fi
+PUBLISH_COMMIT=$(git -C "$CLONE" rev-parse --verify -q publish-tmp || true)
+if [ -z "$PUBLISH_COMMIT" ] || [ "$PUBLISH_COMMIT" = "$REMOTE_MAIN" ]; then
+  echo "PUBLISH=FAIL (no new commit to push)"; exit 2
 fi
 git -C "$CLONE" ls-files > "$WORK/published-files.txt"
 echo "published file count: $(wc -l < "$WORK/published-files.txt" | tr -d ' ') (list: $WORK/published-files.txt)"
@@ -330,7 +344,13 @@ if [ "$FRESH" -eq 1 ]; then
     git -C "$CLONE" push origin publish-tmp:main || exit 1
   fi
 else
-  git -C "$CLONE" push origin publish-tmp:main || exit 1
+  git -C "$CLONE" push origin publish-tmp:main || { echo "PUBLISH=FAIL (push)"; exit 1; }
+fi
+# PASS means origin/main MOVED, not that git was asked to push: a no-op push prints
+# "Everything up-to-date" and exits 0, which is how a failed commit once read as success.
+REMOTE_AFTER=$(git -C "$CLONE" ls-remote origin refs/heads/main | cut -f1)
+if [ "$REMOTE_AFTER" != "$PUBLISH_COMMIT" ]; then
+  echo "PUBLISH=FAIL (origin main is ${REMOTE_AFTER:-unknown}, expected $PUBLISH_COMMIT)"; exit 1
 fi
 echo "PUBLISH=PASS $(git -C "$CLONE" rev-parse --short HEAD) -> origin main"
 
