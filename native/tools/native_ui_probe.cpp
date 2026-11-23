@@ -587,6 +587,77 @@ void checkResultRows(Readings& readings) {
     << " empty=" << (activateResultRow({}, 0).valid ? 1 : 0) << "\n";
 }
 
+// I3c (design section 9.1): the control the review screen shows. Two things the
+// product must not re-derive by hand: where the list goes at every client size and
+// dpi, and what one row reads as on screen. The planner is held to the same matrix as
+// the HUD plan -- inside the client, and off every rectangle placed above it.
+void checkAnalysisList(Readings& readings) {
+  using namespace tf2::native;
+  struct Size { int w; int h; };
+  const Size sizes[] = {
+    { 320, 240 }, { 640, 480 }, { 940, 640 }, { 1264, 681 }, { 1920, 1080 }, { 3840, 2160 },
+  };
+  const float scales[] = { 1.0f, 1.25f, 1.5f, 2.0f };
+  std::uint32_t cases = 0;
+  std::uint32_t bad = 0;
+  for (const float scale : scales) {
+    for (const Size& size : sizes) {
+      const auto base = planUiLayout(size.w, size.h, scale);
+      const auto hud = planHudLayout(base, size.w, size.h, scale);
+      const auto plan = planAnalysisLayout(base, hud, size.w, size.h, scale);
+      ++cases;
+      if (!plan.valid) { ++bad; continue; }
+      const UiRect& rect = plan.rects[static_cast<std::size_t>(UiAnalysisControlId::Results)];
+      if (rect.x < 0 || rect.y < 0 || rect.x + rect.w > size.w || rect.y + rect.h > size.h) {
+        ++bad;
+      }
+      // A collapsed list (a client too short to hold one) is legal and covers
+      // nothing; only a list with area can cover something laid out above it.
+      if (rect.w <= 0 || rect.h <= 0) continue;
+      for (const UiRect& other : base.rects) if (uiRectsOverlap(rect, other)) ++bad;
+      for (const UiRect& other : hud.rects) if (uiRectsOverlap(rect, other)) ++bad;
+    }
+  }
+  check(cases == 24, "results list: the planner is exercised at 24 sizes and scales");
+  check(bad == 0, "results list: it stays inside the client and covers nothing above it");
+  const auto base = planUiLayout(1264, 681, 1.0f);
+  const auto hud = planHudLayout(base, 1264, 681, 1.0f);
+  check(!planAnalysisLayout(base, hud, 0, 681, 1.0f).valid
+      && !planAnalysisLayout(base, hud, 1264, 681, 0.0f).valid,
+    "results list: a zero width or a zero dpi scale is refused");
+
+  UiMotionAnalysis analysis;
+  analysis.valid = true;
+  UiMotionAnomaly teleport;
+  teleport.kind = 1;
+  teleport.startTick = 12000;
+  teleport.endTick = 12040;
+  teleport.durationTicks = 40;
+  teleport.entity = 13;
+  teleport.metric = 412.0;
+  UiMotionAnomaly stall;
+  stall.kind = 0;
+  stall.startTick = 9000;
+  stall.endTick = 9250;
+  stall.durationTicks = 250;
+  stall.entity = -1;
+  analysis.anomalies.push_back(teleport);
+  analysis.anomalies.push_back(stall);
+  const std::vector<UiResultRow> rows = buildResultRows(analysis);
+  check(rows.size() == 2, "results list: two anomalies make two rows");
+  const std::string teleportLabel = rows.size() == 2
+    ? formatResultRowLabel(rows[1], kResultTickRate) : std::string();
+  const std::string stallLabel = rows.size() == 2
+    ? formatResultRowLabel(rows[0], kResultTickRate) : std::string();
+  check(teleportLabel == "teleport  tick 12000-12040  0.6s  entity 13  -> seek 11800",
+    "results list: a teleport row reads kind, tick range, seconds, entity and seek");
+  check(stallLabel == "stall  tick 9000-9250  3.8s  -> seek 8800",
+    "results list: a stall row leaves out the entity it does not have");
+  readings.set("resultsListLabel", teleportLabel == "teleport  tick 12000-12040  0.6s  entity 13  -> seek 11800" ? 1u : 0u);
+  readings.set("resultsListCases", cases);
+  readings.set("resultsListBad", bad);
+}
+
 } // namespace
 
 int main() {
@@ -600,6 +671,7 @@ int main() {
   checkPaneBoundary(readings);
   checkPaneInput(readings);
   checkResultRows(readings);
+  checkAnalysisList(readings);
 
   // The original screen-flow contract, kept verbatim but made real: every
   // former assert is a counted check.

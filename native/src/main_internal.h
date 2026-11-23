@@ -150,6 +150,18 @@ extern HWND g_uiBookmarkName;
 extern HWND g_uiBookmarkDelete;
 extern HWND g_uiBookmarkList;
 extern HWND g_uiKeybindReset;
+// I3c (2026-11-24): the analysis result list -- the one listbox on the review screen.
+extern HWND g_uiResultsList;
+// The rows that list holds, and the click waiting to be honored. Both live here
+// because the window procedure (a mouse double-click) and the command line
+// (--results-select, --ui-list-click) write the same slot, and the frame loop is the
+// only consumer: a seek request made outside it is refused before the session binds.
+extern std::vector<tf2::native::UiResultRow> g_analysisResultRows;
+extern int g_resultsSelectPending;
+// --ui-list-click N: the mouse path's test hook. Selects row N in the control and
+// posts the notification a double-click would, so a scripted run exercises
+// LB_GETCURSEL and the window procedure, not just the model.
+extern int g_uiListClickCli;
 extern HWND g_uiHudImport;
 extern HWND g_uiHudReset;
 extern tf2::native::NativeUiController* g_nativeUi;
@@ -226,6 +238,7 @@ inline constexpr int kUiHudImport = 4121;
 inline constexpr int kUiHudPreview = 4122;
 inline constexpr int kUiHudScale = 4123;
 inline constexpr int kUiHudReset = 4124;
+inline constexpr int kUiResultsList = 4131;
 
 // ------------------------------------------------- T76 stage 4 shared state
 // The camera-script driver (src/camera_script.cpp) names the key table, the

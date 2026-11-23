@@ -262,6 +262,10 @@ struct UiMotionAnalysis {
 //   here means the product and the probe agree on the arithmetic instead of each
 //   re-deriving it, and an out-of-range click is refused rather than clamped.
 constexpr std::int32_t kResultSeekLeadTicks = 200;  // 3 s at 66 tick/s
+// The tick rate the list converts durations with. 66 is the demo's rate (the same one
+// the design's "200 ticks = 3 s" assumes); a recording at another rate would render a
+// slightly wrong duration, not a wrong seek -- the seek is in ticks.
+constexpr std::int32_t kResultTickRate = 66;
 
 struct UiResultRow {
   int index = 0;                    // 0-based position in the list; the click payload
@@ -285,6 +289,11 @@ std::int32_t analysisResultSeekTick(std::int32_t startTick);
 std::vector<UiResultRow> buildResultRows(const UiMotionAnalysis& analysis);
 // "result: row index=2 start=12000 end=12040 ticks=40 seconds=0.6 kind=teleport entity=13 seek=11800"
 std::string formatResultRowLine(const UiResultRow& row, std::int32_t tickRate);
+// One row as the list control shows it: kind, tick range, duration, entity, and where
+// a click lands. ASCII on purpose -- the control is created with CreateWindowExW while
+// the shell converts std::string byte-wide everywhere else, so a non-ASCII byte here
+// would render as a replacement glyph instead of as text.
+std::string formatResultRowLabel(const UiResultRow& row, std::int32_t tickRate);
 
 struct UiResultActivation {
   bool valid = false;
@@ -459,6 +468,28 @@ struct UiHudLayoutPlan {
 // as the base planner collapses its own (containment, not refusal, is the rule).
 UiHudLayoutPlan planHudLayout(const UiLayoutPlan& base, int clientWidth,
   int clientHeight, float dpiScale);
+
+// ---------------------------------------------------------------------------
+// I3c (2026-11-24, design section 9.1): the analysis result list on screen.
+//
+// WHY ANOTHER ID SET AND ANOTHER PLANNER
+//   T51's reason, one level down: the list must sit below BOTH the base plan and
+//   the HUD row, and it is the only control on the review screen that is not a
+//   button. Consuming both plans means a later base row or HUD row cannot push it
+//   under a control -- the list follows whatever is lowest, never a constant.
+// ---------------------------------------------------------------------------
+enum class UiAnalysisControlId { Results = 0, Count };
+
+struct UiAnalysisLayoutPlan {
+  UiRect rects[static_cast<std::size_t>(UiAnalysisControlId::Count)]{};
+  bool valid = false;
+};
+
+// Fills the space below the lowest control with the results list, sharing the base
+// margin and dpi rule. Containment, not refusal: on a short window the list collapses
+// to zero height at the bottom edge exactly as the base planner collapses its rows.
+UiAnalysisLayoutPlan planAnalysisLayout(const UiLayoutPlan& base,
+  const UiHudLayoutPlan& hud, int clientWidth, int clientHeight, float dpiScale);
 
 // The HUD commands. Kept beside the existing UiCommand rather than added to it,
 // for the same reason as the ids: one enum, one owner.

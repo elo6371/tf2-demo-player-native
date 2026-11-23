@@ -174,6 +174,13 @@ HWND g_uiKeybindReset = nullptr;
 // nothing here touches a rect the base planner produced.
 HWND g_uiHudImport = nullptr;
 HWND g_uiHudReset = nullptr;
+// I3c (2026-11-24): the analysis result list. Defined here rather than as a local in
+// main() because the window procedure answers a double-click in it, and the frame loop
+// is where a queued click turns into a seek.
+HWND g_uiResultsList = nullptr;
+std::vector<tf2::native::UiResultRow> g_analysisResultRows;
+int g_resultsSelectPending = -1;
+int g_uiListClickCli = -1;
 // Which bookmark slot the controls act on. 1-based, matching the store and the
 // settings keys; the cycler walks 1..8 and wraps.
 std::size_t g_uiBookmarkSlot = 1;
@@ -2934,6 +2941,27 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // that state is decided. The edit control's own notifications are the
     // authority (no polling, no subclass): every key path in the window
     // procedure asks dispatchHotkey, which asks shouldDispatchHotkey.
+    // I3c: the result list's one notification. Handled before the BN_CLICKED filter
+    // below because a listbox never sends BN_CLICKED -- filtering first would route
+    // every listbox click to DefWindowProc and the list would look inert.
+    if (g_nativeUi && LOWORD(wParam) == kUiResultsList) {
+      if (HIWORD(wParam) == LBN_DBLCLK && g_uiResultsList) {
+        const int selected =
+          static_cast<int>(SendMessageW(g_uiResultsList, LB_GETCURSEL, 0, 0));
+        if (selected >= 0) {
+          // Double-click means "open this one in the workspace": confirm the import if
+          // the screen is still asking, then let the frame loop seek. The transport is
+          // not touched here because a seek request outside the frame loop is refused
+          // before the session is bound.
+          if (g_nativeUi->snapshot().screen == tf2::native::UiScreen::ImportReview) {
+            SendMessageW(window, WM_COMMAND, MAKEWPARAM(kUiConfirm, BN_CLICKED), 0);
+          }
+          g_resultsSelectPending = selected;
+          traceFmt("analysis: results list click index=%d source=mouse", selected);
+        }
+      }
+      return 0;
+    }
     if (g_nativeUi && LOWORD(wParam) == kUiBookmarkName) {
       const int notification = HIWORD(wParam);
       if (notification == EN_SETFOCUS) { g_textFieldFocused = true; return 0; }
@@ -4523,6 +4551,14 @@ bool outlineVertexExtent = false;
         if (i + 1 < argumentCount) resultsSelectCli = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
         continue;
       }
+      // I3c: --ui-list-click <index> drives the MOUSE path -- select that row in the
+      // list control and post the notification a double-click sends. --results-select
+      // skips the control entirely, so without this a scripted run could not tell a
+      // working handler from one that was never reached.
+      if (wcscmp(arguments[i], L"--ui-list-click") == 0) {
+        if (i + 1 < argumentCount) g_uiListClickCli = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
+        continue;
+      }
       if (wcscmp(arguments[i], L"--audio-disabled") == 0) { audioDisabled = true; continue; }
       // N21(a2): --audio-spatial takes a word. A bare switch or an unknown one
       // is refused below rather than read as the default, because the point of
@@ -6057,10 +6093,10 @@ bool outlineVertexExtent = false;
   demoNetworkSummary.cameraTrackLimits.enabled = true;
   // I3b (design section 9.1): the rows the analysis screen draws, kept past the scan so
   // --results-select can address them. Empty until a scan ran.
-  std::vector<tf2::native::UiResultRow> analysisResultRows;
+  g_analysisResultRows.clear();
   // The queued click. It waits for the frame loop because a seek request is refused
   // until the demo session is bound; applying it here would spend it on a refusal.
-  int resultsSelectPending = resultsSelectCli;
+  g_resultsSelectPending = resultsSelectCli;
   if (!commandDemo.empty()) {
     if (tf2::native::parseDemoHeaderFile(commandDemo, demoHeader)) {
       tf2::native::indexDemoFile(commandDemo, demoHeader, demoIndex);
@@ -6113,14 +6149,14 @@ bool outlineVertexExtent = false;
           // lines above were printed from. Printed here because a scripted run cannot
           // click a list: --results-select addresses these same rows, and the trace is
           // the only place the rows can be read back.
-          analysisResultRows = tf2::native::buildResultRows(motionAnalysis);
+          g_analysisResultRows = tf2::native::buildResultRows(motionAnalysis);
           constexpr std::size_t kResultRowsPrinted = 24;
           for (std::size_t row = 0;
-               row < analysisResultRows.size() && row < kResultRowsPrinted; ++row) {
-            traceFmt("%s", tf2::native::formatResultRowLine(analysisResultRows[row], 66).c_str());
+               row < g_analysisResultRows.size() && row < kResultRowsPrinted; ++row) {
+            traceFmt("%s", tf2::native::formatResultRowLine(g_analysisResultRows[row], 66).c_str());
           }
-          traceFmt("analysis: results rows=%zu printed=%zu", analysisResultRows.size(),
-              (std::min)(analysisResultRows.size(), kResultRowsPrinted));
+          traceFmt("analysis: results rows=%zu printed=%zu", g_analysisResultRows.size(),
+              (std::min)(g_analysisResultRows.size(), kResultRowsPrinted));
           // I6 (section 9.2): the per-round timeline the workspace draws. Built from the
           // same pass as above and printed WITHOUT the kill rows: a long recording has
           // hundreds of kills, and the round rows already carry their counts. The offset
@@ -17724,6 +17760,21 @@ bool outlineVertexExtent = false;
     // the panel is closed (the controller returns immediately).
     tf2::native::logsPanelPump(window);
     if (updateNativeUiControls(window)) ++uiUpdateCalls;
+    // I3c: --ui-list-click is the mouse path's test hook. The select comes first
+    // because LBN_DBLCLK is sent for an item the user already selected on the first
+    // click; posting it alone would read LB_GETCURSEL, find nothing, and "pass" by
+    // doing nothing.
+    if (g_uiListClickCli >= 0 && g_uiResultsList) {
+      const int itemCount =
+        static_cast<int>(SendMessageW(g_uiResultsList, LB_GETCOUNT, 0, 0));
+      if (itemCount > g_uiListClickCli) {
+        SendMessageW(g_uiResultsList, LB_SETCURSEL,
+          static_cast<WPARAM>(g_uiListClickCli), 0);
+        SendMessageW(window, WM_COMMAND, MAKEWPARAM(kUiResultsList, LBN_DBLCLK),
+          reinterpret_cast<LPARAM>(g_uiResultsList));
+        g_uiListClickCli = -1;
+      }
+    }
     if (refreshWindowTitle()) ++titleUpdateCalls;
     // T97: the live readout. The one line this task adds to main.cpp, placed here
     // because the frame state above is final and the draw below has not happened.
@@ -17795,9 +17846,9 @@ bool outlineVertexExtent = false;
     // seconds before that anomaly and plays. Queued rather than applied where the rows
     // are built, because a seek request is refused until the session is bound. The
     // trace reports what the request API answered, not what this code intended.
-    if (resultsSelectPending >= 0) {
+    if (g_resultsSelectPending >= 0) {
       const tf2::native::UiResultActivation activation = tf2::native::activateResultRow(
-          analysisResultRows, static_cast<std::size_t>(resultsSelectPending));
+          g_analysisResultRows, static_cast<std::size_t>(g_resultsSelectPending));
       if (activation.valid) {
         tf2::native::PlaybackRequest seek;
         seek.kind = tf2::native::PlaybackRequestKind::JumpTicks;
@@ -17827,10 +17878,10 @@ bool outlineVertexExtent = false;
             static_cast<int>(activation.row.entity), activation.row.switchesPlayer ? 1 : 0,
             seekAccepted ? 1 : 0, resumeAccepted ? 1 : 0, static_cast<int>(g_playback.tick));
       } else {
-        traceFmt("analysis: results click index=%d refused rows=%zu", resultsSelectPending,
-            analysisResultRows.size());
+        traceFmt("analysis: results click index=%d refused rows=%zu", g_resultsSelectPending,
+            g_analysisResultRows.size());
       }
-      resultsSelectPending = -1;
+      g_resultsSelectPending = -1;
     }
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
       demoHeader.mapName,

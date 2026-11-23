@@ -720,6 +720,36 @@ UiHudLayoutPlan planHudLayout(const UiLayoutPlan& base, int clientWidth,
   }
   return plan;
 }
+UiAnalysisLayoutPlan planAnalysisLayout(const UiLayoutPlan& base,
+    const UiHudLayoutPlan& hud, int clientWidth, int clientHeight, float dpiScale) {
+  UiAnalysisLayoutPlan plan;
+  if (!base.valid || !hud.valid || clientWidth <= 0 || clientHeight <= 0
+      || !(dpiScale > 0.0f) || !std::isfinite(dpiScale)) {
+    return plan;
+  }
+  plan.valid = true;
+  // Below everything the two plans above placed: the maximum over every rect from
+  // both, for the same reason planHudLayout takes a maximum instead of adding a
+  // constant -- a row added later must push the list down, not be covered by it.
+  int lowest = 0;
+  for (const auto& rect : base.rects) {
+    const int bottom = rect.y + rect.h;
+    if (bottom > lowest) lowest = bottom;
+  }
+  for (const auto& rect : hud.rects) {
+    const int bottom = rect.y + rect.h;
+    if (bottom > lowest) lowest = bottom;
+  }
+  const int margin = scaleDimension(16, dpiScale);
+  const int gap = scaleDimension(10, dpiScale);
+  auto& rect = plan.rects[static_cast<std::size_t>(UiAnalysisControlId::Results)];
+  rect.x = (std::min)(margin, clientWidth);
+  rect.y = (std::min)(lowest + gap, clientHeight);
+  rect.w = (std::max)(0, clientWidth - margin - rect.x);
+  rect.h = (std::max)(0, clientHeight - margin - rect.y);
+  return plan;
+}
+
 const char* uiMotionAnomalyKindName(int kind) {
   switch (kind) {
     case 0: return "stall";
@@ -785,6 +815,19 @@ std::string formatResultRowLine(const UiResultRow& row, std::int32_t tickRate) {
   line += " entity=" + std::to_string(row.entity);
   line += " seek=" + std::to_string(row.seekTick);
   return line;
+}
+
+std::string formatResultRowLabel(const UiResultRow& row, std::int32_t tickRate) {
+  const double seconds = tickRate > 0
+      ? static_cast<double>(row.durationTicks) / static_cast<double>(tickRate) : 0.0;
+  char secondsText[16];
+  std::snprintf(secondsText, sizeof(secondsText), "%.1f", seconds);
+  std::string label = uiMotionAnomalyKindName(row.kind);
+  label += "  tick " + std::to_string(row.startTick) + "-" + std::to_string(row.endTick);
+  label += "  " + std::string(secondsText) + "s";
+  if (row.entity >= 0) label += "  entity " + std::to_string(row.entity);
+  label += "  -> seek " + std::to_string(row.seekTick);
+  return label;
 }
 
 UiResultActivation activateResultRow(const std::vector<UiResultRow>& rows, std::size_t index) {
