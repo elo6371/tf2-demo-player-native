@@ -16905,6 +16905,21 @@ bool outlineVertexExtent = false;
           traceFmt("%s tick=%d sprites=%zu ribbons=%zu", fxLine, static_cast<int>(sceneTick),
             fxList.sprites.size(), fxList.ribbons.size());
         }
+        // P4 evidence: where the sprites actually sit, in map units, on EVERY
+        // frame rather than only when the counts change. A camera aimed at the
+        // aura has to be aimed at the position the captured frame used, and the
+        // counts stay equal across the whole charge while the sprite moves with
+        // its player -- so the change-gated line above cannot answer that
+        // question, and the last one in the trace is the frame on disk.
+        for (std::size_t spriteIndex = 0; spriteIndex < fxList.sprites.size() && spriteIndex < 8u;
+             ++spriteIndex) {
+          const tf2::native::FxSprite& sprite = fxList.sprites[spriteIndex];
+          traceFmt("fx: sprite i=%zu x=%.2f y=%.2f z=%.2f r=%.2f blend=%d a=%.3f",
+            spriteIndex, static_cast<double>(sprite.center[0]),
+            static_cast<double>(sprite.center[1]), static_cast<double>(sprite.center[2]),
+            static_cast<double>(sprite.radius), static_cast<int>(sprite.blend),
+            static_cast<double>(sprite.color[3]));
+        }
         renderer.setGameplayFx(fxList);
       }
       hudTrailVertices = renderer.projectileVertexCount();
