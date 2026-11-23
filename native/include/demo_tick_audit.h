@@ -291,6 +291,11 @@ struct DemoMotionSample {
 struct DemoMotionRate {
   float perTick = 0.0f;
   std::int32_t entity = -1;
+  // A2 (2026-11-23): the tick the step ended on. The census printed distributions and
+  // did not need it; the detector has to place a step on the timeline, and keeping it
+  // here is what lets detection run over an already-scanned recording instead of
+  // requiring a second pass.
+  std::int32_t tick = 0;
 };
 struct DemoMotionCensus {
   std::int32_t guardTicks = 66;

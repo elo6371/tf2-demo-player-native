@@ -1,4 +1,5 @@
 #include "demo_header.h"
+#include "demo_motion_detect.h"
 #include "demo_tick_audit.h"
 #include "gameplay_effects.h"
 // task-39: rankPropertyCandidates is the entity model's own suffix matcher and
@@ -644,7 +645,7 @@ const wchar_t* snapshotStatusText(tf2::native::EntitySnapshotQueryStatus value) 
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--motion-detect] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
                   L"       demo_open_probe --userinfo-fixture <file>\n"
                   L"       demo_open_probe --wearable-fixture-suite\n"
                   L"       demo_open_probe --wearable-pose-selftest\n";
@@ -998,6 +999,16 @@ int wmain(int argc, wchar_t** argv) {
     motionCensus = true;
     ++firstPath;
   }
+  // A2 (2026-11-23, section 9.4): --motion-detect turns the census into the three
+  // result-list classes. It implies the census capture (the detector reads exactly
+  // those rows) and prints after the census lines, so one run answers both "what is
+  // the distribution" and "what would the analysis list". Must follow
+  // --motion-census like the other modes.
+  bool motionDetect = false;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--motion-detect") {
+    motionDetect = true;
+    ++firstPath;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1041,7 +1052,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--motion-detect] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -1102,10 +1113,10 @@ int wmain(int argc, wchar_t** argv) {
       summary.cameraTrackLimits.enabled = cameraTrack;
       // task-35: the capture is opt-in, so without the switch no packet row, sim
       // sample or anim event is recorded and every existing line stays identical.
-      if (tickAudit || viewModelCensus || fxCensus || motionCensus) summary.tickAuditCapture = &tickAuditCapture;
+      if (tickAudit || viewModelCensus || fxCensus || motionCensus || motionDetect) summary.tickAuditCapture = &tickAuditCapture;
       if (viewModelCensus) tickAuditCapture.enableViewModelCensus(true);
       if (fxCensus) tickAuditCapture.enableFxCensus(true);
-      if (motionCensus) tickAuditCapture.enableMotionCensus(true);
+      if (motionCensus || motionDetect) tickAuditCapture.enableMotionCensus(true);
       if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       if (tickAudit) {
@@ -1255,6 +1266,17 @@ int wmain(int argc, wchar_t** argv) {
           mcCensus.moveRates, mcCensus.topMoves, {1, 2, 5, 10, 20, 40, 80, 160, 320}, {20.0, 40.0, 80.0, 160.0});
         mcSection("turn", mcCensus.turnSamples, mcCensus.turnExcluded, mcCensus.turnLongDt, mcCensus.turnDt,
           mcCensus.turnRates, mcCensus.topTurns, {1, 5, 15, 30, 60, 90, 135}, {30.0, 60.0, 90.0, 135.0});
+      }
+      if (motionDetect) {
+        // A2: the census above is the input, so this costs one pass over rows that are
+        // already resident. It never re-scans the demo, which is what keeps the startup
+        // analysis able to show the list immediately after the census finishes.
+        const tf2::native::MotionDetectReport mdReport = tf2::native::detectMotionAnomalies(
+            tickAuditCapture.packetRows(), tickAuditCapture.motionCensus());
+        for (const std::string& mdLine : tf2::native::formatMotionDetectLines(mdReport)) {
+          tickAuditText += mdLine;
+          tickAuditText += '\n';
+        }
       }
       if (cosmeticsTick >= 0) {
         // The schema is an OPTIONAL input: it is a game asset, not part of this

@@ -769,6 +769,7 @@ void DemoTickAuditCapture::recordMotion(bool turn, std::int32_t entity, std::int
   DemoMotionRate rate;
   rate.perTick = static_cast<float>(sample.perTick);
   rate.entity = entity;
+  rate.tick = tick;
   if (sample.excluded) {
     if (turn) ++census.turnExcluded; else ++census.moveExcluded;
   } else if (turn) {
