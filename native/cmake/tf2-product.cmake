@@ -96,6 +96,9 @@ add_executable(tf2_demo_native WIN32
   src/hud_state.cpp
   # T67: the embedded 8x8 font and its atlas; the HUD text pass samples it.
   src/hud_font.cpp
+  # F0 (2026-11-23): DirectWrite-rasterised UI text for the HUD (hud_text.h).
+  # Device-free, so minimap_probe --hud-text-test links the same file.
+  src/hud_text.cpp
   # E11 (2026-11-17): the map-overview screen. In the product, not in a probe,
   # because the gate has to drive the same compose/geometry code the product
   # draws with; the module owns the panel, rosters, class chips and the world->
@@ -176,4 +179,4 @@ target_include_directories(tf2_demo_native PRIVATE third_party/webview2/include)
 target_compile_definitions(tf2_demo_native PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VERSION_DEFINES})
 # msacm32 supplies the ACM stream API audio_resource.cpp uses to turn MPEG
 # Layer III resources into PCM; without it the link fails on acmStreamOpen.
-target_link_libraries(tf2_demo_native PRIVATE tf2_core d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32 windowscodecs)
+target_link_libraries(tf2_demo_native PRIVATE tf2_core d3d11 dxgi d3dcompiler user32 gdi32 shell32 advapi32 ole32 winmm msacm32 bcrypt psapi comctl32 comdlg32 windowscodecs dwrite)

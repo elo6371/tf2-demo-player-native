@@ -12354,6 +12354,12 @@ bool outlineVertexExtent = false;
   if (tf2::native::main_internal::g_cliFullscreen) {
     setWindowFullscreen(window, true, g_windowSizePinned, "cli");
   }
+  // F0: the font card owns the HUD from here on (hudApplyRects re-applies it on
+  // resize and before a capture, like the T67 card).
+  if (tf2::native::main_internal::g_cliHudFontTest) {
+    g_hudFontTest = true;
+    hudApplyRects(window);
+  }
 
   LARGE_INTEGER frequency{};
   LARGE_INTEGER lastFrame{};

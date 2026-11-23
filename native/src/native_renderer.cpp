@@ -4,6 +4,7 @@
 
 #include "entity_model.h"
 #include "hud_font.h"
+#include "hud_text.h"
 
 #include <algorithm>
 #include <array>
@@ -1104,6 +1105,65 @@ bool Renderer::setHudImageTexture(UINT width, UINT height, const std::uint8_t* r
   return true;
 }
 
+// F0 (2026-11-23): the DirectWrite glyph atlas. Created on the first frame that
+// draws UI-font text, updated whenever hud_text's revision moves (a new glyph or
+// a cleared atlas). DEFAULT usage + UpdateSubresource: it changes rarely --
+// glyphs are rasterised once and stay -- so a dynamic map every frame would be
+// the wrong trade. Linear filtering, because the texels are antialiased coverage.
+bool Renderer::hudUiEnsureAtlas() {
+  if (!device_ || !context_) return false;
+  const std::uint8_t* pixels = hudTextAtlasPixels();
+  if (!pixels) return false;
+  if (!hudUiTexture_ || !hudUiView_ || !hudUiSampler_) {
+    D3D11_TEXTURE2D_DESC description{};
+    description.Width = static_cast<UINT>(kHudTextAtlasSize);
+    description.Height = static_cast<UINT>(kHudTextAtlasSize);
+    description.MipLevels = 1;
+    description.ArraySize = 1;
+    description.Format = DXGI_FORMAT_R8_UNORM;
+    description.SampleDesc.Count = 1;
+    description.Usage = D3D11_USAGE_DEFAULT;
+    description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+    const HRESULT created = resourceFaultHit("hud.uiatlas.create")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateTexture2D(&description, nullptr, texture.GetAddressOf());
+    if (FAILED(created)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr, "[renderer-resource] refuse surface=hud.uiatlas.create kind=create hresult=0x%08lX size=%d\n",
+        static_cast<unsigned long>(created), kHudTextAtlasSize);
+      std::fflush(stderr);
+      return false;
+    }
+    D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
+    viewDescription.Format = description.Format;
+    viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    viewDescription.Texture2D.MipLevels = 1;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view;
+    if (FAILED(device_->CreateShaderResourceView(texture.Get(), &viewDescription, view.GetAddressOf()))) return false;
+    D3D11_SAMPLER_DESC samplerDescription{};
+    samplerDescription.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescription.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    samplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler;
+    if (FAILED(device_->CreateSamplerState(&samplerDescription, sampler.GetAddressOf()))) return false;
+    hudUiTexture_ = std::move(texture);
+    hudUiView_ = std::move(view);
+    hudUiSampler_ = std::move(sampler);
+    hudUiAtlasRevision_ = ~static_cast<std::uint64_t>(0);  // force the first upload
+  }
+  const std::uint64_t revision = hudTextAtlasRevision();
+  if (revision != hudUiAtlasRevision_) {
+    context_->UpdateSubresource(hudUiTexture_.Get(), 0, nullptr, pixels,
+      static_cast<UINT>(kHudTextAtlasSize), 0);
+    hudUiAtlasRevision_ = revision;
+  }
+  return true;
+}
+
 void Renderer::clearHudImageTexture() {
   // Unbind before releasing: the pass leaves the view in slot 1, and binding a
   // released view is an immediate-context error the next draw would inherit.
@@ -1255,6 +1315,10 @@ void Renderer::shutdown() {
   projectileTrackVertexCount_ = 0;
   gameplayFxVertexBuffer_.Reset();
   gameplayFxVertexCapacity_ = 0;
+  hudUiView_.Reset();
+  hudUiTexture_.Reset();
+  hudUiSampler_.Reset();
+  hudUiAtlasRevision_ = 0;
   projectileTrackPointCount_ = 0;
   entityMarkerVertexBuffer_.Reset();
   entityMarkerVertexCapacity_ = 0;

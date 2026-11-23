@@ -20,7 +20,11 @@
 # The DRAWING half of T69 is deliberately not covered here: it needs T67's HUD
 # primitive layer and arrives with it, so this probe proves the numbers a
 # renderer will consume, not the picture a user will see.
-add_executable(minimap_probe tools/minimap_probe.cpp src/minimap.cpp)
+# F0 (2026-11-23): src/hud_text.cpp too -- the product's DirectWrite HUD text,
+# device-free -- so --hud-text-test exercises the same translation unit the
+# renderer lays its text out with. dwrite is a system DLL (System32).
+add_executable(minimap_probe tools/minimap_probe.cpp src/minimap.cpp src/hud_text.cpp)
 target_include_directories(minimap_probe PRIVATE include)
 target_compile_definitions(minimap_probe PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(minimap_probe PRIVATE dwrite)
 set_target_properties(minimap_probe PROPERTIES WIN32_EXECUTABLE OFF)

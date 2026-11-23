@@ -424,6 +424,12 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     hudGlyphCount_ = 0;
     hudUnmappedGlyphs_ = 0;
     hudImageQuads_ = 0;
+    hudUiTextQuads_ = 0;
+    hudUiGlyphs_ = 0;
+    hudUiMissing_ = 0;
+    hudUiFromFallback_ = 0;
+    hudUiBitmapFallbacks_ = 0;
+    hudUiRelayouts_ = 0;
     hudPassOrdinal_ = 0;
     hudScissorApplied_ = false;
     hudLastRegion_ = HudPixelRectLast{};
@@ -2399,6 +2405,11 @@ void Renderer::drawHudPass() {
     hudGlyphCount_ = 0;
     hudUnmappedGlyphs_ = 0;
     hudImageQuads_ = 0;
+    hudUiTextQuads_ = 0;
+    hudUiGlyphs_ = 0;
+    hudUiMissing_ = 0;
+    hudUiFromFallback_ = 0;
+    hudUiBitmapFallbacks_ = 0;
     hudRectVertexCount_ = 0;
   };
   // Six vertices per quad, 11 floats each: pos2, colour4, local2, uv2, kind1.
@@ -2437,19 +2448,86 @@ void Renderer::drawHudPass() {
       vertices.push_back(kind);
     }
   };
+  // F0: DirectWrite text is laid out inside this loop, and laying out can fill
+  // the glyph atlas and clear it (hud_text.h, generation). Quads emitted before
+  // such a reset point at glyphs that are gone, so the whole list is built again
+  // once against the new generation. The engine is only touched when a primitive
+  // asks for a UI font: a frame without one never initialises DirectWrite.
+  int uiState = -1;  // -1 not asked yet, 0 unavailable, 1 available
+  std::uint32_t uiGeneration = 0;
+  bool uiGenerationKnown = false;
+  for (int attempt = 0; attempt < 2; ++attempt) {
+  if (attempt > 0) {
+    discardPass();
+    hudGlyphCount_ = 0;
+    hudUnmappedGlyphs_ = 0;
+    vertices.clear();
+    regionLeft = width_; regionTop = height_; regionRight = 0; regionBottom = 0;
+    uiGenerationKnown = false;
+  }
   for (const HudPrimitive& primitive : hudPrimitives_) {
     const float width = primitive.w;
     const float height = primitive.h;
-    if (!(width > 0.0f) || !(height > 0.0f)) continue;
+    const bool uiFont = primitive.kind == HudPrimitiveKind::Text && primitive.font != HudTextFont::Bitmap8;
+    // A UI-font primitive is positioned by its anchor, so w/h are not required.
+    if (!uiFont && (!(width > 0.0f) || !(height > 0.0f))) continue;
     // T68: an image primitive with nothing resident would sample an unbound t1.
     // Skipping it is the same outcome as drawing nothing (an unbound fetch reads
     // zero, which blends as transparent), but it also keeps the counter honest:
     // hudImageQuads() answers "quads that read real pixels".
     if (primitive.kind == HudPrimitiveKind::Image && !hudImageView_) continue;
+    float bitmapScale = primitive.scale > 0.0f ? primitive.scale : 1.0f;
+    if (uiFont) {
+      const float pixelSize = primitive.pixelSize > 0.0f ? primitive.pixelSize : 8.0f * bitmapScale;
+      if (uiState < 0) uiState = hudTextAvailable() ? 1 : 0;
+      if (uiState == 1) {
+        if (!uiGenerationKnown) {
+          uiGeneration = hudTextAtlasGeneration();
+          uiGenerationKnown = true;
+        }
+        const HudTextRun run = hudTextLayout(primitive.text, primitive.font, pixelSize,
+          primitive.x, primitive.y, primitive.align, primitive.maxWidth);
+        hudUiMissing_ += run.missing;
+        hudUiFromFallback_ += run.fromFallback;
+        bool drewAny = false;
+        for (const HudTextQuad& glyph : run.quads) {
+          const float left = (std::max)(0.0f, glyph.x0);
+          const float top = (std::max)(0.0f, glyph.y0);
+          const float right = (std::min)(static_cast<float>(width_), glyph.x1);
+          const float bottom = (std::min)(static_cast<float>(height_), glyph.y1);
+          if (!(right > left) || !(bottom > top)) continue;
+          const float spanX = glyph.x1 - glyph.x0;
+          const float spanY = glyph.y1 - glyph.y0;
+          const float uv[4] = {
+            glyph.u0 + (left - glyph.x0) / spanX * (glyph.u1 - glyph.u0),
+            glyph.v0 + (top - glyph.y0) / spanY * (glyph.v1 - glyph.v0),
+            glyph.u0 + (right - glyph.x0) / spanX * (glyph.u1 - glyph.u0),
+            glyph.v0 + (bottom - glyph.y0) / spanY * (glyph.v1 - glyph.v0),
+          };
+          const float locals[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+          pushQuad(left, top, right, bottom, primitive.colour, locals, uv, 5.0f);
+          ++hudUiGlyphs_;
+          drewAny = true;
+          regionLeft = (std::min)(regionLeft, static_cast<int>(left));
+          regionTop = (std::min)(regionTop, static_cast<int>(top));
+          regionRight = (std::max)(regionRight, static_cast<int>(right + 0.999f));
+          regionBottom = (std::max)(regionBottom, static_cast<int>(bottom + 0.999f));
+        }
+        if (drewAny) {
+          ++hudDrawnPrimitives_;
+          ++hudUiTextQuads_;
+        }
+        continue;
+      }
+      // No DirectWrite: the 8x8 path draws it at the nearest whole scale, from the
+      // anchor's left edge, and the fallback is counted.
+      ++hudUiBitmapFallbacks_;
+      bitmapScale = (std::max)(1.0f, std::floor(pixelSize / 8.0f + 0.5f));
+    }
     if (primitive.kind == HudPrimitiveKind::Text) {
       const std::vector<char32_t> codepoints = hudUtf8Decode(primitive.text);
       if (codepoints.empty()) continue;
-      const float scale = primitive.scale > 0.0f ? primitive.scale : 1.0f;
+      const float scale = bitmapScale;
       const float glyphWidth = static_cast<float>(kHudFontGlyphWidth) * scale;
       const float glyphHeight = static_cast<float>(kHudFontGlyphHeight) * scale;
       float penX = primitive.x;
@@ -2531,7 +2609,14 @@ void Renderer::drawHudPass() {
     regionRight = (std::max)(regionRight, static_cast<int>(right + 0.999f));
     regionBottom = (std::max)(regionBottom, static_cast<int>(bottom + 0.999f));
   }
+  if (!uiGenerationKnown || hudTextAtlasGeneration() == uiGeneration) break;
+  ++hudUiRelayouts_;
+  }
   if (vertices.empty()) return;
+  // F0: the glyph atlas has to be resident before the draw that samples it. A
+  // refused upload leaves the kind-5 quads sampling nothing (they discard), and
+  // the refusal is printed by hudUiEnsureAtlas.
+  const bool uiAtlasReady = hudUiTextQuads_ > 0 && hudUiEnsureAtlas();
   const UINT vertexCount = static_cast<UINT>(vertices.size() / 11u);
   if (hudRectCapacity_ < vertexCount) {
     D3D11_BUFFER_DESC description{};
@@ -2627,6 +2712,12 @@ void Renderer::drawHudPass() {
     context_->PSSetShaderResources(1, 1, &imageView);
     context_->PSSetSamplers(1, 1, &imageSampler);
   }
+  if (uiAtlasReady) {
+    auto* uiView = hudUiView_.Get();
+    auto* uiSampler = hudUiSampler_.Get();
+    context_->PSSetShaderResources(2, 1, &uiView);
+    context_->PSSetSamplers(2, 1, &uiSampler);
+  }
   context_->Draw(hudRectVertexCount_, 0);
   hudPassOrdinal_ = ++framePassOrdinal_;
   // Restore the frame's own states so a HUD enabled frame and a HUD disabled
@@ -2642,10 +2733,10 @@ void Renderer::drawHudPass() {
   context_->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFFu);
   context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
   context_->RSSetState(rasterizerState_.Get());
-  ID3D11ShaderResourceView* noTexture[2] = {nullptr, nullptr};
-  context_->PSSetShaderResources(0, 2, noTexture);
-  ID3D11SamplerState* noSampler[2] = {nullptr, nullptr};
-  context_->PSSetSamplers(0, 2, noSampler);
+  ID3D11ShaderResourceView* noTexture[3] = {nullptr, nullptr, nullptr};
+  context_->PSSetShaderResources(0, 3, noTexture);
+  ID3D11SamplerState* noSampler[3] = {nullptr, nullptr, nullptr};
+  context_->PSSetSamplers(0, 3, noSampler);
 }
 
 } // namespace tf2::native

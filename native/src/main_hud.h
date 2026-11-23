@@ -40,6 +40,8 @@ namespace tf2::native::main_internal {
 // ---------------------------------------------------------------- HUD state
 extern tf2::native::HudState g_hud;
 extern bool g_hudTextTest;
+// F0 (2026-11-23): --hud-font-test owns the primitive list while it runs.
+extern bool g_hudFontTest;
 extern bool g_hudTraceEnabled;
 
 // Owned by main.cpp: the tray controls the HUD page writes readings into, and
@@ -65,6 +67,7 @@ void hudPublishTrace(HWND window);
 std::filesystem::path uiSettingsFilePath(std::string& status);
 
 void hudApplyTextTest();
+void hudApplyFontTest();
 void hudApplyRects(HWND window);
 
 // T97: the live readout the frame loop calls once per frame (main.cpp).

@@ -159,6 +159,8 @@ tf2::native::HudState g_hud;
 // layout. A file-scope flag because both the argument scan and the resize path
 // (hudApplyRects) need the same answer.
 bool g_hudTextTest = false;
+// F0 (2026-11-23): --hud-font-test, the DirectWrite text card (hudApplyFontTest).
+bool g_hudFontTest = false;
 // The discovered document is kept in g_hud.settings().layout, which is the value
 // that gets persisted -- a second copy here would be a second thing that can
 // disagree with what the settings file says was imported.
@@ -348,6 +350,101 @@ void hudApplyTextTest() {
   g_renderer->setHudEnabled(true);
 }
 
+// F0 (2026-11-23): the --hud-font-test card. A layout probe for the DirectWrite
+// text path, built like the broadcast HUD's team column (docs/UI-SHELL-DESIGN
+// section 7) so the picture answers "does it read like the reference": a header,
+// a medic row, player rows with right-aligned health (normal / overheal / low),
+// a dead row with a respawn timer, an ellipsized long name, a Cyrillic and a CJK
+// name, and a size ladder. Fixed coordinates and fixed strings, like the T67
+// card above, so two runs on one machine draw the same frame. One trace line
+// per run with the engine's own readings.
+void hudApplyFontTest() {
+  if (!g_renderer) return;
+  using tf2::native::HudTextAlign;
+  using tf2::native::HudTextFont;
+  using Primitive = tf2::native::Renderer::HudPrimitive;
+  using Kind = tf2::native::Renderer::HudPrimitiveKind;
+  std::vector<Primitive> primitives;
+  const auto rect = [&](float x, float y, float w, float h, float r, float g, float b, float a) {
+    Primitive p;
+    p.kind = Kind::Rect;
+    p.filled = true;
+    p.x = x; p.y = y; p.w = w; p.h = h;
+    p.colour[0] = r; p.colour[1] = g; p.colour[2] = b; p.colour[3] = a;
+    primitives.push_back(p);
+  };
+  const auto text = [&](const char* utf8, HudTextFont font, float px, float x, float y,
+      HudTextAlign align, float maxWidth, float r, float g, float b) {
+    Primitive p;
+    p.kind = Kind::Text;
+    p.font = font;
+    p.pixelSize = px;
+    p.align = align;
+    p.maxWidth = maxWidth;
+    p.x = x; p.y = y; p.w = 0.0f; p.h = 0.0f;
+    p.colour[0] = r; p.colour[1] = g; p.colour[2] = b; p.colour[3] = 1.0f;
+    p.text = utf8;
+    primitives.push_back(p);
+  };
+  // Header strip.
+  rect(300.0f, 0.0f, 680.0f, 38.0f, 0.055f, 0.063f, 0.075f, 0.82f);
+  rect(560.0f, 0.0f, 40.0f, 38.0f, 0.235f, 0.490f, 0.651f, 1.0f);
+  rect(760.0f, 0.0f, 40.0f, 38.0f, 0.710f, 0.216f, 0.227f, 1.0f);
+  text("Harbor Lights", HudTextFont::UiSemiBold, 22.0f, 548.0f, 6.0f, HudTextAlign::Right, 240.0f, 0.50f, 0.71f, 0.85f);
+  text("1", HudTextFont::UiBold, 26.0f, 580.0f, 4.0f, HudTextAlign::Center, 0.0f, 1.0f, 1.0f, 1.0f);
+  text("4:12", HudTextFont::UiSemiBold, 24.0f, 680.0f, 5.0f, HudTextAlign::Center, 0.0f, 1.0f, 1.0f, 1.0f);
+  text("0", HudTextFont::UiBold, 26.0f, 780.0f, 4.0f, HudTextAlign::Center, 0.0f, 1.0f, 1.0f, 1.0f);
+  text("Quarry Unit", HudTextFont::UiSemiBold, 22.0f, 812.0f, 6.0f, HudTextAlign::Left, 240.0f, 0.90f, 0.45f, 0.46f);
+  // Team column, BLU, rows 25 px with a 2 px gap.
+  struct Row { const char* name; const char* hp; float fill; int tone; bool dead; };
+  const Row rows[] = {
+    {"Medi Gun", "82", 0.82f, 3, false},
+    {"lolevont", "125", 1.0f, 0, false},
+    {"Spoon bad-dragon.com", "200", 1.0f, 0, false},
+    {"Clav bad-dragon.com", "44", 0.25f, 2, false},
+    {"walker \xD0\xBF\xD0\xBB\xD0\xBE\xD1\x85\xD0\xBE-\xD0\xB4\xD1\x80\xD0\xB0\xD0\xBA\xD0\xBE\xD0\xBD.", "358", 1.0f, 1, false},
+    {"\xE4\xB8\xAD\xE6\x96\x87\xE5\x90\x8D\xE7\x8E\xA9\xE5\xAE\xB6", "115", 0.92f, 0, false},
+    {"dkt bad-dragon.com", "150", 1.0f, 0, false},
+    {"broken", "7s", 0.0f, 0, true},
+    {"yucca", "72", 0.58f, 0, false},
+  };
+  float y = 148.0f;
+  for (const Row& row : rows) {
+    const float h = row.tone == 3 ? 27.0f : 25.0f;
+    rect(0.0f, y, 24.0f, h, 0.055f, 0.063f, 0.075f, 0.55f);
+    rect(24.0f, y, 181.0f, h, 0.055f, 0.063f, 0.075f, row.dead ? 0.45f : 0.62f);
+    if (!row.dead && row.fill > 0.0f) rect(24.0f, y, 181.0f * row.fill, h, 0.235f, 0.490f, 0.651f, 1.0f);
+    const float tr = row.dead ? 0.70f : 0.95f;
+    text(row.name, HudTextFont::UiSemiBold, 16.0f, 30.0f, y + 3.0f, HudTextAlign::Left, 128.0f, tr, tr, tr);
+    float hr = 1.0f, hg = 1.0f, hb = 1.0f;
+    if (row.tone == 1) { hr = 0.49f; hg = 0.88f; hb = 0.48f; }
+    if (row.tone == 2) { hr = 0.95f; hg = 0.66f; hb = 0.23f; }
+    text(row.hp, row.dead ? HudTextFont::UiSemiBold : HudTextFont::UiBold, row.dead ? 14.0f : 17.0f,
+      199.0f, y + (row.dead ? 5.0f : 3.0f), HudTextAlign::Right, 0.0f, hr, hg, hb);
+    y += h + 2.0f + (row.tone == 3 ? 6.0f : 0.0f);
+  }
+  // Size ladder.
+  const float sizes[] = {12.0f, 14.0f, 18.0f, 22.0f, 28.0f, 36.0f};
+  float ladderY = 460.0f;
+  for (const float px : sizes) {
+    char line[64];
+    std::snprintf(line, sizeof(line), "%.0f px  Medic 150  UBER 27%%", static_cast<double>(px));
+    text(line, HudTextFont::UiSemiBold, px, 320.0f, ladderY, HudTextAlign::Left, 0.0f, 1.0f, 1.0f, 1.0f);
+    ladderY += px * 1.35f;
+  }
+  g_renderer->setHudPrimitives(primitives);
+  g_renderer->setHudEnabled(true);
+  const tf2::native::HudTextStats stats = tf2::native::hudTextStats();
+  traceFmt("hud: font-test available=%d reason=%s semibold=\"%s\" bold=\"%s\" faces=%zu primitives=%zu"
+    " lastDraw uiText=%zu uiGlyphs=%zu missing=%zu fromFallback=%zu bitmapFallbacks=%zu relayouts=%zu"
+    " atlasRevision=%llu uploaded=%llu glyphs=%zu resets=%zu",
+    stats.available ? 1 : 0, stats.reason.c_str(), stats.semiBoldFamily.c_str(), stats.boldFamily.c_str(),
+    stats.faces, primitives.size(), g_renderer->hudUiTextQuads(), g_renderer->hudUiGlyphs(),
+    g_renderer->hudUiMissing(), g_renderer->hudUiFromFallback(), g_renderer->hudUiBitmapFallbacks(),
+    g_renderer->hudUiRelayouts(), static_cast<unsigned long long>(stats.revision),
+    static_cast<unsigned long long>(g_renderer->hudUiAtlasRevisionUploaded()), stats.glyphsCached, stats.resets);
+}
+
 // ---- panel label text -----------------------------------------------------
 //
 // WHAT A PANEL'S labelText BECOMES. The document's own string, with the tokens
@@ -478,6 +575,7 @@ HudPanelDraw hudPanelPrimitives(std::vector<tf2::native::Renderer::HudPrimitive>
 void hudApplyRects(HWND window) {
   if (!g_renderer) return;
   if (g_hudTextTest) { hudApplyTextTest(); return; }
+  if (g_hudFontTest) { hudApplyFontTest(); return; }
   RECT client{};
   if (!window || !GetClientRect(window, &client)) { client.right = 1280; client.bottom = 720; }
   const float dpiScale = window ? static_cast<float>(GetDpiForWindow(window)) / 96.0f : 1.0f;
@@ -1567,7 +1665,7 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
   if (!g_renderer) return;
   // While the T67 probe runs it owns the primitive list. Two writers would make
   // the probe's pixel assertions depend on whether this build also has a readout.
-  if (g_hudTextTest) return;
+  if (g_hudTextTest || g_hudFontTest) return;
   hudLiveRegisterSummary();
   ++g_hudLiveCalls;
   // The imported layout's label tokens are answered from the SAME reader the

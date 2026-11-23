@@ -23,6 +23,7 @@
 #include "viewmodel_material.h"
 #include "entity_overlay.h"
 #include "gameplay_effects.h"
+#include "hud_text.h"
 // T85 P0: which budget layer a mesh belongs to. The mesh table below is a cache
 // shared by the world pass, the overlay and the third-person attach, and a
 // refusal now says what it was refused FOR (see entity_mesh_budget.h).
@@ -1630,6 +1631,17 @@ public:
     // at a time (setHudImageTexture), so the quad names its own crop and the pass
     // keeps being one draw call.
     float uv[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+    // F0 (2026-11-23): Text only. `font` Bitmap8 (the default) is T67's 8x8 path,
+    // byte for byte unchanged. UiSemiBold / UiBold are DirectWrite text
+    // (hud_text.h): pixelSize is the em size in back-buffer pixels (0 means
+    // 8 * scale), (x, y) is the anchor and the TOP of the line box, `align` says
+    // which edge x is, and maxWidth > 0 ellipsizes. When DirectWrite is not
+    // available the primitive is drawn by the 8x8 path at pixelSize / 8 and
+    // counted in hudUiBitmapFallbacks(), so text never silently disappears.
+    HudTextFont font = HudTextFont::Bitmap8;
+    float pixelSize = 0.0f;
+    HudTextAlign align = HudTextAlign::Left;
+    float maxWidth = 0.0f;
   };
   // Replaces the whole primitive list; an empty list disables the pass without
   // touching `enabled`, so "no HUD in this document" and "the user turned it
@@ -1651,6 +1663,18 @@ public:
   std::size_t hudTextQuads() const { return hudTextQuads_; }
   std::size_t hudGlyphCount() const { return hudGlyphCount_; }
   std::size_t hudUnmappedGlyphs() const { return hudUnmappedGlyphs_; }
+  // F0: the DirectWrite text readings of the last draw -- text primitives drawn
+  // by that path, glyph quads, code points no installed face had (drawn as '?'),
+  // code points taken from a fallback face, primitives that fell back to the 8x8
+  // path because DirectWrite was unavailable, and the atlas revision resident on
+  // the GPU (0 = never uploaded).
+  std::size_t hudUiTextQuads() const { return hudUiTextQuads_; }
+  std::size_t hudUiGlyphs() const { return hudUiGlyphs_; }
+  std::size_t hudUiMissing() const { return hudUiMissing_; }
+  std::size_t hudUiFromFallback() const { return hudUiFromFallback_; }
+  std::size_t hudUiBitmapFallbacks() const { return hudUiBitmapFallbacks_; }
+  std::size_t hudUiRelayouts() const { return hudUiRelayouts_; }
+  std::uint64_t hudUiAtlasRevisionUploaded() const { return hudUiAtlasRevision_; }
   std::size_t hudPassOrdinal() const { return hudPassOrdinal_; }
   // T68: the one sampled texture the HUD may read besides the font atlas. That
   // is what lets the map overview draw the real top-down image instead of a
@@ -3124,6 +3148,20 @@ private:
   UINT hudImageMipLevels_ = 0;
   std::string hudImageTag_;
   std::size_t hudImageQuads_ = 0;
+  // F0: the DirectWrite glyph atlas (kind 5 quads read it from t2/s2), created on
+  // first use and updated when hud_text's revision moves. Linear filter: these
+  // glyphs are antialiased coverage, unlike the T67 table.
+  Microsoft::WRL::ComPtr<ID3D11Texture2D> hudUiTexture_;
+  Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> hudUiView_;
+  Microsoft::WRL::ComPtr<ID3D11SamplerState> hudUiSampler_;
+  std::uint64_t hudUiAtlasRevision_ = 0;
+  std::size_t hudUiTextQuads_ = 0;
+  std::size_t hudUiGlyphs_ = 0;
+  std::size_t hudUiMissing_ = 0;
+  std::size_t hudUiFromFallback_ = 0;
+  std::size_t hudUiBitmapFallbacks_ = 0;
+  std::size_t hudUiRelayouts_ = 0;
+  bool hudUiEnsureAtlas();
 };
 
 } // namespace tf2::native

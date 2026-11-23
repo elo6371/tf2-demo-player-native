@@ -1494,10 +1494,15 @@ Output main(Input input) {
 //   4 = image: sample the one resident basemap texture with the primitive's own
 //       crop in uv, and multiply by the primitive's colour so a caller can dim or
 //       tint it. The pass binds t1/s1 only when an image primitive is present.
+//   5 = F0 (2026-11-23) antialiased text: the DirectWrite glyph atlas at t2,
+//       linearly filtered, coverage times the colour's alpha. Bound only when a
+//       kind-5 quad is present; paths 0..4 are unchanged.
 Texture2D<float> fontAtlas : register(t0);
 SamplerState fontSampler : register(s0);
 Texture2D<float4> hudImage : register(t1);
 SamplerState hudImageSampler : register(s1);
+Texture2D<float> uiAtlas : register(t2);
+SamplerState uiSampler : register(s2);
 struct Input {
   float4 position : SV_POSITION;
   float4 colour : COLOR0;
@@ -1518,6 +1523,11 @@ float4 main(Input input) : SV_TARGET {
     return input.colour;
   }
   if (kind == 4) return hudImage.Sample(hudImageSampler, input.uv) * input.colour;
+  if (kind == 5) {
+    const float coverage = uiAtlas.Sample(uiSampler, input.uv);
+    if (coverage <= 0.0) discard;
+    return float4(input.colour.rgb, input.colour.a * coverage);
+  }
   if (kind == 1) return input.colour;
   const float edge = min(min(input.local.x, input.local.y),
                          min(1.0 - input.local.x, 1.0 - input.local.y));

@@ -1,12 +1,25 @@
 #include "minimap.h"
+#include "hud_text.h"
 
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <string>
 #include <vector>
 
 namespace {
 
+using tf2::native::HudTextAlign;
+using tf2::native::HudTextFont;
+using tf2::native::HudTextQuad;
+using tf2::native::HudTextRun;
+using tf2::native::HudTextStats;
+using tf2::native::hudTextAtlasPixels;
+using tf2::native::hudTextLayout;
+using tf2::native::hudTextMeasure;
+using tf2::native::hudTextStats;
+using tf2::native::kHudTextAtlasSize;
 using tf2::native::MinimapBounds;
 using tf2::native::MinimapPanel;
 using tf2::native::MinimapPlayerState;
@@ -155,14 +168,116 @@ int runFloorBoundsTest() {
   return failed == 0 ? 0 : 1;
 }
 
+// F0 (2026-11-23): --hud-text-test, the device-free self-test of hud_text.cpp,
+// the DirectWrite HUD text the renderer draws with. It checks the contract, not
+// pixels (those depend on the installed font versions): a face loads; Latin,
+// Cyrillic and CJK resolve (the last two may come from fallback faces); width
+// grows with size; right/centre alignment put the run where they say; an
+// ellipsized run fits its limit; the same layout twice is byte-identical, quads
+// and atlas; an unmappable code point is counted, not dropped silently.
+std::uint32_t atlasHash() {
+  const std::uint8_t* pixels = hudTextAtlasPixels();
+  if (!pixels) return 0u;
+  std::uint32_t hash = 2166136261u;
+  const std::size_t count = static_cast<std::size_t>(kHudTextAtlasSize) * kHudTextAtlasSize;
+  for (std::size_t i = 0; i < count; ++i) { hash ^= pixels[i]; hash *= 16777619u; }
+  return hash;
+}
+
+bool sameQuads(const HudTextRun& a, const HudTextRun& b) {
+  if (a.quads.size() != b.quads.size()) return false;
+  for (std::size_t i = 0; i < a.quads.size(); ++i) {
+    if (std::memcmp(&a.quads[i], &b.quads[i], sizeof(HudTextQuad)) != 0) return false;
+  }
+  return true;
+}
+
+int runHudTextTest() {
+  int checks = 0;
+  int failed = 0;
+  const auto expect = [&](const char* name, bool ok) {
+    ++checks;
+    if (!ok) ++failed;
+    std::printf("hud-text: check %s=%s\n", name, ok ? "ok" : "FAIL");
+  };
+  const HudTextStats initial = hudTextStats();
+  std::printf("hud-text: engine available=%d reason=%s semibold=\"%s\" bold=\"%s\" faces=%zu\n",
+    initial.available ? 1 : 0, initial.reason.c_str(), initial.semiBoldFamily.c_str(),
+    initial.boldFamily.c_str(), initial.faces);
+  expect("available", initial.available);
+  if (!initial.available) {
+    std::printf("hud-text: verdict=FAIL checks=%d failed=%d\n", checks, failed);
+    return 1;
+  }
+  const std::string latin = "Medi Gun 82 Kestrel";
+  const std::string cyrillic = "\xD0\xBF\xD0\xBB\xD0\xBE\xD1\x85\xD0\xBE";            // плохо
+  const std::string cjk = "\xE4\xB8\xAD\xE6\x96\x87\xE5\x90\x8D";                    // 中文名
+  const HudTextRun a = hudTextLayout(latin, HudTextFont::UiSemiBold, 18.0f, 100.0f, 40.0f, HudTextAlign::Left, 0.0f);
+  const std::uint32_t hashAfterA = atlasHash();
+  const HudTextRun again = hudTextLayout(latin, HudTextFont::UiSemiBold, 18.0f, 100.0f, 40.0f, HudTextAlign::Left, 0.0f);
+  const std::uint32_t hashAfterAgain = atlasHash();
+  const HudTextRun big = hudTextLayout(latin, HudTextFont::UiSemiBold, 28.0f, 100.0f, 40.0f, HudTextAlign::Left, 0.0f);
+  const HudTextRun right = hudTextLayout(latin, HudTextFont::UiSemiBold, 18.0f, 500.0f, 40.0f, HudTextAlign::Right, 0.0f);
+  const HudTextRun centre = hudTextLayout(latin, HudTextFont::UiSemiBold, 18.0f, 300.0f, 40.0f, HudTextAlign::Center, 0.0f);
+  const HudTextRun cut = hudTextLayout("SDCK AlesKee tf2easy.com", HudTextFont::UiSemiBold, 18.0f, 0.0f, 0.0f, HudTextAlign::Left, 120.0f);
+  const HudTextRun ru = hudTextLayout(cyrillic, HudTextFont::UiSemiBold, 18.0f, 0.0f, 0.0f, HudTextAlign::Left, 0.0f);
+  const HudTextRun zh = hudTextLayout(cjk, HudTextFont::UiSemiBold, 18.0f, 0.0f, 0.0f, HudTextAlign::Left, 0.0f);
+  const HudTextRun bold = hudTextLayout("358", HudTextFont::UiBold, 18.0f, 0.0f, 0.0f, HudTextAlign::Left, 0.0f);
+  // U+10FFFD, the last plane-16 private-use code point: no shipped face maps it.
+  const HudTextRun nothing = hudTextLayout("\xF4\x8F\xBF\xBD", HudTextFont::UiSemiBold, 18.0f, 0.0f, 0.0f, HudTextAlign::Left, 0.0f);
+  const float measured = hudTextMeasure(latin, HudTextFont::UiSemiBold, 18.0f);
+  std::printf("hud-text: latin px=%d width=%.2f quads=%zu lineHeight=%.0f ascent=%.0f fallback=%zu missing=%zu\n",
+    a.pixelSize, static_cast<double>(a.width), a.quads.size(), static_cast<double>(a.lineHeight),
+    static_cast<double>(a.ascent), a.fromFallback, a.missing);
+  std::printf("hud-text: big width=%.2f right left=%.2f centre left=%.2f cut width=%.2f ellipsized=%d\n",
+    static_cast<double>(big.width), static_cast<double>(right.left), static_cast<double>(centre.left),
+    static_cast<double>(cut.width), cut.ellipsized ? 1 : 0);
+  std::printf("hud-text: cyrillic quads=%zu fallback=%zu missing=%zu cjk quads=%zu fallback=%zu missing=%zu privateUse missing=%zu\n",
+    ru.quads.size(), ru.fromFallback, ru.missing, zh.quads.size(), zh.fromFallback, zh.missing, nothing.missing);
+  expect("latin-drawn", a.quads.size() >= 15u && a.width > 50.0f && a.missing == 0u);
+  expect("measure-matches-layout", std::fabs(measured - a.width) < 0.01f);
+  expect("deterministic-quads", sameQuads(a, again));
+  // The second identical layout finds every glyph cached: nothing is written.
+  expect("deterministic-atlas", hashAfterA != 0u && hashAfterA == hashAfterAgain);
+  expect("bigger-is-wider", big.width > a.width * 1.4f);
+  expect("right-align", std::fabs(right.left + right.width - 500.0f) < 0.01f);
+  expect("centre-align", std::fabs(centre.left + centre.width * 0.5f - 300.0f) < 0.01f);
+  expect("ellipsis-fits", cut.ellipsized && cut.width <= 120.01f && !cut.quads.empty());
+  expect("cyrillic-resolves", ru.missing == 0u && ru.quads.size() == 5u);
+  expect("cjk-resolves", zh.missing == 0u && zh.quads.size() == 3u);
+  expect("bold-loads", !bold.quads.empty());
+  expect("unmappable-counted", nothing.missing == 1u);
+  expect("quads-inside-atlas", [&]() {
+    for (const HudTextRun* run : {&a, &big, &ru, &zh}) {
+      for (const HudTextQuad& q : run->quads) {
+        if (!(q.u0 >= 0.0f && q.v0 >= 0.0f && q.u1 <= 1.0f && q.v1 <= 1.0f && q.u1 > q.u0 && q.v1 > q.v0)) return false;
+      }
+    }
+    return true;
+  }());
+  // Re-laying the first run after many others must still produce the same quads
+  // (same generation, glyphs cached, nothing moved).
+  const HudTextRun later = hudTextLayout(latin, HudTextFont::UiSemiBold, 18.0f, 100.0f, 40.0f, HudTextAlign::Left, 0.0f);
+  expect("cache-stable", sameQuads(a, later) || later.generation != a.generation);
+  const HudTextStats stats = hudTextStats();
+  std::printf("hud-text: stats glyphs=%zu rasterized=%zu resets=%zu atlasUsedHeight=%d revision=%llu generation=%u faces=%zu\n",
+    stats.glyphsCached, stats.rasterized, stats.resets, stats.atlasUsedHeight,
+    static_cast<unsigned long long>(stats.revision), static_cast<unsigned>(stats.generation), stats.faces);
+  std::printf("hud-text: verdict=%s checks=%d failed=%d\n", failed == 0 ? "PASS" : "FAIL", checks, failed);
+  return failed == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (argc == 2 && std::string(argv[1]) == "--hud-text-test") {
+    return runHudTextTest();
+  }
   if (argc == 2 && std::string(argv[1]) == "--floor-bounds-test") {
     return runFloorBoundsTest();
   }
   if (argc != 2 || std::string(argv[1]) != "--minimap-test") {
-    std::fprintf(stderr, "usage: minimap_probe --minimap-test\n");
+    std::fprintf(stderr, "usage: minimap_probe --minimap-test | --floor-bounds-test | --hud-text-test\n");
     return 2;
   }
 

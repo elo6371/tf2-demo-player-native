@@ -116,6 +116,12 @@ inline int g_cliGameplayFxUberSource = 0;
 // so a capture taken after it must equal one taken without it.
 inline bool g_cliFullscreen = false;
 inline int g_cliFullscreenSelfTest = 0;
+// F0 (2026-11-23) --hud-font-test: draw the DirectWrite text card (main_hud.cpp
+// hudApplyFontTest) instead of any HUD, and print one "hud: font-test" line.
+// --hud-font-family <name>: put a font family in front of the built-in list
+// (Bahnschrift SemiCondensed, Bahnschrift, Segoe UI). A family the system does
+// not have is skipped, which the font-test line shows as the family it used.
+inline bool g_cliHudFontTest = false;
 
 struct FlagSpec {
   const wchar_t* name;
@@ -492,6 +498,22 @@ inline const FlagSpec kFeatureFlagTable[] = {
     std::fprintf(stderr, "--fullscreen: expected on or off\n");
     std::fflush(stderr);
     return false;
+  }},
+  {L"--hud-font-test", FlagArity::Zero, [](CliParseEnv&, LPWSTR*, int, int&) {
+    g_cliHudFontTest = true;
+    return true;
+  }},
+  {L"--hud-font-family", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    if (value.empty() || value.size() > 64) {
+      std::fprintf(stderr, "--hud-font-family: expected a family name (1..64 characters)\n");
+      std::fflush(stderr);
+      return false;
+    }
+    tf2::native::hudTextSetPreferredFamily(value);
+    ++i;
+    return true;
   }},
   {L"--fullscreen-selftest", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
     if (i + 1 >= argumentCount) return false;
