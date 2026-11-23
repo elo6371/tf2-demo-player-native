@@ -277,6 +277,16 @@ bool runCameraScriptStep() {
     if (after != wanted) return fail("refused");
     return ok(after ? std::string("fullscreen") : std::string("windowed"));
   }
+  // N16 (2026-11-23): picture in picture's layout, scriptable for the same reason
+  // the step above exists. The step drives the same setter --pane-layout does and
+  // reports the layout the renderer is actually in, so a gate can compare the two
+  // pane rectangles the trace prints without a synthetic key or a second run.
+  if (step.command == "pane-layout") {
+    if (step.args.empty()) return fail("bad-argument");
+    std::string applied;
+    if (!setPaneLayoutNamed(step.args[0].c_str(), "script", &applied)) return fail("bad-argument");
+    return ok(applied);
+  }
   // I1 (2026-11-23): the mouse click's player switch, scriptable so a gate can
   // drive it without synthesising input. Same function the click calls.
   if (step.command == "switch-player") {

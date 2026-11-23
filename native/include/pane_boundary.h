@@ -51,6 +51,26 @@ inline const char* paneCameraSourceName(PaneCameraSource source) {
   return "none";
 }
 
+// N16 (2026-11-23): how more than one pane shares the one surface.
+//   Split -- the U4 step 2 shape: disjoint halves that tile the client exactly
+//            once, side by side.
+//   Pip   -- picture in picture: pane 0 keeps the whole client, every other pane
+//            is a smaller rectangle drawn over it, so the client is covered
+//            twice on purpose.
+// The layout is RECORDED rather than inferred from the rectangles, because the
+// same rectangle set can be right in one layout and broken in the other: two
+// clientsized panes tile nothing, and one client plus one inset tiles nothing
+// either. A predicate that guessed would have to accept both readings.
+enum class PaneLayout { Split = 0, Pip = 1 };
+
+inline const char* paneLayoutName(PaneLayout layout) {
+  switch (layout) {
+  case PaneLayout::Pip: return "pip";
+  case PaneLayout::Split: break;
+  }
+  return "split";
+}
+
 // Two panes is the U4 step 2 shape. The array is sized here rather than left
 // dynamic so a four-window budget has to bump this constant on purpose -- the
 // same review the predicate's bits ask for.
@@ -166,6 +186,10 @@ struct PaneBoundaryReadings {
   // one pane -- but such a caller must also fill panes[0], because R4 checks
   // that the two spellings agree.
   std::uint32_t paneCount = 1u;
+  // Which arrangement R8 must check these rectangles against. Defaults to the
+  // split because that is the only layout this struct described before N16, so a
+  // reading that never learned about layouts still describes the frame it made.
+  PaneLayout layout = PaneLayout::Split;
   PaneBoundaryPaneReadings panes[kPaneMaxPanes]{};
 };
 
@@ -219,31 +243,57 @@ inline std::uint32_t paneBoundaryMismatches(const PaneBoundaryReadings& readings
     if (pane.width == 0u || pane.height == 0u) mismatches |= kPaneMismatchViewportExtent;
     if (pane.camera == PaneCameraSource::None) mismatches |= kPaneMismatchCamera;
   }
-  // R8: the pane rectangles must tile the client -- inside it, pairwise
-  // disjoint, and covering it exactly once. Two panes that both claim the left
-  // half overlap; two panes that both claim the full client cover it twice;
-  // a split that leaves a strip uncovered covers it zero times.
+  // R8: the pane rectangles must be arranged the way the layout says.
+  //   Split: they tile the client -- inside it, pairwise disjoint, covering it
+  //   exactly once. Two panes that both claim the left half overlap; two panes
+  //   that both claim the full client cover it twice; a split that leaves a
+  //   strip uncovered covers it zero times.
+  //   Inset (N16): the client is covered ONCE by pane 0 and the inset panes are
+  //   drawn over it, so disjointness is the intent rather than the defect. What
+  //   can still be wrong is which rectangle is called the base and whether an
+  //   inset really is an inset: pane 0 must be all four client edges, and every
+  //   other pane must sit inside the client and be smaller than it in at least
+  //   one dimension. An inset that grew to the whole client is not a picture in
+  //   picture; it is a second full-screen pane nobody asked for.
   bool layoutBroken = false;
-  std::uint64_t coveredArea = 0ull;
-  for (std::uint32_t i = 0; i < paneCount && i < kPaneMaxPanes; ++i) {
-    const PaneBoundaryPaneReadings& pane = readings.panes[i];
-    if (static_cast<std::uint64_t>(pane.x) + pane.width > readings.clientWidth
-        || static_cast<std::uint64_t>(pane.y) + pane.height > readings.clientHeight) {
+  if (readings.layout == PaneLayout::Pip) {
+    if (readings.panes[0].x != 0u || readings.panes[0].y != 0u
+        || readings.panes[0].width != readings.clientWidth
+        || readings.panes[0].height != readings.clientHeight) {
       layoutBroken = true;
     }
-    coveredArea += static_cast<std::uint64_t>(pane.width) * pane.height;
-    for (std::uint32_t j = 0; j < i; ++j) {
-      const PaneBoundaryPaneReadings& other = readings.panes[j];
-      const bool disjoint =
-        static_cast<std::uint64_t>(pane.x) + pane.width <= other.x
-        || static_cast<std::uint64_t>(other.x) + other.width <= pane.x
-        || static_cast<std::uint64_t>(pane.y) + pane.height <= other.y
-        || static_cast<std::uint64_t>(other.y) + other.height <= pane.y;
-      if (!disjoint) layoutBroken = true;
+    for (std::uint32_t i = 1u; i < paneCount && i < kPaneMaxPanes; ++i) {
+      const PaneBoundaryPaneReadings& pane = readings.panes[i];
+      if (static_cast<std::uint64_t>(pane.x) + pane.width > readings.clientWidth
+          || static_cast<std::uint64_t>(pane.y) + pane.height > readings.clientHeight) {
+        layoutBroken = true;
+      }
+      if (pane.width >= readings.clientWidth || pane.height >= readings.clientHeight) {
+        layoutBroken = true;
+      }
     }
-  }
-  if (coveredArea != static_cast<std::uint64_t>(readings.clientWidth) * readings.clientHeight) {
-    layoutBroken = true;
+  } else {
+    std::uint64_t coveredArea = 0ull;
+    for (std::uint32_t i = 0; i < paneCount && i < kPaneMaxPanes; ++i) {
+      const PaneBoundaryPaneReadings& pane = readings.panes[i];
+      if (static_cast<std::uint64_t>(pane.x) + pane.width > readings.clientWidth
+          || static_cast<std::uint64_t>(pane.y) + pane.height > readings.clientHeight) {
+        layoutBroken = true;
+      }
+      coveredArea += static_cast<std::uint64_t>(pane.width) * pane.height;
+      for (std::uint32_t j = 0; j < i; ++j) {
+        const PaneBoundaryPaneReadings& other = readings.panes[j];
+        const bool disjoint =
+          static_cast<std::uint64_t>(pane.x) + pane.width <= other.x
+          || static_cast<std::uint64_t>(other.x) + other.width <= pane.x
+          || static_cast<std::uint64_t>(pane.y) + pane.height <= other.y
+          || static_cast<std::uint64_t>(other.y) + other.height <= pane.y;
+        if (!disjoint) layoutBroken = true;
+      }
+    }
+    if (coveredArea != static_cast<std::uint64_t>(readings.clientWidth) * readings.clientHeight) {
+      layoutBroken = true;
+    }
   }
   if (layoutBroken) mismatches |= kPaneMismatchPaneLayout;
   // R9: a pane that reports another pane's view matrix while having been built

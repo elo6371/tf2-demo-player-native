@@ -2656,6 +2656,31 @@ bool toggleProductFullscreen(const char* source) {
   return applied;
 }
 
+// N16 (2026-11-23): picture in picture's layout, scriptable for the same reason
+// the fullscreen toggle above is -- a gate has to prove the inset rectangles
+// without a synthetic mouse click. --pane-layout and the camera script's
+// 'pane-layout' step both end here, so the value the renderer holds is written in
+// exactly one place and the trace names which source set it.
+bool setPaneLayoutNamed(const char* name, const char* source, std::string* applied) {
+  if (!name || !name[0]) return false;
+  PaneLayout layout = PaneLayout::Split;
+  if (std::strcmp(name, "pip") == 0) {
+    layout = PaneLayout::Pip;
+  } else if (std::strcmp(name, "split") != 0 && std::strcmp(name, "side") != 0) {
+    return false;
+  }
+  if (!g_renderer) return false;
+  g_renderer->setPaneLayout(layout);
+  const std::string now = paneLayoutName(g_renderer->paneLayout());
+  if (applied) *applied = now;
+  // Reported in the state the product is in, and with whether a split is
+  // composing two panes at all: a layout on a single-pane run changes no pixel,
+  // and the line says so instead of implying the inset exists.
+  traceFmt("paneLayout: layout=%s source=%s split=%d",
+    now.c_str(), source ? source : "-", g_paneSplit ? 1 : 0);
+  return true;
+}
+
 }  // namespace tf2::native::main_internal
 
 namespace {
@@ -4549,6 +4574,23 @@ bool outlineVertexExtent = false;
       // follows it. Leaving the latch to the end of the loop is what made a
       // --pane-activate trace say split=0 on a run that was split.
       if (wcscmp(arguments[i], L"--pane-split") == 0) { paneSplit = true; g_paneSplit = true; continue; }
+      // N16 (2026-11-23): --pane-split says there ARE two panes; --pane-layout says
+      // how they share the client. Inset is picture in picture: pane 0 keeps the
+      // whole client and pane 1 is a smaller rectangle in the bottom-right corner.
+      // Parsed in command-line order like the switch above, so a run that puts
+      // --pane-layout before --pane-split still gets its layout, and the trace says
+      // whether the split was already in effect when the flag was read.
+      if (wcscmp(arguments[i], L"--pane-layout") == 0 && i + 1 < argumentCount) {
+        const wchar_t* layoutArg = arguments[++i];
+        char layoutNameUtf8[16]{};
+        WideCharToMultiByte(CP_UTF8, 0, layoutArg, -1, layoutNameUtf8,
+          static_cast<int>(std::size(layoutNameUtf8)) - 1, nullptr, nullptr);
+        std::string appliedLayout;
+        if (!tf2::native::main_internal::setPaneLayoutNamed(layoutNameUtf8, "cli", &appliedLayout)) {
+          traceFmt("paneLayout: layout rejected=%s", layoutNameUtf8);
+        }
+        continue;
+      }
       if (wcscmp(arguments[i], L"--pane1-orbit") == 0 && i + 3 < argumentCount) {
         const float pane1Yaw = static_cast<float>(_wtof(arguments[++i]));
         const float pane1Pitch = static_cast<float>(_wtof(arguments[++i]));
@@ -17491,6 +17533,16 @@ bool outlineVertexExtent = false;
           pane.viewports, tf2::native::paneCameraSourceName(pane.camera),
           pane.hudPasses, pane.hudScissorApplied ? 1 : 0,
           g_renderer->paneBoundaryMismatches());
+        // N16 (2026-11-23): the rectangles the frame actually bound, one pane at a
+        // time, and which layout R8 checked them against. Additive on purpose: the
+        // line above is what the existing gates read, so picture in picture gets
+        // its own line rather than a wider one.
+        traceFmt("pane: layout=%s draw=%u panes=%u p0=%u,%u,%ux%u p1=%u,%u,%ux%u"
+          " client=%ux%u mismatches=0x%x",
+          tf2::native::paneLayoutName(pane.layout), pane.drawOrdinal, pane.paneCount,
+          pane.panes[0].x, pane.panes[0].y, pane.panes[0].width, pane.panes[0].height,
+          pane.panes[1].x, pane.panes[1].y, pane.panes[1].width, pane.panes[1].height,
+          pane.clientWidth, pane.clientHeight, g_renderer->paneBoundaryMismatches());
       }
       if (captureRequested && g_renderer) {
         // U4 step 2b: the budget readings the split introduced. depthTargets is the

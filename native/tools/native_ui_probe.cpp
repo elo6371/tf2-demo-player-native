@@ -400,6 +400,37 @@ void checkPaneBoundary(Readings& readings) {
     expectOnly(bad, kPaneMismatchPaneLayout, "pane: two panes claiming the same half break the layout rule"); }
   { PaneBoundaryReadings bad = split; bad.panes[1].width = 639u;
     expectOnly(bad, kPaneMismatchPaneLayout, "pane: a split that leaves a strip uncovered breaks the layout rule"); }
+  // N16 (2026-11-23): picture in picture. The inset layout is clean when pane 0 is
+  // the client and the inset sits inside it, and it is broken when the inset grew
+  // to the client or pane 0 stopped being the client. Both are fed through the
+  // same predicate as the split cases above: R8 must be layout-aware rather than
+  // simply relaxed, or an inset frame would be accepted by a rule that no longer
+  // checks anything.
+  PaneBoundaryReadings inset = pristine;
+  inset.layout = PaneLayout::Pip;
+  inset.paneCount = 2u;
+  inset.viewports = 2u;
+  inset.panes[0].width = 1280u;
+  inset.panes[0].height = 720u;
+  inset.panes[1].x = 1080u;
+  inset.panes[1].y = 520u;
+  inset.panes[1].width = 160u;
+  inset.panes[1].height = 120u;
+  inset.panes[1].camera = PaneCameraSource::Orbit;
+  inset.panes[1].viewHash = 0x1111u;
+  inset.panes[1].cameraFingerprint = 0x2222u;
+  inset.panes[1].cameraSlot = 1u;
+  check(paneBoundaryMismatches(inset) == kPaneMismatchNone,
+    "pane: an inset pane over a client-sized pane 0 is clean in the inset layout");
+  { PaneBoundaryReadings bad = inset; bad.panes[1].width = 1280u; bad.panes[1].height = 720u;
+    bad.panes[1].x = 0u; bad.panes[1].y = 0u;
+    expectOnly(bad, kPaneMismatchPaneLayout, "pane: an inset that grew to the whole client breaks the layout rule"); }
+  { PaneBoundaryReadings bad = inset; bad.panes[0].x = 40u;
+    expectOnly(bad, kPaneMismatchPaneLayout, "pane: an inset frame whose pane 0 is not the client breaks the layout rule"); }
+  // The same rectangles read as a SPLIT are broken (they overlap), which is the
+  // claim that makes the layout field load-bearing rather than decorative.
+  { PaneBoundaryReadings bad = inset; bad.layout = PaneLayout::Split;
+    expectOnly(bad, kPaneMismatchPaneLayout, "pane: inset rectangles read as a split break the layout rule"); }
   check(covered == kPaneMismatchAll, "pane: all ten rules are separately reachable");
 
   // A frame with the HUD off must stay clean: the scissor rule is about a pass
@@ -419,7 +450,7 @@ void checkPaneBoundary(Readings& readings) {
   // field a draw fills. Proving the predicate and proving the fill are two
   // different claims; this one is the product trace's `pane:` line.
   readings.set("paneBoundaryRules", 10u);
-  readings.set("paneBoundaryNegatives", 13u);
+  readings.set("paneBoundaryNegatives", 16u);
   readings.set("paneCameraSources", 3u);
 }
 

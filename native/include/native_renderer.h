@@ -1735,6 +1735,17 @@ public:
   void clearPaneCameraDemoView(std::uint32_t pane);
   void orbitPaneCamera(std::uint32_t pane, float deltaX, float deltaY);
   void zoomPaneCamera(std::uint32_t pane, float delta);
+  // N16 (2026-11-23): picture in picture. In the split layout the panes divide
+  // the client into disjoint halves; in the inset layout pane 0 keeps the whole
+  // client and pane 1 is a smaller rectangle drawn over it in the bottom-right
+  // corner, one part in sixteen of the client away from the edges. The layout is
+  // a renderer setting rather than a draw() argument because the pane rectangles
+  // are computed inside drawPaneInternal, one pane at a time, and the contract in
+  // pane_boundary.h has to be checked against the rectangles a frame actually
+  // bound -- so the layout is recorded with them (paneBoundary_.layout) and read
+  // back by the gate.
+  void setPaneLayout(PaneLayout layout);
+  PaneLayout paneLayout() const { return paneLayout_; }
   // The frame that was drawn, for the budget trace: panes composed, whole-surface
   // depth clears, and draw passes across all panes (the HUD pass included).
   std::uint32_t paneCountLastFrame() const { return paneBoundary_.paneCount; }
@@ -3129,6 +3140,10 @@ private:
   // depth clears per frame so the budget trace can state one; framePassOrdinal_
   // is reset once per frame (pane 0) and then grows across panes.
   PaneCameraState paneCameras_[kPaneMaxPanes]{};
+  // How the panes share the surface this frame (N16). Split ships as the default
+  // because it is the only layout that existed before, so every existing capture
+  // and every existing gate keeps the frame it had.
+  PaneLayout paneLayout_ = PaneLayout::Split;
   std::uint32_t paneIndexThisDraw_ = 0;
   std::uint32_t paneCountThisDraw_ = 1;
   std::uint32_t paneDepthClears_ = 0;

@@ -243,6 +243,13 @@ void Renderer::syncPrimaryPaneCamera() {
   camera.orbitDistance = cameraDistance_;
 }
 
+void Renderer::setPaneLayout(PaneLayout layout) {
+  // A single-pane frame is unaffected: drawPaneInternal only consults the layout
+  // when it composes more than one pane, so this cannot move the frame a
+  // non-split run draws.
+  paneLayout_ = layout;
+}
+
 void Renderer::setPaneCameraOrbit(std::uint32_t pane, float yaw, float pitch, float distance) {
   if (pane == 0u || pane >= kPaneMaxPanes) return;  // pane 0 belongs to the orbit camera
   PaneCameraState& camera = paneCameras_[pane];
@@ -338,9 +345,27 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   // frame, half of it in a split (the remainder goes to the right pane, so an odd
   // width loses no column).
   std::uint32_t paneX = 0;
+  std::uint32_t paneY = 0;
   std::uint32_t paneWidth = width_;
   std::uint32_t paneHeight = height_;
-  if (paneCount > 1u) {
+  if (paneCount > 1u && paneLayout_ == PaneLayout::Pip) {
+    // N16: picture in picture. Pane 0 keeps the whole surface; every later pane
+    // is an inset over it -- here the bottom-right corner, three tenths of the
+    // client in each direction, one part in sixteen of the client away from the
+    // two edges it touches. The rects are clamped rather than trusted: a 4x4
+    // surface must still produce at least one pixel per pane instead of a
+    // viewport D3D would reject.
+    if (paneIndex != 0u) {
+      const std::uint32_t insetWidth = std::max<std::uint32_t>(1u, width_ * 3u / 10u);
+      const std::uint32_t insetHeight = std::max<std::uint32_t>(1u, height_ * 3u / 10u);
+      const std::uint32_t marginX = std::min<std::uint32_t>(width_ / 16u, width_ - 1u);
+      const std::uint32_t marginY = std::min<std::uint32_t>(height_ / 16u, height_ - 1u);
+      paneWidth = std::min(insetWidth, width_);
+      paneHeight = std::min(insetHeight, height_);
+      paneX = width_ - paneWidth - marginX;
+      paneY = height_ - paneHeight - marginY;
+    }
+  } else if (paneCount > 1u) {
     const std::uint32_t leftWidth = width_ / 2u;
     paneWidth = paneIndex == 0u ? leftWidth : width_ - leftWidth;
     paneX = paneIndex == 0u ? 0u : leftWidth;
@@ -378,6 +403,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
                                           : worldNoCullRasterizerState_.Get());
   D3D11_VIEWPORT viewport{};
   viewport.TopLeftX = static_cast<float>(paneX);
+  viewport.TopLeftY = static_cast<float>(paneY);
   viewport.Width = static_cast<float>(paneWidth);
   viewport.Height = static_cast<float>(paneHeight);
   viewport.MinDepth = 0.0f;
@@ -398,6 +424,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     paneBoundary_.viewportWidth = paneWidth;
     paneBoundary_.viewportHeight = paneHeight;
     paneBoundary_.paneCount = paneCount;
+    paneBoundary_.layout = paneLayout_;
     paneBoundary_.clientWidth = window_
       ? static_cast<std::uint32_t>(paneClientRect.right - paneClientRect.left) : 0u;
     paneBoundary_.clientHeight = window_
@@ -730,7 +757,7 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
     // state array index: two panes quoting one slot is the shared-camera defect,
     // whatever their matrices say.
     paneBoundary_.panes[paneIndex].x = paneX;
-    paneBoundary_.panes[paneIndex].y = 0u;
+    paneBoundary_.panes[paneIndex].y = paneY;
     paneBoundary_.panes[paneIndex].width = paneWidth;
     paneBoundary_.panes[paneIndex].height = paneHeight;
     paneBoundary_.panes[paneIndex].camera = paneCameraSource;

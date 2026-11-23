@@ -185,6 +185,11 @@ void fullscreenRefit(HWND window, const char* reason);
 // gate cannot disagree about what the key does. source is the stable trace word
 // ("f11", "script"); returns true when the window ends in the requested state.
 bool toggleProductFullscreen(const char* source);
+// N16 (2026-11-23): the pane layout --pane-layout sets, declared so the camera
+// script can drive it too. name is "split" or "inset"; source is the stable trace
+// word ("cli", "script"); applied receives the layout the renderer holds
+// afterwards. Returns false on an unknown name or before a renderer exists.
+bool setPaneLayoutNamed(const char* name, const char* source, std::string* applied);
 // --fullscreen-selftest N: N enter/exit cycles, each checked against the monitor
 // rect and against the rect, client size, style, zoom and visibility the window
 // had before the first one. One trace line; returns true on status=pass.

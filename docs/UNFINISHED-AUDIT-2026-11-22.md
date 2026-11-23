@@ -351,7 +351,7 @@ AUDIO_DEVICE=6 bash tools/lockrun.sh audio -- bash verify-audio.sh
 | 8 | 世界残差重测（94 px / fallback / 849,919） | S | **否**（本身就是跑） | 无 | 8：可能直接关掉三条旧账 |
 | 9 | 音频 `--audio-device-recover` | M | 是 | 低（默认关） | 9：注入 backend 可单测；热插拔与听感需人 |
 | 10 | 动画：先查第 26 步回归，再 `--aim-layer-heading` | M | 否（回归归因要跑） | 中（player-animation 门禁本就红） | 10：基线不稳前不要动动画 |
-| 11 | N16 `--pane-layout pip` | M | 是 | 低–中（自检规则需按布局区分） | 11：且需新增 pane-split 门禁 |
+| 11 | ~~N16 `--pane-layout pip`~~ **已完成（2026-11-23）**：`PaneLayout` 枚举 + 按布局区分的 R8、pane 1 右下角 3/10 内嵌、`pane-pip-check.sh` | M | 是 | 低–中（自检规则需按布局区分） | 11：且需新增 pane-split 门禁 |
 | 12 | N27 `--capture-sequence`（先不接 MF） | M | 是 | 低（默认不进入） | 12：解决"帧集合依赖负载"后再做编码 |
 | 13 | N09 探针：被拒 brush ∩ 录像实体 | S–M | 是 | 无（只改探针） | 13：产品侧动态 brush 是 M–L |
 | 14 | HUD 面板贴图图集 | M–L | 是 | 中（与 overview 共用唯一图像槽） | 14 |
