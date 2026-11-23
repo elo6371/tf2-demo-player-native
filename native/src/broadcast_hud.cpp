@@ -54,6 +54,10 @@ constexpr float kHealthLowColour[4] = {0.95f, 0.62f, 0.20f, 1.0f};
 constexpr float kHealthOverColour[4] = {0.45f, 0.88f, 0.72f, 1.0f};
 constexpr float kChargeColour[4] = {0.95f, 0.78f, 0.26f, 1.0f};
 constexpr float kChargeReadyColour[4] = {1.0f, 0.42f, 0.38f, 1.0f};
+// H1b: the cell while the uber is actually firing. White is the design's word for
+// it (UI-SHELL-DESIGN section 9.2 line 225) and it is the one colour in the row a
+// director can see from across the room.
+constexpr float kChargeActiveColour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 constexpr float kBarTrackColour[4] = {0.10f, 0.11f, 0.14f, 0.90f};
 
 float clampf(double value, double low, double high) {
@@ -105,6 +109,19 @@ const float* teamColour(std::int32_t team) {
   if (team == 2) return kTeamRedColour;
   if (team == 3) return kTeamBluColour;
   return kTeamNeutralColour;
+}
+
+// The medic cell's kind letter (design section 9.2: Kritz, QuickFix and Vaccinator
+// are told apart by the item number P4 already resolved). Stock Uber gets U rather
+// than the design's U-umlaut: the cell is drawn with the product's DirectWrite face
+// and U is guaranteed present, while a missing glyph would render as a box.
+const char* chargeKindLetter(int kind) {
+  switch (kind) {
+    case 1: return "K";
+    case 2: return "Q";
+    case 3: return "V";
+    default: return "U";
+  }
 }
 
 // The class letter is the fallback for a VGUI portrait this install does not have:
@@ -340,8 +357,14 @@ BroadcastHudDraw broadcastHudCompose(const BroadcastHudInput& input) {
       }
       if (entry.gun != nullptr) {
         row.chargeKnown = entry.gun->chargeKnown;
-        row.chargeFraction = entry.gun->chargeKnown ? entry.gun->chargeLevel : 0.0;
+        row.chargeKind = entry.gun->kind;
         row.chargeRelease = entry.gun->chargeRelease;
+        // A dead medic has no charge: the design zeroes the cell rather than
+        // remembering what the gun held when he went down.
+        row.chargeActive = entry.gun->chargeRelease && player.alive;
+        row.chargeSeconds = row.chargeActive ? entry.gun->uberSeconds : 0.0;
+        row.chargeFraction = entry.gun->chargeKnown && player.alive
+          ? entry.gun->chargeLevel : 0.0;
         row.chargePercent = static_cast<int>(std::lround(row.chargeFraction * 100.0));
       }
       const bool placed = static_cast<int>(index) < capacity;
@@ -353,6 +376,7 @@ BroadcastHudDraw broadcastHudCompose(const BroadcastHudInput& input) {
         row.h = draw.rowH;
         if (row.medic) ++draw.medicRows;
         if (row.chargeKnown) ++draw.chargeRows;
+        if (row.chargeActive) ++draw.chargeActiveRows;
         if (!row.alive) ++draw.deadRows;
         if (row.low) ++draw.lowRows;
         if (row.overheal) ++draw.overRows;
@@ -413,11 +437,20 @@ BroadcastHudDraw broadcastHudCompose(const BroadcastHudInput& input) {
           pushText(draw.primitives, rightX, ry + 4.0f * static_cast<float>(s), nameSize, buffer,
             kDeadColour, HudTextAlign::Right, 52.0f * static_cast<float>(s));
         } else if (row.medic && row.chargeKnown) {
-          char buffer[24];
-          std::snprintf(buffer, sizeof(buffer), "%d%%", row.chargePercent);
+          // The uber cell (design section 9.2): kind letter and charge while the
+          // gun builds, then the seconds left while it fires. The percent is the
+          // gun's own m_flChargeLevel, not a prediction.
+          char buffer[32];
+          if (row.chargeActive) {
+            std::snprintf(buffer, sizeof(buffer), "%.1fs", row.chargeSeconds);
+          } else {
+            std::snprintf(buffer, sizeof(buffer), "%s%d%%", chargeKindLetter(row.chargeKind),
+              row.chargePercent);
+          }
           pushText(draw.primitives, rightX, ry + 4.0f * static_cast<float>(s), nameSize, buffer,
-            row.chargeRelease ? kChargeReadyColour : kChargeColour, HudTextAlign::Right,
-            52.0f * static_cast<float>(s), HudTextFont::UiBold);
+            row.chargeActive ? kChargeActiveColour
+              : (row.chargeFraction >= 1.0 ? kChargeReadyColour : kChargeColour),
+            HudTextAlign::Right, 52.0f * static_cast<float>(s), HudTextFont::UiBold);
         } else if (row.healthKnown) {
           pushText(draw.primitives, rightX, ry + 4.0f * static_cast<float>(s), nameSize,
             std::to_string(row.health),
@@ -435,10 +468,16 @@ BroadcastHudDraw broadcastHudCompose(const BroadcastHudInput& input) {
         pushRect(draw.primitives, rx + 9.0f * static_cast<float>(s), trackY, trackW,
           std::max(2.0f, static_cast<float>(3.0 * s)), kBarTrackColour);
         if (row.medic && row.chargeKnown) {
+          // While the uber fires the bar IS the uber: full at the rising edge and
+          // shrinking with the seconds left, so the bar and the cell count down
+          // together instead of one lying about the other.
+          const float fraction = row.chargeActive
+            ? clampf(row.chargeSeconds / 8.0, 0.0, 1.0)
+            : clampf(row.chargeFraction, 0.0, 1.0);
+          const float* const colour = row.chargeActive ? kChargeActiveColour
+            : (row.chargeFraction >= 1.0 ? kChargeReadyColour : kChargeColour);
           pushRect(draw.primitives, rx + 9.0f * static_cast<float>(s), trackY,
-            trackW * clampf(row.chargeFraction, 0.0, 1.0),
-            std::max(2.0f, static_cast<float>(3.0 * s)),
-            row.chargeRelease ? kChargeReadyColour : kChargeColour);
+            trackW * fraction, std::max(2.0f, static_cast<float>(3.0 * s)), colour);
         } else if (row.healthKnown && row.maxHealth > 0) {
           pushRect(draw.primitives, rx + 9.0f * static_cast<float>(s), trackY,
             trackW * clampf(row.healthFraction, 0.0, 1.0),
@@ -500,12 +539,17 @@ BroadcastHudDraw broadcastHudCompose(const BroadcastHudInput& input) {
       if (observed->cls == 5) {
         const BroadcastHudMedigun* gun = findGun(input, observed->entity);
         if (gun != nullptr && gun->chargeKnown) {
-          char buffer[32];
-          std::snprintf(buffer, sizeof(buffer), "UBER %d%%",
-            static_cast<int>(std::lround(gun->chargeLevel * 100.0)));
+          char buffer[40];
+          if (gun->chargeRelease) {
+            std::snprintf(buffer, sizeof(buffer), "%s %.1fs", chargeKindLetter(gun->kind),
+              gun->uberSeconds);
+          } else {
+            std::snprintf(buffer, sizeof(buffer), "%s %d%%", chargeKindLetter(gun->kind),
+              static_cast<int>(std::lround(gun->chargeLevel * 100.0)));
+          }
           pushText(draw.primitives, ox + ow - 12.0f * static_cast<float>(s),
             oy + 34.0f * static_cast<float>(s), smallSize, buffer,
-            gun->chargeRelease ? kChargeReadyColour : kChargeColour, HudTextAlign::Right,
+            gun->chargeRelease ? kChargeActiveColour : kChargeColour, HudTextAlign::Right,
             120.0f * static_cast<float>(s));
         }
       }
@@ -545,6 +589,13 @@ BroadcastHudDraw broadcastHudCompose(const BroadcastHudInput& input) {
       row.medic ? 1 : 0, row.chargeKnown ? row.chargePercent : -1,
       row.deathKnown ? static_cast<int>(std::lround(row.deadSeconds)) : -1,
       row.overheal ? 1 : 0);
+    // H1b: the countdown changes every tick, so it belongs in the key -- a
+    // firing uber that is not in the signature would freeze on screen.
+    char uber[32];
+    std::snprintf(uber, sizeof(uber), "|%d,%d,%d", row.chargeKind,
+      row.chargeActive ? 1 : 0,
+      row.chargeActive ? static_cast<int>(std::lround(row.chargeSeconds * 10.0)) : -1);
+    draw.signature += uber;
     draw.signature += line;
   }
   draw.visible = !draw.primitives.empty();
@@ -558,13 +609,15 @@ std::vector<std::string> formatBroadcastHudLines(const BroadcastHudDraw& draw) {
   std::snprintf(buffer, sizeof(buffer),
     "broadcast: hud active=%d visible=%d reason=%s client=%dx%d scale=%.3f"
     " bar=%d,%d,%d,%d hint=%d,%d,%d,%d columns=%d,%d row=%d,%d"
-    " players=%d rows=%d clipped=%d blu=%d red=%d medic=%d charge=%d dead=%d low=%d"
+    " players=%d rows=%d clipped=%d blu=%d red=%d medic=%d charge=%d chargeActive=%d"
+    " dead=%d low=%d"
     " over=%d unknown=%d observed=%d chips=%d chipFallbacks=%d rects=%zu texts=%zu",
     draw.active ? 1 : 0, draw.visible ? 1 : 0, draw.reason.c_str(), draw.clientW,
     draw.clientH, draw.scale, draw.barX, draw.barY, draw.barW, draw.barH, draw.hintX,
     draw.hintY, draw.hintW, draw.hintH, draw.bluX, draw.redX, draw.rowH, draw.rowGap,
     draw.playersTotal, draw.rowsDrawn, draw.rowsClipped, draw.bluRows, draw.redRows,
-    draw.medicRows, draw.chargeRows, draw.deadRows, draw.lowRows, draw.overRows,
+    draw.medicRows, draw.chargeRows, draw.chargeActiveRows, draw.deadRows, draw.lowRows,
+    draw.overRows,
     draw.unknownRows, draw.observedDrawn, draw.classChips, draw.classChipFallbacks,
     draw.rectPrimitives, draw.textPrimitives);
   lines.emplace_back(buffer);
@@ -578,13 +631,16 @@ std::vector<std::string> formatBroadcastHudLines(const BroadcastHudDraw& draw) {
     std::snprintf(buffer, sizeof(buffer),
       "broadcast: row entity=%d team=%d cls=%d medic=%d alive=%d placed=%d"
       " x=%d y=%d w=%d h=%d health=%d max=%d healthKnown=%d fraction=%.3f"
-      " low=%d over=%d chargeKnown=%d charge=%d%% release=%d deadKnown=%d deadSec=%.1f"
+      " low=%d over=%d chargeKnown=%d charge=%d%% release=%d chargeKind=%d"
+      " chargeActive=%d chargeSec=%.1f deadKnown=%d deadSec=%.1f"
       " name=%s",
       row.entity, row.team, row.cls, row.medic ? 1 : 0, row.alive ? 1 : 0,
       row.placed ? 1 : 0, row.x, row.y, row.w, row.h, row.health, row.maxHealth,
       row.healthKnown ? 1 : 0, row.healthFraction, row.low ? 1 : 0, row.overheal ? 1 : 0,
       row.chargeKnown ? 1 : 0, row.chargePercent, row.chargeRelease ? 1 : 0,
-      row.deathKnown ? 1 : 0, row.deadSeconds, row.name.empty() ? "-" : row.name.c_str());
+      row.chargeKind, row.chargeActive ? 1 : 0, row.chargeSeconds,
+      row.deathKnown ? 1 : 0, row.deadSeconds,
+      row.name.empty() ? "-" : row.name.c_str());
     lines.emplace_back(buffer);
   }
   return lines;

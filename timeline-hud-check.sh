@@ -1091,8 +1091,10 @@ bsample hint "$(( hintx + hintw / 2 - 75 ))" "$(( hinty - 2 ))" "150" "14"
 assert_gt "the hint names the map" "$(brect hint white)" "80"
 # The bar under a full-health row is green and covers its row; the bar under a damaged row
 # is orange and stops where the health stops. Two samples, two colours, one width claim.
-bfull=$(printf '%s\n' "$brows" | grep -a "fraction=1.000 " | grep -a "low=0 " | head -1)
-blow=$(printf '%s\n' "$brows" | grep -a "low=1 " | head -1)
+# Medic rows are excluded on purpose: since H1b their row-bottom bar is the MEDIGUN CHARGE
+# (yellow while charging, white during an uber), so the health bars live on the other rows.
+bfull=$(printf '%s\n' "$brows" | grep -a "medic=0 " | grep -a "fraction=1.000 " | grep -a "low=0 " | head -1)
+blow=$(printf '%s\n' "$brows" | grep -a "medic=0 " | grep -a "low=1 " | head -1)
 assert_gt "a row is at full health" "$(nfield "$bfull" health)" "0"
 bsample full "$(( $(nfield "$bfull" x) + 15 ))" "$(( $(nfield "$bfull" y) + rowh - 6 ))" \
   "$(( colw - 27 ))" "4"
@@ -1103,6 +1105,96 @@ assert_gt "a damaged row's bar is orange" "$(brect low reddish)" "40"
 # The followed player's box: a name is written in it, so the caption is not an empty plate.
 bsample observe "$(( bobsx + 12 ))" "$(( bobsy + 3 ))" "$(( obsw - 24 ))" "14"
 assert_gt "the box names its player" "$(brect observe white)" "40"
+# H1b (design section 9.2 line 225): the medic's uber cell. The frame above has no uber in it --
+# at tick 1200 nobody has charged -- so this pair of runs exists for the state the cell was
+# asked for: playback tick 5800 is five seconds into RED medic entity 13's first uber, where
+# the cell must state the seconds LEFT rather than the percentage, and the row's bar must turn
+# from the charge's yellow to the uber's white and shrink with the countdown. The control is
+# the same tick, same flags, without --hud-broadcast.
+TF2_NATIVE_TRACE="$(win "$OUT/uber.trace")" timeout 600 "$EXE" \
+  --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
+  --settings-file "$(win "$OUT/broadcast.ini")" --ui-settings-file "$(win "$OUT/broadcast-ui.ini")" \
+  --analysis-scan --hud-live --hud-broadcast \
+  --capture-tick 5800 --capture-frame "$(win "$OUT/uber.bmp")" \
+  > "$OUT/uber-run.log" 2>&1
+assert_eq "uber capture rc" "$?" "0"
+tr -d "\r" < "$OUT/uber.trace" > "$OUT/uber.trace.lf"
+uhud=$(grep -a "broadcast: hud active=1 " "$OUT/uber.trace.lf" | tail -1)
+assert_gt "the uber run places a roster" "$(nfield "$uhud" rows)" "0"
+urows=$(grep -a "broadcast: row " "$OUT/uber.trace.lf" | tail -"$(nfield "$uhud" rows)")
+echo "  ..   $uhud"
+assert_eq "the overlay knows an uber is firing" "$(nfield "$uhud" chargeActive)" "1"
+uactive=$(printf '%s\n' "$urows" | grep -a "medic=1 " | grep -a "release=1 ")
+assert_eq "one medic fires at the uber tick" "$(printf '%s\n' "$uactive" | grep -ac .)" "1"
+echo "  ..   $uactive"
+ufield() { # <line> <field> -- a FLOAT field, for the countdown's tenths
+  printf '%s\n' "$1" | grep -oE "(^| )$2=[0-9.]+" | tail -1 | sed 's/^ //' | cut -d= -f2
+}
+ufbetween() { # <label> <value> <low> <high>
+  if awk -v v="${2:-nan}" -v l="$3" -v h="$4" 'BEGIN{exit !(v >= l && v <= h)}'; then
+    echo "  OK   $1 = $2 (in $3..$4)"
+  else
+    echo "  FAIL $1 = ${2:-<none>}, expected $3..$4"
+    fail=1
+  fi
+}
+# The countdown is read from the WHOLE trace, not the last publish: $urows holds only the
+# block the capture frame was drawn from (one row per player), while the earlier publishes
+# carry the release's first seconds. Grepping the file is what makes 'eight seconds' a fact.
+ufirst=$(grep -a "broadcast: row " "$OUT/uber.trace.lf" | grep -a "entity=13 " | grep -a "release=1 " | head -1)
+ulast=$(grep -a "broadcast: row " "$OUT/uber.trace.lf" | grep -a "entity=13 " | grep -a "release=1 " | tail -1)
+assert_eq "the uber belongs to RED medic 13" "$(nfield "$uactive" entity)" "13"
+echo "  ..   first $ufirst"
+assert_between "the charge behind the uber" "$(nfield "$uactive" charge)" "70" "75"
+assert_eq "a stock uber, not a kritz" "$(nfield "$uactive" chargeKind)" "0"
+ufbetween "the uber starts at eight seconds" "$(ufield "$ufirst" chargeSec)" "7.5" "8.0"
+ufbetween "the cell counts the seconds left" "$(ufield "$uactive" chargeSec)" "4.5" "5.5"
+ureln=$(grep -a "broadcast: row " "$OUT/uber.trace.lf" | grep -ac "entity=13 .*release=1 ")
+assert_gt "the countdown is published more than once" "$ureln" "1"
+if awk -v a="$(ufield "$ufirst" chargeSec)" -v b="$(ufield "$ulast" chargeSec)" \
+    'BEGIN{exit !(a > b)}'; then
+  echo "  OK   the countdown comes down = $(ufield "$ufirst" chargeSec) -> $(ufield "$ulast" chargeSec)"
+else
+  echo "  FAIL the countdown comes down = $(ufield "$ufirst" chargeSec) -> $(ufield "$ulast" chargeSec)"
+  fail=1
+fi
+uother=$(printf '%s\n' "$urows" | grep -a "medic=1 " | grep -a "release=0 ")
+assert_eq "the other medic is not firing" "$(printf '%s\n' "$uother" | grep -ac .)" "1"
+assert_between "the other medic still shows its charge" "$(nfield "$uother" charge)" "30" "40"
+assert_eq "the other medic has no countdown" "$(nfield "$uother" chargeActive)" "0"
+# The pixels, against the same tick without the switch: the white bar is the uber's own clock
+# (200 of the 300 pixels in its 3 px band) and the yellow percentage beside the other medic's
+# name is the charge the design keeps while a gun is still building. The control paints neither.
+TF2_NATIVE_TRACE="$(win "$OUT/uber-control.trace")" timeout 600 "$EXE" \
+  --tf-root "$TF" --demo "$DEMO" --hidden-window --audio-disabled --playback-speed 8 \
+  --settings-file "$(win "$OUT/broadcast-control.ini")" \
+  --ui-settings-file "$(win "$OUT/broadcast-control-ui.ini")" \
+  --analysis-scan --hud-live \
+  --capture-tick 5800 --capture-frame "$(win "$OUT/uber-control.bmp")" \
+  > "$OUT/uber-control-run.log" 2>&1
+assert_eq "uber control rc" "$?" "0"
+tr -d "\r" < "$OUT/uber-control.trace" > "$OUT/uber-control.trace.lf"
+assert_eq "the uber control publishes no overlay" \
+  "$(grep -ac "broadcast: " "$OUT/uber-control.trace.lf")" "0"
+uimg=$(win "$OUT/uber.bmp")
+uimgc=$(win "$OUT/uber-control.bmp")
+usample() { # <label> <x> <y> <w> <h> <image>
+  "$PY" "$OUT/broadcast-pix.py" rect "$6" "$2" "$3" "$4" "$5" > "$OUT/uber-rect-$1.txt" 2>&1
+  sed "s/^/  ..   $1 /" "$OUT/uber-rect-$1.txt"
+}
+usum() { grep "^rect.$2=" "$OUT/uber-rect-$1.txt" | cut -d= -f2; }
+usample activecell 1214 278 40 15 "$uimg"
+usample activebar 1088 292 100 3 "$uimg"
+usample track 1192 292 55 3 "$uimg"
+usample percentcell 150 279 32 14 "$uimg"
+usample ctlcell 1214 278 40 15 "$uimgc"
+usample ctlbar 1088 292 100 3 "$uimgc"
+assert_gt "the uber cell is written white" "$(usum activecell white)" "15"
+assert_gt "the uber bar is white and covers the seconds left" "$(usum activebar white)" "150"
+assert_le "the bar stops where the seconds stop" "$(usum track white)" "2"
+assert_gt "a charging gun keeps its yellow percentage" "$(usum percentcell reddish)" "20"
+assert_le "the control paints no cell" "$(usum ctlcell white)" "2"
+assert_le "the control paints no bar" "$(usum ctlbar white)" "2"
 echo "=== 12/12 determinism ==="
 timeout 420 "$PROBE" --scan --motion-detect --timeline-hud "$(win "$DEMO")" > "$OUT/probe2.txt" 2>&1
 assert_eq "probe rerun rc" "$?" "0"

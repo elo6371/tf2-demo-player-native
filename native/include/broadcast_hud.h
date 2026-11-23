@@ -44,7 +44,12 @@ struct BroadcastHudMedigun {
   bool chargeRelease = false;           // m_bChargeRelease: the gun is firing uber
   bool chargeKnown = false;             // hasChargeLevel was true
   float chargeLevel = 0.0f;             // 0..1, the gun's own charge
-  int kind = 0;                         // MedigunChargeKind as an int (trace only)
+  // H1b (2026-11-23): what the medic cell needs beyond the fraction. The caller
+  // owns the countdown because only it knows the clock; a gun that is not
+  // releasing carries zero here and the cell prints the percentage instead.
+  double uberSeconds = 0.0;             // seconds left of the 8 s uber, when releasing
+  int kind = 0;                         // MedigunChargeKind as an int (0 uber, 1 kritz,
+                                        // 2 quickfix, 3 vaccinator)
 };
 
 // The live readout, as a plain value. Deliberately a copy of the numbers and not a
@@ -95,9 +100,12 @@ struct BroadcastHudRow {
   bool overheal = false;                // health > maxHealth
   bool low = false;                     // healthFraction < 0.5
   bool chargeKnown = false;
-  double chargeFraction = 0.0;
+  double chargeFraction = 0.0;          // zeroed when the medic is dead
   bool chargeRelease = false;
   int chargePercent = 0;
+  int chargeKind = 0;                   // 0 uber, 1 kritz, 2 quickfix, 3 vaccinator
+  bool chargeActive = false;            // the gun is firing uber this tick
+  double chargeSeconds = 0.0;           // seconds left of it, when active
   bool deathKnown = false;
   double deadSeconds = 0.0;
 };
@@ -121,6 +129,7 @@ struct BroadcastHudDraw {
   // counters: what a reader needs to tell "no players" from "rows clipped"
   int playersTotal = 0, rowsDrawn = 0, rowsClipped = 0;
   int bluRows = 0, redRows = 0, medicRows = 0, chargeRows = 0;
+  int chargeActiveRows = 0;             // medic rows whose uber is firing right now
   int deadRows = 0, lowRows = 0, overRows = 0, unknownRows = 0;
   int observedDrawn = 0;
   int classChips = 0, classChipFallbacks = 0;

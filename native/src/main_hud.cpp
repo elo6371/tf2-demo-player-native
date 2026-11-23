@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -1856,6 +1857,13 @@ int hudTimelineReviewButtonAt(int clientX, int clientY) {
 namespace {
 bool g_hudBroadcast = false;
 const tf2::native::GameplayFxReading* g_hudBroadcastFx = nullptr;
+// H1b (2026-11-23): when each medic's gun started firing, so the overlay can count
+// the 8 s down without the effects reader carrying a per-tick history. Keyed by the
+// owner (a player has one medigun) and dropped the moment the release flag falls.
+// A backwards clock jump means a seek: the recorded tick then describes a timeline
+// the remux no longer follows, so the map is emptied rather than carried across.
+std::map<std::int32_t, std::int32_t> g_hudUberStartedTick;
+std::int32_t g_hudUberLastServerTick = -1;
 }  // namespace
 
 void hudSetBroadcast(bool enabled) { g_hudBroadcast = enabled; }
@@ -2048,6 +2056,8 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
     broadcastInput.players = tf2::native::mapOverviewBuildInput(states, summary, mapName,
       timelineClientW, timelineClientH, playback.tick, playback.tickRate).players;
     if (g_hudBroadcastFx != nullptr) {
+      if (playback.tick < g_hudUberLastServerTick) g_hudUberStartedTick.clear();
+      g_hudUberLastServerTick = playback.tick;
       broadcastInput.mediguns.reserve(g_hudBroadcastFx->mediguns.size());
       for (const tf2::native::FxMedigun& gun : g_hudBroadcastFx->mediguns) {
         tf2::native::BroadcastHudMedigun entry;
@@ -2058,6 +2068,22 @@ void hudApplyLive(HWND window, bool evidenceRun, bool hudOff, bool hudLive,
         entry.chargeKnown = gun.hasChargeLevel;
         entry.chargeLevel = gun.chargeLevel;
         entry.kind = static_cast<int>(gun.kind);
+        // The countdown: an 8 s uber from the rising edge, clamped at zero for a
+        // release flag that outlives the charge (the demo can hold it).
+        const std::int32_t key = gun.owner >= 0 ? gun.owner : gun.entity;
+        if (gun.chargeRelease) {
+          auto started = g_hudUberStartedTick.find(key);
+          if (started == g_hudUberStartedTick.end()) {
+            started = g_hudUberStartedTick.emplace(key, playback.tick).first;
+          }
+          if (playback.tickRate > 1.0) {
+            const double elapsed = static_cast<double>(playback.tick - started->second)
+              / playback.tickRate;
+            entry.uberSeconds = elapsed < 8.0 ? 8.0 - elapsed : 0.0;
+          }
+        } else {
+          g_hudUberStartedTick.erase(key);
+        }
         broadcastInput.mediguns.push_back(entry);
       }
     }

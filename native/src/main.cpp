@@ -13869,7 +13869,13 @@ bool outlineVertexExtent = false;
       // at the end of the scene block and the per-frame first-person glow all use
       // this one answer. A tick with no resolved snapshot clears it rather than
       // keeping the previous tick's beams on screen.
-      if (tf2::native::main_internal::g_cliGameplayFx) {
+      // H1b (2026-11-23): the broadcast overlay's medic cell is drawn from
+      // this same reading, so a run that asked for the overlay gets it even
+      // without --gameplay-fx. The drawing paths that consume it stay behind
+      // their own switch, so a plain broadcast run changes no pixels but the
+      // overlay's own.
+      if (tf2::native::main_internal::g_cliGameplayFx
+          || tf2::native::main_internal::hudBroadcastEnabled()) {
         if (sceneTickResolved) {
           g_gameplayFxReading = tf2::native::readGameplayFx(currentEntityStates, demoNetworkSummary, sceneTick,
             static_cast<tf2::native::FxUberSource>(tf2::native::main_internal::g_cliGameplayFxUberSource));
