@@ -2642,6 +2642,7 @@ bool isTextFieldFocused() {
 // --window-size pins the OUTER window rect for the whole run. The flag is
 // pre-scanned in wWinMain before the window exists, so the DPI handler below can
 // refuse the system-suggested rect instead of resizing a frame a gate hashes.
+// W1: TF2_NATIVE_WINDOW_SIZE pins it the same way when the flag is absent.
 static bool g_windowSizePinned = false;
 
 // I1 (2026-11-23): click detection for the two mouse buttons. A click is a press
@@ -3339,41 +3340,114 @@ int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand
   // run. It has to be known before the window exists, so it is pre-scanned here,
   // the same reason --settings-file is pre-scanned just below: parsed later, it
   // would arrive after the thing it configures had already happened.
-  int windowWidth = 1280;
-  int windowHeight = 720;
+  //
+  // W1 (2026-11-23): the default window is 1920x1080 (outer rect), centred on the
+  // primary monitor's work area and shrunk to fit it when the work area is
+  // smaller. A 1920x1080 frame does not fit a 1080p screen once the taskbar is
+  // taken out, and a window the system has to squeeze or push off-screen is a
+  // window whose size nobody chose. A size that is ASKED for is never clamped:
+  // --window-size first, then the TF2_NATIVE_WINDOW_SIZE environment variable
+  // (every gate exports 1280x720, the size its pixel pins were measured at, so
+  // no launch line has to name it). Both pin the size for the run and both keep
+  // CW_USEDEFAULT placement, so a pinned run creates exactly the window it
+  // created before this change -- only the unpinned default moved.
+  constexpr int kDefaultWindowWidth = 1920;
+  constexpr int kDefaultWindowHeight = 1080;
+  int windowWidth = kDefaultWindowWidth;
+  int windowHeight = kDefaultWindowHeight;
+  int windowX = CW_USEDEFAULT;
+  int windowY = CW_USEDEFAULT;
+  const char* windowSizeSource = "default";
+  RECT windowWorkArea{};
+  bool windowWorkAreaKnown = false;
+  bool windowClamped = false;
+  // One parser for both spellings, so the flag and the variable cannot disagree
+  // on what a valid size is.
+  auto parseWindowSize = [](const wchar_t* text, int& parsedWidth, int& parsedHeight) {
+    unsigned widthValue = 0;
+    unsigned heightValue = 0;
+    if (!text || swscanf_s(text, L"%ux%u", &widthValue, &heightValue) != 2 ||
+        widthValue < 320u || heightValue < 240u ||
+        widthValue > 8192u || heightValue > 8192u) {
+      return false;
+    }
+    parsedWidth = static_cast<int>(widthValue);
+    parsedHeight = static_cast<int>(heightValue);
+    return true;
+  };
   {
     int preCount = 0;
     LPWSTR* preArguments = CommandLineToArgvW(GetCommandLineW(), &preCount);
     for (int i = 1; preArguments && i + 1 < preCount; ++i) {
       if (wcscmp(preArguments[i], L"--window-size") != 0) continue;
-      unsigned widthValue = 0;
-      unsigned heightValue = 0;
-      if (swscanf_s(preArguments[i + 1], L"%ux%u", &widthValue, &heightValue) != 2 ||
-          widthValue < 320u || heightValue < 240u ||
-          widthValue > 8192u || heightValue > 8192u) {
+      if (!parseWindowSize(preArguments[i + 1], windowWidth, windowHeight)) {
         // Refuse, do not guess: a run that asked for a size and silently got
         // another one would make its captures incomparable without saying so.
         LocalFree(preArguments);
         OutputDebugStringW(L"TF2 Demo Player: --window-size wants WxH (e.g. 1280x720); refusing to guess.\n");
         return 13;
       }
-      windowWidth = static_cast<int>(widthValue);
-      windowHeight = static_cast<int>(heightValue);
       g_windowSizePinned = true;
+      windowSizeSource = "arg";
     }
     if (preArguments) LocalFree(preArguments);
   }
+  if (!g_windowSizePinned) {
+    // An empty or unset variable is "not asked"; a set one that does not parse is
+    // refused exactly like a bad --window-size (exit 13), for the same reason.
+    wchar_t envValue[64]{};
+    const DWORD envLength = GetEnvironmentVariableW(L"TF2_NATIVE_WINDOW_SIZE", envValue, 64);
+    if (envLength > 0) {
+      if (envLength >= 64 || !parseWindowSize(envValue, windowWidth, windowHeight)) {
+        OutputDebugStringW(L"TF2 Demo Player: TF2_NATIVE_WINDOW_SIZE wants WxH (e.g. 1280x720); refusing to guess.\n");
+        return 13;
+      }
+      g_windowSizePinned = true;
+      windowSizeSource = "env";
+    }
+  }
+  if (!g_windowSizePinned) {
+    // The process is per-monitor-v2 aware (above), so rcWork is in the same
+    // physical pixels CreateWindowExW takes. The primary monitor is where
+    // CW_USEDEFAULT would have put the window too.
+    MONITORINFO monitorInfo{};
+    monitorInfo.cbSize = sizeof(monitorInfo);
+    const POINT primaryOrigin{0, 0};
+    HMONITOR primaryMonitor = MonitorFromPoint(primaryOrigin, MONITOR_DEFAULTTOPRIMARY);
+    if (primaryMonitor && GetMonitorInfoW(primaryMonitor, &monitorInfo)) {
+      windowWorkArea = monitorInfo.rcWork;
+      const int workWidth = windowWorkArea.right - windowWorkArea.left;
+      const int workHeight = windowWorkArea.bottom - windowWorkArea.top;
+      // A work area below the --window-size floor is not believed; the window
+      // then keeps 1920x1080 at CW_USEDEFAULT and the trace says why.
+      if (workWidth >= 320 && workHeight >= 240) {
+        windowWorkAreaKnown = true;
+        if (windowWidth > workWidth) { windowWidth = workWidth; windowClamped = true; }
+        if (windowHeight > workHeight) { windowHeight = workHeight; windowClamped = true; }
+        windowX = windowWorkArea.left + (workWidth - windowWidth) / 2;
+        windowY = windowWorkArea.top + (workHeight - windowHeight) / 2;
+        if (windowClamped) windowSizeSource = "default-clamped";
+      }
+    }
+  }
   HWND window = CreateWindowExW(
     0, className, L"TF2 Demo Player - Native D3D11",
-    WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight,
+    WS_OVERLAPPEDWINDOW, windowX, windowY, windowWidth, windowHeight,
     nullptr, nullptr, processInstance, nullptr);
   if (!window) return 11;
   {
     RECT createdClient{};
     GetClientRect(window, &createdClient);
+    // This line is byte-for-byte what it was before W1; the size's provenance is
+    // the separate line below, so no gate parsing "window: created" sees a change.
     traceFmt("window: created outer=%dx%d client=%ldx%ld dpi=%u pinned=%d",
       windowWidth, windowHeight, createdClient.right, createdClient.bottom,
       GetDpiForWindow(window), g_windowSizePinned ? 1 : 0);
+    traceFmt("window: size src=%s default=%dx%d work=%ldx%ld clamped=%d placed=%s",
+      windowSizeSource, kDefaultWindowWidth, kDefaultWindowHeight,
+      windowWorkAreaKnown ? windowWorkArea.right - windowWorkArea.left : 0L,
+      windowWorkAreaKnown ? windowWorkArea.bottom - windowWorkArea.top : 0L,
+      windowClamped ? 1 : 0, windowX == CW_USEDEFAULT ? "system" : "centred");
   }
 
   tf2::native::Renderer renderer;
