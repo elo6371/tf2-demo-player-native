@@ -108,6 +108,14 @@ constexpr unsigned kGameplayFxPartAll = 31u;
 inline bool g_cliGameplayFx = false;
 inline unsigned g_cliGameplayFxParts = kGameplayFxPartAll;
 inline int g_cliGameplayFxUberSource = 0;
+// S1 (2026-11-23) --fullscreen on|off: start in borderless fullscreen (Alt+Enter
+// and Esc toggle it at run time). Refused, with a trace line, under --window-size.
+// --fullscreen-selftest N (1..100): N enter/exit cycles before the first frame,
+// each checked against the monitor rect and the original rect/style; one
+// "window: fullscreen-selftest ... status=" line. The window ends where it began,
+// so a capture taken after it must equal one taken without it.
+inline bool g_cliFullscreen = false;
+inline int g_cliFullscreenSelfTest = 0;
 
 struct FlagSpec {
   const wchar_t* name;
@@ -473,6 +481,28 @@ inline const FlagSpec kFeatureFlagTable[] = {
     if (value == L"cond") { g_cliGameplayFxUberSource = 1; ++i; return true; }
     if (value == L"both") { g_cliGameplayFxUberSource = 2; ++i; return true; }
     std::fprintf(stderr, "--gameplay-fx-uber-source: expected medigun, cond or both\n");
+    std::fflush(stderr);
+    return false;
+  }},
+  {L"--fullscreen", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    if (value == L"on") { g_cliFullscreen = true; ++i; return true; }
+    if (value == L"off") { g_cliFullscreen = false; ++i; return true; }
+    std::fprintf(stderr, "--fullscreen: expected on or off\n");
+    std::fflush(stderr);
+    return false;
+  }},
+  {L"--fullscreen-selftest", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(arguments[i + 1], &end, 10);
+    if (end && *end == L'\0' && parsed >= 1 && parsed <= 100) {
+      g_cliFullscreenSelfTest = static_cast<int>(parsed);
+      ++i;
+      return true;
+    }
+    std::fprintf(stderr, "--fullscreen-selftest: expected a cycle count 1..100\n");
     std::fflush(stderr);
     return false;
   }},

@@ -167,6 +167,24 @@ bool uiControlsUnchanged(
 bool updateNativeUiControls(HWND window);
 void createNativeUiControls(HWND window, HINSTANCE instance);
 
+// S1 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md): borderless fullscreen.
+// One implementation for every entry point (Alt+Enter, Esc, --fullscreen, the
+// future menu item): the window drops its frame, covers the monitor it is on,
+// and gets its exact previous style and placement back on exit. Never DXGI
+// exclusive mode (the renderer turns DXGI's own Alt+Enter off).
+//   sizePinned  --window-size was given: refused, because every frame such a
+//               run captures was promised at the pinned size.
+//   source      a stable word for the trace ("alt-enter", "escape", "cli", ...).
+// Returns true when the window ends in the requested state.
+bool windowFullscreen();
+bool setWindowFullscreen(HWND window, bool wanted, bool sizePinned, const char* source);
+// Re-cover the monitor after a dpi or display-mode change; no-op when windowed.
+void fullscreenRefit(HWND window, const char* reason);
+// --fullscreen-selftest N: N enter/exit cycles, each checked against the monitor
+// rect and against the rect, client size, style, zoom and visibility the window
+// had before the first one. One trace line; returns true on status=pass.
+bool runFullscreenSelfTest(HWND window, int cycles, bool sizePinned);
+
 
 // The control ids the Win32 layer creates and dispatches. Moved here with the
 // layer itself so main_ui.cpp and main.cpp name the same numbers; inline so the

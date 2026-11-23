@@ -86,8 +86,12 @@ void applyUiLayout(HWND window) {
     moveHud(tf2::native::UiHudControlId::Status, g_uiHudStatus);
   }
   if (g_nativeUi) {
+    // S1: the snapshot's `fullscreen` is the real borderless state now. It used to
+    // be IsZoomed(), i.e. "maximized", because no fullscreen existed; nothing reads
+    // the field yet (grep: native_ui.cpp only), so the meaning is fixed before the
+    // status bar starts showing it.
     g_nativeUi->setDisplayMetrics(dpi, static_cast<unsigned>(client.right),
-      static_cast<unsigned>(client.bottom), IsZoomed(window) != 0);
+      static_cast<unsigned>(client.bottom), windowFullscreen());
   }
 }
 
@@ -343,5 +347,190 @@ void createNativeUiControls(HWND window, HINSTANCE instance) {
   auto [hcx, hcy, hcw, hch] = hudRectFor(tf2::native::UiHudControlId::Status, 590, 160, 400, 30);
   g_uiHudStatus = make(L"STATIC", L"HUD: none", SS_LEFT, 0, hcx, hcy, hcw, hch);
   updateNativeUiControls(window);
+}
+
+// ---------------------------------------------------------------------------
+// S1 (2026-11-23): borderless fullscreen. See main_internal.h for the contract.
+//
+// The shape is the standard one for a windowed swap chain: remember the style
+// and the WINDOWPLACEMENT, swap WS_OVERLAPPEDWINDOW for WS_POPUP, cover the
+// monitor's full rect (not its work area, so the taskbar is covered too), and
+// on exit put the style back and hand the saved placement to
+// SetWindowPlacement -- which restores a maximized window as maximized, not as
+// a window the size of the work area. WM_SIZE does the swap-chain resize and
+// the control re-layout, exactly as for a user drag; nothing here talks to the
+// renderer.
+//
+// --hidden-window runs keep their visibility: the popup is never shown, and the
+// restore passes SW_HIDE instead of the saved show command, because
+// SetWindowPlacement(SW_SHOWNORMAL) would make a hidden capture run visible.
+// ---------------------------------------------------------------------------
+namespace {
+
+struct FullscreenState {
+  bool active = false;
+  DWORD savedStyle = 0;
+  WINDOWPLACEMENT savedPlacement{};
+  RECT savedRect{};
+  bool savedVisible = false;
+  bool savedZoomed = false;
+  std::uint32_t enters = 0;
+  std::uint32_t exits = 0;
+  std::uint32_t refusals = 0;
+  std::uint32_t refits = 0;
+};
+
+FullscreenState g_fullscreen;
+
+bool monitorRectFor(HWND window, RECT& out) {
+  HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO info{};
+  info.cbSize = sizeof(info);
+  if (!monitor || !GetMonitorInfoW(monitor, &info)) return false;
+  out = info.rcMonitor;
+  return out.right > out.left && out.bottom > out.top;
+}
+
+void refuseFullscreen(const char* reason, const char* source) {
+  ++g_fullscreen.refusals;
+  traceFmt("window: fullscreen refused reason=%s source=%s refusals=%u", reason,
+    source ? source : "-", static_cast<unsigned>(g_fullscreen.refusals));
+}
+
+bool sameRect(const RECT& a, const RECT& b) {
+  return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+}
+
+}  // namespace
+
+bool windowFullscreen() { return g_fullscreen.active; }
+
+bool setWindowFullscreen(HWND window, bool wanted, bool sizePinned, const char* source) {
+  if (!window) return false;
+  if (wanted == g_fullscreen.active) return true;
+  if (wanted) {
+    if (sizePinned) {
+      refuseFullscreen("window-size-pinned", source);
+      return false;
+    }
+    RECT target{};
+    if (!monitorRectFor(window, target)) {
+      refuseFullscreen("no-monitor", source);
+      return false;
+    }
+    WINDOWPLACEMENT placement{};
+    placement.length = sizeof(placement);
+    if (!GetWindowPlacement(window, &placement)) {
+      refuseFullscreen("no-placement", source);
+      return false;
+    }
+    g_fullscreen.savedPlacement = placement;
+    g_fullscreen.savedStyle = static_cast<DWORD>(GetWindowLongPtrW(window, GWL_STYLE));
+    GetWindowRect(window, &g_fullscreen.savedRect);
+    g_fullscreen.savedVisible = IsWindowVisible(window) != FALSE;
+    g_fullscreen.savedZoomed = IsZoomed(window) != FALSE;
+    // Set BEFORE the resize: SetWindowPos sends WM_SIZE (and possibly
+    // WM_DPICHANGED) synchronously, and those handlers must already see the
+    // window as fullscreen.
+    g_fullscreen.active = true;
+    const DWORD popupStyle = (g_fullscreen.savedStyle & ~static_cast<DWORD>(WS_OVERLAPPEDWINDOW))
+      | static_cast<DWORD>(WS_POPUP);
+    SetWindowLongPtrW(window, GWL_STYLE, static_cast<LONG_PTR>(popupStyle));
+    SetWindowPos(window, HWND_TOP, target.left, target.top,
+      target.right - target.left, target.bottom - target.top,
+      SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+    applyUiLayout(window);
+    ++g_fullscreen.enters;
+    RECT client{};
+    GetClientRect(window, &client);
+    traceFmt("window: fullscreen enter source=%s monitor=%ld,%ld %ldx%ld from=%ld,%ld %ldx%ld"
+      " zoomed=%d visible=%d client=%ldx%ld enters=%u",
+      source ? source : "-", target.left, target.top, target.right - target.left,
+      target.bottom - target.top, g_fullscreen.savedRect.left, g_fullscreen.savedRect.top,
+      g_fullscreen.savedRect.right - g_fullscreen.savedRect.left,
+      g_fullscreen.savedRect.bottom - g_fullscreen.savedRect.top,
+      g_fullscreen.savedZoomed ? 1 : 0, g_fullscreen.savedVisible ? 1 : 0,
+      client.right, client.bottom, static_cast<unsigned>(g_fullscreen.enters));
+    return true;
+  }
+  SetWindowLongPtrW(window, GWL_STYLE, static_cast<LONG_PTR>(g_fullscreen.savedStyle));
+  WINDOWPLACEMENT placement = g_fullscreen.savedPlacement;
+  if (!g_fullscreen.savedVisible) placement.showCmd = SW_HIDE;
+  g_fullscreen.active = false;
+  SetWindowPlacement(window, &placement);
+  SetWindowPos(window, nullptr, 0, 0, 0, 0,
+    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+  applyUiLayout(window);
+  ++g_fullscreen.exits;
+  RECT after{};
+  GetWindowRect(window, &after);
+  traceFmt("window: fullscreen exit source=%s rect=%ld,%ld %ldx%ld restoredRect=%d"
+    " restoredStyle=%d zoomed=%d visible=%d exits=%u",
+    source ? source : "-", after.left, after.top, after.right - after.left, after.bottom - after.top,
+    sameRect(after, g_fullscreen.savedRect) ? 1 : 0,
+    static_cast<DWORD>(GetWindowLongPtrW(window, GWL_STYLE)) == g_fullscreen.savedStyle ? 1 : 0,
+    IsZoomed(window) ? 1 : 0, IsWindowVisible(window) ? 1 : 0,
+    static_cast<unsigned>(g_fullscreen.exits));
+  return true;
+}
+
+void fullscreenRefit(HWND window, const char* reason) {
+  if (!window || !g_fullscreen.active) return;
+  RECT target{};
+  if (!monitorRectFor(window, target)) return;
+  SetWindowPos(window, nullptr, target.left, target.top,
+    target.right - target.left, target.bottom - target.top,
+    SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
+  applyUiLayout(window);
+  ++g_fullscreen.refits;
+  traceFmt("window: fullscreen refit reason=%s monitor=%ld,%ld %ldx%ld refits=%u",
+    reason ? reason : "-", target.left, target.top, target.right - target.left,
+    target.bottom - target.top, static_cast<unsigned>(g_fullscreen.refits));
+}
+
+bool runFullscreenSelfTest(HWND window, int cycles, bool sizePinned) {
+  if (!window || cycles <= 0) return false;
+  RECT rect0{};
+  RECT client0{};
+  GetWindowRect(window, &rect0);
+  GetClientRect(window, &client0);
+  const DWORD style0 = static_cast<DWORD>(GetWindowLongPtrW(window, GWL_STYLE));
+  const bool zoomed0 = IsZoomed(window) != FALSE;
+  const bool visible0 = IsWindowVisible(window) != FALSE;
+  RECT monitor{};
+  const bool haveMonitor = monitorRectFor(window, monitor);
+  int full = 0, restoredRect = 0, restoredClient = 0, restoredStyle = 0, ran = 0;
+  bool refused = false;
+  for (int cycle = 0; cycle < cycles; ++cycle) {
+    if (!setWindowFullscreen(window, true, sizePinned, "selftest")) { refused = true; break; }
+    ++ran;
+    RECT rect{};
+    RECT client{};
+    GetWindowRect(window, &rect);
+    GetClientRect(window, &client);
+    if (haveMonitor && sameRect(rect, monitor) && client.right == monitor.right - monitor.left
+        && client.bottom == monitor.bottom - monitor.top) {
+      ++full;
+    }
+    setWindowFullscreen(window, false, sizePinned, "selftest");
+    GetWindowRect(window, &rect);
+    GetClientRect(window, &client);
+    if (sameRect(rect, rect0)) ++restoredRect;
+    if (sameRect(client, client0)) ++restoredClient;
+    if (static_cast<DWORD>(GetWindowLongPtrW(window, GWL_STYLE)) == style0
+        && (IsZoomed(window) != FALSE) == zoomed0 && (IsWindowVisible(window) != FALSE) == visible0) {
+      ++restoredStyle;
+    }
+  }
+  const bool pass = !refused && ran == cycles && full == cycles && restoredRect == cycles
+    && restoredClient == cycles && restoredStyle == cycles;
+  traceFmt("window: fullscreen-selftest cycles=%d ran=%d full=%d restoredRect=%d restoredClient=%d"
+    " restoredStyle=%d monitor=%ldx%ld window=%ldx%ld client=%ldx%ld style=0x%08lX visible=%d status=%s",
+    cycles, ran, full, restoredRect, restoredClient, restoredStyle,
+    monitor.right - monitor.left, monitor.bottom - monitor.top,
+    rect0.right - rect0.left, rect0.bottom - rect0.top, client0.right, client0.bottom,
+    static_cast<unsigned long>(style0), visible0 ? 1 : 0,
+    refused ? "refused" : (pass ? "pass" : "fail"));
+  return pass;
 }
 }  // namespace tf2::native::main_internal

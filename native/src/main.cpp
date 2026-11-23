@@ -2620,7 +2620,11 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // exactly what has to be refused, because every frame a gate hashes was
     // promised at the pinned size. The reading below says which of the two
     // happened, so "the frame changed shape" is never a silent event.
-    if (lParam && !g_windowSizePinned) {
+    if (windowFullscreen()) {
+      // S1: a fullscreen window keeps covering its monitor. The suggested rect
+      // is a windowed rect for the new dpi and would shrink it back to a frame.
+      fullscreenRefit(window, "dpi-changed");
+    } else if (lParam && !g_windowSizePinned) {
       const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
       SetWindowPos(window, nullptr, suggested->left, suggested->top,
         suggested->right - suggested->left, suggested->bottom - suggested->top,
@@ -2891,6 +2895,38 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     return 0;
   case WM_ERASEBKGND:
     return 1;
+  case WM_DISPLAYCHANGE:
+    // S1: the monitor changed resolution under a fullscreen window.
+    fullscreenRefit(window, "display-changed");
+    return DefWindowProcW(window, message, wParam, lParam);
+  case WM_SYSKEYDOWN:
+    // S1 (2026-11-23): Alt+Enter toggles borderless fullscreen. Alt chords arrive
+    // as WM_SYSKEYDOWN, never as WM_KEYDOWN; bit 29 is the Alt context, bit 30 the
+    // repeat flag (a held Alt+Enter toggles once). F11 is not used: it is the
+    // shipped default for camera.resetView (keybinds.cpp:401).
+    if (wParam == VK_RETURN && (lParam & (1u << 29)) != 0u) {
+      if ((lParam & (1u << 30)) == 0u) {
+        setWindowFullscreen(window, !windowFullscreen(), g_windowSizePinned, "alt-enter");
+      }
+      return 0;
+    }
+    // F10 also arrives here, not as WM_KEYDOWN: Windows reserves it for the menu
+    // bar. So the shipped F10 binding (camera.resetToPlayer, keybinds.cpp:400) has
+    // never fired from a real keyboard -- only the acceptance driver, which calls
+    // dispatchHotkey directly, ever reached it. Hand bare F10 to the key handler.
+    if (wParam == VK_F10 && (lParam & (1u << 29)) == 0u) {
+      return windowProc(window, WM_KEYDOWN, wParam, lParam);
+    }
+    return DefWindowProcW(window, message, wParam, lParam);
+  case WM_SYSKEYUP:
+    // The matching key-up: left to DefWindowProc, a bare F10 release enters menu
+    // mode, and the next key press is eaten by a menu bar that does not exist.
+    if (wParam == VK_F10 && (lParam & (1u << 29)) == 0u) return 0;
+    return DefWindowProcW(window, message, wParam, lParam);
+  case WM_SYSCHAR:
+    // The character Alt+Enter produces. DefWindowProc answers it with a beep.
+    if (wParam == VK_RETURN) return 0;
+    return DefWindowProcW(window, message, wParam, lParam);
   case WM_KEYDOWN: {
     // Toggle commands must be edge-triggered; Windows may repeat WM_KEYDOWN
     // while a key is held, which otherwise flips state several times. 'P' is
@@ -2904,6 +2940,13 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == 'M'
             || wParam == VK_HOME || wParam == VK_END || wParam == VK_F12
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
+    // S1: Esc leaves fullscreen. Checked before the key table on purpose: while
+    // fullscreen, Esc is the way out even if a user bound it to something else.
+    // Windowed, Esc falls through unchanged (it has no default binding).
+    if (wParam == VK_ESCAPE && windowFullscreen()) {
+      setWindowFullscreen(window, false, g_windowSizePinned, "escape");
+      return 0;
+    }
     // T51: the shared hotkey table (contract 1.2) gets the first look.
     //
     // Two rules, both from that contract, and both are why this is not simply
@@ -12302,6 +12345,15 @@ bool outlineVertexExtent = false;
   traceFmt("mode: window_created=%d window_visible=%d hidden=%d audio_mode=%s",
     window ? 1 : 0, IsWindowVisible(window) ? 1 : 0, hiddenWindow ? 1 : 0,
     audioDisabled ? "disabled" : "device");
+  // S1: --fullscreen-selftest N runs first, so a following --fullscreen on starts
+  // from a window the self-test has already put back; both run after the window
+  // has its final visibility and before the first frame. Neither runs by default.
+  if (tf2::native::main_internal::g_cliFullscreenSelfTest > 0) {
+    runFullscreenSelfTest(window, tf2::native::main_internal::g_cliFullscreenSelfTest, g_windowSizePinned);
+  }
+  if (tf2::native::main_internal::g_cliFullscreen) {
+    setWindowFullscreen(window, true, g_windowSizePinned, "cli");
+  }
 
   LARGE_INTEGER frequency{};
   LARGE_INTEGER lastFrame{};

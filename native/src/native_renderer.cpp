@@ -162,6 +162,21 @@ bool Renderer::initialize(HWND window) {
     result = createWithFallback(D3D_DRIVER_TYPE_WARP);
   }
   if (FAILED(result)) { lastError_ = result; return false; }
+  // S1 (2026-11-23): DXGI watches this window's message queue and, left alone,
+  // answers Alt+Enter by putting the swap chain into EXCLUSIVE fullscreen itself.
+  // Nothing in the renderer handles that transition (no ResizeBuffers on the mode
+  // change, no SetFullscreenState(FALSE) before release), and the product's
+  // fullscreen is borderless and owned by the window (main_ui.cpp). So DXGI is
+  // told to keep out. The factory is the swap chain's own parent: the association
+  // only takes effect on the factory that created it. Best effort -- a failure
+  // leaves today's behaviour, it does not stop the renderer.
+  {
+    Microsoft::WRL::ComPtr<IDXGIFactory> factory;
+    if (SUCCEEDED(swapChain_->GetParent(__uuidof(IDXGIFactory),
+          reinterpret_cast<void**>(factory.GetAddressOf()))) && factory) {
+      factory->MakeWindowAssociation(window_, DXGI_MWA_NO_ALT_ENTER);
+    }
+  }
   initStage_ = "createTarget";
   if (!createTarget(width_, height_)) {
     lastError_ = E_FAIL;
