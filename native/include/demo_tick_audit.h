@@ -260,6 +260,55 @@ struct DemoFxCensus {
   std::map<std::pair<std::int32_t, std::int32_t>, std::uint32_t> lastCond;  // (entity, word*2+list)
 };
 
+// A1 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 9): --motion-census.
+// The analysis window will list three anomaly kinds -- a stall (server ticks
+// skipped between two data packets), a teleport (a player moved further in one
+// tick than the game moves anyone), a snap (the eye angles turned further in one
+// tick than a hand turns them). Each needs a threshold, and a threshold is only
+// defensible against the distribution of the same reading on clean recordings.
+// This records that distribution and decides nothing. Same per-write hook and
+// opt-in rule as the other censuses: off, nothing is recorded.
+//
+// A step is taken between two consecutive packets that wrote the entity's origin
+// (or eye angles). dt is the server ticks between them. Only steps with
+// dt <= rateMaxDt enter the per-tick rate: a player the recording stopped
+// updating (out of a POV recorder's view, or standing still on SourceTV) comes
+// back with a long dt, and dividing by it would hide a jump inside an average.
+// A step within guardTicks of the entity's life state, team / class, or
+// TF_COND_TELEPORTED (condition bit 6) changing is counted as excluded: respawn
+// and teleporters move a player across the map legitimately.
+struct DemoMotionSample {
+  std::int32_t tick = 0;           // tick of the later of the two samples
+  std::int32_t entity = -1;
+  std::int32_t dt = 0;
+  double amount = 0.0;             // units (move) or degrees (turn) over dt
+  double perTick = 0.0;            // amount / dt
+  std::int32_t sinceLife = -1;     // ticks since m_lifeState last changed, -1 = never seen
+  std::int32_t sinceTeleport = -1; // ticks since condition bit 6 last rose
+  std::int32_t sinceTeam = -1;     // ticks since m_iTeamNum / m_iClass last changed
+  bool excluded = false;
+};
+struct DemoMotionRate {
+  float perTick = 0.0f;
+  std::int32_t entity = -1;
+};
+struct DemoMotionCensus {
+  std::int32_t guardTicks = 66;
+  std::int32_t rateMaxDt = 4;
+  std::size_t moveSamples = 0;
+  std::size_t turnSamples = 0;
+  std::size_t moveExcluded = 0;
+  std::size_t turnExcluded = 0;
+  std::size_t moveLongDt = 0;
+  std::size_t turnLongDt = 0;
+  std::map<std::int32_t, std::size_t> moveDt;  // dt bucket upper bound -> steps
+  std::map<std::int32_t, std::size_t> turnDt;
+  std::vector<DemoMotionRate> moveRates;       // every counted step, dt <= rateMaxDt
+  std::vector<DemoMotionRate> turnRates;
+  std::vector<DemoMotionSample> topMoves;      // largest per-tick steps, excluded ones included
+  std::vector<DemoMotionSample> topTurns;
+};
+
 class DemoTickAuditCapture {
  public:
   explicit DemoTickAuditCapture(const DemoTickAuditThresholds& thresholds = {});
@@ -274,6 +323,8 @@ class DemoTickAuditCapture {
   void enableViewModelCensus(bool enabled) { viewModelCensusEnabled_ = enabled; }
   void enableFxCensus(bool enabled) { fxCensusEnabled_ = enabled; }
   const DemoFxCensus& fxCensus() const { return fxCensus_; }
+  void enableMotionCensus(bool enabled) { motionCensusEnabled_ = enabled; }
+  const DemoMotionCensus& motionCensus() const { return motionCensus_; }
   const std::map<std::int32_t, DemoViewModelCensusEntity>& viewModelCensus() const {
     return viewModelCensus_;
   }
@@ -328,6 +379,44 @@ class DemoTickAuditCapture {
       const EntityPropertyValue& value);
   bool fxCensusEnabled_ = false;
   DemoFxCensus fxCensus_;
+  // A1: per-entity running state for --motion-census. Writes are gathered per
+  // packet (x/y and z arrive as separate properties, and a delta packet carries
+  // only the ones that changed) and settled once, in endPacket.
+  struct MotionState {
+    bool touched = false;
+    std::int32_t pendingTick = 0;
+    bool havePos = false;
+    bool pendPos = false;
+    std::int32_t posTick = 0;
+    double x = 0.0, y = 0.0, z = 0.0;
+    double px = 0.0, py = 0.0, pz = 0.0;
+    bool haveAng = false;
+    bool pendAng = false;
+    std::int32_t angTick = 0;
+    double pitch = 0.0, yaw = 0.0;
+    double ppitch = 0.0, pyaw = 0.0;
+    bool haveLife = false;
+    std::int64_t life = 0;
+    std::int32_t lifeTick = -1;
+    bool haveTeam = false;
+    std::int64_t team = 0;
+    bool haveClass = false;
+    std::int64_t playerClass = 0;
+    std::int32_t teamTick = -1;
+    std::uint32_t cond = 0;
+    std::uint32_t condBits = 0;
+    std::int32_t teleTick = -1;
+  };
+  void observeMotionProperty(const DemoNetworkSummary& summary, std::int32_t serverTick,
+      std::int32_t entityIndex, std::int32_t classId, const char* propName,
+      const EntityPropertyValue& value);
+  void settleMotion();
+  void recordMotion(bool turn, std::int32_t entity, std::int32_t tick, std::int32_t dt,
+      double amount, const MotionState& state);
+  bool motionCensusEnabled_ = false;
+  DemoMotionCensus motionCensus_;
+  std::map<std::int32_t, MotionState> motionState_;
+  std::vector<std::int32_t> motionTouched_;
   std::map<std::int32_t, DemoViewModelCensusEntity> viewModelCensus_;
   DemoTickAuditThresholds thresholds_;
   std::vector<DemoTickAuditPacketRow> packets_;

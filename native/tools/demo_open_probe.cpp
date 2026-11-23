@@ -644,7 +644,7 @@ const wchar_t* snapshotStatusText(tf2::native::EntitySnapshotQueryStatus value) 
 
 int wmain(int argc, wchar_t** argv) {
   if (argc < 2) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-at <tick,tick,...>] [--userinfo-dump <n>] <demo.dem>\n"
                   L"       demo_open_probe --userinfo-fixture <file>\n"
                   L"       demo_open_probe --wearable-fixture-suite\n"
                   L"       demo_open_probe --wearable-pose-selftest\n";
@@ -987,6 +987,17 @@ int wmain(int argc, wchar_t** argv) {
     }
     firstPath += 2;
   }
+  // A1 (2026-11-23, docs/UI-SHELL-DESIGN-2026-11-22.md section 9): --motion-census
+  // prints the distributions the three anomaly thresholds are chosen against: the
+  // server-tick gap between data packets (stall), the per-tick distance a player
+  // moved (teleport) and the per-tick angle the eyes turned (snap), with the
+  // largest steps and what happened near them. Must follow --hud-census and
+  // precede --userinfo.
+  bool motionCensus = false;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--motion-census") {
+    motionCensus = true;
+    ++firstPath;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1030,7 +1041,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -1091,9 +1102,10 @@ int wmain(int argc, wchar_t** argv) {
       summary.cameraTrackLimits.enabled = cameraTrack;
       // task-35: the capture is opt-in, so without the switch no packet row, sim
       // sample or anim event is recorded and every existing line stays identical.
-      if (tickAudit || viewModelCensus || fxCensus) summary.tickAuditCapture = &tickAuditCapture;
+      if (tickAudit || viewModelCensus || fxCensus || motionCensus) summary.tickAuditCapture = &tickAuditCapture;
       if (viewModelCensus) tickAuditCapture.enableViewModelCensus(true);
       if (fxCensus) tickAuditCapture.enableFxCensus(true);
+      if (motionCensus) tickAuditCapture.enableMotionCensus(true);
       if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       if (tickAudit) {
@@ -1103,6 +1115,146 @@ int wmain(int argc, wchar_t** argv) {
           tickAuditText += line;
           tickAuditText += '\n';
         }
+      }
+      if (motionCensus) {
+        // A1: every row starts "motion-", pure ASCII, through the narrow stream like
+        // the audit rows. Nothing here decides; the thresholds come from reading it.
+        const auto& mcCensus = tickAuditCapture.motionCensus();
+        std::string& mcOut = tickAuditText;
+        const auto mcNum = [](double mcValue) {
+          char mcBuf[64];
+          std::snprintf(mcBuf, sizeof(mcBuf), "%.2f", mcValue);
+          return std::string(mcBuf);
+        };
+        const auto mcHist = [](const std::vector<double>& mcValues, const std::vector<std::int32_t>& mcBounds) {
+          std::vector<std::size_t> mcCounts(mcBounds.size() + 1, 0);
+          for (const double mcV : mcValues) {
+            std::size_t mcAt = 0;
+            while (mcAt < mcBounds.size() && mcV > static_cast<double>(mcBounds[mcAt])) ++mcAt;
+            ++mcCounts[mcAt];
+          }
+          std::string mcText;
+          for (std::size_t mcAt = 0; mcAt < mcCounts.size(); ++mcAt) {
+            if (!mcText.empty()) mcText += ' ';
+            mcText += (mcAt < mcBounds.size() ? "le" + std::to_string(mcBounds[mcAt])
+                                              : "gt" + std::to_string(mcBounds.back()))
+              + "=" + std::to_string(mcCounts[mcAt]);
+          }
+          return mcText;
+        };
+        const auto mcPct = [](std::vector<double> mcValues, double mcQ) {
+          if (mcValues.empty()) return 0.0;
+          const auto mcK = static_cast<std::size_t>(mcQ * static_cast<double>(mcValues.size() - 1));
+          std::nth_element(mcValues.begin(), mcValues.begin() + static_cast<std::ptrdiff_t>(mcK), mcValues.end());
+          return mcValues[mcK];
+        };
+        // 1. stall: server ticks between consecutive data packets.
+        std::vector<double> mcGaps;
+        std::vector<std::pair<std::int32_t, std::int32_t>> mcGapTop;  // (gap, serverTick)
+        std::size_t mcSameTick = 0;
+        std::size_t mcBackwards = 0;
+        std::size_t mcData = 0;
+        std::int32_t mcPrev = -1;
+        for (const auto& mcRow : tickAuditCapture.packetRows()) {
+          if (mcRow.command != 2) continue;
+          ++mcData;
+          if (mcPrev >= 0) {
+            const std::int32_t mcGap = mcRow.serverTick - mcPrev;
+            if (mcGap == 0) {
+              ++mcSameTick;
+            } else if (mcGap < 0) {
+              ++mcBackwards;
+            } else {
+              mcGaps.push_back(static_cast<double>(mcGap));
+              mcGapTop.emplace_back(mcGap, mcRow.serverTick);
+            }
+          }
+          mcPrev = mcRow.serverTick;
+        }
+        std::size_t mcGt3 = 0, mcGt6 = 0, mcGt16 = 0;
+        for (const double mcG : mcGaps) {
+          if (mcG > 3.0) ++mcGt3;
+          if (mcG > 6.0) ++mcGt6;
+          if (mcG > 16.0) ++mcGt16;
+        }
+        mcOut += "motion-census guardTicks=" + std::to_string(mcCensus.guardTicks)
+          + " rateMaxDt=" + std::to_string(mcCensus.rateMaxDt)
+          + " dataPackets=" + std::to_string(mcData) + '\n';
+        mcOut += "motion-stall gaps=" + std::to_string(mcGaps.size())
+          + " sameTick=" + std::to_string(mcSameTick)
+          + " backwards=" + std::to_string(mcBackwards)
+          + " median=" + mcNum(mcPct(mcGaps, 0.5))
+          + " p99=" + mcNum(mcPct(mcGaps, 0.99))
+          + " max=" + mcNum(mcPct(mcGaps, 1.0))
+          + " gt3=" + std::to_string(mcGt3) + " gt6=" + std::to_string(mcGt6) + " gt16=" + std::to_string(mcGt16)
+          + " " + mcHist(mcGaps, {1, 2, 3, 4, 8, 16, 32, 66}) + '\n';
+        std::sort(mcGapTop.begin(), mcGapTop.end(), [](const auto& mcA, const auto& mcB) {
+          return mcA.first != mcB.first ? mcA.first > mcB.first : mcA.second < mcB.second;
+        });
+        for (std::size_t mcAt = 0; mcAt < mcGapTop.size() && mcAt < 16u; ++mcAt) {
+          mcOut += "motion-stall-top from=" + std::to_string(mcGapTop[mcAt].second - mcGapTop[mcAt].first)
+            + " to=" + std::to_string(mcGapTop[mcAt].second)
+            + " gap=" + std::to_string(mcGapTop[mcAt].first) + '\n';
+        }
+        // 2/3. move and turn.
+        const auto mcSection = [&](const char* mcName, std::size_t mcSamples, std::size_t mcExcluded,
+            std::size_t mcLong, const std::map<std::int32_t, std::size_t>& mcDt,
+            const std::vector<tf2::native::DemoMotionRate>& mcRates,
+            const std::vector<tf2::native::DemoMotionSample>& mcTop,
+            const std::vector<std::int32_t>& mcBounds, const std::vector<double>& mcLimits) {
+          std::vector<double> mcValues;
+          mcValues.reserve(mcRates.size());
+          for (const auto& mcR : mcRates) mcValues.push_back(static_cast<double>(mcR.perTick));
+          std::string mcDtText;
+          for (const auto& mcBin : mcDt) {
+            mcDtText += mcBin.first == std::numeric_limits<std::int32_t>::max()
+              ? " dt-gt32=" : " dt-le" + std::to_string(mcBin.first) + "=";
+            mcDtText += std::to_string(mcBin.second);
+          }
+          mcOut += std::string("motion-") + mcName + " steps=" + std::to_string(mcSamples)
+            + " counted=" + std::to_string(mcRates.size())
+            + " excluded=" + std::to_string(mcExcluded)
+            + " longDt=" + std::to_string(mcLong) + mcDtText + '\n';
+          mcOut += std::string("motion-") + mcName + "-rate p50=" + mcNum(mcPct(mcValues, 0.5))
+            + " p90=" + mcNum(mcPct(mcValues, 0.9))
+            + " p99=" + mcNum(mcPct(mcValues, 0.99))
+            + " p999=" + mcNum(mcPct(mcValues, 0.999))
+            + " max=" + mcNum(mcPct(mcValues, 1.0))
+            + " " + mcHist(mcValues, mcBounds) + '\n';
+          std::string mcOver;
+          for (const double mcLimit : mcLimits) {
+            std::size_t mcCount = 0;
+            std::set<std::int32_t> mcWho;
+            for (const auto& mcR : mcRates) {
+              if (static_cast<double>(mcR.perTick) > mcLimit) {
+                ++mcCount;
+                mcWho.insert(mcR.entity);
+              }
+            }
+            mcOver += " gt" + mcNum(mcLimit) + "=" + std::to_string(mcCount) + "/" + std::to_string(mcWho.size());
+          }
+          mcOut += std::string("motion-") + mcName + "-candidates steps/players" + mcOver + '\n';
+          std::vector<tf2::native::DemoMotionSample> mcSorted = mcTop;
+          std::sort(mcSorted.begin(), mcSorted.end(), [](const auto& mcA, const auto& mcB) {
+            return mcA.perTick > mcB.perTick;
+          });
+          for (std::size_t mcAt = 0; mcAt < mcSorted.size() && mcAt < 16u; ++mcAt) {
+            const auto& mcS = mcSorted[mcAt];
+            mcOut += std::string("motion-") + mcName + "-top tick=" + std::to_string(mcS.tick)
+              + " entity=" + std::to_string(mcS.entity)
+              + " dt=" + std::to_string(mcS.dt)
+              + " amount=" + mcNum(mcS.amount)
+              + " perTick=" + mcNum(mcS.perTick)
+              + " sinceLife=" + std::to_string(mcS.sinceLife)
+              + " sinceTeleport=" + std::to_string(mcS.sinceTeleport)
+              + " sinceTeam=" + std::to_string(mcS.sinceTeam)
+              + " excluded=" + (mcS.excluded ? "1" : "0") + '\n';
+          }
+        };
+        mcSection("move", mcCensus.moveSamples, mcCensus.moveExcluded, mcCensus.moveLongDt, mcCensus.moveDt,
+          mcCensus.moveRates, mcCensus.topMoves, {1, 2, 5, 10, 20, 40, 80, 160, 320}, {20.0, 40.0, 80.0, 160.0});
+        mcSection("turn", mcCensus.turnSamples, mcCensus.turnExcluded, mcCensus.turnLongDt, mcCensus.turnDt,
+          mcCensus.turnRates, mcCensus.topTurns, {1, 5, 15, 30, 60, 90, 135}, {30.0, 60.0, 90.0, 135.0});
       }
       if (cosmeticsTick >= 0) {
         // The schema is an OPTIONAL input: it is a game asset, not part of this

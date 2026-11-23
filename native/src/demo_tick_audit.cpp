@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <map>
 #include <set>
 #include <utility>
@@ -154,6 +155,9 @@ void DemoTickAuditCapture::observeEntityProperty(const DemoNetworkSummary& summa
   }
   if (fxCensusEnabled_) {
     observeFxProperty(summary, serverTick, entityIndex, classId, propName, value);
+  }
+  if (motionCensusEnabled_) {
+    observeMotionProperty(summary, serverTick, entityIndex, classId, propName, value);
   }
   if (!thresholds_.playerEnabled) return;
   if (propName == nullptr || std::strcmp(propName, "m_flSimulationTime") != 0) return;
@@ -589,9 +593,190 @@ void DemoTickAuditCapture::endPacket(const DemoNetworkSummary& summary,
   row.ownNetTick = ownNetTick;
   packets_.push_back(row);
   settlePending(summary, serverTick, gap);
+  if (motionCensusEnabled_) settleMotion();
   prevPacketServerTick_ = serverTick;
   inPacket_ = false;
   pendingPlayers_.clear();
+}
+
+// ---- A1: --motion-census ----------------------------------------------------
+namespace {
+
+constexpr std::int32_t kMotionOpenBucket = std::numeric_limits<std::int32_t>::max();
+constexpr std::int32_t kMotionDtBounds[] = {1, 2, 4, 8, 32};
+constexpr std::size_t kMotionTopKeep = 64;
+constexpr std::uint32_t kCondTeleportedBit = 1u << 6;  // TF_COND_TELEPORTED
+
+std::int32_t motionDtBucket(std::int32_t dt) {
+  for (const std::int32_t bound : kMotionDtBounds) {
+    if (dt <= bound) return bound;
+  }
+  return kMotionOpenBucket;
+}
+
+// The smaller of the two ways round, so 359 -> 1 reads as 2 degrees.
+double wrapDegrees(double delta) {
+  const double folded = std::fmod(std::fabs(delta), 360.0);
+  return folded > 180.0 ? 360.0 - folded : folded;
+}
+
+void keepTopMotion(std::vector<DemoMotionSample>& list, const DemoMotionSample& sample) {
+  list.push_back(sample);
+  if (list.size() > 2 * kMotionTopKeep) {
+    std::sort(list.begin(), list.end(), [](const DemoMotionSample& left, const DemoMotionSample& right) {
+      return left.perTick > right.perTick;
+    });
+    list.resize(kMotionTopKeep);
+  }
+}
+
+}  // namespace
+
+void DemoTickAuditCapture::observeMotionProperty(const DemoNetworkSummary& summary,
+    std::int32_t serverTick, std::int32_t entityIndex, std::int32_t classId,
+    const char* propName, const EntityPropertyValue& value) {
+  if (propName == nullptr || entityIndex < 0 || entityIndex >= 2048) return;
+  // Leaf names: the Local- and NonLocal-exclusive tables both carry m_vecOrigin and
+  // m_angEyeAngles, and the hook passes the leaf. A write always carries the value
+  // current at its tick, so whichever slot wrote, the step is a real one.
+  const bool xy = std::strcmp(propName, "m_vecOrigin") == 0;
+  const bool z = std::strcmp(propName, "m_vecOrigin[2]") == 0;
+  const bool pitch = std::strcmp(propName, "m_angEyeAngles[0]") == 0;
+  const bool yaw = std::strcmp(propName, "m_angEyeAngles[1]") == 0;
+  const bool life = std::strcmp(propName, "m_lifeState") == 0;
+  const bool team = std::strcmp(propName, "m_iTeamNum") == 0;
+  const bool playerClass = std::strcmp(propName, "m_iClass") == 0;
+  const bool cond = std::strcmp(propName, "m_nPlayerCond") == 0;
+  const bool condBits = std::strcmp(propName, "_condition_bits") == 0;
+  if (!xy && !z && !pitch && !yaw && !life && !team && !playerClass && !cond && !condBits) return;
+  if (!isPlayerClass(classNameForClassId(summary, classId))) return;
+  MotionState& state = motionState_[entityIndex];
+  if (life) {
+    if (state.haveLife && state.life != value.intValue) state.lifeTick = serverTick;
+    state.life = value.intValue;
+    state.haveLife = true;
+    return;
+  }
+  if (team) {
+    if (state.haveTeam && state.team != value.intValue) state.teamTick = serverTick;
+    state.team = value.intValue;
+    state.haveTeam = true;
+    return;
+  }
+  if (playerClass) {
+    if (state.haveClass && state.playerClass != value.intValue) state.teamTick = serverTick;
+    state.playerClass = value.intValue;
+    state.haveClass = true;
+    return;
+  }
+  if (cond || condBits) {
+    const auto bits = static_cast<std::uint32_t>(value.intValue & 0xFFFFFFFFll);
+    std::uint32_t& before = cond ? state.cond : state.condBits;
+    if ((bits & ~before) & kCondTeleportedBit) state.teleTick = serverTick;
+    before = bits;
+    return;
+  }
+  if (!state.touched) {
+    state.touched = true;
+    motionTouched_.push_back(entityIndex);
+    state.px = state.x;
+    state.py = state.y;
+    state.pz = state.z;
+    state.ppitch = state.pitch;
+    state.pyaw = state.yaw;
+  }
+  state.pendingTick = serverTick;
+  if (xy) {
+    state.px = value.x;
+    state.py = value.y;
+    state.pendPos = true;
+  } else if (z) {
+    state.pz = value.x;
+    state.pendPos = true;
+  } else if (pitch) {
+    state.ppitch = value.x;
+    state.pendAng = true;
+  } else {
+    state.pyaw = value.x;
+    state.pendAng = true;
+  }
+}
+
+void DemoTickAuditCapture::settleMotion() {
+  for (const std::int32_t entity : motionTouched_) {
+    const auto found = motionState_.find(entity);
+    if (found == motionState_.end()) continue;
+    MotionState& state = found->second;
+    state.touched = false;
+    const std::int32_t tick = state.pendingTick;
+    if (state.pendPos) {
+      state.pendPos = false;
+      if (state.havePos && tick > state.posTick) {
+        const double dx = state.px - state.x;
+        const double dy = state.py - state.y;
+        const double dz = state.pz - state.z;
+        recordMotion(false, entity, tick, tick - state.posTick, std::sqrt(dx * dx + dy * dy + dz * dz), state);
+      }
+      if (!state.havePos || tick > state.posTick) state.posTick = tick;
+      state.havePos = true;
+      state.x = state.px;
+      state.y = state.py;
+      state.z = state.pz;
+    }
+    if (state.pendAng) {
+      state.pendAng = false;
+      if (state.haveAng && tick > state.angTick) {
+        const double dp = wrapDegrees(state.ppitch - state.pitch);
+        const double dyaw = wrapDegrees(state.pyaw - state.yaw);
+        recordMotion(true, entity, tick, tick - state.angTick, std::sqrt(dp * dp + dyaw * dyaw), state);
+      }
+      if (!state.haveAng || tick > state.angTick) state.angTick = tick;
+      state.haveAng = true;
+      state.pitch = state.ppitch;
+      state.yaw = state.pyaw;
+    }
+  }
+  motionTouched_.clear();
+}
+
+void DemoTickAuditCapture::recordMotion(bool turn, std::int32_t entity, std::int32_t tick,
+    std::int32_t dt, double amount, const MotionState& state) {
+  DemoMotionCensus& census = motionCensus_;
+  const auto ago = [tick](std::int32_t mark) { return mark < 0 ? -1 : tick - mark; };
+  const std::int32_t guard = census.guardTicks;
+  const auto guarded = [guard](std::int32_t since) { return since >= 0 && since <= guard; };
+  DemoMotionSample sample;
+  sample.tick = tick;
+  sample.entity = entity;
+  sample.dt = dt;
+  sample.amount = amount;
+  sample.perTick = amount / static_cast<double>(dt);
+  sample.sinceLife = ago(state.lifeTick);
+  sample.sinceTeleport = ago(state.teleTick);
+  sample.sinceTeam = ago(state.teamTick);
+  sample.excluded = guarded(sample.sinceLife) || guarded(sample.sinceTeleport) || guarded(sample.sinceTeam);
+  if (turn) {
+    ++census.turnSamples;
+    ++census.turnDt[motionDtBucket(dt)];
+  } else {
+    ++census.moveSamples;
+    ++census.moveDt[motionDtBucket(dt)];
+  }
+  if (dt > census.rateMaxDt) {
+    if (turn) ++census.turnLongDt; else ++census.moveLongDt;
+    return;
+  }
+  DemoMotionRate rate;
+  rate.perTick = static_cast<float>(sample.perTick);
+  rate.entity = entity;
+  if (sample.excluded) {
+    if (turn) ++census.turnExcluded; else ++census.moveExcluded;
+  } else if (turn) {
+    census.turnRates.push_back(rate);
+  } else {
+    census.moveRates.push_back(rate);
+  }
+  keepTopMotion(turn ? census.topTurns : census.topMoves, sample);
 }
 
 DemoTickAuditReport auditDemoTicks(const DemoHeader& header, const DemoIndex& index,
