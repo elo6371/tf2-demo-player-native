@@ -1591,6 +1591,60 @@ bool g_followStickyAwaitRespawn = false;
 std::int32_t g_followStickyEntity = -1;
 std::uint32_t g_followStickyRepins = 0;
 
+// --first-person on (2026-11-22, docs/WORKPLAN-2026-11-22.md P3). The first-person
+// pass draws in every single-pane frame once it is enabled (native_renderer_frame.cpp,
+// "the single-pane path keeps drawing unconditionally"), which is right for the
+// gates that ask for it with --viewmodel and wrong for a viewer who presses Space:
+// arms and a gun floating in front of a third-person or free-look camera. Under
+// --first-person the pass is held back on every frame whose camera is not standing
+// inside a player, and given back, with the newest state the scene produced, on the
+// first frame that is. "Standing inside a player" is the decision the world pass
+// already makes for hiding that player's own body (g_spectateCameraHiddenEntity,
+// written by the eye-resolution block and by the relay), so the two can never
+// disagree about where the camera is. Nothing here runs without the switch.
+bool g_firstPersonSuppressed = false;
+tf2::native::ViewModelDrawState g_firstPersonHeldState;
+std::uint32_t g_firstPersonSuppressions = 0;
+std::uint32_t g_firstPersonRestores = 0;
+constexpr const char* kFirstPersonHeldReason =
+  "--first-person: the camera is not standing inside a player";
+
+void firstPersonGate(tf2::native::Renderer& renderer) {
+  if (!tf2::native::main_internal::g_cliFirstPerson) return;
+  const bool standsInPlayer = !g_debugCamera
+    && g_cameraMode.mode() == tf2::native::CameraMode::FirstPerson
+    && g_spectateCameraHiddenEntity >= 0;
+  const tf2::native::ViewModelDrawState& current = renderer.viewModelState();
+  if (!standsInPlayer) {
+    // Whatever the scene put there since the last frame is the state to give back
+    // later; our own placeholder is the only state that is not.
+    if (!g_firstPersonSuppressed || current.reason != kFirstPersonHeldReason) {
+      g_firstPersonHeldState = current;
+    }
+    if (!g_firstPersonSuppressed) {
+      g_firstPersonSuppressed = true;
+      ++g_firstPersonSuppressions;
+      traceFmt("viewmodel: first-person hold suppressions=%u mode=%d debugCam=%d hidden=%d",
+        static_cast<unsigned>(g_firstPersonSuppressions),
+        static_cast<int>(g_cameraMode.mode()), g_debugCamera ? 1 : 0,
+        static_cast<int>(g_spectateCameraHiddenEntity));
+    }
+    if (current.enabled || current.reason != kFirstPersonHeldReason) {
+      tf2::native::ViewModelDrawState held = g_firstPersonHeldState;
+      held.enabled = false;
+      held.reason = kFirstPersonHeldReason;
+      renderer.setViewModelState(held);
+    }
+  } else if (g_firstPersonSuppressed) {
+    g_firstPersonSuppressed = false;
+    ++g_firstPersonRestores;
+    renderer.setViewModelState(g_firstPersonHeldState);
+    traceFmt("viewmodel: first-person release restores=%u entity=%d enabled=%d",
+      static_cast<unsigned>(g_firstPersonRestores),
+      static_cast<int>(g_spectateCameraHiddenEntity), g_firstPersonHeldState.enabled ? 1 : 0);
+  }
+}
+
 // N13 step 1: the two --follow-* flags, consumed BEFORE the argument ladder for the
 // reason the flags above it already give: that ladder sits at MSVC's block-nesting
 // limit (C1061), and four more rungs put it over the top. Consuming them here is
@@ -4898,6 +4952,17 @@ bool outlineVertexExtent = false;
       commandViewModel = envViewModelPath;
       viewModelApplyAnimation = true;
     }
+  }
+  // --first-person on: the same latch, without a model the caller has to name.
+  // The pass draws the ViewModel ENTITY's own model (--viewmodel-render companion
+  // is the default), so the path below is only the switch that opens the pass: it
+  // names no file, its request reports `viewmodel was not found`, and if the
+  // entity's model cannot be drawn either the pass draws nothing rather than some
+  // other class's arms. An explicit --viewmodel (or the env path) still wins.
+  if (commandViewModel.empty() && tf2::native::main_internal::g_cliFirstPerson) {
+    commandViewModel = L"models/weapons/c_models/first_person_entity_model.mdl";
+    viewModelApplyAnimation = true;
+    traceFmt("viewmodel: first-person on (entity model, animation applied, held off-player)");
   }
   // D-23: printed unconditionally, including the zero case, so that "the loop
   // recognised the argument" and "the trace lost the line" cannot look alike.
@@ -14398,7 +14463,13 @@ bool outlineVertexExtent = false;
               // since the last tick, so a standing body aims with weight 0 in
               // this version. The alternative is inventing a heading out of the
               // view angle, which would make the aim layer weight itself.
-              const float aimDegrees = hasBodyHeading
+              // 2026-11-22: --aim-layer-heading view measures the offset against the
+              // yaw the body is DRAWN at, which today is viewYaw itself (CTFPlayer
+              // sends no m_angRotation), so the aim layer's weight is 0 -- the same
+              // conclusion the posegrid path reached (docs/N17-PHASE-C-VISUAL-
+              // 2026-11-21.md section 4.2). The default keeps the velocity heading.
+              const bool aimAgainstView = tf2::native::main_internal::g_cliAimHeadingView;
+              const float aimDegrees = (hasBodyHeading && !aimAgainstView)
                 ? tf2::native::aimLayerWeightDegrees(viewYaw,
                     static_cast<float>(bodyHeadingDegrees))
                 : 0.0f;
@@ -16868,6 +16939,7 @@ bool outlineVertexExtent = false;
       // U4 step 2b: one window, one surface, one frame -- composed from two
       // viewports when --pane-split asked for it. Same clear colour and same demo
       // clock; the panes differ only in the camera each one draws with.
+      firstPersonGate(renderer);
       const bool drewFrame = g_renderer && (paneSplit
         ? renderer.drawSplit(clearR, clearG, clearB)
         : renderer.draw(clearR, clearG, clearB));
@@ -17118,6 +17190,10 @@ bool outlineVertexExtent = false;
     // read zero. `duplicateTicks` proves the "same tick does not replay" guard
     // actually fired; `reverseRecoveries` counts resets that moved the cursor
     // backwards, which is what a reverse run has to do to replay anything.
+    if (tf2::native::audioDeviceRecoverEnabled()) {
+      traceFmt("audio: device-recover fallbackAttempts=%u fallbackOpened=%u",
+        tf2::native::audioDeviceFallbackAttempts(), tf2::native::audioDeviceFallbackOpened());
+    }
     traceFmt("audio: summary soundEventsRead=%zu soundEventsScheduled=%zu soundEventsPlayed=%zu"
       " soundEventsSkippedVoice=%zu soundEventsMissingResource=%zu firstPacketTick=%d"
       " soundOriginTick=%d reverseRecoveries=%zu duplicateTicks=%zu"

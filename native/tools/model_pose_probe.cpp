@@ -1920,6 +1920,99 @@ int playerAnimationTest(int argc, char** argv) {
 
 }
 
+// 2026-11-22 (WORKPLAN P3): --lod-report --tf-root <tf> --model <a.mdl>[,<b.mdl>...]
+// What each model's files say about its levels of detail, before any renderer
+// work depends on them: the VVD's LOD count and per-LOD vertex counts, the VTX
+// mesh entries per LOD with their strip-group vertex totals, and the fixup runs
+// per LOD. Read-only; the product draws LOD0 only and nothing here changes that.
+// One `lod-model` line per model plus one `lod-level` line per LOD, then a
+// verdict: LOD-REPORT=PASS when every model resolved and its VVD vertex counts
+// are non-increasing with the LOD (coarser never has more), FAIL otherwise.
+int lodReport(int argc, char** argv) {
+  std::string tfRoot;
+  std::string modelList;
+  for (int i = 1; i < argc; ++i) {
+    const std::string argument = argv[i];
+    if (argument == "--tf-root" && i + 1 < argc) tfRoot = argv[++i];
+    else if (argument == "--model" && i + 1 < argc) modelList = argv[++i];
+  }
+  if (tfRoot.empty() || modelList.empty()) {
+    std::cerr << "usage: model_pose_probe --lod-report --tf-root <tf> --model <a.mdl>[,<b.mdl>...]\n";
+    return 2;
+  }
+  const tf2::native::AssetRoot root = tf2::native::AssetRoot::fromPath(std::filesystem::u8path(tfRoot));
+  if (!root.valid()) {
+    std::cout << "LOD-REPORT=FAIL reason=tf-root-invalid root=" << tfRoot << "\n";
+    return 1;
+  }
+  std::vector<std::string> models;
+  std::size_t start = 0;
+  while (start <= modelList.size()) {
+    const std::size_t comma = modelList.find(',', start);
+    const std::string item = modelList.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+    if (!item.empty()) models.push_back(item);
+    if (comma == std::string::npos) break;
+    start = comma + 1;
+  }
+  int failures = 0;
+  for (const std::string& modelPath : models) {
+    const auto asset = tf2::native::ModelLoader::resolveAsset(root, modelPath);
+    tf2::native::ModelInspection inspection;
+    bool inspected = false;
+    for (const auto& archivePath : asset.vpkArchives) {
+      const auto* archive = root.archives().find(archivePath);
+      if (archive == nullptr || !archive->contains(modelPath)) continue;
+      inspection = tf2::native::ModelLoader::inspectVpk(*archive, modelPath);
+      inspected = true;
+      break;
+    }
+    if (!inspected) inspection = tf2::native::ModelLoader::inspect(asset.resources);
+    const auto& meta = inspection.metadata;
+    if (!meta.valid) {
+      std::cout << "lod-model model=" << modelPath << " valid=0\n";
+      ++failures;
+      continue;
+    }
+    // Per LOD: VTX mesh entries and the vertex ids they reference, and the VVD
+    // fixup runs. Indexed by the LOD number each record carries.
+    std::map<std::uint32_t, std::size_t> vtxMeshes;
+    std::map<std::uint32_t, std::size_t> vtxVertexRefs;
+    for (const auto& entry : meta.vtxLodOids) {
+      ++vtxMeshes[entry.lod];
+      vtxVertexRefs[entry.lod] += entry.oids.size();
+    }
+    std::map<std::uint32_t, std::size_t> fixupRuns;
+    std::map<std::uint32_t, std::size_t> fixupVertices;
+    for (const auto& fixup : meta.vvdFixups) {
+      ++fixupRuns[fixup.lod];
+      fixupVertices[fixup.lod] += fixup.numVertices;
+    }
+    bool monotone = true;
+    for (std::size_t lod = 1; lod < meta.vvdLodVertexCounts.size(); ++lod) {
+      if (meta.vvdLodVertexCounts[lod] > meta.vvdLodVertexCounts[lod - 1]) monotone = false;
+    }
+    std::cout << "lod-model model=" << modelPath << " valid=1"
+              << " vvdLods=" << meta.vvdLodCount
+              << " vvdCounts=" << meta.vvdLodVertexCounts.size()
+              << " vtxLods=" << vtxMeshes.size()
+              << " fixups=" << meta.vvdFixups.size()
+              << " monotone=" << (monotone ? 1 : 0) << "\n";
+    for (std::size_t lod = 0; lod < meta.vvdLodVertexCounts.size(); ++lod) {
+      const auto key = static_cast<std::uint32_t>(lod);
+      std::cout << "lod-level model=" << modelPath << " lod=" << lod
+                << " vvdVertices=" << meta.vvdLodVertexCounts[lod]
+                << " vtxMeshes=" << (vtxMeshes.count(key) ? vtxMeshes[key] : 0)
+                << " vtxVertexRefs=" << (vtxVertexRefs.count(key) ? vtxVertexRefs[key] : 0)
+                << " fixupRuns=" << (fixupRuns.count(key) ? fixupRuns[key] : 0)
+                << " fixupVertices=" << (fixupVertices.count(key) ? fixupVertices[key] : 0) << "\n";
+    }
+    if (!monotone || meta.vvdLodVertexCounts.empty()) ++failures;
+  }
+  std::cout << "LOD-REPORT=" << (failures == 0 ? "PASS" : "FAIL")
+            << " models=" << models.size() << " failures=" << failures << "\n";
+  return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--self-test") return selfTest();
   if (argc == 2 && std::string(argv[1]) == "--matcher-selftest") return matcherSelfTest();
@@ -1927,6 +2020,7 @@ int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--entity-id-selftest") return entityIdSelfTest();
   if (argc == 2 && std::string(argv[1]) == "--posegrid-selftest") return poseGridSelfTest();
   for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--lod-report") return lodReport(argc, argv);
     if (std::string(argv[i]) == "--player-animation-test") return playerAnimationTest(argc, argv);
     if (std::string(argv[i]) == "--player-animation-event-census") return playerAnimationEventCensus(argc, argv);
   }

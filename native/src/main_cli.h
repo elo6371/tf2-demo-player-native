@@ -6,6 +6,7 @@
 // Header-only in B1 to keep the patch within 2 files and avoid CMake churn.
 
 #include "animation_binding.h"
+#include "audio_player.h"
 #include "minimap.h"
 #include "native_renderer.h"
 #include "settings_store.h"
@@ -72,6 +73,23 @@ struct CliParseEnv {
 };
 
 using FlagHandler = bool (*)(CliParseEnv& env, LPWSTR* arguments, int argumentCount, int& i);
+
+// 2026-11-22 (docs/WORKPLAN-2026-11-22.md P3): switches whose state main.cpp
+// reads after parsing. They live here, as inline variables beside the rows that
+// set them, because CliParseEnv is a list of references into main()'s locals and
+// these have no local to point at. Every one defaults to "off", which is the
+// byte-identical run.
+//
+// --first-person on|off: open the first-person pass (arms + weapon body, drawn
+// from the ViewModel entity's own model) and apply its animation, without the
+// placeholder --viewmodel path; the pass is held back on frames whose camera is
+// not standing inside a player (third person, free look, --debug-camera).
+inline bool g_cliFirstPerson = false;
+// --aim-layer-heading view|velocity: what the legacy blend's aim-layer weight is
+// measured against. `velocity` (the default) is today's rule; `view` measures it
+// against the yaw the body is drawn at, i.e. weight 0 -- the conclusion the
+// posegrid path already reached (docs/N17-PHASE-C-VISUAL-2026-11-21.md section 4).
+inline bool g_cliAimHeadingView = false;
 
 struct FlagSpec {
   const wchar_t* name;
@@ -351,6 +369,45 @@ inline const FlagSpec kFeatureFlagTable[] = {
     if (value == L"table") { tf2::native::minimapHudSetBoundsFromFloor(false); ++i; return true; }
     if (value == L"bsp") { tf2::native::minimapHudSetBoundsFromFloor(true); ++i; return true; }
     std::fprintf(stderr, "--hud-minimap-bounds: expected table or bsp\n");
+    std::fflush(stderr);
+    return false;
+  }},
+  // 2026-11-22: the minimap panel starts below the native UI's status line when
+  // the two would overlap (docs/N15-DPI-LAYOUT-2026-11-15.md: 156x28 px at 1x).
+  // Value-less: it either moves the panel or it does not.
+  {L"--hud-minimap-avoid-status", FlagArity::Zero, [](CliParseEnv&, LPWSTR*, int, int&) {
+    tf2::native::minimapHudSetAvoidStatus(true);
+    return true;
+  }},
+  // The value is checked before it is consumed in all three rows below: a refused
+  // value leaves the switch unclaimed, so D-23 records it and --strict-args refuses.
+  {L"--first-person", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    if (value == L"on") { g_cliFirstPerson = true; ++i; return true; }
+    if (value == L"off") { g_cliFirstPerson = false; ++i; return true; }
+    std::fprintf(stderr, "--first-person: expected on or off\n");
+    std::fflush(stderr);
+    return false;
+  }},
+  {L"--aim-layer-heading", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    if (value == L"view") { g_cliAimHeadingView = true; ++i; return true; }
+    if (value == L"velocity") { g_cliAimHeadingView = false; ++i; return true; }
+    std::fprintf(stderr, "--aim-layer-heading: expected view or velocity\n");
+    std::fflush(stderr);
+    return false;
+  }},
+  // --audio-device-recover on|off: when the chosen output device stops existing
+  // (unplugged, disabled), fall back to the default device for that sound instead
+  // of going silent for the rest of the run. Off keeps today's behaviour.
+  {L"--audio-device-recover", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    if (value == L"on") { tf2::native::setAudioDeviceRecover(true); ++i; return true; }
+    if (value == L"off") { tf2::native::setAudioDeviceRecover(false); ++i; return true; }
+    std::fprintf(stderr, "--audio-device-recover: expected on or off\n");
     std::fflush(stderr);
     return false;
   }},

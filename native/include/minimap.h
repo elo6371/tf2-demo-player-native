@@ -540,4 +540,10 @@ inline MinimapDerivedBounds minimapBoundsFromFloor(
 void minimapHudSetBoundsFromFloor(bool enabled);
 bool minimapHudBoundsFromFloor();
 
+// 2026-11-22: --hud-minimap-avoid-status. Off by default (the panel rectangle the
+// hud_panel self-test and minimap-hud-check.sh A3 recompute is unchanged); on,
+// the panel is moved below the native UI's status line when the two overlap.
+void minimapHudSetAvoidStatus(bool enabled);
+bool minimapHudAvoidStatus();
+
 }  // namespace tf2::native

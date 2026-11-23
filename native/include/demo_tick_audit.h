@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -183,6 +184,41 @@ struct DemoTickAuditPacketRow {
 // The scan then feeds it (a) every packet boundary, (b) every
 // m_flSimulationTime write, and (c) every CTEPlayerAnimEvent, none of which are
 // bounded by summary.tempEntityEvents' 16384-entry retention cap.
+// 2026-11-22 (WORKPLAN P3, "where does a fire / reload animation come from"):
+// what the ViewModel entity's animation properties did over the WHOLE recording.
+// The entity history keeps checkpoints 128 ticks apart, thinned to 96 rows, so it
+// cannot answer "did m_nSequence ever change"; this is fed from the same per-write
+// hook the tick audit uses and sees every write. Opt-in through
+// DemoTickAuditCapture::enableViewModelCensus(); off, nothing is recorded and the
+// audit's own readings are unchanged.
+struct DemoViewModelSequenceTransition {
+  std::int32_t tick = 0;
+  std::int64_t from = 0;
+  std::int64_t to = 0;
+};
+struct DemoViewModelCensusEntity {
+  std::int32_t entityIndex = -1;
+  std::string className;
+  std::size_t sequenceWrites = 0;    // every m_nSequence write, changed or not
+  std::size_t sequenceChanges = 0;   // writes whose value differs from the last one
+  std::size_t parityWrites = 0;      // m_nAnimationParity: a restart of the same clip
+  std::size_t parityChanges = 0;
+  std::size_t modelChanges = 0;      // m_nModelIndex changes (weapon switches)
+  std::size_t cycleWrites = 0;       // m_flCycle (absent on the recordings measured so far)
+  std::size_t playbackRateWrites = 0;
+  std::int32_t firstTick = 0;
+  std::int32_t lastTick = 0;
+  bool haveSequence = false;
+  std::int64_t lastSequence = 0;
+  bool haveParity = false;
+  std::int64_t lastParity = 0;
+  bool haveModel = false;
+  std::int64_t lastModel = 0;
+  std::map<std::int64_t, std::size_t> sequenceWritesByValue;
+  std::map<std::int64_t, std::int32_t> sequenceFirstTick;
+  std::vector<DemoViewModelSequenceTransition> transitions;  // first 64 changes
+};
+
 class DemoTickAuditCapture {
  public:
   explicit DemoTickAuditCapture(const DemoTickAuditThresholds& thresholds = {});
@@ -194,6 +230,10 @@ class DemoTickAuditCapture {
       std::int32_t entityIndex, std::int32_t classId, const char* propName,
       const EntityPropertyValue& value);
   void observeTempEvent(const DemoNetworkSummary& summary, std::int32_t classId, const EntityState& eventState);
+  void enableViewModelCensus(bool enabled) { viewModelCensusEnabled_ = enabled; }
+  const std::map<std::int32_t, DemoViewModelCensusEntity>& viewModelCensus() const {
+    return viewModelCensus_;
+  }
   // finalServerTick is the packet's own svc_NetTick when it carried one,
   // otherwise the tick carried in from earlier packets.
   void endPacket(const DemoNetworkSummary& summary, std::int32_t finalServerTick, bool ownNetTick);
@@ -236,6 +276,11 @@ class DemoTickAuditCapture {
   void settlePending(const DemoNetworkSummary& summary, std::int32_t serverTick, std::int32_t gap);
   void appendHit(const DemoTickAuditHit& hit);
 
+  void observeViewModelProperty(const DemoNetworkSummary& summary, std::int32_t serverTick,
+      std::int32_t entityIndex, std::int32_t classId, const char* propName,
+      const EntityPropertyValue& value);
+  bool viewModelCensusEnabled_ = false;
+  std::map<std::int32_t, DemoViewModelCensusEntity> viewModelCensus_;
   DemoTickAuditThresholds thresholds_;
   std::vector<DemoTickAuditPacketRow> packets_;
   std::vector<DemoTickAuditHit> hits_;

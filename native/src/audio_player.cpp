@@ -26,6 +26,10 @@ const WinMmBackend* g_installedBackend = nullptr;
 std::atomic<std::uint32_t> g_deviceClosedCount{0};
 std::atomic<std::uint32_t> g_cleanupFailureCount{0};
 std::atomic<std::uint32_t> g_deadHandleCount{0};
+// --audio-device-recover (2026-11-22). Read on the playback path only.
+std::atomic<bool> g_deviceRecover{false};
+std::atomic<std::uint32_t> g_deviceFallbackAttempts{0};
+std::atomic<std::uint32_t> g_deviceFallbackOpened{0};
 // Buffers currently owned. Incremented once the state is published and
 // decremented only by releaseState(), so a non-zero value means the driver
 // still owns memory this process is holding on purpose.
@@ -83,6 +87,16 @@ std::uint32_t audioCleanupFailureCount() {
   return g_cleanupFailureCount.load(std::memory_order_relaxed);
 }
 
+void setAudioDeviceRecover(bool enabled) {
+  g_deviceRecover.store(enabled, std::memory_order_relaxed);
+}
+bool audioDeviceRecoverEnabled() { return g_deviceRecover.load(std::memory_order_relaxed); }
+std::uint32_t audioDeviceFallbackAttempts() {
+  return g_deviceFallbackAttempts.load(std::memory_order_relaxed);
+}
+std::uint32_t audioDeviceFallbackOpened() {
+  return g_deviceFallbackOpened.load(std::memory_order_relaxed);
+}
 std::uint32_t audioDeadHandleCount() {
   return g_deadHandleCount.load(std::memory_order_relaxed);
 }
@@ -201,6 +215,21 @@ bool AudioPlayer::play(const WavPcmData& wav, float volume, float pan) {
   g_deviceOpenAttempts.fetch_add(1, std::memory_order_relaxed);
   MMRESULT result = winMmBackend().open(&playback->output, deviceId_, &format, 0, 0, CALLBACK_NULL);
   if (result == MMSYSERR_NOERROR) g_deviceOpenedCount.fetch_add(1, std::memory_order_relaxed);
+  // --audio-device-recover: only the two answers that mean "that device is gone"
+  // are retried, and only when a specific device was chosen. A format the driver
+  // refuses, or a device that is merely busy, is not something the default
+  // device fixes, and retrying it would hide the real error.
+  if ((result == MMSYSERR_BADDEVICEID || result == MMSYSERR_NODRIVER)
+      && deviceId_ != WAVE_MAPPER && g_deviceRecover.load(std::memory_order_relaxed)) {
+    g_deviceFallbackAttempts.fetch_add(1, std::memory_order_relaxed);
+    ++g_waveOutOpenCallCount;
+    g_deviceOpenAttempts.fetch_add(1, std::memory_order_relaxed);
+    result = winMmBackend().open(&playback->output, WAVE_MAPPER, &format, 0, 0, CALLBACK_NULL);
+    if (result == MMSYSERR_NOERROR) {
+      g_deviceOpenedCount.fetch_add(1, std::memory_order_relaxed);
+      g_deviceFallbackOpened.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
   if (result != MMSYSERR_NOERROR) {
     delete playback;
     lastError_ = mmError(result, "waveOutOpen");

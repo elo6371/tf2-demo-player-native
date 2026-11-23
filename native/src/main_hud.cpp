@@ -89,6 +89,14 @@ void minimapHudSetBoundsFromFloor(bool enabled) { g_minimapBoundsFromFloor = ena
 
 bool minimapHudBoundsFromFloor() { return g_minimapBoundsFromFloor; }
 
+namespace {
+bool g_minimapAvoidStatus = false;
+}  // namespace
+
+void minimapHudSetAvoidStatus(bool enabled) { g_minimapAvoidStatus = enabled; }
+
+bool minimapHudAvoidStatus() { return g_minimapAvoidStatus; }
+
 }  // namespace tf2::native
 
 namespace tf2::native::main_internal {
@@ -1181,7 +1189,35 @@ tf2::native::HudPanelRect hudMinimapPanelRect(HWND window) {
     static_cast<int>(client.right), static_cast<int>(client.bottom),
     tf2::native::kHudPanelSafeInset);
   if (layout.panels.empty()) return tf2::native::HudPanelRect{};
-  return layout.panels.front();
+  tf2::native::HudPanelRect rect = layout.panels.front();
+  // 2026-11-22: --hud-minimap-avoid-status. The native UI's status line is laid
+  // out by planUiLayout at y = 12 dip, 28 dip tall, across the window -- the same
+  // band the panel starts in (docs/N15-DPI-LAYOUT-2026-11-15.md section 2.1). The
+  // status rectangle is taken from that planner rather than restated here, so the
+  // two cannot drift. Off by default: this block is skipped and the rectangle is
+  // exactly the one the layout rule produced.
+  if (rect.placed && tf2::native::minimapHudAvoidStatus()) {
+    const float dpiScale = window ? static_cast<float>(GetDpiForWindow(window)) / 96.0f : 1.0f;
+    const UiLayoutPlan ui = planUiLayout(static_cast<int>(client.right),
+      static_cast<int>(client.bottom), dpiScale > 0.0f ? dpiScale : 1.0f);
+    const UiRect& status = ui.rects[static_cast<std::size_t>(UiControlId::Status)];
+    const bool overlaps = status.w > 0 && status.h > 0
+      && rect.x < status.x + status.w && status.x < rect.x + rect.w
+      && rect.y < status.y + status.h && status.y < rect.y + rect.h;
+    if (overlaps) {
+      const int top = status.y + status.h + static_cast<int>(tf2::native::kHudMinimapPanelMargin);
+      const int bottomLimit = static_cast<int>(client.bottom) - tf2::native::kHudPanelSafeInset;
+      int height = rect.h;
+      if (top + height > bottomLimit) height = bottomLimit - top;
+      // A panel squeezed below a usable size keeps its original place: an overlap
+      // is a cosmetic defect, a 10-pixel map is not a map.
+      if (height >= 48) {
+        rect.y = top;
+        rect.h = height;
+      }
+    }
+  }
+  return rect;
 }
 
 // N14/U3a: the basemap, built once per (geometry revision, panel size).

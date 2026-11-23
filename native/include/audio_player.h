@@ -44,6 +44,19 @@ std::size_t audioRetainedStateCount();
 std::uint64_t audioRetainedByteCount();
 std::uint32_t audioRetainedAtExitCount();
 
+// 2026-11-22: --audio-device-recover. Every sound opens its own waveOut handle
+// on the device chosen at startup, so a device that disappears (unplugged,
+// disabled) turned into silence for the rest of the run: each open failed with
+// BADDEVICEID / NODRIVER and nothing tried anything else. With recovery on, an
+// open that fails for one of those two reasons is retried once on WAVE_MAPPER
+// (the system default output). The chosen device is still tried first on every
+// sound, so it is used again as soon as it comes back under the same index.
+// Off by default: no retry, and both counters below stay 0.
+void setAudioDeviceRecover(bool enabled);
+bool audioDeviceRecoverEnabled();
+std::uint32_t audioDeviceFallbackAttempts();  // retries on WAVE_MAPPER
+std::uint32_t audioDeviceFallbackOpened();    // ... of which opened
+
 // Test seam for the WinMM entry points this player calls. The product installs
 // nothing: the default table names the real functions, so the shipped path is
 // one indirect call per WinMM call and nothing else. installWinMmBackend()

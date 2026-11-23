@@ -148,6 +148,10 @@ void DemoTickAuditCapture::beginPacket(std::int32_t entryTick, std::uint8_t comm
 void DemoTickAuditCapture::observeEntityProperty(const DemoNetworkSummary& summary,
     std::int32_t serverTick, std::int32_t entityIndex, std::int32_t classId,
     const char* propName, const EntityPropertyValue& value) {
+  // Before the audit's own early returns: the census does not depend on them.
+  if (viewModelCensusEnabled_) {
+    observeViewModelProperty(summary, serverTick, entityIndex, classId, propName, value);
+  }
   if (!thresholds_.playerEnabled) return;
   if (propName == nullptr || std::strcmp(propName, "m_flSimulationTime") != 0) return;
   if (!isPlayerClass(classNameForClassId(summary, classId))) return;
@@ -165,6 +169,63 @@ void DemoTickAuditCapture::observeEntityProperty(const DemoNetworkSummary& summa
   const std::int32_t cutoff = sample.serverTick - std::max<std::int32_t>(thresholds_.simHistoryTicks, 8);
   while (!history.empty() && history.front().serverTick < cutoff) history.pop_front();
   if (history.size() > 64u) history.pop_front();
+}
+
+void DemoTickAuditCapture::observeViewModelProperty(const DemoNetworkSummary& summary,
+    std::int32_t serverTick, std::int32_t entityIndex, std::int32_t classId,
+    const char* propName, const EntityPropertyValue& value) {
+  if (propName == nullptr || entityIndex < 0) return;
+  const bool isSequence = std::strcmp(propName, "m_nSequence") == 0;
+  const bool isParity = std::strcmp(propName, "m_nAnimationParity") == 0;
+  const bool isModel = std::strcmp(propName, "m_nModelIndex") == 0;
+  const bool isCycle = std::strcmp(propName, "m_flCycle") == 0;
+  const bool isRate = std::strcmp(propName, "m_flPlaybackRate") == 0;
+  if (!isSequence && !isParity && !isModel && !isCycle && !isRate) return;
+  const char* className = classNameForClassId(summary, classId);
+  // CTFViewModel / CBaseViewModel / CPredictedViewModel: the first-person entity
+  // that owns the arms' sequence. A class name is the only identity available
+  // here, and "ViewModel" is the one substring every variant carries.
+  if (className == nullptr || std::strstr(className, "ViewModel") == nullptr) return;
+  DemoViewModelCensusEntity& entry = viewModelCensus_[entityIndex];
+  if (entry.entityIndex < 0) {
+    entry.entityIndex = entityIndex;
+    entry.className = className;
+    entry.firstTick = serverTick;
+  }
+  entry.lastTick = serverTick;
+  // Float properties carry their value in x (EntityPropertyValue). Only the
+  // integer ones (sequence, parity, model index) are compared; the two float ones
+  // are counted, not read.
+  const std::int64_t number = value.type == SendPropType::Float
+    ? static_cast<std::int64_t>(value.x) : value.intValue;
+  if (isSequence) {
+    ++entry.sequenceWrites;
+    ++entry.sequenceWritesByValue[number];
+    if (entry.sequenceFirstTick.find(number) == entry.sequenceFirstTick.end()) {
+      entry.sequenceFirstTick[number] = serverTick;
+    }
+    if (entry.haveSequence && number != entry.lastSequence) {
+      ++entry.sequenceChanges;
+      if (entry.transitions.size() < 64u) {
+        entry.transitions.push_back({serverTick, entry.lastSequence, number});
+      }
+    }
+    entry.haveSequence = true;
+    entry.lastSequence = number;
+  } else if (isParity) {
+    ++entry.parityWrites;
+    if (entry.haveParity && number != entry.lastParity) ++entry.parityChanges;
+    entry.haveParity = true;
+    entry.lastParity = number;
+  } else if (isModel) {
+    if (entry.haveModel && number != entry.lastModel) ++entry.modelChanges;
+    entry.haveModel = true;
+    entry.lastModel = number;
+  } else if (isCycle) {
+    ++entry.cycleWrites;
+  } else {
+    ++entry.playbackRateWrites;
+  }
 }
 
 void DemoTickAuditCapture::observeTempEvent(const DemoNetworkSummary& summary,

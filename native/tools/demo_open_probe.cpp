@@ -938,6 +938,17 @@ int wmain(int argc, wchar_t** argv) {
     tempCensus = true;
     ++firstPath;
   }
+  // 2026-11-22 (WORKPLAN P3): --viewmodel-census prints, for every ViewModel-class
+  // entity, how often m_nSequence / m_nAnimationParity / m_nModelIndex were
+  // written and changed over the WHOLE recording, the values with their first
+  // tick, and the first 64 sequence transitions. It answers "is a fire or reload
+  // clip ever on the wire" before anyone builds on it. Must follow --temp-census
+  // (and precede --userinfo): this scan reads its switches in a fixed order.
+  bool viewModelCensus = false;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--viewmodel-census") {
+    viewModelCensus = true;
+    ++firstPath;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1042,7 +1053,8 @@ int wmain(int argc, wchar_t** argv) {
       summary.cameraTrackLimits.enabled = cameraTrack;
       // task-35: the capture is opt-in, so without the switch no packet row, sim
       // sample or anim event is recorded and every existing line stays identical.
-      if (tickAudit) summary.tickAuditCapture = &tickAuditCapture;
+      if (tickAudit || viewModelCensus) summary.tickAuditCapture = &tickAuditCapture;
+      if (viewModelCensus) tickAuditCapture.enableViewModelCensus(true);
       if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       if (tickAudit) {
@@ -1348,6 +1360,38 @@ int wmain(int argc, wchar_t** argv) {
           }
           tempDumpText += '\n';
           ++tempRows;
+        }
+      }
+      if (viewModelCensus) {
+        const auto& census = tickAuditCapture.viewModelCensus();
+        tempDumpText += "vm-census entities=" + std::to_string(census.size()) + '\n';
+        for (const auto& item : census) {
+          const auto& e = item.second;
+          tempDumpText += "vm-entity index=" + std::to_string(e.entityIndex)
+            + " class=" + e.className
+            + " ticks=" + std::to_string(e.firstTick) + ".." + std::to_string(e.lastTick)
+            + " sequenceWrites=" + std::to_string(e.sequenceWrites)
+            + " sequenceChanges=" + std::to_string(e.sequenceChanges)
+            + " distinctSequences=" + std::to_string(e.sequenceWritesByValue.size())
+            + " parityWrites=" + std::to_string(e.parityWrites)
+            + " parityChanges=" + std::to_string(e.parityChanges)
+            + " modelChanges=" + std::to_string(e.modelChanges)
+            + " cycleWrites=" + std::to_string(e.cycleWrites)
+            + " playbackRateWrites=" + std::to_string(e.playbackRateWrites) + '\n';
+          for (const auto& seq : e.sequenceWritesByValue) {
+            const auto first = e.sequenceFirstTick.find(seq.first);
+            tempDumpText += "vm-sequence index=" + std::to_string(e.entityIndex)
+              + " sequence=" + std::to_string(seq.first)
+              + " writes=" + std::to_string(seq.second)
+              + " firstTick=" + std::to_string(first == e.sequenceFirstTick.end() ? -1 : first->second)
+              + '\n';
+          }
+          for (const auto& step : e.transitions) {
+            tempDumpText += "vm-transition index=" + std::to_string(e.entityIndex)
+              + " tick=" + std::to_string(step.tick)
+              + " from=" + std::to_string(step.from)
+              + " to=" + std::to_string(step.to) + '\n';
+          }
         }
       }
       if (tempCensus) {
