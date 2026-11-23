@@ -219,6 +219,47 @@ struct DemoViewModelCensusEntity {
   std::vector<DemoViewModelSequenceTransition> transitions;  // first 64 changes
 };
 
+// P4 (2026-11-22): --fx-census. What the effect-bearing properties did over the
+// WHOLE recording -- the medigun's heal / charge state, the flamethrower's weapon
+// state, the players' condition words -- so the assumptions gameplay_effects.h
+// states (condition bit numbers, weapon-state values, item numbers) are checked
+// against a real demo before a default depends on them. Same per-write hook and
+// same opt-in rule as the ViewModel census: off, nothing is recorded.
+struct DemoFxCensusProp {
+  std::size_t writes = 0;
+  std::size_t changes = 0;
+  std::map<std::int64_t, std::size_t> values;  // first 32 distinct values
+  std::size_t valuesOverflow = 0;
+};
+struct DemoFxChargeEdge {
+  std::int32_t tick = 0;
+  std::int32_t medigun = -1;
+  std::int32_t owner = -1;
+  std::int32_t target = -1;
+  std::int64_t item = -1;
+  bool on = false;
+};
+struct DemoFxCondEdge {
+  std::int32_t tick = 0;
+  std::int32_t entity = -1;
+  std::int32_t word = 0;      // 0 = bits 0..31 (m_nPlayerCond / _condition_bits), 1 = Ex, 2 = Ex2 ...
+  bool conditionList = false; // true for _condition_bits, false for m_nPlayerCond*
+  std::uint32_t rose = 0;     // bits that went 0 -> 1 on this write
+  std::uint32_t fell = 0;
+};
+struct DemoFxCensus {
+  std::map<std::string, DemoFxCensusProp> props;  // "Class.prop"
+  std::vector<DemoFxChargeEdge> chargeEdges;      // first 1024
+  std::vector<DemoFxCondEdge> condEdges;          // first 65536
+  std::size_t condEdgesDropped = 0;
+  // Running state the edges need.
+  std::map<std::int32_t, std::int64_t> medigunOwner;
+  std::map<std::int32_t, std::int64_t> medigunTarget;
+  std::map<std::int32_t, std::int64_t> medigunItem;
+  std::map<std::int32_t, std::int64_t> medigunCharge;
+  std::map<std::pair<std::int32_t, std::int32_t>, std::uint32_t> lastCond;  // (entity, word*2+list)
+};
+
 class DemoTickAuditCapture {
  public:
   explicit DemoTickAuditCapture(const DemoTickAuditThresholds& thresholds = {});
@@ -231,6 +272,8 @@ class DemoTickAuditCapture {
       const EntityPropertyValue& value);
   void observeTempEvent(const DemoNetworkSummary& summary, std::int32_t classId, const EntityState& eventState);
   void enableViewModelCensus(bool enabled) { viewModelCensusEnabled_ = enabled; }
+  void enableFxCensus(bool enabled) { fxCensusEnabled_ = enabled; }
+  const DemoFxCensus& fxCensus() const { return fxCensus_; }
   const std::map<std::int32_t, DemoViewModelCensusEntity>& viewModelCensus() const {
     return viewModelCensus_;
   }
@@ -280,6 +323,11 @@ class DemoTickAuditCapture {
       std::int32_t entityIndex, std::int32_t classId, const char* propName,
       const EntityPropertyValue& value);
   bool viewModelCensusEnabled_ = false;
+  void observeFxProperty(const DemoNetworkSummary& summary, std::int32_t serverTick,
+      std::int32_t entityIndex, std::int32_t classId, const char* propName,
+      const EntityPropertyValue& value);
+  bool fxCensusEnabled_ = false;
+  DemoFxCensus fxCensus_;
   std::map<std::int32_t, DemoViewModelCensusEntity> viewModelCensus_;
   DemoTickAuditThresholds thresholds_;
   std::vector<DemoTickAuditPacketRow> packets_;

@@ -1,5 +1,6 @@
 #include "demo_header.h"
 #include "demo_tick_audit.h"
+#include "gameplay_effects.h"
 // task-39: rankPropertyCandidates is the entity model's own suffix matcher and
 // ordering, exported so a diagnostic prints what the selection rule would pick
 // instead of a second implementation that can drift from it.
@@ -949,6 +950,16 @@ int wmain(int argc, wchar_t** argv) {
     viewModelCensus = true;
     ++firstPath;
   }
+  // P4 (2026-11-22): --fx-census prints what the medigun / flamethrower / player
+  // condition properties did over the whole recording, every Ubercharge edge, and
+  // which condition bits rose on the medic and the patient within half a second
+  // of each charge -- the check gameplay_effects.h asks for before a default reads
+  // the bits. Must follow --viewmodel-census and precede --userinfo.
+  bool fxCensus = false;
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--fx-census") {
+    fxCensus = true;
+    ++firstPath;
+  }
   // --userinfo: print the decoded "userinfo" string table. --userinfo-dump <n>:
   // also hex-dump the first n slots' raw player_info_t bytes, so the layout can be
   // read out of the demo instead of assumed. --userinfo-at a,b,a: resolve every
@@ -1053,8 +1064,9 @@ int wmain(int argc, wchar_t** argv) {
       summary.cameraTrackLimits.enabled = cameraTrack;
       // task-35: the capture is opt-in, so without the switch no packet row, sim
       // sample or anim event is recorded and every existing line stays identical.
-      if (tickAudit || viewModelCensus) summary.tickAuditCapture = &tickAuditCapture;
+      if (tickAudit || viewModelCensus || fxCensus) summary.tickAuditCapture = &tickAuditCapture;
       if (viewModelCensus) tickAuditCapture.enableViewModelCensus(true);
+      if (fxCensus) tickAuditCapture.enableFxCensus(true);
       if (cosmeticsTick >= 0) summary.wearableSlotCapture = &wearableSlotCapture;
       const bool scanOk = tf2::native::scanKnownDemoMessages(path, index, summary);
       if (tickAudit) {
@@ -1391,6 +1403,83 @@ int wmain(int argc, wchar_t** argv) {
               + " tick=" + std::to_string(step.tick)
               + " from=" + std::to_string(step.from)
               + " to=" + std::to_string(step.to) + '\n';
+          }
+        }
+      }
+      if (fxCensus) {
+        const auto& census = tickAuditCapture.fxCensus();
+        tempDumpText += "fx-census props=" + std::to_string(census.props.size())
+          + " chargeEdges=" + std::to_string(census.chargeEdges.size())
+          + " condEdges=" + std::to_string(census.condEdges.size())
+          + " condEdgesDropped=" + std::to_string(census.condEdgesDropped) + '\n';
+        for (const auto& item : census.props) {
+          std::string values;
+          for (const auto& v : item.second.values) {
+            if (!values.empty()) values += ',';
+            values += std::to_string(v.first) + ':' + std::to_string(v.second);
+          }
+          tempDumpText += "fx-prop key=" + item.first
+            + " writes=" + std::to_string(item.second.writes)
+            + " changes=" + std::to_string(item.second.changes)
+            + " values=" + (values.empty() ? std::string("-") : values)
+            + " overflow=" + std::to_string(item.second.valuesOverflow) + '\n';
+        }
+        std::size_t printed = 0;
+        for (const auto& edge : census.chargeEdges) {
+          if (printed++ >= 64u) break;
+          tempDumpText += "fx-charge tick=" + std::to_string(edge.tick)
+            + " medigun=" + std::to_string(edge.medigun)
+            + " owner=" + std::to_string(edge.owner)
+            + " target=" + std::to_string(edge.target)
+            + " item=" + std::to_string(edge.item)
+            + " kind=" + tf2::native::medigunChargeKindName(tf2::native::medigunChargeKindForItem(edge.item))
+            + " on=" + (edge.on ? "1" : "0") + '\n';
+        }
+        // Which bits rose on the medic / the patient within [-4, +33] ticks of a
+        // charge starting, against how often each bit rises at all. A bit that
+        // means "invulnerable" rises next to nearly every stock charge and rarely
+        // anywhere else.
+        struct Hit { std::size_t owner = 0; std::size_t target = 0; };
+        std::map<std::string, std::map<std::pair<int, bool>, Hit>> byKind;
+        std::map<std::string, std::size_t> chargesByKind;
+        std::map<std::pair<int, bool>, std::size_t> totalRises;
+        for (const auto& edge : census.condEdges) {
+          for (int b = 0; b < 32; ++b) {
+            if ((edge.rose >> b) & 1u) ++totalRises[{edge.word * 32 + b, edge.conditionList}];
+          }
+        }
+        for (const auto& charge : census.chargeEdges) {
+          if (!charge.on) continue;
+          const std::string kind = tf2::native::medigunChargeKindName(tf2::native::medigunChargeKindForItem(charge.item));
+          ++chargesByKind[kind];
+          std::map<std::pair<int, bool>, int> seen;  // bit -> 1 owner, 2 target, 3 both
+          for (const auto& edge : census.condEdges) {
+            if (edge.tick < charge.tick - 4 || edge.tick > charge.tick + 33) continue;
+            const bool isOwner = edge.entity == charge.owner;
+            const bool isTarget = charge.target >= 0 && edge.entity == charge.target;
+            if (!isOwner && !isTarget) continue;
+            for (int b = 0; b < 32; ++b) {
+              if (((edge.rose >> b) & 1u) == 0u) continue;
+              int& mask = seen[{edge.word * 32 + b, edge.conditionList}];
+              mask |= (isOwner ? 1 : 0) | (isTarget ? 2 : 0);
+            }
+          }
+          for (const auto& bit : seen) {
+            Hit& hit = byKind[kind][bit.first];
+            if (bit.second & 1) ++hit.owner;
+            if (bit.second & 2) ++hit.target;
+          }
+        }
+        for (const auto& kind : byKind) {
+          for (const auto& bit : kind.second) {
+            const auto total = totalRises.find(bit.first);
+            tempDumpText += "fx-correlation kind=" + kind.first
+              + " charges=" + std::to_string(chargesByKind[kind.first])
+              + " bit=" + std::to_string(bit.first.first)
+              + " list=" + (bit.first.second ? "condition_bits" : "m_nPlayerCond")
+              + " ownerHits=" + std::to_string(bit.second.owner)
+              + " targetHits=" + std::to_string(bit.second.target)
+              + " risesAnywhere=" + std::to_string(total == totalRises.end() ? 0u : total->second) + '\n';
           }
         }
       }

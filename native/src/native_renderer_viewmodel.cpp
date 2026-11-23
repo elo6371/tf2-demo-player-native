@@ -699,6 +699,9 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
     effects.selfillum.maskFromAlpha ? 1.0f : 0.0f, 0.0f, 0.0f);
   constants.selfillumTint = XMFLOAT4(effects.selfillum.tint[0], effects.selfillum.tint[1],
     effects.selfillum.tint[2], 1.0f);
+  // P4 (2026-11-22): the first-person uber / crit glow; 0 strength is identity.
+  constants.effectOverlay = XMFLOAT4(viewModelState_.effectOverlay[0], viewModelState_.effectOverlay[1],
+    viewModelState_.effectOverlay[2], viewModelState_.effectOverlay[3]);
   XMStoreFloat4x4(reinterpret_cast<XMFLOAT4X4*>(viewModelMvp_.data()), mvp);
   // The three per-range counters are reset here, at the top of the pass, so a
   // frame that draws nothing cannot inherit the previous frame's counts. The
@@ -990,6 +993,10 @@ bool Renderer::drawViewModel(std::uint32_t viewportWidth, std::uint32_t viewport
     weaponConstants.phongFeatures = XMFLOAT4(0, 0, 0, 0);
     weaponConstants.bumpFeatures = XMFLOAT4(0, 0, 0, 0);
     weaponConstants.selfillumFeatures = XMFLOAT4(0, 0, 0, 0);
+    // P4 (2026-11-22): the weapon body's own uber / crit glow (0 strength = identity).
+    weaponConstants.effectOverlay = XMFLOAT4(viewModelWeaponState_.effectOverlay[0],
+      viewModelWeaponState_.effectOverlay[1], viewModelWeaponState_.effectOverlay[2],
+      viewModelWeaponState_.effectOverlay[3]);
     const auto weaponTexture = viewModelMaterialTextures_.find(viewModelWeaponState_.materialKey);
     const bool hasWeaponTexture = weaponTexture != viewModelMaterialTextures_.end();
     auto* weaponBuffer = viewModelWeaponVertexBuffer_.Get();

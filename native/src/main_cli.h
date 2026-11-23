@@ -90,6 +90,24 @@ inline bool g_cliFirstPerson = false;
 // against the yaw the body is drawn at, i.e. weight 0 -- the conclusion the
 // posegrid path already reached (docs/N17-PHASE-C-VISUAL-2026-11-21.md section 4).
 inline bool g_cliAimHeadingView = false;
+// P4 (2026-11-22) --gameplay-fx on|off: heal beams, flamethrower flames and
+// airblast, Ubercharge / Kritzkrieg / Quick-Fix / Vaccinator looks on bodies and
+// in first person, all read from the recording's entity state
+// (gameplay_effects.h). Off (the default) submits nothing and leaves every frame
+// byte-identical.
+// --gameplay-fx-parts beam,flame,kritz,uber,fp: which of them (default: all).
+// --gameplay-fx-uber-source medigun|cond|both: where "ubered" comes from
+// (default medigun -- the condition-bit numbering is an assumption until
+// demo_open_probe --scan --fx-census confirms it on a recording).
+constexpr unsigned kGameplayFxPartBeam = 1u;
+constexpr unsigned kGameplayFxPartFlame = 2u;
+constexpr unsigned kGameplayFxPartKritz = 4u;
+constexpr unsigned kGameplayFxPartUber = 8u;
+constexpr unsigned kGameplayFxPartFirstPerson = 16u;
+constexpr unsigned kGameplayFxPartAll = 31u;
+inline bool g_cliGameplayFx = false;
+inline unsigned g_cliGameplayFxParts = kGameplayFxPartAll;
+inline int g_cliGameplayFxUberSource = 0;
 
 struct FlagSpec {
   const wchar_t* name;
@@ -408,6 +426,53 @@ inline const FlagSpec kFeatureFlagTable[] = {
     if (value == L"on") { tf2::native::setAudioDeviceRecover(true); ++i; return true; }
     if (value == L"off") { tf2::native::setAudioDeviceRecover(false); ++i; return true; }
     std::fprintf(stderr, "--audio-device-recover: expected on or off\n");
+    std::fflush(stderr);
+    return false;
+  }},
+  // P4 (2026-11-22): the gameplay-effects switches (see g_cliGameplayFx above).
+  {L"--gameplay-fx", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    if (value == L"on") { g_cliGameplayFx = true; ++i; return true; }
+    if (value == L"off") { g_cliGameplayFx = false; ++i; return true; }
+    std::fprintf(stderr, "--gameplay-fx: expected on or off\n");
+    std::fflush(stderr);
+    return false;
+  }},
+  {L"--gameplay-fx-parts", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    unsigned parts = 0u;
+    std::size_t start = 0;
+    while (start <= value.size()) {
+      const std::size_t comma = value.find(L',', start);
+      const std::wstring part = value.substr(start, comma == std::wstring::npos ? std::wstring::npos : comma - start);
+      if (part == L"beam") parts |= kGameplayFxPartBeam;
+      else if (part == L"flame") parts |= kGameplayFxPartFlame;
+      else if (part == L"kritz") parts |= kGameplayFxPartKritz;
+      else if (part == L"uber") parts |= kGameplayFxPartUber;
+      else if (part == L"fp") parts |= kGameplayFxPartFirstPerson;
+      else if (part == L"all") parts |= kGameplayFxPartAll;
+      else if (part == L"none") parts |= 0u;
+      else {
+        std::fprintf(stderr, "--gameplay-fx-parts: unknown part (expected beam,flame,kritz,uber,fp,all,none)\n");
+        std::fflush(stderr);
+        return false;
+      }
+      if (comma == std::wstring::npos) break;
+      start = comma + 1;
+    }
+    g_cliGameplayFxParts = parts;
+    ++i;
+    return true;
+  }},
+  {L"--gameplay-fx-uber-source", FlagArity::One, [](CliParseEnv&, LPWSTR* arguments, int argumentCount, int& i) {
+    if (i + 1 >= argumentCount) return false;
+    const std::wstring value = arguments[i + 1];
+    if (value == L"medigun") { g_cliGameplayFxUberSource = 0; ++i; return true; }
+    if (value == L"cond") { g_cliGameplayFxUberSource = 1; ++i; return true; }
+    if (value == L"both") { g_cliGameplayFxUberSource = 2; ++i; return true; }
+    std::fprintf(stderr, "--gameplay-fx-uber-source: expected medigun, cond or both\n");
     std::fflush(stderr);
     return false;
   }},

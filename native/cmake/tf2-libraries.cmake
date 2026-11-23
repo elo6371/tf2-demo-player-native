@@ -83,6 +83,8 @@ add_library(tf2_core STATIC
   src/world_lighting.cpp
   src/world_tile_atlas.cpp
   src/effects_timeline.cpp
+  # P4 (2026-11-22): gameplay effects reading + draw list (beam, flame, uber, crit).
+  src/gameplay_effects.cpp
 
   # Audio playback (the import libraries are linked below).
   src/audio_player.cpp

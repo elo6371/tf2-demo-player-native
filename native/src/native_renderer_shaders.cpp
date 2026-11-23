@@ -968,6 +968,37 @@ float4 main(float4 position : SV_POSITION, float4 colour : COLOR0) : SV_TARGET {
 }
 )HLSL";
 
+  // P4 (2026-11-22): the gameplay-effects pass. Same constant buffer layout as
+  // the overlay (b0: mvp, cameraPositionAndExpand, mode) so it can share that
+  // buffer; one extra input, the quad's uv, for a soft falloff. A sprite carries
+  // uv over [0,1]^2 and fades radially; a ribbon carries u = 0.5 and fades across
+  // its width only.
+  extern const char gameplayFxVertexSource[] = R"HLSL(
+cbuffer OverlayConstants : register(b0) {
+  row_major float4x4 mvp;
+  float4 cameraPositionAndExpand;
+  float4 mode;
+};
+struct Input { float3 position : POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; };
+struct Output { float4 position : SV_POSITION; float4 colour : COLOR0; float2 uv : TEXCOORD0; };
+Output main(Input input) {
+  Output output;
+  output.position = mul(float4(input.position, 1.0), mvp);
+  output.colour = input.colour;
+  output.uv = input.uv;
+  return output;
+}
+)HLSL";
+
+  extern const char gameplayFxPixelSource[] = R"HLSL(
+float4 main(float4 position : SV_POSITION, float4 colour : COLOR0, float2 uv : TEXCOORD0) : SV_TARGET {
+  float2 d = uv * 2.0 - 1.0;
+  float falloff = saturate(1.0 - dot(d, d));
+  falloff *= falloff;
+  return float4(colour.rgb, colour.a * falloff);
+}
+)HLSL";
+
   extern const char entityModelVertexSource[] = R"HLSL(
 cbuffer WorldConstants : register(b0) {
   row_major float4x4 mvp;
@@ -1142,6 +1173,7 @@ cbuffer ViewModelConstants : register(b0) {
   float4 bumpFeatures;
   float4 selfillumFeatures;
   float4 selfillumTint;
+  float4 effectOverlay;
 };
 // T18 (2026-10-19): the bone table is read as FLOAT4s, not as `float4x4`.
 //
@@ -1260,6 +1292,7 @@ cbuffer ViewModelConstants : register(b0) {
   float4 bumpFeatures;
   float4 selfillumFeatures;
   float4 selfillumTint;
+  float4 effectOverlay;
 };
 // T105: the model lighting block, redeclared per compilation unit. b1 is free
 // in this pixel stage -- the only pixel constant buffer the pass binds is b0.
@@ -1301,6 +1334,20 @@ float3 modelLightingRgb(float3 normalWorld, float4 cube[6], float4 sun) {
   float3 sunDirection = safeNormalize(sun.xyz);
   float halfLambert = saturate(dot(n, sunDirection) * 0.5 + 0.5);
   return ambient + sun.w * (halfLambert * halfLambert);
+}
+// P4 (2026-11-22): the Ubercharge / crit glow in first person. A team-coloured
+// metal look: the colour scaled by the shaded brightness plus a rim term, mixed in
+// by effectOverlay.w. w == 0 returns `shaded` unchanged (the lerp is skipped), so
+// every frame without an effect is byte-identical to before.
+float3 applyEffectOverlay(float3 shaded, float3 viewNormal, float3 viewPosition) {
+  if (!(effectOverlay.w > 0.0)) return shaded;
+  float luma = dot(shaded, float3(0.299, 0.587, 0.114));
+  float3 n = safeNormalize(viewNormal);
+  float3 v = safeNormalize(-viewPosition);
+  float rim = 1.0 - saturate(abs(dot(n, v)));
+  rim *= rim;
+  float3 glow = effectOverlay.rgb * (0.35 + 1.1 * luma) + effectOverlay.rgb * rim * 0.9;
+  return lerp(shaded, glow, saturate(effectOverlay.w));
 }
 float4 main(Input input) : SV_TARGET {
   // The world-space-ish normal the pass has always shaded by, kept as the
@@ -1392,12 +1439,14 @@ float4 main(Input input) : SV_TARGET {
     float3 lit = albedoRgb * diffuseRgb;
     lit += specular * albedoRgb;
     lit += emission;
+    lit = applyEffectOverlay(lit, input.viewNormal, input.viewPosition);
     return float4(lit, texel.a * input.colour.a);
   }
   if (lightingParams.x > 0.5) {
-    return float4(input.colour.rgb * modelLightingRgb(normal, ambientCube, sunDirectionAndIntensity), input.colour.a);
+    return float4(applyEffectOverlay(input.colour.rgb * modelLightingRgb(normal, ambientCube, sunDirectionAndIntensity),
+      input.viewNormal, input.viewPosition), input.colour.a);
   }
-  return float4(input.colour.rgb * lighting, input.colour.a);
+  return float4(applyEffectOverlay(input.colour.rgb * lighting, input.viewNormal, input.viewPosition), input.colour.a);
 }
 )HLSL";
 

@@ -644,4 +644,189 @@ void Renderer::rebuildOverlayBuffers() {
   }
 }
 
+// ===========================================================================
+// P4 (2026-11-22): THE GAMEPLAY-EFFECTS PASS.
+//
+// Drawn after the overlay pass and before the ViewModel pass clears depth, so a
+// beam or a flame is hidden by the wall in front of it and the weapon in first
+// person is still drawn over it. It takes no framePassOrdinal_: the overlay's
+// ordinal (6) is a contract number the gates read, and a pass that is off by
+// default must not move it.
+//
+// The list is stored by setGameplayFx and turned into quads here because a
+// camera-facing quad needs THIS pane's camera; building it at set time would
+// face the first pane's camera in a split frame.
+// ===========================================================================
+static_assert(offsetof(WorldVertex, r) == 12, "gameplay fx input layout: COLOR at 12");
+static_assert(offsetof(WorldVertex, u) == 28, "gameplay fx input layout: TEXCOORD at 28");
+
+void Renderer::setGameplayFx(const GameplayFxDrawList& list) {
+  gameplayFxList_ = list;
+}
+
+bool Renderer::drawGameplayFxPass(const DirectX::XMFLOAT4X4& mvp) {
+  gameplayFxReading_ = GameplayFxPassReading{};
+  if (!gameplayFxList_.enabled) return false;
+  if (gameplayFxList_.sprites.empty() && gameplayFxList_.ribbons.empty()) return false;
+  if (!device_ || !context_ || !worldBoundsValid_ || worldDiagnosticIsolation_) return false;
+  if (!gameplayFxVertexShader_ || !gameplayFxPixelShader_ || !gameplayFxInputLayout_
+      || !overlayConstants_ || !overlayDepthTestedState_ || !overlayRasterizerState_
+      || !mapAdditiveBlendState_ || !worldAlphaBlendState_) {
+    return false;
+  }
+  const float fxScale = worldHorizontalScale_;
+  const auto normalize = [this, fxScale](const float p[3]) {
+    return DirectX::XMFLOAT3((p[0] - worldCenterX_) * fxScale, (p[1] - worldCenterY_) * fxScale,
+      (p[2] - worldMinZ_) * fxScale + 0.1f);
+  };
+  using DirectX::XMFLOAT3;
+  const auto addv = [](XMFLOAT3 a, XMFLOAT3 b) { return XMFLOAT3(a.x + b.x, a.y + b.y, a.z + b.z); };
+  const auto subv = [](XMFLOAT3 a, XMFLOAT3 b) { return XMFLOAT3(a.x - b.x, a.y - b.y, a.z - b.z); };
+  const auto mulv = [](XMFLOAT3 a, float s) { return XMFLOAT3(a.x * s, a.y * s, a.z * s); };
+  const auto crossv = [](XMFLOAT3 a, XMFLOAT3 b) {
+    return XMFLOAT3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+  };
+  const auto unitv = [](XMFLOAT3 a, XMFLOAT3 fallback) {
+    const float l = std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+    return (l > 1.0e-8f && std::isfinite(l)) ? XMFLOAT3(a.x / l, a.y / l, a.z / l) : fallback;
+  };
+  const XMFLOAT3 eye(frameEye_[0], frameEye_[1], frameEye_[2]);
+  const XMFLOAT3 forward = unitv(XMFLOAT3(frameForward_[0], frameForward_[1], frameForward_[2]), XMFLOAT3(1.0f, 0.0f, 0.0f));
+  const XMFLOAT3 right = unitv(XMFLOAT3(frameRight_[0], frameRight_[1], frameRight_[2]), XMFLOAT3(0.0f, 1.0f, 0.0f));
+  const XMFLOAT3 up = unitv(crossv(forward, right), XMFLOAT3(0.0f, 0.0f, 1.0f));
+
+  // Two groups, each one contiguous range: alpha-blended (smoke, bubbles) first,
+  // then additive (fire, beams, sparks) over it.
+  std::vector<WorldVertex> groups[2];
+  constexpr std::size_t kMaxVertices = 98304;
+  const auto vertex = [](XMFLOAT3 p, const float c[4], float u, float v) {
+    WorldVertex out{};
+    out.x = p.x; out.y = p.y; out.z = p.z;
+    out.r = c[0]; out.g = c[1]; out.b = c[2]; out.a = c[3];
+    out.u = u; out.v = v;
+    out.nx = 0.0f; out.ny = 0.0f; out.nz = 1.0f;
+    return out;
+  };
+  const auto quad = [&](std::vector<WorldVertex>& out, XMFLOAT3 p0, XMFLOAT3 p1, XMFLOAT3 p2, XMFLOAT3 p3,
+                        const float c[4], bool ribbon) {
+    // p0..p3 counter-clockwise; the rasterizer culls nothing, so winding is free.
+    const float u0 = ribbon ? 0.5f : 0.0f;
+    const float u1 = ribbon ? 0.5f : 1.0f;
+    out.push_back(vertex(p0, c, u0, 0.0f));
+    out.push_back(vertex(p1, c, u1, 0.0f));
+    out.push_back(vertex(p2, c, u1, 1.0f));
+    out.push_back(vertex(p0, c, u0, 0.0f));
+    out.push_back(vertex(p2, c, u1, 1.0f));
+    out.push_back(vertex(p3, c, u0, 1.0f));
+  };
+  std::size_t total = 0;
+  for (const auto& sprite : gameplayFxList_.sprites) {
+    if (total + 6 > kMaxVertices) { ++gameplayFxReading_.truncated; continue; }
+    const XMFLOAT3 c = normalize(sprite.center);
+    const float r = sprite.radius * fxScale;
+    const XMFLOAT3 dx = mulv(right, r);
+    const XMFLOAT3 dy = mulv(up, r);
+    auto& out = groups[sprite.blend == FxBlend::Alpha ? 0 : 1];
+    quad(out, subv(subv(c, dx), dy), subv(addv(c, dx), dy), addv(addv(c, dx), dy), addv(subv(c, dx), dy),
+      sprite.color, false);
+    total += 6;
+    ++gameplayFxReading_.sprites;
+  }
+  for (const auto& ribbon : gameplayFxList_.ribbons) {
+    if (total + 6 > kMaxVertices) { ++gameplayFxReading_.truncated; continue; }
+    const XMFLOAT3 a = normalize(ribbon.a);
+    const XMFLOAT3 b = normalize(ribbon.b);
+    const XMFLOAT3 along = subv(b, a);
+    const XMFLOAT3 middle = mulv(addv(a, b), 0.5f);
+    // Across the strip: perpendicular to both the strip and the line of sight,
+    // so it is seen face-on from wherever the camera stands.
+    const XMFLOAT3 side = unitv(crossv(along, subv(middle, eye)), right);
+    const XMFLOAT3 half = mulv(side, 0.5f * ribbon.width * fxScale);
+    auto& out = groups[ribbon.blend == FxBlend::Alpha ? 0 : 1];
+    quad(out, subv(a, half), subv(b, half), addv(b, half), addv(a, half), ribbon.color, true);
+    total += 6;
+    ++gameplayFxReading_.ribbons;
+  }
+  if (total == 0) return false;
+
+  std::vector<WorldVertex> vertices;
+  vertices.reserve(total);
+  vertices.insert(vertices.end(), groups[0].begin(), groups[0].end());
+  vertices.insert(vertices.end(), groups[1].begin(), groups[1].end());
+  if (!gameplayFxVertexBuffer_ || gameplayFxVertexCapacity_ < vertices.size()) {
+    D3D11_BUFFER_DESC description{};
+    const std::size_t capacity = std::max<std::size_t>(vertices.size(), 4096u);
+    description.ByteWidth = static_cast<UINT>(capacity * sizeof(WorldVertex));
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    // F0-c: the replacement is built in a temporary and swapped in only once the
+    // device accepted it, the rule every other dynamic buffer here follows.
+    Microsoft::WRL::ComPtr<ID3D11Buffer> fxBufferTemporary;
+    const HRESULT fxBufferResult = resourceFaultHit("gameplayfx.createbuffer")
+      ? static_cast<HRESULT>(E_OUTOFMEMORY)
+      : device_->CreateBuffer(&description, nullptr, fxBufferTemporary.GetAddressOf());
+    if (FAILED(fxBufferResult)) {
+      ++resourceRefusals_;
+      std::fprintf(stderr,
+        "[renderer-resource] refuse surface=gameplayfx.createbuffer kind=create hresult=0x%08lX vertices=%zu\n",
+        static_cast<unsigned long>(fxBufferResult), vertices.size());
+      std::fflush(stderr);
+      return false;
+    }
+    gameplayFxVertexBuffer_ = std::move(fxBufferTemporary);
+    gameplayFxVertexCapacity_ = capacity;
+  }
+  D3D11_MAPPED_SUBRESOURCE mapped{};
+  if (FAILED(context_->Map(gameplayFxVertexBuffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return false;
+  std::memcpy(mapped.pData, vertices.data(), vertices.size() * sizeof(WorldVertex));
+  context_->Unmap(gameplayFxVertexBuffer_.Get(), 0);
+
+  struct FxConstantsData {
+    DirectX::XMFLOAT4X4 mvp;
+    DirectX::XMFLOAT4 cameraPositionAndExpand;
+    DirectX::XMFLOAT4 mode;
+  } constants{};
+  constants.mvp = mvp;
+  constants.cameraPositionAndExpand = DirectX::XMFLOAT4(eye.x, eye.y, eye.z, 0.0f);
+  constants.mode = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+  context_->UpdateSubresource(overlayConstants_.Get(), 0, nullptr, &constants, 0, 0);
+
+  const UINT stride = sizeof(WorldVertex), offset = 0;
+  auto* buffer = gameplayFxVertexBuffer_.Get();
+  auto* constantsBuffer = overlayConstants_.Get();
+  context_->IASetInputLayout(gameplayFxInputLayout_.Get());
+  context_->IASetVertexBuffers(0, 1, &buffer, &stride, &offset);
+  context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  context_->VSSetShader(gameplayFxVertexShader_.Get(), nullptr, 0);
+  context_->VSSetConstantBuffers(0, 1, &constantsBuffer);
+  context_->PSSetShader(gameplayFxPixelShader_.Get(), nullptr, 0);
+  context_->PSSetConstantBuffers(0, 1, &constantsBuffer);
+  context_->RSSetState(overlayRasterizerState_.Get());
+  context_->OMSetDepthStencilState(overlayDepthTestedState_.Get(), 0);
+  noteDepthState("gameplayfx:tested-nowrite");
+  const float blendFactor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  const UINT alphaCount = static_cast<UINT>(groups[0].size());
+  const UINT additiveCount = static_cast<UINT>(groups[1].size());
+  if (alphaCount > 0) {
+    context_->OMSetBlendState(worldAlphaBlendState_.Get(), blendFactor, 0xffffffffu);
+    context_->Draw(alphaCount, 0);
+    ++gameplayFxReading_.drawCalls;
+  }
+  if (additiveCount > 0) {
+    context_->OMSetBlendState(mapAdditiveBlendState_.Get(), blendFactor, 0xffffffffu);
+    context_->Draw(additiveCount, alphaCount);
+    ++gameplayFxReading_.drawCalls;
+  }
+  // Put back what the passes after this one expect: no blending, the world's
+  // depth state, the world's rasterizer.
+  context_->OMSetBlendState(nullptr, nullptr, 0xffffffffu);
+  context_->OMSetDepthStencilState(depthStencilState_.Get(), 0);
+  noteDepthState("gameplayfx-restore:write-all");
+  context_->RSSetState(worldBackfaceCull_ ? rasterizerState_.Get() : worldNoCullRasterizerState_.Get());
+  gameplayFxReading_.vertices = vertices.size();
+  gameplayFxReading_.drew = gameplayFxReading_.drawCalls > 0;
+  return gameplayFxReading_.drew;
+}
+
 } // namespace tf2::native

@@ -18,6 +18,7 @@
 #include "demo_tick_audit.h"
 #include "audio_player.h"
 #include "effects_timeline.h"
+#include "gameplay_effects.h"
 #include "playback_hud.h"
 #include "model_loader.h"
 // T60: the one material-slot resolver the audit probe also calls, so the pixels
@@ -1642,6 +1643,87 @@ void firstPersonGate(tf2::native::Renderer& renderer) {
     traceFmt("viewmodel: first-person release restores=%u entity=%d enabled=%d",
       static_cast<unsigned>(g_firstPersonRestores),
       static_cast<int>(g_spectateCameraHiddenEntity), g_firstPersonHeldState.enabled ? 1 : 0);
+  }
+}
+
+// P4 (2026-11-22) --gameplay-fx: the reading of the newest scene tick, kept so
+// the per-frame first-person glow and the per-scene draw list read the same
+// answer. Nothing here runs without the switch.
+tf2::native::GameplayFxReading g_gameplayFxReading;
+bool g_gameplayFxReadingValid = false;
+std::string g_gameplayFxLastReadingLine;
+std::string g_gameplayFxLastListLine;
+std::string g_gameplayFxLastTintLine;
+std::map<std::int32_t, bool> g_gameplayFxChargeState;
+std::size_t g_gameplayFxChargeLines = 0;
+
+void gameplayFxTraceReading() {
+  const auto& r = g_gameplayFxReading;
+  char line[384];
+  std::snprintf(line, sizeof(line),
+    "fx: reading valid=%d tick=%d source=%d players=%zu mediguns=%zu flamethrowers=%zu beams=%zu charged=%zu "
+    "flames=%zu airblasts=%zu uber=%zu kritz=%zu medigunOnly=%zu condOnly=%zu",
+    g_gameplayFxReadingValid ? 1 : 0, static_cast<int>(r.tick), static_cast<int>(r.source),
+    r.players.size(), r.mediguns.size(), r.flamethrowers.size(), r.healingBeams, r.chargesReleased,
+    r.flamesFiring, r.airblasts, r.uberPlayers, r.kritzPlayers, r.medigunOnly, r.condOnly);
+  // The tick is part of the line, so compare without it: print on a change of
+  // state, not on every tick.
+  const std::string text = line;
+  const std::size_t tickAt = text.find(" tick=");
+  const std::size_t cut = text.find(" source=");
+  const std::string key = (tickAt == std::string::npos || cut == std::string::npos)
+    ? text : text.substr(0, tickAt) + text.substr(cut);
+  if (key != g_gameplayFxLastReadingLine) {
+    g_gameplayFxLastReadingLine = key;
+    traceFmt("%s", line);
+  }
+  // One line per charge edge, so "when did the uber start, who got it, which
+  // medigun kind" is a reading. Capped: a long match has a few hundred charges.
+  for (const auto& gun : r.mediguns) {
+    bool& was = g_gameplayFxChargeState[gun.entity];
+    if (gun.chargeRelease != was && g_gameplayFxChargeLines < 512u) {
+      ++g_gameplayFxChargeLines;
+      traceFmt("fx: charge %s tick=%d medigun=%d owner=%d target=%d healing=%d item=%lld kind=%s level=%s",
+        gun.chargeRelease ? "start" : "end", static_cast<int>(r.tick), static_cast<int>(gun.entity),
+        static_cast<int>(gun.owner), static_cast<int>(gun.target), gun.healing ? 1 : 0,
+        static_cast<long long>(gun.itemDefinitionIndex), tf2::native::medigunChargeKindName(gun.kind),
+        gun.hasChargeLevel ? std::to_string(gun.chargeLevel).c_str() : "?");
+    }
+    was = gun.chargeRelease;
+  }
+}
+
+// The first-person half of the uber / crit look: the arms and the weapon body
+// glow in the team colour while the player the camera stands in is ubered (both)
+// or crit-boosted (weapon only). Runs after firstPersonGate, every frame, and
+// only writes when the wanted overlay differs from the state's, so a state the
+// scene or the gate just set keeps everything else it carries.
+void gameplayFxFirstPerson(tf2::native::Renderer& renderer) {
+  namespace mi = tf2::native::main_internal;
+  if (!mi::g_cliGameplayFx || (mi::g_cliGameplayFxParts & mi::kGameplayFxPartFirstPerson) == 0u) return;
+  float arms[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  float weapon[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  const std::int32_t pov = g_spectateCameraHiddenEntity;
+  if (g_gameplayFxReadingValid && pov >= 0) {
+    if (const tf2::native::FxPlayer* player = g_gameplayFxReading.player(pov)) {
+      tf2::native::FxPlayer filtered = *player;
+      if ((mi::g_cliGameplayFxParts & mi::kGameplayFxPartUber) == 0u) filtered.uber = false;
+      if ((mi::g_cliGameplayFxParts & mi::kGameplayFxPartKritz) == 0u) filtered.kritz = false;
+      tf2::native::firstPersonFxOverlay(filtered, g_gameplayFxReading.tick, arms, weapon);
+    }
+  }
+  const auto same = [](const float* a, const float* b) {
+    return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
+  };
+  if (!same(renderer.viewModelState().effectOverlay, arms)) {
+    tf2::native::ViewModelDrawState next = renderer.viewModelState();
+    for (int i = 0; i < 4; ++i) next.effectOverlay[i] = arms[i];
+    renderer.setViewModelState(next);
+  }
+  if (!same(renderer.viewModelWeaponState().effectOverlay, weapon)) {
+    tf2::native::ViewModelDrawState next = renderer.viewModelWeaponState();
+    for (int i = 0; i < 4; ++i) next.effectOverlay[i] = weapon[i];
+    renderer.setViewModelWeaponState(next);
   }
 }
 
@@ -13009,6 +13091,22 @@ bool outlineVertexExtent = false;
           entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Available
           || entitySnapshotStatus == tf2::native::EntitySnapshotQueryStatus::Checkpoint;
       g_sceneResolvedServerTick = sceneTickResolved ? resolvedSceneTick : -1;
+      // ---- P4: the gameplay-effects reading for this scene tick ---------------
+      // Read once, from the snapshot just resolved; the tint below, the draw list
+      // at the end of the scene block and the per-frame first-person glow all use
+      // this one answer. A tick with no resolved snapshot clears it rather than
+      // keeping the previous tick's beams on screen.
+      if (tf2::native::main_internal::g_cliGameplayFx) {
+        if (sceneTickResolved) {
+          g_gameplayFxReading = tf2::native::readGameplayFx(currentEntityStates, demoNetworkSummary, sceneTick,
+            static_cast<tf2::native::FxUberSource>(tf2::native::main_internal::g_cliGameplayFxUberSource));
+          g_gameplayFxReadingValid = true;
+        } else {
+          g_gameplayFxReading = tf2::native::GameplayFxReading{};
+          g_gameplayFxReadingValid = false;
+        }
+        gameplayFxTraceReading();
+      }
       tf2::native::DemoViewSample observerView;
       // T34: the eye this scene tick resolved, in map units, read from the
       // same observer view the camera decision below consumes. Defaults keep
@@ -15665,6 +15763,52 @@ bool outlineVertexExtent = false;
           renderer.armModelLightingTrace(
             static_cast<std::int64_t>(g_playback.tick), traceEntities);
         }
+        // ---- P4: the Ubercharge / crit look on bodies --------------------------
+        // An ubered player's body, weapons and cosmetics are drawn in the team's
+        // metal colour; a crit-boosted player's ACTIVE weapon glows. The instance
+        // colour is a factor on the albedo (lerp(c, texel*c, c.a) in the entity
+        // pixel shader), so this is a multiply. Owned items are found through
+        // their own m_hOwnerEntity. Without --gameplay-fx no instance is touched.
+        if (tf2::native::main_internal::g_cliGameplayFx && g_gameplayFxReadingValid) {
+          const unsigned fxParts = tf2::native::main_internal::g_cliGameplayFxParts;
+          std::size_t fxUberTinted = 0;
+          std::size_t fxCritTinted = 0;
+          for (auto& fxDraw : draws) {
+            if (fxDraw.entityIndex < 0) continue;
+            const tf2::native::FxPlayer* fxPlayer = g_gameplayFxReading.player(fxDraw.entityIndex);
+            bool fxOwned = false;
+            if (fxPlayer == nullptr
+                && static_cast<std::size_t>(fxDraw.entityIndex) < currentEntityStates.size()) {
+              const std::int32_t fxOwner = tf2::native::fxOwnerEntity(
+                currentEntityStates[static_cast<std::size_t>(fxDraw.entityIndex)]);
+              fxPlayer = fxOwner >= 0 ? g_gameplayFxReading.player(fxOwner) : nullptr;
+              fxOwned = fxPlayer != nullptr;
+            }
+            if (fxPlayer == nullptr) continue;
+            if ((fxParts & tf2::native::main_internal::kGameplayFxPartUber) != 0u) {
+              const tf2::native::FxTint fxTint = tf2::native::uberBodyTint(*fxPlayer, g_gameplayFxReading.tick);
+              if (fxTint.active) {
+                for (int channel = 0; channel < 3; ++channel) fxDraw.color[channel] *= fxTint.rgb[channel];
+                ++fxUberTinted;
+                continue;
+              }
+            }
+            if ((fxParts & tf2::native::main_internal::kGameplayFxPartKritz) != 0u && fxOwned
+                && fxPlayer->activeWeapon == fxDraw.entityIndex) {
+              const tf2::native::FxTint fxTint = tf2::native::critWeaponTint(*fxPlayer, g_gameplayFxReading.tick);
+              if (fxTint.active) {
+                for (int channel = 0; channel < 3; ++channel) fxDraw.color[channel] *= fxTint.rgb[channel];
+                ++fxCritTinted;
+              }
+            }
+          }
+          const std::string fxTintLine = "fx: tint uber=" + std::to_string(fxUberTinted)
+            + " crit=" + std::to_string(fxCritTinted);
+          if (fxTintLine != g_gameplayFxLastTintLine) {
+            g_gameplayFxLastTintLine = fxTintLine;
+            traceFmt("%s tick=%d", fxTintLine.c_str(), static_cast<int>(g_gameplayFxReading.tick));
+          }
+        }
         renderer.setEntityModelInstances(draws);
         // T85 P0: LAYER C'S LEDGER. The instance update is the last place an
         // entity can disappear between the draw list and the GPU, and until this
@@ -16375,6 +16519,30 @@ bool outlineVertexExtent = false;
       }
       renderer.setProjectileTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
       renderer.setCpuParticleTimeline(demoNetworkSummary.projectileTimeline, sceneTick);
+      // ---- P4: the gameplay-effects draw list ----------------------------------
+      if (tf2::native::main_internal::g_cliGameplayFx) {
+        const unsigned fxParts = tf2::native::main_internal::g_cliGameplayFxParts;
+        tf2::native::FxBuildOptions fxOptions;
+        fxOptions.beam = (fxParts & tf2::native::main_internal::kGameplayFxPartBeam) != 0u;
+        fxOptions.flame = (fxParts & tf2::native::main_internal::kGameplayFxPartFlame) != 0u;
+        fxOptions.kritz = (fxParts & tf2::native::main_internal::kGameplayFxPartKritz) != 0u;
+        fxOptions.uberAura = (fxParts & tf2::native::main_internal::kGameplayFxPartUber) != 0u;
+        tf2::native::GameplayFxDrawList fxList;
+        if (g_gameplayFxReadingValid && sceneTickKnown) {
+          fxList = tf2::native::buildGameplayFxDrawList(g_gameplayFxReading, sceneTick, fxOptions);
+        }
+        char fxLine[256];
+        std::snprintf(fxLine, sizeof(fxLine),
+          "fx: list beams=%zu charged=%zu flames=%zu airblasts=%zu kritz=%zu auras=%zu skippedNoOrigin=%zu",
+          fxList.beams, fxList.chargedBeams, fxList.flames, fxList.airblasts, fxList.kritzSparks,
+          fxList.auras, fxList.skippedNoOrigin);
+        if (g_gameplayFxLastListLine != fxLine) {
+          g_gameplayFxLastListLine = fxLine;
+          traceFmt("%s tick=%d sprites=%zu ribbons=%zu", fxLine, static_cast<int>(sceneTick),
+            fxList.sprites.size(), fxList.ribbons.size());
+        }
+        renderer.setGameplayFx(fxList);
+      }
       hudTrailVertices = renderer.projectileVertexCount();
       // T53: the observed trajectory pass, fed from the retained per-tick rows
       // rather than from the TempEntity generation events above. Separate call,
@@ -16940,6 +17108,7 @@ bool outlineVertexExtent = false;
       // viewports when --pane-split asked for it. Same clear colour and same demo
       // clock; the panes differ only in the camera each one draws with.
       firstPersonGate(renderer);
+      gameplayFxFirstPerson(renderer);
       const bool drewFrame = g_renderer && (paneSplit
         ? renderer.drawSplit(clearR, clearG, clearB)
         : renderer.draw(clearR, clearG, clearB));

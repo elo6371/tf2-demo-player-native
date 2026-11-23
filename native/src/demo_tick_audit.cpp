@@ -152,6 +152,9 @@ void DemoTickAuditCapture::observeEntityProperty(const DemoNetworkSummary& summa
   if (viewModelCensusEnabled_) {
     observeViewModelProperty(summary, serverTick, entityIndex, classId, propName, value);
   }
+  if (fxCensusEnabled_) {
+    observeFxProperty(summary, serverTick, entityIndex, classId, propName, value);
+  }
   if (!thresholds_.playerEnabled) return;
   if (propName == nullptr || std::strcmp(propName, "m_flSimulationTime") != 0) return;
   if (!isPlayerClass(classNameForClassId(summary, classId))) return;
@@ -225,6 +228,102 @@ void DemoTickAuditCapture::observeViewModelProperty(const DemoNetworkSummary& su
     ++entry.cycleWrites;
   } else {
     ++entry.playbackRateWrites;
+  }
+}
+
+void DemoTickAuditCapture::observeFxProperty(const DemoNetworkSummary& summary,
+    std::int32_t serverTick, std::int32_t entityIndex, std::int32_t classId,
+    const char* propName, const EntityPropertyValue& value) {
+  if (propName == nullptr || entityIndex < 0) return;
+  const char* className = classNameForClassId(summary, classId);
+  if (className == nullptr) return;
+  const bool medigun = std::strcmp(className, "CWeaponMedigun") == 0;
+  const bool flamethrower = std::strcmp(className, "CTFFlameThrower") == 0;
+  const bool player = std::strcmp(className, "CTFPlayer") == 0;
+  if (!medigun && !flamethrower && !player) return;
+  static const char* const kMedigunProps[] = {"m_bHealing", "m_hHealingTarget", "m_bChargeRelease",
+    "m_flChargeLevel", "m_iItemDefinitionIndex", "m_hOwnerEntity", "m_hOwner", "m_nChargeResistType"};
+  static const char* const kFlameProps[] = {"m_iWeaponState", "m_bCritFire", "m_bHitTarget",
+    "m_iItemDefinitionIndex", "m_hOwnerEntity"};
+  static const char* const kPlayerProps[] = {"m_nPlayerCond", "m_nPlayerCondEx", "m_nPlayerCondEx2",
+    "m_nPlayerCondEx3", "m_nPlayerCondEx4", "_condition_bits"};
+  const char* const* list = medigun ? kMedigunProps : (flamethrower ? kFlameProps : kPlayerProps);
+  const std::size_t count = medigun ? sizeof(kMedigunProps) / sizeof(kMedigunProps[0])
+    : (flamethrower ? sizeof(kFlameProps) / sizeof(kFlameProps[0]) : sizeof(kPlayerProps) / sizeof(kPlayerProps[0]));
+  std::size_t which = count;
+  for (std::size_t i = 0; i < count; ++i) {
+    if (std::strcmp(propName, list[i]) == 0) { which = i; break; }
+  }
+  if (which == count) return;
+  const std::int64_t number = value.type == SendPropType::Float
+    ? static_cast<std::int64_t>(value.x * 1000.0f) : value.intValue;
+  DemoFxCensusProp& prop = fxCensus_.props[std::string(className) + "." + propName];
+  ++prop.writes;
+  auto found = prop.values.find(number);
+  if (found != prop.values.end()) {
+    ++found->second;
+  } else if (prop.values.size() < 32u) {
+    prop.values[number] = 1;
+  } else {
+    ++prop.valuesOverflow;
+  }
+  const std::int32_t index = entityIndex;
+  constexpr std::int64_t kIndexMask = 0x7FF;
+  if (medigun) {
+    const std::string name = propName;
+    if (name == "m_hOwnerEntity" || name == "m_hOwner") {
+      if ((number & kIndexMask) != kIndexMask && number >= 0) fxCensus_.medigunOwner[index] = number & kIndexMask;
+    } else if (name == "m_hHealingTarget") {
+      fxCensus_.medigunTarget[index] = (number < 0 || (number & kIndexMask) == kIndexMask) ? -1 : (number & kIndexMask);
+    } else if (name == "m_iItemDefinitionIndex") {
+      fxCensus_.medigunItem[index] = number;
+    } else if (name == "m_bChargeRelease") {
+      auto last = fxCensus_.medigunCharge.find(index);
+      const bool changed = last == fxCensus_.medigunCharge.end() ? number != 0 : last->second != number;
+      if (changed) {
+        ++prop.changes;
+        if (fxCensus_.chargeEdges.size() < 1024u) {
+          DemoFxChargeEdge edge;
+          edge.tick = serverTick;
+          edge.medigun = index;
+          const auto owner = fxCensus_.medigunOwner.find(index);
+          const auto target = fxCensus_.medigunTarget.find(index);
+          const auto item = fxCensus_.medigunItem.find(index);
+          edge.owner = owner == fxCensus_.medigunOwner.end() ? -1 : static_cast<std::int32_t>(owner->second);
+          edge.target = target == fxCensus_.medigunTarget.end() ? -1 : static_cast<std::int32_t>(target->second);
+          edge.item = item == fxCensus_.medigunItem.end() ? -1 : item->second;
+          edge.on = number != 0;
+          fxCensus_.chargeEdges.push_back(edge);
+        }
+      }
+      fxCensus_.medigunCharge[index] = number;
+    }
+    return;
+  }
+  if (player) {
+    // which: 0 m_nPlayerCond, 1..4 Ex..Ex4, 5 _condition_bits (an alias of word 0).
+    const bool conditionList = which == 5;
+    const std::int32_t word = conditionList ? 0 : static_cast<std::int32_t>(which);
+    const auto key = std::make_pair(index, word * 2 + (conditionList ? 1 : 0));
+    const auto bits = static_cast<std::uint32_t>(number & 0xFFFFFFFFll);
+    const auto last = fxCensus_.lastCond.find(key);
+    const std::uint32_t before = last == fxCensus_.lastCond.end() ? 0u : last->second;
+    if (bits != before) {
+      ++prop.changes;
+      if (fxCensus_.condEdges.size() < 65536u) {
+        DemoFxCondEdge edge;
+        edge.tick = serverTick;
+        edge.entity = index;
+        edge.word = word;
+        edge.conditionList = conditionList;
+        edge.rose = bits & ~before;
+        edge.fell = before & ~bits;
+        fxCensus_.condEdges.push_back(edge);
+      } else {
+        ++fxCensus_.condEdgesDropped;
+      }
+    }
+    fxCensus_.lastCond[key] = bits;
   }
 }
 

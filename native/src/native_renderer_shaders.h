@@ -37,6 +37,9 @@ extern const char modelPixelSource[];
 extern const char overlayLineVertexSource[];
 extern const char overlayVertexSource[];
 extern const char overlayPixelSource[];
+// P4 (2026-11-22): the gameplay-effects pass (sprites and ribbons with a soft falloff).
+extern const char gameplayFxVertexSource[];
+extern const char gameplayFxPixelSource[];
 extern const char entityModelVertexSource[];
 extern const char viewModelVertexSource[];
 extern const char viewModelPixelSource[];

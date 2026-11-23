@@ -2258,6 +2258,10 @@ bool Renderer::drawPaneInternal(float clearRed, float clearGreen, float clearBlu
   // contract list (the standalone --model diagnostic above) take no ordinal,
   // or the numbers would drift with a flag nobody set.
   drawOverlayPass();
+  // P4 (2026-11-22): gameplay effects -- heal beams, flames, crit sparks, uber
+  // auras. Depth-tested, no depth write, no ordinal (the overlay's 6 is a contract
+  // number). Draws nothing unless --gameplay-fx submitted a non-empty list.
+  if (frameConstantsValid) drawGameplayFxPass(frameConstants.mvp);
     capturePassDepth("60-overlay");
   // T21: the depth the frame has after the world, water and entity passes and
   // BEFORE the ViewModel pass clears it (the weapon's own pass clears depth so

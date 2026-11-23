@@ -22,6 +22,7 @@
 #include "world_tile_atlas.h"
 #include "viewmodel_material.h"
 #include "entity_overlay.h"
+#include "gameplay_effects.h"
 // T85 P0: which budget layer a mesh belongs to. The mesh table below is a cache
 // shared by the world pass, the overlay and the third-person attach, and a
 // refusal now says what it was refused FOR (see entity_mesh_budget.h).
@@ -521,6 +522,11 @@ struct ViewModelDrawState {
   // animationApplied=0) is the state this round ships.
   bool animationApplied = false;
   float tint[4] = {0.78f, 0.78f, 0.84f, 1.0f};
+  // P4 (2026-11-22): an effect colour blended over the shaded result -- the
+  // Ubercharge / crit glow in first person. rgb = colour, a = strength; a == 0
+  // returns the shaded colour unchanged, which is the default and keeps every
+  // frame that has no effect byte-identical.
+  float effectOverlay[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   // Why the pass did or did not draw, as a stable string the runtime prints.
   std::string reason;
 };
@@ -1071,6 +1077,14 @@ public:
   // projectileVertexCount() and projectileTrackVertexCount() be two readings
   // instead of one that hides which pass drew.
   void setProjectileTrackPoints(const std::vector<ProjectileTrackPoint>& points, std::int32_t tick);
+  // P4 (2026-11-22): the gameplay-effects pass (heal beams, flames, crit sparks,
+  // uber auras). Stored here, turned into camera-facing quads inside draw() with
+  // the pane's own camera, depth-tested without depth writes. An empty or
+  // disabled list draws nothing and binds nothing, so a run without
+  // --gameplay-fx is the frame it was before this pass existed.
+  void setGameplayFx(const GameplayFxDrawList& list);
+  const GameplayFxDrawList& gameplayFx() const { return gameplayFxList_; }
+  const GameplayFxPassReading& gameplayFxReading() const { return gameplayFxReading_; }
   void setCpuParticleTimeline(const std::vector<ProjectileTimelineEvent>& events, std::int32_t tick);
   void setEntityMarkers(const std::vector<EntityMarker>& markers);
 
@@ -2377,6 +2391,18 @@ private:
   // frame does not erase the first list's trail.
   Microsoft::WRL::ComPtr<ID3D11Buffer> overlayLineBuffer_;
   std::size_t overlayLineCapacity_ = 0;
+  // ---- P4: gameplay effects ------------------------------------------------
+  // Own shader pair (position + colour + uv, soft radial falloff), own vertex
+  // buffer; borrows the overlay's constant buffer layout and the existing blend,
+  // depth and rasterizer states.
+  GameplayFxDrawList gameplayFxList_;
+  GameplayFxPassReading gameplayFxReading_;
+  Microsoft::WRL::ComPtr<ID3D11VertexShader> gameplayFxVertexShader_;
+  Microsoft::WRL::ComPtr<ID3D11PixelShader> gameplayFxPixelShader_;
+  Microsoft::WRL::ComPtr<ID3D11InputLayout> gameplayFxInputLayout_;
+  Microsoft::WRL::ComPtr<ID3D11Buffer> gameplayFxVertexBuffer_;
+  std::size_t gameplayFxVertexCapacity_ = 0;
+  bool drawGameplayFxPass(const DirectX::XMFLOAT4X4& mvp);
   UINT overlayLineVertexCount_ = 0;
   UINT overlayLineStartByDepth_[2] = {0, 0};
   UINT overlayLineVertexCountByDepth_[2] = {0, 0};

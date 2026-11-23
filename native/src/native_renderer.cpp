@@ -321,6 +321,39 @@ bool Renderer::createPipeline() {
     }
   }
 
+  // P4 (2026-11-22): the gameplay-effects program. Compiled at startup with the
+  // others so a bad edit names its stage here instead of failing mid-frame.
+  initStage_ = "compileShaders.gameplayFx";
+  {
+    Microsoft::WRL::ComPtr<ID3DBlob> fxVertexBytecode;
+    Microsoft::WRL::ComPtr<ID3DBlob> fxPixelBytecode;
+    HRESULT fxShaderResult = S_OK;
+    if (!compileShader(gameplayFxVertexSource, "main", "vs_5_0", fxVertexBytecode, &fxShaderResult)
+        || !compileShader(gameplayFxPixelSource, "main", "ps_5_0", fxPixelBytecode, &fxShaderResult)) {
+      lastError_ = fxShaderResult;
+      return false;
+    }
+    if (FAILED(device_->CreateVertexShader(fxVertexBytecode->GetBufferPointer(),
+          fxVertexBytecode->GetBufferSize(), nullptr, gameplayFxVertexShader_.GetAddressOf()))
+        || FAILED(device_->CreatePixelShader(fxPixelBytecode->GetBufferPointer(),
+          fxPixelBytecode->GetBufferSize(), nullptr, gameplayFxPixelShader_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+    // WorldVertex: position at 0, colour at 12, uv at 28 (renderer_internal.h).
+    const D3D11_INPUT_ELEMENT_DESC fxElements[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    if (FAILED(device_->CreateInputLayout(fxElements, 3,
+          fxVertexBytecode->GetBufferPointer(), fxVertexBytecode->GetBufferSize(),
+          gameplayFxInputLayout_.GetAddressOf()))) {
+      lastError_ = E_FAIL;
+      return false;
+    }
+  }
+
   initStage_ = "compileShaders.viewModel";
   if (!compileShader(viewModelVertexSource, "main", "vs_5_0", viewModelVertexBytecode, &viewModelShaderResult)
       || !compileShader(viewModelPixelSource, "main", "ps_5_0", viewModelPixelBytecode, &viewModelShaderResult)) {
@@ -1205,6 +1238,8 @@ void Renderer::shutdown() {
   projectileTrackVertexBuffer_.Reset();
   projectileTrackVertexCapacity_ = 0;
   projectileTrackVertexCount_ = 0;
+  gameplayFxVertexBuffer_.Reset();
+  gameplayFxVertexCapacity_ = 0;
   projectileTrackPointCount_ = 0;
   entityMarkerVertexBuffer_.Reset();
   entityMarkerVertexCapacity_ = 0;

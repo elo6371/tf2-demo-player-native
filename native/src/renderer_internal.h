@@ -201,8 +201,11 @@ struct ViewModelConstantsData {
   DirectX::XMFLOAT4 selfillumFeatures;
   // $selfillumtint, or the engine default white.
   DirectX::XMFLOAT4 selfillumTint;
+  // P4 (2026-11-22): ViewModelDrawState::effectOverlay -- rgb blended over the
+  // shaded colour with weight w. w == 0 is the identity.
+  DirectX::XMFLOAT4 effectOverlay;
 };
-static_assert(sizeof(ViewModelConstantsData) == 272, "viewmodel constant buffer size");
+static_assert(sizeof(ViewModelConstantsData) == 288, "viewmodel constant buffer size");
 // Mirrors ModelLightingConstants in the world, model and viewmodel pixel
 // shaders field for field -- all three declare the same eight float4s, so one
 // struct and one upload serve every pass that binds it.
