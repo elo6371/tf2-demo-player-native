@@ -749,16 +749,20 @@ if want_phase keyprobe; then
   assert_eq "the key probe posted the F9 key" "$k_f9" "1"
   if trace_written "$OUT/keyprobe"; then
     k_dispatch=$(grep -c 'hud: keys dispatch' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
-    k_toggle=$(grep -c 'hud: keys dispatch action=hud.toggle' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
+    # I1 (2026-11-23): bare H is the outline now (hud.outline); hiding the HUD moved
+    # to Shift+H, which a posted WM_KEYDOWN cannot carry (the modifier is read with
+    # GetKeyState). The posted H therefore proves the outline path.
+    k_toggle=$(grep -c 'hud: keys dispatch action=hud.outline' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
+    k_outline=$(grep -c 'overlay: outline toggle source=key-table' "$OUT/keyprobe.trace" 2>/dev/null || echo 0)
     k_stolen=$(hud_dispatch_leak "$OUT/keyprobe.trace")
     k_enabled=$(grep -oE 'hud: settings enabled=[01]' "$OUT/keyprobe.trace" 2>/dev/null | tail -1 | cut -d= -f2)
     k_table=$(grep 'keys: table ' "$OUT/keyprobe.trace" 2>/dev/null | tail -1)
     k_last=$(printf '%s' "$k_table" | grep -oE 'last=[A-Za-z0-9._-]+' | tail -1)
-    echo "  keyprobe dispatch_lines=$k_dispatch hud.toggle=$k_toggle non-hud_dispatch_lines=$k_stolen hud_enabled_after=${k_enabled:-ABSENT}"
+    echo "  keyprobe dispatch_lines=$k_dispatch hud.outline=$k_toggle outline_toggles=$k_outline non-hud_dispatch_lines=$k_stolen hud_enabled_after=${k_enabled:-ABSENT}"
     echo "  keyprobe keys_table: ${k_table:-ABSENT}"
-    # 1. H reached the HUD and the state changed.
-    assert_gt "the H key dispatched hud.toggle" "${k_toggle:-0}" "0"
-    assert_eq "pressing H turned the HUD on" "${k_enabled:-ABSENT}" "1"
+    # 1. H reached the key table and the outline toggled.
+    assert_gt "the H key dispatched hud.outline" "${k_toggle:-0}" "0"
+    assert_gt "pressing H toggled the outline" "${k_outline:-0}" "0"
     # 2. Nothing that is not hud.* was dispatched as a hud action -- the merge defect in
     #    one line: before the fix F9 produced "hud: keys dispatch action=camera.freeFly".
     assert_eq "no camera action was dispatched as a HUD action" "${k_stolen:-0}" "0"

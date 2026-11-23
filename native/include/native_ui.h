@@ -19,7 +19,8 @@ enum class ImportStatus { Idle, ReadingHeader, Indexing, Complete, CancelRequest
 // ---------------------------------------------------------------------------
 // Camera mode machine (T4).
 //
-// Three camera states the player cycles with SPACE:
+// Three camera states, switched with SPACE the way TF2's own demo UI does
+// (I1, 2026-11-23, user decision; docs/UI-SHELL-DESIGN-2026-11-22.md section 8):
 //   first-person  the camera sits at the demo observer's eye and looks along
 //                 the demo's own angles (the product's historical behaviour);
 //   third-person  an orbit camera that keeps looking at the observer's eye
@@ -29,12 +30,17 @@ enum class ImportStatus { Idle, ReadingHeader, Indexing, Complete, CancelRequest
 //
 // Key contract, measurable because both halves live here rather than in the
 // window procedure:
-//   * every SPACE edge press advances the mode by one step (SPACE no longer
-//     toggles pause -- P owns pause, see PauseKeyController);
+//   * a single SPACE press toggles first-person <-> third-person, and from
+//     free-look it goes back to the player (first-person). There is no longer
+//     a three-step loop: free-look is reached only by the double press below
+//     (or the free-fly action), and one press always gets the player back.
+//     SPACE does not toggle pause -- P owns pause, see PauseKeyController;
 //   * a second press inside kDoubleClickWindowMs of the previous one is a
 //     double click and jumps straight to free-look, so the window is a named
 //     constant a probe can measure at both boundaries rather than a timing
-//     accident;
+//     accident. The first press of the pair has already acted (first -> third),
+//     so a double from first-person shows third-person for up to 300 ms before
+//     free-look -- accepted on 2026-11-23 over delaying every single press;
 //   * a press with no observe target never moves the camera -- the per-tick
 //     decision is decideCameraSceneAction below.
 enum class CameraMode { FirstPerson = 0, ThirdPerson, FreeLook };
@@ -54,7 +60,9 @@ public:
 
   // Explicit jump, e.g. a UI button. Returns true when the mode changed.
   bool setMode(CameraMode mode);
-  // One step around the cycle. Returns true when the mode changed.
+  // What one single SPACE press does: first <-> third, free -> first.
+  // (The name is historical; it is no longer a three-step cycle.) Returns true
+  // when the mode changed.
   bool cycleMode();
   // One SPACE edge press at wall-clock nowMs. Returns true when the mode
   // changed. Intervals are computed modulo 2^32, so GetTickCount64 truncated

@@ -185,6 +185,12 @@ void fullscreenRefit(HWND window, const char* reason);
 // had before the first one. One trace line; returns true on status=pass.
 bool runFullscreenSelfTest(HWND window, int cycles, bool sizePinned);
 
+// I1 (2026-11-23): watch the next / previous player (left / right mouse click,
+// camera-script `switch-player next|prev`). Queues FollowAction::Next/Prev; refused
+// in free-look, free-fly, with the map overview open, or with no demo. One
+// "input: player-switch" trace line per call. reasonOut may be null.
+bool requestPlayerSwitch(bool next, const char* source, std::string* reasonOut);
+
 
 // The control ids the Win32 layer creates and dispatches. Moved here with the
 // layer itself so main_ui.cpp and main.cpp name the same numbers; inline so the

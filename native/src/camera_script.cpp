@@ -263,6 +263,14 @@ bool runCameraScriptStep() {
     return ok(std::string(g_cameraDirector.freeFly() ? "on" : "off")
       + " mode=" + tf2::native::cameraModeName(g_cameraMode.mode()));
   }
+  // I1 (2026-11-23): the mouse click's player switch, scriptable so a gate can
+  // drive it without synthesising input. Same function the click calls.
+  if (step.command == "switch-player") {
+    if (step.args.empty() || (step.args[0] != "next" && step.args[0] != "prev")) return fail("bad-argument");
+    std::string reason;
+    const bool accepted = requestPlayerSwitch(step.args[0] == "next", "script", &reason);
+    return accepted ? ok(reason) : fail(reason);
+  }
   if (step.command == "snapshot") {
     cameraSnapshot(step.args.empty() ? "unnamed" : step.args[0]);
     return ok(step.args.empty() ? "unnamed" : step.args[0]);

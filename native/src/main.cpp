@@ -2531,7 +2531,11 @@ void registerKeybinds(const std::filesystem::path& settingsFile) {
   // branches are merged -- which is exactly the defect that test exists to catch,
   // and it would be caught in T50's worktree, not mine, so I would never see it.
   g_keybinds = tf2::native::defaultKeyBindings();
-  g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("H"));
+  // I1 (2026-11-23, user decision): H is the player outline ("透视"), as in the
+  // reference broadcast tools; hiding the whole HUD moved to Shift+H. F12 stays a
+  // hard-wired alias of the outline (windowProc), so nothing that used it breaks.
+  g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("Shift+H"));
+  g_keybinds.registerDefault("hud.outline", tf2::native::parseChord("H"));
   g_keybinds.registerDefault("hud.preview", tf2::native::parseChord("Ctrl+P"));
   g_keybinds.registerDefault("hud.reset", tf2::native::parseChord("Ctrl+Shift+H"));
   // E11: the map-overview show/hide. 2026-11-17 用户拍板：小地图占 M，静音让位。
@@ -2547,7 +2551,7 @@ void registerKeybinds(const std::filesystem::path& settingsFile) {
   g_keybindsLoaded = true;
   // The reading the gate asserts: the three actions exist, are bound, and their
   // canonical text is what the contract says.
-  for (const char* action : {"hud.toggle", "hud.preview", "hud.reset", "hud.overview"}) {
+  for (const char* action : {"hud.toggle", "hud.preview", "hud.reset", "hud.overview", "hud.outline"}) {
     const auto chord = g_keybinds.actionKey(action);
     traceFmt("hud: keys action=%s chord=%s bound=%d", action,
       tf2::native::formatChord(chord).c_str(), chord.bound() ? 1 : 0);
@@ -2575,6 +2579,44 @@ void registerKeybinds(const std::filesystem::path& settingsFile) {
       "pause=free insert=unused home=playback end=playback prior=unused next=unused "
       "delete=reserved-n16");
 }
+
+// I1 (2026-11-23): one request to watch the next / previous player, from the
+// mouse (left = next, right = previous, as in TF2 spectating and CS2) or from a
+// camera script. It reuses the N13 follow queue -- FollowAction::Next/Prev, the
+// same validator, the same director hand-off and the same follow: trace lines
+// --follow-action next|prev already produces -- so a click and a command-line
+// action cannot disagree about who is "next". Refused, with the reason traced, in
+// free-look / free-fly (the camera is the user's there, as agreed), while the map
+// overview owns the mouse, and with no demo playing.
+std::uint32_t g_playerSwitchRequests = 0;
+std::uint32_t g_playerSwitchRefused = 0;
+
+bool requestPlayerSwitch(bool next, const char* source, std::string* reasonOut) {
+  using tf2::native::CameraMode;
+  const char* reason = "queued";
+  bool accepted = false;
+  const CameraMode mode = (g_paneSplit && g_activePane == 1u) ? g_pane1CameraMode.mode() : g_cameraMode.mode();
+  if (!g_playback.enabled) {
+    reason = "no-demo";
+  } else if (mode == CameraMode::FreeLook) {
+    reason = "free-look";
+  } else if (g_cameraDirector.freeFly()) {
+    reason = "free-fly";
+  } else if (tf2::native::mapOverviewOpen()) {
+    reason = "overview-open";
+  } else if (!followQueuePush(next ? tf2::native::FollowAction::Next : tf2::native::FollowAction::Prev, -1)) {
+    reason = "queue-full";
+  } else {
+    accepted = true;
+  }
+  if (accepted) ++g_playerSwitchRequests; else ++g_playerSwitchRefused;
+  traceFmt("input: player-switch dir=%s source=%s mode=%s pane=%u result=%s reason=%s requests=%u refused=%u",
+    next ? "next" : "prev", source ? source : "-", tf2::native::cameraModeName(mode),
+    (g_paneSplit && g_activePane == 1u) ? 1u : 0u, accepted ? "ok" : "refused", reason,
+    static_cast<unsigned>(g_playerSwitchRequests), static_cast<unsigned>(g_playerSwitchRefused));
+  if (reasonOut) *reasonOut = reason;
+  return accepted;
+}
 }  // namespace tf2::native::main_internal
 
 namespace {
@@ -2601,6 +2643,34 @@ bool isTextFieldFocused() {
 // pre-scanned in wWinMain before the window exists, so the DPI handler below can
 // refuse the system-suggested rect instead of resizing a frame a gate hashes.
 static bool g_windowSizePinned = false;
+
+// I1 (2026-11-23): click detection for the two mouse buttons. A click is a press
+// and a release no more than kMouseClickSlopPixels apart (either axis) and no more
+// than kMouseClickMaxMs apart; anything else is a drag (the right button orbits).
+constexpr int kMouseClickSlopPixels = 4;
+constexpr std::uint64_t kMouseClickMaxMs = 400;
+struct MouseClickState { bool down = false; int x = 0; int y = 0; std::uint64_t ms = 0; };
+MouseClickState g_mouseClick[2];
+
+void mouseClickBegin(int button, LPARAM lParam) {
+  MouseClickState& state = g_mouseClick[button];
+  state.down = true;
+  state.x = static_cast<int>(static_cast<short>(LOWORD(lParam)));
+  state.y = static_cast<int>(static_cast<short>(HIWORD(lParam)));
+  state.ms = GetTickCount64();
+}
+
+bool mouseClickEnd(int button, LPARAM lParam) {
+  MouseClickState& state = g_mouseClick[button];
+  if (!state.down) return false;
+  state.down = false;
+  const int x = static_cast<int>(static_cast<short>(LOWORD(lParam)));
+  const int y = static_cast<int>(static_cast<short>(HIWORD(lParam)));
+  const int dx = x > state.x ? x - state.x : state.x - x;
+  const int dy = y > state.y ? y - state.y : state.y - y;
+  return dx <= kMouseClickSlopPixels && dy <= kMouseClickSlopPixels
+    && GetTickCount64() - state.ms <= kMouseClickMaxMs;
+}
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
   switch (message) {
@@ -2663,15 +2733,29 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
       }
       return 0;
     }
+    // I1: a left CLICK (press and release within kMouseClickSlopPixels and
+    // kMouseClickMaxMs) watches the next player. Decided on the release, so a press
+    // that turns into a drag -- or the map overview's future pen -- never switches.
+    // A split frame keeps the press for pane selection above and does not switch.
+    if (message == WM_LBUTTONDOWN) {
+      mouseClickBegin(0, lParam);
+    } else if (mouseClickEnd(0, lParam)) {
+      requestPlayerSwitch(true, "mouse-left", nullptr);
+    }
     return DefWindowProcW(window, message, wParam, lParam);
   case WM_RBUTTONDOWN:
     g_orbiting = true;
     g_lastMouse = POINT{static_cast<int>(static_cast<short>(LOWORD(lParam))), static_cast<int>(static_cast<short>(HIWORD(lParam)))};
     SetCapture(window);
+    mouseClickBegin(1, lParam);
     return 0;
   case WM_RBUTTONUP:
     g_orbiting = false;
     if (GetCapture() == window) ReleaseCapture();
+    // I1: the right button still orbits when DRAGGED; a right CLICK watches the
+    // previous player. In free-look the click is refused (requestPlayerSwitch), so
+    // the free camera's orbit drag is unaffected there.
+    if (mouseClickEnd(1, lParam)) requestPlayerSwitch(false, "mouse-right", nullptr);
     return 0;
   case WM_MOUSEMOVE:
     // T54: a splitter drag owns the mouse until the button comes up.
@@ -2937,7 +3021,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // both are toggles, so one filter entry still covers them: the filter is
     // about repeats, not about which chord the key was part of.
     if ((lParam & (1u << 30)) != 0u
-        && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == 'M'
+        && (wParam == VK_SPACE || wParam == 'R' || wParam == 'P' || wParam == 'M' || wParam == 'H'
             || wParam == VK_HOME || wParam == VK_END || wParam == VK_F12
             || (wParam >= VK_F1 && wParam <= VK_F8))) return 0;
     // S1: Esc leaves fullscreen. Checked before the key table on purpose: while
@@ -2984,6 +3068,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             tf2::native::mapOverviewToggle();
             traceFmt("overview: toggle open=%d source=key",
               tf2::native::mapOverviewOpen() ? 1 : 0);
+          } else if (action == "hud.outline") {
+            // I1: the same toggle F12 drives, through the slot owner, so H and F12
+            // can never disagree about whether the outline is on.
+            g_overlayToggle.toggle(tf2::native::OverlaySlotOwner::Outline);
+            traceFmt("overlay: outline toggle source=key-table enabled=%d presses=%u",
+              g_overlayToggle.enabled() ? 1 : 0, static_cast<unsigned>(g_overlayToggle.presses()));
           }
           // One place applies the consequence, so four branches cannot each pick
           // a different subset of "redraw, update the status line, publish".

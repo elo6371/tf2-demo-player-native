@@ -704,7 +704,7 @@ PYEOF
 E_PROBE=(
   'PASS native_ui_probe screen=opening->import-review->player->opening scrub=clamped corrupt=recoverable|probe: the legacy verdict line, byte-identical'
   'cameraDefault=first-person|camera: the default mode is first-person'
-  'cameraCycle=1|camera: one step per single press walks the full cycle'
+  'cameraCycle=1|camera: single presses toggle first <-> third, free-look returns to first (I1)'
   'doubleWindowMs=300|camera: the double-click window is the named 300'
   'doubleInsideMs=1|camera: 299 ms is inside the window (a double)'
   'doubleBoundaryMs=1|camera: 300 ms is the boundary (a fresh single)'

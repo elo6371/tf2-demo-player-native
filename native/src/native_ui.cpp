@@ -505,8 +505,10 @@ bool CameraModeController::setMode(CameraMode mode) {
 
 bool CameraModeController::cycleMode() {
   switch (mode_) {
+    // I1 (2026-11-23): TF2 demo-UI order. Third person goes back to first instead
+    // of on to free-look, and free-look's single press returns to the player.
     case CameraMode::FirstPerson: return setMode(CameraMode::ThirdPerson);
-    case CameraMode::ThirdPerson: return setMode(CameraMode::FreeLook);
+    case CameraMode::ThirdPerson: return setMode(CameraMode::FirstPerson);
     case CameraMode::FreeLook: return setMode(CameraMode::FirstPerson);
     default: return false;
   }
@@ -530,8 +532,8 @@ bool CameraModeController::spacePress(std::uint32_t nowMs) {
   lastWasDouble_ = isDouble;
   if (isDouble) {
     ++spaceDoubles_;
-    // The double click's job: straight into free-look, the mode the player
-    // cannot reach in one step from first-person. From third-person it is a
+    // The double click's job: straight into free-look, the only way in from the
+    // keyboard now that a single press never reaches it. From third-person it is a
     // no-op on the mode (still counted); the return value answers "did the
     // mode change", so a double landing on free-look already reports false.
     return setMode(CameraMode::FreeLook);

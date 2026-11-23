@@ -456,14 +456,16 @@ echo "=== 2b/9 the three hotkeys are registered in the shared table ==="
 # that turned a DIFFERENT assertion red would prove nothing about this one.
 hotkey_check() { # hotkey_check <trace>
   local trace="$1" bad=0 action expected line chord bound actions
-  for action in hud.toggle hud.preview hud.reset; do
+  for action in hud.toggle hud.preview hud.reset hud.outline; do
     line=$(grep -oE "hud: keys action=$action [^ ]* bound=[0-9]" "$trace" 2>/dev/null | tail -1)
     chord=$(printf "%s" "$line" | sed -n 's/.*chord=\([^ ]*\).*/\1/p')
     bound=$(printf "%s" "$line" | sed -n 's/.*bound=\([0-9]\).*/\1/p')
     case "$action" in
-      hud.toggle)  expected="H";;
+      # I1 (2026-11-23, user decision): H is the outline, hiding the HUD is Shift+H.
+      hud.toggle)  expected="Shift+H";;
       hud.preview) expected="Ctrl+P";;
       hud.reset)   expected="Ctrl+Shift+H";;
+      hud.outline) expected="H";;
       *)           expected="";;
     esac
     echo "  $action -> chord=${chord:-<none>} bound=${bound:-<none>} (contract: $expected)"
@@ -1311,7 +1313,7 @@ PYEOF
 import sys
 path = sys.argv[1]
 text = open(path, encoding='utf-8').read()
-needle = '  g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("H"));\n'
+needle = '  g_keybinds.registerDefault("hud.toggle", tf2::native::parseChord("Shift+H"));\n'
 if needle not in text:
     raise SystemExit("mutation-3 anchor not found")
 open(path, 'w', encoding='utf-8', newline='').write(text.replace(needle, '', 1))

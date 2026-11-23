@@ -96,25 +96,35 @@ void checkCameraController(Readings& readings) {
     readings.set("cameraDefault", cameraModeName(fresh.mode()));
   }
 
-  // The full cycle: one step per single press, first -> third -> free -> first.
+  // I1 (2026-11-23): the TF2 demo-UI single press. First <-> third on every
+  // single press; from free-look a single press returns to first-person. The
+  // three-step first -> third -> free loop this block used to pin is gone by
+  // user decision (docs/UI-SHELL-DESIGN-2026-11-22.md section 8).
   {
     tf2::native::CameraModeController cycle;
     const bool step1 = cycle.spacePress(1000);
     check(step1 && cycle.mode() == CameraMode::ThirdPerson, "first single press reaches third-person");
     check(!cycle.lastPressWasDouble(), "a first press is never a double");
     const bool step2 = cycle.spacePress(2000);
-    check(step2 && cycle.mode() == CameraMode::FreeLook, "second single press reaches free-look");
+    check(step2 && cycle.mode() == CameraMode::FirstPerson, "second single press returns to first-person");
+    const bool intoFree = cycle.setMode(CameraMode::FreeLook);
+    check(intoFree && cycle.mode() == CameraMode::FreeLook, "free-look is reachable by an explicit setMode");
     const bool step3 = cycle.spacePress(3000);
-    check(step3 && cycle.mode() == CameraMode::FirstPerson, "third single press returns to first-person");
+    check(step3 && cycle.mode() == CameraMode::FirstPerson, "a single press in free-look returns to first-person");
     check(cycle.spacePressCount() == 3 && cycle.spaceSingleCount() == 3,
       "three presses classify as three singles");
     check(cycle.spaceDoubleCount() == 0, "presses 1 s apart never form a double");
-    check(cycle.modeChangeCount() == 3, "the cycle counts three mode changes");
+    check(cycle.modeChangeCount() == 4, "two presses, one setMode and one more press are four mode changes");
     check(cycle.lastPressIntervalMs() == 1000, "the last interval is measured, not guessed");
+    // A single press can never reach free-look: from third it goes back to first.
+    tf2::native::CameraModeController third;
+    third.setMode(CameraMode::ThirdPerson);
+    const bool back = third.spacePress(5000);
+    check(back && third.mode() == CameraMode::FirstPerson, "a single press in third-person returns to first-person");
     // setMode is idempotent on the current mode.
     check(!cycle.setMode(CameraMode::FirstPerson), "setting the current mode changes nothing");
-    check(cycle.modeChangeCount() == 3, "an idempotent setMode is not a mode change");
-    readings.set("cameraCycle", step1 && step2 && step3
+    check(cycle.modeChangeCount() == 4, "an idempotent setMode is not a mode change");
+    readings.set("cameraCycle", step1 && step2 && intoFree && step3 && back
       && cycle.mode() == CameraMode::FirstPerson ? 1u : 0u);
   }
 
@@ -128,7 +138,10 @@ void checkCameraController(Readings& readings) {
       "299 ms after the first press is a double click");
     check(inside.lastPressIntervalMs() == 299, "the double's interval is measured as 299");
     check(inside.mode() == CameraMode::FreeLook, "the double click lands in free-look");
-    check(inside.spaceSingleCount() == 1, "only the pair's first press was a single");
+    // And one more single press gets the player back.
+    inside.spacePress(5000);
+    check(inside.mode() == CameraMode::FirstPerson, "a single press after the double returns to first-person");
+    check(inside.spaceSingleCount() == 2, "the pair's first press and the later press were singles");
     readings.set("doubleInsideMs", 1u);
   }
   {
@@ -137,8 +150,8 @@ void checkCameraController(Readings& readings) {
     boundary.spacePress(300); // exactly the window: a fresh single, not a double
     check(!boundary.lastPressWasDouble() && boundary.spaceDoubleCount() == 0,
       "300 ms after the first press is a fresh single (the boundary is a single)");
-    check(boundary.mode() == CameraMode::FreeLook,
-      "two singles 300 ms apart walked first -> third -> free");
+    check(boundary.mode() == CameraMode::FirstPerson,
+      "two singles 300 ms apart walked first -> third -> first");
     check(boundary.lastPressIntervalMs() == 300, "the boundary interval reads as 300");
     readings.set("doubleBoundaryMs", 1u);
   }
