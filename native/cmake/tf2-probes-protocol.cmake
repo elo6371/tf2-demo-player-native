@@ -31,3 +31,12 @@ target_include_directories(entity_message_fixture_probe PRIVATE include)
 target_link_libraries(entity_message_fixture_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(entity_message_fixture_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 set_target_properties(entity_message_fixture_probe PROPERTIES WIN32_EXECUTABLE OFF)
+
+# CA-01: PVS dormancy self-test probe (synthetic wire lifecycle + snapshot carry).
+# Appended last to preserve NMAKE target build order.
+add_executable(entity_dormant_probe
+  tools/entity_dormant_probe.cpp)
+target_include_directories(entity_dormant_probe PRIVATE include)
+target_link_libraries(entity_dormant_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
+target_compile_definitions(entity_dormant_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
+set_target_properties(entity_dormant_probe PROPERTIES WIN32_EXECUTABLE OFF)

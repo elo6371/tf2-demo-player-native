@@ -235,6 +235,14 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   // reset that dropped them would report zero rows on the run that asked for
   // them -- which reads exactly like "there was nothing to retain".
   const CameraTrackLimits cameraTrackLimits = summary.cameraTrackLimits;
+  // CA-02a: same rule, same reason, for the entity transform retention. A caller that
+  // sets enabled/maxSamples/minTickStride expects to keep them across this reset; a
+  // dropped `enabled` would report zero rows on the run that asked for them.
+  const EntityTransformLimits entityTransformLimits = summary.entityTransformLimits;
+  // CA-01: dormancy is off by default, and the flag is configuration too. CA-02a tags
+  // rows with CA-01's bit, so a caller that armed the transform track also sets this
+  // before the scan -- and the same reset would otherwise silently disarm it.
+  const bool entityDormantEnabled = summary.entityDormantEnabled;
   // task-35: the audit capture is a caller-owned pointer, so it survives the reset
   // for the same reason the retention limits above do. Without this the caller
   // would feed a capture the summary no longer points at and every hook would be
@@ -251,6 +259,8 @@ bool scanKnownDemoMessages(const std::filesystem::path& path, const DemoIndex& i
   setParserBudgetRejectReason(nullptr);
   summary.projectileTrackLimits = projectileTrackLimits;
   summary.cameraTrackLimits = cameraTrackLimits;
+  summary.entityTransformLimits = entityTransformLimits;
+  summary.entityDormantEnabled = entityDormantEnabled;
   summary.tickAuditCapture = tickAuditCapture;
   summary.wearableSlotCapture = wearableSlotCapture;
   summary.networkProtocol = networkProtocol;

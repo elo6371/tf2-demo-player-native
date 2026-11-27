@@ -333,6 +333,9 @@ void Renderer::rebuildOverlayBuffers() {
   // D1: the identity rows describe the buffer built below, so they are cleared with
   // it. A stale row would attribute this frame's silhouettes to last frame's slots.
   overlayInstanceIdentity_.clear();
+  // A1d: the silhouette rows hashes describe this buffer too; a stale hash would
+  // vouch for a silhouette this rebuild did not produce.
+  overlayModelUploadedRowsHash_.clear();
   overlayLineVertexCount_ = 0;
   overlayLineVertexCountByDepth_[0] = 0;
   overlayLineVertexCountByDepth_[1] = 0;
@@ -378,8 +381,17 @@ void Renderer::rebuildOverlayBuffers() {
       const auto mesh = entityModelMeshes_.find(item.cacheKey);
       if (mesh == entityModelMeshes_.end() || !mesh->second.vertexBuffer
           || mesh->second.vertexCount < 3 || (mesh->second.vertexCount % 3) != 0) continue;
+      // A1d: a silhouette is the body's outline, so it is built by the body's
+      // rule -- entityDrawSkipsPermutation with the skinned term, exactly as
+      // native_renderer_entity.cpp builds the mesh underneath it. The old call
+      // omitted the term and always kept the Y-up permutation, while an animated
+      // body dropped it, so the two placements disagreed by that permutation.
+      // Decided before the rows because it IS part of the placement rule now.
+      const bool skinned = item.skinned && item.boneCount > 0
+        && static_cast<std::size_t>(item.boneOffset) + item.boneCount <= entityBoneMatrixCount_;
       EntityModelInstanceRows rows;
-      if (!buildEntityModelInstanceRows(item.origin, item.angles, item.hasAngles, world, rows)) continue;
+      if (!buildEntityModelInstanceRows(item.origin, item.angles, item.hasAngles, world, rows,
+            entityDrawSkipsPermutation(false, skinned))) continue;
       const auto inserted = bucketOf.emplace(item.cacheKey, buckets.size());
       if (inserted.second) {
         Bucket created;
@@ -399,9 +411,8 @@ void Renderer::rebuildOverlayBuffers() {
       gpu.color[3] = item.color.rgba[3];
       // Skinning is advertised only when the matrices for it were uploaded, the
       // same rule the entity pass follows: an instance that indexes past the
-      // buffer is drawn unskinned rather than reading another entity bones.
-      const bool skinned = item.skinned && item.boneCount > 0
-        && static_cast<std::size_t>(item.boneOffset) + item.boneCount <= entityBoneMatrixCount_;
+      // buffer is drawn unskinned rather than reading another entity bones. The
+      // decision itself is made above, where the rows are built.
       if (skinned) {
         gpu.boneOffset = item.boneOffset;
         gpu.skinEnabled = 1u;
@@ -414,6 +425,12 @@ void Renderer::rebuildOverlayBuffers() {
       // one the pixel readings cannot: whether the instance the GPU draws is the
       // instance the CPU published a box for.
       gpu.padding[1] = item.entityIndex;
+      // A1d: the rows the GPU will consume, hashed for the reason the entity pass
+      // hashes its own (G-2): the trace can then prove the silhouette it measured
+      // is the one that reached the buffer, not merely one built by the same
+      // recipe. One entry per entity -- a second silhouette for the same entity
+      // describes the same placement, and the last write is that placement.
+      overlayModelUploadedRowsHash_[item.entityIndex] = hashEntityModelInstanceRows(rows);
       // Keep the identity and the origin alongside the GPU record, in the same
       // order, so range.instanceStart indexes both tables.
       OverlayInstanceRecord cpu;

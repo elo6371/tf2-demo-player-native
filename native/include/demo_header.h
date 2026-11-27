@@ -303,6 +303,11 @@ struct EntityHistoryEvent {
   // deep-copied the whole EntityState; on koth_bagel_rc13 that is 1.39M copies
   // of a ~50-entry unordered_map and dominated the scan.
   std::vector<EntityPropChange> changes;
+  // CA-01: PVS departure edge (updateType == 1, LeavePVS without FHDR_DELETE).
+  // Source marks the entity dormant via NotifyShouldTransmit(SHOULDTRANSMIT_END)
+  // (engine/cl_ents_parse.cpp:530-535, baseclientstate.cpp:243-275) while
+  // keeping its last known state frozen rather than deleting or zeroing.
+  bool dormant = false;
 };
 
 struct EntityHistoryCheckpoint {
@@ -310,6 +315,9 @@ struct EntityHistoryCheckpoint {
   std::uint32_t packetOrdinal = 0;
   std::vector<std::int32_t> classByIndex;
   std::vector<EntityState> states;
+  // CA-01: PVS residency bitmap (2048 slots; 1 = dormant, 0 = resident) at the
+  // checkpoint tick so live and archived snapshots retain dormancy state.
+  std::vector<std::uint8_t> dormantByIndex;
 };
 
 struct EntityHistoryPacket {
@@ -496,6 +504,80 @@ struct CameraTrackLimits {
   std::size_t maxSamples = 400000;
 };
 
+// ===========================================================================
+// CA-02a: THE ENTITY TRANSFORM TRACK -- one row per CHANGE of a drawable
+// entity's placement, retained for the interpolation view (CA-02b).
+// ===========================================================================
+//
+// WHY A ROW IS NOT WRITTEN EVERY TICK. A 30-minute recording holds ~70k packets
+// and up to 2048 live slots; a row per slot per packet is what the 2026-10-07
+// measurement priced at roughly 4.77 GB for one demo. Source itself only sends a
+// field when it changes (c_baseentity.cpp:2546-2568), so the retained rows follow
+// the same rule: a row exists when a drawable entity's placement differs from the
+// placement last retained for that lifetime. Static geometry costs one row per
+// lifetime; a moving player costs rows at the packet rate while it moves.
+//
+// WHAT "DRAWABLE" MEANS HERE, AND WHY IT IS A READING. The retention cannot ask
+// the renderer which entities the final frame draws -- that set depends on the
+// camera, and the camera is a later step (D-32). It records the entities the
+// renderer COULD draw: the player classes, and any entity whose state carries a
+// non-zero m_nModelIndex. The class test is a name prefix (CTFPlayer), never a
+// pinned id, for the reason T53 documents: class ids belong to one recording.
+// A slot that is not drawable is classified once per lifetime and skipped
+// afterwards, so the walk over 2048 slots does not rescan its properties.
+//
+// WHO READS IT. Nothing in the product yet: CA-02a is retention and sizing.
+// CA-02b adds the interpolation view and CA-02c wires it behind --entity-interp.
+struct EntityTransformSample {
+  std::int32_t tick = 0;         // the packet's final server tick
+  std::uint16_t entityIndex = 0;
+  // Which readings this row carries (kEntityTransform* below) plus the two
+  // classification bits. A set bit means "the value was read", never "it is
+  // interesting"; origin and angles can be absent on an attached cosmetic.
+  std::uint16_t flags = 0;
+  std::uint32_t generation = 0;  // (entityIndex, generation) is the identity
+  std::int32_t classId = -1;
+  float origin[3] = {0.0f, 0.0f, 0.0f};
+  float angles[3] = {0.0f, 0.0f, 0.0f};
+  // The entity this one is parented to, as an INDEX, and the attachment point.
+  // -1 means "no parent". An attached entity's own origin is not what a renderer
+  // uses, so CA-02b must hold rather than lerp across a parent change.
+  std::int32_t moveParent = -1;
+  std::int32_t parentAttachment = 0;
+};
+static_assert(sizeof(EntityTransformSample) == 48,
+              "EntityTransformSample is the sizing unit of the CA-02a byte budget "
+              "(see entity_transform_track.h); growing it changes the budget arithmetic.");
+
+constexpr std::uint16_t kEntityTransformHasOrigin = 1u << 0;
+constexpr std::uint16_t kEntityTransformHasAngles = 1u << 1;
+constexpr std::uint16_t kEntityTransformHasMoveParent = 1u << 2;
+constexpr std::uint16_t kEntityTransformHasParentAttachment = 1u << 3;
+constexpr std::uint16_t kEntityTransformDormant = 1u << 4;
+constexpr std::uint16_t kEntityTransformDrawableByModel = 1u << 5;
+constexpr std::uint16_t kEntityTransformPlayerClass = 1u << 6;
+
+struct EntityTransformLimits {
+  // OPT-IN RETENTION, DEFAULT OFF -- same contract as ProjectileTrackLimits and
+  // CameraTrackLimits: the product reads no row yet (CA-02b does), so a product
+  // scan must not pay for them.
+  bool enabled = false;
+  // Rows retained. The default is set so the byte budget holds by construction:
+  // 1,200,000 rows * 48 B = 57.6 MB, plus at most one 64k-row growth step (3 MB)
+  // and the side tables (~14 KB), which is 60.6 MB against the 64 MB limit. A
+  // recording that hits this cap stops retaining and says so; it does not silently
+  // evict the oldest rows, because a playback that loses the beginning of the demo
+  // is worse than one that loses the end, and both are reported either way.
+  std::size_t maxSamples = 1200000;
+  // Record movement at most once per N ticks per lifetime. 1 = every change. This
+  // is the documented downsample for a recording that exceeds the budget: raising
+  // it multiplies the covered tick range by N at the same byte cost. Structural
+  // transitions (dormancy, parent, attachment) always keep their own row.
+  std::int32_t minTickStride = 1;
+  // OPT-IN APPEND TIMING, DEFAULT OFF, same reason as T53's: the append runs on
+  // the decode path and a product run must not pay a clock read per packet.
+  bool measureAppendCost = false;
+};
 // True when `className` is one of the projectile classes T53 tracks. THE TEST IS
 // THE NAME, NEVER THE ID: class ids belong to one recording's server class table
 // (CTFViewModel measures 320 on one demo and 18 on another), so a pinned id is a
@@ -946,6 +1028,17 @@ struct DemoNetworkSummary {
   std::size_t maxActiveEntityCount = 0;
   std::vector<std::int32_t> entityClassByIndex;
   std::vector<EntityState> entityStates;
+  // CA-01: PVS dormancy write path. Off by default: with this false the decoder
+  // behaves like 054fb628 -- no LeavePVS history event, no bitmap allocation, no
+  // counter writes -- so a default-off scan is byte-identical to the base build.
+  // The caller sets it before scanning (setEntityDormantEnabled); the edge hooks
+  // also check it, so a direct call cannot write while the path is disabled.
+  bool entityDormantEnabled = false;
+  // CA-01: per-slot PVS residency bitmap (2048 slots; 1 = Leave without Delete)
+  // and transition counters, written only when entityDormantEnabled is true.
+  std::vector<std::uint8_t> entityDormant;
+  std::size_t entityDormantDepartures = 0;
+  std::size_t entityDormantReturns = 0;
   std::vector<EntityHistoryEvent> entityHistoryEvents;
   std::vector<EntityHistoryCheckpoint> entityHistoryCheckpoints;
   std::vector<EntityHistoryPacket> entityHistoryPackets;
@@ -1038,6 +1131,29 @@ struct DemoNetworkSummary {
   bool cameraCaptureValid = false;     // ... and the capture built a row
   CameraTickSample cameraCaptureSample{};
   std::int32_t cameraCapturePacketTick = -1;  // tick readPacketEntities was given
+  // CA-02a: change-only placement retention for the interpolation view. Written by
+  // appendEntityTransformSamples at the same point as the two tracks above, read by
+  // entity_transform_track.h and the probe. The PVS dormancy signal itself lives in
+  // DemoNetworkSummary::entityDormant (CA-01); the readPacketEntities hooks below
+  // delegate to the CA-01 residency functions instead of keeping a second copy.
+  std::vector<EntityTransformSample> entityTransformSamples;
+  EntityTransformLimits entityTransformLimits{};
+  std::vector<std::uint32_t> entityTransformSlotSample;      // 2048: row index, 0xffffffff = none
+  std::vector<std::uint32_t> entityTransformSlotGeneration;  // 2048: generation the cache describes
+  std::vector<std::uint16_t> entityTransformSlotFlags;       // 2048: kEntityTransformSlotClassified etc.
+  std::vector<std::uint16_t> entityTransformClassMask;       // class id -> kEntityTransformPlayerClass
+  std::vector<double> entityTransformAppendMillis;           // only when measureAppendCost
+  std::vector<std::uint32_t> entityTransformAppendEntities;  // only when measureAppendCost
+  std::size_t entityTransformRowsDropped = 0;  // 1 when the cap stopped the capture, not a row count
+  std::size_t entityTransformPacketsScanned = 0;
+  std::size_t entityTransformSlotsWalked = 0;
+  std::size_t entityTransformSlotsSkipped = 0;
+  std::size_t entityTransformRowsUnchanged = 0;
+  std::size_t entityTransformRowsStrideSkipped = 0;
+  std::size_t entityTransformLifetimesNotDrawable = 0;
+  bool entityTransformCaptureStopped = false;
+  std::int32_t entityTransformFirstTick = -1;
+  std::int32_t entityTransformLastTick = -1;
   bool serverInfoHltv = false;
   bool serverInfoDedicated = false;
   bool serverInfoReplayBit = false;
@@ -1234,7 +1350,17 @@ bool findEntitySnapshotAtOrBeforeTick(const DemoNetworkSummary& summary, std::in
 // is the whole question this retention policy has to answer.
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
-    std::int32_t* resolvedTick = nullptr);
+    std::int32_t* resolvedTick = nullptr,
+    std::vector<std::uint8_t>* dormantByIndex = nullptr);
+// CA-01: PVS residency edge hooks called from readPacketEntities on
+// Leave/Enter/Preserve/Delete (engine/baseclientstate.cpp:243-275,
+// cl_ents_parse.cpp:530-535).
+void markEntityDormantResident(DemoNetworkSummary& summary, std::int32_t entityIndex);
+void markEntityDormantDeparted(DemoNetworkSummary& summary, std::int32_t entityIndex);
+void clearEntityDormantSlot(DemoNetworkSummary& summary, std::int32_t entityIndex);
+// CA-01: enable/disable the dormancy write path before a scan. Disabled keeps
+// the decoder byte-identical to 054fb628 (no Leave event, no bitmap/counters).
+void setEntityDormantEnabled(DemoNetworkSummary& summary, bool enabled);
 void appendEntityHistoryPacket(DemoNetworkSummary& summary, std::int32_t tick, bool isDelta,
                                std::int32_t deltaFrom, std::vector<EntityHistoryEvent> events);
 
@@ -1295,6 +1421,23 @@ struct DemoMessageStreamResult {
   std::int64_t lastPacketEntitiesMessageBit = -1;
 };
 
+// ---------------------------------------------------------------------------
+// CA-02a: the entity transform track's API. Same shape as the two tracks above --
+// a capture on the decode path, plus the PVS residency hooks the decoder already
+// knows the transitions for.
+// ---------------------------------------------------------------------------
+
+// Called from readPacketEntities immediately after captureCameraTickSample, on
+// exactly the packets that decoded completely. Walks the live entity table and
+// retains a row per CHANGE (see EntityTransformSample).
+void appendEntityTransformSamples(DemoNetworkSummary& summary, std::int32_t tick);
+
+// PVS residency. Resident = Preserve or Enter, departed = Leave, Delete clears the
+// slot. Always maintained, retention switch or not: CA-01 reads the same signal and
+// the writes are one byte per transition, cheaper than a second walk over history.
+void markEntityTransformResident(DemoNetworkSummary& summary, std::int32_t entityIndex);
+void markEntityTransformDeparted(DemoNetworkSummary& summary, std::int32_t entityIndex);
+void clearEntityTransformSlot(DemoNetworkSummary& summary, std::int32_t entityIndex);
 // ---------------------------------------------------------------------------
 // N12-C: the camera tick track's API. Same shape as the projectile track above --
 // a capture on the decode path, a stamp where the packet's tick becomes known, and

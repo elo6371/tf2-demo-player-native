@@ -24,6 +24,16 @@ bool readBool(const std::filesystem::path& file, const wchar_t* key, bool fallba
   return readInt(file, key, fallback ? 1 : 0) != 0;
 }
 
+// Presence, not value: the writer below must tell "the file asked for this key"
+// from "the reader supplied its fallback". GetPrivateProfileStringW returns the
+// default it was handed when the key is missing, so a sentinel that cannot be a
+// stored value is what separates the two.
+bool hasKey(const std::filesystem::path& file, const wchar_t* key) {
+  wchar_t buffer[4]{};
+  const DWORD copied = GetPrivateProfileStringW(kSection, key, L"\x01", buffer, 4, file.c_str());
+  return copied > 0 && buffer[0] != L'\x01';
+}
+
 bool writeInt(const std::filesystem::path& file, const wchar_t* key, int value) {
   wchar_t buffer[32]{};
   _snwprintf_s(buffer, _TRUNCATE, L"%d", value);
@@ -107,6 +117,17 @@ PersistentSettings loadSettings() {
   // viewModelFov here: that legacy coupling made a weapon setting move the map.
   result.render.worldFov = static_cast<float>(readInt(file, L"worldFov", 90));
   result.render.vsync = readBool(file, L"vsync", false);
+  // Owner 2026-11-26 19:45: the two texture knobs. Their fallbacks are the
+  // compiled defaults (2 and 512), so a file written before these keys existed --
+  // or no file at all -- still reads the values every pinned capture was made
+  // with. Nothing writes these keys yet except saveSettings below, which is the
+  // one ini writer; that is deliberate, the defaults do not move here.
+  result.render.textureMipBias = readInt(file, L"textureMipBias", 2);
+  result.render.textureAtlasMax = readInt(file, L"textureAtlasMax", 512);
+  // A key already in the file is a request the last run made, and this run inherits
+  // it; a missing key stays missing, so the writer never invents one from a preset.
+  result.textureMipBiasGiven = hasKey(file, L"textureMipBias");
+  result.textureAtlasMaxGiven = hasKey(file, L"textureAtlasMax");
   // T52: the overlay's two keys. They are read here, with everything else, so a
   // gate that pins its own settings file makes the COMPILED default the input --
   // "no stored value" is then reachable from a gate instead of being whatever
@@ -155,6 +176,22 @@ bool saveSettings(const PersistentSettings& settings) {
       || !writeInt(temporary, L"viewModelFov", static_cast<int>(render.viewModelFov + 0.5f))
       || !writeInt(temporary, L"worldFov", static_cast<int>(render.worldFov + 0.5f))
       || !writeBool(temporary, L"vsync", render.vsync)
+      // Owner 2026-11-26 20:15 (lead): the two texture knobs are a deliberate
+      // exception to T53 below, and they are written only when this run ASKED for
+      // them (PersistentSettings' two `*Given` flags: the switch was passed, or the
+      // file being loaded already carried the key). The gate records the settings
+      // file's sha (D-37), so a run that passed neither switch must leave the file
+      // byte for byte as it found it. Value-based tests cannot deliver that: the
+      // Standard preset rewrites the mip bias to 0 and the exit path saves the
+      // renderer's copy, so `--quality standard` would write a key by itself; and a
+      // test against the preset's default would still write one for a legacy file
+      // whose `preset=1` has no mip key. "Asked" is the only predicate that leaves an
+      // unasked file alone, and it keeps a key the user did ask for even when the
+      // value happens to equal a default.
+      || (settings.textureMipBiasGiven
+          && !writeInt(temporary, L"textureMipBias", render.textureMipBias))
+      || (settings.textureAtlasMaxGiven
+          && !writeInt(temporary, L"textureAtlasMax", render.textureAtlasMax))
       // T52: the overlay's two keys, written here so there is ONE ini writer. A
       // second writer racing this one is how a settings file ends up with half of
       // one round's keys.

@@ -16,7 +16,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <optional>
 
+#include "feature_flags.h"
 #include "main_internal.h"
 
 namespace tf2::native::main_internal {
@@ -77,11 +79,19 @@ void traceFmt(const char* format, ...) {
 }
 
 void openTrace() {
-  // Read through the Win32 call rather than getenv/fopen so the steady build
-  // keeps its one pre-existing warning and no more: a diagnostic channel that
-  // adds noise to every build is a diagnostic channel people turn off.
+  // G-3 (B0): the path comes from the one switch table instead of a second
+  // direct Win32 read here. The table keeps the Win32 call rather than
+  // getenv/fopen, so the steady build keeps its one pre-existing warning and no
+  // more: a diagnostic channel that adds noise to every build is a diagnostic
+  // channel people turn off.
+  const std::optional<std::wstring> tracePath = flags::Wide("TRACE");
+  if (!tracePath.has_value()) return;
+  // MAX_PATH was the old buffer's whole capacity. A longer value never reached
+  // _wfopen_s in a defined state; it is now refused instead of read out of an
+  // unwritten buffer.
+  if (tracePath->size() >= MAX_PATH) return;
   wchar_t path[MAX_PATH]{};
-  if (GetEnvironmentVariableW(L"TF2_NATIVE_TRACE", path, MAX_PATH) == 0) return;
+  std::memcpy(path, tracePath->c_str(), (tracePath->size() + 1) * sizeof(wchar_t));
   if (_wfopen_s(&g_traceFile, path, L"w") != 0) return;
   if (!g_traceFile) return;
   QueryPerformanceFrequency(&g_traceFrequency);
@@ -119,6 +129,14 @@ void openTrace() {
     return EXCEPTION_EXECUTE_HANDLER;
   });
   traceCheckpoint("trace open");
+  // G-3 (B0): every switch this process can read from the environment, once, in
+  // table order, with the raw value and where it came from. These lines exist
+  // only while a trace is armed: a default run writes nothing here, so no other
+  // run changes.
+  flags::ForEachFlag([](const flags::Entry& entry, const std::optional<std::string>& raw) {
+    traceFmt("flag %s raw=%s source=%s", entry.name, raw.has_value() ? raw->c_str() : "<unset>",
+      raw.has_value() ? "env" : "default");
+  });
 }
 
 }  // namespace tf2::native::main_internal

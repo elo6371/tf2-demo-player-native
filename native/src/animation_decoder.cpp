@@ -1,5 +1,7 @@
 #include "animation_decoder.h"
 
+#include "pose_accumulate.h"
+
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -95,22 +97,6 @@ void quatRotate(const std::array<float, 4>& q, const std::array<float, 3>& v, st
   out[0] = v[0] + q[3] * tx + (q[1] * tz - q[2] * ty);
   out[1] = v[1] + q[3] * ty + (q[2] * tx - q[0] * tz);
   out[2] = v[2] + q[3] * tz + (q[0] * ty - q[1] * tx);
-}
-
-void radianEulerToQuat(float roll, float pitch, float yaw, std::array<float, 4>& out) {
-  const float halfRoll = roll * 0.5f;
-  const float halfPitch = pitch * 0.5f;
-  const float halfYaw = yaw * 0.5f;
-  const float sr = std::sin(halfRoll);
-  const float cr = std::cos(halfRoll);
-  const float sp = std::sin(halfPitch);
-  const float cp = std::cos(halfPitch);
-  const float sy = std::sin(halfYaw);
-  const float cy = std::cos(halfYaw);
-  out[0] = sr * cp * cy - cr * sp * sy;
-  out[1] = cr * sp * cy + sr * cp * sy;
-  out[2] = cr * cp * sy - sr * sp * cy;
-  out[3] = cr * cp * cy + sr * sp * sy;
 }
 
 float sourceFloat16(std::uint16_t input) {
@@ -289,26 +275,21 @@ bool locateFrame(const std::uint8_t* bytes, std::size_t size, std::size_t animOf
   return true;
 }
 
+// Reads one bone record. A bone with no channel keeps whatever the caller
+// initialised for it (unit/zero for a delta animdesc, bind for an absolute one).
+//
+// There is no root special case here. T62 replaced the root's animated rotation
+// and horizontal translation with the bind values: inside a delta animdesc the
+// root transform IS the pose, so that overwrite discarded it (measured ~87
+// degrees about X on the player aim pose), and for an absolute clip the clamp
+// existed to cancel a second coordinate permutation applied to the instance rows.
+// Source's CalcBoneQuaternion / CalcBonePosition have no root branch, and the
+// permutation is now gated on the bind-pose draw path (a skinned instance's rows
+// are the pure placement frame), so the pose the file states is the pose the
+// renderer gets. T108 / manager ruling m07132.
 bool readBoneFrame(const std::uint8_t* bytes, std::size_t size, const AnimationBone& bone, std::size_t record,
-    int frame, std::array<float, 3>& position, std::array<float, 4>& rotation, std::string& reason) {
-  if (bone.parent < 0) {
-    // T62: a skeleton root's animated transform is baked in the animation's own
-    // world frame, not in the entity's local frame. demo_animations.mdl keeps
-    // the pelvis at a fixed authoring spot (-0.8, -47.5, 45.7..51.6 = the rig's
-    // world placement plus hip height) with an absolute orientation of roughly
-    // 87 degrees about X; adding those to the reference pose drags the whole
-    // skeleton to the floor and tips it over, which is why the character
-    // rendered as a spiked blob. The entity matrix already supplies the world
-    // placement, and every child channel is a bone-local offset that is used as
-    // authored, so the root keeps its reference transform here.
-    position = bone.position;
-    rotation = bone.rotation;
-    if (!finite3(position) || !finite4(rotation)) {
-      reason = "bone bind rotation is not finite";
-      return false;
-    }
-    return true;
-  }
+    int frame, std::array<float, 3>& position,
+    std::array<float, 4>& rotation, std::string& reason) {
   const auto flags = bytes[record + 1];
   const std::size_t data = record + 4;
   std::size_t rotationBytes = 0;
@@ -331,10 +312,17 @@ bool readBoneFrame(const std::uint8_t* bytes, std::size_t size, const AnimationB
     radianEulerToQuat(x, y, z, rotation);
     rotationBytes = 6;
   } else {
-    // A delta block with no rotation channel means "unchanged from the
-    // reference pose", so the reference pose itself is the answer. Writing an
-    // identity here would drop the bone's rest orientation.
-    rotation = bone.rotation;
+    // The record carries neither raw nor animated rotation. Source's
+    // CalcBoneQuaternion keys on the record's own STUDIO_ANIM_DELTA bit alone:
+    // with the bit the result is the reference transform touched by nothing,
+    // without it the bone's bind rotation. Audit M-2: an earlier revision OR-ed
+    // the containing animdesc's STUDIO_DELTA into this test, which deviated from
+    // Source and silenced the bind fallback for a data-less in-chain record of a
+    // delta animdesc. A delta animdesc still leaves every bone its chain never
+    // names at unit/zero -- that comes from the local-pose initialisation before
+    // the walk in sampleAnimDescCore, not from this fallback.
+    rotation = (flags & kDelta) != 0
+      ? std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}} : bone.rotation;
   }
 
   const std::size_t positionAt = data + rotationBytes;
@@ -350,9 +338,10 @@ bool readBoneFrame(const std::uint8_t* bytes, std::size_t size, const AnimationB
       position[2] += bone.position[2];
     }
   } else {
-    // Same for translation: a delta block that carries no position channel
-    // leaves the bone at its rest offset, not at its parent's origin.
-    position = bone.position;
+    // Same rule for translation (see the rotation fallback above): the record's
+    // own delta bit means zero, otherwise the bone's bind position.
+    position = (flags & kDelta) != 0
+      ? std::array<float, 3>{{0.0f, 0.0f, 0.0f}} : bone.position;
   }
   if (!finite3(position) || !finite4(rotation)) {
     reason = "bone scale is not finite";
@@ -585,10 +574,9 @@ AnimationStatus decodeAnimationModel(const std::uint8_t* bytes, std::size_t size
       }
       sequence.grid.valid = gridOk;
     }
-    // Weight list: one float per bone at a record-relative offset (+156). Most
-    // sequences in a player animation file share one all-ones table, so the
-    // summary travels with every sequence and the floats only with the grids
-    // (Step 3 is the first consumer that needs the values).
+    // Weight list: one float per bone at a record-relative offset (+156). Keep
+    // the values for single-cell action sequences too, since gesture overlays
+    // use the same per-bone attenuation as aim grids.
     std::int32_t weightPointer = 0;
     readAt(bytes, size, offset + 156, weightPointer);
     std::size_t weightAt = 0;
@@ -620,11 +608,9 @@ AnimationStatus decodeAnimationModel(const std::uint8_t* bytes, std::size_t size
         sequence.weights.minWeight = weightMin;
         sequence.weights.maxWeight = weightMax;
         sequence.weights.sum = weightSum;
-        if (sequence.blendCount > 1) {
-          sequence.weights.weights.resize(boneTotal);
-          for (std::size_t bone = 0; bone < boneTotal; ++bone) {
-            readAt(bytes, size, weightAt + bone * sizeof(float), sequence.weights.weights[bone]);
-          }
+        sequence.weights.weights.resize(boneTotal);
+        for (std::size_t bone = 0; bone < boneTotal; ++bone) {
+          readAt(bytes, size, weightAt + bone * sizeof(float), sequence.weights.weights[bone]);
         }
       }
     }
@@ -671,6 +657,13 @@ bool sampleAnimDescCore(const AnimationModel& model, std::int32_t animDesc, bool
     return false;
   }
   const auto& anim = model.animations[static_cast<std::size_t>(animDesc)];
+  const bool delta = (anim.flags & kStudioDeltaFlag) != 0;
+  // T108: a delta animdesc initialises every bone to unit/zero below and only the
+  // bones its channel chain names receive data; an absolute one starts from the
+  // bind transforms. STUDIO_ALLZEROS needs no branch either: such an animdesc
+  // carries no animation data, so the walk below finds no channel and every bone
+  // keeps its bind transform, which is what Source does with it as well.
+
   sample.fps = anim.fps;
   sample.frameCount = anim.frameCount;
   if (tick < 0 || !(tickRate > 0.0f) || !std::isfinite(tickRate)) {
@@ -704,8 +697,10 @@ bool sampleAnimDescCore(const AnimationModel& model, std::int32_t animDesc, bool
   sample.localRotation.assign(model.bones.size(), {0.0f, 0.0f, 0.0f, 1.0f});
   sample.boneAnimated.assign(model.bones.size(), 0);
   for (std::size_t i = 0; i < model.bones.size(); ++i) {
-    sample.localPosition[i] = model.bones[i].position;
-    sample.localRotation[i] = model.bones[i].rotation;
+    if (!delta) {
+      sample.localPosition[i] = model.bones[i].position;
+      sample.localRotation[i] = model.bones[i].rotation;
+    }
   }
   std::vector<bool> seen(model.bones.size(), false);
   std::size_t boneCursor = dataOffset;

@@ -33,6 +33,33 @@
 
 namespace tf2::native::main_internal {
 
+namespace {
+
+// I3c: the listbox is filled from the same rows the product prints, and only when the
+// rows change -- LB_ADDSTRING on every frame would reset the scroll position and the
+// selection of a list the user is reading. The signature is the row identity a rebuild
+// depends on (the row set is deterministic given the scan), not a pixel hash.
+std::uint64_t resultsListSignature(const std::vector<tf2::native::UiResultRow>& rows) {
+  std::uint64_t hash = 1469598103934665603ull;
+  const auto mix = [&hash](std::uint64_t value) {
+    hash ^= value;
+    hash *= 1099511628211ull;
+  };
+  mix(rows.size());
+  for (const auto& row : rows) {
+    mix(static_cast<std::uint64_t>(static_cast<std::uint32_t>(row.startTick)));
+    mix(static_cast<std::uint64_t>(static_cast<std::uint32_t>(row.endTick)));
+    mix(static_cast<std::uint64_t>(row.kind));
+    mix(static_cast<std::uint64_t>(static_cast<std::uint32_t>(row.entity)));
+  }
+  return hash;
+}
+
+std::uint64_t g_resultsListSignature = 0;
+bool g_resultsListFilled = false;
+
+}  // namespace
+
 // Repositions every UI control from the planner's answer for the current
 // client rect and window dpi. The planner guarantees containment and
 // non-overlap; this function is the only place that turns a plan into
@@ -84,6 +111,14 @@ void applyUiLayout(HWND window) {
     moveHud(tf2::native::UiHudControlId::Scale, g_uiHudScale);
     moveHud(tf2::native::UiHudControlId::Reset, g_uiHudReset);
     moveHud(tf2::native::UiHudControlId::Status, g_uiHudStatus);
+  }
+  // I3c: the results list consumes both plans above; it never writes either.
+  const auto analysisPlan = tf2::native::planAnalysisLayout(plan, hudPlan,
+    client.right, client.bottom, static_cast<float>(dpi) / 96.0f);
+  if (analysisPlan.valid && g_uiResultsList) {
+    const auto& rect = analysisPlan.rects[
+      static_cast<std::size_t>(tf2::native::UiAnalysisControlId::Results)];
+    MoveWindow(g_uiResultsList, rect.x, rect.y, rect.w, rect.h, TRUE);
   }
   if (g_nativeUi) {
     // S1: the snapshot's `fullscreen` is the real borderless state now. It used to
@@ -158,6 +193,32 @@ bool updateNativeUiControls(HWND window) {
   const bool review = state.screen == tf2::native::UiScreen::ImportReview;
   const bool player = state.screen == tf2::native::UiScreen::Player;
   const bool error = state.screen == tf2::native::UiScreen::Error;
+  // I3c: fill or refill the result list. Done on the review screen (where the list is
+  // visible) and in a player-screen scripted run too, because the rows are the same
+  // rows -- the control is hidden there, and a gate needs to see it populated without
+  // a mouse.
+  if (g_uiResultsList) {
+    const std::vector<tf2::native::UiResultRow> rows = state.motionAnalysis.valid
+      ? tf2::native::buildResultRows(state.motionAnalysis)
+      : std::vector<tf2::native::UiResultRow>{};
+    const std::uint64_t listSignature = resultsListSignature(rows);
+    if (!g_resultsListFilled || listSignature != g_resultsListSignature) {
+      g_resultsListSignature = listSignature;
+      g_resultsListFilled = true;
+      SendMessageW(g_uiResultsList, LB_RESETCONTENT, 0, 0);
+      for (const auto& row : rows) {
+        const std::string label =
+          tf2::native::formatResultRowLabel(row, tf2::native::kResultTickRate);
+        const std::wstring wide(label.begin(), label.end());
+        SendMessageW(g_uiResultsList, LB_ADDSTRING, 0,
+          reinterpret_cast<LPARAM>(wide.c_str()));
+      }
+      // Read back from the control: what the list HOLDS is count, what the model
+      // produced is items, and a mismatch is the failure this line exists to show.
+      const int count = static_cast<int>(SendMessageW(g_uiResultsList, LB_GETCOUNT, 0, 0));
+      traceFmt("analysis: results list items=%zu count=%d", rows.size(), count);
+    }
+  }
   setUiControlVisible(g_uiOpen, opening || error);
   setUiControlVisible(g_uiCancel, review || error);
   setUiControlVisible(g_uiConfirm, review);
@@ -177,6 +238,9 @@ bool updateNativeUiControls(HWND window) {
   setUiControlVisible(g_uiBookmarkDelete, player);
   setUiControlVisible(g_uiBookmarkList, player);
   setUiControlVisible(g_uiKeybindReset, player);
+  // I3c: the result list belongs to the analysis (import review) screen. Hidden on the
+  // player screen, where it would compete with the transport; its rows stay loaded.
+  setUiControlVisible(g_uiResultsList, review);
   if (player) {
     // The camera row is a readout: the mode the frame is drawing from, plus
     // whether a text field currently owns the keyboard. Both are state a user
@@ -353,6 +417,20 @@ void createNativeUiControls(HWND window, HINSTANCE instance) {
   g_uiHudReset = make(L"BUTTON", L"Reset HUD", BS_PUSHBUTTON, kUiHudReset, hrx, hry, hrw, hrh);
   auto [hcx, hcy, hcw, hch] = hudRectFor(tf2::native::UiHudControlId::Status, 590, 160, 400, 30);
   g_uiHudStatus = make(L"STATIC", L"HUD: none", SS_LEFT, 0, hcx, hcy, hcw, hch);
+  // I3c: the analysis result list. LBS_NOTIFY is what makes the parent window receive
+  // LBN_DBLCLK at all; LBS_NOINTEGRALHEIGHT keeps the planner's rectangle instead of
+  // letting the list snap to a whole number of item heights and overflow its row.
+  {
+    const auto analysisPlan = tf2::native::planAnalysisLayout(plan, hudPlan,
+      client.right, client.bottom, static_cast<float>(dpi) / 96.0f);
+    tf2::native::UiRect rect{16, 268, 900, 300};
+    if (analysisPlan.valid) {
+      rect = analysisPlan.rects[static_cast<std::size_t>(tf2::native::UiAnalysisControlId::Results)];
+    }
+    g_uiResultsList = make(L"LISTBOX", L"",
+      WS_VSCROLL | WS_BORDER | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | LBS_HASSTRINGS,
+      kUiResultsList, rect.x, rect.y, rect.w, rect.h);
+  }
   updateNativeUiControls(window);
 }
 

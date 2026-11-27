@@ -47,6 +47,12 @@ RenderSettings RenderSettings::fromPreset(QualityPreset preset) {
 
 void RenderSettings::normalize() {
   textureMipBias = clampValue(textureMipBias, -2, 4);
+  // Owner 2026-11-26 20:15 (lead): only two extents are supported -- 512, the
+  // literal this field replaced, and 1024, the one the atlas budget review is about.
+  // Every other value snaps back to 512 rather than being carried: a settings file
+  // written by hand (or by a build that accepted other numbers) must not hand the
+  // planner a tile extent it has never been reasoned about.
+  if (textureAtlasMax != 512 && textureAtlasMax != 1024) textureAtlasMax = 512;
   antiAliasingQuality = clampValue(antiAliasingQuality, 0, 8);
   anisotropicLevel = clampValue(anisotropicLevel, 1, 16);
   modelLod = clampValue(modelLod, 0, 8);

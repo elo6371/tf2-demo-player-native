@@ -31,8 +31,15 @@ public:
   ID3D11ShaderResourceView* view() const { return view_.Get(); }
   UINT width() const { return width_; }
   UINT height() const { return height_; }
+  // Owner 2026-11-26 19:45: why the texture was refused, for the one caller that
+  // has a fallback (the world atlas retries at the baseline extent). FAILED() from
+  // CreateTexture2D is exactly E_OUTOFMEMORY when the device ran out; every earlier
+  // refusal -- bad arguments, a buffer that does not match the dimensions, the
+  // caller's byte budget -- leaves E_FAIL. S_OK before any call and after success.
+  HRESULT failureHresult() const { return failureHresult_; }
 
 private:
+  HRESULT failureHresult_ = S_OK;
   Microsoft::WRL::ComPtr<ID3D11Texture2D> texture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> view_;
   UINT width_ = 0;

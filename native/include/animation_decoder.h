@@ -41,6 +41,23 @@ struct AnimationDesc {
   std::int32_t sectionFrames = 0;
 };
 
+// mstudioseqdesc_t::flags and mstudioanimdesc_t::flags share the STUDIO_* bit
+// values from Valve's studio.h. Every bit this decoder acts on is named here:
+// a bare literal at a call site is how 0x0008 came to be read as ALLZEROS in the
+// T108 report, when 0x0008 is AUTOPLAY and ALLZEROS is 0x0020.
+inline constexpr std::int32_t kStudioDeltaFlag = 0x0004;
+inline constexpr std::int32_t kStudioAutoplayFlag = 0x0008;
+// STUDIO_POST on a sequence and STUDIO_ANIM_DELTA on a compressed channel record
+// are the same bit in two different flag words; they mean different things and
+// must not be compared across tables.
+inline constexpr std::int32_t kStudioPostFlag = 0x0010;
+inline constexpr std::int32_t kStudioAllZerosFlag = 0x0020;
+// 0x0080 is STUDIO_CYCLEPOSE.
+inline constexpr std::int32_t kStudioCyclePoseFlag = 0x0080;
+// Compressed mstudioanim_t channel records: STUDIO_ANIM_DELTA (0x10) means the
+// channel is already relative to the bone's reference transform.
+inline constexpr std::int32_t kStudioAnimDeltaFlag = 0x0010;
+
 // A sequence's blend grid, straight out of mstudioseqdesc_t: a sequence with more
 // than one blend samples a width x height grid of local animations and
 // interpolates between cells. The file states the two axes as pose parameter

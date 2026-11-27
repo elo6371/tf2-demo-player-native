@@ -2,12 +2,14 @@
 #include "animation_sequence_match.h"
 #include "animation_clock.h"
 #include "animation_blend.h"
+#include "pose_accumulate.h"
 #include "asset_root.h"
 #include "demo_header.h"
 #include "entity_model.h"
 #include "entity_overlay.h"
 #include "entity_id_color.h"
 #include "model_loader.h"
+#include "root_diagnosis.h"
 
 #include <algorithm>
 #include <cctype>
@@ -49,7 +51,229 @@ bool hasDiagnostic(const tf2::native::ModelInspection& inspection, const std::st
   return false;
 }
 
+namespace {
+
+constexpr double kPoseMathPi = 3.14159265358979323846;
+
+// Angle of a quaternion's own rotation in degrees. |w| makes q and -q compare
+// equal, which is what "how far is this bone from identity" needs.
+float poseAngleDegrees(const std::array<float, 4>& q) {
+  double w = static_cast<double>(q[3]);
+  if (w < 0.0) w = -w;
+  if (w > 1.0) w = 1.0;
+  return static_cast<float>(2.0 * std::acos(w) * 180.0 / kPoseMathPi);
+}
+
+// Angle between two quaternions in degrees, again modulo the q/-q sign.
+float poseAngleBetweenDegrees(const std::array<float, 4>& a, const std::array<float, 4>& b) {
+  double dot = 0.0;
+  for (std::size_t i = 0; i < 4; ++i) dot += static_cast<double>(a[i]) * static_cast<double>(b[i]);
+  if (dot < 0.0) dot = -dot;
+  if (dot > 1.0) dot = 1.0;
+  return static_cast<float>(2.0 * std::acos(dot) * 180.0 / kPoseMathPi);
+}
+
+std::array<float, 3> applyPoseMatrix(const std::array<float, 12>& m,
+    const std::array<float, 3>& v) {
+  return {
+    m[0] * v[0] + m[1] * v[1] + m[2] * v[2] + m[3],
+    m[4] * v[0] + m[5] * v[1] + m[6] * v[2] + m[7],
+    m[8] * v[0] + m[9] * v[1] + m[10] * v[2] + m[11],
+  };
+}
+
+float poseVectorLength(const std::array<float, 3>& v) {
+  return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
+
+std::array<float, 3> poseTranslation(const std::array<float, 12>& m) {
+  return {m[3], m[7], m[11]};
+}
+
+// A one-bone skeleton whose single local rotation is the test quaternion, so the
+// composition path turns a quaternion into the matrix the skinning path uses.
+std::array<float, 12> poseMatrixForRotation(const std::array<float, 4>& rotation,
+    const std::array<float, 3>& position) {
+  const std::vector<std::int32_t> parents{-1};
+  const std::vector<std::array<float, 3>> positions{position};
+  const std::vector<std::array<float, 4>> rotations{rotation};
+  std::vector<std::array<float, 12>> matrices;
+  std::string reason;
+  if (!tf2::native::composeLocalToModelMatrices(parents, positions, rotations, matrices, reason)
+      || matrices.size() != 1) {
+    return std::array<float, 12>{{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}};
+  }
+  return matrices[0];
+}
+
+} // namespace
+
+// T108 A3: unit tests for the pose arithmetic the delta blend depends on. Each
+// case prints expected and actual, so a failure names the number instead of just
+// failing. Runs inside --self-test and on its own as --pose-math-selftest.
+//
+// The cases pin the conventions that the rest of the code silently assumes: the
+// quaternion-to-matrix mapping used by the skinning path, the Euler order the
+// decoder reads out of the MDL, that a parent transform is applied to its child,
+// the hemisphere handling of the quaternion product, and the endpoints of the
+// scale/accumulate helpers the layering code calls.
+int poseMathSelfTest() {
+  using namespace tf2::native;
+  int failures = 0;
+  const auto check = [&failures](const char* name, double expected, double actual, double tolerance) {
+    const bool ok = std::fabs(expected - actual) <= tolerance;
+    if (!ok) ++failures;
+    std::printf("pose-math %-30s expected=%10.5f actual=%10.5f %s\n",
+      name, expected, actual, ok ? "ok" : "FAIL");
+  };
+  const auto checkAxis = [&check](const char* name, const std::array<float, 3>& expected,
+      const std::array<float, 3>& actual, double tolerance) {
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+      std::array<char, 80> label{};
+      std::snprintf(label.data(), label.size(), "%s.%c", name, "xyz"[axis]);
+      check(label.data(), static_cast<double>(expected[axis]),
+        static_cast<double>(actual[axis]), tolerance);
+    }
+  };
+
+  const float quarterSin = std::sin(static_cast<float>(kPoseMathPi / 4.0));
+  const float quarterCos = std::cos(static_cast<float>(kPoseMathPi / 4.0));
+  const std::array<float, 4> identity{{0.0f, 0.0f, 0.0f, 1.0f}};
+  const std::array<float, 4> quarterTurnZ{{0.0f, 0.0f, quarterSin, quarterCos}};
+  const std::array<float, 4> negativeTurnZ{{0.0f, 0.0f, -quarterSin, quarterCos}};
+  const std::array<float, 3> origin{{0.0f, 0.0f, 0.0f}};
+  const std::array<float, 3> xAxis{{1.0f, 0.0f, 0.0f}};
+  const std::array<float, 3> yAxis{{0.0f, 1.0f, 0.0f}};
+  const std::array<float, 3> zAxis{{0.0f, 0.0f, 1.0f}};
+
+  // quat -> matrix: the skinning path's rotation convention.
+  checkAxis("quatZ90.x", std::array<float, 3>{{0.0f, 1.0f, 0.0f}},
+    applyPoseMatrix(poseMatrixForRotation(quarterTurnZ, origin), xAxis), 1.0e-5);
+  checkAxis("quatZ-90.x", std::array<float, 3>{{0.0f, -1.0f, 0.0f}},
+    applyPoseMatrix(poseMatrixForRotation(negativeTurnZ, origin), xAxis), 1.0e-5);
+
+  // Euler +-90 about each axis, through the decoder's own conversion.
+  const auto eulerRotate = [](float roll, float pitch, float yaw,
+      const std::array<float, 3>& axis) {
+    std::array<float, 4> rotation{};
+    tf2::native::radianEulerToQuat(roll, pitch, yaw, rotation);
+    return applyPoseMatrix(poseMatrixForRotation(rotation, std::array<float, 3>{{0.0f, 0.0f, 0.0f}}), axis);
+  };
+  const float halfPi = static_cast<float>(kPoseMathPi / 2.0);
+  checkAxis("eulerYaw+90.x", std::array<float, 3>{{0.0f, 1.0f, 0.0f}},
+    eulerRotate(0.0f, 0.0f, halfPi, xAxis), 1.0e-5);
+  checkAxis("eulerYaw-90.x", std::array<float, 3>{{0.0f, -1.0f, 0.0f}},
+    eulerRotate(0.0f, 0.0f, -halfPi, xAxis), 1.0e-5);
+  checkAxis("eulerRoll+90.y", std::array<float, 3>{{0.0f, 0.0f, 1.0f}},
+    eulerRotate(halfPi, 0.0f, 0.0f, yAxis), 1.0e-5);
+  checkAxis("eulerRoll-90.y", std::array<float, 3>{{0.0f, 0.0f, -1.0f}},
+    eulerRotate(-halfPi, 0.0f, 0.0f, yAxis), 1.0e-5);
+  checkAxis("eulerPitch+90.z", std::array<float, 3>{{1.0f, 0.0f, 0.0f}},
+    eulerRotate(0.0f, halfPi, 0.0f, zAxis), 1.0e-5);
+  checkAxis("eulerPitch-90.z", std::array<float, 3>{{-1.0f, 0.0f, 0.0f}},
+    eulerRotate(0.0f, -halfPi, 0.0f, zAxis), 1.0e-5);
+
+  // parent x local: the child's position is rotated by the parent and then
+  // translated by it, and the parent's rotation is inherited.
+  {
+    const std::vector<std::int32_t> parents{-1, 0};
+    const std::vector<std::array<float, 3>> positions{
+      std::array<float, 3>{{10.0f, 0.0f, 0.0f}}, std::array<float, 3>{{1.0f, 0.0f, 0.0f}}};
+    const std::vector<std::array<float, 4>> rotations{quarterTurnZ, identity};
+    std::vector<std::array<float, 12>> matrices;
+    std::string reason;
+    const bool composed = composeLocalToModelMatrices(parents, positions, rotations, matrices,
+      reason);
+    check("compose.accepts", 1.0, composed ? 1.0 : 0.0, 0.0);
+    if (composed && matrices.size() == 2) {
+      checkAxis("compose.childPos", std::array<float, 3>{{10.0f, 1.0f, 0.0f}},
+        poseTranslation(matrices[1]), 1.0e-5);
+      const std::array<float, 3> childOrigin = applyPoseMatrix(matrices[1], origin);
+      const std::array<float, 3> childAxis = applyPoseMatrix(matrices[1], xAxis);
+      checkAxis("compose.childRotX", std::array<float, 3>{{0.0f, 1.0f, 0.0f}},
+        std::array<float, 3>{{childAxis[0] - childOrigin[0], childAxis[1] - childOrigin[1],
+          childAxis[2] - childOrigin[2]}}, 1.0e-5);
+    } else {
+      std::printf("pose-math %-30s expected=%10.5f actual=%10.5f FAIL (%s)\n",
+        "compose.childPos", 10.0, 0.0, reason.c_str());
+      ++failures;
+    }
+  }
+
+  // The product aligns b into a's hemisphere before multiplying: composing with b
+  // and with -b must give the same rotation, and the angle must add up.
+  {
+    const std::array<float, 4> halfTurnZ{{0.0f, 0.0f, std::sin(static_cast<float>(kPoseMathPi / 8.0)),
+      std::cos(static_cast<float>(kPoseMathPi / 8.0))}};
+    const std::array<float, 4> negativeHalfZ{{0.0f, 0.0f, -halfTurnZ[2], -halfTurnZ[3]}};
+    std::array<float, 4> productA{};
+    std::array<float, 4> productB{};
+    quaternionMult(quarterTurnZ, halfTurnZ, productA);
+    quaternionMult(quarterTurnZ, negativeHalfZ, productB);
+    // acos near 1 amplifies float noise, so this is a "same rotation" check,
+    // not a bit-exactness check: 0.1 degrees is still far below one frame.
+    check("quatMult.aligned", 0.0,
+      static_cast<double>(poseAngleBetweenDegrees(productA, productB)), 0.1);
+    check("quatMult.addsAngles", 135.0, static_cast<double>(poseAngleDegrees(productA)), 1.0e-3);
+  }
+
+  // QuaternionScale: identity at t=0, unchanged at t=1, half the angle at t=0.5,
+  // and a rotation past 180 degrees keeps its hemisphere (w stays negative).
+  {
+    std::array<float, 4> scaled{};
+    quaternionScale(quarterTurnZ, 1.0f, scaled);
+    check("scale.t1.angle", 90.0, static_cast<double>(poseAngleDegrees(scaled)), 1.0e-3);
+    quaternionScale(quarterTurnZ, 0.0f, scaled);
+    check("scale.t0.angle", 0.0, static_cast<double>(poseAngleDegrees(scaled)), 1.0e-3);
+    quaternionScale(quarterTurnZ, 0.5f, scaled);
+    check("scale.t05.angle", 45.0, static_cast<double>(poseAngleDegrees(scaled)), 1.0e-3);
+    const std::array<float, 4> pastHalf{{0.0f, 0.0f,
+      std::sin(static_cast<float>(3.0 * kPoseMathPi / 4.0)),
+      std::cos(static_cast<float>(3.0 * kPoseMathPi / 4.0))}};
+    quaternionScale(pastHalf, 0.5f, scaled);
+    // 270 degrees scaled by 0.5 is 135 degrees, and the angle stays continuous:
+    // w comes back positive because cos(67.5 degrees) is positive. A |w|-based
+    // implementation scales the folded 90 degrees instead and reports 45.
+    check("scale.pastHalf.wPositive", 1.0, scaled[3] > 0.0f ? 1.0 : 0.0, 0.0);
+    check("scale.pastHalf.angle", 135.0, static_cast<double>(poseAngleDegrees(scaled)), 1.0e-2);
+  }
+
+  // QuaternionSM / QuaternionMA: the two accumulate steps, component-wise.
+  {
+    const std::array<float, 4> p{{1.0f, 0.0f, 0.0f, 0.5f}};
+    const std::array<float, 4> q{{0.0f, 1.0f, 0.0f, 0.25f}};
+    std::array<float, 4> sum{};
+    std::array<float, 4> accumulate{};
+    quaternionSM(2.0f, p, q, sum);
+    checkAxis("quatSM.xyz", std::array<float, 3>{{2.0f, 1.0f, 0.0f}},
+      std::array<float, 3>{{sum[0], sum[1], sum[2]}}, 1.0e-6);
+    check("quatSM.w", 1.25, static_cast<double>(sum[3]), 1.0e-6);
+    quaternionMA(p, 2.0f, q, accumulate);
+    checkAxis("quatMA.xyz", std::array<float, 3>{{1.0f, 2.0f, 0.0f}},
+      std::array<float, 3>{{accumulate[0], accumulate[1], accumulate[2]}}, 1.0e-6);
+    check("quatMA.w", 1.0, static_cast<double>(accumulate[3]), 1.0e-6);
+  }
+
+  // Normalize: a zero quaternion becomes identity instead of NaN.
+  {
+    std::array<float, 4> normalized{};
+    const std::array<float, 4> zero{{0.0f, 0.0f, 0.0f, 0.0f}};
+    const std::array<float, 4> longW{{0.0f, 0.0f, 0.0f, 3.0f}};
+    quaternionNormalize(zero, normalized);
+    check("normalize.zero.w", 1.0, static_cast<double>(normalized[3]), 0.0);
+    quaternionNormalize(longW, normalized);
+    check("normalize.unit.w", 1.0, static_cast<double>(normalized[3]), 1.0e-6);
+    check("normalize.unit.length", 1.0,
+      static_cast<double>(std::sqrt(normalized[0] * normalized[0] + normalized[1] * normalized[1]
+        + normalized[2] * normalized[2] + normalized[3] * normalized[3])), 1.0e-6);
+  }
+
+  std::printf("pose-math-selftest failures=%d\n", failures);
+  return failures == 0 ? 0 : 1;
+}
+
 int selfTest() {
+  const bool poseMathOk = poseMathSelfTest() == 0;
   const auto directory = std::filesystem::temp_directory_path();
   const auto attachmentPath = directory / "tf2-model-pose-probe-attachment-invalid.mdl";
   const auto bodyPartPath = directory / "tf2-model-pose-probe-bodypart-invalid.mdl";
@@ -126,9 +350,10 @@ int selfTest() {
     << ",\"bindPoseMutationRejected\":" << (bindPoseMutationRejected ? "true" : "false")
     << ",\"cpuSkinWeightMutationRejected\":" << (cpuSkinWeightMutationRejected ? "true" : "false")
     << ",\"sequenceTableOutOfBoundsRejected\":" << (sequenceRejected ? "true" : "false")
+    << ",\"poseMathRejected\":" << (poseMathOk ? "false" : "true")
     << ",\"corruptPosePreflight\":" << ((!attachmentPreflight && !bodyPartPreflight) ? "false" : "true") << "}\n";
-  return attachmentRejected && bodyPartRejected && boneRejected && bindPoseMutationRejected
-    && cpuSkinWeightMutationRejected && sequenceRejected
+  return poseMathOk && attachmentRejected && bodyPartRejected && boneRejected
+    && bindPoseMutationRejected && cpuSkinWeightMutationRejected && sequenceRejected
     && !attachmentPreflight && !bodyPartPreflight ? 0 : 1;
 }
 // T61.1 review 2, P1: the selector and the ranker must agree about ORDER.
@@ -391,12 +616,48 @@ int poseGridSelfTest() {
     previous = coordinate.fraction[0];
   }
 
-  std::printf("posegrid-selftest centre=%d clamp=%d swap=%d aim12=%d grip=%d gate=%d weight=%d sweep=%d\n",
+  AnimationLocalPose base = makePose({{1.0f, 0.0f, 0.0f}});
+  AnimationLocalPose delta = makePose({{2.0f, 4.0f, 0.0f}});
+  const float halfTurn = 0.70710678118f;
+  const float quarterTurn = 0.38268343236f;
+  delta.rotation[0] = {0.0f, 0.0f, halfTurn, halfTurn};
+  delta.rotation[1] = {0.0f, 0.0f, halfTurn, halfTurn};
+  const std::vector<float> deltaWeights = {0.5f, 0.0f};
+  const std::vector<std::uint8_t> deltaMask = {1, 1};
+  const bool deltaApplyOk = applyAnimationDelta(base, delta, 1.0f, &deltaWeights,
+      &deltaMask, false, reason)
+    && std::fabs(base.position[0][0] - 2.0f) < 1.0e-5f
+    && std::fabs(base.position[1][0] - 1.0f) < 1.0e-5f
+    && std::fabs(base.rotation[0][2] - quarterTurn) < 1.0e-5f
+    && std::fabs(base.rotation[1][2]) < 1.0e-5f;
+  AnimationLocalPose preOrder = makePose({{0.0f, 0.0f, 0.0f}});
+  AnimationLocalPose postOrder = preOrder;
+  AnimationLocalPose aimDelta = makePose({{0.0f, 0.0f, 0.0f}});
+  preOrder.rotation[0] = {halfTurn, 0.0f, 0.0f, halfTurn};
+  postOrder.rotation[0] = preOrder.rotation[0];
+  aimDelta.rotation[0] = {0.0f, halfTurn, 0.0f, halfTurn};
+  const std::vector<std::uint8_t> oneBoneMask = {1};
+  const bool preOrderOk = applyAnimationDelta(preOrder, aimDelta, 1.0f,
+      nullptr, &oneBoneMask, false, reason);
+  const bool postOrderOk = applyAnimationDelta(postOrder, aimDelta, 1.0f,
+      nullptr, &oneBoneMask, true, reason);
+  const bool postFlagOk = kStudioPostFlag == 0x0010 && (0x0080 & kStudioPostFlag) == 0;
+  AnimationLocalPose overlayBase = makePose({{0.0f, 0.0f, 0.0f}});
+  AnimationLocalPose overlay = makePose({{4.0f, 0.0f, 0.0f}});
+  const std::vector<float> overlayWeights = {0.25f, 0.0f};
+  const bool overlayApplyOk = applyAnimationOverlay(overlayBase, overlay, 1.0f,
+      &overlayWeights, &deltaMask, reason)
+    && std::fabs(overlayBase.position[0][0] - 1.0f) < 1.0e-5f
+    && std::fabs(overlayBase.position[1][0]) < 1.0e-5f;
+
+  std::printf("posegrid-selftest centre=%d clamp=%d swap=%d aim12=%d grip=%d gate=%d weight=%d sweep=%d delta=%d overlay=%d postFlag=%d preOrder=%d postOrder=%d\n",
     centreOk ? 1 : 0, clampOk ? 1 : 0, swapTestOk ? 1 : 0,
     aimCentreOk && aimCornerOk ? 1 : 0, gripOk ? 1 : 0, gateOk ? 1 : 0,
-    weightOk ? 1 : 0, sweepOk ? 1 : 0);
+    weightOk ? 1 : 0, sweepOk ? 1 : 0, deltaApplyOk ? 1 : 0, overlayApplyOk ? 1 : 0,
+    postFlagOk ? 1 : 0, preOrderOk ? 1 : 0, postOrderOk ? 1 : 0);
   return centreOk && clampOk && swapTestOk && aimCentreOk && aimCornerOk && gripOk
-    && gateOk && weightOk && sweepOk ? 0 : 1;
+    && gateOk && weightOk && sweepOk && deltaApplyOk && overlayApplyOk
+    && postFlagOk && preOrderOk && postOrderOk ? 0 : 1;
 }
 
 int matcherSelfTest() {
@@ -491,9 +752,36 @@ int matcherSelfTest() {
     && tf2::native::sequenceLabelHasToken(idleTable[0], "stand");
   const bool oneShotReloadRejected = idleSelectorFor({"ReloadStand_PRIMARY", "stand_PRIMARY"}) == 1;
 
+  const std::vector<std::string> actionLabels = {
+    "AttackStand_PRIMARY", "ReloadStand_PRIMARY",
+    "layer_reload_standing_arms_primary_start",
+    "layer_reload_standing_arms_primary_loop",
+    "layer_reload_standing_arms_primary_end"};
+  const std::vector<std::int32_t> actionFrames = {12, 1, 8, 8, 8};
+  const auto actionLabelAt = [&actionLabels](std::size_t index) -> const std::string& {
+    return actionLabels[index];
+  };
+  const auto actionFrameAt = [&actionFrames](std::size_t index) -> std::int32_t {
+    return actionFrames[index];
+  };
+  const auto actionUsableAt = [](std::size_t index) { return index != 1; };
+  std::string actionLabel;
+  const auto pickAction = [&](tf2::native::PlayerActionKind action) {
+    return tf2::native::choosePlayerActionSequence(actionLabels.size(), actionLabelAt,
+      actionFrameAt, action, actionUsableAt, &actionLabel);
+  };
+  const bool actionPicksOk = pickAction(tf2::native::PlayerActionKind::AttackPrimary) == 0
+    && pickAction(tf2::native::PlayerActionKind::ReloadStart) == 2
+    && pickAction(tf2::native::PlayerActionKind::ReloadLoop) == 3
+    && pickAction(tf2::native::PlayerActionKind::ReloadEnd) == 4
+    && tf2::native::kPlayerAnimEventAttackPrimary == 0
+    && tf2::native::kPlayerAnimEventReload == 3
+    && tf2::native::kPlayerAnimEventReloadLoop == 4
+    && tf2::native::kPlayerAnimEventReloadEnd == 5;
+
   const bool pass = rankedIsSequenceMajor && selectorAgreesWithRankedHead
     && wholeTokenRejectsAirwalk && substringModePicksAirwalk && leadingTokenBeatsArmLayer
-    && genericIdleBeatsActions && oneShotReloadRejected;
+    && genericIdleBeatsActions && oneShotReloadRejected && actionPicksOk;
   std::cout << "matchselftest ordered=" << (rankedIsSequenceMajor ? 1 : 0)
     << " head=" << (selectorAgreesWithRankedHead ? 1 : 0)
     << " boundary=" << (wholeTokenRejectsAirwalk ? 1 : 0)
@@ -501,6 +789,7 @@ int matcherSelfTest() {
     << " leading=" << (leadingTokenBeatsArmLayer ? 1 : 0)
     << " genericIdle=" << (genericIdleBeatsActions ? 1 : 0)
     << " oneShot=" << (oneShotReloadRejected ? 1 : 0)
+    << " actionPicks=" << (actionPicksOk ? 1 : 0)
     << " ranked=";
   for (std::size_t index = 0; index < ranked.size(); ++index) {
     std::cout << (index == 0 ? "" : ",") << ranked[index];
@@ -1652,6 +1941,77 @@ int playerAnimationTest(int argc, char** argv) {
     return failPlayerAnimation("sequence-picker-missing",
       "idle=" + std::to_string(idleSequence) + " moving=" + std::to_string(movingSequence));
   }
+  const auto labelAt = [&anims](std::size_t index) -> const std::string& {
+    return anims.sequences[index].label;
+  };
+  const auto frameCountAt = [&anims](std::size_t index) -> std::int32_t {
+    return animationFrameCount(anims, static_cast<std::int32_t>(index));
+  };
+  const auto usableActionAt = [&anims](std::size_t index) {
+    const auto& sequence = anims.sequences[index];
+    if (sequence.weights.readable && sequence.weights.sum <= 0.0f) return false;
+    if (sequence.animDesc < 0) return false;
+    AnimationChannelCensus channels;
+    return censusAnimationChannels(anims, sequence.animDesc, channels)
+      && channels.ok && channels.animatedBones > 0;
+  };
+  std::string attackLabel, reloadStartLabel, reloadLoopLabel, reloadEndLabel;
+  const std::int32_t attackSequence = choosePlayerActionSequence(anims.sequences.size(),
+    labelAt, frameCountAt, PlayerActionKind::AttackPrimary, usableActionAt, &attackLabel);
+  const std::int32_t reloadStartSequence = choosePlayerActionSequence(anims.sequences.size(),
+    labelAt, frameCountAt, PlayerActionKind::ReloadStart, usableActionAt, &reloadStartLabel);
+  const std::int32_t reloadLoopSequence = choosePlayerActionSequence(anims.sequences.size(),
+    labelAt, frameCountAt, PlayerActionKind::ReloadLoop, usableActionAt, &reloadLoopLabel);
+  const std::int32_t reloadEndSequence = choosePlayerActionSequence(anims.sequences.size(),
+    labelAt, frameCountAt, PlayerActionKind::ReloadEnd, usableActionAt, &reloadEndLabel);
+  std::printf("animactions model=%s attack=%d:%s reloadStart=%d:%s reloadLoop=%d:%s reloadEnd=%d:%s\n",
+    options.modelPath.c_str(), attackSequence, attackLabel.empty() ? "-" : attackLabel.c_str(),
+    reloadStartSequence, reloadStartLabel.empty() ? "-" : reloadStartLabel.c_str(),
+    reloadLoopSequence, reloadLoopLabel.empty() ? "-" : reloadLoopLabel.c_str(),
+    reloadEndSequence, reloadEndLabel.empty() ? "-" : reloadEndLabel.c_str());
+  for (const bool moving : {false, true}) {
+    std::string aimLabel;
+    const std::int32_t aimSequence = chooseAimMatrixSequence(anims.sequences.size(),
+      labelAt, frameCountAt, moving, &aimLabel);
+    if (aimSequence < 0) continue;
+    const auto& sequence = anims.sequences[static_cast<std::size_t>(aimSequence)];
+    std::size_t deltaCells = 0;
+    for (const auto cell : sequence.grid.cells) {
+      if (cell >= 0 && static_cast<std::size_t>(cell) < anims.animations.size()
+          && (anims.animations[static_cast<std::size_t>(cell)].flags & kStudioDeltaFlag) != 0) ++deltaCells;
+    }
+    const std::int32_t firstCell = sequence.grid.cells.empty() ? -1 : sequence.grid.cells.front();
+    const std::int32_t firstCellFlags = firstCell >= 0
+      && static_cast<std::size_t>(firstCell) < anims.animations.size()
+      ? anims.animations[static_cast<std::size_t>(firstCell)].flags : -1;
+    std::printf("animaim model=%s state=%s sequence=%d label=%s flags=0x%X animDesc=%d animFlags=0x%X firstCell=%d firstFlags=0x%X delta=%d gridValid=%d cells=%zu grid=%d,%d axis0=%s:%.3f..%.3f axis1=%s:%.3f..%.3f deltaCells=%zu weights=%d\n",
+      options.modelPath.c_str(), moving ? "moving" : "idle", aimSequence, aimLabel.c_str(),
+      static_cast<unsigned>(sequence.flags), sequence.animDesc,
+      sequence.animDesc >= 0 && static_cast<std::size_t>(sequence.animDesc) < anims.animations.size()
+        ? static_cast<unsigned>(anims.animations[static_cast<std::size_t>(sequence.animDesc)].flags) : 0,
+      firstCell, static_cast<unsigned>(firstCellFlags),
+      sequence.animDesc >= 0 && static_cast<std::size_t>(sequence.animDesc) < anims.animations.size()
+        && (anims.animations[static_cast<std::size_t>(sequence.animDesc)].flags & kStudioDeltaFlag) != 0 ? 1 : 0,
+      sequence.grid.valid ? 1 : 0, sequence.grid.cells.size(), sequence.grid.groupSize[0],
+      sequence.grid.groupSize[1],
+      sequence.grid.paramIndex[0] >= 0 && static_cast<std::size_t>(sequence.grid.paramIndex[0]) < anims.poseParameters.size()
+        ? anims.poseParameters[static_cast<std::size_t>(sequence.grid.paramIndex[0])].name.c_str() : "-",
+      static_cast<double>(sequence.grid.paramStart[0]), static_cast<double>(sequence.grid.paramEnd[0]),
+      sequence.grid.paramIndex[1] >= 0 && static_cast<std::size_t>(sequence.grid.paramIndex[1]) < anims.poseParameters.size()
+        ? anims.poseParameters[static_cast<std::size_t>(sequence.grid.paramIndex[1])].name.c_str() : "-",
+      static_cast<double>(sequence.grid.paramStart[1]), static_cast<double>(sequence.grid.paramEnd[1]),
+      deltaCells, sequence.weights.readable ? 1 : 0);
+    if (sequence.weights.readable) {
+      std::printf("animaimweights model=%s state=%s", options.modelPath.c_str(), moving ? "moving" : "idle");
+      for (std::size_t bone = 0; bone < sequence.weights.weights.size() && bone < anims.bones.size(); ++bone) {
+        if (sequence.weights.weights[bone] > 0.0f) {
+          std::printf(" %zu:%s=%.3f", bone, anims.bones[bone].name.c_str(),
+            static_cast<double>(sequence.weights.weights[bone]));
+        }
+      }
+      std::printf("\n");
+    }
+  }
   std::int32_t poseSequence = options.sequence;
   std::string poseLabel;
   if (poseSequence < 0) {
@@ -1707,6 +2067,21 @@ int playerAnimationTest(int argc, char** argv) {
       std::printf("seq index=%zu label=%s frames=%d activity=%d flags=%d animDesc=%d blends=%d\n",
         index, sequence.label.c_str(), animationFrameCount(anims, static_cast<std::int32_t>(index)),
         sequence.activity, sequence.flags, sequence.animDesc, sequence.blendCount);
+      if (sequence.grid.valid && (sequence.label.find("aimmatrix") != std::string::npos
+          || sequence.label.find("run_PRIMARY") != std::string::npos)) {
+        std::printf("animgrid sequence=%zu label=%s cells=", index, sequence.label.c_str());
+        for (std::size_t cell = 0; cell < sequence.grid.cells.size(); ++cell) {
+          const std::int32_t desc = sequence.grid.cells[cell];
+          if (cell != 0) std::printf(",");
+          if (desc >= 0 && static_cast<std::size_t>(desc) < anims.animations.size()) {
+            const auto& animation = anims.animations[static_cast<std::size_t>(desc)];
+            std::printf("%d/0x%X/%s", desc, static_cast<unsigned>(animation.flags), animation.name.c_str());
+          } else {
+            std::printf("%d/invalid", desc);
+          }
+        }
+        std::printf("\n");
+      }
     }
   }
   std::printf("boundDiag bindRadius=%.6f boundDiag=%.6f bones=%zu composed=%d reason=%s\n",
@@ -2013,19 +2388,449 @@ int lodReport(int argc, char** argv) {
   return failures == 0 ? 0 : 1;
 }
 
+// T108 A2: the seven-configuration bisect, at one tick, on one model.
+//
+// Each row adds one stage of the layering path in the order the product applies
+// it, so the first row that inverts names the stage that inverted. The rows are
+// also the acceptance measurement: delta-only samples a delta animdesc on its
+// own, where a decoder that reads STUDIO_DELTA the way Source does leaves every
+// bone it does not animate at identity, root included, and translation at zero.
+//
+// T108: the root clamp and the animdesc-OR fallback this table used to A/B are
+// gone (manager ruling m07132), so each row has a single reading now.
+struct DeltaMatrixOptions {
+  std::string tfRoot;
+  std::string modelPath;
+  int tick = 64161;
+  float tickRate = 30.0f;
+  bool dumpBones = false;
+};
+
+int animationDeltaMatrixTest(int argc, char** argv) {
+  using namespace tf2::native;
+  DeltaMatrixOptions options;
+  for (int i = 1; i < argc; ++i) {
+    const std::string argument = argv[i];
+    const auto nextValue = [&i, argc, argv](const char* name) -> const char* {
+      if (i + 1 >= argc) {
+        std::fprintf(stderr, "model_pose_probe: %s needs a value\n", name);
+        return nullptr;
+      }
+      return argv[++i];
+    };
+    if (argument == "--animation-delta-matrix") continue;
+    if (argument == "--tf-root") {
+      const char* const value = nextValue("--tf-root");
+      if (value == nullptr) return 2;
+      options.tfRoot = value;
+    } else if (argument == "--model") {
+      const char* const value = nextValue("--model");
+      if (value == nullptr) return 2;
+      options.modelPath = value;
+    } else if (argument == "--tick") {
+      const char* const value = nextValue("--tick");
+      if (value == nullptr) return 2;
+      options.tick = std::atoi(value);
+    } else if (argument == "--tick-rate") {
+      const char* const value = nextValue("--tick-rate");
+      if (value == nullptr) return 2;
+      options.tickRate = static_cast<float>(std::atof(value));
+    } else if (argument == "--dump-bones") {
+      options.dumpBones = true;
+    } else {
+      std::fprintf(stderr, "model_pose_probe: unknown --animation-delta-matrix argument %s\n",
+        argument.c_str());
+      return 2;
+    }
+  }
+  if (options.tfRoot.empty()) return failPlayerAnimation("tf-root-missing", "");
+  if (options.modelPath.empty()) return failPlayerAnimation("model-missing-argument", "");
+  if (options.tick < 0) return failPlayerAnimation("tick-invalid", std::to_string(options.tick));
+  if (!(options.tickRate > 0.0f) || !std::isfinite(options.tickRate)) {
+    return failPlayerAnimation("tick-rate-invalid", std::to_string(options.tickRate));
+  }
+  const AssetRoot root = AssetRoot::fromPath(std::filesystem::u8path(options.tfRoot));
+  if (!root.valid()) return failPlayerAnimation("tf-root-invalid", options.tfRoot);
+  AnimationBindingCache cache;
+  cache.reset(&root);
+  AnimationInputStatus status = AnimationInputStatus::ModelMissing;
+  std::string reason;
+  const AnimationBinding* const binding = cache.resolve(options.modelPath, status, reason);
+  if (binding == nullptr) return failPlayerAnimation("model-missing", options.modelPath);
+  if (!binding->anims.loaded) {
+    return failPlayerAnimation("model-has-no-animation", options.modelPath + " " + reason);
+  }
+  const AnimationModel& anims = binding->anims;
+
+  std::printf("deltamatrix model=%s tick=%d tickRate=%.3f animdescs=%zu sequences=%zu bones=%zu\n",
+    options.modelPath.c_str(), options.tick,
+    static_cast<double>(options.tickRate), anims.animations.size(), anims.sequences.size(),
+    anims.bones.size());
+
+  // Which STUDIO_* bits this file actually uses. It is the evidence that a flag is
+  // what it is claimed to be: the aim cells carry channels while several of them
+  // are flagged 0x0008, and a cell that animates cannot be an "all zeros" anim.
+  std::array<std::size_t, 32> flagCounts{};
+  for (const auto& animation : anims.animations) {
+    const std::uint32_t flags = static_cast<std::uint32_t>(animation.flags);
+    for (std::size_t bit = 0; bit < flagCounts.size(); ++bit) {
+      if ((flags & (1u << bit)) != 0u) ++flagCounts[bit];
+    }
+  }
+  std::printf("deltaflags animdescs=%zu", anims.animations.size());
+  for (std::size_t bit = 0; bit < flagCounts.size(); ++bit) {
+    if (flagCounts[bit] == 0) continue;
+    std::printf(" 0x%04x:%zu", static_cast<unsigned>(1u << bit), flagCounts[bit]);
+  }
+  std::printf("\n");
+
+  const auto labelAt = [&anims](std::size_t index) -> const std::string& {
+    return anims.sequences[index].label;
+  };
+  const auto frameCountAt = [&anims](std::size_t index) -> std::int32_t {
+    return animationFrameCount(anims, static_cast<std::int32_t>(index));
+  };
+  const auto usableActionAt = [&anims](std::size_t index) {
+    const auto& sequence = anims.sequences[index];
+    if (sequence.weights.readable && sequence.weights.sum <= 0.0f) return false;
+    if (sequence.animDesc < 0) return false;
+    AnimationChannelCensus channels;
+    return censusAnimationChannels(anims, sequence.animDesc, channels)
+      && channels.ok && channels.animatedBones > 0;
+  };
+  const std::int32_t baseSequence = pickSequence(anims, kIdleNeedles, kIdleNeedleCount,
+    SequenceMatchMode::WholeToken);
+  std::string aimLabel;
+  std::string attackLabel;
+  const std::int32_t aimSequence = chooseAimMatrixSequence(anims.sequences.size(), labelAt,
+    frameCountAt, false, &aimLabel);
+  const std::int32_t attackSequence = choosePlayerActionSequence(anims.sequences.size(), labelAt,
+    frameCountAt, PlayerActionKind::AttackPrimary, usableActionAt, &attackLabel);
+  if (baseSequence < 0 || aimSequence < 0) {
+    return failPlayerAnimation("deltamatrix-sequences", "base=" + std::to_string(baseSequence)
+      + " aim=" + std::to_string(aimSequence));
+  }
+
+  const auto printSequence = [&anims](const char* role, std::int32_t sequence) {
+    if (sequence < 0) {
+      std::printf("deltasequence role=%s seq=-1\n", role);
+      return;
+    }
+    const auto& entry = anims.sequences[static_cast<std::size_t>(sequence)];
+    std::uint32_t flags = 0;
+    if (entry.animDesc >= 0 && static_cast<std::size_t>(entry.animDesc) < anims.animations.size()) {
+      flags = static_cast<std::uint32_t>(anims.animations[static_cast<std::size_t>(entry.animDesc)].flags);
+    }
+    std::printf("deltasequence role=%s seq=%d label=%s frames=%d animdesc=%d flags=0x%04x delta=%d\n",
+      role, sequence, entry.label.c_str(), animationFrameCount(anims, sequence), entry.animDesc,
+      static_cast<unsigned>(flags), (flags & 0x0004u) != 0u ? 1 : 0);
+  };
+  printSequence("base", baseSequence);
+  printSequence("aim", aimSequence);
+  printSequence("action", attackSequence);
+
+  // The reference frame every row is measured against.
+  std::vector<std::int32_t> boneParents;
+  std::vector<std::array<float, 3>> bindPositions;
+  std::vector<std::array<float, 4>> bindRotations;
+  boneParents.reserve(anims.bones.size());
+  bindPositions.reserve(anims.bones.size());
+  bindRotations.reserve(anims.bones.size());
+  for (const auto& bone : anims.bones) {
+    boneParents.push_back(bone.parent);
+    bindPositions.push_back(bone.position);
+    bindRotations.push_back(bone.rotation);
+  }
+  std::vector<std::array<float, 12>> bindMatrices;
+  std::string bindReason;
+  if (!composeLocalToModelMatrices(boneParents, bindPositions, bindRotations, bindMatrices,
+      bindReason)) {
+    return failPlayerAnimation("deltamatrix-bind-compose", bindReason);
+  }
+
+  std::int32_t rootBone = -1;
+  for (std::size_t index = 0; index < boneParents.size(); ++index) {
+    if (boneParents[index] < 0) {
+      rootBone = static_cast<std::int32_t>(index);
+      break;
+    }
+  }
+  const auto lowerBoneName = [&anims](std::size_t index) {
+    std::string name = anims.bones[index].name;
+    for (char& character : name) {
+      character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    }
+    return name;
+  };
+  const auto findBoneNamed = [&anims, &lowerBoneName](const char* first,
+      const char* second) -> std::int32_t {
+    for (std::size_t index = 0; index < anims.bones.size(); ++index) {
+      const std::string name = lowerBoneName(index);
+      if (name.find(first) != std::string::npos) return static_cast<std::int32_t>(index);
+      if (second != nullptr && name.find(second) != std::string::npos) {
+        return static_cast<std::int32_t>(index);
+      }
+    }
+    return -1;
+  };
+  const std::int32_t pelvisBone = findBoneNamed("pelvis", "hip");
+  const std::int32_t headBone = findBoneNamed("head", nullptr);
+
+  // T108/A1b: which frame stands the pose up? Measured, not assumed. A skinned
+  // instance's rows are now the pure placement frame (the skin matrix already maps
+  // Y-up bind space into the space the bones compose in), while the raw bind-pose
+  // path keeps the historical Y-up -> Z-up permutation. The identity world map
+  // makes both variants pure rotations and rows row 2 is the world-z row, so its
+  // dot with pelvis->head, over that vector's length, is "how vertical".
+  EntityModelWorldMap identityWorld;
+  const float identityOrigin[3] = {0.0f, 0.0f, 0.0f};
+  const float identityAngles[3] = {0.0f, 0.0f, 0.0f};
+  EntityModelInstanceRows placementRows;
+  EntityModelInstanceRows permutedRows;
+  if (!buildEntityModelInstanceRows(identityOrigin, identityAngles, true, identityWorld, placementRows, true)
+      || !buildEntityModelInstanceRows(identityOrigin, identityAngles, true, identityWorld, permutedRows, false)) {
+    return failPlayerAnimation("deltamatrix-rows", "identity world rows refused");
+  }
+  const auto stanceUp = [](const EntityModelInstanceRows& rows, const std::array<float, 3>& low,
+      const std::array<float, 3>& high) {
+    const std::array<float, 3> delta{{high[0] - low[0], high[1] - low[1], high[2] - low[2]}};
+    const float length = poseVectorLength(delta);
+    if (!(length > 1.0e-6f)) return 0.0f;
+    float up = 0.0f;
+    for (int column = 0; column < 3; ++column) up += rows.positionRows[2 * 4 + column] * delta[column];
+    return up / length;
+  };
+  const bool haveStanceBones = pelvisBone >= 0 && headBone >= 0;
+  const double bindStancePlacement = haveStanceBones
+    ? static_cast<double>(stanceUp(placementRows,
+        poseTranslation(bindMatrices[static_cast<std::size_t>(pelvisBone)]),
+        poseTranslation(bindMatrices[static_cast<std::size_t>(headBone)]))) : 0.0;
+  const double bindStancePermuted = haveStanceBones
+    ? static_cast<double>(stanceUp(permutedRows,
+        poseTranslation(bindMatrices[static_cast<std::size_t>(pelvisBone)]),
+        poseTranslation(bindMatrices[static_cast<std::size_t>(headBone)]))) : 0.0;
+  std::printf("deltastance name=bind placementOnly=%7.4f permuted=%7.4f pelvisBone=%d headBone=%d\n",
+    bindStancePlacement, bindStancePermuted, pelvisBone, headBone);
+  double minPoseStancePlacement = 1.0;
+  double maxPoseStancePermutedAbs = 0.0;
+
+  struct DeltaConfig {
+    const char* name;
+    std::int32_t sequence;
+    std::int32_t layer;
+    bool poseGrid;
+    bool action;
+    float aimYaw;
+    float aimPitch;
+  };
+  const std::array<DeltaConfig, 7> configs{{
+    {"no-layers", baseSequence, -1, false, false, 0.0f, 0.0f},
+    {"base-layer", baseSequence, baseSequence, false, false, 0.0f, 0.0f},
+    {"neutral-aim", baseSequence, aimSequence, true, false, 0.0f, 0.0f},
+    {"yaw-only", baseSequence, aimSequence, true, false, 45.0f, 0.0f},
+    {"pitch-only", baseSequence, aimSequence, true, false, 0.0f, 45.0f},
+    {"plus-overlay", baseSequence, aimSequence, true, true, 0.0f, 0.0f},
+    {"delta-only", aimSequence, -1, true, false, 0.0f, 0.0f},
+  }};
+
+  float deltaOnlyAngle = -1.0f;
+  float deltaOnlyPos = -1.0f;
+  float neutralAimRootBind = -1.0f;
+  // The useful root reading is how far a layered row's root moved from the
+  // unlayered base root. Comparing against the BIND rotation stopped meaning
+  // anything once the root clamp was removed: the animated base pose itself is
+  // ~90 degrees from the bind pose now (it is the rotation that puts the posed
+  // skeleton in Z-up model space). A delta layer that hands the root the bind
+  // rotation -- the F3/H1 failure -- shows up here as a large rootVsBase.
+  std::array<float, 4> baseRootRotation{{0.0f, 0.0f, 0.0f, 1.0f}};
+  bool haveBaseRoot = false;
+  float yawRootVsBase = -1.0f;
+  float yawTorsoDot = -2.0f;
+  for (const auto& config : configs) {
+    AnimationSampleRequest request;
+    request.sequence = config.sequence;
+    request.hasCycle = false;
+    request.tick = options.tick;
+    request.tickRate = options.tickRate;
+    request.blendMode = config.poseGrid ? AnimationBlendMode::PoseGrid
+      : AnimationBlendMode::Legacy;
+    request.pose.hasAim = true;
+    request.pose.aimYaw = config.aimYaw;
+    request.pose.aimPitch = config.aimPitch;
+    request.poseBoneMask = true;
+    if (config.layer >= 0) {
+      request.blendLayerCount = 1;
+      request.blendLayers[0].sequence = config.layer;
+      request.blendLayers[0].cycle = 0.0f;
+      request.blendLayers[0].weight = 1.0f;
+    }
+    if (config.action) {
+      request.action.sequence = attackSequence;
+      request.action.cycle = 0.0f;
+      request.action.weight = attackSequence >= 0 ? 1.0f : 0.0f;
+    }
+    const AnimationSampleResult result = buildAnimationSkinMatrices(binding, request);
+    if (result.status != AnimationInputStatus::Ok
+        || result.localPose.rotation.size() != anims.bones.size()) {
+      std::printf("deltacfg name=%-12s status=%s reason=%s\n", config.name,
+        animationInputStatusName(result.status), result.reason.c_str());
+      continue;
+    }
+
+    float maxAngle = 0.0f;
+    float maxPos = 0.0f;
+    std::size_t maxAngleBone = 0;
+    for (std::size_t index = 0; index < anims.bones.size(); ++index) {
+      const float angle = poseAngleDegrees(result.localPose.rotation[index]);
+      if (angle > maxAngle) {
+        maxAngle = angle;
+        maxAngleBone = index;
+      }
+      const float length = poseVectorLength(result.localPose.position[index]);
+      if (length > maxPos) maxPos = length;
+    }
+    const std::array<float, 4> rootRotation = rootBone >= 0
+      ? result.localPose.rotation[static_cast<std::size_t>(rootBone)]
+      : std::array<float, 4>{{0.0f, 0.0f, 0.0f, 1.0f}};
+    const float rootAngle = rootBone >= 0
+      ? poseAngleDegrees(rootRotation) : 0.0f;
+    const float rootBindAngle = rootBone >= 0
+      ? poseAngleBetweenDegrees(rootRotation, anims.bones[static_cast<std::size_t>(rootBone)].rotation)
+      : 0.0f;
+    const float rootPos = rootBone >= 0
+      ? poseVectorLength(result.localPose.position[static_cast<std::size_t>(rootBone)]) : 0.0f;
+
+    double torsoDot = 1.0;
+    double heightRatio = 1.0;
+    std::vector<std::array<float, 12>> posedMatrices;
+    std::string poseReason;
+    if (pelvisBone >= 0 && headBone >= 0 && composeLocalToModelMatrices(boneParents,
+        result.localPose.position, result.localPose.rotation, posedMatrices, poseReason)) {
+      const std::array<float, 3> posedPelvis = poseTranslation(posedMatrices[static_cast<std::size_t>(pelvisBone)]);
+      const std::array<float, 3> posedHead = poseTranslation(posedMatrices[static_cast<std::size_t>(headBone)]);
+      const std::array<float, 3> bindPelvis = poseTranslation(bindMatrices[static_cast<std::size_t>(pelvisBone)]);
+      const std::array<float, 3> bindHead = poseTranslation(bindMatrices[static_cast<std::size_t>(headBone)]);
+      const std::array<float, 3> posedUp{{posedHead[0] - posedPelvis[0],
+        posedHead[1] - posedPelvis[1], posedHead[2] - posedPelvis[2]}};
+      const std::array<float, 3> bindUp{{bindHead[0] - bindPelvis[0],
+        bindHead[1] - bindPelvis[1], bindHead[2] - bindPelvis[2]}};
+      const float posedLength = poseVectorLength(posedUp);
+      const float bindLength = poseVectorLength(bindUp);
+      if (posedLength > 1.0e-6f && bindLength > 1.0e-6f) {
+        torsoDot = static_cast<double>((posedUp[0] * bindUp[0] + posedUp[1] * bindUp[1]
+          + posedUp[2] * bindUp[2]) / (posedLength * bindLength));
+        heightRatio = static_cast<double>(posedLength / bindLength);
+      }
+    }
+    double stancePlacement = 0.0;
+    double stancePermuted = 0.0;
+    if (haveStanceBones && !posedMatrices.empty()) {
+      stancePlacement = static_cast<double>(stanceUp(placementRows,
+        poseTranslation(posedMatrices[static_cast<std::size_t>(pelvisBone)]),
+        poseTranslation(posedMatrices[static_cast<std::size_t>(headBone)])));
+      stancePermuted = static_cast<double>(stanceUp(permutedRows,
+        poseTranslation(posedMatrices[static_cast<std::size_t>(pelvisBone)]),
+        poseTranslation(posedMatrices[static_cast<std::size_t>(headBone)])));
+      // The delta-only row is the identity pose: pelvis and head coincide, so it
+      // has no stance to measure. Every other row carries a full body pose.
+      if (std::strcmp(config.name, "delta-only") != 0
+          && std::fabs(stancePlacement) < minPoseStancePlacement) {
+        minPoseStancePlacement = std::fabs(stancePlacement);
+      }
+      if (std::fabs(stancePermuted) > maxPoseStancePermutedAbs) {
+        maxPoseStancePermutedAbs = std::fabs(stancePermuted);
+      }
+    }
+
+    std::printf("deltacfg name=%-12s status=%s grid=%d/%zu rootAngleDeg=%8.3f rootBindAngleDeg=%8.3f rootPosLen=%8.4f maxBoneAngleDeg=%8.3f maxBone=%zu:%s maxBonePosLen=%8.4f torsoDot=%7.4f heightRatio=%7.4f stancePlacement=%7.4f stancePermuted=%7.4f rootQuat=(%7.4f,%7.4f,%7.4f,%7.4f)\n",
+      config.name, animationInputStatusName(result.status), result.poseGridApplied ? 1 : 0,
+      result.poseGridLayers, static_cast<double>(rootAngle), static_cast<double>(rootBindAngle),
+      static_cast<double>(rootPos), static_cast<double>(maxAngle), maxAngleBone,
+      anims.bones[maxAngleBone].name.c_str(), static_cast<double>(maxPos), torsoDot, heightRatio,
+      stancePlacement, stancePermuted,
+      static_cast<double>(rootRotation[0]), static_cast<double>(rootRotation[1]),
+      static_cast<double>(rootRotation[2]), static_cast<double>(rootRotation[3]));
+
+    if (options.dumpBones && std::strcmp(config.name, "delta-only") == 0) {
+      for (std::size_t index = 0; index < anims.bones.size(); ++index) {
+        std::printf("deltabone index=%zu name=%s angleDeg=%.3f posLen=%.4f\n", index,
+          anims.bones[index].name.c_str(),
+          static_cast<double>(poseAngleDegrees(result.localPose.rotation[index])),
+          static_cast<double>(poseVectorLength(result.localPose.position[index])));
+      }
+    }
+
+    if (std::strcmp(config.name, "delta-only") == 0) {
+      deltaOnlyAngle = maxAngle;
+      deltaOnlyPos = maxPos;
+    }
+    const float rootVsBase = haveBaseRoot
+      ? poseAngleBetweenDegrees(rootRotation, baseRootRotation) : 0.0f;
+    if (std::strcmp(config.name, "no-layers") == 0) {
+      baseRootRotation = rootRotation;
+      haveBaseRoot = true;
+    }
+    if (std::strcmp(config.name, "neutral-aim") == 0) neutralAimRootBind = rootBindAngle;
+    if (std::strcmp(config.name, "yaw-only") == 0) {
+      yawRootVsBase = rootVsBase;
+      yawTorsoDot = static_cast<float>(torsoDot);
+    }
+  }
+
+  // Three acceptance readings.
+  // 1. A delta pose on its own is the identity pose: every bone under 2 degrees
+  //    and half a unit from it, root included. That is the H1/F3 contract.
+  // 2. A 45-degree aim-yaw delta layer must keep the root near the base pose's
+  //    root. A root clamp would hand the root the bind rotation a second time;
+  //    with a ~175-degree bind rotation that reads as a root far from the base
+  //    root. torsoDot (posed body axis vs the BIND body axis) is printed for
+  //    context only: since the root clamp is gone the posed skeleton composes in
+  //    Z-up model space while the bind skeleton is Y-up, so that dot is near zero
+  //    by construction and cannot judge uprightness -- the stance reading does.
+  //    Neutral aim is printed for context: it moves no grid cell.
+  // 3. The pose must stand up in the frame the renderer actually uses. Since
+  //    A1b that frame is the pure placement rows for a skinned instance; the
+  //    Y-up -> Z-up permutation stays on the raw bind-pose path. A negative or
+  //    near-zero placementOnly reading means the body is lying down, and the
+  //    permutation reading says whether the historical frame would have stood it
+  //    (it is the bind-path frame, so it must also be vertical there).
+  const bool deltaPoseIdentity = deltaOnlyAngle >= 0.0f && deltaOnlyPos >= 0.0f
+    && deltaOnlyAngle < 2.0f && deltaOnlyPos < 0.5f;
+  const bool yawKeepsRoot = yawRootVsBase >= 0.0f && yawRootVsBase < 30.0f;
+  const bool stanceUsesPlacement = haveStanceBones && minPoseStancePlacement > 0.5
+    && std::fabs(bindStancePlacement) < 0.5 && std::fabs(bindStancePermuted) > 0.5;
+  const bool pass = deltaPoseIdentity && yawKeepsRoot && stanceUsesPlacement;
+  std::printf("deltamatrix-summary deltaOnlyMaxBoneAngleDeg=%.3f deltaOnlyMaxBonePosLen=%.4f neutralAimRootBindAngleDeg=%.3f yawRootVsBaseDeg=%.3f yawTorsoDot=%.4f poseStancePlacementMin=%.4f poseStancePermutedMax=%.4f bindStancePlacement=%.4f bindStancePermuted=%.4f stanceOk=%d rootOk=%d pass=%d\n",
+    static_cast<double>(deltaOnlyAngle), static_cast<double>(deltaOnlyPos),
+    static_cast<double>(neutralAimRootBind), static_cast<double>(yawRootVsBase),
+    static_cast<double>(yawTorsoDot), minPoseStancePlacement, maxPoseStancePermutedAbs,
+    bindStancePlacement, bindStancePermuted, stanceUsesPlacement ? 1 : 0,
+    yawKeepsRoot ? 1 : 0, pass ? 1 : 0);
+  return pass ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--self-test") return selfTest();
   if (argc == 2 && std::string(argv[1]) == "--matcher-selftest") return matcherSelfTest();
   if (argc == 2 && std::string(argv[1]) == "--helper-skin-selftest") return helperSkinSelfTest();
   if (argc == 2 && std::string(argv[1]) == "--entity-id-selftest") return entityIdSelfTest();
   if (argc == 2 && std::string(argv[1]) == "--posegrid-selftest") return poseGridSelfTest();
+  if (argc >= 2 && std::string(argv[1]) == "--root-diagnose-selftest") {
+    return tf2::native::probe::rootDiagnoseSelfTest(argc == 3 && std::string(argv[2]) == "--require-product");
+  }
+  if (argc == 2 && std::string(argv[1]) == "--pose-math-selftest") return poseMathSelfTest();
   for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--root-diagnose") return tf2::native::probe::rootDiagnose(argc, argv);
     if (std::string(argv[i]) == "--lod-report") return lodReport(argc, argv);
     if (std::string(argv[i]) == "--player-animation-test") return playerAnimationTest(argc, argv);
     if (std::string(argv[i]) == "--player-animation-event-census") return playerAnimationEventCensus(argc, argv);
+    if (std::string(argv[i]) == "--animation-delta-matrix") return animationDeltaMatrixTest(argc, argv);
   }
   if (argc != 2) {
     std::cerr << "usage: model_pose_probe <model.mdl> | --self-test | --posegrid-selftest"
+      << " | --pose-math-selftest"
+      << " | --animation-delta-matrix --tf-root <tf> --model <model.mdl> [--tick N]"
+      << " [--tick-rate HZ] [--dump-bones]"
       << " | --player-animation-test --tf-root <tf> --model <model.mdl>"
       << " [--sequence N] [--idle-sequence N] [--moving-sequence N]"
       << " [--dump-bone-usage]"

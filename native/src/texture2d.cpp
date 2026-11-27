@@ -50,8 +50,16 @@ bool Texture2D::createMipped(ID3D11Device* device, ID3D11DeviceContext* context,
     const std::vector<std::uint8_t>& rgba, UINT width, UINT height,
     std::string* error, std::uint64_t maxBytes) {
   reset();
+  failureHresult_ = S_OK;
   const auto fail = [&](const char* message) {
     if (error) *error = message;
+    // Owner 2026-11-26 20:15 (lead): a refusal always leaves a real HRESULT behind.
+    // The only caller that reads it asks "is this E_OUTOFMEMORY, i.e. can a smaller
+    // tile work", and S_OK would answer both "no error" and "retry is pointless".
+    // A refusal with no device call to quote -- bad arguments, a buffer that does not
+    // match its dimensions, a byte budget -- is E_FAIL, which is what a blanket
+    // failure has always meant here.
+    if (failureHresult_ == S_OK) failureHresult_ = E_FAIL;
     reset();
     return false;
   };
@@ -83,15 +91,25 @@ bool Texture2D::createMipped(ID3D11Device* device, ID3D11DeviceContext* context,
   description.Usage = D3D11_USAGE_DEFAULT;
   description.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
   description.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
-  if (FAILED(device->CreateTexture2D(&description, nullptr, texture_.GetAddressOf()))) {
+  const HRESULT created = device->CreateTexture2D(&description, nullptr, texture_.GetAddressOf());
+  if (FAILED(created)) {
+    // Owner 2026-11-26 19:45: the device's own answer, not a blanket E_FAIL --
+    // this is the line that lets the world atlas tell "out of memory" (retry
+    // smaller) from "that size is not a texture" (not retryable).
+    failureHresult_ = created;
     return fail("D3D11 mipped texture creation failed");
   }
   D3D11_SHADER_RESOURCE_VIEW_DESC viewDescription{};
   viewDescription.Format = description.Format;
   viewDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
   viewDescription.Texture2D.MipLevels = static_cast<UINT>(-1);
-  if (FAILED(device->CreateShaderResourceView(
-        texture_.Get(), &viewDescription, view_.GetAddressOf()))) {
+  const HRESULT viewCreated = device->CreateShaderResourceView(
+    texture_.Get(), &viewDescription, view_.GetAddressOf());
+  if (FAILED(viewCreated)) {
+    // The view is a second device allocation: it can be the call that runs out of
+    // memory while the texture succeeded, and then the smaller tile is still the
+    // right answer. Report it, do not blanket it.
+    failureHresult_ = viewCreated;
     return fail("D3D11 mipped shader resource view creation failed");
   }
   context->UpdateSubresource(texture_.Get(), 0, nullptr, rgba.data(),

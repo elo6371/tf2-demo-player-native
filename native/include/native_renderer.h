@@ -55,6 +55,16 @@ enum class QualityPreset {
 struct RenderSettings {
   QualityPreset preset = QualityPreset::Performance;
   int textureMipBias = 2;
+  // Owner 2026-11-26 19:45 (second item): the per-material tile extent -- the
+  // longest side of the texture one world material is downscaled to before it is
+  // blitted into the atlas. Historically that number was the literal 512 in the
+  // material fetch inside main.cpp; the field exists so a run can ask for a
+  // larger tile, and 512 is the literal it replaced. normalize() accepts only 512
+  // or 1024 and snaps anything else back to 512. It is NOT the atlas texture's own
+  // size: the planner derives that
+  // from the tile count and its budget, and the budget is what decides how many
+  // materials still get a tile at a larger extent.
+  int textureAtlasMax = 512;
   int antiAliasingQuality = 2;
   int anisotropicLevel = 1;
   bool dynamicLighting = false;
@@ -375,6 +385,12 @@ struct EntityModelDrawInstance {
   bool mapStaticProp = false;
   std::uint32_t body = 0;
   bool sourceModelSpace = false;
+  // G-2: FNV-1a of the rows the pose trace built for this instance, 0 when the
+  // trace is off. The renderer records the hash of the rows it actually
+  // uploads; main prints the pair after the draw and the gate refuses a
+  // mismatch, so a trace that drifts from the draw is a failed reading rather
+  // than a false PASS.
+  std::uint32_t traceRowsHash = 0;
   // A model-space placement for an instance that rides on another model's bone
   // -- a held weapon on a hand attachment. Row-major 3x4 in the same "v' = rows
   // * v" convention as buildEntityModelInstanceRows. The instance still carries
@@ -1304,6 +1320,26 @@ public:
   std::size_t entityModelInstanceRejectedBadMesh() const { return entityModelInstanceRejectedBadMesh_; }
   std::size_t entityModelInstanceRejectedNonFinite() const { return entityModelInstanceRejectedNonFinite_; }
   std::size_t entityModelInstanceRejectedBudget() const { return entityModelInstanceRejectedBudget_; }
+  // G-2: the hash of the position rows this renderer uploaded for entityIndex
+  // during its last instance update. False when that entity did not reach the
+  // GPU at all (missing mesh, refused budget), which is a different fact from a
+  // matching hash and must not read as one.
+  bool entityModelUploadedRowsHash(std::int32_t entityIndex, std::uint32_t& hash) const {
+    const auto found = entityModelUploadedRowsHash_.find(entityIndex);
+    if (found == entityModelUploadedRowsHash_.end()) return false;
+    hash = found->second;
+    return true;
+  }
+  // A1d: the same reading for the overlay silhouette of entityIndex, taken from
+  // the rows the silhouette pass uploaded in its last rebuild. False when no
+  // silhouette for that entity reached the buffer -- an entity outside the
+  // overlay is a different fact from a matching hash and must not read as one.
+  bool overlayModelUploadedRowsHash(std::int32_t entityIndex, std::uint32_t& hash) const {
+    const auto found = overlayModelUploadedRowsHash_.find(entityIndex);
+    if (found == overlayModelUploadedRowsHash_.end()) return false;
+    hash = found->second;
+    return true;
+  }
   // A draw whose model layer A deliberately deferred. Separate from missingMesh
   // on purpose: one is the budget working, the other is a submitted key with
   // nothing behind it.
@@ -1388,7 +1424,14 @@ public:
   bool draw(float clearRed, float clearGreen, float clearBlue);
   bool uploadTexture(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
   bool uploadWorldGeometry(const BspMap& map, const std::string& texturedMaterial, UINT textureWidth, UINT textureHeight);
-  bool uploadWorldGeometry(const BspMap& map, const std::vector<WorldTexture>& textures);
+  // D-33b rev7 (C): the atlas overload reports ITS OWN result through this out
+  // parameter, because `lastError()` is a run-level record: an earlier stage can
+  // leave a failure in it, and the plan-refused path writes ERROR_NO_DATA there, so
+  // a caller that read the member after the call could not tell "this upload ran
+  // out of memory" from "some stage failed before it". nullptr keeps the old
+  // two-argument spelling working.
+  bool uploadWorldGeometry(const BspMap& map, const std::vector<WorldTexture>& textures,
+    HRESULT* uploadResult = nullptr);
   bool uploadWorldAuxTextures(const std::vector<std::uint8_t>& bumpRgba, UINT bumpWidth, UINT bumpHeight,
     const std::vector<std::uint8_t>& envRgba, UINT envWidth, UINT envHeight);
   bool uploadWorldLightmap(const std::vector<std::uint8_t>& rgba, UINT width, UINT height);
@@ -2056,7 +2099,15 @@ public:
   // Exposed so the hand mirror can be shown to live in the final transform only.
   const std::array<float, 16>& viewModelMvp() const { return viewModelMvp_; }
   void shutdown();
-  void setSettings(const RenderSettings& settings) { settings_ = settings; settings_.normalize(); }
+  void setSettings(const RenderSettings& settings) {
+    settings_ = settings;
+    settings_.normalize();
+    // D-33a: the sampler copies the LOD bias once, at initialize. A bias set after
+    // startup (--texture-mip-bias is applied there, after --quality) therefore has
+    // to rebuild it, or the value lives in settings_ and never reaches the device.
+    // Device-less callers are a no-op inside the callee.
+    refreshSamplerState();
+  }
   const RenderSettings& settings() const { return settings_; }
   HRESULT lastError() const { return lastError_; }
   // T8 (2026-10-16): clear the recorded error. The device-error policy at the
@@ -2069,6 +2120,37 @@ public:
   // is this frame's own Present, so a genuine device failure still reports
   // through exactly the same arms (4/2 for device removed or reset, 3 otherwise).
   void clearLastError() { lastError_ = S_OK; }
+  // D-33b rev7: clear only if the recorded failure is the one the caller is
+  // dismissing. The atlas fallback's retry must not wipe an unrelated record -- a
+  // sampler refresh failure from patch 09, for instance -- just because the atlas
+  // recovered.
+  void clearLastErrorIf(HRESULT expected) { if (lastError_ == expected) lastError_ = S_OK; }
+
+  // Owner 2026-11-26 20:15 (lead): release the world atlases an upload may have
+  // partly built before it failed. A retry needs the failed attempt's textures gone
+  // first -- otherwise the larger attempt's tiles and the smaller rebuild's tiles are
+  // resident at the same time, which is the peak the whole fallback exists to avoid.
+  void releaseWorldAtlases();
+
+  // ---- D-33b: the atlas budget, decided on the adapter's memory -----------
+  // Owner 2026-11-26 21:20 (MASTER-TASKLIST.md:250-263): at a 1024 extent the
+  // plan's historical 384 MiB is smaller than what the reference map asks for, so
+  // the budget has to come from the device rather than from a constant. The
+  // adapter query is cached because the answer cannot change while the process
+  // runs; a default run (512) never consults either number.
+  void setAtlasBudgetMib(int mib) { atlasBudgetMib_ = mib; }
+  std::uint64_t adapterVideoMemoryBytes();
+  std::uint64_t atlasBudgetBytes();
+  // The planner's budget verdict for the last upload. The refresh at 512 is
+  // triggered by this as well as by the device refusing the texture: a plan that
+  // priced materials out of the atlas refused them by budget, and the device
+  // never saw an allocation to fail on.
+  std::size_t worldTilesRefusedBudget() const { return worldTilesRefusedBudget_; }
+
+  // D-33a: rebuild the sampler from the current settings. Declared here because
+  // setSettings is inline; the body lives in native_renderer.cpp next to the
+  // initialize code whose description it repeats.
+  bool refreshSamplerState();
 
   // ---- F0-c (2026-11-11): the resource-failure seam -----------------------
   // A D3D create or map that fails on a real machine is, today, a silent event:
@@ -2555,6 +2637,14 @@ private:
   std::size_t entityModelInstanceRejectedBadMesh_ = 0;
   std::size_t entityModelInstanceRejectedNonFinite_ = 0;
   std::size_t entityModelInstanceRejectedBudget_ = 0;
+  // G-2: entityIndex -> FNV-1a of the rows uploaded for it in the last update.
+  // Cleared at the start of every update so a stale entry cannot vouch for an
+  // entity this frame did not draw.
+  std::unordered_map<std::int32_t, std::uint32_t> entityModelUploadedRowsHash_;
+  // A1d: entityIndex -> FNV-1a of the SILHOUETTE rows uploaded for it in the last
+  // overlay rebuild. Cleared with the buffer it describes, for the same reason as
+  // the map above.
+  std::unordered_map<std::int32_t, std::uint32_t> overlayModelUploadedRowsHash_;
   // T105: the distinct lines already printed by --lighting-trace. Kept on the
   // renderer rather than as a function-static so the cap is per run and so the
   // set is released with everything else on reset. Bounded by the trace itself.
@@ -2809,7 +2899,12 @@ private:
   std::size_t worldTilesRefusedMalformed_ = 0;
   std::size_t worldTilesRefusedDuplicate_ = 0;
   std::size_t worldTilesRefusedBudget_ = 0;
-  std::size_t worldTilesRefusedTranslucent_ = 0;
+  // D-33b: the forced --texture-budget-mib (0 = derive it), and the adapter's
+  // dedicated video memory, queried once. 0 in the cache means "no answer", and
+  // the query is not repeated: a missing adapter is not going to appear later.
+  int atlasBudgetMib_ = 0;
+  std::uint64_t adapterVideoMemoryBytes_ = 0;
+  bool adapterVideoMemoryQueried_ = false;  std::size_t worldTilesRefusedTranslucent_ = 0;
   std::size_t worldAtlasBatches_ = 0;
   std::size_t worldAtlasBlendBatches_ = 0;
   std::uint64_t worldAtlasLayerBytes_ = 0;

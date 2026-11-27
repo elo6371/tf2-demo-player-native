@@ -1,6 +1,7 @@
 #include "animation_binding.h"
 
 #include "animation_blend.h"
+#include "pose_accumulate.h"
 
 #include <algorithm>
 #include <cmath>
@@ -56,6 +57,38 @@ bool finite3(const std::array<float, 3>& v) {
 
 bool finite4(const std::array<float, 4>& v) {
   return std::isfinite(v[0]) && std::isfinite(v[1]) && std::isfinite(v[2]) && std::isfinite(v[3]);
+}
+
+std::array<float, 4> quaternionSlerp(const std::array<float, 4>& from,
+    const std::array<float, 4>& to, float amount) {
+  std::array<float, 4> target = to;
+  double dot = 0.0;
+  for (std::size_t i = 0; i < 4; ++i) dot += static_cast<double>(from[i]) * target[i];
+  if (dot < 0.0) {
+    dot = -dot;
+    for (float& value : target) value = -value;
+  }
+  dot = std::min(1.0, std::max(-1.0, dot));
+  if (dot > 0.9995) {
+    std::array<float, 4> result{};
+    double lengthSquared = 0.0;
+    for (std::size_t i = 0; i < 4; ++i) {
+      result[i] = from[i] + amount * (target[i] - from[i]);
+      lengthSquared += static_cast<double>(result[i]) * result[i];
+    }
+    const double inverseLength = lengthSquared > 1.0e-12 ? 1.0 / std::sqrt(lengthSquared) : 1.0;
+    for (float& value : result) value = static_cast<float>(value * inverseLength);
+    return result;
+  }
+  const double angle = std::acos(dot);
+  const double sine = std::sin(angle);
+  const double fromWeight = std::sin((1.0 - amount) * angle) / sine;
+  const double toWeight = std::sin(amount * angle) / sine;
+  std::array<float, 4> result{};
+  for (std::size_t i = 0; i < 4; ++i) {
+    result[i] = static_cast<float>(fromWeight * from[i] + toWeight * target[i]);
+  }
+  return result;
 }
 
 std::string companionPath(const std::string& modelPath) {
@@ -303,12 +336,14 @@ const AnimationBinding* AnimationBindingCache::resolve(const std::string& modelP
           // "no grid" for every player model.
           sequence.grid = candidateSequence.grid;
           sequence.weights = candidateSequence.weights;
-          // Included descriptors own playback semantics (CStudioHdr::pSeqdesc).
-          // A base STUDIO_OVERRIDE stub is not necessarily marked looping.
-          // Keep the base index/activity and unrelated flags, but take the
-          // STUDIO_LOOPING bit from the descriptor whose frames we sample.
+          // Included descriptors own playback semantics (CStudioHdr::pSeqdesc):
+          // the descriptor whose frames we sample is the one whose flags apply.
+          // Copying only the STUDIO_LOOPING bit left the base model's
+          // STUDIO_OVERRIDE stub supplying STUDIO_DELTA / STUDIO_POST, so a
+          // sequence resolved to the companion was decoded as an absolute clip
+          // and its delta layer read back bind rotations (C3 seqFlagMismatch).
           sequence.looping = candidateSequence.looping;
-          sequence.flags = (sequence.flags & ~1) | (candidateSequence.flags & 1);
+          sequence.flags = candidateSequence.flags;
         }
         break;
       }
@@ -575,7 +610,8 @@ bool samplePoseGrid(const AnimationBinding& binding, const AnimationSequence& se
     out.frames[corner] = cellAnim.frameCount;
     std::int32_t cellTick = request.tick;
     if (!cycleToSampleTick(cellAnim, request, hasCycle, cycle, cellTick, reason)) return false;
-    AnimationSample cellSample = sampleAnimDesc(model, cell, sequence.looping, cellTick, request.tickRate);
+    AnimationSample cellSample = sampleAnimDesc(model, cell, sequence.looping,
+      cellTick, request.tickRate);
     if (cellSample.status != AnimationStatus::Ok) {
       reason = "blend grid cell " + cellAnim.name + ": " + cellSample.reason;
       return false;
@@ -613,6 +649,99 @@ bool samplePoseGrid(const AnimationBinding& binding, const AnimationSequence& se
 }
 
 } // namespace
+
+namespace {
+
+float animationBoneLayerWeight(float layerWeight, const std::vector<float>* boneWeights,
+    std::size_t bone) {
+  if (!std::isfinite(layerWeight) || layerWeight <= 0.0f) return 0.0f;
+  float boneWeight = 1.0f;
+  if (boneWeights != nullptr && bone < boneWeights->size()) boneWeight = (*boneWeights)[bone];
+  if (!std::isfinite(boneWeight) || boneWeight <= 0.0f) return 0.0f;
+  return std::min(1.0f, layerWeight * boneWeight);
+}
+
+bool animationBoneIsEnabled(const std::vector<std::uint8_t>* animatedBones, std::size_t bone) {
+  return animatedBones == nullptr || (bone < animatedBones->size() && (*animatedBones)[bone] != 0);
+}
+
+} // namespace
+
+bool applyAnimationDelta(AnimationLocalPose& base, const AnimationLocalPose& delta,
+    float layerWeight, const std::vector<float>* boneWeights,
+    const std::vector<std::uint8_t>* animatedBones, bool post, std::string& reason) {
+  const std::size_t bones = base.position.size();
+  if (bones == 0 || base.rotation.size() != bones
+      || delta.position.size() != bones || delta.rotation.size() != bones) {
+    reason = "delta layer bone count does not match the base pose";
+    return false;
+  }
+  if (!std::isfinite(layerWeight)) {
+    reason = "delta layer weight is not finite";
+    return false;
+  }
+  for (std::size_t bone = 0; bone < bones; ++bone) {
+    if (!animationBoneIsEnabled(animatedBones, bone)) continue;
+    const float weight = animationBoneLayerWeight(layerWeight, boneWeights, bone);
+    if (weight <= 0.0f) continue;
+    if (!finite3(base.position[bone]) || !finite4(base.rotation[bone])
+        || !finite3(delta.position[bone]) || !finite4(delta.rotation[bone])) {
+      reason = "delta layer contains a non-finite bone transform";
+      return false;
+    }
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+      base.position[bone][axis] += delta.position[bone][axis] * weight;
+    }
+    // T108: scale the delta rotation by its weight (Source QuaternionScale)
+    // instead of slerping from the identity. A slerp folds the delta onto the
+    // short arc and drops its hemisphere, which is wrong for an additive layer:
+    // the delta is a small rotation AWAY from the reference pose, so scaling it
+    // must preserve the direction it travels in, and a delta past 180 degrees
+    // must not silently become the opposite rotation.
+    std::array<float, 4> weightedDelta{};
+    quaternionScale(delta.rotation[bone], weight, weightedDelta);
+    std::array<float, 4> combined{};
+    if (post) {
+      quaternionMult(base.rotation[bone], weightedDelta, combined);
+    } else {
+      quaternionMult(weightedDelta, base.rotation[bone], combined);
+    }
+    base.rotation[bone] = combined;
+  }
+  reason.clear();
+  return true;
+}
+
+bool applyAnimationOverlay(AnimationLocalPose& base, const AnimationLocalPose& overlay,
+    float layerWeight, const std::vector<float>* boneWeights,
+    const std::vector<std::uint8_t>* animatedBones, std::string& reason) {
+  const std::size_t bones = base.position.size();
+  if (bones == 0 || base.rotation.size() != bones
+      || overlay.position.size() != bones || overlay.rotation.size() != bones) {
+    reason = "action layer bone count does not match the base pose";
+    return false;
+  }
+  if (!std::isfinite(layerWeight)) {
+    reason = "action layer weight is not finite";
+    return false;
+  }
+  for (std::size_t bone = 0; bone < bones; ++bone) {
+    if (!animationBoneIsEnabled(animatedBones, bone)) continue;
+    const float weight = animationBoneLayerWeight(layerWeight, boneWeights, bone);
+    if (weight <= 0.0f) continue;
+    if (!finite3(base.position[bone]) || !finite4(base.rotation[bone])
+        || !finite3(overlay.position[bone]) || !finite4(overlay.rotation[bone])) {
+      reason = "action layer contains a non-finite bone transform";
+      return false;
+    }
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+      base.position[bone][axis] += (overlay.position[bone][axis] - base.position[bone][axis]) * weight;
+    }
+    base.rotation[bone] = quaternionSlerp(base.rotation[bone], overlay.rotation[bone], weight);
+  }
+  reason.clear();
+  return true;
+}
 
 const char* animationBlendModeName(AnimationBlendMode mode) {
   switch (mode) {
@@ -945,7 +1074,13 @@ AnimationSampleResult buildAnimationSkinMatrices(
   if (request.blendLayerCount > 0) {
     std::vector<LocalPose> poses;
     std::vector<float> weights;
+    std::vector<std::size_t> baseSlots;
     std::vector<std::vector<std::uint8_t>> gates;
+    std::vector<LocalPose> deltaPoses;
+    std::vector<float> deltaWeights;
+    std::vector<std::size_t> deltaSlots;
+    std::vector<std::vector<std::uint8_t>> deltaMasks;
+    std::vector<const AnimationWeightList*> deltaWeightLists;
     const std::size_t requested = request.blendLayerCount < kMaxBlendLayers
       ? request.blendLayerCount : kMaxBlendLayers;
     float dominantWeight = -1.0f;
@@ -1006,9 +1141,22 @@ AnimationSampleResult buildAnimationSkinMatrices(
         layerPose.rotation = layerSample.localRotation;
         layerMask = layerSample.boneAnimated;
       }
-      poses.push_back(std::move(layerPose));
-      weights.push_back(layer.weight);
-      if (poseGridMode && request.poseBoneMask) {
+      const bool isDelta = layerSequence.animDesc >= 0
+        && static_cast<std::size_t>(layerSequence.animDesc) < binding->anims.animations.size()
+        && (binding->anims.animations[static_cast<std::size_t>(layerSequence.animDesc)].flags
+          & kStudioDeltaFlag) != 0;
+      if (isDelta) {
+        deltaPoses.push_back(std::move(layerPose));
+        deltaWeights.push_back(layer.weight);
+        deltaSlots.push_back(slot);
+        deltaMasks.push_back(std::move(layerMask));
+        deltaWeightLists.push_back(&layerSequence.weights);
+      } else {
+        poses.push_back(std::move(layerPose));
+        weights.push_back(layer.weight);
+        baseSlots.push_back(slot);
+      }
+      if (!isDelta && poseGridMode && request.poseBoneMask) {
         std::vector<std::uint8_t> gate(binding->anims.bones.size(), 1);
         for (std::size_t bone = 0; bone < gate.size(); ++bone) {
           bool supplies = poseWeightListGatesBone(layerSequence.weights, bone);
@@ -1019,7 +1167,7 @@ AnimationSampleResult buildAnimationSkinMatrices(
       }
       result.blendSequences[slot] = layer.sequence;
       result.blendWeights[slot] = layer.weight;
-      if (layer.weight > dominantWeight) {
+      if (!isDelta && layer.weight > dominantWeight) {
         dominantWeight = layer.weight;
         result.sequenceLabel = layerSequence.label;
         result.frame = layerSample.frame;
@@ -1030,22 +1178,29 @@ AnimationSampleResult buildAnimationSkinMatrices(
     }
     result.blendDropped = dropped;
     float rawSum = 0.0f;
-    if (!poses.empty() && normalizeBlendWeights(weights.data(), weights.size(), &rawSum)) {
-      result.blendRawWeightSum = rawSum;
-      result.blendWeightSum = 1.0f;
-      result.blendLayers = poses.size();
-      std::size_t used = 0;
-      for (std::size_t slot = 0; slot < requested; ++slot) {
-        if (result.blendWeights[slot] > 0.0f && used < weights.size()) {
-          result.blendWeights[slot] = weights[used++];
+    for (const float weight : weights) rawSum += weight;
+    for (const float weight : deltaWeights) rawSum += weight;
+    result.blendRawWeightSum = rawSum;
+    result.blendLayers = poses.size() + deltaPoses.size();
+    bool baseBlendOk = true;
+    if (!poses.empty()) {
+      float baseRawSum = 0.0f;
+      baseBlendOk = normalizeBlendWeights(weights.data(), weights.size(), &baseRawSum);
+      if (baseBlendOk) {
+        result.blendWeightSum = 1.0f;
+        for (std::size_t i = 0; i < baseSlots.size(); ++i) {
+          result.blendWeights[baseSlots[i]] = weights[i];
         }
       }
       const std::vector<std::vector<std::uint8_t>>* gateList =
         (poseGridMode && request.poseBoneMask && gates.size() == poses.size()) ? &gates : nullptr;
       std::size_t gatedBones = 0;
       std::size_t isolatedBones = 0;
-      if (!blendPoseLayers(poses, weights, gateList, pose, gatedBones, isolatedBones,
-          result.blendReason)) {
+      if (baseBlendOk && !blendPoseLayers(poses, weights, gateList, pose,
+          gatedBones, isolatedBones, result.blendReason)) {
+        baseBlendOk = false;
+      }
+      if (!baseBlendOk) {
         pose.position = sample.localPosition;
         pose.rotation = sample.localRotation;
         result.blendLayers = 0;
@@ -1054,10 +1209,102 @@ AnimationSampleResult buildAnimationSkinMatrices(
         result.poseMaskGatedBones = gatedBones;
         result.poseMaskIsolatedBones = isolatedBones;
       }
-    } else {
+    }
+    for (std::size_t i = 0; i < deltaPoses.size(); ++i) {
+      const AnimationWeightList* list = deltaWeightLists[i];
+      const std::vector<float>* boneWeights = list != nullptr && list->readable
+          && !list->weights.empty() ? &list->weights : nullptr;
+      const std::size_t slot = deltaSlots[i];
+      const std::int32_t sequenceIndex = request.blendLayers[slot].sequence;
+      const bool post = sequenceIndex >= 0
+          && static_cast<std::size_t>(sequenceIndex) < binding->anims.sequences.size()
+          && (binding->anims.sequences[static_cast<std::size_t>(sequenceIndex)].flags
+            & kStudioPostFlag) != 0;
+      if (!applyAnimationDelta(pose, deltaPoses[i], deltaWeights[i], boneWeights,
+          &deltaMasks[i], post, result.blendReason)) {
+        result.blendReason = "delta layer skipped: " + result.blendReason;
+        ++result.blendDropped;
+        if (result.blendLayers > 0) --result.blendLayers;
+      } else {
+        result.blendWeights[slot] = deltaWeights[i];
+      }
+    }
+    if (poses.empty() && deltaPoses.empty()) {
       result.blendReason = "every blend layer was unusable; played the single sequence";
     }
   }
+
+  if (request.action.sequence >= 0 && request.action.weight > 0.0f
+      && std::isfinite(request.action.weight)
+      && static_cast<std::size_t>(request.action.sequence) < binding->anims.sequences.size()) {
+    const AnimationSequence& actionSequence =
+      binding->anims.sequences[static_cast<std::size_t>(request.action.sequence)];
+    if (actionSequence.animDesc >= 0
+        && static_cast<std::size_t>(actionSequence.animDesc) < binding->anims.animations.size()) {
+      const AnimationDesc& actionAnim =
+        binding->anims.animations[static_cast<std::size_t>(actionSequence.animDesc)];
+      std::int32_t actionTick = request.tick;
+      std::string actionReason;
+      if (cycleToSampleTick(actionAnim, request, true, request.action.cycle,
+          actionTick, actionReason)) {
+        AnimationLocalPose actionPose;
+        std::vector<std::uint8_t> actionMask;
+        bool actionSampled = false;
+        if (poseGridMode && actionSequence.grid.valid) {
+          GridPoseSample grid;
+          if (samplePoseGrid(*binding, actionSequence, request, true,
+              request.action.cycle, grid, actionReason)) {
+            actionPose = std::move(grid.pose);
+            actionMask = std::move(grid.boneMask);
+            actionSampled = true;
+          }
+        }
+        if (!actionSampled) {
+          const AnimationSample actionSample = sampleAnimation(binding->anims,
+            request.action.sequence, actionTick, request.tickRate);
+          if (actionSample.status == AnimationStatus::Ok) {
+            actionPose.position = actionSample.localPosition;
+            actionPose.rotation = actionSample.localRotation;
+            actionMask = actionSample.boneAnimated;
+            actionSampled = true;
+          } else {
+            actionReason = actionSample.reason;
+          }
+        }
+        if (actionSampled) {
+          const AnimationWeightList& list = actionSequence.weights;
+          const std::vector<float>* boneWeights = list.readable && !list.weights.empty()
+            ? &list.weights : nullptr;
+          const bool delta = (actionSequence.animDesc >= 0
+            && static_cast<std::size_t>(actionSequence.animDesc) < binding->anims.animations.size()
+            && (binding->anims.animations[static_cast<std::size_t>(actionSequence.animDesc)].flags
+              & kStudioDeltaFlag) != 0);
+          const bool applied = delta
+            ? applyAnimationDelta(pose, actionPose, request.action.weight, boneWeights,
+                &actionMask, (actionSequence.flags & kStudioPostFlag) != 0, actionReason)
+            : applyAnimationOverlay(pose, actionPose, request.action.weight, boneWeights,
+                &actionMask, actionReason);
+          if (!applied) {
+            result.actionReason = actionReason;
+            result.blendReason = "action layer skipped: " + actionReason;
+          } else {
+            result.actionApplied = true;
+          }
+        } else {
+          result.actionReason = actionReason;
+          result.blendReason = "action layer skipped: " + actionReason;
+        }
+      } else {
+        result.actionReason = actionReason;
+        result.blendReason = "action layer skipped: " + actionReason;
+      }
+    }
+  }
+
+  // T108: publish the blended local pose next to the matrices it produced. It is
+  // anim-bone indexed (not render-bone indexed) and is the pose the skinning
+  // below actually used, so a caller can measure it without inverting matrices.
+  result.localPose = pose;
 
   // The animation skeleton's own parent chain.
   std::vector<std::int32_t> parents;

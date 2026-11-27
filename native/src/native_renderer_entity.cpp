@@ -562,6 +562,8 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
   entityModelInstanceRejectedBadMesh_ = 0;
   entityModelInstanceRejectedNonFinite_ = 0;
   entityModelInstanceRejectedBudget_ = 0;
+  // G-2: only rows uploaded THIS update may vouch for an entity.
+  entityModelUploadedRowsHash_.clear();
   for (std::size_t i = 0; i < instances.size(); ++i) {
     const auto& instance = instances[i];
     const auto reject = [&](std::size_t& entityCounter) {
@@ -582,9 +584,24 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     if (mesh->second.mapStaticProp != instance.mapStaticProp
         || !mesh->second.vertexBuffer || mesh->second.vertexCount < 3
         || (mesh->second.vertexCount % 3) != 0) { reject(entityModelInstanceRejectedBadMesh_); continue; }
+    // T108/A1b: which frame do the rows have to carry? A skin matrix is
+    // boneModel (Z-up model space) * poseToBone (Y-up bind mesh space), so a
+    // skinned vertex already arrives in Z-up model space and the rows must be
+    // the pure placement frame. The Y-up -> Z-up permutation belongs to the
+    // bind-pose path, where the vertex really is the raw Y-up VVD position;
+    // applying it on top of a skin matrix rotates the whole body a second time
+    // (T62 compensated for that by locking the root bone at its bind rotation).
+    // This is the same predicate the skin upload below uses, computed here
+    // because the rows are built first.
+    const bool skinned = instance.skinningEnabled
+      && instance.boneCount > 0
+      && static_cast<std::size_t>(instance.boneOffset) + instance.boneCount <= entityBoneMatrixCount_;
     EntityModelInstanceRows rows;
+    // G-2: the permutation decision comes from the shared predicate, never from
+    // a literal here, so the pose trace (which calls the same function with the
+    // same inputs) cannot measure a frame this branch did not draw.
     if (!buildEntityModelInstanceRows(instance.origin, instance.angles, instance.hasAngles,
-          world, rows, instance.sourceModelSpace)) {
+          world, rows, entityDrawSkipsPermutation(instance.sourceModelSpace, skinned))) {
       reject(entityModelInstanceRejectedNonFinite_);
       continue;
     }
@@ -651,6 +668,12 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     for (int row = 0; row < 3; ++row) {
       for (int column = 0; column < 4; ++column) gpu.position[row][column] = rows.positionRows[row * 4 + column];
       for (int column = 0; column < 3; ++column) gpu.normal[row][column] = rows.normalRows[row * 3 + column];
+    }
+    // G-2: the rows above are the instance's GPU record; remember their hash so
+    // the trace's rowsHash can be checked against what was actually drawn.
+    if (instance.entityIndex >= 0) {
+      entityModelUploadedRowsHash_[instance.entityIndex] =
+        hashEntityModelInstanceRows(rows);
     }
     // T105/task-37 Half B: this instance's baked ambient cube -> one slot in the
     // frame table. The slot rides in gpu.normal[0][3], the .w of the first normal
@@ -780,13 +803,11 @@ void Renderer::setEntityModelInstances(const std::vector<EntityModelDrawInstance
     gpu.color[1] = instance.color[1];
     gpu.color[2] = instance.color[2];
     gpu.color[3] = instance.color[3];
-    // Skinning is only advertised when the caller actually supplied matrices for
-    // this instance. An instance whose boneOffset would run past the uploaded
-    // buffer is drawn unskinned rather than reading another entity's bones --
-    // a wrong pose is worse than a static one, and it is silent.
-    const bool skinned = instance.skinningEnabled
-      && instance.boneCount > 0
-      && static_cast<std::size_t>(instance.boneOffset) + instance.boneCount <= entityBoneMatrixCount_;
+    // `skinned` (computed before the rows) is true only when the caller supplied
+    // matrices for this instance and its boneOffset lies inside the uploaded
+    // buffer. An instance that fails either is drawn unskinned rather than
+    // reading another entity's bones -- a wrong pose is worse than a static one,
+    // and it is silent.
     if (skinned) {
       gpu.boneOffset = instance.boneOffset;
       gpu.skinEnabled = 1u;

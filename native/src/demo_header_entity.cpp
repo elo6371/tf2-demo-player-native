@@ -239,7 +239,8 @@ void appendEntityHistory(DemoNetworkSummary& summary, std::int32_t tick, bool is
       packetOrdinal % stride == 0) {
     summary.entityHistoryCheckpoints.push_back({tick, packetOrdinal,
                                                 summary.entityClassByIndex,
-                                                summary.entityStates});
+                                                summary.entityStates,
+                                                summary.entityDormant});
   }
 }
 } // namespace
@@ -322,12 +323,36 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
                                summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)], false,
                                false, {}, std::move(changes)});
+      // CA-01: dormancy bookkeeping is off unless the scan opted in (see
+      // DemoNetworkSummary::entityDormantEnabled); disabled keeps 054fb628.
+      if (summary.entityDormantEnabled) markEntityDormantResident(summary, lastEntity);
+      markEntityTransformResident(summary, lastEntity);
     } else if (updateType == 1) {
       ++summary.packetEntityLeaveCount;
       // Leave means the entity left the PVS, not that it was destroyed. Keep
       // its class and last state so a later Preserve/Enter can resolve it.
+      // Source notifies SHOULDTRANSMIT_END -> SetDormant(true)
+      // (engine/cl_ents_parse.cpp:530-535, baseclientstate.cpp:243-275).
+      // CA-01: the Leave record is the one place the dormancy patch adds a
+      // history event. Disabled scans skip both the event and the bitmap write so
+      // their history stays byte-identical to 054fb628; the leave counter above
+      // is base bookkeeping and still runs.
+      if (summary.entityDormantEnabled) {
+        markEntityDormantDeparted(summary, lastEntity);
+        if (lastEntity >= 0 && lastEntity < 2048) {
+          const std::int32_t leaveClassId =
+              static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size()
+                  ? summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)]
+                  : -1;
+          historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(lastEntity),
+                                   leaveClassId, false, false, {}, {}, true});
+        }
+      }
+      markEntityTransformDeparted(summary, lastEntity);
     } else if (updateType == 3) {
       ++summary.packetEntityDeleteCount;
+      if (summary.entityDormantEnabled) clearEntityDormantSlot(summary, lastEntity);
+      clearEntityTransformSlot(summary, lastEntity);
       if (lastEntity >= 0 && static_cast<std::size_t>(lastEntity) < summary.entityClassByIndex.size() && summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] >= 0) { summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)] = -1; if (static_cast<std::size_t>(lastEntity) < summary.entityStates.size()) summary.entityStates[static_cast<std::size_t>(lastEntity)] = {}; if (summary.activeEntityCount > 0) --summary.activeEntityCount; }
       // T53: the lifetime in this slot has ended. Advancing here as well as on
       // Enter means a slot that is deleted and later re-enters is separated even
@@ -384,6 +409,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       auto& classSlot = summary.entityClassByIndex[static_cast<std::size_t>(lastEntity)];
       if (classSlot < 0) ++summary.activeEntityCount;
       classSlot = static_cast<std::int32_t>(classId);
+      if (summary.entityDormantEnabled) markEntityDormantResident(summary, lastEntity);
+      markEntityTransformResident(summary, lastEntity);
       // T53: an Enter begins a new entity lifetime in this slot, so the slot's
       // generation advances. Without this the retention would glue every
       // projectile that ever occupied the slot into one series. See the note on
@@ -417,6 +444,8 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
       if (removedEntity < summary.entityClassByIndex.size() && summary.entityClassByIndex[removedEntity] >= 0) {
         summary.entityClassByIndex[removedEntity] = -1;
         if (removedEntity < summary.entityStates.size()) summary.entityStates[removedEntity] = {};
+        clearEntityTransformSlot(summary, static_cast<std::int32_t>(removedEntity));
+        if (summary.entityDormantEnabled) clearEntityDormantSlot(summary, static_cast<std::int32_t>(removedEntity));
         if (summary.activeEntityCount > 0) --summary.activeEntityCount;
         if (removedEntity < 2048) historyEvents.push_back({packetTick, 0, static_cast<std::uint16_t>(removedEntity), -1, true, false, {}, {}});
       }
@@ -451,12 +480,17 @@ bool readPacketEntities(MessageBits& bits, DemoNetworkSummary& summary, std::int
   // N12-C: same placement, same condition -- one camera row per completely
   // decoded packet, after the incomplete-packet early return above.
   captureCameraTickSample(summary, packetTick);
+  // CA-02a: retention runs after the camera sample so both see the same packet, and
+  // only on packets that decoded completely (this function returns false earlier
+  // otherwise).
+  appendEntityTransformSamples(summary, packetTick);
   return true;
 }
 
 EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     const DemoNetworkSummary& summary, std::int32_t tick, std::vector<EntityState>& states,
-    std::int32_t* resolvedTick) {
+    std::int32_t* resolvedTick, std::vector<std::uint8_t>* dormantByIndex) {
+  if (dormantByIndex) dormantByIndex->clear();
   if (summary.entityHistoryHasGap) return EntitySnapshotQueryStatus::Gap;
   const bool liveWindow = !summary.entityHistoryCheckpoints.empty()
       && tick >= summary.entityHistoryCheckpoints.front().tick;
@@ -476,6 +510,7 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
         // rather than an inference from the archive's tick list.
         if (resolvedTick) *resolvedTick = fallback.tick;
         states = fallback.states;
+        if (dormantByIndex) *dormantByIndex = fallback.dormantByIndex;
         return EntitySnapshotQueryStatus::Checkpoint;
       }
     }
@@ -488,6 +523,10 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
   const auto& base = *std::prev(checkpoint);
   if (resolvedTick) *resolvedTick = tick;  // replayed through `tick` exactly
   states = base.states;
+  if (dormantByIndex) {
+    *dormantByIndex = base.dormantByIndex;
+    if (dormantByIndex->size() < 2048u) dormantByIndex->resize(2048u, 0u);
+  }
   for (const auto& packet : summary.entityHistoryPackets) {
     if (packet.packetOrdinal <= base.packetOrdinal || packet.tick > tick) continue;
     // History events contain the complete post-update state for every changed
@@ -496,12 +535,30 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
     // deltaFrom (that reference may intentionally point outside the bounded
     // history window).
     const std::size_t end = packet.firstEvent + packet.eventCount;
-    if (end > summary.entityHistoryEvents.size()) return EntitySnapshotQueryStatus::Gap;
+    if (end > summary.entityHistoryEvents.size()) {
+      if (dormantByIndex) dormantByIndex->clear();
+      return EntitySnapshotQueryStatus::Gap;
+    }
     for (std::size_t i = packet.firstEvent; i < end; ++i) {
       const auto& event = summary.entityHistoryEvents[i];
       if (event.entityIndex >= states.size()) states.resize(2048u);
       auto& target = states[event.entityIndex];
-      if (event.removed) { target = EntityState{}; continue; }
+      if (event.removed) {
+        target = EntityState{};
+        if (dormantByIndex && event.entityIndex < dormantByIndex->size()) {
+          (*dormantByIndex)[event.entityIndex] = 0u;
+        }
+        continue;
+      }
+      if (event.dormant) {
+        if (dormantByIndex && event.entityIndex < dormantByIndex->size()) {
+          (*dormantByIndex)[event.entityIndex] = 1u;
+        }
+        continue;
+      }
+      if (dormantByIndex && event.entityIndex < dormantByIndex->size()) {
+        (*dormantByIndex)[event.entityIndex] = 0u;
+      }
       if (event.fullState) { target = event.state; continue; }
       // Preserve events carry only the properties the packet wrote, so they are
       // applied on top of the state already replayed from the checkpoint.
@@ -509,6 +566,7 @@ EntitySnapshotQueryStatus queryEntitySnapshotAtOrBeforeTick(
           ? tableForClass(summary, static_cast<std::uint32_t>(event.classId)) : nullptr;
       for (const auto& change : event.changes) {
         if (!table || static_cast<std::size_t>(change.propIndex) >= table->flattenedProps.size()) {
+          if (dormantByIndex) dormantByIndex->clear();
           return EntitySnapshotQueryStatus::Gap;
         }
         const auto& prop = table->flattenedProps[change.propIndex];

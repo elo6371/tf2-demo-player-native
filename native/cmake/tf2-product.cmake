@@ -28,6 +28,10 @@ add_executable(tf2_demo_native WIN32
   # declarations in src/main_internal.h. Code motion only: the command line,
   # the trace text and the exit codes are unchanged.
   src/main_trace.cpp
+  # G-8 trace hygiene: new animation-trace code goes here, not into main.cpp.
+  # This round the file is an empty destination; it is compiled so the build
+  # graph already carries it before the first reader/writer moves.
+  src/anim_trace.cpp
   src/main_lifecycle.cpp
   src/playback_state.cpp
   # T76: the T51 HUD product layer (state, folder picker, layout push and the

@@ -1412,5 +1412,41 @@ void Renderer::shutdown() {
   lastError_ = S_OK;
 }
 
+// ---- D-33a: the sampler is the one device state the settings reach once ------
+// `samplerDescription.MipLODBias` is read from settings_ inside initialize and
+// handed to CreateSamplerState there; nothing rebuilt it afterwards. A mip bias
+// applied after startup (the command line applies --texture-mip-bias after
+// --quality, see main.cpp) therefore lived in settings_ only: the switch was
+// parsed, saved and traced, and no pixel changed. The description below is the
+// initialize one, rebuilt from the current settings; a caller with no device
+// (settings set before initialize) has nothing to rebuild and succeeds.
+bool Renderer::refreshSamplerState() {
+  if (!device_) return true;
+  D3D11_SAMPLER_DESC samplerDescription{};
+  samplerDescription.Filter = settings_.anisotropicLevel > 1
+    ? D3D11_FILTER_ANISOTROPIC : D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+  samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+  samplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+  samplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+  samplerDescription.MaxAnisotropy = static_cast<UINT>(settings_.anisotropicLevel);
+  samplerDescription.MipLODBias = static_cast<FLOAT>(settings_.textureMipBias);
+  samplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
+  Microsoft::WRL::ComPtr<ID3D11SamplerState> rebuilt;
+  const HRESULT hr = device_->CreateSamplerState(&samplerDescription, rebuilt.GetAddressOf());
+  if (FAILED(hr)) {
+    // A failed refresh leaves the previous sampler in use: settings_ carries the new
+    // bias but the device still samples with the old one. The trace has to say so,
+    // otherwise source=--texture-mip-bias claims a value the device never received.
+    lastError_ = E_FAIL;
+    wchar_t message[160];
+    swprintf_s(message, L"texture: sampler refresh failed hr=0x%08lX using stale\n",
+      static_cast<unsigned long>(hr));
+    OutputDebugStringW(message);
+    return false;
+  }
+  sampler_ = rebuilt;
+  return true;
+}
+
 } // namespace tf2::native
 

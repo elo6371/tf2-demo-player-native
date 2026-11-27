@@ -36,6 +36,14 @@
 #include "projectile_track.h"
 #include "projectile_overlay.h"
 #include "animation_binding.h"
+// pose_upright.h has a helper named `near`; minwindef.h (reached through the
+// Windows headers) defines `near` as an empty legacy macro that would mangle
+// that declaration. Give the header its name for this TU only and restore the
+// host macro state afterwards, so nothing else in the file changes meaning.
+#pragma push_macro("near")
+#undef near
+#include "pose_upright.h"
+#pragma pop_macro("near")
 #include "animation_sequence_match.h"
 // T61: the pure animation clock. In the product rather than inlined because the
 // probe and the gate drive the same arithmetic (see animation_clock.h).
@@ -123,6 +131,7 @@ using namespace tf2::native::main_internal;
 // dialog, not a common-item one: GetOpenFileNameW cannot return a directory, and
 // a HUD is a directory.
 #include <shlobj.h>
+#include <new>
 #include <string>
 #include <sstream>
 #include <tuple>
@@ -174,6 +183,13 @@ HWND g_uiKeybindReset = nullptr;
 // nothing here touches a rect the base planner produced.
 HWND g_uiHudImport = nullptr;
 HWND g_uiHudReset = nullptr;
+// I3c (2026-11-24): the analysis result list. Defined here rather than as a local in
+// main() because the window procedure answers a double-click in it, and the frame loop
+// is where a queued click turns into a seek.
+HWND g_uiResultsList = nullptr;
+std::vector<tf2::native::UiResultRow> g_analysisResultRows;
+int g_resultsSelectPending = -1;
+int g_uiListClickCli = -1;
 // Which bookmark slot the controls act on. 1-based, matching the store and the
 // settings keys; the cycler walks 1..8 and wraps.
 std::size_t g_uiBookmarkSlot = 1;
@@ -533,6 +549,14 @@ bool g_logsPanelArgumentRejected = false;
 // and camera-ui-check.sh pins.
 // T76: the controller object is defined in src/main_camera.cpp (main_camera.h).
 bool g_debugCamera = false;
+// D-33b: whether the last world upload had to be rebuilt at the baseline extent,
+// set where the rebuild happens (inside reloadGpuResources) and read where the
+// atlas budget line is traced (the frame loop, another scope). File scope for the
+// same reason the debug camera is: the two places do not share a lambda body.
+bool g_worldAtlasFellBack = false;
+// D-33b: why the 512 refresh ran. The per-frame atlas line reports this rather than
+// the retry plan's own verdict, which is usually WithinBudget and would hide the cause.
+const char* g_worldAtlasFallbackReason = nullptr;
 // T52: the overlay's toggle. One slot, one owner: main.cpp is the outline's
 // owner and no other feature may change the flag while it holds the slot, which
 // is what the class enforces rather than documents.
@@ -555,6 +579,19 @@ std::size_t g_overlayPaintedSlots = 0;
 std::size_t g_staticPropPaintedModels = 0;
 std::size_t g_staticPropPaintedSlots = 0;
 std::size_t g_overlaySampledTicks = 0;
+// G-2: the rowsHash the pose trace emitted for each entity on the frame being
+// drawn, checked against the hash the renderer uploaded once the draw returns.
+// A trace that measured a matrix the GPU never saw shows up as a mismatch
+// instead of as a reading nobody can audit.
+struct TracedRowsHash {
+  std::int32_t entityIndex;
+  std::uint32_t rowsHash;
+  // A1d: the rows the overlay silhouette SHOULD have uploaded for this entity,
+  // built from the same placement with the overlay's own rule. Checked against
+  // the silhouette pass after the draw; 0 means this frame had no expectation.
+  std::uint32_t overlayRowsHash;
+};
+std::vector<TracedRowsHash> g_tracedRowsHashes;
 std::size_t g_overlayFramesWithList = 0;
 // What the last built list contained, as scalars so the trace prints one line
 // whatever the list size. `lastDisabled` is the one that makes "the toggle is
@@ -2934,6 +2971,27 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     // that state is decided. The edit control's own notifications are the
     // authority (no polling, no subclass): every key path in the window
     // procedure asks dispatchHotkey, which asks shouldDispatchHotkey.
+    // I3c: the result list's one notification. Handled before the BN_CLICKED filter
+    // below because a listbox never sends BN_CLICKED -- filtering first would route
+    // every listbox click to DefWindowProc and the list would look inert.
+    if (g_nativeUi && LOWORD(wParam) == kUiResultsList) {
+      if (HIWORD(wParam) == LBN_DBLCLK && g_uiResultsList) {
+        const int selected =
+          static_cast<int>(SendMessageW(g_uiResultsList, LB_GETCURSEL, 0, 0));
+        if (selected >= 0) {
+          // Double-click means "open this one in the workspace": confirm the import if
+          // the screen is still asking, then let the frame loop seek. The transport is
+          // not touched here because a seek request outside the frame loop is refused
+          // before the session is bound.
+          if (g_nativeUi->snapshot().screen == tf2::native::UiScreen::ImportReview) {
+            SendMessageW(window, WM_COMMAND, MAKEWPARAM(kUiConfirm, BN_CLICKED), 0);
+          }
+          g_resultsSelectPending = selected;
+          traceFmt("analysis: results list click index=%d source=mouse", selected);
+        }
+      }
+      return 0;
+    }
     if (g_nativeUi && LOWORD(wParam) == kUiBookmarkName) {
       const int notification = HIWORD(wParam);
       if (notification == EN_SETFOCUS) { g_textFieldFocused = true; return 0; }
@@ -3854,7 +3912,8 @@ int WINAPI wWinMain(HINSTANCE processInstance, HINSTANCE, PWSTR, int showCommand
   // overlay is new pixels, so a run asks for them or gets none.
   bool hudBroadcastCli = false;
   std::filesystem::path dumpEntityMaterialsPath;
-  std::int64_t captureTick = 0;
+  // D78: -1 is 'not requested'; 0 is the first tick and is a legal request.
+  std::int64_t captureTick = -1;
   bool captureTickRejected = false;
   // N27 (2026-11-23): "--capture-sequence <dir> <startTick> <count>" writes one
   // BMP per CONSECUTIVE tick. It reuses the T27 tick hold below: after a frame is
@@ -4187,6 +4246,14 @@ bool outlineVertexExtent = false;
   bool worldSky3dGiven = false;
   bool worldSky3dRequested = false;
   bool worldSky3dArgumentRejected = false;
+  // DB-2 (2026-11-26): the dynamic brush switch, same three-variable shape as
+  // the switch above. Off is the default AND the value every pinned capture was
+  // taken with: the parser marks a moving model dynamic only when this switch is
+  // on, so with it off nothing leaves the static buffer, nothing is uploaded for
+  // it, nothing is bound per tick and nothing is drawn -- the world buffer and
+  // every trace counter are what they were before this change.
+  bool worldDynamicBrushRequested = false;
+  bool worldDynamicBrushArgumentRejected = false;
   // I5 (2026-11-23): the 3D skybox's fog. A valueless switch, like --world-fog, and
   // meaningful only together with it: the sky copies the world's fog numbers rather
   // than carrying its own, because a map has one env_fog_controller and the sky is
@@ -4317,6 +4384,9 @@ bool outlineVertexExtent = false;
   // old cost unless they ask, because the gate demos are large and their runners assert
   // on how long a load takes.
   bool analysisScanRequested = false;
+  // I3b (design section 9.1): a scripted click on the analysis screen's result list.
+  // 0-based, matching UiResultRow::index; -1 means no click was asked for.
+  int resultsSelectCli = -1;
   // N05 step 3: ask the renderer to take the clip-space position out of the
   // vertex stage of the isolated draw. Separate from the face trace because it
   // is a different instrument: the face trace predicts a screen point from the
@@ -4503,6 +4573,21 @@ bool outlineVertexExtent = false;
   // says it was truncated.
   std::vector<std::wstring> unrecognizedArguments;
   bool strictArguments = false;
+  // Owner 2026-11-26 19:45: the two texture knobs. Parsed where they appear and
+  // applied after the loop: --quality assigns the whole RenderSettings from a
+  // preset, so a switch that wrote its field inline would lose to a --quality that
+  // came later on the same command line. The values are the defaults here and stay
+  // that way unless the switch is given.
+  bool textureMipBiasGiven = false;
+  int textureMipBiasValue = 2;
+  bool textureAtlasMaxGiven = false;
+  int textureAtlasMaxValue = 512;
+  // D-33b: the plan's byte budget, forced by --texture-budget-mib. 0 means
+  // "derive it from the adapter" (Renderer::atlasBudgetBytes); it is a run-scope
+  // number, not a saved settings key, because it prices this run's plan rather
+  // than describing a picture somebody wants back.
+  bool textureBudgetMibGiven = false;
+  int textureBudgetMibValue = 0;
   if (arguments) {
     for (int i = 1; i < argumentCount; ++i) {
       if (parseFeatureArgument(i)) continue;
@@ -4513,6 +4598,21 @@ bool outlineVertexExtent = false;
       if (wcscmp(arguments[i], L"--hidden-window") == 0) { hiddenWindow = true; continue; }
       if (wcscmp(arguments[i], L"--tick-audit") == 0) { demoTickAuditRequested = true; continue; }
       if (wcscmp(arguments[i], L"--analysis-scan") == 0) { analysisScanRequested = true; continue; }
+      // I3b: --results-select <index> acts as if the user clicked that row on the
+      // analysis screen. A row index nobody can click is answered in the trace
+      // ("refused"), not silently ignored, so a typo cannot look like a no-op.
+      if (wcscmp(arguments[i], L"--results-select") == 0) {
+        if (i + 1 < argumentCount) resultsSelectCli = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
+        continue;
+      }
+      // I3c: --ui-list-click <index> drives the MOUSE path -- select that row in the
+      // list control and post the notification a double-click sends. --results-select
+      // skips the control entirely, so without this a scripted run could not tell a
+      // working handler from one that was never reached.
+      if (wcscmp(arguments[i], L"--ui-list-click") == 0) {
+        if (i + 1 < argumentCount) g_uiListClickCli = static_cast<int>(wcstol(arguments[++i], nullptr, 10));
+        continue;
+      }
       if (wcscmp(arguments[i], L"--audio-disabled") == 0) { audioDisabled = true; continue; }
       // N21(a2): --audio-spatial takes a word. A bare switch or an unknown one
       // is refused below rather than read as the default, because the point of
@@ -4609,6 +4709,29 @@ bool outlineVertexExtent = false;
       // states (C1061). Off is the default because every pinned capture was
       // taken without the pass: the switch that adds a draw must not be able to
       // change a frame that did not ask for it.
+      // DB-2: --world-dynamic-brush on|off. A ladder arm for the reason the
+      // switches around it are (C1061). The value is passed to BspParser::parse
+      // and decides whether the moving models leave the static buffer at all;
+      // with off the parse follows the pre-DB-2 path branch for branch.
+      if (wcscmp(arguments[i], L"--world-dynamic-brush") == 0) {
+        if (i + 1 < argumentCount) {
+          const wchar_t* value = arguments[i + 1];
+          if (wcscmp(value, L"on") == 0) {
+            worldDynamicBrushRequested = true;
+            ++i;
+          } else if (wcscmp(value, L"off") == 0) {
+            worldDynamicBrushRequested = false;
+            ++i;
+          } else {
+            worldDynamicBrushArgumentRejected = true;
+          }
+        } else {
+          worldDynamicBrushArgumentRejected = true;
+        }
+        continue;
+      }
+
+
       if (wcscmp(arguments[i], L"--world-sky-3d") == 0) {
         if (i + 1 < argumentCount) {
           const wchar_t* value = arguments[i + 1];
@@ -4896,6 +5019,84 @@ bool outlineVertexExtent = false;
       // N13 step 1: the two --follow-* flags are consumed here, outside the ladder,
       // so the ladder keeps the exact nesting depth it had before this step.
       if (followConsumeArgument(arguments, argumentCount, i)) continue;
+      // Owner 2026-11-26 19:45: the two texture knobs are consumed here, before the
+      // ladder, for the same reason the --follow-* flags are: the else-if chain is at
+      // MSVC's block-depth limit (C1061, see the note at the strict-args refusal).
+      // The mip bias clamps to its field range; the atlas extent accepts only the two
+      // values the renderer has been reasoned about (see the note in that arm). A
+      // missing or unparsable value is a named, fatal refusal like every other value
+      // this product takes.
+      if (wcscmp(arguments[i], L"--texture-mip-bias") == 0) {
+        if (i + 1 >= argumentCount) {
+          OutputDebugStringW(L"TF2 Demo Player: --texture-mip-bias needs a value\n");
+          return 13;
+        }
+        const wchar_t* text = arguments[++i];
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(text, &end, 10);
+        if (end == text || *end != L'\0') {
+          OutputDebugStringW((L"TF2 Demo Player: --texture-mip-bias needs an integer, got '"
+            + std::wstring(text) + L"'\n").c_str());
+          return 13;
+        }
+        textureMipBiasGiven = true;
+        textureMipBiasValue = parsed < -2 ? -2 : (parsed > 4 ? 4 : static_cast<int>(parsed));
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--texture-atlas-max") == 0) {
+        if (i + 1 >= argumentCount) {
+          OutputDebugStringW(L"TF2 Demo Player: --texture-atlas-max needs 512 or 1024\n");
+          return 13;
+        }
+        const wchar_t* text = arguments[++i];
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(text, &end, 10);
+        if (end == text || *end != L'\0') {
+          OutputDebugStringW((L"TF2 Demo Player: --texture-atlas-max needs an integer, got '"
+            + std::wstring(text) + L"'\n").c_str());
+          return 13;
+        }
+        // Owner 2026-11-26 20:15 (lead): only 512 and 1024 are accepted. 2048 is not
+        // one of them: a 2050-texel plan tile puts the 8-column atlas at 16400 wide,
+        // past D3D11's 16384 limit, so the device answers E_INVALIDARG -- which the
+        // out-of-memory fallback does not answer. Refusing the value up front, by
+        // name, is better than accepting it and failing later under another one.
+        if (parsed != 512 && parsed != 1024) {
+          OutputDebugStringW((L"TF2 Demo Player: --texture-atlas-max accepts 512 or 1024, got '"
+            + std::wstring(text) + L"'\n").c_str());
+          return 13;
+        }
+        textureAtlasMaxGiven = true;
+        textureAtlasMaxValue = static_cast<int>(parsed);
+        continue;
+      }
+      if (wcscmp(arguments[i], L"--texture-budget-mib") == 0) {
+        if (i + 1 >= argumentCount) {
+          OutputDebugStringW(L"TF2 Demo Player: --texture-budget-mib needs a value\n");
+          return 13;
+        }
+        const wchar_t* text = arguments[++i];
+        wchar_t* end = nullptr;
+        const long parsed = std::wcstol(text, &end, 10);
+        if (end == text || *end != L'\0') {
+          OutputDebugStringW((L"TF2 Demo Player: --texture-budget-mib needs an integer, got '"
+            + std::wstring(text) + L"'\n").c_str());
+          return 13;
+        }
+        // D-33b: the accepted range is the one the planner can price without
+        // arithmetic that would overflow or that spends more than the machine has.
+        // 64 MiB is below one 1024 tile's six layers; 64 GiB is past every card
+        // this product runs on. Both ends refuse by name instead of clamping a
+        // request the caller can see was not honoured.
+        if (parsed < 64 || parsed > 65536) {
+          OutputDebugStringW((L"TF2 Demo Player: --texture-budget-mib accepts 64..65536 MiB, got '"
+            + std::wstring(text) + L"'\n").c_str());
+          return 13;
+        }
+        textureBudgetMibGiven = true;
+        textureBudgetMibValue = static_cast<int>(parsed);
+        continue;
+      }
       if (wcscmp(arguments[i], L"--quality") == 0 && i + 1 < argumentCount) {
         if (wcscmp(arguments[++i], L"standard") == 0) {
           persistent.render = tf2::native::RenderSettings::fromPreset(
@@ -5618,6 +5819,28 @@ bool outlineVertexExtent = false;
       L" through the default path and read as a measurement)\n").c_str());
     return 13;
   }
+  // Owner 2026-11-26 19:45: the two texture knobs land here -- after every arm that
+  // can replace RenderSettings wholesale (--quality) and before anything reads the
+  // settings -- so the value is the one the command line asked for regardless of the
+  // order the switches appeared in. A run with neither switch emits no new trace
+  // line, so its trace and its frames stay the ones the pinned captures were made
+  // with.
+  if (textureMipBiasGiven) {
+    persistent.render.textureMipBias = textureMipBiasValue;
+    // Recorded separately from the value: the exit-time save writes a key only when
+    // the run asked for it, and "asked" cannot be recovered from the number (the
+    // Standard preset writes 0 into the same field).
+    persistent.textureMipBiasGiven = true;
+    traceFmt("texture: mipBias=%d source=--texture-mip-bias preset=%s",
+      persistent.render.textureMipBias,
+      persistent.render.preset == tf2::native::QualityPreset::Standard ? "standard" : "performance");
+  }
+  if (textureAtlasMaxGiven) {
+    persistent.render.textureAtlasMax = textureAtlasMaxValue;
+    persistent.textureAtlasMaxGiven = true;
+    traceFmt("texture: atlasMax=%d source=--texture-atlas-max",
+      persistent.render.textureAtlasMax);
+  }
   // T52: the outline takes the overlay slot at startup, before anything can draw.
   // kUiPlay/F12 can then only change the FLAG; ownership is what makes "who is
   // driving the overlay" a field rather than an assumption. Applied AFTER the
@@ -5697,7 +5920,7 @@ bool outlineVertexExtent = false;
     // a refusal instead of a priority rule.
     captureSequenceRejected = true;
   }
-  if (!captureSequenceDir.empty() && captureTick > 0) {
+  if (!captureSequenceDir.empty() && captureTick >= 0) {
     // Same reason: --capture-tick names one tick and the sequence names all of
     // them from <startTick>. Two answers to the same question is a refusal.
     captureSequenceRejected = true;
@@ -5869,6 +6092,12 @@ bool outlineVertexExtent = false;
     OutputDebugStringW(L"TF2 Demo Player: invalid --world-sky-3d; it takes on or off and nothing else.\n");
     return 13;
   }
+  if (worldDynamicBrushArgumentRejected) {
+    // DB-2: same rule. Falling back to either side would make the off-control
+    // and the on-arm two copies of the same picture.
+    OutputDebugStringW(L"TF2 Demo Player: invalid --world-dynamic-brush; it takes on or off and nothing else.\n");
+    return 13;
+  }
   if (modelLightingArgumentRejected) {
     // T105: same rule as the switches above. "off" is the value every pinned
     // capture on this tree was taken with, so a run whose value could not be
@@ -5899,6 +6128,10 @@ bool outlineVertexExtent = false;
     return 13;
   }
   renderer.setSettings(persistent.render);
+  // D-33b: the budget goes in after the settings, so a --quality preset that
+  // replaced RenderSettings wholesale cannot drop the value, and before anything
+  // uploads, so the world's plan is the first reader. 0 = derive from the adapter.
+  renderer.setAtlasBudgetMib(textureBudgetMibGiven ? textureBudgetMibValue : 0);
   // C2: apply --world-fov once, here -- the settings are in and nothing has drawn
   // yet. The clamp lives with the setter, so 10 is reported as 40 rather than
   // silently kept.
@@ -6024,7 +6257,7 @@ bool outlineVertexExtent = false;
   // run (camera script, hidden window, capture tick) does not unless it passes
   // --analysis-scan, so every existing runner keeps its old load time.
   const bool analysisScanEnabled = analysisScanRequested
-      || (cameraScriptPath.empty() && !hiddenWindow && captureTick <= 0);
+      || (cameraScriptPath.empty() && !hiddenWindow && captureTick < 0);
   if (demoTickAuditRequested || analysisScanEnabled) {
     demoNetworkSummary.tickAuditCapture = &demoTickAuditCapture;
     if (analysisScanEnabled) demoTickAuditCapture.enableMotionCensus(true);
@@ -6045,6 +6278,12 @@ bool outlineVertexExtent = false;
   // what makes the rows exist. Cost on the POV sample: 300,642 rows x 56 B =
   // 16.8 MB, capped at maxSamples (400k rows / 22.4 MB).
   demoNetworkSummary.cameraTrackLimits.enabled = true;
+  // I3b (design section 9.1): the rows the analysis screen draws, kept past the scan so
+  // --results-select can address them. Empty until a scan ran.
+  g_analysisResultRows.clear();
+  // The queued click. It waits for the frame loop because a seek request is refused
+  // until the demo session is bound; applying it here would spend it on a refusal.
+  g_resultsSelectPending = resultsSelectCli;
   if (!commandDemo.empty()) {
     if (tf2::native::parseDemoHeaderFile(commandDemo, demoHeader)) {
       tf2::native::indexDemoFile(commandDemo, demoHeader, demoIndex);
@@ -6093,6 +6332,18 @@ bool outlineVertexExtent = false;
           traceFmt("analysis: motion anomalies=%zu hints=%zu sceneResets=%zu omitted=%zu",
               motionAnalysis.anomalies.size(), motionAnalysis.hints.size(),
               motionAnalysis.sceneResets, motionAnalysis.teleportsOmitted);
+          // I3b (design section 9.1): the result list, built once from the report the
+          // lines above were printed from. Printed here because a scripted run cannot
+          // click a list: --results-select addresses these same rows, and the trace is
+          // the only place the rows can be read back.
+          g_analysisResultRows = tf2::native::buildResultRows(motionAnalysis);
+          constexpr std::size_t kResultRowsPrinted = 24;
+          for (std::size_t row = 0;
+               row < g_analysisResultRows.size() && row < kResultRowsPrinted; ++row) {
+            traceFmt("%s", tf2::native::formatResultRowLine(g_analysisResultRows[row], 66).c_str());
+          }
+          traceFmt("analysis: results rows=%zu printed=%zu", g_analysisResultRows.size(),
+              (std::min)(g_analysisResultRows.size(), kResultRowsPrinted));
           // I6 (section 9.2): the per-round timeline the workspace draws. Built from the
           // same pass as above and printed WITHOUT the kill rows: a long recording has
           // hundreds of kills, and the round rows already carry their counts. The offset
@@ -6367,6 +6618,25 @@ bool outlineVertexExtent = false;
     std::string oneShotLabel;
   };
   std::unordered_map<std::int32_t, PlayerAnimationRuntime> playerAnimationRuntimes;
+  std::unordered_map<std::uint16_t, std::vector<const tf2::native::TempEntityEvent*>>
+    playerAnimationEvents;
+  for (const auto& event : demoNetworkSummary.tempEntityEvents) {
+    if (event.className != "CTEPlayerAnimEvent" || !event.hasPlayer || !event.hasEvent
+        || event.player < 0 || static_cast<std::uint64_t>(event.player) > 0xffffffffull) continue;
+    const std::int64_t value = event.event;
+    if (value != tf2::native::kPlayerAnimEventAttackPrimary
+        && value != tf2::native::kPlayerAnimEventReload
+        && value != tf2::native::kPlayerAnimEventReloadLoop
+        && value != tf2::native::kPlayerAnimEventReloadEnd) continue;
+    const std::uint32_t handle = static_cast<std::uint32_t>(event.player);
+    const std::uint16_t index = static_cast<std::uint16_t>(handle & 0x7ffu);
+    if (index == 0x7ffu) continue;
+    playerAnimationEvents[index].push_back(&event);
+  }
+  for (auto& entry : playerAnimationEvents) {
+    std::stable_sort(entry.second.begin(), entry.second.end(),
+      [](const auto* left, const auto* right) { return left->tick < right->tick; });
+  }
   struct PlayerSequenceChoice {
     bool resolved = false;
     std::int32_t idle = -1;
@@ -6382,6 +6652,14 @@ bool outlineVertexExtent = false;
     std::int32_t aimMoving = -1;
     std::string aimIdleLabel;
     std::string aimMovingLabel;
+    std::int32_t attackPrimary = -1;
+    std::int32_t reloadStart = -1;
+    std::int32_t reloadLoop = -1;
+    std::int32_t reloadEnd = -1;
+    std::string attackPrimaryLabel;
+    std::string reloadStartLabel;
+    std::string reloadLoopLabel;
+    std::string reloadEndLabel;
     // T84: the state layers for this model. -1 is a real answer here and the
     // trace says so ("no crouch label" / "no flinch label"); the caller must not
     // substitute the idle pick for a crouch it could not find, because that is
@@ -7556,7 +7834,8 @@ bool outlineVertexExtent = false;
     // `map: geometry budget` trace line says so with numbers.
     constexpr std::size_t kWorldTriangleCapacity = 400000;
     tf2::native::BspParser::parse(mapBytes, displayMap, kWorldTriangleCapacity, 4096,
-      worldKeepMapWinding, worldFlipDispWinding, worldExtraStaticClasses);
+      worldKeepMapWinding, worldFlipDispWinding, worldExtraStaticClasses,
+      worldDynamicBrushRequested);
     // T88: the budget as a reading, on the map-load path, so every run -- a
     // probe, a normal window, a --capture-frame -- carries it. state=within with
     // requested <= capacity is the pass; state=truncated names the first face
@@ -8394,12 +8673,16 @@ bool outlineVertexExtent = false;
         chain.sourceHeight = static_cast<int>(texture.header().height);
         if (texture.header().width > fetchMaxWidth) fetchMaxWidth = texture.header().width;
         if (texture.header().height > fetchMaxHeight) fetchMaxHeight = texture.header().height;
-        if (texture.header().width > 512 || texture.header().height > 512) ++fetchVtfTooLarge;
+        // Owner 2026-11-26 19:45: the tile extent is a setting now, not a literal.
+        // 512 is the number this line held and the field's default is that number,
+        // so a run without --texture-atlas-max fetches exactly the tiles it used to.
+        const UINT tileExtent = static_cast<UINT>(persistent.render.textureAtlasMax);
+        if (texture.header().width > tileExtent || texture.header().height > tileExtent) ++fetchVtfTooLarge;
         auto rgba = texture.decodeRgba(textureBytes);
         if (rgba.empty()) { ++fetchDecodeEmpty; chain.reason = "decode-empty"; continue; }
         std::vector<std::uint8_t> tiledPixels;
         UINT tiledWidth = texture.header().width, tiledHeight = texture.header().height;
-        if (!boxDownscale(rgba, texture.header().width, texture.header().height, 512,
+        if (!boxDownscale(rgba, texture.header().width, texture.header().height, tileExtent,
                           tiledPixels, tiledWidth, tiledHeight)) {
           ++fetchDecodeEmpty; chain.reason = "downscale-failed"; continue;
         }
@@ -10126,6 +10409,10 @@ bool outlineVertexExtent = false;
     else if (!displayRgba.empty()) uploadedTexture = renderer.uploadTexture(displayRgba, displayWidth, displayHeight);
     traceFmt("gpu: reload-stage stage=texture lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     bool uploadedWorld = displayMap.triangles.empty();
+    // D-33b: the refresh below sets these, the budget trace line reads them, so a run
+    // can tell a plan that fit from a plan that had to be rebuilt at 512 and why.
+    g_worldAtlasFellBack = false;
+    g_worldAtlasFallbackReason = nullptr;
     if (!renderer.uploadWorldAuxTextures(mapBumpRgba, mapBumpWidth, mapBumpHeight, mapEnvRgba, mapEnvWidth, mapEnvHeight)) return false;
     traceFmt("gpu: reload-stage stage=aux lastError=0x%08lX", static_cast<unsigned long>(renderer.lastError()));
     if (!renderer.uploadWorldLightmap(displayMap.lightmapAtlas,
@@ -10429,7 +10716,163 @@ bool outlineVertexExtent = false;
       traceFmt("gpu: world geometry=sky triangles=%zu faces=%zu state=%s",
         displayMap.skyTriangles.size(), displayMap.skyFaces, uploadedWorld ? "uploaded" : "refused");
     } else if (!uploadedWorld && !worldTextures.empty()) {
-      uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
+      // D-33b rev7 (C blocking): the answer to THIS upload, carried out through the
+      // parameter, not read back from the run-level lastError() afterwards.
+      HRESULT atlasUploadError = S_OK;
+      uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures, &atlasUploadError);
+      // Owner 2026-11-26 19:45: a larger tile is a request, not a promise. When the
+      // device refuses the atlas for want of memory, rebuild the same materials at
+      // the baseline 512 and try once: a smaller tile is a worse picture, a missing
+      // world is a failed run. Only a run that asked for a larger extent can reach
+      // this, so a default run's allocation, frames and trace are untouched.
+      // D-33b: a plan that priced materials out of the atlas is the second way a
+      // larger extent loses the world. The device never saw that allocation, so the
+      // upload's HRESULT is S_OK and the upload may even have succeeded with holes:
+      // the budget verdict is the reading that says so, and the refresh below is the
+      // same one the out-of-memory path already used.
+      const bool budgetRefused = renderer.worldTilesRefusedBudget() > 0;
+      // C (rev 6): E_INVALIDARG is the device saying this extent cannot be served,
+      // not that it is short of memory. A plan that also refused materials by budget
+      // must not turn that into a half-size retry: an invalid request stays a failure.
+      const bool deviceOutOfMemory = atlasUploadError == E_OUTOFMEMORY;
+      // C (rev 7): a plan that accepted NO tile does not report S_OK. It returns
+      // ERROR_NO_DATA (native_renderer_world.cpp, the plan-empty return), so the
+      // "upload succeeded with holes" arm cannot see the emptiest case of all: a
+      // forced budget below the first tile's price would have walked past the 512
+      // refresh into the single-material fallback. The plan's refusal count is what
+      // makes this a budget answer and not some other empty upload.
+      const bool budgetEmptied = budgetRefused
+        && atlasUploadError == HRESULT_FROM_WIN32(ERROR_NO_DATA);
+      const bool budgetHoles = budgetRefused && atlasUploadError == S_OK;
+      if (persistent.render.textureAtlasMax > 512
+          && (deviceOutOfMemory || budgetHoles || budgetEmptied)
+          && (!uploadedWorld || budgetRefused)) {
+        const int requestedExtent = static_cast<int>(persistent.render.textureAtlasMax);
+        g_worldAtlasFellBack = true;
+        g_worldAtlasFallbackReason = budgetRefused ? "budget" : "EOUTOFMEMORY";
+        // C (rev 6): resampling the tiles does not make the *request* smaller. The
+        // plan reads textureAtlasMax every frame and the budget reads the forced
+        // value, so both come down here or the rebuild runs at 1024 inside a budget
+        // that already refused it -- and the trace would call 384 MiB a fallback
+        // while the planner still priced 1024. Done before anything is rebuilt.
+        persistent.render.textureAtlasMax = 512;
+        renderer.setSettings(persistent.render);
+        renderer.setAtlasBudgetMib(0);
+        const UINT baselineExtent = 512;
+        // Resample into `out` and leave `source` alone: a layer is replaced only after
+        // every layer of its tile was made, so a tile can never hold a mix of the larger
+        // extent and the baseline one. The layers all share the tile's grid (base, blend,
+        // modulate, bump, bump2, detail), so they all take the same rectangle.
+        const auto resampleInto = [](const std::vector<std::uint8_t>& source, UINT width, UINT height,
+                                     UINT outWidth, UINT outHeight, std::vector<std::uint8_t>& out) {
+          if (source.empty()) return true;
+          return tf2::native::resampleRgba(source, width, height, outWidth, outHeight, out);
+        };
+        // Release what the larger attempt built before the rebuild starts. Called
+        // here rather than left to uploadWorldGeometry, because that clear runs after
+        // the rebuild: without it the failed attempt's tiles and the smaller rebuild's
+        // tiles are resident together, which is the peak the fallback exists to lower.
+        renderer.releaseWorldAtlases();
+        // Rebuilt tile by tile into temporaries, not by copying worldTextures: a copy
+        // would hold every tile's six layers twice while the first is still resident,
+        // which at a 1024 extent is a CPU set measured in gigabytes -- the reverse of
+        // what a fallback is for. A tile commits only when all six of its layers made
+        // it, and the upload below runs only when every tile committed: a partially
+        // converted set is never handed to the device, so no atlas is built from tiles
+        // whose width says 512 while some of their pixels are still 1024 rows wide.
+        std::size_t rebuilt = 0;
+        bool allConverted = true;
+        bool allocationFailed = false;
+        try {
+          for (auto& tile : worldTextures) {
+            const UINT sourceWidth = tile.width;
+            const UINT sourceHeight = tile.height;
+            UINT fitWidth = sourceWidth;
+            UINT fitHeight = sourceHeight;
+            if (sourceWidth > baselineExtent || sourceHeight > baselineExtent) {
+              // The fit-inside-a-limit arithmetic boxDownscale uses, so a rebuilt tile
+              // has the bounds a default run would have fetched. The pixels, though,
+              // are a reduction of this run's larger tile: boxDownscale and resampleRgba
+              // are different kernels, so this reproduces the baseline extent and not
+              // the exact bytes a default fetch would have produced.
+              const float scale = static_cast<float>(baselineExtent)
+                / static_cast<float>(std::max(sourceWidth, sourceHeight));
+              fitWidth = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(sourceWidth) * scale));
+              fitHeight = std::max<UINT>(1u, static_cast<UINT>(static_cast<float>(sourceHeight) * scale));
+            }
+            if (fitWidth == sourceWidth && fitHeight == sourceHeight) {
+              // Already inside the baseline: nothing to make, nothing to commit.
+              ++rebuilt;
+              continue;
+            }
+            std::vector<std::uint8_t> rgba;
+            std::vector<std::uint8_t> blend;
+            std::vector<std::uint8_t> blendModulate;
+            std::vector<std::uint8_t> bump;
+            std::vector<std::uint8_t> bump2;
+            std::vector<std::uint8_t> detail;
+            const bool layersFit =
+              resampleInto(tile.rgba, sourceWidth, sourceHeight, fitWidth, fitHeight, rgba)
+              && resampleInto(tile.blendRgba, sourceWidth, sourceHeight, fitWidth, fitHeight, blend)
+              && resampleInto(tile.blendModulateRgba, sourceWidth, sourceHeight, fitWidth, fitHeight, blendModulate)
+              && resampleInto(tile.bumpRgba, sourceWidth, sourceHeight, fitWidth, fitHeight, bump)
+              && resampleInto(tile.bump2Rgba, sourceWidth, sourceHeight, fitWidth, fitHeight, bump2)
+              && resampleInto(tile.detailRgba, sourceWidth, sourceHeight, fitWidth, fitHeight, detail);
+            if (!layersFit) {
+              // Leave this tile exactly as it was: mixing a reduced layer into a tile
+              // that keeps its larger dimensions is a worse picture than not rebuilding
+              // at all, and allConverted below keeps the retry from running.
+              allConverted = false;
+              continue;
+            }
+            tile.rgba.swap(rgba);
+            tile.blendRgba.swap(blend);
+            tile.blendModulateRgba.swap(blendModulate);
+            tile.bumpRgba.swap(bump);
+            tile.bump2Rgba.swap(bump2);
+            tile.detailRgba.swap(detail);
+            tile.width = fitWidth;
+            tile.height = fitHeight;
+            ++rebuilt;
+          }
+        } catch (const std::bad_alloc&) {
+          // The temporaries bound the working set to one tile's six layers, but the
+          // allocation is still real. If they cannot be made, leave the frame to the
+          // single-material fallback below instead of ending the process.
+          allocationFailed = true;
+          allConverted = false;
+        }
+        if (allConverted) {
+          uploadedWorld = renderer.uploadWorldGeometry(displayMap, worldTextures);
+          // C (rev 6): "every tile converted" is not "every material fitted". A retry
+          // under a forced budget can still price materials out at 384 MiB, and a line
+          // that calls that success while the atlas has holes is the one reading this
+          // fallback must not produce. The retry's own refusal count is the assertion.
+          const std::size_t retryRefused = renderer.worldTilesRefusedBudget();
+          // The device-error policy reads lastError_ at the bottom of the loop, so a
+          // retry that worked must not leave the first attempt's failure behind: the
+          // run would otherwise quit over a failure it had already recovered from.
+          // Cleared by value, not outright (C rev 7): a blanket clear would also
+          // dismiss a sampler refresh failure patch 09 recorded before the upload.
+          if (uploadedWorld) renderer.clearLastErrorIf(atlasUploadError);
+          // state=ok is the strongest claim here and it needs both halves: a retry
+          // that uploaded nothing (the plan emptied again, or the device refused)
+          // is failed, not "holes" -- holes means some tiles landed and some did not.
+          traceFmt("atlas: max=%d fallback=512 budget=%llu reason=%s state=%s tiles=%zu"
+            " rebuilt=%zu refused=%zu",
+            requestedExtent,
+            static_cast<unsigned long long>(renderer.atlasBudgetBytes() / (1024ull * 1024ull)),
+            g_worldAtlasFallbackReason,
+            uploadedWorld && retryRefused == 0 ? "ok" : (uploadedWorld ? "holes" : "failed"),
+            worldTextures.size(), rebuilt, retryRefused);
+        } else {
+          traceFmt("atlas: max=%d fallback=512 budget=%llu reason=%s state=%s tiles=%zu rebuilt=%zu",
+            requestedExtent,
+            static_cast<unsigned long long>(renderer.atlasBudgetBytes() / (1024ull * 1024ull)),
+            g_worldAtlasFallbackReason,
+            allocationFailed ? "allocation-failed" : "partial", worldTextures.size(), rebuilt);
+        }
+      }
     }
     // The single-material overload is a fallback for an atlas that failed, not
     // for a filter that was asked for. Falling back here in `terrain` mode
@@ -10892,6 +11335,58 @@ bool outlineVertexExtent = false;
         displayMap.brushOriginModels, displayMap.brushOriginFaces,
         displayMap.brushOriginLodExcluded, displayMap.brushOriginNoOrigin,
         static_cast<double>(displayMap.brushOriginMaxShift));
+      // DB-2: the moving half, printed only with the switch on. An off run keeps
+      // the exact trace it printed before this change -- the line below and every
+      // refusal row after it are unchanged -- which is the trace half of "off is
+      // byte-identical".
+      if (worldDynamicBrushRequested) {
+        traceFmt("gpu: world brush dynamic enabled=1 models=%zu faces=%zu triangles=%zu",
+          displayMap.dynamicBrushModels.size(), displayMap.dynamicBrushFaceCount,
+          displayMap.dynamicBrushTriangleCount);
+        // DB-2 v5: the lane's own budget drops get their own line -- no new field is
+        // appended to the header above, so a reader of the counts never has to learn
+        // a growing tail.
+        traceFmt("gpu: world brush dynamic budget dropped=%zu",
+          displayMap.dynamicBrushTrianglesDropped);
+        // DB-2 self-check: the rows must tile [0, triangles) in order, each row
+        // owning only its own triangles. A row that starts at zero, overlaps its
+        // predecessor, or whose bounds are not the zero sentinel is the exact
+        // defect this check exists to name -- and it takes two models to show.
+        std::size_t rowEnd = 0;
+        std::size_t rowTriangles = 0;
+        bool rowsOk = displayMap.dynamicBrushTriangleCount == displayMap.dynamicBrushTriangles.size();
+        for (const auto& dynamic : displayMap.dynamicBrushModels) {
+          rowTriangles += dynamic.triangleCount;
+          if (dynamic.triangleCount == 0) {
+            if (dynamic.firstTriangle != 0) rowsOk = false;
+            for (int axis = 0; axis < 3; ++axis) {
+              if (dynamic.boundsMin[axis] != 0.0f || dynamic.boundsMax[axis] != 0.0f) rowsOk = false;
+            }
+            continue;
+          }
+          if (dynamic.firstTriangle < rowEnd) rowsOk = false;
+          for (int axis = 0; axis < 3; ++axis) {
+            if (dynamic.boundsMin[axis] > dynamic.boundsMax[axis]) rowsOk = false;
+          }
+          rowEnd = dynamic.firstTriangle + dynamic.triangleCount;
+        }
+        if (rowTriangles != displayMap.dynamicBrushTriangles.size()) rowsOk = false;
+        if (rowEnd > displayMap.dynamicBrushTriangles.size()) rowsOk = false;
+        traceFmt("gpu: world brush dynamic check=%s rows=%zu covered=%zu triangles=%zu",
+          rowsOk ? "pass" : "FAIL", displayMap.dynamicBrushModels.size(), rowEnd,
+          displayMap.dynamicBrushTriangles.size());
+        for (const auto& dynamic : displayMap.dynamicBrushModels) {
+          traceFmt("gpu: world brush dynamic model=*%d entity=%d class=%s firstface=%d faces=%d"
+            " triangles=%zu firsttriangle=%zu bounds=(%.1f,%.1f,%.1f)..(%.1f,%.1f,%.1f)",
+            dynamic.modelIndex, dynamic.entityIndex,
+            dynamic.className.empty() ? "(none)" : dynamic.className.c_str(),
+            dynamic.firstFace, dynamic.faceCount, dynamic.triangleCount,
+            dynamic.firstTriangle,
+            dynamic.boundsMin[0], dynamic.boundsMin[1], dynamic.boundsMin[2],
+            dynamic.boundsMax[0], dynamic.boundsMax[1], dynamic.boundsMax[2]);
+        }
+      }
+
       // D-14 (2026-11-09): name every refused brush model, one line each, so the
       // counters below can be checked against a map instead of being taken on
       // trust. These lines are additive: nothing reads them, no count above or
@@ -11601,6 +12096,24 @@ bool outlineVertexExtent = false;
       sample.worldTilesRefusedTranslucent,
       static_cast<unsigned long long>(sample.worldAtlasLayerBytes),
       sample.worldAtlasPlanReason.empty() ? "-" : sample.worldAtlasPlanReason.c_str());
+    // ---- D-33b: the budget this plan was priced against, on one line ---------
+    // Emitted only when the run asked for more than the baseline extent or forced
+    // a budget: the default run's trace is the one the pinned captures were made
+    // with, and a new line there is a new trace. `vram=0` means the adapter gave
+    // no answer, which is also what makes `budget` fall back to 384 MiB.
+    if (persistent.render.textureAtlasMax > 512 || textureBudgetMibGiven || g_worldAtlasFellBack) {
+      // After a 512 refresh the extent and the budget are the effective 512 / 384, not
+      // the values the run asked for: budget is read back from the renderer, and reason
+      // names the fallback cause rather than the retry plan's own verdict.
+      const char* planReason = sample.worldAtlasPlanReason.empty()
+        ? "-" : sample.worldAtlasPlanReason.c_str();
+      traceFmt("atlas: vram=%llu budget=%llu max=%u fallback=%u reason=%s",
+        static_cast<unsigned long long>(renderer.adapterVideoMemoryBytes() / (1024ull * 1024ull)),
+        static_cast<unsigned long long>(renderer.atlasBudgetBytes() / (1024ull * 1024ull)),
+        static_cast<unsigned>(renderer.settings().textureAtlasMax),
+        g_worldAtlasFellBack ? 1u : 0u,
+        g_worldAtlasFellBack && g_worldAtlasFallbackReason ? g_worldAtlasFallbackReason : planReason);
+    }
     {
       std::unordered_map<std::string, std::size_t> trianglesByMaterial;
       for (const auto& triangle : displayMap.triangles) ++trianglesByMaterial[triangle.material];
@@ -13615,7 +14128,7 @@ bool outlineVertexExtent = false;
         // tick exact by construction rather than by retrying, which is what
         // a pinned pixel diff needs. The hold lasts one frame: the draw that
         // satisfies it disarms the capture and the next iteration resumes.
-        if (captureArmed && captureTick > 0 && g_playback.tick > captureTick) {
+        if (captureArmed && captureTick >= 0 && g_playback.tick > captureTick) {
           g_playback.tick = static_cast<std::int32_t>(captureTick);
           g_playbackControl.noteExternalCursor(g_playback.tick);
           g_playbackControl.resetAccumulator();
@@ -13869,7 +14382,13 @@ bool outlineVertexExtent = false;
       // at the end of the scene block and the per-frame first-person glow all use
       // this one answer. A tick with no resolved snapshot clears it rather than
       // keeping the previous tick's beams on screen.
-      if (tf2::native::main_internal::g_cliGameplayFx) {
+      // H1b (2026-11-23): the broadcast overlay's medic cell is drawn from
+      // this same reading, so a run that asked for the overlay gets it even
+      // without --gameplay-fx. The drawing paths that consume it stay behind
+      // their own switch, so a plain broadcast run changes no pixels but the
+      // overlay's own.
+      if (tf2::native::main_internal::g_cliGameplayFx
+          || tf2::native::main_internal::hudBroadcastEnabled()) {
         if (sceneTickResolved) {
           g_gameplayFxReading = tf2::native::readGameplayFx(currentEntityStates, demoNetworkSummary, sceneTick,
             static_cast<tf2::native::FxUberSource>(tf2::native::main_internal::g_cliGameplayFxUberSource));
@@ -15022,9 +15541,30 @@ bool outlineVertexExtent = false;
             draw.origin[1] = instance.transform.origin[1];
             draw.origin[2] = instance.transform.origin[2];
             draw.hasAngles = instance.transform.hasAngles;
-            draw.angles[0] = instance.transform.angles[0];
-            draw.angles[1] = instance.transform.angles[1];
-            draw.angles[2] = instance.transform.angles[2];
+            // A1c: a player body is DRAWN at its yaw, never at the eye angles.
+            // Source feeds the view's pitch to the body_pitch pose parameter
+            // (request.pose.aimPitch below already does exactly that); putting
+            // m_angEyeAngles[0] into the draw matrix as well rotated the whole
+            // body by the view pitch -- the gate traces carried pitch=51.176 at
+            // ent=2/tick=17895 and pitch=84.353 at ent=8/tick=26866, and the
+            // upright reading built from these rows inherited that tilt, so the
+            // same pitch was counted twice. Roll is the same kind of view
+            // instance, so both are zeroed here; only yaw places a CTFPlayer
+            // body (T105-n30: the drawn body's yaw IS viewYaw).
+            // A1c: a player BODY is drawn at its yaw. This loop also draws
+            // props that reach the entity pass; their transform angles are
+            // m_angRotation (a dropped weapon's or a grenade's real pitch and
+            // roll), so the clean-up is gated on the same `player` flag the
+            // budget split uses -- only a player's eye angles are the view.
+            // A1d: one rule, one function (entity_model.h). The hat, the held
+            // weapon and the overlay silhouette call the same one below; a call
+            // site that spelled the rule again is how the overlay drifted.
+            float bodyDrawAngles[3];
+            tf2::native::playerBodyDrawAngles(
+              player, instance.transform.angles, bodyDrawAngles);
+            draw.angles[0] = bodyDrawAngles[0];
+            draw.angles[1] = bodyDrawAngles[1];
+            draw.angles[2] = bodyDrawAngles[2];
             // T105/task-37 Half B: the player's own leaf bake. The origin is the
             // entity's, not the eye's -- a model is lit where it stands, and the
             // eye can be a view-height above the floor in a different leaf.
@@ -15198,6 +15738,14 @@ bool outlineVertexExtent = false;
                 const auto labelAt = [&binding](std::size_t index) -> const std::string& {
                   return binding->anims.sequences[index].label;
                 };
+                const auto usableActionAt = [&binding](std::size_t index) {
+                  const auto& sequence = binding->anims.sequences[index];
+                  if (sequence.weights.readable && sequence.weights.sum <= 0.0f) return false;
+                  if (sequence.animDesc < 0) return false;
+                  tf2::native::AnimationChannelCensus channels;
+                  return tf2::native::censusAnimationChannels(binding->anims,
+                    sequence.animDesc, channels) && channels.ok && channels.animatedBones > 0;
+                };
                 std::int32_t crouchLocomotion = -1;
                 std::string crouchLocomotionLabel;
                 crouchLocomotion = tf2::native::chooseCrouchLocomotionSequence(
@@ -15228,17 +15776,37 @@ bool outlineVertexExtent = false;
                 choice.aimMoving = tf2::native::chooseAimMatrixSequence(
                   binding->anims.sequences.size(), labelAt, frameCountAt, true,
                   &choice.aimMovingLabel);
+                choice.attackPrimary = tf2::native::choosePlayerActionSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt,
+                  tf2::native::PlayerActionKind::AttackPrimary, usableActionAt,
+                  &choice.attackPrimaryLabel);
+                choice.reloadStart = tf2::native::choosePlayerActionSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt,
+                  tf2::native::PlayerActionKind::ReloadStart, usableActionAt,
+                  &choice.reloadStartLabel);
+                choice.reloadLoop = tf2::native::choosePlayerActionSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt,
+                  tf2::native::PlayerActionKind::ReloadLoop, usableActionAt,
+                  &choice.reloadLoopLabel);
+                choice.reloadEnd = tf2::native::choosePlayerActionSequence(
+                  binding->anims.sequences.size(), labelAt, frameCountAt,
+                  tf2::native::PlayerActionKind::ReloadEnd, usableActionAt,
+                  &choice.reloadEndLabel);
                 // T61.1: one line per model, whatever the per-entity trace cap
                 // is. The pick is per modelPath and resolved once, so the
                 // capped "anim: ent=" lines can only ever show the first eight
                 // bodies; a gate that wants to assert what the product plays
                 // needs a line that is always present exactly once per model.
-                traceFmt("anim: pick model=%s idleSeq=%d idleLabel=%s movingSeq=%d movingLabel=%s walkSeq=%d walkLabel=%s aimIdleSeq=%d aimIdleLabel=%s aimMoveSeq=%d aimMoveLabel=%s",
+                traceFmt("anim: pick model=%s idleSeq=%d idleLabel=%s movingSeq=%d movingLabel=%s walkSeq=%d walkLabel=%s aimIdleSeq=%d aimIdleLabel=%s aimMoveSeq=%d aimMoveLabel=%s attackSeq=%d attackLabel=%s reloadStartSeq=%d reloadStartLabel=%s reloadLoopSeq=%d reloadLoopLabel=%s reloadEndSeq=%d reloadEndLabel=%s",
                   instance.modelPath.c_str(), choice.idle, choice.idleLabel.c_str(),
                   choice.moving, choice.movingLabel.c_str(),
                   choice.walk, choice.walkLabel.c_str(),
                   choice.aimIdle, choice.aimIdleLabel.c_str(),
-                  choice.aimMoving, choice.aimMovingLabel.c_str());
+                  choice.aimMoving, choice.aimMovingLabel.c_str(),
+                  choice.attackPrimary, choice.attackPrimaryLabel.c_str(),
+                  choice.reloadStart, choice.reloadStartLabel.c_str(),
+                  choice.reloadLoop, choice.reloadLoopLabel.c_str(),
+                  choice.reloadEnd, choice.reloadEndLabel.c_str());
                 if (animationDriveStates) {
                   // One line per model for the state picks, so a gate can name
                   // the clip each layer would play WITHOUT relying on a body
@@ -15330,37 +15898,27 @@ bool outlineVertexExtent = false;
                 tf2::native::locomotionBlendWeights(step.speed);
               const float viewYaw = instance.transform.hasAngles
                 ? instance.transform.angles[1] : 0.0f;
-              // A body's heading cannot be measured on a body that has not moved
-              // since the last tick, so a standing body aims with weight 0 in
-              // this version. The alternative is inventing a heading out of the
-              // view angle, which would make the aim layer weight itself.
-              // 2026-11-22: --aim-layer-heading view measures the offset against the
-              // yaw the body is DRAWN at, which today is viewYaw itself (CTFPlayer
-              // sends no m_angRotation), so the aim layer's weight is 0 -- the same
-              // conclusion the posegrid path reached (docs/N17-PHASE-C-VISUAL-
-              // 2026-11-21.md section 4.2). The default keeps the velocity heading.
               const bool aimAgainstView = tf2::native::main_internal::g_cliAimHeadingView;
               const float aimDegrees = (hasBodyHeading && !aimAgainstView)
                 ? tf2::native::aimLayerWeightDegrees(viewYaw,
                     static_cast<float>(bodyHeadingDegrees))
                 : 0.0f;
               const std::int32_t aimSequence = runtime.moving ? choice.aimMoving : choice.aimIdle;
-              // The aim matrix is a ONE-FRAME pose: letting it carry the whole
-              // body would stop the locomotion cycle, so its share is capped and
-              // the cycle keeps driving the body underneath.
-              float aimWeight = aimDegrees;
-              if (aimWeight > tf2::native::kAimLayerWeightCap) {
+              const bool additiveAim = animationBlendMode == tf2::native::AnimationBlendMode::PoseGrid
+                && aimSequence >= 0 && std::getenv("TF2_NATIVE_NO_AIM_MATRIX") == nullptr;
+              float aimWeight = additiveAim ? 1.0f : aimDegrees;
+              if (!additiveAim && aimWeight > tf2::native::kAimLayerWeightCap) {
                 aimWeight = tf2::native::kAimLayerWeightCap;
               }
               const bool haveAimLayer = aimSequence >= 0 && aimWeight > 0.0f;
-              const float locomotionShare = haveAimLayer ? 1.0f - aimWeight : 1.0f;
+              const float locomotionShare = haveAimLayer && !additiveAim ? 1.0f - aimWeight : 1.0f;
               const std::int32_t walkRung = choice.walk >= 0 ? choice.walk : choice.moving;
               blendReading.idle = locomotion.idle * locomotionShare;
               blendReading.walk = locomotion.walk * locomotionShare;
               blendReading.run = locomotion.run * locomotionShare;
               blendReading.aim = haveAimLayer ? aimWeight : 0.0f;
               blendReading.sum = blendReading.idle + blendReading.walk
-                + blendReading.run + blendReading.aim;
+                + blendReading.run + (additiveAim ? 0.0f : blendReading.aim);
               blendReading.idleRate = idleRate;
               blendReading.rate = step.rate;
               blendReading.viewYaw = viewYaw;
@@ -15573,7 +16131,7 @@ bool outlineVertexExtent = false;
                   // a right strafe was fed as a left one, which is what a per-cell
                   // walk/run pick keys on. The forward component was already correct.
                   request.pose.moveY = normalisedSpeed * static_cast<float>(std::sin(relative));
-                  request.pose.hasAim = hasBodyHeading;
+                  request.pose.hasAim = haveAimLayer;
                   // T105-n30: the drawn body's yaw IS viewYaw -- a CTFPlayer never
                   // networks m_angRotation, so the entity's angles are the view, and
                   // the mesh is drawn facing where the eyes look. The aim layer's
@@ -15588,9 +16146,69 @@ bool outlineVertexExtent = false;
                   // Step 5 (draw the body at the heading, then aim from it) would make
                   // this -(viewYaw - bodyHeadingDegrees); that is a separate change and
                   // is not what is drawn today.
-                  request.pose.aimYaw = 0.0f;
+                  request.pose.aimYaw = aimAgainstView || !hasBodyHeading ? 0.0f
+                    : -tf2::native::wrappedDegreeDifference(viewYaw,
+                        static_cast<float>(bodyHeadingDegrees));
                   request.pose.aimPitch = -instance.transform.angles[0];
+                  if (std::getenv("TF2_NATIVE_NEUTRAL_AIM") != nullptr) {
+                    request.pose.aimYaw = 0.0f;
+                    request.pose.aimPitch = 0.0f;
+                  }
+                  if (std::getenv("TF2_NATIVE_ZERO_AIM_YAW") != nullptr) request.pose.aimYaw = 0.0f;
+                  if (std::getenv("TF2_NATIVE_ZERO_AIM_PITCH") != nullptr) request.pose.aimPitch = 0.0f;
                   request.poseBoneMask = true;
+                }
+                const auto playerEvents = playerAnimationEvents.find(instance.entityIndex);
+                if (playerEvents != playerAnimationEvents.end()) {
+                  const auto eventAfterTick = std::upper_bound(playerEvents->second.begin(),
+                    playerEvents->second.end(), resolvedSceneTick,
+                    [](std::int32_t tick, const tf2::native::TempEntityEvent* event) {
+                      return tick < event->tick;
+                    });
+                  if (eventAfterTick != playerEvents->second.begin()) {
+                    const tf2::native::TempEntityEvent& event = **(eventAfterTick - 1);
+                    tf2::native::PlayerActionKind action = tf2::native::PlayerActionKind::AttackPrimary;
+                    std::int32_t actionSequence = -1;
+                    if (event.event == tf2::native::kPlayerAnimEventAttackPrimary) {
+                      actionSequence = choice.attackPrimary;
+                    } else if (event.event == tf2::native::kPlayerAnimEventReload) {
+                      action = tf2::native::PlayerActionKind::ReloadStart;
+                      actionSequence = choice.reloadStart;
+                    } else if (event.event == tf2::native::kPlayerAnimEventReloadLoop) {
+                      action = tf2::native::PlayerActionKind::ReloadLoop;
+                      actionSequence = choice.reloadLoop;
+                    } else if (event.event == tf2::native::kPlayerAnimEventReloadEnd) {
+                      action = tf2::native::PlayerActionKind::ReloadEnd;
+                      actionSequence = choice.reloadEnd;
+                    }
+                    if (actionSequence >= 0
+                        && static_cast<std::size_t>(actionSequence) < binding->anims.sequences.size()) {
+                      const auto& actionDesc = binding->anims.sequences[
+                        static_cast<std::size_t>(actionSequence)];
+                      if (actionDesc.animDesc >= 0
+                          && static_cast<std::size_t>(actionDesc.animDesc) < binding->anims.animations.size()) {
+                        const auto& actionAnim = binding->anims.animations[
+                          static_cast<std::size_t>(actionDesc.animDesc)];
+                        const double durationTicks = actionAnim.fps > 0.0f
+                          ? static_cast<double>(actionAnim.frameCount) / actionAnim.fps * tickRate : 0.0;
+                        const double elapsedTicks = std::max(0,
+                          resolvedSceneTick - event.tick);
+                        if (durationTicks > 0.0 && std::isfinite(durationTicks)
+                            && (action == tf2::native::PlayerActionKind::ReloadLoop
+                                || elapsedTicks < durationTicks)) {
+                          double cycle = elapsedTicks / durationTicks;
+                          if (action == tf2::native::PlayerActionKind::ReloadLoop) {
+                            cycle = std::fmod(cycle, 1.0);
+                          }
+                          request.action.sequence = actionSequence;
+                          request.action.event = static_cast<std::int32_t>(event.event);
+                          request.action.eventTick = event.tick;
+                          request.action.cycle = static_cast<float>(std::max(0.0, std::min(1.0, cycle)));
+                          request.action.weight = 1.0f;
+                        }
+                      }
+                    }
+                  }
                 }
               } else {
                 ++playerAnimSkipped;
@@ -15659,6 +16277,22 @@ bool outlineVertexExtent = false;
             };
             if (binding != nullptr) {
               const auto sampled = tf2::native::buildAnimationSkinMatrices(binding, request);
+              if (request.action.sequence >= 0) {
+                static std::unordered_map<std::int32_t, std::int64_t> lastActionTrace;
+                const std::int64_t signature = static_cast<std::int64_t>(request.action.eventTick) * 8
+                  + request.action.event;
+                if (lastActionTrace[instance.entityIndex] != signature) {
+                  lastActionTrace[instance.entityIndex] = signature;
+                  const std::string& actionLabel = binding->anims.sequences[
+                    static_cast<std::size_t>(request.action.sequence)].label;
+                  traceFmt("anim: action tick=%d ent=%d event=%d eventTick=%d seq=%d label=%s cycle=%.6f applied=%d reason=%s",
+                    static_cast<int>(resolvedSceneTick), static_cast<int>(instance.entityIndex),
+                    request.action.event, request.action.eventTick, request.action.sequence,
+                    actionLabel.c_str(), static_cast<double>(request.action.cycle),
+                    sampled.actionApplied ? 1 : 0,
+                    sampled.actionReason.empty() ? "-" : sampled.actionReason.c_str());
+                }
+              }
               ledgerFrame = sampled.frame;
               ledgerFrameCount = sampled.frameCount;
               ledgerLocalFrame = sampled.localFrame;
@@ -15741,18 +16375,27 @@ bool outlineVertexExtent = false;
                   : static_cast<double>(pelvisMatrices[0][7]);
                 const double pelvisZ = pelvisMatrices.empty() ? 0.0
                   : static_cast<double>(pelvisMatrices[0][11]);
-                const double drawPitch = instance.transform.hasAngles
+                // G-8: the old name `drawPitch` claimed the pose was drawn at
+                // the demo's view pitch. It was not: this is the eye pitch
+                // (m_angEyeAngles[0]) that feeds body_pitch, while a player body
+                // is drawn at its yaw only (A1c). Keep both numbers side by side
+                // so a reader can tell a pose reading apart from a draw angle.
+                const double eyePitch = instance.transform.hasAngles
                   ? static_cast<double>(instance.transform.angles[0]) : 0.0;
+                const double drawnPitch = static_cast<double>(draw.angles[0]);
                 const double drawYaw = instance.transform.hasAngles
                   ? static_cast<double>(instance.transform.angles[1]) : 0.0;
-                traceFmt("anim: posecheck tick=%d ent=%d model=%s mode=%s state=%s pitch=%.3f yaw=%.3f cycle=%.6f frame=%d localFrame=%d moveX=%.4f moveY=%.4f aimYaw=%.3f aimPitch=%.3f aimW=%.4f pelvis=%.4f,%.4f,%.4f bones=%zu origin=%.3f,%.3f,%.3f",
+                traceFmt("anim: posecheck tick=%d sceneTick=%d serverTick=%d ent=%d model=%s mode=%s state=%s pitch=%.3f drawnPitch=%.3f yaw=%.3f cycle=%.6f frame=%d localFrame=%d moveX=%.4f moveY=%.4f aimYaw=%.3f aimPitch=%.3f aimW=%.4f pelvis=%.4f,%.4f,%.4f bones=%zu origin=%.3f,%.3f,%.3f",
                   static_cast<int>(resolvedSceneTick),
+                  static_cast<int>(resolvedSceneTick),
+                  static_cast<int>(g_sceneResolvedServerTick),
                   static_cast<int>(instance.entityIndex),
                   instance.modelPath.c_str(),
                   request.blendMode == tf2::native::AnimationBlendMode::PoseGrid
                     ? "posegrid" : "legacy",
                   ledgerState.c_str(),
-                  drawPitch,
+                  eyePitch,
+                  drawnPitch,
                   drawYaw,
                   static_cast<double>(request.cycle),
                   sampled.frame,
@@ -15790,24 +16433,155 @@ bool outlineVertexExtent = false;
                                                  static_cast<double>(bm[idx][7]),
                                                  static_cast<double>(bm[idx][11])};
                   };
-                  const auto headPos = boneAt(6);
-                  const auto neckPos = boneAt(5);
-                  const auto hipLPos = boneAt(13);
-                  const auto handLPos = boneAt(19);
-                  const auto handRPos = boneAt(20);
-                  traceFmt("anim: posebones tick=%d ent=%d model=%s mode=%s bones=%zu bbox=(%.3f,%.3f,%.3f)..(%.3f,%.3f,%.3f) head=(%.3f,%.3f,%.3f) neck=(%.3f,%.3f,%.3f) hipL=(%.3f,%.3f,%.3f) handL=(%.3f,%.3f,%.3f) handR=(%.3f,%.3f,%.3f)",
+                  // G-8: a fixed matrix slot is not a bone. demo.mdl's slot 6 is
+                  // bip_upperArm_L (its head is 16) while soldier.mdl happens to
+                  // have the head at 6, so the old slot read passed one model and
+                  // lied about the other. Resolve by name; keep the old slot only
+                  // as a fallback so a model missing the name still prints a row,
+                  // and let bonesByName expose that a fallback happened.
+                  int bonesByName = 0;
+                  auto namedBone = [&](const char* name, std::size_t legacy) {
+                    const int idx = tf2::native::pose_upright_detail::renderBone(*binding, name);
+                    if (idx >= 0) { ++bonesByName; return static_cast<std::size_t>(idx); }
+                    return legacy;
+                  };
+                  const auto headPos = boneAt(namedBone("bip_head", 6));
+                  const auto neckPos = boneAt(namedBone("bip_neck", 5));
+                  const auto hipLPos = boneAt(namedBone("bip_hip_L", 13));
+                  const auto handLPos = boneAt(namedBone("bip_hand_L", 19));
+                  const auto handRPos = boneAt(namedBone("bip_hand_R", 20));
+                  traceFmt("anim: posebones tick=%d sceneTick=%d serverTick=%d ent=%d model=%s mode=%s bones=%zu bonesByName=%d bbox=(%.3f,%.3f,%.3f)..(%.3f,%.3f,%.3f) head=(%.3f,%.3f,%.3f) neck=(%.3f,%.3f,%.3f) hipL=(%.3f,%.3f,%.3f) handL=(%.3f,%.3f,%.3f) handR=(%.3f,%.3f,%.3f)",
                     static_cast<int>(resolvedSceneTick),
+                    static_cast<int>(resolvedSceneTick),
+                    static_cast<int>(g_sceneResolvedServerTick),
                     static_cast<int>(instance.entityIndex),
                     instance.modelPath.c_str(),
                     request.blendMode == tf2::native::AnimationBlendMode::PoseGrid
                       ? "posegrid" : "legacy",
                     bm.size(),
+                    bonesByName,
                     lo[0], lo[1], lo[2], hi[0], hi[1], hi[2],
                     headPos[0], headPos[1], headPos[2],
                     neckPos[0], neckPos[1], neckPos[2],
                     hipLPos[0], hipLPos[1], hipLPos[2],
                     handLPos[0], handLPos[1], handLPos[2],
                     handRPos[0], handRPos[1], handRPos[2]);
+                }
+              }
+              // F-group wiring (t108 pose gate): the drawn body's upright reading.
+              // Under the same env-gated switch as `anim: posecheck` (taken as a
+              // static, so a default run is byte-for-byte unchanged). The matrix
+              // is built by the renderer's own recipe
+              // (native/src/native_renderer_entity.cpp:585-590) from THIS
+              // instance's real placement -- origin/angles/hasAngles and its own
+              // sourceModelSpace flag -- against the world the renderer normalizes
+              // with, so a mutation on either side moves this reading.
+              {
+                static const bool uprightTrace = poseCheckTrace
+                  || std::getenv("TF2_NATIVE_POSECHECK2") != nullptr;
+                if (uprightTrace) {
+                  tf2::native::EntityModelWorldMap uprightWorld;
+                  uprightWorld.centerX = renderer.worldCenterX();
+                  uprightWorld.centerY = renderer.worldCenterY();
+                  uprightWorld.minZ = renderer.worldMinZ();
+                  uprightWorld.horizontalScale = renderer.worldHorizontalScale();
+                  uprightWorld.zScale = renderer.worldHorizontalScale();
+                  tf2::native::EntityModelInstanceRows uprightRows;
+                  // The ruler asks the product which rule this frame is drawn
+                  // by: entityDrawSkipsPermutation is the same function the
+                  // renderer calls, so a tree without the skinned term builds
+                  // Y-up rows and says so, and an A1b tree builds the pure
+                  // placement. Never hard-code either answer here -- a ruler
+                  // that assumes the new rule reads the old product as fallen,
+                  // and one that assumes the old rule cancels the product's own
+                  // compensation and reads the old product as standing.
+                  // G-2: one predicate, shared with the renderer. The skinned
+                  // term is true only when the pose actually reaches the screen:
+                  // the bind-pose mutation withholds the skin matrices, so that
+                  // frame is drawn through the bind path and keeps the
+                  // permutation -- the ruler must build what was drawn.
+                  const bool uprightSkinnedDraw = !sampled.bindPose
+                    && !sampled.skinMatrices.empty() && !entityBindPoseMutation;
+                  const bool uprightRowsBuilt = tf2::native::buildEntityModelInstanceRows(
+                    draw.origin, draw.angles, draw.hasAngles, uprightWorld, uprightRows,
+                    tf2::native::entityDrawSkipsPermutation(
+                      draw.sourceModelSpace, uprightSkinnedDraw));
+                  // G-2: the hash of the rows this reading was taken from is
+                  // printed here and compared with the renderer's uploaded hash
+                  // after the draw. The mutation flips one bit on purpose so the
+                  // comparison itself can be proved to catch drift.
+                  std::uint32_t uprightRowsHash = 0u;
+                  if (uprightRowsBuilt) {
+                    uprightRowsHash = tf2::native::hashEntityModelInstanceRows(uprightRows);
+                    if (std::getenv("TF2_NATIVE_ROWSHASH_MUTATION") != nullptr) {
+                      uprightRowsHash ^= 1u;
+                    }
+                  }
+                  draw.traceRowsHash = uprightRowsHash;
+                  // A1d: the silhouette's expectation, built from the SAME
+                  // placement through the overlay's own rule. The overlay joins
+                  // each silhouette to its draw by entity index and copies that
+                  // draw's skinning decision (main.cpp:17164-17166), so a
+                  // silhouette is skinned exactly when the body is and drops the
+                  // Y-up permutation with it. An earlier version of this block
+                  // assumed the silhouette always keeps the permutation (that it
+                  // is drawn unskinned); the join happens before the buffers are
+                  // built, so that premise was false and the expectation then
+                  // measured rows the pass never uploaded. The skinned term below
+                  // is the draw's own -- uprightSkinnedDraw is the predicate that
+                  // sets draw.skinningEnabled -- so both sides ask
+                  // entityDrawSkipsPermutation the same question.
+                  std::uint32_t uprightOverlayRowsHash = 0u;
+                  if (uprightRowsBuilt) {
+                    tf2::native::EntityModelInstanceRows overlayRows;
+                    if (tf2::native::buildEntityModelInstanceRows(
+                          draw.origin, draw.angles, draw.hasAngles, uprightWorld, overlayRows,
+                          tf2::native::entityDrawSkipsPermutation(false, uprightSkinnedDraw))) {
+                      uprightOverlayRowsHash =
+                        tf2::native::hashEntityModelInstanceRows(overlayRows);
+                    }
+                  }
+                  if (uprightRowsHash != 0u) {
+                    g_tracedRowsHashes.push_back({
+                      static_cast<std::int32_t>(instance.entityIndex), uprightRowsHash,
+                      uprightOverlayRowsHash});
+                  }
+                  // This is the draw's own decision, one line below: when it fires,
+                  // the entity is drawn through the mesh's bind matrices and the
+                  // animated pose never reaches the screen. The line then says
+                  // drawn=bind -- with the frame's real instance matrix still
+                  // supplied, so found=1 -- and the gate rejects the reading on
+                  // that token alone (pose-invariant-check.sh, "drawn-with-bind-
+                  // matrices"), which is what the negative control greps for.
+                  const bool uprightDrawnWithBind = !sampled.bindPose
+                    && !sampled.skinMatrices.empty() && entityBindPoseMutation;
+                  // Always hand over the matrix this frame is actually drawn
+                  // with. The bind-pose mutation withholds the *skin* matrices;
+                  // it does not move the instance. Passing nullptr here made the
+                  // negative control fail on bones-missing:model-to-world instead
+                  // of on drawn-with-bind-matrices -- i.e. it blamed the ruler
+                  // for the very switch the control exists to test.
+                  const tf2::native::PoseUprightReading upright =
+                    tf2::native::measurePoseUpright(*binding,
+                      sampled.boneModelMatrices,
+                      uprightRowsBuilt ? uprightRows.positionRows : nullptr);
+                  traceFmt("anim: upright tick=%d ent=%d model=%s mode=%s state=%s drawn=%s found=%d missing=%s ordered=%d upDot=%.4f height=%.4f legs=%d legDev=%.4f nonFinite=%zu rowsHash=%08x",
+                    static_cast<int>(resolvedSceneTick),
+                    static_cast<int>(instance.entityIndex),
+                    instance.modelPath.c_str(),
+                    request.blendMode == tf2::native::AnimationBlendMode::PoseGrid
+                      ? "posegrid" : "legacy",
+                    ledgerState == "moving" ? "moving" : "idle",
+                    uprightDrawnWithBind ? "bind" : "skin",
+                    upright.found ? 1 : 0,
+                    upright.missing.c_str(),
+                    upright.ordered ? 1 : 0,
+                    static_cast<double>(upright.upDot),
+                    static_cast<double>(upright.heightRatio),
+                    upright.legsFound ? 1 : 0,
+                    static_cast<double>(upright.legDevDeg),
+                    upright.nonFinite,
+                    static_cast<unsigned>(uprightRowsHash));
                 }
               }
               if (!sampled.bindPose && !sampled.skinMatrices.empty()
@@ -15985,9 +16759,15 @@ bool outlineVertexExtent = false;
                       cosmeticDraw.origin[1] = instance.transform.origin[1];
                       cosmeticDraw.origin[2] = instance.transform.origin[2];
                       cosmeticDraw.hasAngles = instance.transform.hasAngles;
-                      cosmeticDraw.angles[0] = instance.transform.angles[0];
-                      cosmeticDraw.angles[1] = instance.transform.angles[1];
-                      cosmeticDraw.angles[2] = instance.transform.angles[2];
+                      // A1d: the piece rides the body's drawn placement through
+                      // the same function the body used, not through a copy of
+                      // whatever array happened to be in scope.
+                      float cosmeticAngles[3];
+                      tf2::native::playerBodyDrawAngles(
+                        player, instance.transform.angles, cosmeticAngles);
+                      cosmeticDraw.angles[0] = cosmeticAngles[0];
+                      cosmeticDraw.angles[1] = cosmeticAngles[1];
+                      cosmeticDraw.angles[2] = cosmeticAngles[2];
                       // The world pass's colour rule, unchanged: a mesh with painted
                       // slots already carries its colour in the paint family, so
                       // tinting it again would double-paint the piece.
@@ -16065,9 +16845,16 @@ bool outlineVertexExtent = false;
                     attachDraw.origin[1] = instance.transform.origin[1];
                     attachDraw.origin[2] = instance.transform.origin[2];
                     attachDraw.hasAngles = instance.transform.hasAngles;
-                    attachDraw.angles[0] = instance.transform.angles[0];
-                    attachDraw.angles[1] = instance.transform.angles[1];
-                    attachDraw.angles[2] = instance.transform.angles[2];
+                    // A1d: the held weapon is placed by the body's own rows, so
+                    // it asks the same function the body asked instead of reusing
+                    // an array by scope. A prop's real angles and a player's
+                    // yaw-only placement both go through one rule.
+                    float attachAngles[3];
+                    tf2::native::playerBodyDrawAngles(
+                      player, instance.transform.angles, attachAngles);
+                    attachDraw.angles[0] = attachAngles[0];
+                    attachDraw.angles[1] = attachAngles[1];
+                    attachDraw.angles[2] = attachAngles[2];
                     // T105/task-37 Half B: the held weapon is lit by the leaf the
                     // HAND is in, read from the body's origin, not by a leaf
                     // lookup of its own -- the weapon's placed position is the
@@ -16106,6 +16893,17 @@ bool outlineVertexExtent = false;
                     // part of this feature; the bind pose IS the grip frame.
                     attachDraw.hasLocalMatrix = true;
                     std::copy(holdMatrix.begin(), holdMatrix.end(), attachDraw.localPositionRows);
+                    // T108/A1b: the hold matrix is a BONE frame composed with the
+                    // body's own pose, so it lives in the same model space the
+                    // skin matrices land in -- Source Z-up, with the animated root
+                    // now kept. The weapon's raw mesh positions are not permuted
+                    // here: holdLocal already carries the weapon's own bind frame
+                    // into the hand's bone space (T83), exactly like poseToBone
+                    // does for the body. Applying the historical Y-up permutation
+                    // to these rows would rotate the weapon a second time and it
+                    // would leave the hand; the body's rows are placement-only for
+                    // the same reason, so the weapon stays in that frame.
+                    attachDraw.sourceModelSpace = true;
                     attachReady = true;
                     char attachLine[384];
                     const auto& boneFrame =
@@ -16123,10 +16921,17 @@ bool outlineVertexExtent = false;
                       // One line per (class, hold source, bone, weapon) actually
                       // placed: the reading a reviewer uses to check that each class
                       // got a WEAPON and not an arbitrary bone.
-                      traceFmt("weaponAttach: class=%s ent=%d source=%s bone=%d body=%s "
+                      // The tick pair is the instant this signature was first
+                      // placed, not a per-tick sample: the line is deduplicated
+                      // per (class, source, bone, weapon). It is here so a
+                      // reader can tell how far the snapshot behind an
+                      // attachment reading lags the scene clock.
+                      traceFmt("weaponAttach: class=%s ent=%d sceneTick=%d serverTick=%d source=%s bone=%d body=%s "
                         "weaponEnt=%d weaponClass=%s weapon=%s worldIndex=%d family=%u "
                         "boneAt=%.1f,%.1f,%.1f holdAt=%.1f,%.1f,%.1f",
                         instance.className.c_str(), static_cast<int>(instance.entityIndex),
+                        static_cast<int>(resolvedSceneTick),
+                        static_cast<int>(g_sceneResolvedServerTick),
                         held->second.holdSource.c_str(), static_cast<int>(held->second.holdBone),
                         instance.modelPath.c_str(), attachDraw.entityIndex,
                         held->second.lookup.weaponClassName.c_str(),
@@ -16171,7 +16976,7 @@ bool outlineVertexExtent = false;
             // Only on the frame that is about to be captured: the capture
             // arms on this same iteration and prints its own frame_tick,
             // so the ledger and the picture are the same moment.
-            if (worldDebugView == 9 && captureArmed && captureTick > 0
+            if (worldDebugView == 9 && captureArmed && captureTick >= 0
                 && g_playback.tick >= captureTick) {
               const int entityId = static_cast<int>(draws.size()) + 1;
               if (tf2::native::encodeEntityId(entityId, draw.color)) {
@@ -16215,7 +17020,7 @@ bool outlineVertexExtent = false;
                 // is taken the same way the ledger takes a body's (draws.size()+1
                 // at the moment of the push), and the line carries attach=1 plus
                 // the body's entity so a reader can join it to that body.
-                if (worldDebugView == 9 && captureArmed && captureTick > 0
+                if (worldDebugView == 9 && captureArmed && captureTick >= 0
                     && g_playback.tick >= captureTick) {
                   const int attachId = static_cast<int>(draws.size()) + 1;
                   if (tf2::native::encodeEntityId(attachId, attachDraw.color)) {
@@ -16514,7 +17319,7 @@ bool outlineVertexExtent = false;
         // with the same three-way player test that loop uses, so the filter
         // cannot disagree with what was drawn.
         std::unordered_set<std::uint16_t> traceEntities;
-        if (captureArmed && captureTick > 0
+        if (captureArmed && captureTick >= 0
             && static_cast<std::int64_t>(g_playback.tick) >= captureTick) {
           for (const auto& traceCandidate : drawCandidates) {
             const bool tracePlayer = traceCandidate.className.find("Player") != std::string::npos
@@ -16877,6 +17682,7 @@ bool outlineVertexExtent = false;
         if (viewModelSequenceOverride >= 0) {
           animationInput.hasSequence = true;
           animationInput.sequence = viewModelSequenceOverride;
+          animationInput.sequenceStartTick = -1;
         }
         // ---- The companion: the model the entity's index names --------------
         // Built once per distinct path. `requestedPath` is assigned even when the
@@ -17690,6 +18496,21 @@ bool outlineVertexExtent = false;
     // the panel is closed (the controller returns immediately).
     tf2::native::logsPanelPump(window);
     if (updateNativeUiControls(window)) ++uiUpdateCalls;
+    // I3c: --ui-list-click is the mouse path's test hook. The select comes first
+    // because LBN_DBLCLK is sent for an item the user already selected on the first
+    // click; posting it alone would read LB_GETCURSEL, find nothing, and "pass" by
+    // doing nothing.
+    if (g_uiListClickCli >= 0 && g_uiResultsList) {
+      const int itemCount =
+        static_cast<int>(SendMessageW(g_uiResultsList, LB_GETCOUNT, 0, 0));
+      if (itemCount > g_uiListClickCli) {
+        SendMessageW(g_uiResultsList, LB_SETCURSEL,
+          static_cast<WPARAM>(g_uiListClickCli), 0);
+        SendMessageW(window, WM_COMMAND, MAKEWPARAM(kUiResultsList, LBN_DBLCLK),
+          reinterpret_cast<LPARAM>(g_uiResultsList));
+        g_uiListClickCli = -1;
+      }
+    }
     if (refreshWindowTitle()) ++titleUpdateCalls;
     // T97: the live readout. The one line this task adds to main.cpp, placed here
     // because the frame state above is final and the draw below has not happened.
@@ -17757,6 +18578,47 @@ bool outlineVertexExtent = false;
     tf2::native::main_internal::hudSetBroadcast(hudBroadcastCli);
     tf2::native::main_internal::hudSetBroadcastFx(
       g_gameplayFxReadingValid ? &g_gameplayFxReading : nullptr);
+    // I3b (design sections 9.1/9.4): a click on one result row lands the workspace three
+    // seconds before that anomaly and plays. Queued rather than applied where the rows
+    // are built, because a seek request is refused until the session is bound. The
+    // trace reports what the request API answered, not what this code intended.
+    if (g_resultsSelectPending >= 0) {
+      const tf2::native::UiResultActivation activation = tf2::native::activateResultRow(
+          g_analysisResultRows, static_cast<std::size_t>(g_resultsSelectPending));
+      if (activation.valid) {
+        tf2::native::PlaybackRequest seek;
+        seek.kind = tf2::native::PlaybackRequestKind::JumpTicks;
+        seek.tick = activation.row.seekTick;
+        seek.source = "results";
+        const tf2::native::PlaybackResult seekResult = applyPlaybackRequest(seek);
+        tf2::native::PlaybackRequest resume;
+        resume.kind = tf2::native::PlaybackRequestKind::SetPaused;
+        resume.paused = false;
+        resume.source = "results";
+        const tf2::native::PlaybackResult resumeResult = applyPlaybackRequest(resume);
+        const bool seekAccepted =
+            seekResult.status == tf2::native::PlaybackRequestStatus::Applied
+            || seekResult.status == tf2::native::PlaybackRequestStatus::SameTick;
+        const bool resumeAccepted =
+            resumeResult.status == tf2::native::PlaybackRequestStatus::Applied;
+        if (activation.row.switchesPlayer && activation.row.entity >= 0) {
+          // Rules 4 and 5 in spectate_target.h: a manual pick applies the same frame
+          // and wins over the recording's own director -- that is what "switch to that
+          // player" means for a teleport or a sharp turn.
+          g_spectateManualTarget = activation.row.entity;
+        }
+        traceFmt("analysis: results click index=%d start=%d seek=%d kind=%s entity=%d switch=%d seeked=%d playing=%d tick=%d",
+            activation.row.index, static_cast<int>(activation.row.startTick),
+            static_cast<int>(activation.row.seekTick),
+            tf2::native::uiMotionAnomalyKindName(activation.row.kind),
+            static_cast<int>(activation.row.entity), activation.row.switchesPlayer ? 1 : 0,
+            seekAccepted ? 1 : 0, resumeAccepted ? 1 : 0, static_cast<int>(g_playback.tick));
+      } else {
+        traceFmt("analysis: results click index=%d refused rows=%zu", g_resultsSelectPending,
+            g_analysisResultRows.size());
+      }
+      g_resultsSelectPending = -1;
+    }
     hudApplyLive(window, !captureFramePath.empty(), hudOffCli, hudLiveCli,
       demoHeader.mapName,
       g_playback, hudState, currentEntityStates, demoNetworkSummary,
@@ -17793,7 +18655,12 @@ bool outlineVertexExtent = false;
       // a different size than the one the import resolved against, and where a
       // stale rectangle would make the frame comparison measure the wrong region.
       if (captureArmed && g_renderer) hudApplyRects(window);
-      if (g_renderer && captureArmed && g_playback.tick >= captureTick) {
+      // D78: only an explicit --capture-tick gates the frame. Without one the
+      // sentinel is -1 and the capture still fires on the first draw, which is
+      // what --capture-frame alone has always meant (frame-capture-check.sh,
+      // minimap-hud-check.sh).
+      if (g_renderer && captureArmed
+          && (captureTick < 0 || g_playback.tick >= captureTick)) {
         // R1: the pass family is armed beside the frame it describes, so both are
         // consumed by the same draw. Cleared inside the renderer when it writes.
         renderer.setPassDepthPrefix(capturePassDepthPrefix.wstring());
@@ -17952,6 +18819,70 @@ bool outlineVertexExtent = false;
         // line describes a frame that exists.
         traceWorldDraw();
         traceOutlineDraw();
+        // G-2: prove the upright reading measured the matrix the GPU was
+        // handed, not merely one built by the same recipe. Consumed and
+        // cleared here, so an entity the renderer refused shows as gpu=-
+        // rather than as a silent pass.
+        if (!g_tracedRowsHashes.empty()) {
+          std::size_t rowsChecked = 0;
+          std::size_t rowsMismatched = 0;
+          std::size_t rowsUnverified = 0;
+          std::size_t overlayChecked = 0;
+          std::size_t overlayMismatched = 0;
+          for (const auto& traced : g_tracedRowsHashes) {
+            std::uint32_t uploadedRowsHash = 0;
+            const bool uploaded = g_renderer->entityModelUploadedRowsHash(
+              traced.entityIndex, uploadedRowsHash);
+            // A1d: the silhouette pass's own reading. The body's match= keeps its
+            // original meaning; this is a second, independent check that the
+            // silhouette was built from the placement the body was drawn with.
+            std::uint32_t uploadedOverlayRowsHash = 0;
+            const bool overlayUploaded = g_renderer->overlayModelUploadedRowsHash(
+              traced.entityIndex, uploadedOverlayRowsHash);
+            const bool overlayMatch = overlayUploaded && traced.overlayRowsHash != 0u
+              && uploadedOverlayRowsHash == traced.overlayRowsHash;
+            if (overlayUploaded) {
+              ++overlayChecked;
+              if (!overlayMatch) ++overlayMismatched;
+            }
+            if (!uploaded) {
+              ++rowsUnverified;
+              if (overlayUploaded) {
+                traceFmt("anim: rowscheck ent=%d trace=%08x gpu=- match=0 overlay=%08x overlayMatch=%d",
+                  static_cast<int>(traced.entityIndex),
+                  static_cast<unsigned>(traced.rowsHash),
+                  static_cast<unsigned>(uploadedOverlayRowsHash),
+                  overlayMatch ? 1 : 0);
+              } else {
+                traceFmt("anim: rowscheck ent=%d trace=%08x gpu=- match=0 overlay=- overlayMatch=0",
+                  static_cast<int>(traced.entityIndex),
+                  static_cast<unsigned>(traced.rowsHash));
+              }
+              continue;
+            }
+            const bool match = uploadedRowsHash == traced.rowsHash;
+            ++rowsChecked;
+            if (!match) ++rowsMismatched;
+            if (overlayUploaded) {
+              traceFmt("anim: rowscheck ent=%d trace=%08x gpu=%08x match=%d overlay=%08x overlayMatch=%d",
+                static_cast<int>(traced.entityIndex),
+                static_cast<unsigned>(traced.rowsHash),
+                static_cast<unsigned>(uploadedRowsHash),
+                match ? 1 : 0,
+                static_cast<unsigned>(uploadedOverlayRowsHash),
+                overlayMatch ? 1 : 0);
+            } else {
+              traceFmt("anim: rowscheck ent=%d trace=%08x gpu=%08x match=%d overlay=- overlayMatch=0",
+                static_cast<int>(traced.entityIndex),
+                static_cast<unsigned>(traced.rowsHash),
+                static_cast<unsigned>(uploadedRowsHash),
+                match ? 1 : 0);
+            }
+          }
+          traceFmt("anim: rowscheck summary checked=%zu mismatched=%zu unverified=%zu overlayChecked=%zu overlayMismatched=%zu",
+            rowsChecked, rowsMismatched, rowsUnverified, overlayChecked, overlayMismatched);
+          g_tracedRowsHashes.clear();
+        }
         // F0-c: the renderer cannot write the trace itself, so the frame that lost a
         // resource says so here. Printed on the frame the totals moved, so a healthy
         // run pays nothing for it.

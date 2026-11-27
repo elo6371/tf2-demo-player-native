@@ -17,6 +17,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+// D-33b: the adapter's dedicated video memory is a DXGI reading, not a D3D one.
+#include <dxgi.h>
 #include <limits>
 #include <string>
 #include <unordered_map>
@@ -203,11 +205,49 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::string& texture
   return true;
 }
 
-bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTexture>& textures) {
+void Renderer::releaseWorldAtlases() {
+  worldAtlasTextures_.clear();
+  worldBlendAtlasTextures_.clear();
+  worldModulateAtlasTextures_.clear();
+  worldBumpAtlasTextures_.clear();
+  worldBump2AtlasTextures_.clear();
+  worldDetailAtlasTextures_.clear();
+}
+
+bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTexture>& textures,
+                                   HRESULT* uploadResult) {
+  // D-33b rev7 (C blocking): report this upload's own HRESULT. `lastError_` is a
+  // run-level record -- an earlier stage can leave a failure in it, and the
+  // plan-refused path below writes ERROR_NO_DATA, so a caller reading the member
+  // after this call cannot tell which of the three happened. The guard starts the
+  // record at S_OK for the duration of the upload, publishes it to `uploadResult`,
+  // and then puts the earlier value back on success: the device-error policy keeps
+  // seeing the run-level record it saw before (a recovered atlas does not launder
+  // an earlier failure), while the caller gets this call's answer.
+  const HRESULT errorBeforeUpload = lastError_;
+  lastError_ = S_OK;
+  if (uploadResult) *uploadResult = S_OK;
+  struct UploadResultScope {
+    HRESULT& record;
+    HRESULT* out;
+    HRESULT prior;
+    ~UploadResultScope() {
+      if (out) *out = record;
+      if (record == S_OK) record = prior;
+    }
+  } uploadResultScope{lastError_, uploadResult, errorBeforeUpload};
   if (!device_ || !map.valid || map.triangles.empty()) {
     lastError_ = E_INVALIDARG;
     return false;
   }
+  // Owner 2026-11-26 20:15 (lead): a texture that refuses BEFORE it reaches the
+  // device (bad arguments, a buffer that does not match its dimensions, a byte
+  // budget) has no HRESULT of its own. Reporting S_OK from here would tell the
+  // device-error policy that nothing failed and would make the atlas fallback's
+  // "is this out of memory" test read a pre-flight refusal as a device hint.
+  const auto deviceError = [](HRESULT reported) {
+    return FAILED(reported) ? reported : E_FAIL;
+  };
   // The tile size is the plan's (`WorldAtlasPlanOptions::tileSize`), not a
   // second constant kept here: two copies of 514 is one copy that can drift.
   worldBlendTexturesSeen_ = textures.size();
@@ -275,7 +315,25 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       ? source.bump2Rgba.size() : 0;
     requests.push_back(std::move(request));
   }
-  WorldAtlasPlan plan = planWorldTiles(requests);
+  // Owner 2026-11-26 19:45: the plan's tile size follows the tiles the caller
+  // actually handed over. The floor is the 514 the plan has always used (a
+  // 512-texel tile plus the replicated border on each side), so a run that did not
+  // ask for a larger tile builds the identical plan and draws the identical
+  // frame; an extent above 512 raises the ceiling here instead of the planner
+  // refusing every tile as TileTooLarge.
+  WorldAtlasPlanOptions planOptions;
+  // D-33b: the budget the plan prices against, from the adapter when the extent
+  // asked for is above the baseline and from the historical constant otherwise.
+  // Set here, before the tiles raise the ceiling, so the planner sees both the
+  // extent it may use and the bytes it may spend in the same call.
+  planOptions.budgetBytes = atlasBudgetBytes();
+  for (const auto& source : textures) {
+    const std::uint32_t extent = std::max(source.width, source.height);
+    if (extent + 2u * planOptions.tileBorder > planOptions.tileSize) {
+      planOptions.tileSize = extent + 2u * planOptions.tileBorder;
+    }
+  }
+  WorldAtlasPlan plan = planWorldTiles(requests, planOptions);
   // I-23: the budget refusal is charged per batch and ends the plan, so a
   // translucent material in a refused batch never gets a tile and therefore never
   // reaches the tiled alpha branch. Rescue exactly those materials into a batch
@@ -559,6 +617,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
   worldModulateAtlasTextures_.clear();
   worldBumpAtlasTextures_.clear();
   worldBump2AtlasTextures_.clear();
+  // Owner 2026-11-26 20:15 (lead): the detail layer belongs to the same set. The old
+  // five-line clear left it behind, so a second upload appended to the previous
+  // upload's list and the per-batch draw indexed the wrong view.
+  worldDetailAtlasTextures_.clear();
   // The single-atlas readings are the largest atlas, not batch 0's: a gate that
   // asked "is there a 4112-wide, 64-MiB atlas" still gets the atlas it meant,
   // and the total is reported separately.
@@ -580,7 +642,10 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
     if (!albedo.createMipped(device_.Get(), context_.Get(), atlasPixels[batch], layout.width, layout.height,
                        &atlasError, atlasBudget)) {
       worldAtlasReason_ = atlasError.empty() ? "the world atlas texture was refused" : atlasError;
-      lastError_ = E_FAIL;
+      // Owner 2026-11-26 19:45: keep the device's own HRESULT rather than a blanket
+      // E_FAIL. E_OUTOFMEMORY is the one refusal the caller can answer with a
+      // smaller request, and main.cpp asks exactly that question.
+      lastError_ = deviceError(albedo.failureHresult());
       return false;
     }
     worldAtlasTextures_.push_back(std::move(albedo));
@@ -589,7 +654,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
       if (!blend.createMipped(device_.Get(), context_.Get(), blendPixels[batch], layout.width, layout.height,
                         &atlasError, atlasBudget)) {
         worldAtlasReason_ = atlasError.empty() ? "the blend atlas texture was refused" : atlasError;
-        lastError_ = E_FAIL;
+        lastError_ = deviceError(blend.failureHresult());
         return false;
       }
       worldBlendAtlasTextures_.push_back(std::move(blend));
@@ -603,7 +668,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
                            &atlasError, atlasBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the blend modulate atlas texture was refused" : atlasError;
-        lastError_ = E_FAIL;
+        lastError_ = deviceError(modulate.failureHresult());
         return false;
       }
       worldModulateAtlasTextures_.push_back(std::move(modulate));
@@ -622,7 +687,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
                        layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the bump atlas texture was refused" : atlasError;
-        lastError_ = E_FAIL;
+        lastError_ = deviceError(bump.failureHresult());
         return false;
       }
       worldBumpAtlasTextures_.push_back(std::move(bump));
@@ -635,7 +700,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
                         layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the bump2 atlas texture was refused" : atlasError;
-        lastError_ = E_FAIL;
+        lastError_ = deviceError(bump2.failureHresult());
         return false;
       }
       worldBump2AtlasTextures_.push_back(std::move(bump2));
@@ -649,7 +714,7 @@ bool Renderer::uploadWorldGeometry(const BspMap& map, const std::vector<WorldTex
                          layout.featureHeight, &atlasError, featureBudget)) {
         worldAtlasReason_ = atlasError.empty()
           ? "the detail atlas texture was refused" : atlasError;
-        lastError_ = E_FAIL;
+        lastError_ = deviceError(detail.failureHresult());
         return false;
       }
       worldDetailAtlasTextures_.push_back(std::move(detail));
@@ -1564,6 +1629,52 @@ bool Renderer::worldClipCaptureDrawState(unsigned int outIndices[3], float outVi
   for (int i = 0; i < 4; ++i) outViewport[i] = worldClipCaptureViewport_[i];
   outConstantsHash = worldClipCaptureConstantsHash_;
   return true;
+}
+
+// ---- D-33b: the atlas budget, from the adapter and not from a constant ------
+// Owner 2026-11-26 21:20 (MASTER-TASKLIST.md:250-263) asks the budget to follow
+// the video memory the device actually has, the way the source engine reads the
+// adapter's dedicated memory before it sizes anything (`shaderdevicebase.cpp:774`,
+// `shaderdevicedx10.cpp:212`). The query is a COM round-trip and the answer cannot
+// change while the process runs, so it is cached.
+std::uint64_t Renderer::adapterVideoMemoryBytes() {
+  if (adapterVideoMemoryQueried_) return adapterVideoMemoryBytes_;
+  adapterVideoMemoryQueried_ = true;
+  if (device_) {
+    Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
+    if (SUCCEEDED(device_.As(&dxgiDevice)) && dxgiDevice) {
+      Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+      if (SUCCEEDED(dxgiDevice->GetAdapter(adapter.GetAddressOf())) && adapter) {
+        DXGI_ADAPTER_DESC description{};
+        if (SUCCEEDED(adapter->GetDesc(&description))) {
+          adapterVideoMemoryBytes_ = static_cast<std::uint64_t>(description.DedicatedVideoMemory);
+        }
+      }
+    }
+  }
+  return adapterVideoMemoryBytes_;
+}
+
+std::uint64_t Renderer::atlasBudgetBytes() {
+  constexpr std::uint64_t kMib = 1024ull * 1024ull;
+  // The forced switch wins: it is the only way to price the plan below what the
+  // adapter could give, which is how the 512 fallback is exercised on a machine
+  // whose memory would otherwise cover the larger plan.
+  if (atlasBudgetMib_ > 0) return static_cast<std::uint64_t>(atlasBudgetMib_) * kMib;
+  // At or below the baseline extent the historical budget stands, byte for byte:
+  // a 512 run must price, plan and trace exactly as it did before this existed.
+  if (settings_.textureAtlasMax <= 512) return 384ull * kMib;
+  const std::uint64_t vram = adapterVideoMemoryBytes();
+  // No adapter answer (a lost device, an unusual driver): the constant, not
+  // "unlimited" -- an unpriced plan fails at the texture instead of being priced.
+  if (vram == 0) return 384ull * kMib;
+  // Half the dedicated memory, floored at the historical 384 MiB so a small card
+  // keeps the plan it can already hold, and capped at 1.5 GiB so a large card does
+  // not turn the atlas into a swap file. 2/4/8 GiB give 1024/1536/1536 MiB.
+  std::uint64_t budget = vram / 2u;
+  if (budget < 384ull * kMib) budget = 384ull * kMib;
+  if (budget > 1536ull * kMib) budget = 1536ull * kMib;
+  return budget;
 }
 
 } // namespace tf2::native

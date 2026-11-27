@@ -305,6 +305,8 @@ struct ViewModelAnimationInput {
   int modelIndex = -1;
   bool hasSequence = false;
   int sequence = -1;
+  // A change of sequence or animation parity restarts the viewmodel clock.
+  std::int32_t sequenceStartTick = -1;
   bool hasPlaybackRate = false;
   float playbackRate = 0.0f;
   // DT_BaseViewModel has no m_flCycle; see point 2 above.

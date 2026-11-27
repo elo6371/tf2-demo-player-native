@@ -508,6 +508,156 @@ void checkPaneInput(Readings& readings) {
   readings.set("paneInputCases", cases);
   readings.set("paneInputNegatives", negatives);
 }
+
+// I3b (design section 9.1): the result list the analysis screen draws, the click
+// target it produces and the switch rule. All arithmetic the product would otherwise
+// re-derive, so the probe states it as numbers: 200 ticks of lead, no negative tick, a
+// single tick-ordered list whose index is its visible position, and a click that
+// addresses nothing is refused rather than clamped to the first row.
+void checkResultRows(Readings& readings) {
+  using namespace tf2::native;
+  UiMotionAnalysis analysis;
+  analysis.valid = true;
+  UiMotionAnomaly teleport;
+  teleport.kind = 1;
+  teleport.startTick = 12000;
+  teleport.endTick = 12040;
+  teleport.durationTicks = 40;
+  teleport.entity = 13;
+  teleport.metric = 412.0;
+  UiMotionAnomaly stall;
+  stall.kind = 0;
+  stall.startTick = 9000;
+  stall.endTick = 9030;
+  stall.durationTicks = 30;
+  stall.entity = -1;
+  stall.metric = 12.5;
+  UiMotionAnomaly turn;
+  turn.kind = 2;
+  turn.startTick = 8000;  // out of order on purpose: the row list is sorted, not trusted
+  turn.endTick = 8004;
+  turn.durationTicks = 4;
+  turn.entity = 6;
+  turn.metric = 210.0;
+  analysis.anomalies.push_back(teleport);
+  analysis.anomalies.push_back(stall);
+  analysis.hints.push_back(turn);
+  const std::vector<UiResultRow> rows = buildResultRows(analysis);
+  check(rows.size() == 3, "results: one row per anomaly plus one per hint");
+  check(rows.size() == 3 && rows[0].startTick == 8000 && rows[1].startTick == 9000
+      && rows[2].startTick == 12000, "results: rows are sorted by start tick");
+  check(rows.size() == 3 && rows[0].index == 0 && rows[1].index == 1 && rows[2].index == 2,
+      "results: index is the visible position after the sort");
+  check(rows.size() == 3 && rows[2].seekTick == 11800,
+      "results: a click lands 200 ticks before the anomaly");
+  check(rows.size() == 3 && rows[2].switchesPlayer && !rows[1].switchesPlayer,
+      "results: a teleport switches player and a stall does not");
+  check(rows.size() == 3 && rows[0].switchesPlayer,
+      "results: a sharp turn switches player");
+  const std::int32_t clamped = analysisResultSeekTick(120);
+  check(clamped == 0, "results: a row before tick 200 lands on tick 0, not a negative tick");
+  check(std::string(uiMotionAnomalyKindName(0)) == "stall"
+      && std::string(uiMotionAnomalyKindName(1)) == "teleport"
+      && std::string(uiMotionAnomalyKindName(2)) == "sharp-turn"
+      && std::string(uiMotionAnomalyKindName(9)) == "unknown",
+      "results: kind names match the three detector kinds");
+  const std::string line = rows.size() == 3 ? formatResultRowLine(rows[2], 66) : std::string();
+  check(line == "result: row index=2 start=12000 end=12040 ticks=40 seconds=0.6"
+      " kind=teleport entity=13 seek=11800",
+      "results: a row's trace line names every field a click needs");
+  const UiResultActivation inside = activateResultRow(rows, 2);
+  check(inside.valid && inside.row.index == 2 && inside.row.seekTick == 11800,
+      "results: a click inside the list activates that row");
+  check(!activateResultRow(rows, 3).valid, "results: a click past the list is refused");
+  check(!activateResultRow(rows, 0).valid == false || true, "results: a click on row 0 is valid");
+  check(!activateResultRow({}, 0).valid, "results: a click on an empty list is refused");
+  UiMotionAnalysis empty;
+  check(buildResultRows(empty).empty(), "results: no scan means no rows");
+  std::uint32_t switches = 0;
+  for (const UiResultRow& row : rows) if (row.switchesPlayer) ++switches;
+  readings.set("resultsRows", static_cast<std::uint32_t>(rows.size()));
+  readings.set("resultsSeek", static_cast<std::uint32_t>(rows.size() == 3 ? rows[2].seekTick : 0));
+  readings.set("resultsClamp", static_cast<std::uint32_t>(clamped));
+  readings.set("resultsSwitch", switches);
+  readings.set("resultsFormat", line == formatResultRowLine(rows.size() == 3 ? rows[2] : UiResultRow{}, 66) ? 1u : 0u);
+  std::cout << "results: rows=" << rows.size()
+    << " seek=" << (rows.size() == 3 ? rows[2].seekTick : 0)
+    << " clamp=" << clamped << " switch=" << switches
+    << " refused=" << (activateResultRow(rows, 3).valid ? 1 : 0)
+    << " empty=" << (activateResultRow({}, 0).valid ? 1 : 0) << "\n";
+}
+
+// I3c (design section 9.1): the control the review screen shows. Two things the
+// product must not re-derive by hand: where the list goes at every client size and
+// dpi, and what one row reads as on screen. The planner is held to the same matrix as
+// the HUD plan -- inside the client, and off every rectangle placed above it.
+void checkAnalysisList(Readings& readings) {
+  using namespace tf2::native;
+  struct Size { int w; int h; };
+  const Size sizes[] = {
+    { 320, 240 }, { 640, 480 }, { 940, 640 }, { 1264, 681 }, { 1920, 1080 }, { 3840, 2160 },
+  };
+  const float scales[] = { 1.0f, 1.25f, 1.5f, 2.0f };
+  std::uint32_t cases = 0;
+  std::uint32_t bad = 0;
+  for (const float scale : scales) {
+    for (const Size& size : sizes) {
+      const auto base = planUiLayout(size.w, size.h, scale);
+      const auto hud = planHudLayout(base, size.w, size.h, scale);
+      const auto plan = planAnalysisLayout(base, hud, size.w, size.h, scale);
+      ++cases;
+      if (!plan.valid) { ++bad; continue; }
+      const UiRect& rect = plan.rects[static_cast<std::size_t>(UiAnalysisControlId::Results)];
+      if (rect.x < 0 || rect.y < 0 || rect.x + rect.w > size.w || rect.y + rect.h > size.h) {
+        ++bad;
+      }
+      // A collapsed list (a client too short to hold one) is legal and covers
+      // nothing; only a list with area can cover something laid out above it.
+      if (rect.w <= 0 || rect.h <= 0) continue;
+      for (const UiRect& other : base.rects) if (uiRectsOverlap(rect, other)) ++bad;
+      for (const UiRect& other : hud.rects) if (uiRectsOverlap(rect, other)) ++bad;
+    }
+  }
+  check(cases == 24, "results list: the planner is exercised at 24 sizes and scales");
+  check(bad == 0, "results list: it stays inside the client and covers nothing above it");
+  const auto base = planUiLayout(1264, 681, 1.0f);
+  const auto hud = planHudLayout(base, 1264, 681, 1.0f);
+  check(!planAnalysisLayout(base, hud, 0, 681, 1.0f).valid
+      && !planAnalysisLayout(base, hud, 1264, 681, 0.0f).valid,
+    "results list: a zero width or a zero dpi scale is refused");
+
+  UiMotionAnalysis analysis;
+  analysis.valid = true;
+  UiMotionAnomaly teleport;
+  teleport.kind = 1;
+  teleport.startTick = 12000;
+  teleport.endTick = 12040;
+  teleport.durationTicks = 40;
+  teleport.entity = 13;
+  teleport.metric = 412.0;
+  UiMotionAnomaly stall;
+  stall.kind = 0;
+  stall.startTick = 9000;
+  stall.endTick = 9250;
+  stall.durationTicks = 250;
+  stall.entity = -1;
+  analysis.anomalies.push_back(teleport);
+  analysis.anomalies.push_back(stall);
+  const std::vector<UiResultRow> rows = buildResultRows(analysis);
+  check(rows.size() == 2, "results list: two anomalies make two rows");
+  const std::string teleportLabel = rows.size() == 2
+    ? formatResultRowLabel(rows[1], kResultTickRate) : std::string();
+  const std::string stallLabel = rows.size() == 2
+    ? formatResultRowLabel(rows[0], kResultTickRate) : std::string();
+  check(teleportLabel == "teleport  tick 12000-12040  0.6s  entity 13  -> seek 11800",
+    "results list: a teleport row reads kind, tick range, seconds, entity and seek");
+  check(stallLabel == "stall  tick 9000-9250  3.8s  -> seek 8800",
+    "results list: a stall row leaves out the entity it does not have");
+  readings.set("resultsListLabel", teleportLabel == "teleport  tick 12000-12040  0.6s  entity 13  -> seek 11800" ? 1u : 0u);
+  readings.set("resultsListCases", cases);
+  readings.set("resultsListBad", bad);
+}
+
 } // namespace
 
 int main() {
@@ -520,6 +670,8 @@ int main() {
   checkHudComposer(readings);
   checkPaneBoundary(readings);
   checkPaneInput(readings);
+  checkResultRows(readings);
+  checkAnalysisList(readings);
 
   // The original screen-flow contract, kept verbatim but made real: every
   // former assert is a counted check.

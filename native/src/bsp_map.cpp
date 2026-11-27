@@ -1,4 +1,5 @@
 #include "bsp_map.h"
+#include "source_flags.h"
 #include "LzmaDec.h"
 
 #include <algorithm>
@@ -278,7 +279,8 @@ void writeLuxel(std::uint8_t* dest, const std::uint8_t* sample, std::uint64_t& t
 bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     std::size_t triangleLimit, int atlasMaxWidth, bool keepMapWinding,
     bool flipDisplacementWinding,
-    const std::vector<std::string>& extraStaticClasses) {
+    const std::vector<std::string>& extraStaticClasses,
+    bool drawDynamicBrushes) {
   map = {}; auto fail = [&](const char* message) { map.error = message; return false; };
   // T105: the switches this reading answers to, read once per parse. Deliberately
   // not cached in a static: a probe parses the same bytes twice in one process to
@@ -898,7 +900,32 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     for (const auto& extra : extraStaticClasses) if (extra == name) return true;
     return false;
   };
+  // DB-2: the brush classes that can move while the demo plays. The list is the
+  // twelve VISIBLE_BRUSH_ENTITIES of [DA] map.rs:35-48 minus the four this
+  // parser already draws statically (func_brush, func_wall, func_illusionary,
+  // func_lod): a class in both lists would be drawn twice, once at the pose VBSP
+  // compiled and once at the entity's pose. func_respawnroomvisualizer is
+  // CFuncBrush with its own Spawn (game/server/tf/func_respawnroom.cpp:27,
+  // :393-400) and is named by DB-3's whitelist, so it belongs here too.
+  //
+  // A class NOT in this list is refused exactly as before: with the switch on,
+  // the parser only ever MOVES a model out of the static buffer when it knows the
+  // class is drawn by an entity that can move it. An unknown classname still
+  // lands in brushModelsSkippedUnknown, and a classless model still lands there.
+  const auto brushClassIsDynamic = [](const std::string& name) {
+    return name == "func_wall_toggle" || name == "func_door"
+      || name == "func_door_rotating" || name == "func_movelinear"
+      || name == "func_water" || name == "func_water_analog" || name == "momentary_door"
+      || name == "func_rotating" || name == "func_tracktrain"
+      || name == "func_breakable" || name == "func_physbox"
+      || name == "func_physbox_multiplayer" || name == "func_respawnroomvisualizer";
+  };
   std::vector<char> modelDrawn(modelCount, 0);
+  // DB-2: which brush models move, and the row each one owns in
+  // dynamicBrushModels. A model is in at most one of the two sets, so the static
+  // buffer and the dynamic list can never carry the same face.
+  std::vector<char> modelDynamic(modelCount, 0);
+  std::vector<int> modelDynamicRow(modelCount, -1);
   // T88: which brush models lost a face to the triangle budget, so
   // brushModelsDroppedByBudget is a number of models and not of faces.
   std::vector<char> modelLostToBudget(modelCount, 0);
@@ -937,6 +964,23 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       } else {
         ++map.brushOriginNoOrigin;
       }
+    } else if (drawDynamicBrushes && brushClassIsDynamic(className)) {
+      // DB-2: kept out of the static world and named as a binding target. The
+      // counters that describe the static parse (brushModelsDrawn, brushFacesDrawn,
+      // brushFacesSkipped) are untouched, so the static half reports the same
+      // numbers with the switch on or off; the moving half has its own counts.
+      // This is also why the switch being off cannot move a byte: with it off this
+      // branch is unreachable and the model falls into the refusal below exactly
+      // as it did before.
+      modelDynamic[index] = 1;
+      modelDynamicRow[index] = static_cast<int>(map.dynamicBrushModels.size());
+      BspDynamicBrushModel dynamic;
+      dynamic.entityIndex = modelEntityIndex[index];
+      dynamic.className = className;
+      dynamic.modelIndex = static_cast<std::int32_t>(index);
+      dynamic.firstFace = modelFirst;
+      dynamic.faceCount = modelFaces;
+      map.dynamicBrushModels.push_back(dynamic);
     } else {
       // D-14: name the refusal. The two counters keep their exact meaning and
       // nothing below reads this vector -- no face, triangle or draw decision
@@ -963,6 +1007,10 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     if (slot >= faceModel.size()) return true;
     const auto model = faceModel[slot];
     if (model <= 0) return true;   // worldspawn or an unattributed face
+    // DB-2: a moving model's faces are not part of the static buffer; they go to
+    // dynamicBrushTriangles and are posed per tick. They are not "skipped"
+    // either: with the switch off this vector is never filled.
+    if (modelDynamic[static_cast<std::size_t>(model)] != 0) return false;
     return modelDrawn[static_cast<std::size_t>(model)] != 0;
   };
   std::unordered_map<std::int32_t, std::string> names; for (std::size_t i = 0; i < texData.size() / 32; ++i) { const auto id = read<std::int32_t>(texData, i * 32 + 12); if (id >= 0 && static_cast<std::size_t>(id) < stringTable.size() / 4) names[static_cast<std::int32_t>(i)] = readString(stringData, read<std::int32_t>(stringTable, static_cast<std::size_t>(id) * 4)); }
@@ -1003,7 +1051,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         const auto infoIndex = read<std::int16_t>(faces, base + 10);
         if (infoIndex < 0 || static_cast<std::size_t>(infoIndex) >= texInfo.size() / 72) continue;
         const auto flags = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 64);
-        if ((flags & (2 | 4 | 64 | 128)) != 0) continue;
+        if ((flags & (source::kSurfSky2D | source::kSurfSky | source::kSurfTrigger | source::kSurfNoDraw)) != 0) continue;
         const auto lightOffset = read<std::int32_t>(faces, base + 20);
         const auto samplesW = read<std::int32_t>(faces, base + 36) + 1;
         const auto samplesH = read<std::int32_t>(faces, base + 40) + 1;
@@ -1083,14 +1131,37 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
   std::vector<std::string> lightDropLines;
   std::size_t lightDropTotal = 0;
   for (std::int32_t faceIndex = 0; faceIndex < allFaceCount; ++faceIndex) {
-    if (!faceIsDrawable(faceIndex)) {
+    // DB-2: a moving model's face is decided BEFORE the static gate below. It
+    // must not be counted in brushFacesSkipped (that counter names a decision
+    // about the static buffer) and it must reach the emission route, which sends
+    // it to dynamicBrushTriangles instead of the world buffer. With the switch
+    // off modelDynamic is all zero, faceDynamic stays false and this block is the
+    // same gate as before.
+    bool faceDynamic = false;
+    int faceDynamicRow = -1;
+    if (faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceModel.size()) {
+      const auto faceDynamicModel = faceModel[static_cast<std::size_t>(faceIndex)];
+      if (faceDynamicModel > 0 && static_cast<std::size_t>(faceDynamicModel) < modelDynamic.size()
+          && modelDynamic[static_cast<std::size_t>(faceDynamicModel)] != 0) {
+        faceDynamic = true;
+        faceDynamicRow = modelDynamicRow[static_cast<std::size_t>(faceDynamicModel)];
+      }
+    }
+    // DB-2: dynamicBrushFaceCount is incremented by the emission route, on the
+    // first triangle this face actually pushes. Counting it here would include
+    // the NODRAW/TRIGGER faces and the budget refusals the trace's faces= is
+    // supposed to exclude.
+    bool dynamicFaceCounted = false;
+    if (!faceDynamic && !faceIsDrawable(faceIndex)) {
       // A refused brush model's faces: counted apart from "invalid" and "nodraw",
       // because the gap they leave is a decision this parser made, not a fact
       // about the file.
       ++map.brushFacesSkipped;
       continue;
     }
-    if (faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceModel.size()
+    // DB-2: brushFacesDrawn counts the static half only, so on and off runs of
+    // the same map report the same number. This is the only increment of it.
+    if (!faceDynamic && faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceModel.size()
         && faceModel[static_cast<std::size_t>(faceIndex)] > 0) {
       ++map.brushFacesDrawn;
     }
@@ -1104,6 +1175,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     if (faceIndex >= 0 && static_cast<std::size_t>(faceIndex) < faceModel.size()) {
       const auto model = faceModel[static_cast<std::size_t>(faceIndex)];
       if (model > 0 && static_cast<std::size_t>(model) < modelHasOrigin.size()
+          && modelDynamic[static_cast<std::size_t>(model)] == 0
           && modelHasOrigin[static_cast<std::size_t>(model)] != 0) {
         faceOrigin = modelOrigin[static_cast<std::size_t>(model)];
         ++map.brushOriginFaces;
@@ -1117,9 +1189,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // it drew before -- but its polygon is emitted into `skyTriangles`, which is
     // what makes "this empty pixel is the map's sky, at this face" a reading
     // instead of an inference from a colour.
-    const bool skyFace = (flags & (2 | 4)) != 0;
-    if (!skyFace && (flags & (64 | 128)) != 0) { ++map.facesSkippedNoDraw; continue; }
-    const bool water = (flags & 8) != 0;
+    const bool skyFace = !faceDynamic && (flags & (source::kSurfSky2D | source::kSurfSky)) != 0;
+    // The merge tree still counts NODRAW and TRIGGER under one counter; the
+    // per-bit split (HINT/SKIP included) belongs to E's world commit and is not
+    // part of this naming-only pick.
+    if (!skyFace && (flags & (source::kSurfNoDraw | source::kSurfTrigger)) != 0) { ++map.facesSkippedNoDraw; continue; }
+    const bool water = (flags & source::kSurfWarp) != 0;
     const auto texDataIndex = read<std::int32_t>(texInfo, static_cast<std::size_t>(infoIndex) * 72 + 68); const auto material = names.count(texDataIndex) ? names[texDataIndex] : std::string{};
     const auto infoBase = static_cast<std::size_t>(infoIndex) * 72;
     const float u0 = read<float>(texInfo, infoBase + 0), u1 = read<float>(texInfo, infoBase + 4), u2 = read<float>(texInfo, infoBase + 8), u3 = read<float>(texInfo, infoBase + 12);
@@ -1210,17 +1285,19 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       const float len = std::sqrt(cx * cx + cy * cy + cz * cz);
       const float plen = std::sqrt(pnx * pnx + pny * pny + pnz * pnz);
       if (len > 1e-6f && plen > 1e-6f && std::isfinite(pnx) && std::isfinite(pny) && std::isfinite(pnz)) {
-        ++map.windingFaceCount;
-        if (facePlaneSide != 0) ++map.windingSideOneFaces;
+        if (!faceDynamic) {
+          ++map.windingFaceCount;
+          if (facePlaneSide != 0) ++map.windingSideOneFaces;
+        }
         const bool pointsAlong = (cx * pnx + cy * pny + cz * pnz) > 0.0f;
-        if (pointsAlong == (facePlaneSide == 0)) ++map.windingAgreeCount;
+        if (!faceDynamic && pointsAlong == (facePlaneSide == 0)) ++map.windingAgreeCount;
         // T11 third round: the same comparison, split by class and WITHOUT the
         // side bit. This is the reading that says whether the shipped polygon
         // order is a convention or a coin toss.
         if (dispIndex >= 0) {
-          if (pointsAlong) ++map.windingStoredDispAlong; else ++map.windingStoredDispAgainst;
+          if (!faceDynamic) { if (pointsAlong) ++map.windingStoredDispAlong; else ++map.windingStoredDispAgainst; }
         } else {
-          if (pointsAlong) ++map.windingStoredBrushAlong; else ++map.windingStoredBrushAgainst;
+          if (!faceDynamic) { if (pointsAlong) ++map.windingStoredBrushAlong; else ++map.windingStoredBrushAgainst; }
         }
         const float sideSign = facePlaneSide == 0 ? 1.0f : -1.0f;
         faceOutwardX = sideSign * pnx;
@@ -1231,7 +1308,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         haveFaceOutward = true;
       }
     }
-    if (hasLightmap) {
+    if (hasLightmap && !faceDynamic) {
       ++map.lightmapFaceCount;
       map.lightmapBytes += static_cast<std::size_t>(lightBytes);
       const int storedW = samplesW - 1, storedH = samplesH - 1;
@@ -1262,8 +1339,8 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
           ? "the samples box is empty or larger than 512x512"
           : "the light offset does not land inside the lighting page");
     }
-    if (hasLightmap) {
-      // T105: the rectangle the packer reserves, border included. Reserved, not
+    if (hasLightmap && !faceDynamic) {
+      // T105: the rectangle the packer reserves, border included.
       // merely drawn: two patches that share an edge must not both claim the
       // clamp ring between them, or the ring repeats one of them into the other's
       // filter taps.
@@ -1397,6 +1474,14 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // Both must agree on which face and which brush model lost something, or the
     // counters would describe two different maps.
     const auto noteBudgetDrop = [&](std::size_t droppedTriangles) {
+      // DB-2: a dynamic refusal is booked on the dynamic line only. The static
+      // loss ledger below (trianglesDropped, firstDroppedFace, the brush model
+      // rows) must read the same whether the switch is on or off, or the two
+      // arms of one build would describe two different maps.
+      if (faceDynamic) {
+        map.dynamicBrushTrianglesDropped += droppedTriangles;
+        return;
+      }
       map.trianglesDropped += droppedTriangles;
       if (faceLostToBudget) return;
       faceLostToBudget = true;
@@ -1432,8 +1517,12 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       // where the grid was refused, arithmetically -- so the substitution is
       // not counted again. Without this, the same map would report a different
       // demand at every capacity, and the counter would only describe itself.
-      if (!(emittingFallbackQuad && faceLostToBudget)) ++map.trianglesRequested;
-      if (map.triangles.size() >= triangleLimit) {
+      if (!faceDynamic && !(emittingFallbackQuad && faceLostToBudget)) ++map.trianglesRequested;
+      // DB-2: the dynamic list has its own budget, so an on run can never
+      // refuse a static triangle the off run keeps.
+      const std::size_t liveTriangles = faceDynamic
+        ? map.dynamicBrushTriangles.size() : map.triangles.size();
+      if (liveTriangles >= triangleLimit) {
         // T88: this used to be a bare `return`. The triangle is one the map
         // asked for and the capacity refused: count it, and count the face it
         // belonged to, instead of making the loss invisible.
@@ -1557,7 +1646,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
         const float vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
         const float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
         if (nx * faceOutwardX + ny * faceOutwardY + nz * faceOutwardZ < 0.0f) {
-          ++map.windingMisfacedTriangles;
+          if (!faceDynamic) ++map.windingMisfacedTriangles;
           if (displacement) ++map.windingMisfacedDisplaced;
         }
       }
@@ -1592,7 +1681,25 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
       // T26: the face this triangle belongs to, carried into the buffer so a
       // face-id frame can name the surface under any pixel.
       triangle.faceIndex = faceIndex;
-      map.triangles.push_back(std::move(triangle));
+      if (faceDynamic && faceDynamicRow >= 0
+          && static_cast<std::size_t>(faceDynamicRow) < map.dynamicBrushModels.size()) {
+        auto& dynamic = map.dynamicBrushModels[static_cast<std::size_t>(faceDynamicRow)];
+        // DB-2: a row's start is recorded when its FIRST triangle arrives. This
+        // is what stops row k from starting at zero and claiming the triangles
+        // of the rows before it; the post-walk pass only clamps what is here.
+        if (dynamic.triangleCount == 0) {
+          dynamic.firstTriangle = map.dynamicBrushTriangles.size();
+        }
+        if (!dynamicFaceCounted) {
+          dynamicFaceCounted = true;
+          ++map.dynamicBrushFaceCount;
+        }
+        ++dynamic.triangleCount;
+        ++map.dynamicBrushTriangleCount;
+        map.dynamicBrushTriangles.push_back(std::move(triangle));
+      } else {
+        map.triangles.push_back(std::move(triangle));
+      }
     };
     bool emittedDisp = false;
     // T23: the face asked for a displacement grid. Record why it did not get
@@ -1602,7 +1709,7 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
                     kDispRange, kDispCorner, kDispNonFinite, kDispCell, kDispLimit };
     DispFail dispFail = kDispOk;
     if (dispIndex >= 0) {
-      ++map.displacementFaceCandidates;
+      if (!faceDynamic) ++map.displacementFaceCandidates;
       if (!dispInfoOk || !dispVertsOk) dispFail = kDispLump;
       else if (polygon.size() != 4) dispFail = kDispPolygon;
       else if (static_cast<std::size_t>(dispIndex) >= dispInfo.size() / 176) dispFail = kDispIndex;
@@ -1839,6 +1946,42 @@ bool BspParser::parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     // unmeasurable -- the parser could not say how much it had dropped because
     // it never looked at the rest. pushTriangle() refuses and counts instead,
     // which costs one pass over the face lump and no memory.
+  }
+  // DB-2: close the dynamic rows. Each row's firstTriangle was written when its
+  // first triangle arrived, so this pass only clamps the range to what was kept
+  // and measures the MODEL-space AABB the runtime frustum test transforms by the
+  // entity pose; a model that emitted no triangle
+  // keeps a zero range and zero bounds and is still bound at run time (a door
+  // with no drawable surface is a fact about the map, not a reason to skip the
+  // entity). Read only when the switch is on -- this loop is a no-op when the
+  // vector is empty, and an empty vector is what an off run produces.
+  for (auto& dynamic : map.dynamicBrushModels) {
+    const std::size_t first = std::min(dynamic.firstTriangle, map.dynamicBrushTriangles.size());
+    const std::size_t last = std::min(first + dynamic.triangleCount, map.dynamicBrushTriangles.size());
+    dynamic.firstTriangle = first;
+    dynamic.triangleCount = last - first;
+    bool anyPoint = false;
+    const auto include = [&dynamic, &anyPoint](const BspVertex& p) {
+      if (!anyPoint) {
+        dynamic.boundsMin[0] = dynamic.boundsMax[0] = p.x;
+        dynamic.boundsMin[1] = dynamic.boundsMax[1] = p.y;
+        dynamic.boundsMin[2] = dynamic.boundsMax[2] = p.z;
+        anyPoint = true;
+        return;
+      }
+      dynamic.boundsMin[0] = std::min(dynamic.boundsMin[0], p.x);
+      dynamic.boundsMin[1] = std::min(dynamic.boundsMin[1], p.y);
+      dynamic.boundsMin[2] = std::min(dynamic.boundsMin[2], p.z);
+      dynamic.boundsMax[0] = std::max(dynamic.boundsMax[0], p.x);
+      dynamic.boundsMax[1] = std::max(dynamic.boundsMax[1], p.y);
+      dynamic.boundsMax[2] = std::max(dynamic.boundsMax[2], p.z);
+    };
+    for (std::size_t at = first; at < last; ++at) {
+      const auto& triangle = map.dynamicBrushTriangles[at];
+      include(triangle.a);
+      include(triangle.b);
+      include(triangle.c);
+    }
   }
   map.triangleCapacity = triangleLimit;
   map.triangleCount = map.triangles.size();

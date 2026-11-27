@@ -332,14 +332,61 @@ struct EntityModelInstanceRows {
   float normalRows[9] = {};
 };
 
+// ---- G-2: the one permutation rule ----------------------------------------
+// The rows either carry the historical Y-up VVD -> Z-up world permutation or
+// they do not, and the renderer and the pose trace MUST ask the same question:
+// a ruler that hardcodes either answer measures a matrix the GPU never drew,
+// and the red it reports is then the ruler's own arithmetic (T108 review,
+// 2026-11-25). This function is the only place the rule is written down; a tree
+// changes THIS body, never a call site, and both sides follow.
+//
+// This body is the post-A1b truth: a skin matrix is boneModel (Z-up model
+// space) * poseToBone (Y-up bind mesh space), so a skinned vertex already
+// arrives in Z-up and skin matrices skip the permutation. The raw bind-pose
+// path keeps it because there the vertex really is the Y-up VVD position.
+inline bool entityDrawSkipsPermutation(bool sourceModelSpace, bool skinned) {
+  return sourceModelSpace || skinned;
+}
+
+// ---- A1d: the one spelling of "how a player body is drawn" -----------------
+// Source never rotates a body by the VIEW angles: m_angEyeAngles[0] is the view
+// pitch (its lean arrives through the body_pitch pose parameter instead) and
+// [2] is the view roll. Only yaw places a CTFPlayer. A1c fixed the body draw;
+// A1d moved the rule into this function so the hat, the held weapon and the
+// overlay silhouette cannot each spell it again -- the overlay's own copy of the
+// raw eye angles is what made a >45 degree view tilt the ink off the body.
+//
+// The same entity pass also draws props (a dropped weapon, a grenade) whose
+// angles are m_angRotation -- real pitch and roll -- so the clean-up is gated on
+// isPlayer and every other caller passes its angles through unchanged.
+inline void playerBodyDrawAngles(bool isPlayer, const float sourceAngles[3], float out[3]) {
+  out[0] = isPlayer ? 0.0f : sourceAngles[0];
+  out[1] = sourceAngles[1];
+  out[2] = isPlayer ? 0.0f : sourceAngles[2];
+}
+
 // One Source AngleMatrix plus the world-cube normalize, for dot(row, float4(local, 1)).
 // Normal rows are the same rotation without translation or scale.
+//
+// `sourceModelSpace` says the caller's positions are already Source Z-up model
+// space, so the historical Y-up VVD permutation is skipped and the rows are the
+// pure placement frame. True for map-model props and, since T108/A1b, for any
+// instance drawn through uploaded skin matrices (a skin matrix already maps
+// Y-up bind space into the model space the bones compose in); the raw bind-pose
+// path keeps the permutation because there the vertex really is the Y-up VVD
+// position.
 bool buildEntityModelInstanceRows(
   const float origin[3],
   const float angles[3],
   bool hasAngles,
   const EntityModelWorldMap& world,
   EntityModelInstanceRows& rows, bool sourceModelSpace = false);
+
+// G-2: FNV-1a (32-bit) over the 12 position rows exactly as they reach the GPU.
+// The pose trace prints it for the rows it built; the renderer records it for
+// the rows it uploaded; the gate refuses a reading whose two hashes differ, so
+// renderer/trace drift becomes a number instead of a silent PASS.
+std::uint32_t hashEntityModelInstanceRows(const EntityModelInstanceRows& rows);
 
 // Compose a map model's live Source pose with its moveparent chain. Bone
 // attachments and absent/cyclic parents are refused rather than drawn at a

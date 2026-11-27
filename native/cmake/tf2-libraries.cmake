@@ -39,6 +39,9 @@ add_library(tf2_core STATIC
   src/demo_header_track.cpp
   # N12-C: the camera tick track (capture, stamp, exact-tick query).
   src/demo_header_camera.cpp
+  src/entity_transform_track.cpp
+  # CA-01: PVS dormancy residency tracking and draw gate.
+  src/entity_dormant.cpp
   # task-35: anomaly tick audit (file clock/sequence + player shot pacing).
   src/demo_tick_audit.cpp
   src/demo_motion_detect.cpp
@@ -74,6 +77,7 @@ add_library(tf2_core STATIC
 
   # Animation.
   src/animation_decoder.cpp
+  src/pose_accumulate.cpp
   src/animation_binding.cpp
   src/animation_clock.cpp
   src/entity_model.cpp
@@ -105,6 +109,13 @@ add_library(tf2_core STATIC
   src/camera_director.cpp
   src/camera_bookmarks.cpp
 
+  # N27 (2026-11-24): the MP4 export sink. Here for the same reason as the
+  # animation members: the product and the offline video_export tool must drive
+  # ONE copy of the sink, otherwise the gate would be grading a second encoder.
+  # Media Foundation import libraries therefore propagate from this library's
+  # link line below, so every consumer gets them without repeating the list.
+  src/demo_export.cpp
+
   # Settings, UI and installer surfaces.
   src/keybinds.cpp
   src/ini_section.cpp
@@ -129,6 +140,10 @@ target_compile_definitions(tf2_core PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN ${TF2_VE
 # the product compiled it before this module existed.
 target_compile_options(tf2_core PRIVATE /W4 /permissive- /utf-8 /EHsc)
 
-# audio_resource.cpp calls into winmm/msacm32. PUBLIC because a static library
-# does not carry its own import libraries: every consumer links them too.
-target_link_libraries(tf2_core PUBLIC winmm msacm32)
+# audio_resource.cpp calls into winmm/msacm32; demo_export.cpp calls into Media
+# Foundation (mfplat: MFStartup/MFCreateMediaType, mfreadwrite: the sink writer
+# and the tool's source reader, mfuuid: the format/subtype GUIDs, ole32: the COM
+# entry points the WRL smart pointers go through). PUBLIC because a static
+# library does not carry its own import libraries: every consumer links them too,
+# and repeating the list per target is how the copies drift apart.
+target_link_libraries(tf2_core PUBLIC winmm msacm32 mfplat mfreadwrite mfuuid ole32)

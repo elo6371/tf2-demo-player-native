@@ -102,10 +102,10 @@ inline int g_cliHudTimelineEntity = -1;
 // review move the clock -- which is why this is openAt() and not start().
 inline int g_cliHudReview = -1;
 // --aim-layer-heading view|velocity: what the legacy blend's aim-layer weight is
-// measured against. `velocity` (the default) is today's rule; `view` measures it
-// against the yaw the body is drawn at, i.e. weight 0 -- the conclusion the
-// posegrid path already reached (docs/N17-PHASE-C-VISUAL-2026-11-21.md section 4).
-inline bool g_cliAimHeadingView = false;
+// measured against. The body is drawn at view yaw, so `view` is the consistent
+// default and keeps velocity direction from adding a false torso twist. `velocity`
+// remains an explicit compatibility mode for A/B checks.
+inline bool g_cliAimHeadingView = true;
 // P4 (2026-11-22) --gameplay-fx on|off: heal beams, flamethrower flames and
 // airblast, Ubercharge / Kritzkrieg / Quick-Fix / Vaccinator looks on bodies and
 // in first person, all read from the recording's entity state

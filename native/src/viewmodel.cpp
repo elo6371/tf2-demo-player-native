@@ -5,6 +5,7 @@
 #include <cmath>
 #include <fstream>
 #include <iterator>
+#include <limits>
 
 #include "vmt_material.h"
 
@@ -543,6 +544,13 @@ ViewModelAnimationOutcome resolveViewModelAnimationInput(
   request.cycle = input.cycle;
   request.hasPlaybackRate = input.hasPlaybackRate;
   request.playbackRate = input.playbackRate;
+  if (!input.hasCycle && input.sequenceStartTick >= 0 && timing.tick >= input.sequenceStartTick) {
+    const double elapsed = static_cast<double>(timing.tick) - input.sequenceStartTick;
+    const double rate = input.hasPlaybackRate && std::isfinite(input.playbackRate)
+        && input.playbackRate >= 0.0f ? input.playbackRate : 1.0;
+    request.tick = static_cast<std::int32_t>(std::min(elapsed * rate,
+      static_cast<double>((std::numeric_limits<std::int32_t>::max)())));
+  }
   const AnimationSampleResult sampled = buildAnimationSkinMatrices(drawnBinding, request);
   outcome.sequenceLabel = sampled.sequenceLabel;
   outcome.frame = sampled.frame;

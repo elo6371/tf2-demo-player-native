@@ -135,6 +135,14 @@ struct AnimationBlendLayer {
   float weight = 0.0f;
 };
 
+struct AnimationActionLayer {
+  std::int32_t sequence = -1;
+  std::int32_t event = -1;
+  std::int32_t eventTick = -1;
+  float cycle = 0.0f;
+  float weight = 0.0f;
+};
+
 // T105-n17 Step 2: the pose parameters a blend grid is indexed by, in the units
 // the pose parameter table uses (m_flPoseParameter: degrees for the aim axes,
 // -1..1 for the movement axes; a negative moveX is backward).
@@ -201,6 +209,14 @@ struct AnimationLocalPose {
   std::vector<std::array<float, 4>> rotation;
 };
 
+bool applyAnimationDelta(AnimationLocalPose& base, const AnimationLocalPose& delta,
+  float layerWeight, const std::vector<float>* boneWeights,
+  const std::vector<std::uint8_t>* animatedBones, bool post, std::string& reason);
+
+bool applyAnimationOverlay(AnimationLocalPose& base, const AnimationLocalPose& overlay,
+  float layerWeight, const std::vector<float>* boneWeights,
+  const std::vector<std::uint8_t>* animatedBones, std::string& reason);
+
 // Per-bone blend with optional per-layer bone gates. nullptr gates is the
 // legacy blend, unchanged bit for bit. Otherwise a layer supplies a bone only
 // when its weight is positive AND its gate for that bone is non-zero; the
@@ -230,6 +246,7 @@ struct AnimationSampleRequest {
   // same input produces the same weights in the same order.
   std::size_t blendLayerCount = 0;
   std::array<AnimationBlendLayer, kMaxBlendLayers> blendLayers{};
+  AnimationActionLayer action;
   // T105-n17 Step 2/3: opt-in grid sampling, and the weight_list gate that only
   // PoseGrid mode can use. Both default off so a request written before this
   // change behaves exactly as it did.
@@ -277,6 +294,8 @@ struct AnimationSampleResult {
   std::array<float, kMaxBlendLayers> blendWeights{{0.0f, 0.0f, 0.0f, 0.0f}};
   std::array<std::int32_t, kMaxBlendLayers> blendSequences{{-1, -1, -1, -1}};
   std::string blendReason;
+  bool actionApplied = false;
+  std::string actionReason;
   // T105-n17 Step 2: the grid lookup actually taken. These describe the FIRST
   // sequence sampled through a grid in this call (the primary sequence when it
   // has one, otherwise the first grid layer), and poseGridLayers counts how many
@@ -296,6 +315,13 @@ struct AnimationSampleResult {
   // Why a grid that should have been used was not: the trace prints it instead of
   // showing a grid-mode sample that silently kept cell 0.
   std::string poseGridReason;
+  // T108: the blended local pose the skin matrices were built from, indexed like
+  // binding->anims.bones (NOT by render bone) and in the same local space the
+  // decoder samples. Empty when the sample was refused. It is exposed so a caller
+  // can measure the pose -- root rotation against bind, per-bone angle from
+  // identity, torso uprightness -- instead of reading it back out of the skin
+  // matrices, which mix in the inverse bind transform.
+  AnimationLocalPose localPose;
 };
 
 // Composes two row-major 3x4 transforms in the convention the skinning path

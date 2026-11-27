@@ -168,6 +168,35 @@ struct BspRefusedBrushModel {
   bool moving = false;           // true: skippedMoving; false: unknown classname
 };
 
+// DB-2 (2026-11-26, E/map-materials): a brush model this parser keeps OUT of
+// the static world buffer because its entity can move it -- a door, a train, a
+// rotating brush, a breakable, a respawn visualizer. The engine draws such a
+// model with the ENTITY pose, not the compile-time pose: [S]
+// game/client/c_baseentity.cpp:1963 draws the brush model with
+// GetAbsOrigin()/GetAbsAngles(), and :1427 makes EF_NODRAW the visibility test.
+// So this row is the parse-time half of the binding; the runtime half walks
+// entityIndex every tick, reads m_nModelIndex / m_vecOrigin / m_angRotation and
+// poses the model from those values.
+//
+// firstTriangle/triangleCount address dynamicBrushTriangles, a sibling of
+// triangles. Vertices in it are MODEL space: no faceOrigin was applied at
+// emission, exactly as N20 leaves static brush vertices before its origin
+// shift. That is what makes the runtime transform the entity's own absolute
+// origin and angles and nothing else (no centre normalisation, no -0.1: those
+// belong to the entity-model path, entity_model.cpp:849-857 and :913).
+struct BspDynamicBrushModel {
+  int entityIndex = -1;          // 0-based position in lump 0, -1 if unnamed
+  std::string className;         // entity classname as written in the BSP
+  std::int32_t modelIndex = 0;   // the N in the entity model key (*N)
+  std::int32_t firstFace = 0;    // dmodel firstface (lump 14)
+  std::int32_t faceCount = 0;    // dmodel face count (lump 14)
+  std::size_t firstTriangle = 0; // first triangle in dynamicBrushTriangles
+  std::size_t triangleCount = 0; // triangles emitted for this model
+  float boundsMin[3] = {0.0f, 0.0f, 0.0f};  // MODEL-space AABB of those triangles
+  float boundsMax[3] = {0.0f, 0.0f, 0.0f};
+};
+
+
 // T101 (2026-11-09): the map's environment fog, as the entity lump declares it.
 // `env_fog_controller` is a POINT entity -- no `model` key, so the brush walk
 // never looked at it -- and before this struct none of its keys reached memory:
@@ -278,6 +307,17 @@ struct BspMap {
   // moment its counter is incremented, and no counter is derived from this
   // vector, so a reader of the counts cannot be moved by it.
   std::vector<BspRefusedBrushModel> brushModelsRefused;
+  // DB-2: the brush models that move, kept apart from the static buffer above.
+  // Filled only when --world-dynamic-brush is on: the walk marks a model dynamic
+  // at the classification step and pushes a row there, so an off run leaves both
+  // vectors empty, does no extra work, and its world buffer and counters are
+  // byte-identical to the build before this change.
+  std::vector<BspDynamicBrushModel> dynamicBrushModels;
+  std::vector<BspTriangle> dynamicBrushTriangles;
+  std::size_t dynamicBrushFaceCount = 0;      // faces emitted into the list above
+  std::size_t dynamicBrushTriangleCount = 0;  // triangles emitted into it
+  std::size_t dynamicBrushTrianglesDropped = 0;  // refused by the dynamic budget
+
   std::size_t brushFacesDrawn = 0;
   std::size_t brushFacesSkipped = 0;
   // N20: brush entities are compiled in MODEL space -- VBSP subtracts the
@@ -545,7 +585,8 @@ public:
   static bool parse(const std::vector<std::uint8_t>& bytes, BspMap& map,
     std::size_t triangleLimit = 200000, int atlasMaxWidth = 4096, bool keepMapWinding = false,
     bool flipDisplacementWinding = false,
-    const std::vector<std::string>& extraStaticClasses = {});
+    const std::vector<std::string>& extraStaticClasses = {},
+    bool drawDynamicBrushes = false);
   static const char* lightmapModeName(BspLightmapMode mode);
   static bool skyMaterialPath(const std::string& skyName, int face, std::string& out);
   static bool clusterVisible(const BspMap& map, int fromCluster, int toCluster);

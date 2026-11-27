@@ -150,6 +150,60 @@ inline bool sequenceLabelIsOneShot(const std::string& label) {
   return sequenceLabelHasSubstring(label, "reload");
 }
 
+enum class PlayerActionKind { AttackPrimary, ReloadStart, ReloadLoop, ReloadEnd };
+
+enum PlayerAnimEventValue {
+  kPlayerAnimEventAttackPrimary = 0,
+  kPlayerAnimEventReload = 3,
+  kPlayerAnimEventReloadLoop = 4,
+  kPlayerAnimEventReloadEnd = 5,
+};
+
+template <typename LabelAt, typename FrameCountAt, typename UsableAt>
+std::int32_t choosePlayerActionSequence(std::size_t sequenceCount,
+    const LabelAt& labelAt, const FrameCountAt& frameCountAt,
+    PlayerActionKind action, const UsableAt& usableAt, std::string* selectedLabel) {
+  std::int32_t best = -1;
+  int bestScore = -1;
+  for (std::size_t index = 0; index < sequenceCount; ++index) {
+    const std::string& label = labelAt(index);
+    if (frameCountAt(index) <= 0 || !usableAt(index) || sequenceLabelHasToken(label, "aimmatrix")
+        || sequenceLabelHasToken(label, "airwalk")) continue;
+    const bool attack = action == PlayerActionKind::AttackPrimary;
+    if (attack) {
+      if (!sequenceLabelHasToken(label, "attack")) continue;
+    } else {
+      if (!sequenceLabelHasToken(label, "reload")) continue;
+    }
+    int score = 0;
+    if (attack) {
+      if (sequenceLabelPrimaryTokenMatches(label, "attack")) score += 40;
+      if (sequenceLabelHasToken(label, "stand")) score += 10;
+      if (sequenceLabelHasToken(label, "primary")) score += 20;
+    } else {
+      if (sequenceLabelHasToken(label, "layer")) score += 40;
+      if (sequenceLabelHasToken(label, "arms")) score += 20;
+      if (sequenceLabelHasToken(label, "standing") || sequenceLabelHasToken(label, "stand")) score += 10;
+      if (sequenceLabelHasToken(label, "primary")) score += 20;
+      const bool stageMatches = action == PlayerActionKind::ReloadStart
+        ? sequenceLabelHasToken(label, "start")
+        : action == PlayerActionKind::ReloadLoop
+          ? sequenceLabelHasToken(label, "loop")
+          : sequenceLabelHasToken(label, "end");
+      if (action != PlayerActionKind::ReloadStart && !stageMatches) continue;
+      if (stageMatches) score += 80;
+      else if (action != PlayerActionKind::ReloadStart) score -= 30;
+      if (sequenceLabelHasToken(label, "crouch") || sequenceLabelHasToken(label, "swim")) score -= 20;
+    }
+    if (score > bestScore) {
+      best = static_cast<std::int32_t>(index);
+      bestScore = score;
+      if (selectedLabel != nullptr) *selectedLabel = label;
+    }
+  }
+  return best;
+}
+
 // The selector. labelAt(i) returns sequence i's label, frameCountAt(i) returns
 // sequence i's frame count (0 when the sequence has no animation descriptor).
 // Tiers, in the order they are tried:

@@ -283,9 +283,12 @@ std::vector<OverlayEntitySample> sampleOverlayEntities(
       ++counts.withOrigin;
     }
     if (transform.hasAngles) {
-      sample.angles[0] = transform.angles[0];
-      sample.angles[1] = transform.angles[1];
-      sample.angles[2] = transform.angles[2];
+      // A1d: the silhouette is drawn where the BODY is drawn, so it asks the
+      // body's rule instead of copying the raw result. Copying was the defect: a
+      // sample's angles come from m_angEyeAngles, and once the body stopped
+      // turning by the view pitch (A1c) this second copy kept turning the ink --
+      // a >45 degree look tilted the outline off the body it outlines.
+      tf2::native::playerBodyDrawAngles(isPlayer, transform.angles, sample.angles);
       ++counts.withAngles;
     }
     std::int64_t teamRaw = 0;

@@ -55,6 +55,9 @@ include(cmake/tf2-probes-hud.cmake)
 include(cmake/tf2-probes-install-cli.cmake)
 include(cmake/tf2-probes-minimap.cmake)
 include(cmake/tf2-probes-review.cmake)
+# N27 (2026-11-24): the offline export tool, last of the probes because it is the
+# newest domain and nothing downstream links it.
+include(cmake/tf2-probes-export.cmake)
 include(cmake/tf2-package.cmake)
 # D-54: the identity refresh target, last because it depends on both executables
 # that compile install_lifecycle.cpp and has to be created after them.

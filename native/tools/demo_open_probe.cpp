@@ -1,4 +1,5 @@
 #include "demo_header.h"
+#include "entity_transform_track.h"
 #include "demo_motion_detect.h"
 #include "demo_match_timeline.h"
 #include "timeline_hud.h"
@@ -757,6 +758,12 @@ int wmain(int argc, wchar_t** argv) {
   // costs a row per stamped packet (56 B each) and nothing reads it in the
   // product, so like the other dump switches it is off unless asked for.
   bool cameraTrack = false;
+  // CA-02a: opt in to the change-only placement track. Like cameraTrack, no product
+  // path reads it yet (CA-02b will), so the scan must not pay for it unless asked.
+  bool entityTransformTrack = false;
+  // The documented downsample knob: record movement at most once per N ticks. 1 is
+  // every change. Only meaningful with --entity-transform-track.
+  std::int32_t entityTransformStride = 1;
   // task-35: opt-in anomaly tick audit (file-layer clock/sequence integrity and
   // player-layer doubletap). Diagnostic only; it prints its own tick-audit rows.
   bool tickAudit = false;
@@ -777,6 +784,20 @@ int wmain(int argc, wchar_t** argv) {
   if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--camera-track") {
     cameraTrack = true;
     firstPath += 1;
+  }
+  if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--entity-transform-track") {
+    entityTransformTrack = true;
+    firstPath += 1;
+  }
+  if (scan && firstPath + 1 < argc && std::wstring(argv[firstPath]) == L"--entity-transform-stride") {
+    wchar_t* end = nullptr;
+    const long parsed = std::wcstol(argv[firstPath + 1], &end, 10);
+    if (end == argv[firstPath + 1] || *end != L'\0' || parsed < 1 || parsed > 64) {
+      std::wcerr << L"invalid entity transform stride\n";
+      return 2;
+    }
+    entityTransformStride = static_cast<std::int32_t>(parsed);
+    firstPath += 2;
   }
   if (scan && firstPath < argc && std::wstring(argv[firstPath]) == L"--tick-audit") {
     tickAudit = true;
@@ -1150,7 +1171,7 @@ int wmain(int argc, wchar_t** argv) {
     firstPath += 2;
   }
   if (firstPath >= argc) {
-    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--motion-detect] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] <demo.dem>\n";
+    std::wcerr << L"usage: demo_open_probe [--scan] [--snapshot <tick>] [--hud-census <tick,...>] [--motion-census] [--motion-detect] [--wearable-scan <tick>] [--cosmetics-table <tick>] [--tf-root <dir>] [--camera-tick <tick>] [--events <n>] [--temps <n>] [--tick-audit] [--userinfo] [--userinfo-dump <n>] [--userinfo-at a,b,a] [--entity-transform-track] [--entity-transform-stride <n>] <demo.dem>\n";
     return 2;
   }
   // N04/D46: a caller that checks the exit status must be able to tell a parsed
@@ -1209,6 +1230,16 @@ int wmain(int argc, wchar_t** argv) {
       tf2::native::DemoNetworkSummary summary;
       summary.networkProtocol = header.networkProtocol;
       summary.cameraTrackLimits.enabled = cameraTrack;
+      if (entityTransformTrack) {
+        summary.entityTransformLimits.enabled = true;
+        summary.entityTransformLimits.minTickStride = entityTransformStride;
+        // CA-02a rows carry CA-01's dormancy bit, and CA-01's residency hooks only
+        // run while it is armed. Arming here, BEFORE the scan starts, is what makes
+        // the first packet's Leave events and bitmap writes part of the evidence;
+        // arming inside the append would miss them. demo_header.cpp carries the flag
+        // across the scan's `summary = {}` (CA-02a patch 03).
+        setEntityDormantEnabled(summary, true);
+      }
       // task-35: the capture is opt-in, so without the switch no packet row, sim
       // sample or anim event is recorded and every existing line stays identical.
       if (tickAudit || viewModelCensus || fxCensus || motionCensus || motionDetect || matchTimeline) {
@@ -1875,6 +1906,45 @@ int wmain(int argc, wchar_t** argv) {
                  << L" fixangle_samples=" << summary.fixAngleSamples.size()
                  << L" packets_with_own_net_tick=" << summary.packetsWithOwnNetTick
                  << L" first_data_packet_own_net_tick=" << summary.firstDataPacketOwnNetTick;
+      // CA-02a sizing: the row count, the byte count the retention actually holds
+      // (vector capacity, not size), and the counters that explain where the rows
+      // went. A stride run prints the same rows-per-tick ratio at a larger stride.
+      if (entityTransformTrack) {
+        const tf2::native::EntityTransformTrackStats transformStats =
+            tf2::native::summarizeEntityTransformTrack(summary);
+        std::wcout << L" entity_transform_rows=" << transformStats.rows
+                   << L" entity_transform_lifetimes=" << transformStats.lifetimes
+                   << L" entity_transform_entities=" << transformStats.entities
+                   << L" entity_transform_moving_lifetimes=" << transformStats.movingLifetimes
+                   << L" entity_transform_player_lifetimes=" << transformStats.playerLifetimes
+                   << L" entity_transform_model_lifetimes=" << transformStats.modelLifetimes
+                   << L" entity_transform_dormant_rows=" << transformStats.dormantRows
+                   << L" entity_transform_first_tick=" << transformStats.firstTick
+                   << L" entity_transform_last_tick=" << transformStats.lastTick
+                   << L" entity_transform_bytes=" << transformStats.retainedBytes
+                   << L" entity_transform_packets=" << transformStats.packetsScanned
+                   << L" entity_transform_slots_walked=" << transformStats.slotsWalked
+                   << L" entity_transform_rows_unchanged=" << transformStats.rowsUnchanged
+                   << L" entity_transform_rows_stride_skipped=" << transformStats.rowsStrideSkipped
+                   << L" entity_transform_lifetimes_not_drawable=" << transformStats.lifetimesNotDrawable
+                   << L" entity_transform_dropped=" << transformStats.droppedRows
+                   << L" entity_transform_stopped=" << (transformStats.captureStopped ? 1 : 0)
+                   << L" entity_transform_stride=" << entityTransformStride
+                   << L" entity_transform_dormant_departures=" << summary.entityDormantDepartures
+                   << L" entity_transform_dormant_returns=" << summary.entityDormantReturns
+                   << L" entity_transform_slots_skipped=" << summary.entityTransformSlotsSkipped;
+        if (!summary.entityTransformAppendMillis.empty()) {
+          double appendTotal = 0.0;
+          double appendWorst = 0.0;
+          for (const double appendMs : summary.entityTransformAppendMillis) {
+            appendTotal += appendMs;
+            if (appendMs > appendWorst) appendWorst = appendMs;
+          }
+          std::wcout << L" entity_transform_append_ms_avg="
+                     << (appendTotal / static_cast<double>(summary.entityTransformAppendMillis.size()))
+                     << L" entity_transform_append_ms_max=" << appendWorst;
+        }
+      }
       if (cameraTrack) {
         std::size_t cameraFirstInversion = 0;
         const bool cameraOrdered =

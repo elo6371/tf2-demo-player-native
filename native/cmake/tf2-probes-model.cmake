@@ -22,7 +22,9 @@
 # skeleton, the overlay sampler is the only per-tick player reader, and
 # EntityModelResolver owns the origin the speed is measured from.
 add_executable(model_pose_probe
-  tools/model_pose_probe.cpp)
+  tools/model_pose_probe.cpp
+  # Root diagnosis: the reference Source semantics next to the product decoder.
+  tools/root_diagnosis.cpp)
 target_link_libraries(model_pose_probe PRIVATE tf2_core ${TF2_DEMO_HEADER_LIBS})
 target_compile_definitions(model_pose_probe PRIVATE ${TF2_DEMO_HEADER_DEFINES})
 target_include_directories(model_pose_probe PRIVATE include third_party/lzma)

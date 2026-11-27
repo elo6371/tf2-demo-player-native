@@ -409,6 +409,12 @@ ViewModelEntityLookup findViewModelAnimationInput(
   const std::int64_t sequence = readIntSlot(state, "m_nSequence", hasSequence);
   lookup.input.hasSequence = hasSequence;
   lookup.input.sequence = hasSequence ? static_cast<int>(sequence) : -1;
+  if (hasSequence) {
+    const auto* sequenceSlot = findProperty(state, "m_nSequence");
+    const auto* parity = findProperty(state, "m_nAnimationParity");
+    lookup.input.sequenceStartTick = std::max(sequenceSlot->lastWriteTick,
+      parity != nullptr ? parity->lastWriteTick : -1);
+  }
   bool hasRate = false;
   const double rate = readFloatSlot(state, "m_flPlaybackRate", hasRate);
   lookup.input.hasPlaybackRate = hasRate;
@@ -797,6 +803,20 @@ std::vector<ModelInstance> EntityModelResolver::buildInstances(
   return instances;
 }
 
+std::uint32_t hashEntityModelInstanceRows(const EntityModelInstanceRows& rows) {
+  // FNV-1a over the bytes of the position rows, in the order they are handed to
+  // the GPU. Position rows only: the upright reading is taken from them, and the
+  // normal rows are derived from the same rotation, so hashing both would only
+  // lengthen the number without strengthening the claim.
+  std::uint32_t hash = 2166136261u;
+  const auto* bytes = reinterpret_cast<const unsigned char*>(rows.positionRows);
+  for (std::size_t i = 0; i < sizeof(rows.positionRows); ++i) {
+    hash ^= static_cast<std::uint32_t>(bytes[i]);
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
 bool buildEntityModelInstanceRows(
     const float origin[3],
     const float angles[3],
@@ -904,6 +924,9 @@ bool resolveEntityWorldMatrix(const std::vector<EntityState>& statesByIndex,
           pose.hasAngles, world, rows, true)) {
       error = "map model has no finite live transform"; return false;
     }
+    // Cancel the +0.1 render-space z bias buildEntityModelInstanceRows() adds at :871,
+    // once per chain member: a moveparent chain must not stack one bias per level.
+    // Changing :871 means changing this line with it.
     rows.positionRows[11] -= 0.1f;
     std::array<float, 12> composed{};
     for (int row = 0; row < 3; ++row) {
